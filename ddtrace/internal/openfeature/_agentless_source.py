@@ -12,14 +12,17 @@ overlap. The per-poll retry/backoff and per-request timeout live inside a single
 """
 
 from collections import namedtuple
+import logging
 import os
 import random
+import re
 import socket
 import threading
 import time
 from typing import Any
 from typing import Callable
 from typing import Optional
+from urllib.parse import parse_qs
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -27,6 +30,7 @@ from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
+from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import RetryError
@@ -58,6 +62,13 @@ FIRST_POLL_JITTER_MAX_S = 5.0
 SHUTDOWN_POLL_INTERVAL_S = 0.2
 _WAIT_EPSILON_S = 1e-6
 
+# Remove the entire URL: credentials can occur in userinfo, paths and queries.
+# Include embedded quotes; only trailing message punctuation is preserved.
+# The lookbehind only lets a scheme start where a run of scheme characters starts;
+# otherwise each position inside a long run rescans the rest of it (quadratic).
+# It is inside the optional group so a bare "//" is still redacted anywhere.
+_URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
+
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
 _PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
@@ -65,6 +76,16 @@ _PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
+
+
+def _describe_error(error: BaseException) -> str:
+    """Keep transport diagnostics without quoting endpoint URLs or exception chains."""
+    name = type(error).__name__
+    try:
+        message = _URL_RE.sub("<endpoint>", str(error))
+    except Exception:
+        return name
+    return f"{name}: {message}" if message else name
 
 
 def _is_retryable_status(status: Optional[int]) -> bool:
@@ -83,6 +104,7 @@ class AgentlessConfigurationSource(PeriodicService):
         api_key: Optional[str] = None,
         poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        env: Optional[str] = None,
     ) -> None:
         # A non-positive interval would make PeriodicThread schedule the next run
         # immediately, turning polling into a tight loop against the CDN, so fall
@@ -112,6 +134,9 @@ class AgentlessConfigurationSource(PeriodicService):
 
         self._apply_configuration = apply_configuration
         self._api_key = api_key
+        # Only reported in debug logs, to diagnose an SDK env that does not match
+        # the environment the flags were configured for.
+        self._env = env
         self._request_timeout = request_timeout
 
         # Split the endpoint into an origin (for the connection) and a request
@@ -120,11 +145,15 @@ class AgentlessConfigurationSource(PeriodicService):
         parts = urlsplit(endpoint)
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
         self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
+        # The environment the endpoint is actually asked for. A custom endpoint does
+        # not receive DD_ENV unless its own URL carries dd_env.
+        self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
 
         self._etag: Optional[str] = None
         self._failure_warnings: set[str] = set()
         self._malformed_payload_logged = False
         self._application_failure_logged = False
+        self._poll_failed = False
 
         # Fork staggering: the process that created the source polls immediately;
         # a forked child jitters its first poll (see periodic()). Tracked by PID so
@@ -147,6 +176,15 @@ class AgentlessConfigurationSource(PeriodicService):
 
     def _start_service(self, *args: Any, **kwargs: Any) -> None:
         self._stopping = False
+        log.debug(
+            "Feature Flags: agentless configuration source settings: sdk_env=%s, requested_env=%s, "
+            "DD-API-KEY header %s, poll interval %.1fs, request timeout %.1fs",
+            self._env or "unset",
+            self._requested_env or "not sent",
+            "sent" if self._api_key else "not sent",
+            self.interval,
+            self._request_timeout,
+        )
         super()._start_service(*args, **kwargs)
 
     def _stop_service(self, *args: Any, **kwargs: Any) -> None:
@@ -208,18 +246,30 @@ class AgentlessConfigurationSource(PeriodicService):
             return
 
         after = [self._retry_delay(1), self._retry_delay(2)]
+        attempts = 0
+
+        def attempt() -> _PollResponse:
+            nonlocal attempts
+            attempts += 1
+            log.debug("Feature Flags: agentless configuration poll attempt %d/%d", attempts, MAX_ATTEMPTS)
+            response = self._request()
+            retrying = attempts < MAX_ATTEMPTS and not self._stopping and _is_retryable_status(response.status)
+            self._log_attempt_outcome(response, attempts, after[attempts - 1] if retrying else None)
+            return response
+
         poll = retry(
             after=after,
             # Stop retrying on a decisive response, or as soon as a shutdown is
             # requested (the backoff wait below returns early in that case).
             until=lambda r: self._stopping or not _is_retryable_status(r.status),
             sleep_func=self._wait,
-        )(self._request)
+        )(attempt)
         try:
             response = poll()
         except RetryError as e:
             # All attempts failed with retryable outcomes; keep last-known-good.
             self._warn_failure(e.args[0], MAX_ATTEMPTS)
+            self._record_failed_poll()
             return
         except Exception:
             log.debug("Feature Flagging agentless poll failed unexpectedly", exc_info=True)
@@ -230,7 +280,7 @@ class AgentlessConfigurationSource(PeriodicService):
         if self._stopping:
             return
 
-        self._apply(response)
+        self._apply(response, attempts)
 
     def _stagger_first_poll_after_fork(self) -> bool:
         """Delay the first poll in a forked child so workers don't poll in lockstep.
@@ -305,25 +355,66 @@ class AgentlessConfigurationSource(PeriodicService):
 
     # -- response handling --------------------------------------------------
 
-    def _apply(self, response: _PollResponse) -> None:
+    def _log_attempt_outcome(self, response: _PollResponse, attempt: int, retry_delay: Optional[float]) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        if retry_delay is not None:
+            next_step = "; retrying in %.1fs" % retry_delay
+        elif response.status is None or response.status >= 300:
+            next_step = "; not retrying"
+        else:
+            next_step = ""
+
+        if response.status == 304:
+            # The held configuration is still current; this is not a failure.
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d returned HTTP 304 (unchanged)",
+                attempt,
+                MAX_ATTEMPTS,
+            )
+        elif response.status is not None:
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d returned HTTP %d%s",
+                attempt,
+                MAX_ATTEMPTS,
+                response.status,
+                next_step,
+            )
+        elif response.error is not None:
+            log.debug(
+                "Feature Flags: agentless configuration poll attempt %d/%d failed: %s%s",
+                attempt,
+                MAX_ATTEMPTS,
+                _describe_error(response.error),
+                next_step,
+            )
+
+    def _apply(self, response: _PollResponse, attempts: int) -> None:
         status = response.status
 
         if status == 304:
+            self._record_recovery()
             return
         if status in (401, 403):
             self._warn_failure(response, 1)
+            self._record_failed_poll()
             return
         if status != 200:
-            # Non-2xx bodies are not decoded as config.
+            # Non-2xx bodies are not decoded as config. The endpoint answered with a
+            # status that retrying will not change, which is worth surfacing.
+            self._warn_failure(response, attempts)
+            self._record_failed_poll()
             return
 
         try:
             body = decode_response_body(response.body, response.content_encoding)
             attributes = parse_ufc_configuration(body)
-        except Exception:
+        except Exception as e:
+            log.debug("Feature Flags: agentless configuration payload rejected: %s", _describe_error(e))
             if not self._malformed_payload_logged:
                 self._malformed_payload_logged = True
                 log.error("Feature Flagging agentless endpoint returned malformed UFC payload")
+            self._record_failed_poll()
             return
 
         try:
@@ -332,12 +423,41 @@ class AgentlessConfigurationSource(PeriodicService):
             if not self._application_failure_logged:
                 self._application_failure_logged = True
                 log.warning("Feature Flagging agentless UFC payload could not be applied: %s", e)
+            self._record_failed_poll()
             return
 
         # Advance the ETag only after parse AND apply both succeed. A blank or
         # absent ETag clears the previous one.
         etag = (response.etag or "").strip()
         self._etag = etag or None
+        self._record_recovery()
+
+        # The SDK environment, the environment requested from the endpoint and the
+        # environment the configuration was built for can each differ.
+        log.debug(
+            "Feature Flags: agentless configuration applied successfully (%d flag(s), sdk_env=%s, "
+            "requested_env=%s, configuration_env=%s, created_at=%s, etag=%s)",
+            len(attributes["flags"]),
+            self._env or "unset",
+            self._requested_env or "not sent",
+            attributes["environment"]["name"],
+            attributes["createdAt"],
+            self._etag,
+        )
+
+    def _record_failed_poll(self) -> None:
+        self._poll_failed = True
+        log.debug(
+            "Feature Flags: agentless configuration poll failed; %s",
+            "the previously applied configuration remains active"
+            if _get_ffe_snapshot() is not None
+            else "no configuration is active, so evaluations return default values",
+        )
+
+    def _record_recovery(self) -> None:
+        if self._poll_failed:
+            log.debug("Feature Flags: agentless configuration delivery recovered (etag=%s)", self._etag)
+            self._poll_failed = False
 
     def _warn_failure(self, response: _PollResponse, attempts: int) -> None:
         status = response.status
@@ -352,11 +472,18 @@ class AgentlessConfigurationSource(PeriodicService):
             return
         self._failure_warnings.add(category)
 
-        if status in (401, 403):
-            log.warning("Feature Flagging agentless endpoint returned HTTP %d; verify endpoint authentication", status)
-        elif status:
-            log.warning("Feature Flagging agentless endpoint returned HTTP %d after %d attempts", status, attempts)
+        if status:
+            log.warning(
+                "Feature Flagging agentless endpoint returned HTTP %d. Possible causes: missing or invalid API key, "
+                "API key not permitted to read this environment, wrong site or endpoint URL, unknown environment, "
+                "or a temporary service problem",
+                status,
+            )
         elif attempts > 1:
-            log.warning("Feature Flagging agentless request failed after %d attempts: %s", attempts, response.error)
+            log.warning(
+                "Feature Flagging agentless request failed after %d attempts: %s",
+                attempts,
+                _describe_error(response.error),
+            )
         else:
-            log.warning("Feature Flagging agentless request failed: %s", response.error)
+            log.warning("Feature Flagging agentless request failed: %s", _describe_error(response.error))
