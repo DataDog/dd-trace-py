@@ -1,16 +1,14 @@
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 
-
-if TYPE_CHECKING:
-    from mcp.types import CallToolRequest
-    from mcp.types import CallToolResult
-    from mcp.types import InitializeRequest
-    from mcp.types import ListToolsResult
-
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
+from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
@@ -25,16 +23,13 @@ log = get_logger(__name__)
 
 MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
-CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
-SERVER_REQUEST_OPERATION_NAME = "server_request"
-# This operation is handled the same as server_request but has a different name for legacy reasons
-SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 DEFAULT_TOOL_ERROR_MESSAGE = "tool resulted in an error"
+MCP_SESSION_ID_HEADER = "mcp-session-id"
+MCP_RESERVED_META_KEY_PREFIX = "io.modelcontextprotocol/"
 # Client identity is self-reported and repeated on every tool call span in a session
 MAX_CLIENT_INFO_TAG_LENGTH = 256
 
 
-TELEMETRY_KEY = "telemetry"
 INTENT_KEY = "intent"
 INTENT_PROMPT = """Briefly describe the wider context task, and why this tool was chosen.
  Omit argument values, PII/secrets. Use English.
@@ -86,6 +81,10 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
     return tags
 
 
+def is_tool_error(result: Any) -> bool:
+    return bool(_get_attr(result, "isError", None) or _get_attr(result, "is_error", None))
+
+
 def get_tool_error_message(result: Any) -> Optional[str]:
     content = _get_attr(result, "content", None) or []
     if not isinstance(content, list):
@@ -111,12 +110,12 @@ class MCPIntegration(BaseLLMIntegration):
         return span
 
     # Inject intent capture properties into inputSchemas on the response
-    def inject_tools_list_response(self, response: "ListToolsResult") -> None:
+    def inject_tools_list_response(self, response: Any) -> None:
         if not self.llmobs_enabled:
             return
 
-        for tool in response.tools:
-            input_schema = getattr(tool, "inputSchema", None)
+        for tool in _get_attr(response, "tools", None) or []:
+            input_schema = _get_attr(tool, "inputSchema", None)
             if not isinstance(input_schema, dict):
                 continue
             if not input_schema.get("type"):
@@ -159,6 +158,8 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
         elif operation == SERVER_REQUEST_OPERATION_NAME or operation == SERVER_TOOL_CALL_OPERATION_NAME:
             self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
+        elif operation == SERVER_MIDDLEWARE_OPERATION_NAME:
+            self._llmobs_set_tags_server_middleware(span, args, kwargs, response)
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)
         elif operation == "session":
@@ -182,7 +183,7 @@ class MCPIntegration(BaseLLMIntegration):
 
         # Tool response is `mcp.types.CallToolResult` type
         content = _get_attr(response, "content", [])
-        is_error = _get_attr(response, "isError", False)
+        is_error = is_tool_error(response)
         processed_content = []
         if content and hasattr(content, "__iter__"):
             processed_content = [
@@ -192,9 +193,13 @@ class MCPIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_initialize(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
         _annotate_llmobs_span_data(span, name="MCP Client Initialize", kind="task", output_value=safe_json(response))
+        self.set_client_session_server_info(
+            span, _get_attr(response, "serverInfo", None) or _get_attr(response, "server_info", None)
+        )
 
-        server_info = getattr(response, "serverInfo", None)
-        if not server_info:
+    def set_client_session_server_info(self, span: Optional[Span], server_info: Any) -> None:
+        """Tag the enclosing client session span with the server's self-reported identity."""
+        if not self.llmobs_enabled or not server_info:
             return
 
         client_session_root = _find_client_session_root(span)
@@ -208,7 +213,7 @@ class MCPIntegration(BaseLLMIntegration):
                 },
             )
 
-    def _set_initialize_request_overrides(self, span: Span, request: "InitializeRequest") -> None:
+    def _set_initialize_request_overrides(self, span: Span, request: Any) -> None:
         """Update span for initialize request specific tags"""
         request_params = _get_attr(request, "params", None)
         client_info = _get_attr(request_params, "clientInfo", None)
@@ -223,9 +228,7 @@ class MCPIntegration(BaseLLMIntegration):
                 },
             )
 
-    def _set_call_tool_request_overrides(
-        self, span: Span, request: "CallToolRequest", response: Optional["CallToolResult"]
-    ) -> None:
+    def _set_call_tool_request_overrides(self, span: Span, request: Any, response: Any) -> None:
         """Update span for call tool-specific tags, span name, and span type"""
         override_tags = {}
         params = _get_attr(request, "params", None)
@@ -236,14 +239,13 @@ class MCPIntegration(BaseLLMIntegration):
             override_tags["mcp_tool"] = tool_name
             override_tags["mcp_tool_kind"] = "server"
 
-        is_error = _get_attr(response, "isError", False) if response else False
-        if is_error:
+        if response and is_tool_error(response):
             span.error = 1
             span.set_tag(ERROR_TYPE, "ToolError")
             span.set_tag(ERROR_MSG, get_tool_error_message(response) or DEFAULT_TOOL_ERROR_MESSAGE)
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
-    def process_telemetry_argument(self, span: Span, request: "CallToolRequest") -> None:
+    def process_telemetry_argument(self, span: Span, request: Any) -> None:
         """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
@@ -261,18 +263,28 @@ class MCPIntegration(BaseLLMIntegration):
             # The argument is removed before recording the input and calling the tool
             del arguments[TELEMETRY_KEY]
 
+    def _set_server_request_tags(
+        self, span: Span, request: Any, input_obj: Any, response: Any, session: Any, session_id: Any
+    ) -> None:
+        method = str(_get_attr(request, "method", "unknown"))
+        tags = {"mcp_method": method}
+        if session_id:
+            tags["mcp_session_id"] = str(session_id)
+        tags.update(get_client_info_tags(get_client_info(_get_attr(request, "params", None), session)))
+
+        # Set defaults. Type-specific methods below may override.
+        _annotate_llmobs_span_data(
+            span, kind="task", input_value=safe_json(input_obj), output_value=safe_json(response), tags=tags
+        )
+
+        if method == "initialize":
+            self._set_initialize_request_overrides(span, request)
+        elif method == "tools/call":
+            self._set_call_tool_request_overrides(span, request, response)
+
     def _llmobs_set_tags_request_responder_respond(
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
     ) -> None:
-        try:
-            from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
-            from mcp.types import CallToolRequest
-            from mcp.types import InitializeRequest
-        except ImportError:
-            InitializeRequest = None
-            MCP_SESSION_ID_HEADER = None
-            CallToolRequest = None
-
         responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
         response_value = get_argument_value(args, kwargs, 0, "response", optional=True)
 
@@ -280,38 +292,43 @@ class MCPIntegration(BaseLLMIntegration):
         request_root = getattr(request, "root", None)
         response_root = getattr(response_value, "root", response_value)
 
-        request_method = str(_get_attr(request_root, "method", "unknown"))
-        common_tags = {"mcp_method": request_method}
-
         # Session ID from streamable HTTP transport
         message_metadata = _get_attr(responder, "message_metadata", None)
         http_request = message_metadata and _get_attr(message_metadata, "request_context", None)
-        maybe_session_id = (
-            http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER)
-            if MCP_SESSION_ID_HEADER
-            else None
-        )
-        if maybe_session_id:
-            common_tags["mcp_session_id"] = str(maybe_session_id)
-
-        client_info = get_client_info(_get_attr(request_root, "params", None), _get_attr(responder, "_session", None))
-        common_tags.update(get_client_info_tags(client_info))
+        session_id = http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER)
 
         # Exclude tracing context metadata from the recorded input
         if request_root and hasattr(request_root, "model_dump"):
-            input_obj = request_root.model_dump(exclude={"params": {"meta": "_dd_trace_context"}})
+            input_obj = request_root.model_dump(exclude={"params": {"meta": DD_TRACE_CONTEXT_META_KEY}})
         else:
             input_obj = request_root
 
-        # Set defaults. Type-specific methods below may override.
-        _annotate_llmobs_span_data(
-            span, kind="task", input_value=safe_json(input_obj), output_value=safe_json(response_root), tags=common_tags
+        self._set_server_request_tags(
+            span, request_root, input_obj, response_root, _get_attr(responder, "_session", None), session_id
         )
 
-        if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
-            self._set_initialize_request_overrides(span, request_root)
-        if CallToolRequest and request_root and isinstance(request_root, CallToolRequest):
-            self._set_call_tool_request_overrides(span, request_root, response_root)
+    def _llmobs_set_tags_server_middleware(
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
+    ) -> None:
+        ctx = kwargs["ctx"]
+        params = ctx.params or {}
+        request = {"method": ctx.method, "params": params}
+
+        meta = params.get("_meta")
+        if isinstance(meta, dict):
+            # Stateless requests repeat the client's identity and capabilities under reserved keys on every call
+            meta = {
+                k: v
+                for k, v in meta.items()
+                if k != DD_TRACE_CONTEXT_META_KEY and not k.startswith(MCP_RESERVED_META_KEY_PREFIX)
+            }
+            params = {**params, "_meta": meta} if meta else {k: v for k, v in params.items() if k != "_meta"}
+        input_obj = {"method": ctx.method, "params": params, "jsonrpc": "2.0", "id": ctx.request_id}
+
+        headers = _get_attr(ctx.request, "headers", None)
+        session_id = headers.get(MCP_SESSION_ID_HEADER) if headers is not None else None
+
+        self._set_server_request_tags(span, request, input_obj, response, ctx.session, session_id)
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)

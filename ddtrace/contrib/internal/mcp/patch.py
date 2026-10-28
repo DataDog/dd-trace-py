@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
 from typing import Optional
 
 import mcp
 
-
-if TYPE_CHECKING:
-    from mcp.types import ClientRequest
-    from mcp.types import Request
-
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp.utils import DatadogServerMiddleware
+from ddtrace.contrib.internal.mcp.utils import extract_distributed_headers_from_mcp_request
+from ddtrace.contrib.internal.mcp.utils import set_distributed_headers_into_mcp_request
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.contrib.trace_utils import unwrap
@@ -22,12 +22,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._integrations.mcp import get_tool_error_message
-from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.llmobs._integrations.mcp import is_tool_error
 from ddtrace.trace import tracer
 
 
@@ -55,53 +53,7 @@ def _supported_versions() -> dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(request: ClientRequest) -> ClientRequest:
-    """Inject distributed tracing headers into MCP request metadata."""
-    span = tracer.current_span()
-    if span is None:
-        return request
-
-    headers = {}
-    HTTPPropagator.inject(span.context, headers)
-    if not headers:
-        return request
-    if _get_attr(request, "root", None) is None:
-        return request
-
-    try:
-        request_params = _get_attr(request.root, "params", None)
-        if not request_params:
-            return request
-
-        # Use the `_meta` field to store tracing headers. It is accessed via a public
-        # `meta` attribute on the request params. This field is reserved for server/clients
-        # to attach additional metadata to a request. For more information, see:
-        # https://modelcontextprotocol.io/specification/2025-06-18/basic#meta
-        existing_meta = _get_attr(request_params, "meta", None)
-        meta_dict = existing_meta.model_dump() if existing_meta else {}
-
-        meta_dict["_dd_trace_context"] = headers
-        params_dict = request_params.model_dump(by_alias=True)
-        params_dict["_meta"] = meta_dict
-
-        new_params = type(request_params)(**params_dict)
-        request_dict = request.root.model_dump()
-        request_dict["params"] = new_params
-
-        new_request_root = type(request.root)(**request_dict)
-        return type(request)(new_request_root)
-    except Exception:
-        log.error("Error injecting distributed tracing headers into MCP request metadata", exc_info=True)
-        return request
-
-
-def _extract_distributed_headers_from_mcp_request(request_root: Request) -> Optional[dict[str, str]]:
-    """Extract distributed tracing headers from MCP request params.meta field."""
-    request_params = _get_attr(request_root, "params", None)
-    meta = _get_attr(request_params, "meta", None) if request_params else None
-    meta_dict = meta.model_dump() if meta and hasattr(meta, "model_dump") else {}
-    headers = meta_dict.get("_dd_trace_context", {})
-    return headers if headers else None
+MCP_VERSION = parse_version(get_version())
 
 
 def traced_send_request(func, instance, args: tuple, kwargs: dict):
@@ -109,7 +61,7 @@ def traced_send_request(func, instance, args: tuple, kwargs: dict):
     if not args or not config.mcp.distributed_tracing:
         return func(*args, **kwargs)
     request = args[0]
-    modified_request = _set_distributed_headers_into_mcp_request(request)
+    modified_request = set_distributed_headers_into_mcp_request(request)
     return func(*((modified_request,) + args[1:]), **kwargs)
 
 
@@ -121,7 +73,7 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
     try:
         result = await func(*args, **kwargs)
 
-        if getattr(result, "isError", False):
+        if is_tool_error(result):
             span.error = 1
             error_message = get_tool_error_message(result)
             if error_message:
@@ -222,7 +174,7 @@ def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
     if (
         isinstance(request_root, CallToolRequest)
         and config.mcp.distributed_tracing
-        and (headers := _extract_distributed_headers_from_mcp_request(request_root))
+        and (headers := extract_distributed_headers_from_mcp_request(request_root))
     ):
         activate_distributed_headers(tracer, config.mcp, headers)
 
@@ -282,6 +234,34 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
             )
 
 
+def traced_client_session_adopt(func, instance, args: tuple, kwargs: dict):
+    """Tags the client session span with the server's name on stateless mcp>=2 sessions, which skip
+    initialize. Their server info arrives in a discover request's DiscoverResult, which every stateless
+    setup path passes to adopt(). A Client pinned with mode="2026-07-28" skips discover and adopts a
+    placeholder with no server info (unless given prior_discover), so it gets no mcp_server_name.
+    """
+    result = func(*args, **kwargs)
+    integration: MCPIntegration = mcp._datadog_integration
+    span = getattr(instance, "_dd_span", None) or tracer.current_span()
+    integration.set_client_session_server_info(span, _get_attr(instance, "server_info", None))
+    return result
+
+
+def traced_server_runner_init(func, instance, args: tuple, kwargs: dict):
+    """Every mcp>=2 transport builds a ServerRunner per connection, which reads Server.middleware
+    at call time. Hooking here also covers servers constructed before patch().
+    """
+    result = func(*args, **kwargs)
+    try:
+        middleware = instance.server.middleware
+        if not any(isinstance(m, DatadogServerMiddleware) for m in middleware):
+            # Outermost, so the span also covers params validation and the SDK's OpenTelemetry middleware
+            middleware.insert(0, DatadogServerMiddleware())
+    except Exception:
+        log.debug("Error installing Datadog MCP server middleware", exc_info=True)
+    return result
+
+
 def patch():
     if getattr(mcp, "__datadog_patch", False):
         return
@@ -292,8 +272,6 @@ def patch():
 
     try:
         from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
     except ImportError:
         mcp.__datadog_patch = False
         log.debug("mcp is importable but is not the MCP SDK, skipping instrumentation")
@@ -303,10 +281,22 @@ def patch():
 
     wrap(ClientSession, "__aenter__", traced_client_session_aenter)
     wrap(ClientSession, "__aexit__", traced_client_session_aexit)
-    wrap(BaseSession, "send_request", traced_send_request)
     wrap(ClientSession, "call_tool", traced_call_tool)
     wrap(ClientSession, "list_tools", traced_client_session_list_tools)
     wrap(ClientSession, "initialize", traced_client_session_initialize)
+
+    if MCP_VERSION >= (2, 0, 0):
+        from mcp.server.runner import ServerRunner
+
+        wrap(ClientSession, "send_request", traced_send_request)
+        wrap(ClientSession, "adopt", traced_client_session_adopt)
+        wrap(ServerRunner, "__init__", traced_server_runner_init)
+        return
+
+    from mcp.shared.session import BaseSession
+    from mcp.shared.session import RequestResponder
+
+    wrap(BaseSession, "send_request", traced_send_request)
     wrap(RequestResponder, "respond", traced_request_responder_respond)
 
     # RequestResponder gained the context manager protocol in mcp 1.3.0.
@@ -322,22 +312,31 @@ def unpatch():
     mcp.__datadog_patch = False
 
     # Only reachable with __datadog_patch set, which patch() leaves set only
-    # when these imports succeeded, so they cannot fail here.
+    # when this import succeeded, so it cannot fail here.
     from mcp.client.session import ClientSession
-    from mcp.shared.session import BaseSession
-    from mcp.shared.session import RequestResponder
 
     unwrap(ClientSession, "__aenter__")
     unwrap(ClientSession, "__aexit__")
-    unwrap(BaseSession, "send_request")
     unwrap(ClientSession, "call_tool")
     unwrap(ClientSession, "list_tools")
     unwrap(ClientSession, "initialize")
-    unwrap(RequestResponder, "respond")
 
-    # Only wrapped on mcp >= 1.3.0, see patch().
-    if iswrapped(RequestResponder, "__enter__"):
-        unwrap(RequestResponder, "__enter__")
-        unwrap(RequestResponder, "__exit__")
+    if MCP_VERSION >= (2, 0, 0):
+        from mcp.server.runner import ServerRunner
+
+        unwrap(ClientSession, "send_request")
+        unwrap(ClientSession, "adopt")
+        unwrap(ServerRunner, "__init__")
+    else:
+        from mcp.shared.session import BaseSession
+        from mcp.shared.session import RequestResponder
+
+        unwrap(BaseSession, "send_request")
+        unwrap(RequestResponder, "respond")
+
+        # Only wrapped on mcp >= 1.3.0, see patch().
+        if iswrapped(RequestResponder, "__enter__"):
+            unwrap(RequestResponder, "__enter__")
+            unwrap(RequestResponder, "__exit__")
 
     delattr(mcp, "_datadog_integration")
