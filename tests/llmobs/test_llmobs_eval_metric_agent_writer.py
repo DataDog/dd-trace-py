@@ -1,8 +1,9 @@
-import time
+import threading
 from unittest import mock
 
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._constants import EVAL_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _categorical_metric_event
@@ -58,18 +59,28 @@ def test_send_score_metric(mock_send_payload, mock_writer_logs):
 
 @mock.patch("ddtrace.llmobs._writer.LLMObsEvalMetricWriter._send_payload")
 def test_send_timed_events(mock_send_payload, mock_writer_logs):
+    payload_sent = threading.Event()
+    mock_send_payload.side_effect = lambda *args: payload_sent.set() or Response(status=200)
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(0.01, 1, is_agentless=False)
     llmobs_eval_metric_writer.start()
-    mock_writer_logs.reset_mock()
+    try:
+        mock_writer_logs.reset_mock()
 
-    llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
-    time.sleep(0.1)
-    mock_writer_logs.debug.assert_called_with("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")
-    mock_writer_logs.reset_mock()
-    llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
-    time.sleep(0.1)
-    mock_writer_logs.debug.assert_called_with("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")
-    llmobs_eval_metric_writer.stop()
+        llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
+        assert payload_sent.wait(timeout=1)
+        mock_writer_logs.debug.assert_has_calls(
+            [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
+        )
+        mock_writer_logs.reset_mock()
+        payload_sent.clear()
+
+        llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
+        assert payload_sent.wait(timeout=1)
+        mock_writer_logs.debug.assert_has_calls(
+            [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
+        )
+    finally:
+        llmobs_eval_metric_writer.stop()
 
 
 @mock.patch("ddtrace.llmobs._writer.LLMObsEvalMetricWriter._send_payload")
