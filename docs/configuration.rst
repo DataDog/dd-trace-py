@@ -152,6 +152,20 @@ Traces
      version_added:
        v0.41.0:
 
+   DD_TRACE_ELEVENLABS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Enables automatic instrumentation of ElevenLabs Python Agents WebSocket
+         conversations. Set to False to disable this integration.
+
+   DD_ELEVENLABS_SERVICE:
+     type: String
+     default: None
+     description: |
+         Overrides the service name for ElevenLabs conversation spans. The
+         DD_ELEVENLABS_SERVICE_NAME alias is also supported.
+
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
      default: True
@@ -518,7 +532,7 @@ Traces
          **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
 
      version_added:
-        v4.15.0:
+        v4.16.0:
 
 Trace Context propagation
 -------------------------
