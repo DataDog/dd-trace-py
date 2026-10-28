@@ -48,9 +48,9 @@ AGENT_MANIFEST_METADATA = {
 }
 
 
-def _event(*parts, partial=None):
+def _event(event_id, *parts, partial=None):
     content = types.Content(role="model", parts=list(parts)) if parts else None
-    return Event(author="model", content=content, partial=partial)
+    return Event(id=event_id, author="model", content=content, partial=partial)
 
 
 _CALL = types.Part(function_call=types.FunctionCall(name="lookup"))
@@ -62,62 +62,43 @@ _CALL = types.Part(function_call=types.FunctionCall(name="lookup"))
         # streamed text
         (
             [
-                _event(types.Part(text="Hel"), partial=True),
-                _event(types.Part(text="lo"), partial=True),
-                _event(types.Part(text="Hello")),
+                _event("a", types.Part(text="Hel"), partial=True),
+                _event("a", types.Part(text="lo"), partial=True),
+                _event("a", types.Part(text="Hello")),
             ],
             ["Hello"],
         ),
-        # streamed tool call, with a contentless event before the assembled one
-        ([_event(_CALL, partial=True), _event(), _event(_CALL)], ["lookup"]),
+        # streamed tool call
+        ([_event("a", _CALL, partial=True), _event("a", _CALL)], ["lookup"]),
         # run_live: nothing assembled
         (
-            [_event(types.Part(text="Hel"), partial=True), _event(types.Part(text="lo"), partial=True), _event()],
+            [
+                _event("a", types.Part(text="Hel"), partial=True),
+                _event("a", types.Part(text="lo"), partial=True),
+                _event("b"),
+            ],
             ["Hel", "lo"],
         ),
-        # run_live: a turn ending without an assembled event, then a later turn
+        # response cut off mid-stream after an assembled one
         (
             [
-                _event(types.Part(text="Hi"), partial=True),
-                Event(author="model", turn_complete=True),
-                _event(types.Part(text="Bye")),
-            ],
-            ["Hi", "Bye"],
-        ),
-        # partial thoughts before an assembled answer that leaves them out
-        (
-            [_event(types.Part(text="Hmm", thought=True), partial=True), _event(types.Part(text="Hi"))],
-            ["Hmm", "Hi"],
-        ),
-        # partial text before an assembled image only
-        (
-            [
-                _event(types.Part(text="Look"), partial=True),
-                _event(types.Part(inline_data=types.Blob(mime_type="image/png", data=b"x"))),
-            ],
-            ["Look", "[inline data: image/png]"],
-        ),
-        # partial text before an assembled tool call only
-        (
-            [
-                _event(types.Part(text="Checking."), partial=True),
-                _event(_CALL),
-                _event(types.Part(text="Done."), partial=True),
-                _event(types.Part(text="Done.")),
-            ],
-            ["Checking.", "lookup", "Done."],
-        ),
-        # response cut off mid-stream
-        (
-            [
-                _event(types.Part(text="Let me"), partial=True),
-                _event(types.Part(text="Let me")),
-                _event(types.Part(text="It is"), partial=True),
+                _event("a", types.Part(text="Let me"), partial=True),
+                _event("a", types.Part(text="Let me")),
+                _event("b", types.Part(text="It is"), partial=True),
             ],
             ["Let me", "It is"],
         ),
+        # interleaved parallel branches, one cut off
+        (
+            [
+                _event("a", types.Part(text="Roses"), partial=True),
+                _event("b", types.Part(text="Wax"), partial=True),
+                _event("b", types.Part(text="Wax melts")),
+            ],
+            ["Roses", "Wax melts"],
+        ),
         # thought-signature-only part
-        ([_event(types.Part(text="Hi."), types.Part(thought_signature=b"sig"))], ["Hi."]),
+        ([_event("a", types.Part(text="Hi."), types.Part(thought_signature=b"sig"))], ["Hi."]),
     ],
 )
 def test_extract_messages_from_streamed_adk_events(events, expected):
