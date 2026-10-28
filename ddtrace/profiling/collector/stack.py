@@ -15,6 +15,7 @@ from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.profiling import _asyncio
 from ddtrace.profiling import _span_links
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
@@ -107,6 +108,7 @@ class StackCollector(collector.Collector):
                 core.reset_listeners("trace.span_finish", self._on_span_finish)
                 raise
             stack.links_open()
+            _span_links.mirror_lifecycle(self.tracer)
             # Publish the span that was activated on this thread before the profiler started. Other threads are
             # published on their next activation. active() may activate an unfinished ancestor, which publishes it too.
             provider = typing.cast(BaseContextProvider, self.tracer.context_provider)
@@ -129,7 +131,8 @@ class StackCollector(collector.Collector):
             # The event can carry a span that already finished, for example when a span that finished meanwhile is
             # restored as the active one. Publish what active() would return instead.
             item = context_meta.resolve(span) if context_meta.inheritance_mode(provider) else span
-            _span_links.publish(provider, token, True, 0, 0, item)
+            task_id = _asyncio.current_task_link_id()
+            _span_links.publish(provider, token, True, task_id, 0, item)
         except Exception:  # nosec B110
             pass
 
@@ -177,6 +180,7 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             # Close first, so that writers in flight and listeners still running are dropped.
             stack.links_close()
+            _span_links.mirror_lifecycle(None)
         if self._native_call_monitor is not None:
             try:
                 self._native_call_monitor.stop()

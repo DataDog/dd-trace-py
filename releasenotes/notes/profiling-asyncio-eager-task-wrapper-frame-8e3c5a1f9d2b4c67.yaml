@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    profiling: With the stack profiler enabled, an asyncio task that starts eagerly, through
+    ``asyncio.eager_task_factory``, a factory made by ``asyncio.create_eager_task_factory()`` or
+    ``create_task(..., eager_start=True)``, now shows an extra ``_eager_task_span_link`` frame below the task's own
+    frames in profiles. For those tasks, ``task.get_coro()`` returns the wrapping coroutine.

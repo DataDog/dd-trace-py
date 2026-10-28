@@ -1,8 +1,30 @@
 """Publish the span an execution unit runs to the stack profiler's span links."""
 
+from typing import Optional
+
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.native._native import SpanData
+
+
+# A Python copy of the lifecycle token (stack.lifecycle()) that the stack collector last opened or closed span links
+# with, and the tracer whose spans it publishes while they are open. The token is odd while span links are open and
+# even while they are closed. The asyncio task creation hook is not a tracer listener, so it reads lifecycle_tracer to
+# find the tracer. lifecycle_tracer is None while span links are closed, so the hook skips its work while profiling is
+# stopped. lifecycle_mirror is for writers that must not call into native code on every event. Read both as
+# attributes of this module, so that updates are seen. The copies can lag behind the native token during a start or a
+# stop. That is safe: every write still passes the token the writer read with stack.lifecycle(), and native code
+# drops the write if that token is no longer current.
+lifecycle_mirror: int = 0
+lifecycle_tracer: Optional[ProfilerTracer] = None
+
+
+def mirror_lifecycle(tracer: Optional[ProfilerTracer]) -> None:
+    """Copy the current lifecycle token, and the tracer whose spans are published until the next copy."""
+    global lifecycle_mirror, lifecycle_tracer
+    lifecycle_tracer = tracer
+    lifecycle_mirror = stack.lifecycle()
 
 
 def publish(
