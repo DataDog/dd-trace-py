@@ -3,7 +3,6 @@ import os
 import sys
 import threading
 import time
-from types import SimpleNamespace
 
 import anyio
 import fastapi
@@ -16,7 +15,6 @@ import ddtrace
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.anyio.patch import patch as anyio_patch
 from ddtrace.contrib.internal.anyio.patch import unpatch as anyio_unpatch
-from ddtrace.contrib.internal.starlette.patch import _resolve_route_resource
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.internal.utils.version import parse_version
@@ -579,57 +577,36 @@ def test_included_router_resource_with_catch_all(fastapi_tracer, test_spans, cat
     reason="Older FastAPI versions do not preserve mounts when including routers",
 )
 @pytest.mark.parametrize("prefix", ["", "/api"])
-def test_included_router_mounted_app_resource_names(fastapi_tracer, test_spans, prefix):
-    """Mounted request spans without a resolved route must still use fallback naming."""
+@pytest.mark.parametrize("included_subapp_route", [False, True])
+def test_included_router_mounted_app_resource_names(fastapi_tracer, test_spans, prefix, included_subapp_route):
+    """Both mounted request spans must receive templates, including lazy sub-app routes."""
     subapp = fastapi.FastAPI()
+    subrouter = fastapi.APIRouter()
 
-    @subapp.get("/items/{item_id}")
+    @subrouter.get("/items/{item_id}")
     async def get_item(item_id: int):
         return {"id": item_id}
 
+    if included_subapp_route:
+        subapp.include_router(subrouter, prefix="/v1")
+    else:
+        subapp.add_api_route("/items/{item_id}", get_item)
+    subpath = "/v1" if included_subapp_route else ""
     router = fastapi.APIRouter()
     router.mount("/sub", subapp)
     app = fastapi.FastAPI()
     app.include_router(router, prefix=prefix)
 
     with TestClient(app) as client:
-        response = client.get(f"{prefix}/sub/items/1")
+        response = client.get(f"{prefix}/sub{subpath}/items/1")
 
     assert response.status_code == 200
     assert response.json() == {"id": 1}
     request_spans = list(test_spans.filter_spans(name="fastapi.request"))
     assert len(request_spans) == 2
     for span in request_spans:
-        assert span.resource == "GET /items/{item_id}"
-        assert span.get_tag("http.route") == "/items/{item_id}"
-
-
-@pytest.mark.parametrize("resolved_route", [None, "", "/api/items/{item_id}"])
-def test_effective_route_fallback_checks_target_span(fastapi_tracer, resolved_route):
-    app = fastapi.FastAPI()
-
-    @app.get("/items/{item_id}")
-    async def get_item(item_id: int):
-        return {"id": item_id}
-
-    # A shared effective context does not mean every mounted request span was named.
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": "/items/1",
-        "root_path": "",
-        "app": app,
-        "fastapi": {
-            "effective_route_context": SimpleNamespace(path_format="/api/items/{item_id}", original_route=None)
-        },
-    }
-    with fastapi_tracer.trace("fastapi.request", resource=f"GET {resolved_route or '/items/1'}") as span:
-        if resolved_route is not None:
-            span.set_tag("http.route", resolved_route)
-        _resolve_route_resource(scope, span)
-        expected_route = resolved_route or "/items/{item_id}"
-        assert span.resource == f"GET {expected_route}"
-        assert span.get_tag("http.route") == expected_route
+        assert span.resource == f"GET {subpath}/items/{{item_id}}"
+        assert span.get_tag("http.route") == f"{subpath}/items/{{item_id}}"
 
 
 def test_nested_include_router_resource_names(fastapi_tracer, test_spans):

@@ -2,4 +2,5 @@ fixes:
   - |
     fastapi: Fixes an issue where request span resource names and ``http.route``
     tags are overwritten by a top-level catch-all route when using included routers
-    with FastAPI 0.137 or later.
+    with FastAPI 0.137 or later. Also fixes raw-path resource names and missing
+    route tags on inner request spans when a mounted sub-application uses included routers.

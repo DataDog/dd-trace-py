@@ -145,9 +145,13 @@ def _set_route_resource_resolver(_span: Span, scope: Mapping[str, Any]) -> None:
 def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
     """Resolve a Starlette route template before ASGI finishes the request span."""
     # FastAPI can resolve the route without populating resource_paths.
-    # Preserve that result only for spans already named; mounted inner spans may
-    # still need fallback even when the shared scope has an effective path.
-    if _get_fastapi_effective_path(scope) and span.get_tag(http.ROUTE):
+    # Preserve named spans and apply the resolved template to unnamed mounted
+    # spans; fallback matching cannot traverse FastAPI's included routers.
+    effective_path = _get_fastapi_effective_path(scope)
+    if effective_path:
+        if not span.get_tag(http.ROUTE):
+            _set_route_resource(span, scope.get("method"), effective_path)
+            span._set_attribute(http.ROUTE, effective_path)
         return
 
     app = scope.get("app")
