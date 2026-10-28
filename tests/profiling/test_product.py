@@ -35,11 +35,12 @@ def _payload(config_id: str, content: t.Optional[dict[str, t.Any]]) -> Payload:
 
 
 def _profiling_content(
-    target: dict[str, t.Any],
+    target: t.Union[dict[str, t.Any], list[t.Any]],
     profilers: t.Optional[dict[str, t.Any]] = None,
     settings: t.Optional[dict[str, t.Any]] = None,
 ) -> dict[str, t.Any]:
-    return {"target": target, "profilers": profilers or {}, "settings": settings or {}}
+    targets = target if isinstance(target, list) else [target]
+    return {"targets": targets, "profilers": profilers or {}, "settings": settings or {}}
 
 
 def _collectors(
@@ -177,8 +178,8 @@ def test_target_matches(
 def test_more_specific_config_disables_profiler(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("service", _profiling_content({"service": SERVICE}, {"cpu": False})),
-            _payload("env", _profiling_content({"env": ENV}, {"cpu": True, "lock": True})),
+            _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True})),
         ]
     )
 
@@ -189,8 +190,8 @@ def test_more_specific_config_disables_profiler(restart_profiler: _Recorder) -> 
 def test_more_specific_config_enables_profiler(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("env", _profiling_content({"env": ENV}, {"cpu": False})),
-            _payload("instance", _profiling_content({"tags": ["pod_name:my-pod"]}, {"cpu": True})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": False})),
+            _payload("instance", _profiling_content({"tags": ["pod_name:my-pod"]}, {"cpuTime": True})),
         ]
     )
 
@@ -200,7 +201,7 @@ def test_more_specific_config_enables_profiler(restart_profiler: _Recorder) -> N
 def test_unset_profiler_is_a_no_op(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("env", _profiling_content({"env": ENV}, {"cpu": True, "lock": True})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True})),
             _payload("service", _profiling_content({"service": SERVICE}, {"lock": False})),
         ]
     )
@@ -212,8 +213,8 @@ def test_unset_profiler_is_a_no_op(restart_profiler: _Recorder) -> None:
 def test_non_boolean_profiler_value_is_ignored(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("env", _profiling_content({"env": ENV}, {"cpu": True})),
-            _payload("service", _profiling_content({"service": SERVICE}, {"cpu": None})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True})),
+            _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": None})),
         ]
     )
 
@@ -221,8 +222,8 @@ def test_non_boolean_profiler_value_is_ignored(restart_profiler: _Recorder) -> N
 
 
 def test_payload_order_does_not_change_precedence(restart_profiler: _Recorder) -> None:
-    more_specific = _payload("service", _profiling_content({"service": SERVICE}, {"cpu": False}))
-    less_specific = _payload("env", _profiling_content({"env": ENV}, {"cpu": True, "lock": True}))
+    more_specific = _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": False}))
+    less_specific = _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True}))
 
     remoteconfig.ProfilingRCCallback()([more_specific, less_specific])
 
@@ -233,19 +234,19 @@ def test_last_updated_config_wins_on_equal_specificity(restart_profiler: _Record
     callback = remoteconfig.ProfilingRCCallback()
     callback(
         [
-            _payload("a", _profiling_content({"service": SERVICE}, {"cpu": True, "lock": True})),
-            _payload("b", _profiling_content({"service": SERVICE}, {"cpu": False})),
+            _payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True, "lock": True})),
+            _payload("b", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
         ]
     )
     assert restart_profiler.last[STACK] is False
 
-    callback([_payload("a", _profiling_content({"service": SERVICE}, {"cpu": True}))])
+    callback([_payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True}))])
     assert restart_profiler.last[STACK] is True
 
 
 def test_configs_are_kept_across_callbacks(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpu": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}))])
     callback([_payload("service", _profiling_content({"service": SERVICE}, {"lock": True}))])
 
     assert restart_profiler.last[STACK] is True
@@ -256,8 +257,8 @@ def test_removed_config_reverts_to_less_specific_config(restart_profiler: _Recor
     callback = remoteconfig.ProfilingRCCallback()
     callback(
         [
-            _payload("env", _profiling_content({"env": ENV}, {"cpu": True, "lock": True})),
-            _payload("service", _profiling_content({"service": SERVICE}, {"cpu": False})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True})),
+            _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
         ]
     )
     assert restart_profiler.last[STACK] is False
@@ -270,7 +271,7 @@ def test_removed_config_reverts_to_less_specific_config(restart_profiler: _Recor
 
 def test_removing_all_configs_disables_profilers(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpu": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}))])
     callback([_payload("env", None)])
 
     assert not any(restart_profiler.last.values())
@@ -279,10 +280,10 @@ def test_removing_all_configs_disables_profilers(restart_profiler: _Recorder) ->
 
 def test_config_retargeted_away_is_removed(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
-    callback([_payload("a", _profiling_content({"service": SERVICE}, {"cpu": True}))])
+    callback([_payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True}))])
     assert restart_profiler.last[STACK] is True
 
-    callback([_payload("a", _profiling_content({"service": "other-service"}, {"cpu": True}))])
+    callback([_payload("a", _profiling_content({"service": "other-service"}, {"cpuTime": True}))])
 
     assert restart_profiler.last[STACK] is False
     assert remoteconfig.debug_configs == {}
@@ -291,8 +292,8 @@ def test_config_retargeted_away_is_removed(restart_profiler: _Recorder) -> None:
 def test_config_for_other_service_is_ignored(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("mine", _profiling_content({"env": ENV}, {"cpu": True})),
-            _payload("other", _profiling_content({"tags": ["service:other-service"]}, {"cpu": False})),
+            _payload("mine", _profiling_content({"env": ENV}, {"cpuTime": True})),
+            _payload("other", _profiling_content({"tags": ["service:other-service"]}, {"cpuTime": False})),
         ]
     )
 
@@ -304,7 +305,7 @@ def test_non_profiling_payload_is_ignored(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
             _payload("probe", {"id": "probe", "type": "LOG_PROBE"}),
-            _payload("env", _profiling_content({"env": ENV}, {"cpu": True})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True})),
         ]
     )
 
@@ -316,8 +317,8 @@ def test_non_profiling_payload_is_ignored(restart_profiler: _Recorder) -> None:
 def test_payload_with_invalid_target_tags_is_ignored(restart_profiler: _Recorder, tags: t.Any) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("invalid", _profiling_content({"tags": tags}, {"cpu": False})),
-            _payload("env", _profiling_content({"env": ENV}, {"cpu": True})),
+            _payload("invalid", _profiling_content({"tags": tags}, {"cpuTime": False})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True})),
         ]
     )
 
@@ -325,23 +326,119 @@ def test_payload_with_invalid_target_tags_is_ignored(restart_profiler: _Recorder
     assert set(remoteconfig.debug_configs) == {"env"}
 
 
+def test_config_matching_one_of_its_targets_applies(restart_profiler: _Recorder) -> None:
+    remoteconfig.ProfilingRCCallback()(
+        [_payload("multi", _profiling_content([{"service": "other-service"}, {"env": ENV}], {"cpuTime": True}))]
+    )
+
+    assert restart_profiler.last[STACK] is True
+    assert remoteconfig.debug_configs["multi"]["targets"] == [{"env": ENV}]
+
+
+def test_config_matching_none_of_its_targets_is_ignored(restart_profiler: _Recorder) -> None:
+    remoteconfig.ProfilingRCCallback()(
+        [
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True})),
+            _payload(
+                "other",
+                _profiling_content([{"service": "other-service"}, {"env": "staging"}], {"cpuTime": False}),
+            ),
+        ]
+    )
+
+    assert restart_profiler.last[STACK] is True
+    assert set(remoteconfig.debug_configs) == {"env"}
+
+
+def test_config_without_targets_targets_all_tracers(restart_profiler: _Recorder) -> None:
+    remoteconfig.ProfilingRCCallback()([_payload("all", {"profilers": {"cpuTime": True}})])
+
+    assert restart_profiler.last[STACK] is True
+    assert remoteconfig.debug_configs["all"]["targets"] == [{}]
+
+
+@pytest.mark.parametrize("targets", [[], {"env": ENV}, "env:prod", 1])
+def test_config_with_invalid_or_empty_targets_is_ignored(restart_profiler: _Recorder, targets: t.Any) -> None:
+    remoteconfig.ProfilingRCCallback()(
+        [
+            _payload("invalid", {"targets": targets, "profilers": {"cpuTime": False}}),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True})),
+        ]
+    )
+
+    assert restart_profiler.last[STACK] is True
+    assert set(remoteconfig.debug_configs) == {"env"}
+
+
+@pytest.mark.parametrize("invalid", [None, 1, "env:prod", ["env:prod"], {"tags": [1]}])
+def test_invalid_target_is_skipped_and_valid_target_applies(restart_profiler: _Recorder, invalid: t.Any) -> None:
+    remoteconfig.ProfilingRCCallback()(
+        [_payload("multi", _profiling_content([invalid, {"service": SERVICE}], {"cpuTime": True}))]
+    )
+
+    assert restart_profiler.last[STACK] is True
+    assert remoteconfig.debug_configs["multi"]["targets"] == [{"service": SERVICE}]
+
+
+def test_config_specificity_comes_from_its_most_specific_matching_target(restart_profiler: _Recorder) -> None:
+    remoteconfig.ProfilingRCCallback()(
+        [
+            # Without its pod_name target, this config would be as specific as "service".
+            _payload(
+                "multi",
+                _profiling_content([{"service": SERVICE}, {"tags": ["pod_name:my-pod"]}], {"cpuTime": True}),
+            ),
+            _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
+        ]
+    )
+
+    assert restart_profiler.last[STACK] is True
+
+
+def test_non_matching_target_does_not_raise_config_specificity(restart_profiler: _Recorder) -> None:
+    remoteconfig.ProfilingRCCallback()(
+        [
+            # The instance target is for another service, so this config is only as specific as "env".
+            _payload(
+                "multi",
+                _profiling_content(
+                    [{"env": ENV}, {"service": "other-service", "tags": ["pod_name:my-pod"]}], {"cpuTime": False}
+                ),
+            ),
+            _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": True})),
+        ]
+    )
+
+    assert restart_profiler.last[STACK] is True
+
+
+@pytest.mark.parametrize(
+    "targets,specificity_as",
+    [
+        ([], {}),
+        ([{}, {"env": ENV}], {"env": ENV}),
+        ([{"service": SERVICE}, {"env": ENV}], {"service": SERVICE}),
+        ([{"env": ENV}, {"tags": ["pod_name:my-pod"]}, {"service": SERVICE}], {"tags": ["pod_name:my-pod"]}),
+    ],
+)
+def test_config_specificity(targets: list[dict[str, t.Any]], specificity_as: dict[str, t.Any]) -> None:
+    assert remoteconfig._config_specificity({"targets": targets}) == remoteconfig._specificity(specificity_as)
+
+
 def test_settings_are_merged_by_specificity() -> None:
     merged = remoteconfig._merge_configs(
         [
             _profiling_content(
-                {"service": SERVICE}, {"cpu": True}, {"maxStackDepth": 32, "uploadIntervalSeconds": None}
+                {"service": SERVICE}, {"cpuTime": True}, {"maxStackDepth": 32, "pythonMemoryMemDomain": None}
             ),
-            _profiling_content(
-                {"env": ENV}, {}, {"maxStackDepth": 16, "uploadIntervalSeconds": 30, "adaptiveSampling": False}
-            ),
+            _profiling_content({"env": ENV}, {}, {"maxStackDepth": 16, "pythonMemoryMemDomain": True}),
         ]
     )
 
     assert merged["settings"] == {
         **remoteconfig._settings_from_env(),
         "maxStackDepth": 32,
-        "uploadIntervalSeconds": 30.0,
-        "adaptiveSampling": False,
+        "pythonMemoryMemDomain": True,
     }
 
 
@@ -351,10 +448,8 @@ def test_settings_are_merged_by_specificity() -> None:
         ("maxStackDepth", 16, True),
         ("maxStackDepth", 16, "32"),
         ("maxStackDepth", 16, -1),
-        ("uploadIntervalSeconds", 30, 1.5),
-        ("uploadIntervalSeconds", 30, -1),
-        ("uploadIntervalSeconds", 30, 10**400),
-        ("adaptiveSampling", False, 1),
+        ("maxStackDepth", 16, 1.5),
+        ("pythonMemoryMemDomain", False, 1),
         ("pythonMemoryMemDomain", False, "false"),
     ],
 )
@@ -369,17 +464,11 @@ def test_invalid_setting_is_ignored(key: str, valid: t.Any, invalid: t.Any) -> N
     assert merged["settings"][key] == valid
 
 
-def test_zero_upload_interval_uses_the_value_without_remote_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(profiling_config.parsed, "upload_interval", 45.0)
+@pytest.mark.parametrize("key", ["adaptiveSampling", "uploadIntervalSeconds"])
+def test_removed_setting_is_ignored(key: str) -> None:
+    merged = remoteconfig._merge_configs([_profiling_content({"env": ENV}, {}, {key: 10})])
 
-    merged = remoteconfig._merge_configs(
-        [
-            _profiling_content({"env": ENV}, {}, {"uploadIntervalSeconds": 30}),
-            _profiling_content({"service": SERVICE}, {}, {"uploadIntervalSeconds": 0}),
-        ]
-    )
-
-    assert merged["settings"]["uploadIntervalSeconds"] == 45.0
+    assert merged["settings"] == remoteconfig._settings_from_env()
 
 
 def test_unknown_setting_is_ignored() -> None:
@@ -390,20 +479,20 @@ def test_unknown_setting_is_ignored() -> None:
 
 def test_settings_change_restarts_profiler(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpu": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}))])
 
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpu": True}, {"uploadIntervalSeconds": 10}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}, {"maxStackDepth": 10}))])
 
     assert len(restart_profiler.calls) == 2
     assert restart_profiler.calls[0] == restart_profiler.calls[1]
-    assert restart_profiler.settings[-1]["uploadIntervalSeconds"] == 10.0
+    assert restart_profiler.settings[-1]["maxStackDepth"] == 10
 
 
 def test_no_restart_when_merged_config_does_not_change(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpu": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}))])
     # A less specific config that changes nothing in the merged result.
-    callback([_payload("all", _profiling_content({}, {"cpu": True}))])
+    callback([_payload("all", _profiling_content({}, {"cpuTime": True}))])
 
     assert len(restart_profiler.calls) == 1
 
@@ -411,18 +500,18 @@ def test_no_restart_when_merged_config_does_not_change(restart_profiler: _Record
 @pytest.mark.parametrize(
     "profilers,settings",
     [
-        ({"cpu": True}, {"unknownSetting": 20}),
-        ({"cpu": True}, {"maxStackDepth": profiling_config.parsed.max_frames}),
+        ({"cpuTime": True}, {"unknownSetting": 20}),
+        ({"cpuTime": True}, {"maxStackDepth": profiling_config.parsed.max_frames}),
         # The stack collector produces both CPU and wall time profiles.
-        ({"cpu": False, "wallTime": True}, None),
-        ({"cpu": True, "unknown": True}, None),
+        ({"cpuTime": False, "wallTime": True}, None),
+        ({"cpuTime": True, "unknown": True}, None),
     ],
 )
 def test_no_restart_when_running_profiler_has_the_wanted_configuration(
     restart_profiler: _Recorder, profilers: dict[str, t.Any], settings: t.Optional[dict[str, t.Any]]
 ) -> None:
     callback = remoteconfig.ProfilingRCCallback()
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpu": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}))])
 
     callback([_payload("env", _profiling_content({"env": ENV}, profilers, settings))])
 
@@ -433,7 +522,7 @@ def test_default_config_comes_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_env_profilers(monkeypatch, enabled=True, stack=True, memory=False, lock=True, exception=False)
 
     assert remoteconfig._get_default_config()["profilers"] == {
-        "cpu": True,
+        "cpuTime": True,
         "wallTime": True,
         "heapSize": False,
         "allocations": False,
@@ -444,14 +533,14 @@ def test_default_config_comes_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_default_settings_are_parsed_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(profiling_config.parsed, "max_frames", 32)
-    monkeypatch.setattr(profiling_config.stack.parsed, "adaptive_sampling", False)
+    monkeypatch.setattr(profiling_config.memory.parsed, "mem_domain_enabled", True)
     # A value remote config applied is not the one from the environment.
     monkeypatch.setattr(profiling_config, "max_frames", 16)
 
     settings = remoteconfig._get_default_config()["settings"]
 
     assert settings["maxStackDepth"] == 32
-    assert settings["adaptiveSampling"] is False
+    assert settings["pythonMemoryMemDomain"] is True
 
 
 def test_default_config_is_disabled_when_profiling_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -476,7 +565,9 @@ def test_config_matching_env_does_not_restart_profiler(
 ) -> None:
     _set_env_profilers(monkeypatch, enabled=True)
 
-    remoteconfig.ProfilingRCCallback()([_payload("env", _profiling_content({"env": ENV}, {"cpu": True, "lock": True}))])
+    remoteconfig.ProfilingRCCallback()(
+        [_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True}))]
+    )
 
     assert restart_profiler.calls == []
 
@@ -487,7 +578,7 @@ def test_removing_all_configs_reverts_to_env_config(
     _set_env_profilers(monkeypatch, enabled=True, lock=False)
     callback = remoteconfig.ProfilingRCCallback()
 
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpu": False, "wallTime": False, "lock": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": False, "wallTime": False, "lock": True}))])
     assert restart_profiler.last[STACK] is False
     assert restart_profiler.last[LOCK] is True
 
@@ -562,14 +653,21 @@ def test_start_profiler_replaces_profiler(created_profilers: list[dict[str, bool
 @pytest.mark.parametrize(
     "profilers,expected",
     [
-        ({"cpu": True}, _collectors(stack=True)),
+        ({"cpuTime": True}, _collectors(stack=True)),
         ({"wallTime": True}, _collectors(stack=True)),
         ({"heapSize": True}, _collectors(memory=True)),
         ({"allocations": True}, _collectors(memory=True)),
         ({"lock": True}, _collectors(lock=True)),
         ({"exception": True}, _collectors(exception=True)),
         (
-            {"cpu": True, "wallTime": False, "heapSize": False, "allocations": True, "lock": True, "exception": True},
+            {
+                "cpuTime": True,
+                "wallTime": False,
+                "heapSize": False,
+                "allocations": True,
+                "lock": True,
+                "exception": True,
+            },
             _collectors(stack=True, memory=True, lock=True, exception=True),
         ),
         ({"unknown": True}, _collectors()),
@@ -588,7 +686,7 @@ def test_wanted_collectors_keeps_unavailable_collectors_disabled(monkeypatch: py
     monkeypatch.setattr(remoteconfig, "stack_is_available", False)
     monkeypatch.setattr(remoteconfig, "exception_is_available", False)
 
-    profilers = {"cpu": True, "wallTime": True, "heapSize": True, "lock": True, "exception": True}
+    profilers = {"cpuTime": True, "wallTime": True, "heapSize": True, "lock": True, "exception": True}
     assert remoteconfig._wanted_collectors(profilers) == _collectors(memory=True, lock=True)
 
 
@@ -635,10 +733,10 @@ def test_restart_profiler_marks_wanted_collectors_enabled(created_profilers: lis
 
 
 def test_restart_profiler_applies_settings_without_enabled_collectors(created_profilers: list[dict[str, bool]]) -> None:
-    remoteconfig._restart_profiler(_collectors(), {**remoteconfig._settings_from_env(), "uploadIntervalSeconds": 10.0})
+    remoteconfig._restart_profiler(_collectors(), {**remoteconfig._settings_from_env(), "maxStackDepth": 10})
 
     assert created_profilers == []
-    assert profiling_config.upload_interval == 10.0
+    assert profiling_config.max_frames == 10
 
 
 def test_start_profiler_waits_for_lifecycle_lock(created_profilers: list[dict[str, bool]]) -> None:

@@ -47,8 +47,6 @@ _COLLECTOR_ARGUMENTS: dict[str, str] = {
 # type of the payload value. The Profiler and its collectors read each of them when they are built or started, so a
 # restart applies the new value, and applies the value from the environment again once no configuration sets it.
 _SETTINGS: dict[str, tuple[str, type]] = {
-    "adaptiveSampling": ("stack.adaptive_sampling", bool),
-    "uploadIntervalSeconds": ("upload_interval", int),
     # Note: this is currently imperfect, as existing Sample objects have a predefined value for max frames.
     # Changing the max stack depth will only affect new Samples.
     "maxStackDepth": ("max_frames", int),
@@ -65,7 +63,7 @@ def _profilers_from_env() -> dict[str, bool]:
     stack = enabled and bool(profiling_config.stack.enabled)
     memory = enabled and bool(profiling_config.memory.enabled)
     return {
-        "cpu": stack,
+        "cpuTime": stack,
         "wallTime": stack,
         "heapSize": memory,
         "allocations": memory,
@@ -105,11 +103,6 @@ def _parse_setting(key: str, value: t.Any) -> t.Any:
     parsed = variable.parser(str(value)) if variable.parser is not None else variable.type(value)
     if variable.validator is not None:
         variable.validator(parsed)
-
-    # The scheduler would upload in a tight loop with a zero interval, so 0 means the value without remote config.
-    if key == "uploadIntervalSeconds" and parsed == 0:
-        owner, name = _setting_owner(path)
-        return getattr(owner.parsed, name)
 
     return parsed
 
@@ -196,6 +189,11 @@ def _specificity(target: dict[str, t.Any]) -> int:
     )
 
 
+def _config_specificity(config: dict[str, t.Any]) -> int:
+    """Return the specificity of the most specific target of the configuration, 0 if it has no targets."""
+    return max((_specificity(target) for target in config.get("targets") or []), default=0)
+
+
 class ProfilingRCCallback(RCCallback):
     def __call__(self, payloads: Sequence[Payload]) -> None:
         """Called by Remote Config client when it receives a batch of updated configurations.
@@ -224,21 +222,37 @@ class ProfilingRCCallback(RCCallback):
                 log.debug("[profiling-remote-config] Skipping non-profiling payload %s", content)
                 continue
 
-            target: t.Union[dict[str, t.Any], t.Any] = content.get("target") or {}
-            if not isinstance(target, dict):
-                log.warning("[profiling-remote-config] Skipping non-profiling payload %s", content)
+            # A payload without targets targets all the tracers.
+            all_targets: t.Union[list[t.Any], t.Any] = content.get("targets")
+            if all_targets is None:
+                all_targets = [{}]
+            if not isinstance(all_targets, list):
+                log.warning("[profiling-remote-config] Skipping payload with invalid targets %s", content)
                 continue
 
-            tags = target.get("tags")
-            if tags is not None and not (isinstance(tags, list) and all(isinstance(tag, str) for tag in tags)):
-                log.warning("[profiling-remote-config] Skipping payload with invalid target tags %s", content)
+            matching_targets: list[dict[str, t.Any]] = []
+            for target in all_targets:
+                if not isinstance(target, dict):
+                    log.warning("[profiling-remote-config] Skipping invalid target %s", target)
+                    continue
+
+                tags = target.get("tags")
+                if tags is not None and not (isinstance(tags, list) and all(isinstance(tag, str) for tag in tags)):
+                    log.warning("[profiling-remote-config] Skipping target with invalid tags %s", target)
+                    continue
+
+                if not _target_matches(target):
+                    log.debug("[profiling-remote-config] Skipping target %s", target)
+                    continue
+
+                matching_targets.append(target)
+
+            if not matching_targets:
+                log.debug("[profiling-remote-config] Skipping payload with no matching targets %s", content)
                 continue
 
-            if not _target_matches(target):
-                log.debug("[profiling-remote-config] Skipping payload with target %s", target)
-                continue
-
-            debug_configs[config_id] = content
+            # Only the matching targets are kept, so the specificity of the configuration comes from them.
+            debug_configs[config_id] = {**content, "targets": matching_targets}
             changed = True
 
         # A profiler started by importing ddtrace.profiling.auto can run without matching the configuration from the
@@ -293,7 +307,8 @@ def _merge_configs(configs: list[dict[str, t.Any]]) -> dict[str, t.Any]:
     # For settings:
     # - If a setting is set in a more specific configuration, it overrides the previous configuration.
     # - If a setting is unset (field omitted) in a more specific configuration, it is a no-op.
-    ordered = sorted(enumerate(configs), key=lambda ic: (_specificity(ic[1].get("target") or {}), ic[0]))
+    # A configuration with more than one target has the specificity of its most specific target.
+    ordered = sorted(enumerate(configs), key=lambda ic: (_config_specificity(ic[1]), ic[0]))
     for _, config in ordered:
         profilers = config.get("profilers") or {}
         if not isinstance(profilers, dict):
@@ -335,7 +350,7 @@ def _wanted_collectors(profilers: dict[str, bool]) -> dict[str, bool]:
     Unavailable collectors are ignored.
     """
     return {
-        "_stack_collector_enabled": stack_is_available and bool(profilers.get("cpu") or profilers.get("wallTime")),
+        "_stack_collector_enabled": stack_is_available and bool(profilers.get("cpuTime") or profilers.get("wallTime")),
         "_memory_collector_enabled": bool(profilers.get("heapSize") or profilers.get("allocations")),
         "_lock_collector_enabled": bool(profilers.get("lock")),
         "_exception_profiling_enabled": exception_is_available and bool(profilers.get("exception")),
