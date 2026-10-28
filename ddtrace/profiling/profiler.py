@@ -76,25 +76,10 @@ class Profiler:
 
             self._profiler.start()
             Profiler._active_instance = self
-            # Register again if application code has replaced the SIGTERM or SIGINT handler
-            # since the last start. If it chained on top of ours, our handler will run twice,
-            # which is harmless because the second call will find no active instance.
-            register_exit_signal_handler = (
-                Profiler._exit_signal_handler is None
-                or (
-                    signal.getsignal(signal.SIGTERM),
-                    signal.getsignal(signal.SIGINT),
-                )
-                != Profiler._exit_signal_handler
-            )
 
         atexit.register(self.stop)
 
-        # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
-        # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
-        # so without this the last partial profile window is silently lost.
-        if register_exit_signal_handler:
-            Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
+        Profiler._register_exit_signal_handler()
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -117,6 +102,20 @@ class Profiler:
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    @staticmethod
+    def _register_exit_signal_handler() -> None:
+        """Make SIGTERM and SIGINT flush and stop the active profiler."""
+        # Register again if application code has replaced the SIGTERM or SIGINT handler
+        # since the last registration. If it chained on top of ours, our handler will run twice,
+        # which is harmless because the second call will find no active instance.
+        if Profiler._exit_signal_handler is not None and Profiler._exit_signal_handler == (
+            signal.getsignal(signal.SIGTERM),
+            signal.getsignal(signal.SIGINT),
+        ):
+            return
+
+        Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
 
     @staticmethod
     def _stop_active_instance_on_signal() -> None:

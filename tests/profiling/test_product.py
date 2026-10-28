@@ -1,3 +1,4 @@
+import sys
 import threading
 import types
 import typing as t
@@ -760,6 +761,46 @@ def test_removing_config_restores_env_settings(
 
     assert bootstrap.profiler.settings == remoteconfig._settings_from_env()
     assert profiling_config.max_frames == profiling_config.parsed.max_frames
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_ENABLED": "false",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+        "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
+    },
+    status=-15,
+    out=lambda s: s.count("flushed") == 1,
+    err=None,
+)
+def test_profiler_started_off_main_thread_flushes_on_sigterm() -> None:
+    # Remote Config starts the profiler from its own thread, where signal handlers cannot be installed.
+    import os
+    import signal
+    import threading
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.profiling import product
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.profiling import profiler
+
+    with (
+        mock.patch.object(remoteconfig_poller, "register_callback"),
+        mock.patch.object(remoteconfig_poller, "enable_product"),
+    ):
+        product.start()
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        thread = threading.Thread(target=p.start)
+        thread.start()
+        thread.join()
+
+        os.kill(os.getpid(), signal.SIGTERM)
+
+        # (unreachable: the exit handler re-raises SIGTERM with SIG_DFL, killing the process)
 
 
 @pytest.mark.subprocess(env={"DD_PROFILING_ENABLED": "false"})

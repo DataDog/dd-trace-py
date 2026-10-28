@@ -51,6 +51,16 @@ def enabled() -> bool:
 
 def start() -> None:
     if _remote_config_enabled():
+        # Remote Config can start the profiler from its own thread, where signal handlers cannot be installed, so
+        # install them now, on the main thread. install is False when the profiler cannot run on this platform.
+        if profiling_config.install:
+            try:
+                from ddtrace.profiling.profiler import Profiler
+
+                Profiler._register_exit_signal_handler()
+            except Exception:
+                log.debug("failed to register the profiler exit signal handler", exc_info=True)
+
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.register_callback(RemoteConfigProduct.Debug, remoteconfig.ProfilingRCCallback())
