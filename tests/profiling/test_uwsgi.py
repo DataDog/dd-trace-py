@@ -141,7 +141,9 @@ def test_uwsgi_worker_blocks_second_profiler_start(
     """A worker started through uWSGI postfork should still reject a second profiler."""
     callback_holder = {}
 
-    def _register_postfork(callback: Callable[[], None], atexit: Optional[Callable[[], None]] = None) -> NoReturn:
+    def _register_postfork(
+        callback: Callable[[], None], atexit: Optional[Callable[[], None]] = None, run_in_master: bool = True
+    ) -> NoReturn:
         callback_holder["callback"] = callback
         raise profiler.uwsgi.uWSGIMasterProcess()
 
@@ -429,15 +431,15 @@ def test_uwsgi_threads_processes_primary(
     - --py-call-uwsgi-fork-hooks: ensures Python fork hooks are called after fork
     - --processes 2: spawns 2 worker processes
 
-    With --py-call-uwsgi-fork-hooks active, check_uwsgi() treats this as an ordinary
-    forking process (like gunicorn without preload): uwsgi itself invokes CPython's
-    os.register_at_fork hooks around each worker fork, so the profiler's normal
-    fork-safety machinery (forksafe registry, PeriodicThread auto-restart) restarts
-    it in each worker -- no uwsgidecorators.postfork bridging is needed. The test
+    The profiler does not run in the master even with --py-call-uwsgi-fork-hooks: the
+    master exits without running Python atexit handlers, so a profiler running there
+    is never stopped and its sampling thread can crash the master on exit. It is
+    started in each worker through uwsgidecorators.postfork instead. The test
     verifies that:
     - Both workers start successfully
     - Each worker independently collects wall-time samples
     - Profiles are written with each worker's PID suffix
+    - The master writes no profile
     """
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
@@ -455,6 +457,7 @@ def test_uwsgi_threads_processes_primary(
         exit_code = proc.wait()
 
     assert exit_code == 0
+    assert glob.glob(filename + ".%d.*" % proc.pid) == [], "the uWSGI master must not run the profiler"
 
 
 @pytest.mark.parametrize("num_workers", [1, 2])

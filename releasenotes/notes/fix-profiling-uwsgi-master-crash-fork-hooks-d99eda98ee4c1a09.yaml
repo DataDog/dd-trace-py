@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash of the uWSGI master process on shutdown when uWSGI runs with
+    ``--master`` and ``--py-call-uwsgi-fork-hooks``. The profiler now runs only in the
+    uWSGI workers, so the master no longer sends its own profiles.

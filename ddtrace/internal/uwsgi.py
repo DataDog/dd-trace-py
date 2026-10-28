@@ -69,10 +69,15 @@ def forked_without_fork_hooks() -> bool:
     )
 
 
-def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:
+def check_uwsgi(
+    worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None, run_in_master: bool = True
+) -> None:
     """Check whetever uwsgi is running and what needs to be done.
 
     :param worker_callback: Callback function to call in uWSGI worker processes.
+    :param run_in_master: Whether the caller may run in the uWSGI master process when
+        py-call-uwsgi-fork-hooks is set. The master never runs Python atexit handlers, so a
+        caller that must be stopped before the process exits should pass False.
     """
     try:
         import uwsgi
@@ -114,10 +119,13 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
     # sanity checks. We need to handle this case properly.
     # The proper way to handle that is to allow to register a callback function to run in the subprocess at their
     # startup, and warn the caller that this is the master process and that (probably) nothing should be done.
+    # The uWSGI master exits without running Python atexit handlers (see uwsgi_plugins_atexit() in
+    # uWSGI's core/uwsgi.c), so callers that need them are started in each worker instead.
+    start_in_workers = not fork_hooks_active or (not run_in_master and uwsgi.opt.get("master"))
     if (
         (uwsgi.numproc > 1 or uwsgi.opt.get("master"))
         and not uwsgi.opt.get("lazy-apps")
-        and not fork_hooks_active
+        and start_in_workers
         and uwsgi.worker_id() == 0
     ):
         if not uwsgi.opt.get("master"):

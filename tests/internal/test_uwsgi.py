@@ -131,6 +131,35 @@ def test_fork_hooks_does_not_register_postfork_callback(fake_uwsgi, monkeypatch)
     assert called == []
 
 
+@pytest.mark.parametrize("numproc", [1, 2])
+def test_fork_hooks_with_master_defers_to_worker_when_not_run_in_master(fake_uwsgi, monkeypatch, numproc):
+    """The master never runs Python atexit handlers, so callers that need them are deferred to postfork."""
+    fake_uwsgi(
+        opt={"enable-threads": True, "master": True, "py-call-uwsgi-fork-hooks": True},
+        numproc=numproc,
+        worker_id=0,
+    )
+    postfork_callbacks = []
+    monkeypatch.setitem(sys.modules, "uwsgidecorators", types.SimpleNamespace(postfork=postfork_callbacks.append))
+
+    def callback():
+        pass
+
+    with pytest.raises(uwsgi.uWSGIMasterProcess):
+        uwsgi.check_uwsgi(worker_callback=callback, run_in_master=False)
+    assert postfork_callbacks == [callback]
+
+
+def test_fork_hooks_without_master_ignores_run_in_master(fake_uwsgi):
+    """Without --master, the first process is a worker that serves requests, so it runs the caller."""
+    fake_uwsgi(
+        opt={"enable-threads": True, "py-call-uwsgi-fork-hooks": True},
+        numproc=2,
+        worker_id=0,
+    )
+    assert uwsgi.check_uwsgi(run_in_master=False) is None
+
+
 def test_fork_hooks_ignored_on_worker(fake_uwsgi):
     """worker_id() != 0 identifies a worker process; the master-only branch never applies."""
     fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=2, worker_id=1)
