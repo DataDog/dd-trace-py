@@ -47,13 +47,33 @@ def is_well_formed(content: t.Any) -> bool:
     return "lib_config" not in content or isinstance(content["lib_config"], dict)
 
 
+def targets_this_process(payload: Payload) -> bool:
+    content = t.cast(dict, payload.content)
+    service_target = t.cast(t.Optional[dict], content.get("service_target"))
+    service = t.cast(str, service_target.get("service")) if service_target is not None else None
+    env = t.cast(str, service_target.get("env")) if service_target is not None else None
+
+    if service is not None and service != "*" and service != config.service:
+        log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
+        return False
+
+    # The Agent may target configs using an environment configured only at the Agent level.
+    if env is not None and env != "*" and config.env and env != config.env:
+        log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
+        return False
+
+    return True
+
+
 class APMTracingCallback(RCCallback):
     """Remote config callback for APM tracing configuration."""
 
     def __init__(self) -> None:
         # Payloads only carry the records that changed since the last poll, so
         # the active records must be retained across calls to compute the
-        # merged configuration that the product handlers expect.
+        # merged configuration that the product handlers expect. They are keyed
+        # by path, like the client tracks them, and kept whatever they target,
+        # as they are not delivered again if the service or env changes later.
         self._config_map: dict[str, Payload] = {}
 
     @staticmethod
@@ -61,7 +81,7 @@ class APMTracingCallback(RCCallback):
         """Get merged library configuration from all configs, ordered by precedence."""
         # Higher config_key first; on ties, higher insertion index (newer) first.
         ordered = sorted(
-            enumerate(config_map.values()),
+            ((i, p) for i, p in enumerate(config_map.values()) if targets_this_process(p)),
             key=lambda ip: (config_key(ip[1]), ip[0]),
             reverse=True,
         )
@@ -81,36 +101,24 @@ class APMTracingCallback(RCCallback):
 
             log.debug("Received APM tracing config payload: %s", payload)
 
+            if payload.content is None:
+                if config_map.pop(payload.path, None) is not None:
+                    log.debug("Deleting config %s", payload.path)
+                continue
+
             # A malformed update keeps the previous version of the record, which
             # is retained and would otherwise break every later merge.
-            if payload.content is not None and not is_well_formed(payload.content):
+            if not is_well_formed(payload.content):
                 log.debug("ignoring malformed APM Tracing remote config payload, path: %s", payload.path)
                 continue
 
-            # Drop any previous version of the record so that an update is
-            # re-inserted as the newest entry, and a record that is deleted or
-            # retargeted away from this service no longer contributes.
-            previous = config_map.pop(payload.metadata.id, None)
-
-            if payload.content is None:
-                if previous is not None:
-                    log.debug("Deleting config %s", payload.metadata.id)
-                continue
-
-            service_target = t.cast(t.Optional[dict], payload.content.get("service_target"))
-            service = t.cast(str, service_target.get("service")) if service_target is not None else None
-            env = t.cast(str, service_target.get("env")) if service_target is not None else None
-
-            if service is not None and service != "*" and service != config.service:
-                log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
-                continue
-
-            # The Agent may target configs using an environment configured only at the Agent level.
-            if env is not None and env != "*" and config.env and env != config.env:
-                log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
-                continue
-
-            config_map[payload.metadata.id] = payload
+            # An update is re-inserted as the newest entry, which wins ties. A
+            # record delivered again unchanged, as in the full snapshot of a
+            # forked child or a new client, keeps its place.
+            previous = config_map.get(payload.path)
+            if previous is not None and previous.metadata.tuf_version != payload.metadata.tuf_version:
+                del config_map[payload.path]
+            config_map[payload.path] = payload
         return self._get_chained_lib_config(config_map)
 
     def __call__(self, payloads: t.Sequence[Payload]) -> None:

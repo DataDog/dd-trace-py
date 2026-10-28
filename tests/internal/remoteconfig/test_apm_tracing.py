@@ -3,20 +3,25 @@ import typing as t
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
 from tests.utils import remote_config_build_payload as build_payload
 
 
 def _record(
-    config_id: str, lib_config: t.Optional[dict[str, t.Any]], service_target: t.Optional[dict[str, str]] = None
+    config_id: str,
+    lib_config: t.Optional[dict[str, t.Any]],
+    service_target: t.Optional[dict[str, str]] = None,
+    version: int = 1,
+    path: t.Optional[str] = None,
 ) -> Payload:
     content: t.Optional[dict[str, t.Any]] = None
     if lib_config is not None:
         content = {"service_target": service_target or {"service": "*", "env": "*"}, "lib_config": lib_config}
     return Payload(
-        {"id": config_id, "product_name": "APM_TRACING", "sha256_hash": None, "length": None, "tuf_version": 1},
-        f"datadog/2/APM_TRACING/{config_id}/config",
+        ConfigMetadata(id=config_id, product_name="APM_TRACING", sha256_hash=None, length=None, tuf_version=version),
+        path or f"datadog/2/APM_TRACING/{config_id}/config",
         content,
     )
 
@@ -87,9 +92,55 @@ def test_updated_record_takes_precedence_on_ties():
     callback._process_payloads(
         [_record("a", {"tracing_sampling_rate": 0.5}), _record("b", {"tracing_sampling_rate": 0.2})]
     )
-    chained_config = callback._process_payloads([_record("a", {"tracing_sampling_rate": 0.9})])
+    chained_config = callback._process_payloads([_record("a", {"tracing_sampling_rate": 0.9}, version=2)])
 
     assert chained_config["tracing_sampling_rate"] == 0.9
+
+
+def test_unchanged_record_keeps_precedence_on_ties():
+    # A full snapshot, as delivered to a forked child or a new client, carries
+    # the unchanged records again in any order. They must keep their place.
+    callback = APMTracingCallback()
+
+    callback._process_payloads(
+        [_record("a", {"tracing_sampling_rate": 0.5}), _record("b", {"tracing_sampling_rate": 0.2})]
+    )
+    callback._process_payloads([_record("a", {"tracing_sampling_rate": 0.9}, version=2)])
+    chained_config = callback._process_payloads(
+        [_record("a", {"tracing_sampling_rate": 0.9}, version=2), _record("b", {"tracing_sampling_rate": 0.2})]
+    )
+
+    assert chained_config["tracing_sampling_rate"] == 0.9
+
+
+def test_targeting_reevaluated_when_service_changes(monkeypatch):
+    # Records are not delivered again when the service changes, so one that
+    # did not target the previous service must apply once it targets this one.
+    monkeypatch.setattr(config, "service", "inferred")
+    callback = APMTracingCallback()
+
+    chained_config = callback._process_payloads(
+        [_record("a", {"tracing_sampling_rate": 0.3}, {"service": "checkout", "env": "*"})]
+    )
+    assert dict(chained_config) == {}
+
+    monkeypatch.setattr(config, "service", "checkout")
+    chained_config = callback._process_payloads([_record("b", {"tracing_enabled": True})])
+    assert dict(chained_config) == {"tracing_sampling_rate": 0.3, "tracing_enabled": True}
+
+
+def test_records_with_the_same_id_are_tracked_by_path():
+    callback = APMTracingCallback()
+
+    callback._process_payloads(
+        [
+            _record("a", {"tracing_sampling_rate": 0.5}),
+            _record("a", {"tracing_enabled": True}, path="employee/APM_TRACING/a/config"),
+        ]
+    )
+    chained_config = callback._process_payloads([_record("a", None, path="employee/APM_TRACING/a/config")])
+
+    assert dict(chained_config) == {"tracing_sampling_rate": 0.5}
 
 
 @pytest.mark.parametrize(

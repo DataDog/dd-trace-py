@@ -169,6 +169,26 @@ def test_new_native_client_removes_configs_missing_from_its_first_poll():
     assert len(sink.batches) == 2
 
 
+def test_new_native_client_keeps_configs_on_empty_first_reply():
+    # An empty reply means that nothing changed, not that there are no configs,
+    # so it must not reconcile the configs applied through the previous client.
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client, sink = _client(agent.url)
+        assert client.request() is True
+    assert [p.path for p in sink.last] == [BASE_PATH]
+
+    with _MockAgent([{}, RESPONSES[1]]) as agent:
+        client._native = None
+        client.agent_url = agent.url
+        assert client.request() is True
+        assert len(sink.batches) == 1
+        assert BASE_PATH in client._applied
+
+        # The first reply with content is still reconciled.
+        assert client.request() is True
+    assert [(p.path, p.content is None) for p in sink.last] == [(BASE_PATH, False)]
+
+
 def test_new_native_client_keeps_configs_with_malformed_content():
     # A config that a rebuilt client reports with invalid content is still
     # there, so the last valid one is kept, like on any other update.

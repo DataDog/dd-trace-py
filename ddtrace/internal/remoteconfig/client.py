@@ -382,8 +382,8 @@ class RemoteConfigClient:
 
         Used by the child-process subscriber: a bare poll tick (``records`` is
         empty) still fires every callback's ``periodic()`` via an empty dispatch.
-        records is None when the reader could not read a consistent snapshot, so
-        nothing is reconciled until it can. enabled_products are the product
+        records is None when there is nothing to reconcile, e.g. when the reader
+        could not read a consistent snapshot. enabled_products are the product
         names the records were read for, and default to the currently enabled ones.
         """
         if records is None:
@@ -397,6 +397,9 @@ class RemoteConfigClient:
             native = self.ensure_native()
             products = list(self._enabled_products)
             changes = native.poll(products, list(ddtrace.config._get_extra_services()))
+            # Nothing changed: there is nothing to deliver, nor to reconcile.
+            if changes is None:
+                return True
             # Deliver payloads only; product periodic() housekeeping is driven
             # once per cycle by the poller (RemoteConfigPoller.periodic), so it
             # keeps running even when a fetch fails.

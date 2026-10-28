@@ -419,6 +419,10 @@ pub struct ShmReader {
     active_configs: HashMap<String, (u64, Arc<Vec<u8>>)>,
     /// Product names enabled at the previous read.
     active_products: HashSet<String>,
+    /// Whether the previous read failed. The manifest reader has consumed the
+    /// generation it saw by then, so the next read must not take an unchanged
+    /// generation to mean that there is nothing new.
+    retry: bool,
 }
 
 impl ShmReader {
@@ -428,6 +432,7 @@ impl ShmReader {
             contents: Some(contents_handle.map()?),
             active_configs: HashMap::new(),
             active_products: HashSet::new(),
+            retry: false,
         })
     }
 
@@ -455,10 +460,16 @@ impl ShmReader {
     /// `enabled` is the set of product names this consumer currently subscribes
     /// to. Filters out configs for products not in `enabled`.
     pub fn read(&mut self, enabled: HashSet<String>) -> Option<Vec<ChangeRecord>> {
+        let records = self.try_read(enabled);
+        self.retry = records.is_none();
+        records
+    }
+
+    fn try_read(&mut self, enabled: HashSet<String>) -> Option<Vec<ChangeRecord>> {
         let (mut changed, mut bytes) = self.manifest.read();
         // Force re-evaluation when our product subscriptions change, to pick up
         // e.g. a newly enabled LIVE_DEBUGGER product.
-        if !changed && enabled == self.active_products {
+        if !changed && !self.retry && enabled == self.active_products {
             return Some(Vec::new());
         }
 
@@ -827,6 +838,42 @@ mod tests {
         let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(content_of(&changes, "/a/"), Some(&b"AAAA".to_vec()));
+    }
+
+    /// A failed read has consumed the manifest generation, so the next read must
+    /// re-evaluate it even though the origin publishes nothing new.
+    #[test]
+    fn reader_retries_after_failed_read_without_new_publish() {
+        let (manifest_writer, manifest_reader) = create_anon_pair().unwrap();
+        let contents_handle = ShmHandle::new(0x4000).unwrap();
+        let mut contents = contents_handle.clone().map().unwrap();
+        let mut reader = ShmReader::new(manifest_reader, contents_handle).unwrap();
+
+        let a = "datadog/2/ASM_FEATURES/a/config";
+        let b = "datadog/2/ASM_FEATURES/b/config";
+        let mut entries: HashMap<String, Entry> = HashMap::new();
+        entries.insert(a.to_string(), put_block(&mut contents, 0, 1, a, b"AAAA"));
+        manifest_writer.write(&serialize_manifest(0, &entries));
+        assert_eq!(reader.read(enabled(&["ASM_FEATURES"])).unwrap().len(), 1);
+
+        // B points past the end of the contents, which were not grown yet.
+        let offset = 0x4000;
+        entries.insert(
+            b.to_string(),
+            Entry {
+                version: 1,
+                offset,
+                path_len: b.len() as u32,
+                content_len: 4,
+            },
+        );
+        manifest_writer.write(&serialize_manifest(0, &entries));
+        assert!(reader.read(enabled(&["ASM_FEATURES"])).is_none());
+
+        put_block(&mut contents, offset, 1, b, b"BBBB");
+        let changes = reader.read(enabled(&["ASM_FEATURES"])).unwrap();
+        assert_eq!(changes.len(), 1);
+        assert_eq!(content_of(&changes, "/b/"), Some(&b"BBBB".to_vec()));
     }
 
     /// In-product enablement: a config for a product the consumer has not enabled
