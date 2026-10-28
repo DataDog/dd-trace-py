@@ -37,8 +37,8 @@ BASE_PLATFORMS = [
     "win_amd64",
 ]
 # Linux cp315 from "build linux" / "build linux serverless"; macOS cp315 from
-# "build macos". Windows still stops at 3.14. All of these are pruned from PyPI
-# until requires-python allows 3.15.
+# "build macos". Windows still stops at 3.14. UNSUPPORTED_TAGS is empty so
+# publish prune leaves these cp315 wheels alone.
 CP315_LINUX_PLATFORMS = [
     "manylinux2014_aarch64.manylinux_2_17_aarch64",
     "manylinux2014_x86_64.manylinux_2_17_x86_64",
