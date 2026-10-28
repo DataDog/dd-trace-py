@@ -196,13 +196,13 @@ class _ProfilerInstance(service.Service):
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
         api_key: Optional[str] = None,
-        _memory_collector_enabled: bool = profiling_config.memory.enabled,
-        _stack_collector_enabled: bool = profiling_config.stack.enabled,
-        _lock_collector_enabled: bool = profiling_config.lock.enabled,
-        _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
-        _exception_profiling_enabled: bool = profiling_config.exception.enabled,
-        enable_code_provenance: bool = profiling_config.code_provenance,
-        endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
+        _memory_collector_enabled: Optional[bool] = None,
+        _stack_collector_enabled: Optional[bool] = None,
+        _lock_collector_enabled: Optional[bool] = None,
+        _pytorch_collector_enabled: Optional[bool] = None,
+        _exception_profiling_enabled: Optional[bool] = None,
+        enable_code_provenance: Optional[bool] = None,
+        endpoint_collection_enabled: Optional[bool] = None,
     ) -> None:
         super().__init__()
         # User-supplied values
@@ -212,13 +212,32 @@ class _ProfilerInstance(service.Service):
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
-        self._memory_collector_enabled: bool = _memory_collector_enabled
-        self._stack_collector_enabled: bool = _stack_collector_enabled
-        self._lock_collector_enabled: bool = _lock_collector_enabled
-        self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
-        self._exception_profiling_enabled: bool = _exception_profiling_enabled
-        self.enable_code_provenance: bool = enable_code_provenance
-        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
+
+        self._memory_collector_enabled: bool = (
+            _memory_collector_enabled if _memory_collector_enabled is not None else profiling_config.memory.enabled
+        )
+        self._stack_collector_enabled: bool = (
+            _stack_collector_enabled if _stack_collector_enabled is not None else profiling_config.stack.enabled
+        )
+        self._lock_collector_enabled: bool = (
+            _lock_collector_enabled if _lock_collector_enabled is not None else profiling_config.lock.enabled
+        )
+        self._pytorch_collector_enabled: bool = (
+            _pytorch_collector_enabled if _pytorch_collector_enabled is not None else profiling_config.pytorch.enabled
+        )
+        self._exception_profiling_enabled: bool = (
+            _exception_profiling_enabled
+            if _exception_profiling_enabled is not None
+            else profiling_config.exception.enabled
+        )
+        self.enable_code_provenance: bool = (
+            enable_code_provenance if enable_code_provenance is not None else profiling_config.code_provenance
+        )
+        self.endpoint_collection_enabled: bool = (
+            endpoint_collection_enabled
+            if endpoint_collection_enabled is not None
+            else profiling_config.endpoint_collection
+        )
 
         # Non-user-supplied values
         # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.

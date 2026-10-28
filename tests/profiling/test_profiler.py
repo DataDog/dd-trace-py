@@ -129,6 +129,20 @@ def test_copy_keeps_collector_selection() -> None:
     assert c._collectors == []
 
 
+def test_collector_defaults_are_read_when_profiler_is_built(monkeypatch: pytest.MonkeyPatch) -> None:
+    from ddtrace.internal.settings.profiling import config as profiling_config
+
+    # Remote config changes profiling_config after this module imported ddtrace.profiling.profiler.
+    for setting in (profiling_config.stack, profiling_config.memory, profiling_config.lock, profiling_config.exception):
+        monkeypatch.setattr(setting, "enabled", False)
+
+    p = profiler._ProfilerInstance()
+    assert p._stack_collector_enabled is False
+    assert p._memory_collector_enabled is False
+    assert p._lock_collector_enabled is False
+    assert p._exception_profiling_enabled is False
+
+
 def test_shallow_copy_of_profiler() -> None:
     import copy
 
