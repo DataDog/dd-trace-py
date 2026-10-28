@@ -33,6 +33,7 @@ upgrade:
     * flask_cache
     * profile-uwsgi / tracer-uwsgi
     * lib_injection - OCI/SSI packaging for 3.15 is not in this change
+    * Windows wheels - Windows packaging matrix still ends at 3.14
     * vertica - hasn't been supported by ddtracepy since Python 3.9
     * aredis - untested since Python 3.9
     * rediscluster - untested since Python 3.11
