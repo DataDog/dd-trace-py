@@ -1008,6 +1008,9 @@ class SerializationError(Exception):
     ...
 
 class ffe:
+    @staticmethod
+    def get_evaluator_capabilities() -> list[str]: ...
+
     """
     Native Feature Flags and Experimentation module.
     """
