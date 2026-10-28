@@ -13,6 +13,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.span_cycle import SpanCycleEvents
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -151,3 +152,27 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         finally:
             if getattr(ctx.event, "_end_span", True):
                 _finish_span(ctx, exc_info)
+
+
+class SpanCycleSubscriber(TracingSubscriber[TracingEventType], Generic[TracingEventType]):
+    """TracingSubscriber that dispatches span lifecycle events with (ctx,), suffixed with the context
+    identifier, so other products can take part in the span it owns:
+    - span.starting.<identifier>: before the span is created, the event can still be changed
+    - span.started.<identifier>: after the span is created and on_started handlers ran
+    - span.finishing.<identifier>: before on_ended handlers run and the span is finished
+    """
+
+    @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
+        core.dispatch(f"{SpanCycleEvents.SPAN_STARTING.value}.{ctx.identifier}", (ctx,))
+        super()._on_context_started(ctx)
+        core.dispatch(f"{SpanCycleEvents.SPAN_STARTED.value}.{ctx.identifier}", (ctx,))
+
+    @classmethod
+    def _on_context_ended(
+        cls,
+        ctx: core.ExecutionContext[TracingEventType],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        core.dispatch(f"{SpanCycleEvents.SPAN_FINISHING.value}.{ctx.identifier}", (ctx,))
+        super()._on_context_ended(ctx, exc_info)

@@ -2,8 +2,8 @@ from typing import ClassVar
 from typing import Optional
 
 from ddtrace import config
-from ddtrace.contrib._events.llm import LlmEvents
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib._events.span_cycle import SpanCycleEvents
 from ddtrace.contrib.internal.anthropic._constants import COMPONENT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -15,9 +15,9 @@ from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 
 
 class LLMObsAnthropicSubscriber(Subscriber):
-    """Base for LLMObs subscribers to the Anthropic contrib's LlmEvents.
+    """Base for LLMObs subscribers to the SpanCycleEvents of the Anthropic contrib's llm.request spans.
 
-    The events are shared by every LLM integration, so handlers ignore contexts
+    llm.request is shared by every LLM integration, so handlers ignore contexts
     whose event belongs to another component.
     """
 
@@ -37,11 +37,11 @@ class LLMObsAnthropicSubscriber(Subscriber):
 
 
 class LLMObsAnthropicSpanStartingSubscriber(LLMObsAnthropicSubscriber):
-    event_names = (LlmEvents.SPAN_STARTING.value,)
+    event_names = (f"{SpanCycleEvents.SPAN_STARTING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
-        # LlmTracingSubscriber dispatches the context rather than the event.
+        # SpanCycleSubscriber dispatches the context rather than the event.
         ctx = event_instance
         if not cls._is_anthropic(ctx):
             return
@@ -51,11 +51,11 @@ class LLMObsAnthropicSpanStartingSubscriber(LLMObsAnthropicSubscriber):
 
 
 class LLMObsAnthropicSpanStartedSubscriber(LLMObsAnthropicSubscriber):
-    event_names = (LlmEvents.SPAN_STARTED.value,)
+    event_names = (f"{SpanCycleEvents.SPAN_STARTED.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
-        # LlmTracingSubscriber dispatches the context rather than the event.
+        # SpanCycleSubscriber dispatches the context rather than the event.
         ctx = event_instance
         if not cls._is_anthropic(ctx):
             return
@@ -72,11 +72,11 @@ class LLMObsAnthropicSpanStartedSubscriber(LLMObsAnthropicSubscriber):
 
 
 class LLMObsAnthropicSpanFinishingSubscriber(LLMObsAnthropicSubscriber):
-    event_names = (LlmEvents.SPAN_FINISHING.value,)
+    event_names = (f"{SpanCycleEvents.SPAN_FINISHING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
-        # LlmTracingSubscriber dispatches the context rather than the event.
+        # SpanCycleSubscriber dispatches the context rather than the event.
         ctx = event_instance
         if not cls._is_anthropic(ctx):
             return
