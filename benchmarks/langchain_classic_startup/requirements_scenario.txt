@@ -1,3 +1,0 @@
-langchain==1.4.7
-langchain-classic==1.0.8
-pydantic==2.14.1

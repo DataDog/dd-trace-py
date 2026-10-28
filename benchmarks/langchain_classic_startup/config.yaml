@@ -1,5 +1,0 @@
-iast_disabled:
-  iast_enabled: false
-
-iast_enabled:
-  iast_enabled: true
