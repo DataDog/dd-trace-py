@@ -322,7 +322,7 @@ def patch():
 
     # Let products (LLMObs) attach their own LlmEvents subscribers without this
     # module importing them.
-    integration_hooks.on_patch("llama_index")
+    integration_hooks.on_patch(COMPONENT)
 
 
 def unpatch():
@@ -330,7 +330,7 @@ def unpatch():
         return
     llama_core._datadog_patch = False
 
-    integration_hooks.on_unpatch("llama_index")
+    integration_hooks.on_unpatch(COMPONENT)
 
     for (cls, method_name), original in _originals.items():
         try:
