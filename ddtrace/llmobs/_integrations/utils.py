@@ -11,7 +11,9 @@ from typing import Union
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -30,8 +32,10 @@ from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import STORAGE_SEARCH_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import WEB_SEARCH_COUNT_METRIC_KEY
 
 # Audio helpers were moved to audio_utils.py to keep this module manageable; the noqa'd names below
 # are re-exported so existing ``from ...utils import <helper>`` imports keep working.
@@ -50,12 +54,10 @@ from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
@@ -257,6 +259,46 @@ def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
     ):
         metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
         metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
+
+
+_OPENAI_SERVER_TOOL_CALL_METRIC_KEYS = {
+    "web_search_call": WEB_SEARCH_COUNT_METRIC_KEY,
+    "file_search_call": STORAGE_SEARCH_COUNT_METRIC_KEY,
+}
+
+
+def get_openai_server_tool_usage_metrics(resp: Any) -> dict[str, int]:
+    """Count the billable server-side tool calls in an OpenAI Responses response.
+
+    Web searches are read from the untyped tool_usage.web_search.num_requests when present, otherwise
+    counted from completed search actions (open_page / find_in_page steps are not billed). File searches
+    have no usage counter, so each completed file_search_call item counts once. Zero counts are omitted.
+    """
+    reported_web_searches = _get_attr(
+        _get_attr(_get_attr(resp, "tool_usage", None), "web_search", None), "num_requests", None
+    )
+    if not isinstance(reported_web_searches, int):
+        reported_web_searches = None
+    output = _get_attr(resp, "output", None)
+    if not isinstance(output, list):
+        output = []
+    metrics: dict[str, int] = {}
+    for item in output:
+        item_type = _get_attr(item, "type", None)
+        metric_key = _OPENAI_SERVER_TOOL_CALL_METRIC_KEYS.get(item_type)
+        if metric_key is None or _get_attr(item, "status", None) != "completed":
+            continue
+        if item_type == "web_search_call":
+            if reported_web_searches is not None:
+                continue
+            # Items without an action (older payloads) are assumed to be searches.
+            action_type = _get_attr(_get_attr(item, "action", None), "type", None)
+            if action_type is not None and action_type != "search":
+                continue
+        metrics[metric_key] = metrics.get(metric_key, 0) + 1
+    if reported_web_searches:
+        metrics[WEB_SEARCH_COUNT_METRIC_KEY] = reported_web_searches
     return metrics
 
 

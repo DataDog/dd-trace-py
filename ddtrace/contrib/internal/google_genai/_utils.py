@@ -3,8 +3,8 @@ from typing import Optional
 
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
-from ddtrace.llmobs._utils import _get_attr
 
 
 def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
