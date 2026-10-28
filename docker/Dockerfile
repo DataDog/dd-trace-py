@@ -105,10 +105,8 @@ ENV PYTHON_CONFIGURE_OPTS="--enable-shared --disable-test-modules --without-stat
 # TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
 # The minimal profile plus rustfmt and clippy is the default profile without rust-docs (~900MB).
-# Pin the toolchain so rebuilding the image doesn't silently pick up a new stable release.
-ARG RUST_VERSION=1.99.1
 RUN curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused -o /tmp/rustup-init.sh https://sh.rustup.rs && \
-    sh /tmp/rustup-init.sh --profile minimal --default-toolchain "${RUST_VERSION}" --component rustfmt,clippy -y && \
+    sh /tmp/rustup-init.sh --profile minimal --default-toolchain stable --component rustfmt,clippy -y && \
     rm /tmp/rustup-init.sh
 
 # Use .python-version to specify all Python versions for testing
