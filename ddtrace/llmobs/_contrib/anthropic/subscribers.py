@@ -41,7 +41,7 @@ class LLMObsAnthropicSpanStartingSubscriber(LLMObsAnthropicSubscriber):
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
-        # SpanCycleSubscriber dispatches the context rather than the event.
+        # SpanLifecycleSubscriber dispatches the context rather than the event.
         ctx = event_instance
         if not cls._is_anthropic(ctx):
             return
@@ -55,7 +55,7 @@ class LLMObsAnthropicSpanStartedSubscriber(LLMObsAnthropicSubscriber):
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
-        # SpanCycleSubscriber dispatches the context rather than the event.
+        # SpanLifecycleSubscriber dispatches the context rather than the event.
         ctx = event_instance
         if not cls._is_anthropic(ctx):
             return
@@ -76,7 +76,7 @@ class LLMObsAnthropicSpanFinishingSubscriber(LLMObsAnthropicSubscriber):
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
-        # SpanCycleSubscriber dispatches the context rather than the event.
+        # SpanLifecycleSubscriber dispatches the context rather than the event.
         ctx = event_instance
         if not cls._is_anthropic(ctx):
             return

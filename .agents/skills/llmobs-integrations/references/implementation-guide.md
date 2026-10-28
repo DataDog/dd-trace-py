@@ -62,7 +62,7 @@ standard request integrations so contrib does not import LLMObs.
 
 ## LLMObs subscribers and registration
 
-Follow `ddtrace/llmobs/_contrib/anthropic/`. `LlmTracingSubscriber` is a `SpanCycleSubscriber`, so
+Follow `ddtrace/llmobs/_contrib/anthropic/`. `LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so
 it dispatches each `SpanCycleEvents` phase as `"<phase>.llm.request"`. Each handler receives an
 `ExecutionContext` and must filter on `ctx.event.component`, because `llm.request` is shared across
 integrations:

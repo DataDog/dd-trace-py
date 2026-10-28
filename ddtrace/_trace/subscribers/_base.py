@@ -154,7 +154,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
                 _finish_span(ctx, exc_info)
 
 
-class SpanCycleSubscriber(TracingSubscriber[TracingEventType], Generic[TracingEventType]):
+class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[TracingEventType]):
     """TracingSubscriber that dispatches span lifecycle events with (ctx,), suffixed with the context
     identifier, so other products can take part in the span it owns:
     - span.starting.<identifier>: before the span is created, the event can still be changed

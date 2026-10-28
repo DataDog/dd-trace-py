@@ -1,7 +1,7 @@
 from types import TracebackType
 from typing import Optional
 
-from ddtrace._trace.subscribers._base import SpanCycleSubscriber
+from ddtrace._trace.subscribers._base import SpanLifecycleSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
@@ -19,7 +19,7 @@ _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 log = get_logger(__name__)
 
 
-class LlmTracingSubscriber(SpanCycleSubscriber["LlmRequestEvent"]):
+class LlmTracingSubscriber(SpanLifecycleSubscriber["LlmRequestEvent"]):
     """Shared tracing logic for all LLM integrations.
 
     Handles span creation, base tag setting, proxy detection,
