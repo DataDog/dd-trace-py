@@ -5,16 +5,14 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from functools import singledispatch
-import threading
-from threading import Thread
 import time
 from types import FrameType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Optional
 from typing import Protocol
 from typing import cast
-from uuid import uuid4
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
@@ -27,9 +25,14 @@ from ddtrace.debugging._sampling import Decision
 from ddtrace.debugging._session import Session
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.utils.time import Time
+
+
+if TYPE_CHECKING:
+    from threading import Thread
 
 
 class TraceContextProtocol(Protocol):
@@ -101,12 +104,12 @@ class Signal(abc.ABC):
 
     probe: Probe
     frame: FrameType
-    thread: Thread
+    thread: "Thread"
     trace_context: Optional[TraceContextProtocol] = None
     state: str = SignalState.NONE
     errors: list[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
-    uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
+    uuid: str = field(default_factory=uuid4, init=False)
     _eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -311,7 +314,7 @@ class Signal(abc.ABC):
 
     @staticmethod
     def from_probe(
-        probe: Probe, frame: FrameType, thread: Thread, trace_context: Optional[Any], meter: Metrics.Meter
+        probe: Probe, frame: FrameType, thread: "Thread", trace_context: Optional[Any], meter: Metrics.Meter
     ) -> "Signal":
         return probe_to_signal(probe, frame, thread, trace_context, meter)
 
@@ -320,7 +323,7 @@ class Signal(abc.ABC):
 def probe_to_signal(
     probe: Probe,
     frame: FrameType,
-    thread: threading.Thread,
+    thread: "Thread",
     trace_context: Optional[Any],
     meter: Metrics.Meter,
 ) -> Signal:
