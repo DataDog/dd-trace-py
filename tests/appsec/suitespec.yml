@@ -179,6 +179,7 @@ suites:
         PYDONTWRITEBYTECODE: '1'
         PYTHONUNBUFFERED: '1'
         _DD_IAST_DEBUG: 'false'
+      # PyGoat's pinned pip and application dependencies do not support Python 3.15.
       python: ['3.10', '3.11', '3.12']
       variants:
         - name: appsec_integrations_pygoat
