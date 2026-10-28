@@ -1,3 +1,4 @@
+from ddtrace.appsec._registration import registration as registration
 from ddtrace.internal.settings.asm import config
 
 

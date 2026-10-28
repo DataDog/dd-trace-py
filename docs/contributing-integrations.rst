@@ -164,8 +164,13 @@ subscriber to apply OpenTelemetry status-based error semantics while preserving
 the exception for Bottle. Replacement responses clear the flag.
 
 The shared inspection events are defined in
-``ddtrace.contrib._events.web_framework``. AppSec registers their subscribers in
-``ddtrace.appsec._contrib.web_framework``. Request inspection carries explicit
+``ddtrace.contrib._events.web_framework``. AppSec declares their subscriber bundle in
+``ddtrace.appsec._registration`` and registers it from ``load_appsec()``. Tracing declares
+its corresponding bundle in ``ddtrace._trace._registration``. Both use the shared
+``ProductRegistration`` / ``SubscriberBundle`` API documented in
+``ddtrace/internal/README.md``. Bundles register through their existing product lifecycle;
+adding a framework that emits the same events does not require new per-product wiring.
+Request inspection carries explicit
 peer IP, cookies, and path parameters alongside the request event; subscribers
 do not receive framework request objects. Another synchronous adapter can reuse
 these events and subscribers. The shared ``WebFrameworkRequestContextSubscriber`` handles cleanup for both

@@ -506,6 +506,13 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("http.response.headers.my-response-header") == "my_response_value"
 
     def test_inferred_spans_api_gateway(self):
+        self.addCleanup(
+            setattr,
+            ddtrace.config,
+            "_inferred_proxy_services_enabled",
+            ddtrace.config._inferred_proxy_services_enabled,
+        )
+
         @self.app.route("/")
         def default_endpoint():
             return bottle.HTTPResponse("", status=200)

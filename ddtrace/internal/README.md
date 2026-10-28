@@ -73,6 +73,62 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Product subscriber registration
+
+Products declare shared subscriber bundles with `ProductRegistration` and
+`SubscriberBundle` from `ddtrace.internal.product_registration`. Each product keeps
+its declaration in its own `_registration.py` and exposes it as `registration` on its
+product protocol module. The name matches its `ddtrace.products` entry-point name.
+
+```python
+registration = ProductRegistration(
+    name="appsec",
+    subscriber_bundles={
+        "web_framework": SubscriberBundle(
+            module="ddtrace.appsec._contrib.web_framework.subscribers",
+            subscribers=(
+                "WebFrameworkRequestInspectSubscriber",
+                "WebFrameworkResponseInspectSubscriber",
+                "WebFrameworkBlockResponseSubscriber",
+                "WebFrameworkRequestContextSubscriber",
+            ),
+        ),
+    },
+)
+
+registration.register()                  # All declared bundles, in declaration order.
+registration.register("web_framework")   # Only one event family.
+registration.unregister("web_framework") # After active requests have drained.
+```
+
+Declarations do not import subscriber modules. Calling `register()` lazily imports
+only the selected bundles; their classes must use `auto_register = False`. The shared
+API resolves all names in a bundle before registering it. Repeated registration uses
+the subscribers' named-listener deduplication and can restore listeners after a reset.
+The family mapping is copied at construction so external mutation cannot change it.
+Unknown families raise `KeyError`; load and callback failures propagate to the owning
+lifecycle. Registration is not a transaction across bundles or callback failures.
+
+`unregister()` removes bundles and their subscribers in reverse declaration order.
+It does not import unused modules. The caller must first drain active requests: this
+operation removes context completion listeners too. Product deactivation and integration
+unpatching must preserve listeners that existing requests still need. AppSec therefore
+keeps its web subscribers registered across remote disablement and retains the existing
+runtime enablement checks and context cleanup.
+
+The first consumers are tracing and AppSec's `web_framework` bundles. Tracing registers
+its bundle when loading tracing subscribers; AppSec registers its bundle from
+`load_appsec()`, including remote activation. Other subscriber families retain their
+existing lifecycle until migrated. The ProductManager does not automatically activate
+a declaration merely because the product is discovered or eligible for activation.
+
+Bottle continues to emit typed web events and adapt blocked responses, including direct
+`TracePlugin` installation. Its integration code does not import either product's declaration.
+Additional frameworks emitting the same events reuse the same bundle. An LLMObs product
+could declare an `llm` bundle alongside its own lazy extraction-class registry; extraction
+and export policy remain product-owned.
+
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from
