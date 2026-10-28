@@ -282,7 +282,13 @@ def test_custom_writer():
     from ddtrace.trace import tracer
 
     class CustomWriter(TraceWriter):
-        def recreate(self) -> TraceWriter:
+        def recreate(
+            self,
+            appsec_enabled: Optional[bool] = None,
+            llmobs_enabled: Optional[bool] = None,
+            compute_stats_enabled: Optional[bool] = None,
+            stats_opt_out: Optional[bool] = None,
+        ) -> TraceWriter:
             return self
 
         def stop(self, timeout: Optional[float] = None) -> None:
