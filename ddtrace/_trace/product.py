@@ -3,6 +3,7 @@ import typing as t
 
 from envier import En
 
+from ddtrace._trace._registration import registration as registration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
