@@ -57,28 +57,26 @@ _CALL = types.Part(function_call=types.FunctionCall(name="lookup"))
 
 
 @pytest.mark.parametrize(
-    "events,expected",
+    ("events", "expected"),
     [
-        pytest.param(
+        # streamed text
+        (
             [
                 _event(types.Part(text="Hel"), partial=True),
                 _event(types.Part(text="lo"), partial=True),
                 _event(types.Part(text="Hello")),
             ],
             ["Hello"],
-            id="streamed text",
         ),
-        pytest.param(
-            [_event(_CALL, partial=True), _event(), _event(_CALL)],
-            ["lookup"],
-            id="streamed tool call, contentless event before the assembled one",
-        ),
-        pytest.param(
+        # streamed tool call, with a contentless event before the assembled one
+        ([_event(_CALL, partial=True), _event(), _event(_CALL)], ["lookup"]),
+        # run_live: nothing assembled
+        (
             [_event(types.Part(text="Hel"), partial=True), _event(types.Part(text="lo"), partial=True), _event()],
             ["Hel", "lo"],
-            id="run_live: nothing assembled",
         ),
-        pytest.param(
+        # partial text before an assembled tool call only
+        (
             [
                 _event(types.Part(text="Checking."), partial=True),
                 _event(_CALL),
@@ -86,20 +84,18 @@ _CALL = types.Part(function_call=types.FunctionCall(name="lookup"))
                 _event(types.Part(text="Done.")),
             ],
             ["Checking.", "lookup", "Done."],
-            id="partial text before an assembled tool call only",
         ),
-        pytest.param(
+        # response cut off mid-stream
+        (
             [
                 _event(types.Part(text="Let me"), partial=True),
                 _event(types.Part(text="Let me")),
                 _event(types.Part(text="It is"), partial=True),
             ],
             ["Let me", "It is"],
-            id="response cut off mid-stream",
         ),
-        pytest.param(
-            [_event(types.Part(text="Hi."), types.Part(thought_signature=b"sig"))], ["Hi."], id="signature-only part"
-        ),
+        # thought-signature-only part
+        ([_event(types.Part(text="Hi."), types.Part(thought_signature=b"sig"))], ["Hi."]),
     ],
 )
 def test_extract_messages_from_streamed_adk_events(events, expected):

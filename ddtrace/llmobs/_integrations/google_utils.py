@@ -380,17 +380,6 @@ def get_system_instructions_vertexai(model_instance):
     return system_instructions
 
 
-_ADK_PART_KINDS = (
-    "text",
-    "function_call",
-    "function_response",
-    "executable_code",
-    "code_execution_result",
-    "inline_data",
-    "file_data",
-)
-
-
 def extract_messages_from_adk_events(events) -> list[Message]:
     """
     Extract messages from Google ADK Event objects.
@@ -401,32 +390,15 @@ def extract_messages_from_adk_events(events) -> list[Message]:
     Returns:
         list of message dictionaries with format {"role": role, "content": content, ...}
     """
-    messages = []
+    messages_per_event = []
 
     # Handle both single event and list of events
     if not isinstance(events, list):
         events = [events]
 
-    # Streaming yields partial chunks followed by a non-partial event carrying the assembled response,
-    # so skip a partial only when the next non-partial event with content has the same kinds of parts
-    # (text, tool call, ...). Partials followed by anything else (run_live turns, or a response cut off
-    # mid-stream) are kept.
-    skipped = set()
-    kinds_after: set[str] = set()
-    for i in reversed(range(len(events))):
-        parts = _get_attr(_get_attr(events[i], "content", None), "parts", None) or []
-        if not isinstance(parts, list):
-            parts = [parts]
-        kinds = {kind for part in parts for kind in _ADK_PART_KINDS if _get_attr(part, kind, None)}
-        if _get_attr(events[i], "partial", False):
-            if kinds and kinds <= kinds_after:
-                skipped.add(i)
-        elif parts:
-            kinds_after = kinds
-
-    for i, event in enumerate(events):
-        if i in skipped:
-            continue
+    for event in events:
+        messages = []
+        messages_per_event.append((event, messages))
         content = _get_attr(event, "content", None)
         if not content:
             continue
@@ -440,8 +412,20 @@ def extract_messages_from_adk_events(events) -> list[Message]:
         for part in parts:
             # Reuse the existing Google GenAI part extraction logic
             message = extract_message_from_part_google_genai(part, role)
-            # e.g. a thought-signature-only part, which has nothing to show
+            # skips e.g. a thought-signature-only part, which has nothing to show
             if message.get("content") or message.get("tool_calls") or message.get("tool_results"):
                 messages.append(message)
 
-    return messages
+    # A streamed response arrives as partial events and then once more as one assembled event, so drop
+    # partials whose kinds of output the next non-partial event repeats.
+    kinds_after: set[str] = set()
+    for event, messages in reversed(messages_per_event):
+        kinds = {key for message in messages for key in message if key != "role"}
+        if not kinds:
+            continue
+        if not _get_attr(event, "partial", False):
+            kinds_after = kinds
+        elif kinds <= kinds_after:
+            messages.clear()
+
+    return [message for _, messages in messages_per_event for message in messages]
