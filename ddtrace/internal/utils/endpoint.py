@@ -2,11 +2,22 @@ import re
 from typing import Optional
 from urllib.parse import urlparse
 
+from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)
+
+
+# Under OTel semantics, spans not yet converted (for example server spans) still carry http.url.
+def path_source_tag_value(span: SpanData) -> Optional[str]:
+    path_source_tags = (
+        (otel_http.URL_PATH, otel_http.URL_FULL, http.URL) if config._otel_trace_semantics_enabled else (http.URL,)
+    )
+    return next((value for value in map(span._get_str_attribute, path_source_tags) if value), None)
 
 
 class SimplifiedEndpointComputer:

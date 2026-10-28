@@ -25,12 +25,12 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
+from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.rate_limiter import RateLimiter

@@ -1,0 +1,4 @@
+fixes:
+  - |
+    mcp: Fixes an issue where failed server tool calls are not marked as errors
+    when LLM Observability is disabled.
