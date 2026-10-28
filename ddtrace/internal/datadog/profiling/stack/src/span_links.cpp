@@ -225,14 +225,6 @@ SpanLinks::advance_lifecycle_locked(bool open)
     lifecycle_token.store(next, std::memory_order_release);
 }
 
-void
-SpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
-{
-    std::lock_guard<std::mutex> lock(mtx);
-    assign_locked({ SpanLinkDomain::Thread, thread_id },
-                  Span(span_id, local_root_span_id, std::move(span_type), SpanLinkKind::Span));
-}
-
 const std::optional<Span>
 SpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 {
@@ -253,64 +245,10 @@ SpanLinks::unlink_span(uint64_t thread_id)
 }
 
 void
-SpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
-{
-    std::lock_guard<std::mutex> lock(mtx);
-
-    const SpanLinkKey key{ SpanLinkDomain::Thread, thread_id };
-    auto it = key_to_entry.find(key);
-    if (it == key_to_entry.end()) {
-        return;
-    }
-    const std::optional<Span>& existing = it->second.span;
-    if (existing.has_value() && existing->span_id == expected_span_id) {
-        remove_locked(key);
-    }
-}
-
-void
-SpanLinks::unlink_finished_span(uint64_t span_id)
-{
-    std::lock_guard<std::mutex> lock(mtx);
-    retarget_locked(span_id, std::nullopt);
-}
-
-void
 SpanLinks::reset()
 {
     std::lock_guard<std::mutex> lock(mtx);
     clear_maps_locked();
-}
-
-void
-SpanLinks::on_link_start(uint64_t span_id)
-{
-    ++pending_span_links[span_id].count;
-}
-
-bool
-SpanLinks::on_link_end(uint64_t span_id)
-{
-    auto pending_span = pending_span_links.find(span_id);
-    if (--pending_span->second.count != 0) {
-        return false;
-    }
-
-    const bool finished = pending_span->second.finished;
-    pending_span_links.erase(pending_span);
-    return finished;
-}
-
-bool
-SpanLinks::on_span_finish(uint64_t span_id)
-{
-    auto pending_span = pending_span_links.find(span_id);
-    if (pending_span == pending_span_links.end()) {
-        return true;
-    }
-
-    pending_span->second.finished = true;
-    return false;
 }
 
 void
@@ -326,7 +264,6 @@ SpanLinks::postfork_child()
     // child.
     new (&instance.key_to_entry) KeyToEntry();
     new (&instance.span_to_keys) SpanToKeys();
-    new (&instance.pending_span_links) std::unordered_map<uint64_t, PendingSpanLink>();
     // The lifecycle token and the birth counter are kept. Only the forking thread exists in the child, so no write
     // can be in flight, and keeping the birth counter keeps it monotonic for the sampler.
 }

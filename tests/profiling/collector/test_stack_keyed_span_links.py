@@ -1,7 +1,7 @@
 """Tests for the keyed span link bindings of the stack extension.
 
-Nothing in the profiler calls these bindings yet. The tests check the Python-facing contract that later changes rely
-on: the lifecycle token rules, the per-domain keys, tombstones and birth, and argument handling.
+The tests check the Python-facing contract that the profiler's writers rely on: the lifecycle token rules, the
+per-domain keys, tombstones and birth, and argument handling.
 """
 
 from collections.abc import Iterator
@@ -10,6 +10,7 @@ from typing import Optional
 
 import pytest
 
+from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 
 
@@ -46,6 +47,11 @@ def birth_of(domain: int, identifier: int) -> int:
     found = entry(domain, identifier)
     assert found is not None
     return found[1]
+
+
+def test_context_meta_kinds_match_the_extension() -> None:
+    assert context_meta.SPAN_LINK_KIND_SPAN == SPAN
+    assert context_meta.SPAN_LINK_KIND_CONTEXT == CONTEXT
 
 
 def test_lifecycle_token_is_odd_only_while_open() -> None:
@@ -98,7 +104,7 @@ def test_thread_key_is_the_calling_thread(token: int) -> None:
     try:
         assert linked.wait(timeout=10)
         assert entry(THREAD, threading.get_ident()) == ((10, 1, "web", SPAN), 0)
-        # A missing span type is stored as an empty string, as link_span does.
+        # A missing span type is stored as an empty string.
         assert t.ident is not None
         assert span_of(THREAD, t.ident) == (20, 2, "", CONTEXT)
     finally:
@@ -178,18 +184,6 @@ def test_link_rejects_malformed_entries(token: int, bad_entry: object, error: ty
     with pytest.raises(error):
         stack.retarget(token, 10, bad_entry)  # type: ignore[arg-type]
     assert entry(TASK, 1) is None
-
-
-def test_link_span_is_unchanged_by_the_lifecycle() -> None:
-    # The thread-only binding keeps working whether keyed links are open or not.
-    stack.links_close()
-    stack.link_span(10, 1, "web")
-    try:
-        assert span_of(THREAD, threading.get_ident()) == (10, 1, "web", SPAN)
-        stack.unlink_finished_span(10)
-        assert entry(THREAD, threading.get_ident()) is None
-    finally:
-        stack.clear_span()
 
 
 # err=None: Python 3.12+ warns about fork() in a multi-threaded process.

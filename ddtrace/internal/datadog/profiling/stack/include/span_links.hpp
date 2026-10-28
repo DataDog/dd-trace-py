@@ -140,13 +140,11 @@ run_locked(std::mutex& mtx, Fn&& fn, OnContention&& on_contention)
 // - span_to_keys maps a span id to the keys whose entry is a Span-kind link to it. When a span finishes, it finds the
 //   links to move without scanning every key.
 //
-// There are two sets of operations:
-//
-// - The thread-only operations (link_span, unlink_span, unlink_finished_span, reset) behave as they did before keys
-//   had a domain, and are what current callers use. link_span stores every link as kind Span, even one written for an
-//   active Context, as before. They ignore the lifecycle token.
-// - The keyed operations (link, retarget, holds_span, clear, get_entry, open, close) are for per-unit callers. Writes
-//   need the current lifecycle token (see lifecycle()), and every operation takes a contention hook (see run_locked).
+// Python writers use the keyed operations (link, retarget, holds_span, clear, get_entry, open, close). Writes need the
+// current lifecycle token (see lifecycle()), and every operation takes a contention hook (see run_locked). A few
+// native callers use the thread-only helpers: the sampler reads a thread's span with get_active_span_from_thread_id,
+// thread exit erases the thread's key with unlink_span, and stopping the sampler clears both maps with reset. These
+// ignore the lifecycle token.
 class SpanLinks
 {
   public:
@@ -170,17 +168,9 @@ class SpanLinks
         }
     };
 
-    void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
     void unlink_span(uint64_t thread_id);
-    void unlink_span(uint64_t thread_id, uint64_t expected_span_id);
-    void unlink_finished_span(uint64_t span_id);
     void reset();
-
-    // These lifecycle methods run with the GIL held, before or after a native map mutation that releases it.
-    void on_link_start(uint64_t span_id);
-    bool on_link_end(uint64_t span_id);
-    bool on_span_finish(uint64_t span_id);
 
     // The lifecycle token. It is odd while span links are open (the profiler runs) and even while they are closed, and
     // every open() or close() advances it. A writer reads it before it reads any tracer state, and passes it to link or
@@ -289,12 +279,6 @@ class SpanLinks
     using KeyToEntry = std::unordered_map<SpanLinkKey, SpanLinkEntry, SpanLinkKeyHash>;
     using SpanToKeys = std::unordered_map<uint64_t, KeySet>;
 
-    struct PendingSpanLink
-    {
-        size_t count = 0;
-        bool finished = false;
-    };
-
     template<typename Fn, typename OnContention>
     void with_lock(Fn&& fn, OnContention&& on_contention)
     {
@@ -329,9 +313,6 @@ class SpanLinks
     // Written under mtx. Read without it by lifecycle() and birth_watermark().
     std::atomic<uint64_t> lifecycle_token{ 0 };
     std::atomic<uint64_t> birth_counter{ 0 };
-
-    // Protected by the GIL. This bridges lifecycle callback order to mutations that release it above.
-    std::unordered_map<uint64_t, PendingSpanLink> pending_span_links;
 
     // Private Constructor/Destructor
     SpanLinks() = default;

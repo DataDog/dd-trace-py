@@ -176,117 +176,6 @@ stack_thread_unregister(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
-static PyObject*
-stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
-{
-    (void)self;
-    uint64_t thread_id;
-    uint64_t span_id;
-    uint64_t local_root_span_id;
-    const char* span_type = nullptr;
-
-    PyThreadState* state = PyThreadState_Get();
-
-    if (!state) {
-        return nullptr;
-    }
-
-    thread_id = state->thread_id;
-
-    static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", nullptr };
-    static char** kwlist = const_cast<char**>(const_kwlist);
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "KKz", kwlist, &span_id, &local_root_span_id, &span_type)) {
-        return nullptr;
-    }
-
-    // From Python, span_type is a string or None, and when given None, it is passed as a nullptr.
-    static const std::string empty_string = "";
-    if (span_type == nullptr) {
-        span_type = empty_string.c_str();
-    }
-
-    auto& links = SpanLinks::get_instance();
-    links.on_link_start(span_id);
-
-    Py_BEGIN_ALLOW_THREADS;
-    links.link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
-    Py_END_ALLOW_THREADS;
-
-    if (links.on_link_end(span_id)) {
-        Py_BEGIN_ALLOW_THREADS;
-        links.unlink_finished_span(span_id);
-        Py_END_ALLOW_THREADS;
-    }
-
-    Py_RETURN_NONE;
-}
-
-PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
-
-static PyObject*
-stack_unlink_span(PyObject* self, PyObject* args)
-{
-    (void)self;
-    uint64_t expected_span_id;
-
-    if (!PyArg_ParseTuple(args, "K", &expected_span_id)) {
-        return nullptr;
-    }
-
-    PyThreadState* state = PyThreadState_Get();
-
-    if (!state) {
-        return nullptr;
-    }
-
-    uint64_t thread_id = state->thread_id;
-
-    Py_BEGIN_ALLOW_THREADS;
-    SpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
-    Py_END_ALLOW_THREADS;
-
-    Py_RETURN_NONE;
-}
-
-static PyObject*
-stack_clear_span(PyObject* self, PyObject* args)
-{
-    (void)self;
-    (void)args;
-
-    PyThreadState* state = PyThreadState_Get();
-    if (!state) {
-        return nullptr;
-    }
-
-    Py_BEGIN_ALLOW_THREADS;
-    SpanLinks::get_instance().unlink_span(state->thread_id);
-    Py_END_ALLOW_THREADS;
-
-    Py_RETURN_NONE;
-}
-
-static PyObject*
-stack_unlink_finished_span(PyObject* self, PyObject* args)
-{
-    (void)self;
-    uint64_t span_id;
-
-    if (!PyArg_ParseTuple(args, "K", &span_id)) {
-        return nullptr;
-    }
-
-    auto& links = SpanLinks::get_instance();
-    if (links.on_span_finish(span_id)) {
-        Py_BEGIN_ALLOW_THREADS;
-        links.unlink_finished_span(span_id);
-        Py_END_ALLOW_THREADS;
-    }
-
-    Py_RETURN_NONE;
-}
-
 // Keyed span link operations. They are called with the GIL held, and keep holding it while SpanLinks' mutex is free.
 // Only when the mutex is contended, by the sampling thread or by another writer that already released the GIL, do
 // they release the GIL, block on the mutex, do the work and release the mutex before re-acquiring the GIL. Neither
@@ -526,7 +415,7 @@ stack_span_link_entry(PyObject* Py_UNUSED(self), PyObject* args)
 
 // Records the asyncio task that offloaded work to the current (worker) thread.
 // The thread id is derived from the calling thread's state (this runs on the
-// worker thread), matching how stack_link_span_impl resolves it.
+// worker thread), matching how stack_span_links_link resolves the thread key.
 static PyObject*
 stack_link_origin_task_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 {
@@ -1396,19 +1285,6 @@ static PyMethodDef stack_methods[] = {
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },
-    { "link_span",
-      reinterpret_cast<PyCFunction>(stack_link_span),
-      METH_VARARGS | METH_KEYWORDS,
-      "Link a span to a thread" },
-    { "unlink_span",
-      stack_unlink_span,
-      METH_VARARGS,
-      "Clear the span linked to the current thread if its ID matches the expected span ID" },
-    { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
-    { "unlink_finished_span",
-      stack_unlink_finished_span,
-      METH_VARARGS,
-      "Clear every physical-thread link derived from a finished span" },
     // Keyed span links, per thread, asyncio task and greenlet
     { "lifecycle", stack_span_links_lifecycle, METH_NOARGS, "Return the span links lifecycle token" },
     { "link", stack_span_links_link, METH_VARARGS, "Link a span to the given execution units" },

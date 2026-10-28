@@ -17,6 +17,7 @@ import pytest
 import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.internal.datadog.profiling import stack as profiling_stack
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 
@@ -377,3 +378,39 @@ def test_otel_start_as_current_span_decorator_generator(oteltracer):
 
     values = list(generator_function())
     assert values == [1, 2, 3]
+
+
+@pytest.mark.skipif(not profiling_stack.is_available, reason="stack profiler not available")
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_invalid_span_context_gives_no_profiler_span_label():
+    import threading
+
+    import opentelemetry
+    from opentelemetry.trace import INVALID_SPAN_CONTEXT
+    from opentelemetry.trace import NonRecordingSpan
+
+    import ddtrace
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling.collector.stack import StackCollector
+
+    def thread_entry():
+        found = _stack._span_link_entry(_stack.SPAN_LINK_DOMAIN_THREAD, threading.get_ident())
+        return None if found is None else found[0]
+
+    # The sampler hands its samples to the exporter, which must be started first.
+    ddup.config(env="test", service="test_invalid_span_context", version="1", output_filename="/tmp/test_otel_profile")
+    ddup.start()
+    collector = StackCollector(tracer=ddtrace.tracer)
+    collector.start()
+    try:
+        oteltracer = opentelemetry.trace.get_tracer(__name__)
+        with oteltracer.start_as_current_span("otel-span") as otel_span:
+            assert thread_entry()[0] == otel_span.get_span_context().span_id
+            # A new NonRecordingSpan, unlike the INVALID_SPAN singleton, is activated as a Context with span id 0.
+            opentelemetry.context.attach(
+                opentelemetry.trace.set_span_in_context(NonRecordingSpan(INVALID_SPAN_CONTEXT))
+            )
+            assert thread_entry() is None
+    finally:
+        collector.stop()

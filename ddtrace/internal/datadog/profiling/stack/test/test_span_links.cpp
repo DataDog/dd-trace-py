@@ -14,14 +14,14 @@
 #include <vector>
 
 static void
-get()
+get(uint64_t token)
 {
     for (int i = 0; i < 100; i++) {
         std::string span_type;
         for (int j = 0; j < i; j++) {
             span_type.append("a");
         }
-        Datadog::SpanLinks::get_instance().link_span(42, 1, 2, span_type);
+        Datadog::SpanLinks::get_instance().link(token, 42, 0, 0, Datadog::Span(1, 2, span_type));
     }
 }
 
@@ -41,29 +41,21 @@ set()
 
 TEST(SpanLinksConcurrency, GetSetRace)
 {
-    std::thread t1(get);
+    auto& links = Datadog::SpanLinks::get_instance();
+    links.open();
+    std::thread t1(get, links.lifecycle());
     std::thread t2(set);
     t1.join();
     t2.join();
+    links.close();
 }
 
-TEST(SpanLinks, UnlinkOnlyMatchingSpan)
+TEST(SpanLinks, ThreadExitErasesOnlyThatThreadsKey)
 {
     auto& links = Datadog::SpanLinks::get_instance();
-    constexpr uint64_t thread_id = 43;
-    constexpr uint64_t span_id = 100;
+    links.open();
+    const uint64_t token = links.lifecycle();
 
-    links.link_span(thread_id, span_id, 200, "web");
-    links.unlink_span(thread_id, span_id + 1);
-
-    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), Datadog::Span(span_id, 200, "web"));
-
-    links.unlink_span(thread_id, span_id);
-    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
-}
-
-TEST(SpanLinks, ClearFinished)
-{
     unsigned int num_thread_ids = 100;
     std::unordered_set<uint64_t> thread_ids;
 
@@ -76,9 +68,9 @@ TEST(SpanLinks, ClearFinished)
         thread_ids.insert(dis(gen));
     }
 
-    // Call link_span with the thread ids
+    // Link a span to each thread id
     for (auto thread_id : thread_ids) {
-        Datadog::SpanLinks::get_instance().link_span(thread_id, thread_id, thread_id, "test");
+        links.link(token, thread_id, 0, 0, Datadog::Span(thread_id, thread_id, "test"));
     }
 
     std::unordered_set<uint64_t> finished_threads;
@@ -87,14 +79,13 @@ TEST(SpanLinks, ClearFinished)
     for (auto thread_id : thread_ids) {
         if (real_dis(gen) < 0.5) {
             finished_threads.insert(thread_id);
-            Datadog::SpanLinks::get_instance().unlink_span(thread_id);
+            links.unlink_span(thread_id);
         }
     }
 
     // Check that the unseen ids are removed
     for (auto thread_id : thread_ids) {
-        std::optional<Datadog::Span> span_opt =
-          Datadog::SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+        std::optional<Datadog::Span> span_opt = links.get_active_span_from_thread_id(thread_id);
         if (finished_threads.find(thread_id) == finished_threads.end()) {
             EXPECT_EQ(span_opt, Datadog::Span(thread_id, thread_id, "test"));
 
@@ -102,59 +93,32 @@ TEST(SpanLinks, ClearFinished)
             EXPECT_EQ(span_opt, std::nullopt);
         }
     }
+    links.close();
 }
 
-TEST(SpanLinks, UnlinkFinishedSpanAcrossThreads)
+TEST(SpanLinks, FinishedSpanClearsOnlyItsOwnThreadKeys)
 {
     auto& links = Datadog::SpanLinks::get_instance();
-    links.reset();
+    links.open();
+    const uint64_t token = links.lifecycle();
 
-    links.link_span(100, 1000, 1000, "web");
-    links.link_span(101, 1001, 1000, "web");
-    links.link_span(102, 1001, 1000, "web");
-    links.link_span(103, 2001, 2000, "worker");
+    links.link(token, 100, 0, 0, Datadog::Span(1000, 1000, "web"));
+    links.link(token, 101, 0, 0, Datadog::Span(1001, 1000, "web"));
+    links.link(token, 102, 0, 0, Datadog::Span(1001, 1000, "web"));
+    links.link(token, 103, 0, 0, Datadog::Span(2001, 2000, "worker"));
 
-    links.unlink_finished_span(1000);
+    // Threads 101 and 102 run a child of 1000. The local root finishing first must not clear them.
+    links.retarget(token, 1000, std::nullopt);
     EXPECT_EQ(links.get_active_span_from_thread_id(100), std::nullopt);
     EXPECT_EQ(links.get_active_span_from_thread_id(101), Datadog::Span(1001, 1000, "web"));
     EXPECT_EQ(links.get_active_span_from_thread_id(102), Datadog::Span(1001, 1000, "web"));
     EXPECT_EQ(links.get_active_span_from_thread_id(103), Datadog::Span(2001, 2000, "worker"));
 
-    links.unlink_finished_span(1001);
+    links.retarget(token, 1001, std::nullopt);
     EXPECT_EQ(links.get_active_span_from_thread_id(101), std::nullopt);
     EXPECT_EQ(links.get_active_span_from_thread_id(102), std::nullopt);
     EXPECT_EQ(links.get_active_span_from_thread_id(103), Datadog::Span(2001, 2000, "worker"));
-}
-
-TEST(SpanLinks, RelinkUpdatesFinishedSpanIndex)
-{
-    auto& links = Datadog::SpanLinks::get_instance();
-    links.reset();
-
-    links.link_span(201, 3001, 3000, "old");
-    links.link_span(201, 4001, 4000, "new");
-
-    links.unlink_finished_span(3000);
-    EXPECT_EQ(links.get_active_span_from_thread_id(201), Datadog::Span(4001, 4000, "new"));
-    links.unlink_finished_span(4001);
-    EXPECT_EQ(links.get_active_span_from_thread_id(201), std::nullopt);
-}
-
-TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
-{
-    auto& links = Datadog::SpanLinks::get_instance();
-    constexpr uint64_t thread_id = 301;
-    constexpr uint64_t span_id = 3001;
-    links.reset();
-
-    links.on_link_start(span_id);
-    EXPECT_FALSE(links.on_span_finish(span_id));
-
-    links.link_span(thread_id, span_id, span_id, "web");
-    EXPECT_TRUE(links.on_link_end(span_id));
-
-    links.unlink_finished_span(span_id);
-    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+    links.close();
 }
 
 namespace {
@@ -274,19 +238,6 @@ TEST(SpanLinksKeyed, WritesNeedTheCurrentOddToken)
     EXPECT_FALSE(links.holds_span(10));
 
     links.close();
-}
-
-TEST(SpanLinksKeyed, ThreadOnlyOperationsIgnoreTheToken)
-{
-    // link_span keeps its old behavior and works whether span links are open or not.
-    auto& links = SpanLinks::get_instance();
-    links.close();
-    links.link_span(7, 70, 71, "web");
-    EXPECT_EQ(links.get_active_span_from_thread_id(7), Span(70, 71, "web"));
-    EXPECT_TRUE(links.holds_span(70));
-    links.unlink_finished_span(70);
-    EXPECT_EQ(links.get_active_span_from_thread_id(7), std::nullopt);
-    links.reset();
 }
 
 TEST(SpanLinksKeyed, DomainsAreSeparate)

@@ -15,17 +15,13 @@ from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.profiling import _span_links
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
 
 
 LOG = logging.getLogger(__name__)
-
-
-def _unlink_finished_span(span: SpanData) -> None:
-    """Remove physical-thread attribution derived from a finished span."""
-    stack.unlink_finished_span(span.span_id)
 
 
 class StackCollector(collector.Collector):
@@ -100,13 +96,26 @@ class StackCollector(collector.Collector):
         threading.init_stack()
 
         if self.tracer is not None:
+            # links_close() drops the writes still in flight from an earlier lifecycle. The listeners are registered
+            # before links_open(), so every activation after it is published.
+            stack.links_close()
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
-                core.on("trace.span_finish", _unlink_finished_span)
+                core.on("trace.span_finish", self._on_span_finish)
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-                core.reset_listeners("trace.span_finish", _unlink_finished_span)
+                core.reset_listeners("trace.span_finish", self._on_span_finish)
                 raise
+            stack.links_open()
+            # Publish the span that was activated on this thread before the profiler started. Other threads are
+            # published on their next activation. active() may activate an unfinished ancestor, which publishes it too.
+            provider = typing.cast(BaseContextProvider, self.tracer.context_provider)
+            try:
+                active = provider.active()
+            except Exception:
+                LOG.debug("[profiling] Failed to read the active span", exc_info=True)
+            else:
+                self._link_span(provider, active)
 
     def _link_span(
         self,
@@ -115,27 +124,24 @@ class StackCollector(collector.Collector):
     ) -> None:
         if self.tracer is None or provider is not self.tracer.context_provider:
             return
-        if isinstance(span, SpanData):
-            span_id = span.span_id
-            local_root = typing.cast(typing.Any, span)._local_root
-            # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
-            # the new span, so read the distributed local-root metadata directly from the parent Context. This works
-            # across both thread and greenlet context propagation without relying on physical-thread-local state.
-            if span._parent is None and span.parent_id is not None and span._parent_context is not None:
-                propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(
-                    span._parent_context
-                )
-                local_root_span_id = propagated_root_span_id or local_root.span_id
-                local_root_span_type = propagated_root_span_type or local_root.span_type
-            else:
-                local_root_span_id = local_root.span_id
-                local_root_span_type = local_root.span_type
-            stack.link_span(span_id, local_root_span_id, local_root_span_type)
-        elif isinstance(span, Context) and span.span_id is not None:
-            local_root_span_id, span_type = context_meta.read_profiler_link(span)
-            stack.link_span(span.span_id, local_root_span_id, span_type)
-        else:
-            stack.clear_span()
+        try:
+            token = stack.lifecycle()
+            # The event can carry a span that already finished, for example when a span that finished meanwhile is
+            # restored as the active one. Publish what active() would return instead.
+            item = context_meta.resolve(span) if context_meta.inheritance_mode(provider) else span
+            _span_links.publish(provider, token, True, 0, 0, item)
+        except Exception:  # nosec B110
+            pass
+
+    def _on_span_finish(self, span: SpanData) -> None:
+        if self.tracer is None:
+            return
+        try:
+            token = stack.lifecycle()
+            if stack.holds_span(span.span_id):
+                _span_links.retarget_finished(self.tracer.context_provider, token, span)
+        except Exception:  # nosec B110
+            pass
 
     @staticmethod
     def snapshot() -> None:
@@ -168,6 +174,9 @@ class StackCollector(collector.Collector):
 
     def _stop_service(self) -> None:
         LOG.debug("[profiling] StackCollector stopping")
+        if self.tracer is not None:
+            # Close first, so that writers in flight and listeners still running are dropped.
+            stack.links_close()
         if self._native_call_monitor is not None:
             try:
                 self._native_call_monitor.stop()
@@ -176,7 +185,7 @@ class StackCollector(collector.Collector):
             self._native_call_monitor = None
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-            core.reset_listeners("trace.span_finish", _unlink_finished_span)
+            core.reset_listeners("trace.span_finish", self._on_span_finish)
         LOG.debug("[profiling] StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
