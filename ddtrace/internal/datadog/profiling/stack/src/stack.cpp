@@ -372,9 +372,7 @@ static std::atomic<AsyncioOffsetsSource> g_asyncio_offsets_source{ AsyncioOffset
 
 // Returns whether the native asyncio task lists can be walked. Always true before Python 3.14, which has no such
 // lists. On 3.14+, the head offsets come from CPython's AsyncioDebug table, found through the state of the _asyncio
-// module passed as the optional third argument, and stay published for the process lifetime once found. There is no
-// compile-time fallback: those offsets move between 3.14 patch releases, so a wheel built on one release would walk
-// the wrong memory on another.
+// module passed as the optional third argument, and stay published for the process lifetime once found.
 static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
@@ -391,8 +389,7 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     auto& echion = Sampler::get().get_echion();
     bool native_task_lists =
       echion.asyncio_thread_tasks_head_offset() != 0 && echion.asyncio_interpreter_tasks_head_offset() != 0;
-    // Discovery runs no Python code and never detaches, so the interpreter cannot start finalizing under it once this
-    // check has passed.
+    // Discovery never detaches, so this check cannot go stale.
     if (!native_task_lists && asyncio_c != Py_None && !Py_IsFinalizing()) {
         if (auto offsets = discover_asyncio_offsets(asyncio_c)) {
             echion.set_asyncio_offsets(*offsets);

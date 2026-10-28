@@ -29,7 +29,7 @@ struct AsyncioOffsets
     std::optional<AsyncioTaskLayout> task_layout = std::nullopt;
 };
 
-// Mirrors Py_AsyncioModuleDebugOffsets in Modules/_asynciomodule.c, unchanged from CPython 3.14.0 through 3.15.0b1.
+// Mirrors Py_AsyncioModuleDebugOffsets in Modules/_asynciomodule.c, unchanged from CPython 3.14.0 through 3.15.0.
 // CPython publishes it for out-of-process debuggers; _asyncio's module state points to it.
 struct PyAsyncioDebugOffsets
 {
@@ -64,8 +64,7 @@ static_assert(sizeof(PyAsyncioDebugOffsets) == 13 * sizeof(uint64_t));
 std::optional<AsyncioOffsets>
 parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets);
 
-// Copies size bytes of this process's memory at address into buffer. Returns false, without faulting, when any part
-// of the range is unreadable. Addresses are integers because they come from memory that has not been validated yet.
+// Same contract as read_own_memory in vm.h. Tests pass a fake reader.
 using AsyncioReadMemory = bool (*)(uintptr_t address, void* buffer, size_t size);
 
 // Reads and validates the table at table_address. Returns no offsets for a null, misaligned or unreadable address, a

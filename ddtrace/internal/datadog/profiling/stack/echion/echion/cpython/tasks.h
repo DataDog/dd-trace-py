@@ -184,8 +184,7 @@ extern "C"
     } TaskObj;
 
     // Mirror of asyncio_state, _asyncio's module state, from Modules/_asynciomodule.c (CPython 3.14.0, lines 144-192;
-    // unchanged through 3.15.0b1). Only debug_offsets is read; the other fields are kept so its offset matches.
-    // Discovery checks sizeof against the module's m_size at runtime and validates the table the slot points to.
+    // unchanged through 3.15.0). Only debug_offsets is read; the other fields are kept so its offset matches.
     typedef struct
     {
         PyTypeObject* FutureIterType;

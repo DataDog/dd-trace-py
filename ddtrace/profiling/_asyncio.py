@@ -38,8 +38,7 @@ _NATIVE_ASYNCIO_INIT: bool = False
 # The thread registering the _asyncio hook, while it does. Registration calls the hook at once if _asyncio is in
 # sys.modules, possibly while another thread is still executing it.
 _C_ASYNCIO_HOOK_REGISTRATION_THREAD: typing.Optional[int] = None
-# True once native code has found the task lists or been given a finished _asyncio. Until then, setting an event loop
-# tries again, for an _asyncio probed while it was still executing that no later import hook call passes on.
+# False until native code finds the task lists or gets a finished _asyncio. While false, setting an event loop retries.
 _PASSED_C_ASYNCIO: bool = False
 _LOGGED_NO_TASK_LISTS: bool = False
 
@@ -161,12 +160,7 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
     if asyncio_c is None:
         module = sys.modules.get("_asyncio")
         if isinstance(module, ModuleType):
-            # importlib reports _asyncio as initializing until after its import hooks have run, and it may still be
-            # executing, in this thread or another. Discovery is safe to try anyway. The module's exec allocates and
-            # zeroes the state first and sets its AsyncioDebug pointer last, to a static table. Discovery copies the
-            # state through the kernel and checks the table against the live task lists, which rejects what it may
-            # find before then, including the uninitialized state another thread can briefly expose on free-threaded
-            # builds.
+            # Native discovery is safe on a module still executing; see asyncio_discovery.h.
             pending = module
     found = stack.init_asyncio(scheduled_tasks, eager_tasks, asyncio_c or pending)
     if found or asyncio_c is not None:
@@ -406,14 +400,13 @@ def _on_c_asyncio_imported(asyncio_c: typing.Optional[ModuleType]) -> None:
     # A None entry in sys.modules marks _asyncio as unavailable.
     if not isinstance(asyncio_c, ModuleType):
         return
-    # Outside registration, the hook runs once exec_module has returned, while importlib still reports the module as
-    # initializing, so the module is complete. A module still initializing at registration may still be executing in
-    # another thread, so it is only tried, not kept: _call_init_asyncio stays quiet if discovery fails then.
+    # At registration, a module still initializing may still be executing, possibly on another thread, so it is tried
+    # but not kept.
     if not (_C_ASYNCIO_HOOK_REGISTRATION_THREAD == ddtrace_threading.get_ident() and _is_initializing(asyncio_c)):
         _C_ASYNCIO = asyncio_c
     if _NATIVE_ASYNCIO_INIT:
-        # _asyncio was imported first and asyncio, imported from its init, ran the asyncio hook before the AsyncioDebug
-        # pointer was set.
+        # If _asyncio was imported first, the nested asyncio hook ran before its AsyncioDebug pointer was set.
+        # Retry now.
         _call_init_asyncio(sys.modules["asyncio"])
 
 

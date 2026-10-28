@@ -367,7 +367,8 @@ def test_asyncio_task_lists_found_when_profiler_starts_inside_asyncio_c_hook() -
 
 @pytest.mark.subprocess(err=None)
 def test_asyncio_task_lists_found_when_profiling_is_imported_inside_asyncio_c_hook() -> None:
-    # Same as the previous test, but the profiler starts only after _asyncio has finished initializing.
+    # As in test_asyncio_task_lists_found_when_profiler_starts_inside_asyncio_c_hook, but the profiler starts only after
+    # _asyncio has finished initializing.
     import sys
 
     from ddtrace.internal.module import ModuleWatchdog
