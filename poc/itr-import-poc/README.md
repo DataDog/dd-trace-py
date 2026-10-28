@@ -38,3 +38,30 @@ fixtures, parameterized dynamic imports, cached imports, preloaded packages,
 threads/copied contexts, and third-party import wrappers. Check both missing
 files (unsafe skips) and extra files (lost skipping opportunities); a lower
 coverage collection time alone does not establish a safe replacement.
+
+## Cache boundaries and performance
+
+Name resolution and shared dependency closures are reused across test contexts.
+A new test-local edge invalidates global reporting caches, but leaves those shared
+caches intact. New shared edges still invalidate shared closures; newly registered
+modules, aliases, and import-time coverage invalidate both modes' derived data.
+
+The import hook also caches dotted-name prefixes in a bounded 4,096-entry cache,
+cleared on uninstall. It reads module objects and their `__file__` values on every
+event so replacing or relocating a module does not stale the hook's file lookup.
+
+The wrappers remain global, but raw file paths are classified once per
+installation: one cache lookup returns either a canonical included path or an
+exclusion. Simple imports from excluded callers return after checking their one
+target, without prefix expansion or caller/edge bookkeeping. Dotted names and
+fromlists still check each candidate, without building a temporary file list.
+Skipping solely on the caller or top-level package would miss frameworks loading
+workspace code, including cached imports and packages spanning excluded and
+included directories. The path cache is cleared on uninstall.
+
+Caching complete test results by root files alone would be incorrect: two tests
+with the same roots can execute different runtime imports. Any such cache would
+also need the context's edges and a shared-graph version. Per-root shared closures
+already retain up to O(roots × reachable files) path references for heavily
+overlapping graphs. Measure peak memory as well as runtime on large suites before
+adding another layer of closure memoization.

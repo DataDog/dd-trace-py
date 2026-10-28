@@ -143,7 +143,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             return
         if import_name not in self._import_names_by_path[path]:
             self._import_names_by_path[path].add(import_name)
-            self._invalidate_import_metadata()
+            # An edge changes global reporting, but neither name resolution nor
+            # the import-only mode's shared graph. That mode separately records
+            # shared edges and invalidates its closures when those change.
+            self._invalidate_import_dependencies()
 
     def hook_file(self, path: str) -> None:
         self._record_file_covered(path)
@@ -548,19 +551,20 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         return files
 
-    def _invalidate_import_metadata(self) -> None:
-        """Invalidate everything derived from the import-time metadata.
-
-        Single invalidation seam: every mutation of the name registry, the edge maps,
-        the covered-module sentinels or the import contexts flows through here, and the
-        import-only mode is notified so its own caches follow. This also fixes a
-        pre-existing gap where registering a module path left the shared name-resolution
-        cache stale.
-        """
-        self._dependency_paths_for_import_name_cache.clear()
+    def _invalidate_import_dependencies(self) -> None:
+        """Invalidate closures derived from the global import edge map."""
         self._direct_import_time_dependency_paths_cache.clear()
         self._import_time_dependency_paths_cache.clear()
         self._file_level_covered_paths_cache.clear()
+
+    def _invalidate_import_metadata(self) -> None:
+        """Invalidate both modes when registered modules or import coverage change.
+
+        Unlike new edges, module metadata can change name resolution and which
+        files are traversable in every graph, including cached empty closures.
+        """
+        self._dependency_paths_for_import_name_cache.clear()
+        self._invalidate_import_dependencies()
         self._mode.on_import_metadata_changed()
 
     def _record_file_covered(self, path: str) -> None:
