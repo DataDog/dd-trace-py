@@ -148,6 +148,17 @@ Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model,
 
 When a provider splits cache writes by TTL because each TTL is billed at a different rate, report the split next to `CACHE_WRITE_INPUT_TOKENS_METRIC_KEY`: Anthropic `cache_creation.ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens` map to `ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens`, and OpenAI `ttl_30m_tokens` / `ttl_12h_tokens` map to `ephemeral_30m_input_tokens` / `ephemeral_12h_input_tokens`.
 
+For OpenAI Realtime, read the singular `input_token_details` and
+`output_token_details` fields. Preserve `audio_tokens` as `input_audio_tokens` /
+`output_audio_tokens`, `cached_tokens` as `cache_read_input_tokens`, and
+`cached_tokens_details.audio_tokens` as `cache_audio_read_tokens`. These are subsets
+of the inclusive totals. Preserve explicit zero counts and omit missing breakdowns;
+never infer zero cached audio from a missing cached-token detail object. Preserve
+`text_tokens` as `input_text_tokens` / `output_text_tokens`, input `image_tokens`
+as `input_image_tokens`, and cached text/image counts as `cache_text_read_tokens` /
+`cache_image_read_tokens`. Only emit nonnegative integer counts (not booleans);
+never infer text counts by subtracting audio from totals.
+
 ### Server-Side Tool Usage
 
 Some providers run tools themselves and bill per call on top of token costs. Record those billable calls as LLM-span metrics next to the token counts:
