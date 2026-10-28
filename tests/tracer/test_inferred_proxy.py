@@ -1,7 +1,10 @@
+import logging
+
 import pytest
 
 from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._inferred_proxy import extract_inferred_proxy_context
 from ddtrace._trace.span import Span
 from ddtrace.internal.core import ExecutionContext
 
@@ -95,3 +98,18 @@ def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
     assert span.get_metric("_dd.inferred_span") == 1
 
     assert ctx.get_item("inferred_proxy_finish_callback") is not None
+
+
+def test_extract_inferred_proxy_context_unsupported_proxy_logs_debug(caplog) -> None:
+    headers = {
+        "x-dd-proxy": "not-a-proxy",
+        "x-dd-proxy-request-time-ms": "1736973768000",
+    }
+
+    with caplog.at_level(logging.DEBUG, logger="ddtrace._trace._inferred_proxy"):
+        assert extract_inferred_proxy_context(headers) is None
+
+    messages = [r.getMessage() for r in caplog.records if r.name == "ddtrace._trace._inferred_proxy"]
+    assert messages == [
+        "Received headers to create inferred proxy span but headers include an unsupported proxy type: 'not-a-proxy'"
+    ]

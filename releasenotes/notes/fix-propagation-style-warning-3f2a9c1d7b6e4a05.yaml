@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes the warning logged when ``DD_TRACE_PROPAGATION_STYLE``, ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``
+    or ``DD_TRACE_PROPAGATION_STYLE_INJECT`` contains an unknown style. A malformed format string previously caused
+    a logging error instead of the warning naming the unknown style and the allowed values.
