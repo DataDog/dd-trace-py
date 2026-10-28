@@ -104,9 +104,8 @@ def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     before = time.time_ns() // 1_000_000
     headers = {
         "x-dd-proxy": "azure-fd",
-        # A fixed past timestamp, i.e. what a static rules-engine value or a spoofed header looks
-        # like. Front Door is not known to set this header, so a value this far from now is dropped
-        # in favor of the current time.
+        # Front Door is not known to set this header, so any value here came from the client and is
+        # dropped in favor of the current time.
         "x-dd-proxy-request-time-ms": "1736973768000",
         # path intentionally missing leading slash to test normalization
         "x-dd-proxy-path": "api/my-function",
@@ -160,6 +159,24 @@ def test_create_inferred_proxy_span_for_azure_frontdoor_without_timestamp(tracer
     assert ctx.get_item("inferred_proxy_finish_callback") is not None
 
 
+def test_empty_path_header_is_the_root_path(tracer) -> None:
+    """Front Door's {url_path} has no leading slash, so a request to / arrives as an empty header."""
+    ctx = ExecutionContext("test")
+    headers = {
+        "x-dd-proxy": "azure-fd",
+        "x-dd-proxy-path": "",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "my-app.azurefd.net",
+    }
+
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    assert span.resource == "GET /"
+    assert span.get_tag("http.url") == "https://my-app.azurefd.net/"
+
+
 def test_create_inferred_proxy_span_not_created_for_empty_timestamp_on_timestamp_provider(tracer) -> None:
     """Proxies that provide timestamps should not create a span if the timestamp header is present but empty."""
     ctx = ExecutionContext("test")
@@ -209,35 +226,23 @@ def _azure_fd_headers(request_time_ms=None) -> dict:
     return headers
 
 
-# Offsets into the past, in ms, that are within _MAX_UNTRUSTED_PROXY_SKEW_MS (30s) and so are
-# treated as real request times.
-@pytest.mark.parametrize("offset_ms", [0, 5_000, 20_000])
-def test_plausible_timestamp_is_used_for_non_timestamp_provider(offset_ms, tracer) -> None:
-    """A request time close enough to now to be real is honored even though azure-fd isn't known to send one."""
-    ctx = ExecutionContext("test")
-    request_time_ms = (time.time_ns() // 1_000_000) - offset_ms
-
-    create_inferred_proxy_span_if_headers_exist(ctx, _azure_fd_headers(request_time_ms))
-
-    span: Span = ctx.get_item("inferred_proxy_span")
-    assert span is not None
-    assert span.start_ns == request_time_ms * 1_000_000
-
-
-# Offsets outside the allowance: a static constant from a rules engine, a spoofed value, or a clock
-# far enough off that the duration would be meaningless. A negative offset is a request time in the
-# future, which would make the span finish before it started. Each falls back to the current time.
+# Offsets into the past and future, in ms. Front Door cannot inject a request time, so every value
+# in this header came from the client and must be ignored in favor of the current time. A recent
+# value is the dangerous case: honoring it would let any client inflate the span's duration.
 @pytest.mark.parametrize(
     "offset_ms",
     [
+        0,
+        5_000,  # five seconds in the past
+        29_000,  # recent enough to look like a real request time
         60_000,  # a minute in the past
         86_400_000,  # a day in the past
-        -5_000,  # five seconds in the future, i.e. inside the window but still inverting
+        -5_000,  # five seconds in the future, which would invert the span
         -60_000,  # a minute in the future
     ],
 )
-def test_implausible_timestamp_is_ignored_for_non_timestamp_provider(offset_ms, tracer) -> None:
-    """An arbitrary request time must not reach start_ns for a proxy that isn't known to send one."""
+def test_client_timestamp_is_ignored_for_non_timestamp_provider(offset_ms, tracer) -> None:
+    """A client-supplied request time must not reach start_ns for a proxy that isn't known to send one."""
     ctx = ExecutionContext("test")
     request_time_ms = (time.time_ns() // 1_000_000) - offset_ms
 
@@ -250,7 +255,7 @@ def test_implausible_timestamp_is_ignored_for_non_timestamp_provider(offset_ms, 
     assert before * 1_000_000 <= span.start_ns <= after * 1_000_000
 
 
-@pytest.mark.parametrize("offset_ms", [0, 5_000, 20_000, -5_000, -60_000, 86_400_000])
+@pytest.mark.parametrize("offset_ms", [0, -60_000, 86_400_000])
 def test_inferred_span_duration_is_never_negative(offset_ms, tracer) -> None:
     """Whatever the request time header claims, the finished span must not have a negative duration."""
     ctx = ExecutionContext("test")
