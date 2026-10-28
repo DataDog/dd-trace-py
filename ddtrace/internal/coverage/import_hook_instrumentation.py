@@ -29,6 +29,7 @@ is not observable. See poc/itr-import-poc/README.md for the limits of this model
 """
 
 import builtins
+from functools import lru_cache
 import importlib
 import os
 import sys
@@ -78,6 +79,13 @@ def _resolve_absolute_name(name: str, glb: t.Optional[t.Mapping[str, t.Any]], le
     return ".".join(base + ([name] if name else []))
 
 
+@lru_cache(maxsize=4096)
+def _module_name_prefixes(abs_name: str) -> tuple[str, ...]:
+    """Cache only string work; module objects and their paths must be read live."""
+    parts = abs_name.split(".")
+    return tuple(".".join(parts[:i]) for i in range(1, len(parts) + 1))
+
+
 def _record(
     collector: CoverageMode,
     should_track: t.Callable[[str], bool],
@@ -99,9 +107,8 @@ def _record(
     # and fromlist submodules (`from pkg import mod` can pull in both pkg/__init__.py
     # and pkg/mod.py).
     candidate_files = []
-    parts = abs_name.split(".")
-    for i in range(1, len(parts) + 1):
-        module = sys.modules.get(".".join(parts[:i]))
+    for module_name in _module_name_prefixes(abs_name):
+        module = sys.modules.get(module_name)
         file = getattr(module, "__file__", None)
         if file:
             candidate_files.append(_realpath(file))
@@ -222,6 +229,7 @@ def uninstall_import_hook() -> None:
         importlib.import_module = hook.original_import_module
     _installed_hook = None
     _realpath_cache.clear()
+    _module_name_prefixes.cache_clear()
 
 
 def import_hook_installed() -> bool:

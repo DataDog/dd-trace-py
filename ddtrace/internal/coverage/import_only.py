@@ -325,10 +325,14 @@ class ImportOnlyCoverage:
             path = to_visit.pop()
             if path in result or path not in self._collector._import_time_covered:
                 continue
-            new_paths = self.static_dependency_paths(path) - result
+            static_paths = self.static_dependency_paths(path)
+            new_paths = static_paths - result if result else static_paths
             result.update(new_paths)
-            for new_path in new_paths:
-                if new_path in import_names:
+            # Context-local callers are usually much fewer than shared files.
+            # Intersect in C over the smaller set instead of scanning every
+            # shared dependency in Python for every test.
+            if import_names:
+                for new_path in import_names.keys() & new_paths:
                     to_visit.extend(self._direct_dependency_paths(new_path, import_names))
         return frozenset(result)
 

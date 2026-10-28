@@ -335,6 +335,53 @@ def test_import_only_hooks_survive_other_wrappers_and_reinstallation():
         uninstall_import_hook()
 
 
+@pytest.mark.subprocess()
+def test_import_only_cached_names_read_current_modules_and_paths():
+    import importlib
+    import sys
+    from types import ModuleType
+    from types import SimpleNamespace
+
+    from ddtrace.internal.coverage.import_hook_instrumentation import _module_name_prefixes
+    from ddtrace.internal.coverage.import_hook_instrumentation import install_import_hook
+    from ddtrace.internal.coverage.import_hook_instrumentation import uninstall_import_hook
+
+    package = ModuleType("io_cached_package")
+    package.__file__ = "/workspace/io_cached_package/__init__.py"
+    package.__path__ = []
+    original = ModuleType("io_cached_package.leaf")
+    original.__file__ = "/workspace/original.py"
+    replacement = ModuleType("io_cached_package.leaf")
+    replacement.__file__ = "/workspace/replacement.py"
+    sys.modules[package.__name__] = package
+    sys.modules[original.__name__] = original
+    package.leaf = original
+    paths = set()
+    collector = SimpleNamespace(record_import_file=paths.add, record_import_edge=lambda *args: None)
+    install_import_hook(collector, lambda path: path.startswith("/workspace/"))
+    try:
+        assert importlib.import_module(original.__name__) is original
+        assert paths == {package.__file__, original.__file__}
+
+        sys.modules[original.__name__] = replacement
+        package.leaf = replacement
+        paths.clear()
+        assert importlib.import_module(original.__name__) is replacement
+        assert paths == {package.__file__, replacement.__file__}
+
+        # A retained module can also acquire a new file, as with a custom loader.
+        replacement.__file__ = "/workspace/relocated.py"
+        paths.clear()
+        assert importlib.import_module(original.__name__) is replacement
+        assert paths == {package.__file__, replacement.__file__}
+        assert _module_name_prefixes.cache_info().hits >= 2
+    finally:
+        uninstall_import_hook()
+        sys.modules.pop(original.__name__)
+        sys.modules.pop(package.__name__)
+    assert _module_name_prefixes.cache_info().currsize == 0
+
+
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_preloaded_package_relative_imports():
     import importlib
@@ -472,3 +519,64 @@ def test_import_only_new_module_alias_invalidates_cached_resolution():
     # Backfill can discover an alias without adding a new file or import edge.
     collector._register_import_time_name("new_alias", module_path)
     assert collector._get_dependency_paths_for_import_name(dependency) == frozenset({module_path})
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_runtime_edges_preserve_shared_caches():
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    collector = ModuleCodeCollector()
+    collector._collect_import_coverage = True
+    mode = collector._mode
+    root, shared, dynamic = (f"/workspace/{name}.py" for name in ("root", "shared", "dynamic"))
+    for name, path in (("root", root), ("shared", shared), ("dynamic", dynamic)):
+        collector._record_import_time_sentinel(path)
+        collector._register_import_time_name(name, path)
+    shared_edge = ("", ("shared",))
+    dynamic_edge = ("", ("dynamic",))
+    mode.record_import_edge(root, shared_edge)
+    static_paths = mode.static_dependency_paths(root)
+    resolved_paths = collector._get_dependency_paths_for_import_name(shared_edge)
+    assert collector._get_covered_file_paths_with_imports({root}) == {root, shared}
+
+    with ModuleCodeCollector.CollectInContext() as context:
+        mode.record_import_edge(root, dynamic_edge)
+        assert mode.expand_context_files({root}, context._import_names) == {root, shared, dynamic}
+    assert mode.expand_context_files({root}, {}) == {root, shared}
+    # Global reporting must see new edges, without evicting the shared graph or
+    # repeating name resolution for every distinct test-local import.
+    assert collector._get_covered_file_paths_with_imports({root}) == {root, shared, dynamic}
+    assert mode.static_dependency_paths(root) is static_paths
+    assert collector._get_dependency_paths_for_import_name(shared_edge) is resolved_paths
+
+    # The same edge can later become shared. It is already in the global graph,
+    # but the shared closure still needs invalidating.
+    mode.record_import_edge(root, dynamic_edge)
+    assert mode.expand_context_files({root}, {}) == {root, shared, dynamic}
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_late_module_metadata_invalidates_shared_closures():
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    collector = ModuleCodeCollector()
+    collector._collect_import_coverage = True
+    mode = collector._mode
+    root, dependency = "/workspace/root.py", "/workspace/dependency.py"
+    collector._record_import_time_sentinel(root)
+    mode.record_import_edge(root, ("", ("dependency",)))
+    assert mode.expand_context_files({root}, {}) == {root}
+
+    # Registering a name before its module finishes must not cache an incomplete
+    # closure beyond the point where the file becomes traversable.
+    collector._register_import_time_name("dependency", dependency)
+    assert mode.expand_context_files({root}, {}) == {root}
+    collector._record_import_time_sentinel(dependency)
+    assert mode.expand_context_files({root}, {}) == {root, dependency}
+
+    alias_root = "/workspace/alias_root.py"
+    collector._record_import_time_sentinel(alias_root)
+    mode.record_import_edge(alias_root, ("", ("late_alias",)))
+    assert mode.expand_context_files({alias_root}, {}) == {alias_root}
+    collector._register_import_time_name("late_alias", dependency)
+    assert mode.expand_context_files({alias_root}, {}) == {alias_root, dependency}
