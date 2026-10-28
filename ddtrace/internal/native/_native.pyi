@@ -184,22 +184,14 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context_from_span(span: SpanData, trace_flags: int) -> None:
-        """
-        Update the OTel thread context from the active span.
-        :param span: The active span.
-        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
-        """
-        ...
-    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
-        """Update the OTel thread context from an active trace Context.
+    def sync_otel_thread_context(ctx: Optional[Union[Context, SpanData]]) -> None:
+        """Publish IDs and sampling flags from the active span or Context.
 
-        Invalid Context identifiers detach the current thread context. The local root span ID is
-        published as zero because a Context does not retain local root span identity.
+        Spans use their local root's sampling priority and span ID. A bare Context
+        publishes zero for the local root span ID. None, unsupported values, invalid
+        Context IDs, and sampling lookup failures detach the current thread context.
+        Lookup failures also propagate to the caller.
         """
-        ...
-    def detach_otel_thread_context() -> None:
-        """Detach the OTel thread context from the current thread."""
         ...
 
 class SharedRuntime:
@@ -786,13 +778,11 @@ class TraceExporterBuilder:
     def enable_telemetry(
         self,
         heartbeat_ms: int,
-        runtime_id: str,
         debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
-        :param runtime_id: The runtime id to use for telemetry.
         :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
@@ -1165,6 +1155,7 @@ class SpanData:
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
     _parent_context: Optional[Any]  # parent Context, or None
+    context: Context  # this span's trace context, built lazily on first read
 
     def __new__(
         cls: type[_SpanDataT],
@@ -1176,11 +1167,14 @@ class SpanData:
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[float] = None,
-        context: Optional[Any] = None,  # placeholder for Span.__init__
+        context: Optional[Context] = None,  # parent Context, or None for a root span
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
         links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
+    def _context_for_child(self) -> Context: ...
+    def _set_sampling_decision_maker(self, sampling_mechanism: int) -> str: ...
+    def _override_sampling_decision(self, decision: Optional[Union[int, float]]) -> None: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
@@ -1313,6 +1307,7 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def uuid4() -> str: ...
 def process_metrics() -> tuple[int, int, int, int, int, int]:
     """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
 
@@ -1324,6 +1319,25 @@ def process_metrics() -> tuple[int, int, int, int, int, int]:
 
 def total_memory_bytes() -> int:
     """Return total physical RAM plus swap, in bytes."""
+    ...
+
+def scan_distributions(
+    entry: str,
+    module_suffixes: list[str],
+    release_gil: bool = False,
+) -> tuple[list[tuple[str, Optional[str], list[str], list[str]]], list[tuple[str, str]]]:
+    """Scan one sys.path entry, a directory or a zip archive, for installed distributions.
+
+    :param module_suffixes: ``importlib.machinery.all_suffixes()``, longest first.
+    :param release_gil: Release the GIL during the scan; only for threads that cannot outlive
+        interpreter shutdown.
+    :return: ``(dists, errors)``, where each dist is ``(name, version, keys, top_level)``:
+        ``version`` is ``None`` when missing, ``keys`` are the import roots it ships and
+        ``top_level`` the names ``packages_distributions`` maps to it. Each error is
+        ``(metadata_path, message)`` for a file that could not be decoded. Entries that
+        cannot be listed have no distributions.
+    :raises RuntimeError: If the scan fails unexpectedly; never ``PanicException``.
+    """
     ...
 
 class config:
@@ -1365,6 +1379,8 @@ class MetricNamespace:
     civisibility: MetricNamespace
     mlobs: MetricNamespace
     ddtraceapi: MetricNamespace
+    ai_guard: MetricNamespace
+    debugger: MetricNamespace
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1435,6 +1451,9 @@ class RemoteConfigProduct:
     FfeFlags: RemoteConfigProduct
     LiveDebugging: RemoteConfigProduct
     LiveDebuggingSymbolDb: RemoteConfigProduct
+    Debug: RemoteConfigProduct
+    ApmProfiling: RemoteConfigProduct
+
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...

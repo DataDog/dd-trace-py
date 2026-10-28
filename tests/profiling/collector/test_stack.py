@@ -124,6 +124,27 @@ def test_native_frame_limit() -> None:
     assert _stack._get_frame_limits() == (10_000, 1024)
 
 
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_ENABLED="1"), err=None)
+def test_thread_name_not_utf8_encodable() -> None:
+    import threading
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    _stack.register_thread(threading.get_ident(), threading.get_native_id(), "main-\udcff")
+
+    for name in ("job-\udcff", "job-\x00x"):
+        started = threading.Event()
+
+        def driver(name: str = name) -> None:
+            t = threading.Thread(target=lambda: None, name=name)
+            t.start()
+            t.join()
+            started.set()
+
+        threading.Thread(target=driver, daemon=True).start()
+        assert started.wait(10), "Thread.start hung for name %r" % name
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_exact_native_frame_limit",
@@ -374,6 +395,88 @@ def test_stack_locations(tmp_path: Path) -> None:
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="requires CPython's code object generation")
+@pytest.mark.subprocess()
+def test_code_object_address_reuse_does_not_return_stale_frame() -> None:
+    import gc
+    import os
+    from pathlib import Path
+    import tempfile
+    import time
+    from types import FunctionType
+    import weakref
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    test_name = "test_code_object_address_reuse_does_not_return_stale_frame"
+    tmp_path = Path(tempfile.mkdtemp(prefix=test_name))
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    code_filename = "echion-code-reuse.py"
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    namespace = {"time": time}
+    source = "def template(deadline):\n    while time.monotonic() < deadline:\n        pass\n"
+    exec(compile(source, code_filename, "exec"), namespace)
+    template_code = namespace["template"].__code__
+
+    def make_function(name: str):
+        code = template_code.replace(co_name=name, co_qualname=name)
+        return FunctionType(code, {"time": time})
+
+    old_name = "old_dynamic_function"
+    old_function = make_function(old_name)
+
+    with stack.StackCollector():
+        old_function(time.monotonic() + 0.3)
+        ddup.upload()
+
+        old_address = id(old_function.__code__)
+        old_code = weakref.ref(old_function.__code__)
+        del old_function
+        gc.collect()
+        assert old_code() is None
+
+        replacement_name = "new_dynamic_function"
+        replacement_function = make_function(replacement_name)
+        assert id(replacement_function.__code__) == old_address
+        replacement_function(time.monotonic() + 0.3)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    sampled_names = {
+        location.function_name
+        for sample in samples
+        for location in (pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id)
+        if location.filename == code_filename
+    }
+    assert replacement_name in sampled_names
+    assert old_name not in sampled_names
+
+    # Parse the earlier upload after address reuse so profile parsing cannot perturb the reuse sequence.
+    profile_files = sorted(
+        tmp_path.glob(Path(output_filename).name + ".*.pprof"), key=lambda path: int(path.name.rsplit(".", 2)[-2])
+    )
+    assert len(profile_files) >= 2
+    old_profile = pprof_utils.parse_profile(str(profile_files[-2]))
+    old_samples = pprof_utils.get_samples_with_value_type(old_profile, "wall-time")
+    pprof_utils.assert_profile_has_sample(
+        old_profile,
+        samples=old_samples,
+        expected_sample=pprof_utils.StackEvent(
+            locations=[pprof_utils.StackLocation(function_name=old_name, filename=code_filename, line_no=-1)]
+        ),
+    )
+
+
 def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     test_name = "test_push_span"
     pprof_prefix = str(tmp_path / test_name)
@@ -477,6 +580,130 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
         )
 
         unregister_thread.assert_called_with(thread_id)
+
+
+@pytest.mark.subprocess
+def test_restarts_do_not_stack_thread_hooks() -> None:
+    import threading
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restarts_do_not_stack_thread_hooks", version="my_version")
+    ddup.start()
+
+    for _ in range(3):
+        with stack.StackCollector():
+            pass
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_restart_reinstalls_replaced_thread_hooks() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restart_reinstalls_replaced_thread_hooks", version="my_version")
+    ddup.start()
+
+    original_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+    with stack.StackCollector():
+        pass
+
+    # Same as the coverage threading patch: the replacement delegates to the method it captured before the profiler
+    # hook was installed.
+    def replaced_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        original_bootstrap_inner(self, *args, **kwargs)
+
+    threading.Thread._bootstrap_inner = replaced_bootstrap_inner  # type: ignore[attr-defined]
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_restart_does_not_stack_thread_hooks_beneath_wrapper() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_restart_does_not_stack_thread_hooks_beneath_wrapper", version="my_version")
+    ddup.start()
+
+    with stack.StackCollector():
+        pass
+
+    # Same as the coverage threading patch when it is imported after the profiler started: the replacement delegates
+    # to the profiler hook it captured.
+    profiler_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+    def wrapped_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+        profiler_bootstrap_inner(self, *args, **kwargs)
+
+    threading.Thread._bootstrap_inner = wrapped_bootstrap_inner  # type: ignore[attr-defined]
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            t = threading.Thread(target=lambda: None)
+            t.start()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.subprocess
+def test_thread_spanning_restart_with_wrapper_is_unregistered() -> None:
+    import threading
+    import typing
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_thread_spanning_restart_with_wrapper_is_unregistered", version="my_version")
+    ddup.start()
+
+    release = threading.Event()
+
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
+        with stack.StackCollector():
+            # This thread only has the first profiler hook in its call chain.
+            t = threading.Thread(target=release.wait)
+            t.start()
+
+        profiler_bootstrap_inner = threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+
+        def wrapped_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+            profiler_bootstrap_inner(self, *args, **kwargs)
+
+        threading.Thread._bootstrap_inner = wrapped_bootstrap_inner  # type: ignore[attr-defined]
+
+        with stack.StackCollector():
+            release.set()
+            t.join()
+
+    assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
 
 
 def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:

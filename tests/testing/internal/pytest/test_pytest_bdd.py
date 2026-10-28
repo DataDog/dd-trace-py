@@ -7,9 +7,20 @@ from unittest.mock import Mock
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.bdd import _get_step_func_args_json
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
+
+
+# pytest-bdd releases available at the time of writing (up to 9.0.0) read pytest
+# internals that pytest 9.2 removed (e.g. FixtureManager._arg2fixturedefs), so nested
+# scenario sessions cannot run. The dedicated pytest_bdd suite pins pytest in
+# tests/ci_visibility/suitespec.yml. Remove when pytest-bdd supports pytest >= 9.2.
+_requires_pytest_bdd_compat = pytest.mark.skipif(
+    parse_version(pytest.__version__) >= (9, 2, 0),
+    reason="pytest-bdd does not support pytest 9.2 or newer yet",
+)
 
 
 _SIMPLE_SCENARIO = """
@@ -64,6 +75,8 @@ _standard_mocks = setup_standard_mocks()
 _standard_mocks.__enter__()
 _event_capture_context = EventCapture.capture()
 _event_capture = _event_capture_context.__enter__()
+_coverage_report_patch = patch("ddtrace.testing.internal.pytest.plugin.handle_coverage_report")
+_coverage_report = _coverage_report_patch.start()
 
 
 @pytest.hookimpl(trylast=True)
@@ -89,7 +102,7 @@ def pytest_sessionfinish(session):
         }}
         for span in _step_spans
     ]
-    capture = {{"events": events, "step_spans": step_spans}}
+    capture = {{"events": events, "step_spans": step_spans, "coverage_reports": _coverage_report.call_count}}
     Path(os.environ["{_CAPTURE_PATH_ENV}"]).write_text(json.dumps(capture))
 """
 
@@ -100,9 +113,15 @@ def _run_bdd_subprocess(pytester: Pytester, file_name: str):
 
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setenv(_CAPTURE_PATH_ENV, str(capture_path))
+        # Nightly report upload belongs to the outer session. Reporting from its
+        # still-running pytest-cov collector repeatedly rescans the source tree
+        # as report generation itself produces more coverage data.
+        monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")
         result = pytester.runpytest_subprocess("-p", "no:randomly", "--ddtrace", "-p", "pytest_bdd_infra", file_name)
 
-    return result, json.loads(capture_path.read_text())
+    capture = json.loads(capture_path.read_text())
+    assert capture["coverage_reports"] == 0, "BDD subprocess must not generate a coverage report"
+    return result, capture
 
 
 class TestPytestBdd:
@@ -110,6 +129,18 @@ class TestPytestBdd:
     def clear_xdist_worker_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
         monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
+
+    def test_subprocess_does_not_upload_parent_coverage(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "true")
+        py_file = pytester.makepyfile("def test_simple(): pass")
+
+        result, capture = _run_bdd_subprocess(pytester, os.path.basename(str(py_file)))
+
+        result.assert_outcomes(passed=1)
+        assert [event["status"] for event in capture["events"] if event["type"] == "test"] == ["pass"]
+        assert os.environ["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] == "true"
 
     @pytest.mark.xfail(raises=ConnectionRefusedError, reason="test agent is down")
     def test_and_emit_get_version(self) -> None:
@@ -119,6 +150,7 @@ class TestPytestBdd:
         assert version != ""
         emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_scenario_with_parameters(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with all steps."""
         pytester.makefile(
@@ -188,6 +220,7 @@ class TestPytestBdd:
             {"bars": "no"},
         ]
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_scenario(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with all steps."""
         pytester.makefile(
@@ -233,6 +266,7 @@ class TestPytestBdd:
             ("then", "I don't have a bar"),
         ]
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_scenario_with_failed_step(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with a failed step."""
         pytester.makefile(
@@ -279,6 +313,7 @@ class TestPytestBdd:
         ]
         assert capture["step_spans"][-1]["error_msg"] == "assert 0 == -1"
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_with_missing_step_implementation(self, pytester: Pytester) -> None:
         """Test that pytest-bdd captures missing steps."""
         pytester.makefile(

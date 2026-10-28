@@ -29,10 +29,13 @@ class SimpleMovingAverage:
         self.totals = [0] * self.size
 
     def get(self) -> float:
-        if self.sum_total == 0:
+        # Writers call get() without the lock that guards set(). Read each sum once, so a concurrent
+        # set() cannot zero sum_total between the check and the division.
+        sum_count, sum_total = self.sum_count, self.sum_total
+        if sum_total == 0:
             return 0.0
 
-        return float(self.sum_count) / self.sum_total
+        return float(sum_count) / sum_total
 
     def set(self, count: int, total: int) -> None:
         """

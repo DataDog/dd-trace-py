@@ -2,7 +2,6 @@ from collections.abc import Mapping
 from collections.abc import MutableMapping
 import io
 import json
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -22,15 +21,16 @@ from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
-from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
-from ddtrace.ext import http
+from ddtrace.contrib.internal.trace_utils_base import http_block_metadata
+from ddtrace.contrib.internal.trace_utils_base import name_blocked_request_span
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
 from ddtrace.internal import core
-from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
@@ -39,9 +39,6 @@ from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type
 import ddtrace.vendor.xmltodict as xmltodict
 
-
-if TYPE_CHECKING:
-    from ddtrace.internal.native._native import SpanData
 
 logger = get_logger(__name__)
 
@@ -126,23 +123,23 @@ def _on_request_span_modifier(
     return req_body
 
 
-def _on_flask_blocked_request(span: SpanProtocol) -> None:
-    span._set_attribute(http.STATUS_CODE, "403")
+def _on_flask_blocked_request(span: SpanData) -> None:
     request = core.find_item("flask_request")
+    flask_config = core.find_item("flask_config")
+    method = query = user_agent = None
     try:
         base_url = getattr(request, "base_url", None)
         query_string = getattr(request, "query_string", None)
         if base_url and query_string:
-            _set_url_tag(core.find_item("flask_config"), cast("SpanData", span), base_url, query_string)
-        if query_string and core.find_item("flask_config").trace_query_string:
-            span._set_attribute(http.QUERY_STRING, query_string)
-        if request.method is not None:
-            span._set_attribute(http.METHOD, request.method)
+            set_url_tags_server(flask_config, cast(Any, span), base_url, query_string)
+        if query_string and flask_config.trace_query_string:
+            query = query_string
+        method = request.method
         user_agent = _get_request_header_user_agent(request.headers)
-        if user_agent:
-            span._set_attribute(http.USER_AGENT, user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
+    for key, value in http_block_metadata(method, 403, query=query, user_agent=user_agent).items():
+        span._set_attribute(key, value)
 
 
 def _on_start_response_blocked(
@@ -190,7 +187,7 @@ def _on_wrapped_view(kwargs: Mapping[str, object]) -> Optional[Callable[[], _Blo
     return callback_block
 
 
-def _flask_block_request_callable(span: SpanProtocol) -> None:
+def _flask_block_request_callable(span: SpanData) -> None:
     import flask
     from werkzeug.exceptions import abort
 
@@ -245,24 +242,23 @@ def _wsgi_make_block_content(
         content = http_utils._get_blocked_template(ctype, block_config.block_id).encode("UTF-8")
         resp_headers = [("content-type", ctype)]
     status = block_config.status_code
+    method = query = user_agent = None
     try:
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
             req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span._set_attribute(http.STATUS_CODE, str(status))
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware._config, req_span, url, query_string)
+        set_url_tags_server(middleware._config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
-            req_span._set_attribute(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            req_span._set_attribute(http.METHOD, method)
+            query = query_string
+        method = environ.get("REQUEST_METHOD") or None
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            req_span._set_attribute(http.USER_AGENT, user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
+    for key, value in http_block_metadata(method, status, query=query, user_agent=user_agent).items():
+        req_span._set_attribute(key, value)
+    name_blocked_request_span(req_span, method)
     resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 

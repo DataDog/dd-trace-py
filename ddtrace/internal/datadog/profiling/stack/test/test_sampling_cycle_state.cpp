@@ -4,8 +4,11 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <cstring>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 namespace {
 
@@ -37,6 +40,25 @@ capture_stack(PyObject* capsule, PyObject* Py_UNUSED(args))
 }
 
 } // namespace
+
+#if PY_VERSION_HEX >= 0x030e0000
+namespace {
+InterpreterInfo
+interpreter(int64_t id, uint64_t generation)
+{
+    InterpreterInfo info;
+    info.id = id;
+    info.code_object_generation = generation;
+    return info;
+}
+
+struct InterpreterWithAlternateGeneration
+{
+    PyInterpreterState interpreter{};
+    uint64_t generation = 0;
+};
+} // namespace
+#endif
 
 #if defined PL_LINUX
 TEST(ThreadInfoCreate, IgnoresNonPthreadPythonThreadId)
@@ -96,6 +118,159 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
     EXPECT_TRUE(thread.current_tasks.empty());
     EXPECT_TRUE(thread.current_greenlets.empty());
 }
+
+#if PY_VERSION_HEX >= 0x030e0000
+TEST(SamplingCycleState, ReadsCodeObjectGenerationFromRuntimeOffset)
+{
+    _PyRuntimeState runtime{};
+    InterpreterWithAlternateGeneration node;
+    node.interpreter.id = 1;
+    node.generation = 42;
+    runtime.interpreters.head = &node.interpreter;
+    runtime.debug_offsets.interpreter_state.code_object_generation =
+      offsetof(InterpreterWithAlternateGeneration, generation);
+
+    InterpreterInfo result;
+    ASSERT_TRUE(for_each_interp(&runtime, [&](InterpreterInfo& info) { result = info; }));
+    EXPECT_EQ(result.interp, &node.interpreter);
+    EXPECT_EQ(result.code_object_generation, 42);
+}
+
+TEST(SamplingCycleState, InterpreterLimitPreservesSamplingAndCacheInvalidation)
+{
+    _PyRuntimeState runtime{};
+    std::vector<InterpreterWithAlternateGeneration> nodes(257);
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        nodes[i].interpreter.id = static_cast<int64_t>(i);
+        nodes[i].interpreter.next = i + 1 < nodes.size() ? &nodes[i + 1].interpreter : nullptr;
+        nodes[i].generation = 1;
+    }
+    runtime.interpreters.head = &nodes[0].interpreter;
+    runtime.debug_offsets.interpreter_state.code_object_generation =
+      offsetof(InterpreterWithAlternateGeneration, generation);
+
+    EchionSampler echion(2);
+    constexpr Frame::Key key = 42;
+    std::vector<InterpreterInfo> captured;
+    auto capture = [&]() {
+        captured.clear();
+        bool success = for_each_interp(&runtime, [&](InterpreterInfo& info) { captured.push_back(info); });
+        EXPECT_TRUE(success);
+        EXPECT_EQ(captured.size(), 256);
+        return echion.validate_code_object_generations(captured, success);
+    };
+
+    ASSERT_TRUE(capture());
+    EXPECT_EQ(captured.back().interp, &nodes[255].interpreter);
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    ASSERT_TRUE(capture());
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    nodes[255].generation++;
+    ASSERT_TRUE(capture());
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    // The omitted interpreter's generation is not part of the captured snapshot.
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    nodes[256].generation++;
+    ASSERT_TRUE(capture());
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    // Changing the captured interpreter IDs invalidates the cache even though the count is unchanged.
+    runtime.interpreters.head = &nodes[1].interpreter;
+    ASSERT_TRUE(capture());
+    EXPECT_EQ(captured.back().interp, &nodes[256].interpreter);
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+}
+
+TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
+{
+    EchionSampler echion(2);
+    constexpr Frame::Key key = 42;
+
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(2, 1) }, true));
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(2, 1), interpreter(1, 1) }, true));
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(2, 2) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    // Removing an interpreter invalidates, even when another one is added in its place.
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    // A duplicated entry cannot stand in for a removed interpreter.
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(1, 1) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    // A newly added interpreter has nothing cached yet, so adding one keeps the cache.
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(4, 1), interpreter(1, 1) }, true));
+    EXPECT_TRUE(echion.frame_cache().lookup(key));
+
+    EXPECT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+
+    echion.frame_cache().store(key, std::make_unique<Frame>(10));
+    EXPECT_FALSE(echion.validate_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, false));
+    EXPECT_FALSE(echion.frame_cache().lookup(key));
+}
+
+TEST(SamplingCycleState, CodeObjectGenerationInvalidatesStringIdentityCaches)
+{
+    if (!Py_IsInitialized()) {
+        Py_Initialize();
+    }
+    _set_pid(getpid());
+
+    EchionSampler echion(2);
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
+
+    // CPython 3.14 frees a code object's mortal interned co_name with the code object, so a replacement code object
+    // can get a different name at the same address. Rewriting a fresh string in place reproduces that reuse.
+    constexpr std::string_view old_name = "old_name";
+    constexpr std::string_view new_name = "new_name";
+    PyObject* name = PyUnicode_New(static_cast<Py_ssize_t>(old_name.size()), 127);
+    ASSERT_NE(name, nullptr);
+    std::memcpy(PyUnicode_DATA(name), old_name.data(), old_name.size());
+
+    auto old_key = echion.string_table().key(name, StringTag::FuncName);
+    ASSERT_TRUE(old_key);
+    echion.asyncio_boundary_frame() = BoundaryFrame{ *old_key, *old_key };
+    echion.uvloop_boundary_frame() = BoundaryFrame{ *old_key, *old_key };
+    std::memcpy(PyUnicode_DATA(name), new_name.data(), new_name.size());
+
+    // Unchanged generations keep the cached strings.
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 1) }, true));
+    auto cached = echion.string_table().lookup(*old_key);
+    ASSERT_TRUE(cached);
+    EXPECT_EQ(cached->get(), old_name);
+    EXPECT_TRUE(echion.asyncio_boundary_frame());
+    EXPECT_TRUE(echion.uvloop_boundary_frame());
+
+    ASSERT_TRUE(echion.validate_code_object_generations({ interpreter(1, 2) }, true));
+    EXPECT_FALSE(echion.string_table().lookup(*old_key));
+    EXPECT_FALSE(echion.asyncio_boundary_frame());
+    EXPECT_FALSE(echion.uvloop_boundary_frame());
+
+    auto new_key = echion.string_table().key(name, StringTag::FuncName);
+    ASSERT_TRUE(new_key);
+    auto reread = echion.string_table().lookup(*new_key);
+    ASSERT_TRUE(reread);
+    EXPECT_EQ(reread->get(), new_name);
+
+    auto invalid = echion.string_table().lookup(StringTable::INVALID);
+    ASSERT_TRUE(invalid);
+    EXPECT_EQ(invalid->get(), "<invalid>");
+
+    Py_DECREF(name);
+}
+#endif
 
 TEST(StackUnwind, ReportsFramesAndTruncationAtLimit)
 {

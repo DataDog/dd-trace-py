@@ -91,7 +91,9 @@ def _encode_test_parameter(parameter: t.Any) -> str:
 
 
 def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
-    callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)
+    # item.callspec is a private pytest object (_pytest.python.CallSpec, renamed from
+    # CallSpec2 in pytest 9.2); keep the annotation version-agnostic since we support >= 6.0.
+    callspec: t.Any = getattr(item, "callspec", None)
 
     if callspec is None:
         return None

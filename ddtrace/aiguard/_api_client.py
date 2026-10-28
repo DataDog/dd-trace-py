@@ -1,10 +1,10 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
+from collections.abc import Iterator
 from copy import deepcopy
 import json
 import re
 from typing import Any
-from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 from urllib.parse import urlparse
@@ -14,11 +14,26 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.aiguard._types import ContentPart  # noqa:F401
+from ddtrace.aiguard._types import Evaluation
 from ddtrace.aiguard._types import Function  # noqa:F401
 from ddtrace.aiguard._types import ImageURL  # noqa:F401
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
+from ddtrace.aiguard.middleware import _MIDDLEWARES
+from ddtrace.aiguard.middleware import AIGuardContext
+from ddtrace.aiguard.middleware import AIGuardRequest
+from ddtrace.aiguard.middleware import EvaluationDirection
+from ddtrace.aiguard.middleware import EvaluationTarget
+from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.constants import ENV_KEY
+from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import SERVICE_KEY
+from ddtrace.constants import SERVICE_VERSION_KEY
+from ddtrace.constants import VERSION_KEY
+from ddtrace.contrib.internal.trace_utils_base import set_client_address_tags
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
@@ -30,6 +45,8 @@ from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
+from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -37,7 +54,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
 
 
-__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL"]
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -46,17 +63,53 @@ ALLOW = "ALLOW"
 DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
+_RESERVED_TAG_PREFIX = AI_GUARD.TAG + "."
+# Backend extra tags never override what the tracer computes itself, nor span control keys
+# (sampling, service, version, env).
+_RESERVED_EXTRA_TAGS = frozenset(
+    (
+        AI_GUARD.ACTION_TAG,
+        AI_GUARD.REASON_TAG,
+        AI_GUARD.TARGET_TAG,
+        AI_GUARD.DIRECTION_TAG,
+        AI_GUARD.SOURCE_TAG,
+        AI_GUARD.INTEGRATION_TAG,
+        AI_GUARD.TOOL_NAME_TAG,
+        AI_GUARD.BLOCKED_TAG,
+        AI_GUARD.REDACTED_TAG,
+        AI_GUARD.EVENT_TAG,
+        *(f"{AI_GUARD.TAG}.{tag}" for tag in AI_GUARD.ANOMALY_DETECTION_TAGS),
+        MANUAL_KEEP_KEY,
+        MANUAL_DROP_KEY,
+        SERVICE_KEY,
+        SERVICE_VERSION_KEY,
+        VERSION_KEY,
+        ENV_KEY,
+        _SPAN_MEASURED_KEY,
+    )
+)
+_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "attack_categories", "sds", "tag_probs"))
+# Root span tags that anomaly detection reads under their OTel names when OTel semantics are enabled.
+_OTEL_ANOMALY_SOURCE_TAGS = {
+    http.USER_AGENT: otel_http.USER_AGENT_ORIGINAL,
+    http.CLIENT_IP: otel_http.CLIENT_ADDRESS,
+    net.CLIENT_IP: otel_http.NETWORK_PEER_ADDRESS,
+}
+_SKIPPED_REASON = "skipped by middleware"
 
 
-class Evaluation(TypedDict):
-    action: Literal["ALLOW", "DENY", "ABORT"]
-    reason: str
-    tags: list[str]
-    sds: list[Any]
-    tag_probs: dict[str, float]
-    # The evaluated conversation, redacted when the AI Guard service asked for it and otherwise
-    # the very same list passed to evaluate. It can carry sensitive data: never log it.
-    messages: list[Message]
+def _call_hook(hook: Any, context: AIGuardContext) -> Any:
+    """Call a customer middleware hook; a failing hook must never break the evaluation."""
+    try:
+        return hook(context)
+    except Exception:
+        logger.debug("AI Guard middleware hook %r raised, ignoring it", hook, exc_info=True)
+        return None
+
+
+def _get_direction(message: Message) -> EvaluationDirection:
+    """An assistant message is what the LLM produced; anything else is fed into it."""
+    return EvaluationDirection.OUTPUT if message.get("role") == "assistant" else EvaluationDirection.INPUT
 
 
 class Options(TypedDict, total=False):
@@ -293,6 +346,47 @@ class AIGuardClient:
         return None
 
     @staticmethod
+    def _extra_entries(field: str, entries: object) -> Iterator[tuple[str, Any]]:
+        """Yield the (key, value) pairs of a backend list of {"key": ..., "value": ...} objects.
+
+        Keys are dotted, which is why the backend sends a list instead of a JSON object.
+        """
+        if entries is None:
+            return
+        if not isinstance(entries, list):
+            logger.debug("Ignoring AI Guard %s of type %s", field, type(entries).__name__)
+            return
+        for entry in entries:
+            key = entry.get("key") if isinstance(entry, dict) else None
+            if isinstance(key, str) and key:
+                yield key, entry.get("value")
+            else:
+                logger.debug("Ignoring malformed AI Guard %s entry", field)
+
+    @staticmethod
+    def _apply_extra_tags(
+        span: SpanData, meta_struct: dict[str, Any], extra_tags: object, extra_metastruct: object
+    ) -> None:
+        """Copy backend-provided extra_tags to the span and extra_metastruct to the ai_guard meta_struct.
+
+        Best effort: a malformed payload is skipped and must never change the evaluation outcome.
+        """
+        try:
+            for key, value in AIGuardClient._extra_entries("extra_tags", extra_tags):
+                if key in _RESERVED_EXTRA_TAGS:
+                    continue
+                if isinstance(value, str):
+                    span._set_attribute(key, value)
+                else:
+                    logger.debug("Ignoring AI Guard extra tag %s of type %s", key, type(value).__name__)
+
+            for key, value in AIGuardClient._extra_entries("extra_metastruct", extra_metastruct):
+                if value is not None and key not in _RESERVED_EXTRA_STRUCT_KEYS:
+                    meta_struct[key] = value
+        except Exception:
+            logger.debug("Could not apply AI Guard extra_tags", exc_info=True)
+
+    @staticmethod
     def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
         if not remote_enabled:
             return False
@@ -306,6 +400,7 @@ class AIGuardClient:
         options: Optional[Options] = None,
         source: str = AI_GUARD.SOURCE_SDK,
         integration: str = AI_GUARD.INTEGRATION_NONE,
+        tags: Optional[dict[str, Any]] = None,
     ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
@@ -319,6 +414,8 @@ class AIGuardClient:
                 auto-instrumentation passes auto.
             integration: Name of the auto-instrumented AI package, reported as the integration
                 telemetry tag. Only meaningful when source is auto; otherwise reported as none.
+            tags: Optional custom tags set on the AI Guard span, e.g. to filter evaluations in
+                queries. Keys under the reserved ai_guard. prefix are ignored.
 
         Returns:
             EvaluationResult containing action and reason
@@ -339,17 +436,56 @@ class AIGuardClient:
         error_type: str = AI_GUARD.ERROR_INTERNAL
         error_status: Optional[int] = None
         call_path_tags = self._call_path_tags(source, integration)
+        (_, clamped_source), (_, clamped_integration) = call_path_tags
+
+        last = messages[-1]
+        # role "tool" counts on its own: converters emit legacy function results with an empty tool_call_id.
+        target = (
+            EvaluationTarget.TOOL
+            if self._has_tool_calls(last) or self._has_tool_call_id(last) or last.get("role") == "tool"
+            else EvaluationTarget.PROMPT
+        )
+        context = None
+        if _MIDDLEWARES:
+            request = AIGuardRequest(clamped_source, clamped_integration, _get_direction(last), target, messages)
+            context = AIGuardContext(request, span_bus.get_root_span())
+            for middleware in _MIDDLEWARES:
+                # Only an explicit False skips: a None, a truthy value or a failing hook evaluates.
+                if _call_hook(middleware.should_evaluate, context) is False:
+                    self._add_request_to_telemetry((("skipped", "true"),) + call_path_tags)
+                    return Evaluation(
+                        action="ALLOW",
+                        reason=_SKIPPED_REASON,
+                        tags=[],
+                        sds=[],
+                        tag_probs=None,  # type: ignore[typeddict-item]
+                        messages=messages,
+                    )
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+            if tags:
+                for key, value in tags.items():
+                    # Some ai_guard.* tags are only set conditionally below, so a caller value for
+                    # one of them would survive and misreport the verdict.
+                    if not key.startswith(_RESERVED_TAG_PREFIX):
+                        span.set_tag(key, value)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
-                last = messages[-1]
-                tool_name = self._get_tool_name(last, messages)
-                if tool_name:
-                    span.set_tag(AI_GUARD.TARGET_TAG, "tool")
-                    span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
-                else:
-                    span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
+                span.set_tag(AI_GUARD.TARGET_TAG, target.value)
+                if target is EvaluationTarget.TOOL:
+                    # The tool name is best effort: a tool result whose call is not in the
+                    # conversation is still a tool target, it just has no name to report.
+                    tool_name = self._get_tool_name(last, messages)
+                    if tool_name:
+                        span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
+                span.set_tag(AI_GUARD.DIRECTION_TAG, _get_direction(last).value)
+                span.set_tag(AI_GUARD.SOURCE_TAG, clamped_source)
+                span.set_tag(AI_GUARD.INTEGRATION_TAG, clamped_integration)
+                # After the core tags, so middlewares see a fully tagged span.
+                if context is not None:
+                    context.ai_guard_span = span
+                    for middleware in _MIDDLEWARES:
+                        _call_hook(middleware.pre_evaluate, context)
 
                 transport_error = None
                 try:
@@ -382,7 +518,7 @@ class AIGuardClient:
                         attributes = result["data"]["attributes"]
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
-                        tags = attributes.get("tags", [])
+                        attack_categories = attributes.get("tags", [])
                         # Reported verbatim: location offsets are computed on the redacted string, so
                         # they only line up when the redacted messages are what ends up reported.
                         sds_findings = attributes.get("sds_findings") or []
@@ -391,6 +527,8 @@ class AIGuardClient:
                         # Presence of the field is the signal to redact; sds_findings are detection
                         # metadata only and never drive redaction.
                         redaction_replacements = attributes.get("redaction_replacements")
+                        extra_tags = attributes.get("extra_tags")
+                        extra_metastruct = attributes.get("extra_metastruct")
                     except Exception as e:
                         error_type = AI_GUARD.ERROR_BAD_RESPONSE
                         value = json.dumps(result, indent=2)[:500]
@@ -424,14 +562,15 @@ class AIGuardClient:
                     meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
-                    if tags:
-                        meta_struct.update({"attack_categories": tags})
+                    if attack_categories:
+                        meta_struct.update({"attack_categories": attack_categories})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                     if sds_findings:
                         meta_struct.update({"sds": sds_findings})
                     if tag_probs is not None:
                         meta_struct.update({"tag_probs": tag_probs})
+                    self._apply_extra_tags(span, meta_struct, extra_tags, extra_metastruct)
                 else:
                     error_type = AI_GUARD.ERROR_BAD_STATUS
                     error_status = response.status
@@ -450,6 +589,7 @@ class AIGuardClient:
                 # No tag at all when redaction is off, so absent is distinguishable from "nothing redacted".
                 if redaction_enabled:
                     telemetry_tags.append(("redacted", "true" if redacted else "false"))
+                telemetry_tags.append(("skipped", "false"))
                 telemetry_tags.extend(call_path_tags)
                 self._add_request_to_telemetry(tuple(telemetry_tags))
                 root_span = span_bus.get_root_span()
@@ -465,40 +605,49 @@ class AIGuardClient:
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     if client_ips:
                         client_ip, peer_ip = client_ips
-                        root_span._set_attribute(http.CLIENT_IP, client_ip)
-                        if peer_ip:
-                            root_span._set_attribute("network.client.ip", peer_ip)
+                        set_client_address_tags(root_span, client_ip, peer_ip)
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
                     # even when the root span arrives in a later trace chunk.
+                    source_tags = _OTEL_ANOMALY_SOURCE_TAGS if config._otel_trace_semantics_enabled else {}
                     for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
-                        tag_value = root_span.get_tag(tag_name)
+                        tag_value = root_span.get_tag(source_tags.get(tag_name, tag_name))
+                        if tag_value is None:
+                            # Inferred proxy roots keep the Datadog attribute names under OTel semantics.
+                            tag_value = root_span.get_tag(tag_name)
                         if tag_value is not None:
                             span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
+                evaluation = Evaluation(
+                    action=action,
+                    reason=reason,
+                    tags=attack_categories,
+                    sds=sds_findings,
+                    tag_probs=tag_probs,
+                    messages=redacted_messages,
+                )
+                if context is not None:
+                    context.result = evaluation
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(
                         action=action,
                         reason=reason,
-                        tags=tags,
+                        tags=attack_categories,
                         sds=sds_findings,
                         tag_probs=tag_probs,
                     )
 
-                return Evaluation(
-                    action=action,
-                    reason=reason,
-                    tags=tags,
-                    sds=sds_findings,
-                    tag_probs=tag_probs,
-                    messages=redacted_messages,
-                )
+                return evaluation
 
-            except AIGuardAbortError:
+            except AIGuardAbortError as e:
+                if context is not None:
+                    context.error = e
                 raise
 
-            except Exception:
-                self._add_request_to_telemetry((("error", "true"),) + call_path_tags)
+            except Exception as e:
+                if context is not None:
+                    context.error = e
+                self._add_request_to_telemetry((("error", "true"), ("skipped", "false")) + call_path_tags)
                 error_tags = call_path_tags
                 # Only bad_status has a status to report, and an absent tag stays distinguishable
                 # from a status we deliberately clamped away.
@@ -512,6 +661,12 @@ class AIGuardClient:
                     "AI Guard evaluation failed (%s) for %d messages", error_type, len(messages), exc_info=True
                 )
                 raise
+
+            finally:
+                # Inside the span so post hooks can still tag it, whatever the outcome.
+                if context is not None:
+                    for middleware in _MIDDLEWARES:
+                        _call_hook(middleware.post_evaluate, context)
 
     def _scrub(self, text: str) -> str:
         """Remove the configured endpoint from text this client is about to report."""
