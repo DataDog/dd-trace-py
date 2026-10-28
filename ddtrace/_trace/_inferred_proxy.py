@@ -11,6 +11,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.time import Time
+from ddtrace.internal.inferred_spans import INFERRED_SPAN_NAMES as INFERRED_SPAN_NAMES
+from ddtrace.internal.inferred_spans import PROXY_SPAN_NAMES
+from ddtrace.internal.inferred_spans import PUSH_SUBSCRIPTION_SPAN_NAMES as PUSH_SUBSCRIPTION_SPAN_NAMES
+from ddtrace.internal.inferred_spans import SUPPORTED_PROXY_SPAN_NAMES as SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
 from ddtrace.trace import tracer
@@ -56,22 +60,11 @@ def _api_gateway_http_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str
 
 
 supported_proxies: dict[str, ProxyInfo] = {
-    "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
-    "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
-    "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
-    "azure-fd": ProxyInfo("azure.frontdoor", "azure-fd", does_provide_timestamp=False),
+    "aws-apigateway": ProxyInfo(PROXY_SPAN_NAMES["aws-apigateway"], "aws-apigateway", _api_gateway_rest_api_arn),
+    "aws-httpapi": ProxyInfo(PROXY_SPAN_NAMES["aws-httpapi"], "aws-httpapi", _api_gateway_http_api_arn),
+    "azure-apim": ProxyInfo(PROXY_SPAN_NAMES["azure-apim"], "azure-apim"),
+    "azure-fd": ProxyInfo(PROXY_SPAN_NAMES["azure-frontdoor"], "azure-fd", does_provide_timestamp=False),
 }
-
-# Span names for supported proxy systems (API Gateway, etc.).
-SUPPORTED_PROXY_SPAN_NAMES = {info.span_name for info in supported_proxies.values()}
-
-# Span names for push-based subscriptions (e.g., GCP Pub/Sub push).
-PUSH_SUBSCRIPTION_SPAN_NAMES = {"gcp.pubsub.receive"}
-
-# Span names for synthetically created inferred spans.
-# AppSec uses this to report security signals on the actual service span in addition to the inferred parent.
-# Trace handlers use this to propagate HTTP status codes and errors from child spans up to the inferred parent.
-INFERRED_SPAN_NAMES = SUPPORTED_PROXY_SPAN_NAMES | PUSH_SUBSCRIPTION_SPAN_NAMES
 
 # Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's
 # logic to extract http headers

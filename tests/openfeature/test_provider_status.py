@@ -8,6 +8,7 @@ Tests that the provider properly implements ProviderStatus:
 - Bounded initialization wait, ERROR on timeout, and READY after late delivery
 """
 
+import logging
 import threading
 import time
 
@@ -29,6 +30,7 @@ from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -40,11 +42,8 @@ def clear_config():
     _set_ffe_config(None)
 
 
-def _set_provider(provider):
-    if hasattr(api, "set_provider_and_wait"):
-        api.set_provider_and_wait(provider)
-    else:
-        api.set_provider(provider)
+def _set_provider(provider: DataDogProvider) -> None:
+    set_openfeature_provider(provider)
 
 
 class TestProviderStatus:
@@ -113,7 +112,7 @@ class TestProviderStatus:
         try:
             with override_global_config({"experimental_flagging_provider_enabled": True}):
                 provider = DataDogProvider()
-                api.set_provider(provider)
+                _set_provider(provider)
 
                 # Clear events from initialization
                 ready_events.clear()
@@ -176,7 +175,8 @@ class TestProviderStatus:
         """Test that provider returns to NOT_READY after shutdown."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             provider = DataDogProvider()
-            api.set_provider(provider)
+            # A background initialize() that finishes after shutdown() would set READY again.
+            _set_provider(provider)
 
             try:
                 # Process a configuration
@@ -285,6 +285,82 @@ class TestProviderInitializationAsync:
                 assert provider._status == ProviderStatus.NOT_READY
             finally:
                 api.clear_providers()
+
+    def test_initialize_debug_logs_start_and_success(self, caplog):
+        provider = DataDogProvider(initialization_timeout=5.0)
+        process_ffe_configuration(create_config(create_boolean_flag("test-flag", enabled=True)))
+        try:
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                provider.initialize(EvaluationContext())
+        finally:
+            provider.shutdown()
+
+        assert "Feature Flags: waiting for provider initialization (timeout 5.0s)..." in caplog.messages
+        assert (
+            "Feature Flags: provider initialized successfully (configuration was already available)" in caplog.messages
+        )
+
+    def test_initialize_debug_logs_success_after_waiting(self, caplog):
+        provider = DataDogProvider(initialization_timeout=5.0)
+        timer = threading.Timer(
+            0.05, process_ffe_configuration, args=(create_config(create_boolean_flag("late-flag", enabled=True)),)
+        )
+        timer.start()
+        try:
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                provider.initialize(EvaluationContext())
+        finally:
+            timer.join()
+            provider.shutdown()
+
+        assert any(
+            m.startswith("Feature Flags: provider initialized successfully (configuration received after ")
+            for m in caplog.messages
+        ), caplog.messages
+
+    def test_initialize_timeout_is_not_reported_as_success(self, caplog):
+        provider = DataDogProvider(initialization_timeout=0)
+        try:
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                with pytest.raises(ProviderNotReadyError):
+                    provider.initialize(EvaluationContext())
+        finally:
+            provider.shutdown()
+
+        assert "Feature Flags: waiting for provider initialization (timeout 0.0s)..." in caplog.messages
+        assert not any(m.startswith("Feature Flags: provider initialized successfully") for m in caplog.messages)
+        assert any(
+            m.startswith("Feature Flags: provider failed to initialize: no configuration received after")
+            for m in caplog.messages
+        ), caplog.messages
+
+    def test_debug_logs_recovery_after_initialization_timeout(self, caplog):
+        provider = DataDogProvider(initialization_timeout=0)
+        try:
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+                with pytest.raises(ProviderNotReadyError):
+                    provider.initialize(EvaluationContext())
+                process_ffe_configuration(create_config(create_boolean_flag("late-flag", enabled=True)))
+        finally:
+            provider.shutdown()
+
+        assert (
+            "Feature Flags: provider recovered: configuration received after initialization timed out"
+            in caplog.messages
+        )
+
+    def test_shutdown_debug_logs_start_and_completion(self, caplog):
+        provider = DataDogProvider()
+        process_ffe_configuration(create_config(create_boolean_flag("test-flag", enabled=True)))
+        provider.initialize(EvaluationContext())
+        with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._provider"):
+            provider.shutdown()
+
+        messages = [r.getMessage() for r in caplog.records if r.name == "ddtrace.internal.openfeature._provider"]
+        assert messages[0] == "Feature Flags: shutting down provider"
+        assert messages[-1] == (
+            "Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work"
+        )
 
     @pytest.mark.skipif(not hasattr(api, "set_provider_and_wait"), reason="Blocking registration requires SDK 0.10+")
     def test_set_provider_and_wait_propagates_the_initialization_error(self):

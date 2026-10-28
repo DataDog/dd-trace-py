@@ -184,22 +184,14 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context_from_span(span: SpanData, trace_flags: int) -> None:
-        """
-        Update the OTel thread context from the active span.
-        :param span: The active span.
-        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
-        """
-        ...
-    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
-        """Update the OTel thread context from an active trace Context.
+    def sync_otel_thread_context(ctx: Optional[Union[Context, SpanData]]) -> None:
+        """Publish IDs and sampling flags from the active span or Context.
 
-        Invalid Context identifiers detach the current thread context. The local root span ID is
-        published as zero because a Context does not retain local root span identity.
+        Spans use their local root's sampling priority and span ID. A bare Context
+        publishes zero for the local root span ID. None, unsupported values, invalid
+        Context IDs, and sampling lookup failures detach the current thread context.
+        Lookup failures also propagate to the caller.
         """
-        ...
-    def detach_otel_thread_context() -> None:
-        """Detach the OTel thread context from the current thread."""
         ...
 
 class SharedRuntime:
@@ -786,13 +778,11 @@ class TraceExporterBuilder:
     def enable_telemetry(
         self,
         heartbeat_ms: int,
-        runtime_id: str,
         debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
-        :param runtime_id: The runtime id to use for telemetry.
         :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
@@ -1317,6 +1307,7 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def uuid4() -> str: ...
 def process_metrics() -> tuple[int, int, int, int, int, int]:
     """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
 
@@ -1388,6 +1379,8 @@ class MetricNamespace:
     civisibility: MetricNamespace
     mlobs: MetricNamespace
     ddtraceapi: MetricNamespace
+    ai_guard: MetricNamespace
+    debugger: MetricNamespace
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1458,6 +1451,9 @@ class RemoteConfigProduct:
     FfeFlags: RemoteConfigProduct
     LiveDebugging: RemoteConfigProduct
     LiveDebuggingSymbolDb: RemoteConfigProduct
+    Debug: RemoteConfigProduct
+    ApmProfiling: RemoteConfigProduct
+
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...

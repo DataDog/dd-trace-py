@@ -196,6 +196,7 @@ def override_global_config(values: dict[str, Any]):
         "_raise",
         "_trace_compute_stats",
         "_trace_resource_renaming_always_simplified_endpoint",
+        "_otel_trace_semantics_enabled",
         "_obfuscation_query_string_pattern",
         "_query_string_obfuscation_preserve_delimiter",
         "_global_query_string_obfuscation_disabled",
@@ -706,6 +707,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> DummyWriter:
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 

@@ -1,10 +1,12 @@
 import _thread
+from contextlib import ExitStack
 import inspect
 import os
 from pathlib import Path
 import sys
 import threading
 import time
+from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -163,6 +165,219 @@ def test_exception_config_defaults() -> None:
     assert profiling_config.exception.collect_message is False
 
 
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_monitoring_setup_failure_releases_registration():
+    """A failed registration rolls the multiplexer back so a later start can succeed.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import sys
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import exception
+
+    real_set_events = sys.monitoring.set_events
+    # The subprocess harness runs the function body as module-level code, so a
+    # mutable container replaces the nonlocal flag a closure would normally use.
+    failed = [False]
+
+    def fail_first_enable(tool_id: int, events: int) -> None:
+        if events == sys.monitoring.events.RAISE and not failed[0]:
+            failed[0] = True
+            raise RuntimeError("set events failed")
+        real_set_events(tool_id, events)
+
+    sys.monitoring.set_events = fail_first_enable
+    first = exception.ExceptionCollector(sampling_interval=1)
+
+    with pytest.raises(RuntimeError, match="set events failed"):
+        first.start()
+
+    ambient = len(monitoring._registry)
+    assert monitoring._global_raise_handler is None
+    if not ambient:
+        assert monitoring._tool_id is None
+        assert sys.monitoring.get_tool(3) is None
+
+    sys.monitoring.set_events = real_set_events
+    second = exception.ExceptionCollector(sampling_interval=1)
+    second.start()
+    try:
+        assert second.status == service.ServiceStatus.RUNNING
+        tool_id = monitoring.get_tool_id()
+        assert sys.monitoring.get_tool(tool_id) == "ddtrace"
+        assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE
+    finally:
+        second.stop()
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_stop_unregistration_failure_is_contained():
+    """A failed unregister during stop must not wedge the collector.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import _exception as _exc
+    from ddtrace.profiling.collector import exception
+
+    def failing_unregister(handler: object) -> None:
+        raise RuntimeError("unregister failed")
+
+    real_unregister = monitoring.unregister_global
+    monitoring.unregister_global = failing_unregister
+    collector = exception.ExceptionCollector(sampling_interval=1)
+    collector.start()
+
+    collector.stop()
+    assert collector.status == service.ServiceStatus.STOPPED
+    assert monitoring._global_raise_handler is _exc._exception_handler
+
+    monitoring.unregister_global = real_unregister
+    monitoring.unregister_global(_exc._exception_handler)
+    assert monitoring._global_raise_handler is None
+    if not len(monitoring._registry):
+        assert monitoring._tool_id is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_stop_releases_shared_tool_when_last_registration():
+    """Stopping the last registration frees the shared tool and removes the RAISE callback.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import sys
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import exception
+
+    ambient = len(monitoring._registry)
+    collector = exception.ExceptionCollector(sampling_interval=1)
+    collector.start()
+    tool_id = monitoring.get_tool_id()
+
+    collector.stop()
+    assert collector.status == service.ServiceStatus.STOPPED
+    assert monitoring._global_raise_handler is None
+    assert not (sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE)
+    if ambient:
+        assert monitoring._tool_id == tool_id
+    else:
+        assert monitoring._tool_id is None
+        assert sys.monitoring.get_tool(tool_id) is None
+        assert sys.monitoring.get_events(tool_id) == 0
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_monitoring_unavailable_raises_collector_unavailable():
+    """With every candidate slot taken, start surfaces CollectorUnavailable."""
+    import sys
+
+    import pytest
+
+    sys.monitoring.use_tool_id(3, "external-3")
+    sys.monitoring.use_tool_id(4, "external-4")
+
+    from ddtrace.internal import service
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector import exception
+
+    collector_instance = exception.ExceptionCollector(sampling_interval=1)
+    with pytest.raises(collector.CollectorUnavailable):
+        collector_instance.start()
+    assert collector_instance.status == service.ServiceStatus.STOPPED
+    assert sys.monitoring.get_tool(3) == "external-3"
+    assert sys.monitoring.get_tool(4) == "external-4"
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_second_collector_start_is_rejected():
+    """A second collector cannot run alongside the active one or clear its state.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import sys
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector import exception
+
+    first = exception.ExceptionCollector(sampling_interval=1)
+    first.start()
+
+    second = exception.ExceptionCollector(sampling_interval=1)
+    with pytest.raises(collector.CollectorUnavailable):
+        second.start()
+    assert second.status == service.ServiceStatus.STOPPED
+
+    # The active collector is untouched by the rejected start.
+    assert monitoring._global_raise_handler is not None
+    tool_id = monitoring.get_tool_id()
+    assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE
+
+    first.stop()
+    assert monitoring._global_raise_handler is None
+    if not len(monitoring._registry):
+        assert monitoring._tool_id is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_sampler_setup_failure_does_not_claim_tool():
+    """A sampler failure must not leave a global registration behind.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import os
+    import sys
+    from unittest import mock
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import exception
+
+    real_urandom = os.urandom
+    os.urandom = mock.Mock(side_effect=RuntimeError("sampler setup failed"))
+    first = exception.ExceptionCollector(sampling_interval=1)
+
+    ambient = len(monitoring._registry)
+
+    with pytest.raises(RuntimeError, match="sampler setup failed"):
+        first.start()
+
+    assert monitoring._global_raise_handler is None
+    if not ambient:
+        assert monitoring._tool_id is None
+
+    os.urandom = real_urandom
+    second = exception.ExceptionCollector(sampling_interval=1)
+    second.start()
+    try:
+        assert second.status == service.ServiceStatus.RUNNING
+        assert sys.monitoring.get_events(monitoring.get_tool_id()) & sys.monitoring.events.RAISE
+    finally:
+        second.stop()
+
+
 def test_poisson_sampling_distribution() -> None:
     """Test that Poisson sampling mean is close to the configured lambda."""
     from ddtrace.profiling.collector._fast_poisson import PoissonSampler
@@ -175,6 +390,70 @@ def test_poisson_sampling_distribution() -> None:
     mean = sum(samples) / len(samples)
     # Mean of 1000 exponential(100) samples has std ≈ 3.16; use wide bounds to avoid flakes
     assert 80 <= mean <= 120, f"Expected mean ~100, got {mean}"
+
+
+@pytest.mark.parametrize("profiler_first", [False, True])
+def test_exception_profiler_shares_tool_with_handled_exceptions(profiler_first: bool) -> None:
+    """Profiler and handled-error startup order does not change global event ownership."""
+    from ddtrace.internal import monitoring
+    from ddtrace.profiling.collector._exception import _exception_handler
+
+    class HandledExceptionHandler(monitoring.MonitoringEventHandler):
+        def on_exception_handled(
+            self, code: CodeType, instruction_offset: int, handled_exception: BaseException
+        ) -> None:
+            pass
+
+    handled_handler = HandledExceptionHandler()
+    collector = exception.ExceptionCollector(sampling_interval=100)
+
+    with ExitStack() as stack:
+        if profiler_first:
+            stack.enter_context(collector)
+            monitoring.register_global(handled_handler)
+            stack.callback(monitoring.unregister_global, handled_handler)
+        else:
+            monitoring.register_global(handled_handler)
+            stack.callback(monitoring.unregister_global, handled_handler)
+            stack.enter_context(collector)
+
+        tool_id = monitoring.get_tool_id()
+        sys_monitoring = getattr(sys, "monitoring")
+        events = sys_monitoring.get_events(tool_id)
+        assert events & sys_monitoring.events.EXCEPTION_HANDLED
+        assert events & sys_monitoring.events.RAISE
+        assert monitoring._global_exception_handled_handler is handled_handler
+        assert monitoring._global_raise_handler is _exception_handler
+        # Direct delivery: CPython calls the profiler's guarded Cython callback,
+        # while the wrapped EXCEPTION_HANDLED callback stays multiplexer-owned.
+        assert (
+            sys_monitoring.register_callback(tool_id, sys.monitoring.events.RAISE, _exception_handler.on_raise)
+            is _exception_handler.on_raise
+        )
+        assert (
+            sys_monitoring.register_callback(
+                tool_id, sys_monitoring.events.EXCEPTION_HANDLED, monitoring._on_exception_handled
+            )
+            is monitoring._on_exception_handled
+        )
+
+
+@pytest.mark.parametrize("attribute", ["__class__", "__traceback__"])
+def test_exception_callback_contains_attribute_failure(attribute: str) -> None:
+    """A failing exception attribute lookup cannot recurse into user code."""
+
+    class FailingTracebackError(Exception):
+        def __getattribute__(self, name: str):
+            if name == attribute:
+                raise RuntimeError("attribute lookup failed")
+            return super().__getattribute__(name)
+
+    error = FailingTracebackError("application error")
+    with exception.ExceptionCollector(sampling_interval=100):
+        try:
+            raise error
+        except FailingTracebackError as caught:
+            assert caught is error
 
 
 # Pprof profile tests

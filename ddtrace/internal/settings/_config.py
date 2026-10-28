@@ -111,6 +111,7 @@ INTEGRATION_CONFIGS = frozenset(
         "pyodbc",
         "dramatiq",
         "flask",
+        "aws_sdk_bedrock_runtime",
         "google_genai",
         "google_adk",
         "urllib3",
@@ -187,6 +188,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "elevenlabs",
         "crewai",
         "pydantic_ai",
         "vllm",
@@ -218,6 +220,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aiokafka",
         "google_cloud_pubsub",
         "mistralai",
+        "typesafe",
     }
 )
 
@@ -463,6 +466,11 @@ class Config:
                     return True
             return False
 
+    class _HTTPClientConfig(_HTTPServerConfig):
+        # Same behavior as the server configuration, with its own environment variable and default.
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "400-499")
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
+
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -574,6 +582,7 @@ class Config:
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
@@ -773,7 +782,12 @@ class Config:
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()
         )
-        self._otel_logs_enabled = _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_logs_enabled = _get_config(
+            "DD_LOGS_OTEL_ENABLED",
+            False,
+            asbool,
+            ["OTEL_LOGS_EXPORTER", "OTEL_SDK_DISABLED"],
+        )
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
@@ -919,7 +933,8 @@ class Config:
             since it contains integration defaults.
         :param bool merge: Whether to merge any existing settings with those provided,
             or if we should overwrite the settings with those provided;
-            Note: when merging existing settings take precedence.
+            Note: when merging existing settings take precedence, and the existing HTTP settings
+            (config.<integration>.http) are kept; overwriting resets them.
         """
         if integration not in INTEGRATION_CONFIGS:
             log.error(
@@ -940,9 +955,9 @@ class Config:
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._integration_configs[integration] = IntegrationConfig(
-                self, integration, _deepmerge(existing, settings)
-            )
+            merged = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            object.__setattr__(merged, "http", getattr(existing, "http", merged.http))
+            self._integration_configs[integration] = merged
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 

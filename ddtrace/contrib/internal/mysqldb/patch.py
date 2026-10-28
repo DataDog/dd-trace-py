@@ -5,6 +5,8 @@ from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.internal.mysqldb.cursor import MySQLdbFetchTracedCursor
+from ddtrace.contrib.internal.mysqldb.cursor import MySQLdbTracedCursor
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
@@ -66,7 +68,7 @@ def patch():
     if hasattr(MySQLdb, "connect"):
         _w("MySQLdb", "connect", _connect)
 
-    core.dispatch("sql.patch")
+    core.dispatch("sql.patch", ())
 
 
 def unpatch():
@@ -106,4 +108,5 @@ def patch_conn(conn, *args, **kwargs):
     }
     tags[db.SYSTEM] = "mysql"
     tags[net.TARGET_PORT] = _convert_to_string(conn.port)
-    return TracedConnection(conn, cfg=config.mysqldb, db_tags=tags)
+    cursor_cls = MySQLdbFetchTracedCursor if config.mysqldb.trace_fetch_methods else MySQLdbTracedCursor
+    return TracedConnection(conn, cfg=config.mysqldb, cursor_cls=cursor_cls, db_tags=tags)

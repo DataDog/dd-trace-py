@@ -7,6 +7,7 @@ from typing import Callable
 from typing import Iterable
 from typing import Optional
 
+from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 
@@ -18,8 +19,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 from urllib.parse import quote
 from urllib.parse import unquote_to_bytes
-
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -72,7 +71,7 @@ class _DDWSGIMiddlewareBase:
 
     def __init__(
         self,
-        application: Iterable,
+        application: Iterable[Any],
         tracer: Optional[Tracer],
         int_config: Config,
         app_is_iterator: bool = False,
@@ -103,7 +102,7 @@ class _DDWSGIMiddlewareBase:
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
+    def __call__(self, environ: Iterable[Any], start_response: Callable[..., Any]) -> Iterable[Any]:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
 
@@ -358,7 +357,9 @@ def get_request_headers(environ: Mapping[str, str]) -> Mapping[str, str]:
 
 
 def default_wsgi_span_modifier(span, environ):
-    span.resource = "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"])
+    # OTel span names never use the raw path.
+    if not config._otel_trace_semantics_enabled:
+        set_instrumentation_resource(span, "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"]))
 
 
 class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -377,7 +378,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def __init__(
         self,
-        application: Iterable,
+        application: Iterable[Any],
         tracer: Optional[Tracer] = None,
         span_modifier: Callable[[Span, dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,

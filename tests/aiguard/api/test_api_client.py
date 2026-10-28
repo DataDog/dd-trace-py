@@ -14,7 +14,9 @@ from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.settings.aiguard import AIGuardConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.aiguard.utils import assert_ai_guard_span
 from tests.aiguard.utils import assert_mock_execute_request_call
@@ -22,6 +24,7 @@ from tests.aiguard.utils import find_ai_guard_span
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 from tests.aiguard.utils import random_string
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -98,6 +101,9 @@ def assert_telemetry(mocked, metric, tags, source=AI_GUARD.SOURCE_SDK, integrati
     default here to a direct SDK call; extra carries the tags the error metric appends after them.
     """
     metrics = [(args[0].value,) + args[1:] for args, kwargs in mocked.call_args_list]
+    if metric == "requests":
+        # Every evaluation that was not skipped by a middleware reports skipped=false.
+        tags = tuple(tags) + (("skipped", "false"),)
     expected_tags = tuple(tags) + (("source", source), ("integration", integration)) + tuple(extra)
     assert ("ai_guard", metric, 1, expected_tags) in metrics
 
@@ -732,6 +738,69 @@ def test_execute_request_preserves_port_and_query_string(ai_guard_client):
     conn = created_connections[0]
     assert conn.base_url == "https://example.com:9443"
     assert conn.requests[0]["path"] == "/ai-guard/evaluate?resource=abc"
+
+
+@pytest.mark.parametrize(
+    "raw_timeout, expected_timeout_ms",
+    [
+        ("10000", 10_000),
+        # Floored to whole seconds, as documented.
+        ("1500", 1_000),
+        # Would floor to 0, so the default applies.
+        ("500", 10_000),
+        ("0", 10_000),
+        ("-1", 10_000),
+    ],
+)
+def test_configured_timeout_reaching_the_transport(raw_timeout, expected_timeout_ms):
+    created_connections = []
+
+    class RecordingHTTPConnection(HTTPConnection):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_connections.append(self)
+
+        def request(self, *args, **kwargs):
+            raise ConnectionFailedError("refused")
+
+    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+        timeout = AIGuardConfig()._ai_guard_timeout
+
+    with override_ai_guard_config(
+        dict(
+            _ai_guard_timeout=timeout,
+            _dd_api_key="test-api-key",
+            _dd_app_key="test-app-key",
+        )
+    ):
+        client = new_ai_guard_client(endpoint="https://api.example.com/ai-guard")
+
+    with patch("ddtrace.aiguard._api_client.HTTPConnection", RecordingHTTPConnection):
+        with pytest.raises(ConnectionFailedError):
+            client._execute_request("https://api.example.com/ai-guard/evaluate", {})
+
+    assert created_connections[0]._timeout_ms == expected_timeout_ms
+
+
+@pytest.mark.parametrize("raw_timeout", ["999", "500", "0", "-1"])
+def test_timeout_flooring_to_zero_warns_and_uses_the_default(raw_timeout):
+    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+        with patch("ddtrace.internal.settings.aiguard.log") as log:
+            config = AIGuardConfig()
+
+    assert config._ai_guard_timeout == 10_000
+    log.warning.assert_called_once()
+    assert AI_GUARD.ENV_TIMEOUT in log.warning.call_args[0]
+
+
+@pytest.mark.parametrize("raw_timeout", ["1000", "1500"])
+def test_timeout_of_at_least_one_second_is_kept_without_warning(raw_timeout):
+    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+        with patch("ddtrace.internal.settings.aiguard.log") as log:
+            config = AIGuardConfig()
+
+    assert config._ai_guard_timeout == int(raw_timeout)
+    log.warning.assert_not_called()
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

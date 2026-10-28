@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.typesafe.ai/v1/systemone",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "User-Agent": "typesafe-sdk/0.7.4",
+      "X-TypeSafe-SDK": "typesafe-sdk/0.7.4",
+      "X-TypeSafe-Runtime": "python/3.12.8 (darwin; arm64)",
+      "Content-Type": "application/json",
+      "Content-Length": "523"
+    },
+    "body": "{\"state\":\"I was charged twice for my subscription this month and want the duplicate refunded.\",\"model\":\"jev-1.13.0\",\"questions\":{\"team\":{\"type\":\"choice\",\"instructions\":\"Which team should handle this message?\",\"criteria\":{\"billing\":\"Charges, refunds, invoices\",\"technical\":\"Bugs, outages, errors\",\"sales\":\"Pricing, plans, buying more\"}},\"refund\":{\"type\":\"noul\",\"instructions\":\"Is the customer asking for a refund?\"},\"urgency\":{\"type\":\"score\",\"instructions\":\"How urgent is this message?\",\"criteria\":[\"Low\",\"Medium\",\"High\"]}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Wed, 14 Oct 2026 20:43:46 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "x-typesafe-request-id": "req_01a13c2825d076fcbcd2d1753c1a7822",
+      "Server": "cloudflare",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cf_bm=N1i1Wd3aDFl0MMgYhiHASmXGehEZwETTM8672K7KwKI-1792010626.4733706-1.0.1.1-E471xqG583cgGE_RmH8wTAWtVWbXj1X4nvkVqng3jjmSMLrbeoHHBq_NR8c_kIdllRq8uFhDI_pqGWI23P4qmMaYx2Fk8T4JSj56aHXuhxXj0yYtLik.iuboUSlAvrYw; HttpOnly; SameSite=None; Secure; Path=/; Domain=typesafe.ai; Expires=Wed, 14 Oct 2026 21:13:46 GMT",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a4a96b0f7ea18f66-BOS",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"model\":\"jev-1.13.0\",\"answers\":{\"team\":{\"type\":\"choice\",\"choice\":\"billing\",\"confidence\":1.0,\"probabilities\":{\"billing\":1.0,\"technical\":0.0,\"sales\":0.0}},\"refund\":{\"type\":\"noul\",\"noul\":0.99},\"urgency\":{\"type\":\"score\",\"score\":1.12,\"confidence\":0.76,\"legend\":{\"0\":\"Low\",\"1\":\"Medium\",\"2\":\"High\"},\"probabilities\":{\"0\":0.02,\"1\":0.84,\"2\":0.14}}},\"usage\":{\"input_tokens\":403,\"output_tokens\":69}}"
+  }
+}

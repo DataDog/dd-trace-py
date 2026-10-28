@@ -25,7 +25,9 @@ from ddtrace.internal import core
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.utils import override_config
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 
@@ -324,6 +326,30 @@ async def test_basic_asgi(scope, test_spans):
     _check_span_tags(scope, request_span)
 
 
+def test_otel_semantics_does_not_replace_resource_with_404():
+    from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace.ext import SpanTypes
+    from ddtrace.trace import tracer
+
+    middleware = TraceMiddleware(basic_app)
+    span = tracer.start_span("asgi.request", resource="GET /items/{id}", span_type=SpanTypes.WEB, activate=False)
+    span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+
+    with (
+        override_global_config(dict(_otel_trace_semantics_enabled=True)),
+        override_config("asgi", dict(obfuscate_404_resource=True)),
+    ):
+        middleware._handle_http_response(
+            {},
+            {"type": "http.response.start", "status": 404},
+            span,
+            "GET",
+            {},
+        )
+
+    assert span.resource == "GET /items/{id}"
+
+
 @pytest.mark.asyncio
 async def test_basic_asgi_sets_ip_tags_from_peer_ip(scope, test_spans):
     """Regression test checking that, in the absence of proxy headers, IP tags are set from peer IP."""
@@ -508,6 +534,20 @@ async def test_query_string(scope, test_spans):
         assert request_span.get_tag("component") == "asgi"
         assert request_span.get_tag("span.kind") == "server"
         _check_span_tags(scope, request_span)
+
+
+@pytest.mark.asyncio
+async def test_otel_semantics_preserves_query_without_datadog_query_tracing(scope, test_spans):
+    scope["query_string"] = b"q=public"
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        app = TraceMiddleware(basic_app)
+        instance = ApplicationCommunicator(app, scope)
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+
+    request_span = test_spans.pop_traces()[0][0]
+    assert request_span.get_tag("url.query") == "q=public"
 
 
 @pytest.mark.asyncio
@@ -1003,9 +1043,13 @@ async def _send_complete_http_response(
 
 
 @pytest.mark.asyncio
-async def test_unfinished_llm_child_finished_when_request_completes(test_spans):
-    """An LLM span left open by an abandoned stream generator must not keep the
-    request trace in the aggregator after the HTTP response finishes.
+async def test_unfinished_llm_child_not_finished_when_request_completes(test_spans):
+    """An ASGI request must never force-finish LLM spans it did not open.
+
+    An agent can intentionally outlive the HTTP request that started it, and
+    the middleware cannot tell that apart from an abandoned stream. Abandoned
+    streams are reclaimed by TracedStream.__del__ / the generator `finally`
+    instead -- see tests/llmobs/test_stream_handler.py.
     """
     llm_span = None
 
@@ -1020,84 +1064,54 @@ async def test_unfinished_llm_child_finished_when_request_completes(test_spans):
     await instance.receive_output(1)
 
     assert llm_span is not None
-    assert llm_span.duration_ns is not None
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    names = {span.name for span in traces[0]}
-    assert names == {"asgi.request", "openai.request"}
-    assert all(span.duration_ns is not None for span in traces[0])
-
-
-@pytest.mark.asyncio
-async def test_unfinished_llm_child_finished_when_request_errors(test_spans):
-    llm_span = None
-
-    async def app(scope, receive, send):
-        nonlocal llm_span
-        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
-        raise OSError("client disconnected")
-
-    instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
-    with pytest.raises(OSError, match="client disconnected"):
-        await instance.send_input({"type": "http.request", "body": b""})
-        await instance.receive_output(1)
-
-    assert llm_span is not None
-    assert llm_span.duration_ns is not None
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    names = {span.name for span in traces[0]}
-    assert names == {"asgi.request", "openai.request"}
-
-
-@pytest.mark.asyncio
-async def test_enclosing_llm_span_not_finished_by_nested_asgi_request(test_spans):
-    """An in-process ASGI call under LLMObs.llm() must not finish the enclosing
-    agent span. Only LLM descendants of the request span are swept.
-    """
-    leftover = None
-
-    async def outer_app(scope, receive, send):
-        nonlocal leftover
-        leftover = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
-        await TraceMiddleware(basic_app)(scope, receive, send)
-
-    instance = ApplicationCommunicator(outer_app, _http_scope())
-    await instance.send_input({"type": "http.request", "body": b""})
-    await instance.receive_output(1)
-    await instance.receive_output(1)
-
-    assert leftover is not None
-    assert leftover.duration_ns is None
+    assert llm_span.duration_ns is None
     assert test_spans.pop_traces() == []
-    leftover.finish()
+    llm_span.finish()
 
 
 @pytest.mark.asyncio
-async def test_llm_span_can_be_annotated_after_last_response_chunk(test_spans):
-    """The request span finishes on the last http.response.body, but the app
-    may still be running. Sweeping LLM spans at that moment would drop
-    output/token tags set after the last chunk.
+async def test_background_llm_span_outliving_request_stays_nested(test_spans):
+    """Regression test for #20392: an agent spawned during a request and still
+    running after the response must keep its span open, and work it starts
+    afterwards must stay nested under it rather than becoming a new root trace.
     """
-    llm_span = None
+    agent_span = None
+    child_parent_id = None
+    child_trace_id = None
+    agent_done = asyncio.Event()
+
+    async def background_agent():
+        nonlocal agent_span, child_parent_id, child_trace_id
+        agent_span = tracer.trace("agent", resource="agent", span_type=SpanTypes.LLM)
+        try:
+            await asyncio.sleep(0.05)
+            child = tracer.trace("llm.call", resource="llm", span_type=SpanTypes.LLM)
+            child_parent_id = child.parent_id
+            child_trace_id = child.trace_id
+            child.finish()
+        finally:
+            agent_span.finish()
+            agent_done.set()
 
     async def app(scope, receive, send):
-        nonlocal llm_span
-        llm_span = tracer.trace("openai.request", resource="chat_completion.call", span_type=SpanTypes.LLM)
+        asyncio.ensure_future(background_agent())
+        await asyncio.sleep(0)  # let the agent span start inside the request
         await _send_complete_http_response(receive, send)
-        llm_span.set_tag("output", "done")
-        llm_span.finish()
 
     instance = ApplicationCommunicator(TraceMiddleware(app), _http_scope())
     await instance.send_input({"type": "http.request", "body": b""})
     await instance.receive_output(1)
     await instance.receive_output(1)
 
-    assert llm_span is not None
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    flushed = next(span for span in traces[0] if span.name == "openai.request")
-    assert flushed.get_tag("output") == "done"
+    # The response is sent but the agent is still working.
+    assert agent_span is not None
+    assert agent_span.duration_ns is None
+
+    await asyncio.wait_for(agent_done.wait(), 5)
+
+    # Work started after the response stays under the agent, in the same trace.
+    assert child_parent_id == agent_span.span_id
+    assert child_trace_id == agent_span.trace_id
 
 
 @pytest.mark.asyncio
@@ -1119,3 +1133,54 @@ async def test_unfinished_non_llm_child_not_finished_when_request_completes(test
     assert worker_span.duration_ns is None
     assert test_spans.pop_traces() == []
     worker_span.finish()
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
+def test_otel_semantics_server_span_attributes():
+    import asyncio
+
+    from asgiref.testing import ApplicationCommunicator
+
+    from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+    from tests.contrib.otel_http_server import TEST_CLIENT_ADDRESS
+    from tests.contrib.otel_http_server import TEST_USER_AGENT
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    async def app(scope, receive, send):
+        await receive()
+        await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": b"*"})
+
+    async def request(spans, path, query=b""):
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": path,
+            "query_string": query,
+            "scheme": "http",
+            "server": ("127.0.0.1", 8080),
+            "client": ("127.0.0.1", 32767),
+            "headers": [
+                [b"user-agent", TEST_USER_AGENT.encode()],
+                [b"x-forwarded-for", TEST_CLIENT_ADDRESS.encode()],
+            ],
+        }
+        communicator = ApplicationCommunicator(TraceMiddleware(app), scope)
+        await communicator.send_input({"type": "http.request", "body": b""})
+        await communicator.receive_output(1)
+        await communicator.receive_output(1)
+        await communicator.wait()
+        return spans.get_root_span()
+
+    async def run():
+        with scoped_tracer() as tracer:
+            spans = TracerSpanContainer(tracer)
+
+            # A generic ASGI app has no route, so the resource is the method alone.
+            span = await request(spans, "/ok", query=b"q=1")
+            assert_otel_server_span(span, method="GET", status=200, path="/ok", query="q=1", resource="GET")
+            assert span.get_metric("server.port") == 8080
+
+    asyncio.run(run())

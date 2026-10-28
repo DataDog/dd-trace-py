@@ -65,9 +65,6 @@ experiments:
           - name: httppropagationextract-medium_valid_headers_all
             thresholds:
               - execution_time < 0.02 ms
-          - name: httppropagationextract-none_propagation_style
-            thresholds:
-              - execution_time < 0.01 ms
           - name: httppropagationextract-tracecontext_headers
             thresholds:
               - execution_time < 0.05 ms
@@ -255,6 +252,9 @@ experiments:
           - name: span-add-metrics
             thresholds:
               - execution_time < 93.50 ms
+          - name: span-add-one-tag
+            thresholds:
+              - execution_time < 13.55 ms
           - name: span-add-tags
             thresholds:
               - execution_time < 155.00 ms
@@ -276,9 +276,6 @@ experiments:
           - name: span-start-finish
             thresholds:
               - execution_time < 60 ms
-          - name: span-start-finish-telemetry
-            thresholds:
-              - execution_time < 60.00 ms
           - name: span-start-finish-traceid128
             thresholds:
               - execution_time < 62.00 ms
@@ -305,3 +302,19 @@ experiments:
           - name: tracer-small
             thresholds:
               - execution_time < 0.42 ms
+          # wsgitracediterablescenario
+          - name: wsgitracediterablescenario-single_chunk
+            thresholds:
+              - execution_time < 0.01 ms
+          - name: wsgitracediterablescenario-streaming_1000_chunks
+            thresholds:
+              - execution_time < 0.30 ms
+          # flaskstreaming (1000-chunk streamed response through the full Flask
+          # + WSGI middleware stack). tracer threshold matches the flasksimple-tracer
+          # convention; the tracer-off baseline is left ungated like flasksimple-baseline.
+          - name: flaskstreaming-baseline
+            thresholds:
+              - execution_time < 10000 ms
+          - name: flaskstreaming-tracer
+            thresholds:
+              - execution_time < 3.65 ms
