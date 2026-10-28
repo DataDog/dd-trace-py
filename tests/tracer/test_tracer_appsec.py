@@ -62,7 +62,7 @@ def test_aggregator_reset_with_args():
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
     assert aggr.writer._api_version == "v0.5"
-    # Expect the default value of apm_opt_out and compute_stats to be False
+    # Expect the default value of apm_opt_out to be False and compute_stats to be True
     assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.tags_processor.apm_opt_out is False
