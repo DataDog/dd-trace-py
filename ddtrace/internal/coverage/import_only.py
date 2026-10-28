@@ -24,6 +24,7 @@ What lives here:
 
 import ast
 from collections import defaultdict
+import os
 from pathlib import Path
 import sys
 from types import CodeType
@@ -175,6 +176,7 @@ class ImportOnlyCoverage:
         module_file = module.__file__
         if module_file is None:
             return
+        module_file = os.path.realpath(module_file)  # canonicalize: __file__ is unresolved before 3.10
         collector._import_time_covered[module_file].add(0)
         self.clear_caches()
         if collector._coverage_enabled and module_file not in collector._covered_files:
@@ -201,6 +203,7 @@ class ImportOnlyCoverage:
             module_file = getattr(module, "__file__", None)
             if not module_file or not module_file.endswith(".py"):
                 continue
+            module_file = os.path.realpath(module_file)  # canonicalize: __file__ is unresolved before 3.10
             if not self.should_track(module_file):
                 continue
             if module_file not in collector._import_time_covered:

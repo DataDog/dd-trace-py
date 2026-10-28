@@ -31,6 +31,7 @@ harness files, e.g. conftest).
 
 import builtins
 import importlib
+import os
 import sys
 import typing as t
 
@@ -40,6 +41,19 @@ from ddtrace.internal.logger import get_logger
 ImportName = tuple[str, tuple[str, ...]]
 
 log = get_logger(__name__)
+
+# realpath canonicalization cache: on Python < 3.10 module __file__ is not
+# symlink-resolved, so paths must be canonicalized once (macOS /var vs /private/var)
+# for events, anchors and backfill to share one key space.
+_realpath_cache: dict[str, str] = {}
+
+
+def _realpath(path: str) -> str:
+    cached = _realpath_cache.get(path)
+    if cached is None:
+        cached = _realpath_cache[path] = os.path.realpath(path)
+    return cached
+
 
 _original_import: t.Optional[t.Callable[..., t.Any]] = None
 _original_import_module: t.Optional[t.Callable[..., t.Any]] = None
@@ -84,6 +98,7 @@ def _record(
             caller = sys._getframe(2).f_code.co_filename
         except Exception:
             return
+    caller = _realpath(caller)
 
     # Files the import materialized: the module, any parent packages that were loaded,
     # and fromlist submodules (`from pkg import mod` can pull in both pkg/__init__.py
@@ -94,14 +109,14 @@ def _record(
         module = sys.modules.get(".".join(parts[:i]))
         file = getattr(module, "__file__", None)
         if file:
-            candidate_files.append(file)
+            candidate_files.append(_realpath(file))
     if fromlist:
         for sub in fromlist:
             if isinstance(sub, str) and sub:
                 module = sys.modules.get(f"{abs_name}.{sub}")
                 file = getattr(module, "__file__", None)
                 if file:
-                    candidate_files.append(file)
+                    candidate_files.append(_realpath(file))
 
     for file in candidate_files:
         if should_track(file):

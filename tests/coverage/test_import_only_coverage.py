@@ -20,7 +20,7 @@ import sys
 import pytest
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_concern_example():
     """The motivating concern example, with per-context attribution."""
@@ -63,7 +63,7 @@ def test_import_only_concern_example():
     assert "tests/coverage/included_path/io_mod_hjk.py" not in covered_z
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_global_window_and_importlib():
     """Modules imported during a coverage window are covered, even via importlib."""
@@ -99,7 +99,7 @@ def test_import_only_global_window_and_importlib():
     assert "tests/coverage/included_path/io_mod_edf.py" in covered
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_false_guarded_import_not_tracked():
     """Runtime-false import statements do not create dependency edges.
@@ -147,7 +147,7 @@ def test_import_only_false_guarded_import_not_tracked():
     assert not any("io_mod_edf" in path for path in closure)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1", "PACKAGES_DIRNAME": "site-packages"})
 def test_import_only_site_packages_paths_are_not_recorded():
     """Files under site-packages/dist-packages inside the workspace are never recorded."""
@@ -203,7 +203,7 @@ def test_import_only_site_packages_paths_are_not_recorded():
         assert vendor_module_path_str not in collector._import_time_name_to_path.values()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_anchor_attributes_test_file_closure():
     """Anchoring a test file attributes it plus its import-time closure, with no
@@ -232,7 +232,7 @@ def test_import_only_anchor_attributes_test_file_closure():
     assert "tests/coverage/included_path/io_mod_abc.py" in covered, "module-level import closure"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_session_level_import_edges_expand_from_anchor():
     """Import statements executed outside any coverage window (session-level lazy
@@ -265,7 +265,7 @@ def test_import_only_session_level_import_edges_expand_from_anchor():
     )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_uninstall_restores_import():
     """Uninstalling the collector restores builtins.__import__."""
