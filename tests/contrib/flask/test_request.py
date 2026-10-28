@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import json
 import os
 import subprocess
@@ -15,9 +14,11 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -108,6 +109,56 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.index")
         self.assertEqual(handler_span.resource, "/")
         self.assertEqual(req_span.error, 0)
+
+    def test_otel_semantics_replaces_flask_method_not_allowed_resource(self):
+        @self.app.route("/")
+        def index():
+            return "Hello Flask"
+
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            response = self.client.open("/", method="PROPFIND")
+
+        self.assertEqual(response.status_code, 405)
+        request_span = self.get_spans()[0]
+        self.assertEqual(request_span.resource, "HTTP")
+
+    def test_otel_semantics_normalizes_route_resource_before_view(self):
+        from ddtrace.trace import tracer
+
+        captured = {}
+
+        @self.app.route("/items/<int:item_id>", methods=["PROPFIND"])
+        def item(item_id):
+            captured["resource"] = tracer.current_root_span().resource
+            return "ok"
+
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            response = self.client.open("/items/42", method="PROPFIND")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["resource"], "HTTP /items/<int:item_id>")
+        self.assertEqual(self.get_spans()[0].resource, "HTTP /items/<int:item_id>")
+
+    def test_otel_semantics_does_not_expose_raw_path_resource_during_request(self):
+        @self.app.route("/users/<int:user_id>")
+        def user(user_id):
+            return "ok"
+
+        captured = []
+
+        def record_resource(ctx, *args):
+            captured.append(ctx.get_item("req_span").resource)
+
+        # Registered after the integration's listener, so it sees the resource that listener left.
+        core.on("flask.request_call_modifier", record_resource)
+        try:
+            with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+                response = self.client.get("/users/42")
+        finally:
+            core.reset_listeners("flask.request_call_modifier", record_resource)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured, ["flask.request"])
 
     def test_route_params_request(self):
         """
@@ -367,6 +418,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
+        # PingFilter reserves trace ID 1 for snapshot health checks and drops those traces.
         test_headers = {
             "x-dd-proxy": "aws-apigateway",
             "x-dd-proxy-request-time-ms": "1736973768000",
@@ -374,7 +426,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "x-dd-proxy-httpmethod": "GET",
             "x-dd-proxy-domain-name": "local",
             "x-dd-proxy-stage": "stage",
-            "x-datadog-trace-id": "1",
+            "x-datadog-trace-id": "1234",
             "x-datadog-parent-id": "2",
             "x-datadog-origin": "rum",
             "x-datadog-sampling-priority": "2",
@@ -386,7 +438,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         aws_gateway_span = web_span._parent
         assert aws_gateway_span is None
         assert web_span.parent_id == 2
-        assert web_span.trace_id == 1
+        assert web_span.trace_id == 1234
 
         # With the feature enabled
         with self.override_global_config(dict(_inferred_proxy_services_enabled="true")):
@@ -410,7 +462,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 url="https://local/",
                 start=1736973768,
                 is_distributed=True,
-                distributed_trace_id=1,
+                distributed_trace_id=1234,
                 distributed_parent_id=2,
                 distributed_sampling_priority=USER_KEEP,
             )
@@ -1193,7 +1245,7 @@ def test_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_
         "v1": service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
 
-    code = """
+    code = f"""
 import pytest
 from tests.contrib.flask import BaseFlaskTestCase
 
@@ -1208,12 +1260,12 @@ class TestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
-        self.assertEqual(req_span.service, "{}")
+        self.assertEqual(req_span.service, "{expected_service_name}")
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -1235,7 +1287,7 @@ def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schem
         schema_version
     ]
 
-    code = """
+    code = f"""
 import pytest
 from tests.contrib.flask import BaseFlaskTestCase
 
@@ -1250,12 +1302,12 @@ class TestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
-        self.assertEqual(req_span.name, "{}")
+        self.assertEqual(req_span.name, "{expected_operation_name}")
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -1289,3 +1341,37 @@ if __name__ == '__main__':
     subp.terminate()
     subp.terminate()
     assert subp.wait() == SIGTERM_EXIT_CODE, "An instrumented Flask app should respond to SIGINT by exiting"
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True)
+def test_otel_semantics_server_span_attributes():
+    from flask import Flask
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = Flask(__name__)
+
+    @app.route("/users/<int:user_id>")
+    def user(user_id):
+        return "ok"
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = app.test_client()
+
+        response = client.get("/users/42?q=1", headers=TEST_HEADERS)
+        # The request span finishes when the response is closed.
+        response.close()
+        assert response.status_code == 200
+        assert_otel_server_span(
+            spans.get_root_span(),
+            method="GET",
+            status=200,
+            path="/users/42",
+            query="q=1",
+            route="/users/<int:user_id>",
+            resource="GET /users/<int:user_id>",
+        )

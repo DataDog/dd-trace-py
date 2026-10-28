@@ -9,6 +9,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -24,7 +25,6 @@ from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_st
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_span_links
@@ -51,6 +51,8 @@ BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
 AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
+GOOGLE_GENAI_PROVIDER_NAME = "google-generative-ai"
+GOOGLE_GENAI_LLM_PROVIDER_NAME = "google_gemini"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -118,6 +120,16 @@ def _is_chain_instance(instance):
     return instance and hasattr(instance, "steps")
 
 
+def _is_google_genai_backed(instance) -> bool:
+    """True if the client is a google.genai object ddtrace can patch (not the legacy
+    langchain-google-genai<4 client), so demoting the span leaves a google_genai child span in its place.
+    """
+    client = getattr(instance, "client", None)
+    client = getattr(client, "client", client)
+    module = type(client).__module__ if client is not None else ""
+    return module == "google.genai" or module.startswith("google.genai.")
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
@@ -163,6 +175,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
+        instance = self._instances.get(span)
 
         is_workflow = False
 
@@ -177,6 +190,22 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
+            # match by substring, not prefix: the raw provider string differs between the
+            # non-streaming and streaming code paths ("google-generative-ai" vs "chat-google-generative-ai")
+            elif (
+                operation == "chat"
+                and GOOGLE_GENAI_PROVIDER_NAME in model_provider
+                and _is_google_genai_backed(instance)
+            ):
+                llmobs_integration = "google_genai"
+            # GoogleGenerativeAI (the LLM wrapper) delegates to an inner ChatGoogleGenerativeAI, so it would
+            # also produce two llm-kind spans for one call (like chat) unless demoted.
+            elif (
+                operation == "llm"
+                and model_provider == GOOGLE_GENAI_LLM_PROVIDER_NAME
+                and _is_google_genai_backed(instance)
+            ):
+                llmobs_integration = "google_genai"
 
             is_workflow = (
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
@@ -209,7 +238,7 @@ class LangChainIntegration(BaseLLMIntegration):
         }
         span_kind = span_kind_map.get(operation, "workflow")
         metrics = {}
-        if operation in ("llm", "chat") and response is not None and not span.error:
+        if operation in ("llm", "chat") and response is not None:
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(response)
             if total_tokens > 0:
                 metrics = {
@@ -467,7 +496,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._llmobs_set_metadata(span, kwargs)
 
-        if span.error:
+        if completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
@@ -536,7 +565,7 @@ class LangChainIntegration(BaseLLMIntegration):
             **cast(dict[str, Any], {input_key: input_messages}),
         )
 
-        if span.error:
+        if chat_completions is None:
             _annotate_llmobs_span_data(span, **cast(dict[str, Any], {output_key: [Message(content="")]}))
             return
 
@@ -716,7 +745,7 @@ class LangChainIntegration(BaseLLMIntegration):
             embedding_dim = len(output_values[0])
             _annotate_llmobs_span_data(
                 span,
-                output_value="[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+                output_value=f"[{embeddings_count} embedding(s) returned with size {embedding_dim}]",
             )
         except (TypeError, IndexError):
             log.warning("Failed to write output vectors", output_embedding)
@@ -758,7 +787,7 @@ class LangChainIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             output_documents=format_langchain_io(documents) if documents else None,
-            output_value="[{} document(s) retrieved]".format(len(output_documents)),
+            output_value=f"[{len(output_documents)} document(s) retrieved]",
         )
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:

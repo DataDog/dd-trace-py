@@ -1,87 +1,115 @@
 # AGENTS.md — dd-trace-py
 
-Single source of truth for all AI coding assistants. Tool-specific entry points
-(`.claude/CLAUDE.md`, `.cursor/rules/dd-trace-py.mdc`) import this file.
+Repository instructions for coding assistants. Tool-specific entry points refer here.
+Paths below are relative to the repository root.
 
-## Project Rules
+## Development constraints
 
-1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
-2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`scripts/lint <subcommand>`).
-3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
-5. **No public API breakage** — Never change public API contracts; real applications depend on them.
-6. **No secrets** — Never commit secrets; use environment variables.
-7. **Don't assume business logic** — Ask when unsure about implementation details.
-8. **AIDEV comments are protected** — Never remove `AIDEV-` comments without explicit human instruction. Update them when modifying related code.
-9. **Test before committing** — Run relevant tests to validate changes before committing.
-10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-11. **Update docs** — Add/update documentation when changing internal or public APIs.
-12. **No stray prints** — Check for and remove unexpected `print()` calls.
-13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
+- Use the `run-tests` skill and `scripts/run-tests`; never run pytest directly.
+  Discover environments with `scripts/run-tests --list <changed-files>` and use the returned hashes.
+- Use the `lint` skill and `scripts/lint` for formatting and checks; never invoke raw lint tools.
+  Format edited code, run relevant tests, and run `scripts/lint checks` before committing.
+- Preserve public API compatibility. Never commit secrets. Remove accidental debugging output.
+- Investigate source, tests, and supplied context before asking questions. Ask when unresolved
+  business intent or an architectural decision would materially change the implementation.
+- Do not remove TODO/NOTE comments without explicit human instruction; update them when related code changes.
+- Benchmark changes to native runtime code and other performance-sensitive paths, including
+  startup. Documentation, comments, and test-only edits do not require runtime benchmarks.
+  Report missing benchmark coverage.
+- Update documentation when changing APIs, configuration, or contributor workflows.
+  When modifying integrations, review the relevant integration skills and update references that
+  describe changed patterns.
+- Do not hide circular imports with function-local imports or type-checking guards.
+  Fix ownership or dependency direction. Preserve deliberate lazy imports for startup cost or
+  gevent compatibility when they are unrelated to a cycle.
 
-## Key Architecture
+## Docstrings and Comments
 
-- **Monkey-patching** is the core instrumentation mechanism. Don't break it; understand it before modifying integrations.
-- **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
-- **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
-- **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
+Choose the style by **whether Sphinx renders the docstring**, not whether the symbol or module
+is private. Check directives and member options in `docs/` when unsure; an underscore alone does
+not establish that a docstring is unrendered. Integration `__init__.py` docstrings under
+`ddtrace/contrib/internal/` are rendered through `docs/integrations.rst` despite their private path.
 
-## AIDEV Anchor Comments
+Rendered docstrings use reStructuredText, including parameter and exception fields when useful:
 
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
+```python
+def enable(self, flush_interval: float = 1.0) -> None:
+    """Start the writer, flushing every ``flush_interval`` seconds.
 
-- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
-- **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
+    :param flush_interval: Seconds between flushes.
+    :raises RuntimeError: If the writer is already running.
+    """
+```
 
-## PR Guidelines
+Unrendered helpers (for example, `_flush()` when not included in the docs) and inline comments
+use plain prose: write parameter names as-is, without rST emphasis or double backticks.
+A short summary is usually enough; field lists are optional for unrendered docstrings.
+Explain non-obvious invariants, not the next line of code. Do not add `AIDEV-*` anchors;
+`scripts/check_no_new_aidev_anchors.py` enforces this.
 
-Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
+## Task-specific guidance
 
-- Use `.github/PULL_REQUEST_TEMPLATE.md` for PR descriptions.
-- **PR titles must follow Conventional Commits** (`commitlint.config.js`): `type(scope): description`. Common types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `perf`, `ci`. Scope is optional. Example: `fix(tracing): resolve span link propagation issue`.
-- Link relevant issues or JIRA tickets; include a testing plan.
-- When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
-- **Release notes are required** before opening a PR. Use the `releasenote` skill to generate one (see `docs/releasenotes.rst` for style guidelines). If the change is not user-impacting (e.g., CI chores, internal refactors, test-only changes), add the `changelog/no-changelog` label to the PR instead.
+Repository landmarks: tracing implementation is in `ddtrace/_trace/`, public tracing exports
+in `ddtrace/trace/`, and startup in `ddtrace/bootstrap/`. Contrib patch modules live in
+`ddtrace/contrib/internal/`; LLMObs extraction classes live in `ddtrace/llmobs/_integrations/`.
 
-## Troubleshooting
+Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
+`ddtrace/_trace/subscribers/`. Configuration lives in `ddtrace/internal/settings/`, Rust in
+`src/native/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
 
-See `docs/troubleshooting.rst`. Covers common issues including:
-- Installation failures and missing native extensions
-- Traces not appearing in the Datadog app
-- Connection errors sending to the agent
-- Build failures and `ModuleNotFoundError` when running with riot
+Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
+Shared skills live at `.agents/skills/<name>/SKILL.md` and are discovered directly by Codex,
+Cursor, OpenCode, and Pi. `.claude/skills` is a compatibility symlink to `.agents/skills`.
+Add and edit skills in `.agents/skills` so every harness uses the same files. Read the relevant
+sections and references for the task, rather than loading every guide. Source code defines
+current signatures and defaults.
 
-## Skills
+| Task | Skill or reference |
+|------|--------------------|
+| Test selection, execution, environment rebuilds | `run-tests`; `docs/contributing-testing.rst` |
+| Formatting, typing, quality checks | `lint`; `scripts/lint --help` |
+| PR release-note decision | `releasenote`; `docs/releasenotes.rst` |
+| New or renamed configuration | `add-new-configuration` |
+| Contrib integration changes | `apm-integrations`; `.cursor/rules/isolated-responsibility.mdc` |
+| LLMObs integration changes | `llmobs-integrations`; also `apm-integrations` when changing contrib plumbing |
+| Added/moved modules or new import cycles | `circular-import-analysis` |
+| Architectural dependency direction | `dependency-direction-analysis` |
+| CI failures or merge blockers | `review-ci` |
+| Runtime performance | `run-benchmarks` |
+| Build-cache performance | `debug-build-times` |
+| Native crash investigation | `analyze-crash` |
+| CPython compatibility | `find-cpython-usage`, then `compare-cpython-versions` |
+| AppSec / IAST | `.cursor/rules/appsec.mdc`; `.cursor/rules/iast.mdc` for IAST |
+| AI Guard | `.cursor/rules/ai-guard.mdc` |
+| C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc` |
+| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md` |
+| Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
+| Build or installation failures | `docs/troubleshooting.rst` |
 
-Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
+## Pull requests
 
-| Skill | Trigger |
-|-------|---------|
-| `run-tests` | Running any tests or validating code changes. **Never run pytest directly.** |
-| `lint` | Formatting, style/type/security checks, or before committing. **Never skip before commits.** |
-| `releasenote` | Creating or updating release notes for the current branch. |
-| `find-cpython-usage` | Investigating CPython API dependencies or adding a new Python version. |
-| `compare-cpython-versions` | Comparing CPython source between two Python versions. |
-| `circular-import-analysis` | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules. |
-| `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
-| `run-benchmarks` | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact. |
-| `debug-build-times` | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow. |
-| `apm-integrations` | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, testing with riot, VCR cassettes, and anti-patterns. Use when touching any integration. |
-| `llmobs-integrations` | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
+Follow the Pull Request Requirements in `docs/contributing.rst` and use
+`.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
+Include validation, risks, and relevant issues. Before deciding or answering whether a release
+note is needed, invoke `releasenote` (or read `.agents/skills/releasenote/SKILL.md` if skill
+invocation is unavailable), including for internal-only refactors. Follow its decision workflow;
+when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
 
-## Domain Guides
+This repository is public. PR text, commits, and release notes must describe the change itself.
+Keep internal discussions, other teams' tickets, backend/data-pipeline names, and open internal
+questions out of public text. Linking the PR's own Jira ticket is fine.
 
-**Read the corresponding guide before modifying code in these domains:**
+Before mirroring a fork PR into credentialed CI, review its exact head SHA and be willing to merge
+it pending final checks. Follow **Merging Pull Requests from Forks** in `docs/contributing.rst`
+for the shadow PR, SHA verification, and cleanup. Never mirror partially reviewed code just to run CI.
 
-| Domain | Guide | Paths |
-|--------|-------|-------|
-| Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
-| IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/` |
-| AI Guard | `.cursor/rules/ai-guard.mdc` | `ddtrace/aiguard/`, `tests/aiguard/` |
-| Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
-| Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
-| Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md` | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
-| Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
-| Linting | `.cursor/rules/linting.mdc` | — |
-| Testing | `.cursor/rules/testing.mdc` | — |
+## CI scripts
+
+Automatic retries on `main` are infrastructure-only. Jobs needing retries on other branches must
+extend `.gitlab/retry-policies.yml`; do not add job-level `retry:` or duplicate jobs by branch.
+Manual retries are unaffected.
+
+For `curl` calls in CI, use `--fail` and transient retries (`--retry 5 --retry-delay 2
+--retry-connrefused`, or an explicit loop). Download to a file before extracting/executing;
+never pipe retried downloads into `tar`/`sh` or merge stderr into captured responses.
+Status-aware polling and best-effort lookups may use justified alternatives with visible failure handling.

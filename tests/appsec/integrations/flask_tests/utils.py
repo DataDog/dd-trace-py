@@ -4,7 +4,6 @@ from multiprocessing.pool import ThreadPool
 import time
 
 
-_PORT = 8040
 try:
     werkzeug_version = tuple(map(int, version("werkzeug").split(".")))
 except PackageNotFoundError:

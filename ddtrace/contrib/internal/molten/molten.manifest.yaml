@@ -1,0 +1,11 @@
+_v: 1
+name: molten
+display_name: Molten
+description: Instruments inbound HTTP requests to Molten applications, including routing, middleware, dependency component
+  checks, route handlers, and response rendering.
+packages:
+- name: molten
+category:
+- http.server
+systems: []
+creation_date: '2018-11-30'

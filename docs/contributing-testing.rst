@@ -56,19 +56,11 @@ The ``scripts/run-tests`` script handles this automatically:
 **Manual approach with ddtest**
 
 This repo includes a Docker container definition that provides a pre-built test environment.
-You can access it by running
+You can access it and run repository tools with commands such as:
 
 .. code-block:: bash
 
     $ scripts/ddtest
-
-Some of our test suites are managed with Riot.
-
-You can run riot commands and lint checks in the test runner container with commands like these:
-
-.. code-block:: bash
-
-    $ scripts/ddtest riot run -p 3.10
     $ scripts/ddtest scripts/lint style
 
 
@@ -77,53 +69,77 @@ How do I run only the tests I care about?
 
 **Easy way: Use scripts/run-tests**
 
-The ``scripts/run-tests`` script handles this automatically:
+Pass test-command arguments after ``--``:
 
 .. code-block:: bash
 
-    # Add riot arguments to avoid unnecessary compilation
-    $ scripts/run-tests tests/contrib/django/ -- -s
-
-    # Add pytest arguments for test selection
-    $ scripts/run-tests tests/contrib/django/ -- -- -k test_specific_function
-
-    # Add both riot (first) and pytest (second) arguments
-    $ scripts/run-tests ddtrace/contrib/django/patch.py -- -s -- -vvv -s --tb=short
-
-    # Run specific test functions
+    $ scripts/run-tests tests/contrib/django/ -- -k test_specific_function
     $ scripts/run-tests tests/contrib/flask/ -- -k "test_request or test_response"
 
-**Manual way: Direct riot commands**
-
-If you prefer manual control:
-
-1. Note the names of the tests you care about - these are the "test names".
-2. Find the ``Venv`` in the `riotfile <https://github.com/DataDog/dd-trace-py/blob/32b88eadc00e05cd0bc2aec587f565cc89f71229/riotfile.py#L426>`_
-   whose ``command`` contains the tests you're interested in. Note the ``Venv``'s ``name`` - this is the
-   "suite name".
-3. Find the suite in the file `./tests/contrib/suitespec.yml <https://github.com/DataDog/dd-trace-py/blob/2a46a7ddfc3d8e0d27ff59ec03bae69f0ef40db1/tests/contrib/suitespec.yml#L2>`_
-   whose ``pattern`` is equal to the suite name. Note the ``docker_services`` section of the directive, if present -
-   these are the "suite services".
-4. Start the suite services, if applicable, with ``$ docker compose up -d service1 service2``.
-5. Start the test-runner Docker container with ``$ scripts/ddtest``.
-6. In the test-runner shell, run the tests with ``$ riot -v run --pass-env -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'``.
-
-Anatomy of a Riot Command
--------------------------
+List the matching environments before selecting one by hash. The runner starts any services declared by the suite:
 
 .. code-block:: bash
 
-    $ riot -v run --pass-env -s -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'
+    $ scripts/run-tests --list tests/contrib/django/
+    $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-* ``-v``: Print verbose output
-* ``--pass-env``: Pass all environment variables in the current shell to the pytest invocation
-* ``-s``: Skips base install. Ensure you have already generated the base virtual environment(s) before using this flag.
-* ``-p 3.10``: Run the tests using Python 3.10. You can change the version string if you want.
-* ``<suite_name>``: A regex matching the names of the Riot ``Venv`` instances to run
-* ``--``: Everything after this gets treated as a ``pytest`` argument
-* ``-s``: Make potential uses of ``pdb`` work properly
-* ``-vv``: Be loud about which tests are being run
-* ``-k 'test1 or test2'``: Test selection by `keyword expression <https://docs.pytest.org/en/7.1.x/how-to/usage.html#specifying-which-tests-to-run>`_
+Matching test environments are reused by default. Pass ``-r`` before ``--`` after changing native code or build
+configuration, or after updating from main when those inputs may have changed. This recreates the environment and
+refreshes the editable ddtrace build.
+
+.. code-block:: bash
+
+    $ scripts/run-tests -r --venv <environment-hash> -- -k test_specific_function
+
+An ``-s`` after ``--`` still belongs to the test command and disables output capture.
+The legacy runner option ``-s`` before ``--`` is a no-op; use ``-r`` to refresh the installation.
+
+Nightly coverage report upload
+------------------------------
+
+Nightly test environments enable coverage report upload by default only on Python 3.15. This focuses reports on
+new Python support without paying the collection and reporting cost on every Python version. Other nightly
+Python versions explicitly disable report upload; suites without a Python 3.15 environment do not fall back to
+another version. The full test matrix and the separate ITR coverage policy are unchanged.
+
+The version selection is defined by ``NIGHTLY_COVERAGE_PYTHON_VERSIONS`` in ``tests/suitespec.py``. Add versions
+there when expanding nightly report coverage. Explicit matrix, variant, and run environment overrides retain
+their existing precedence, including suites that disable report upload. Non-nightly defaults are unchanged.
+
+OpenFeature fixtures
+--------------------
+
+The OpenFeature suite loads the checked-in snapshot in
+``tests/openfeature/ffe-system-test-data/``. A fresh clone includes the fixtures;
+running the tests requires no submodule initialization or fixture download.
+
+Add or change shared evaluation cases in
+`DataDog/ffe-system-test-data <https://github.com/DataDog/ffe-system-test-data>`_
+first. To refresh the snapshot from a reviewed upstream commit, run:
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --ref <upstream-commit>
+    $ scripts/run-tests --list tests/openfeature/
+    $ scripts/run-tests --venv <environment-hash>
+
+``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
+locally. Only ``ufc-config.json`` and ``evaluation-cases/*.json`` are copied;
+unexpected entries inside ``evaluation-cases/`` are rejected.
+
+The ``Check FFE fixtures`` PR check fetches the exact commit recorded in
+``SOURCE.md`` and compares the copied filenames and contents. It does not update
+the snapshot. To run the same check locally (requires network access):
+
+.. code-block:: bash
+
+    $ python scripts/update-ffe-fixtures.py --check
+
+The weekly or manually dispatched ``Update FFE fixtures`` workflow opens a signed
+draft PR when the copied contents change. If an update PR is already open, it
+leaves that branch untouched so evaluator fixes added there are preserved. New
+cases may expose evaluator bugs; fix those before merging the update, and change
+fixture expectations upstream only when the shared expectation is incorrect.
 
 Why are my tests failing with 404 errors?
 -----------------------------------------
@@ -133,45 +149,35 @@ To fix this:
 
 .. code-block:: bash
 
-    # outside of the testrunner shell
-    $ docker compose up -d testagent
-
-    # inside the testrunner shell, started with scripts/ddtest
-    $ DD_AGENT_PORT=9126 riot -v run --pass-env ...
+    $ scripts/run-tests <test-path>
 
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
 
-On Linux systems, when running tests with ``scripts/ddtest`` or ``scripts/run-tests``, you may encounter permission errors or file ownership issues. This happens because the container user's ID and group ID must match your local user's IDs.
+On Linux, Docker bind mounts keep the host's file ownership, so the container user must be able to write to
+your checkout. The test image runs as ``bits`` (user ID 1000). When your host user ID is not 1000,
+``scripts/ddtest`` (and therefore ``scripts/run-tests``) automatically runs the container command with your host
+user ID and group ID instead.
 
-To fix this, create a ``docker-compose.override.yml`` file in the repository root with the following contents:
-
-.. code-block:: yaml
-
-    services:
-      testrunner:
-        user: "${UID}:${GID}"
-
-Then, ensure your shell has the ``UID`` and ``GID`` environment variables set:
+To choose the IDs explicitly, set ``DD_TEST_USER``:
 
 .. code-block:: bash
 
-    export UID="$(id -u)"
-    export GID="$(id -g)"
+    $ DD_TEST_USER=1234:1234 scripts/ddtest
 
-You can add these exports to your shell profile (e.g., ``.bashrc``, ``.zshrc``) to make them persistent across sessions.
-
-After setting this up, run your tests normally:
+Set ``DD_TEST_USER`` to an empty value to keep the image's default ``bits`` user:
 
 .. code-block:: bash
 
-    $ scripts/ddtest
-    $ scripts/run-tests
+    $ DD_TEST_USER= scripts/ddtest
 
-The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
+If you previously added a ``docker-compose.override.yml`` that sets ``user: "${UID}:${GID}"`` for the
+``testrunner`` service, you can delete it. ``scripts/ddtest`` now handles this itself, and that override does
+not work with the current image, because the image's home directory, which holds the Python and Rust
+installations, is not accessible to other users.
 
-Build issues when running tests with Riot
------------------------------------------
+Build issues when running tests
+-------------------------------
 
 If you encounter build failures, CMake errors, or stale native extension issues when running tests:
 
@@ -179,27 +185,37 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run Riot **without** the ``-s`` flag so that ddtrace is rebuilt from source. The ``-s`` flag skips the base install; omitting it forces a fresh build:
+Then rebuild the environment so that the ddtrace installation is refreshed:
 
 .. code-block:: bash
 
-    $ riot -v run --pass-env -p 3.10 <suite_name> -- -vv -k 'test_name'
-
-Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
+    $ scripts/run-tests -r --venv <environment-hash> -- -vv -k test_name
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
 
-``.riot/requirements`` contains requirements files generated with ``pip-compile`` for every environment specified
-by ``riotfile.py``. Riot uses these files to build its environments, and they do not get rebuilt automatically
-when the riotfile changes. Thus, if you make changes to the riotfile, you need to rebuild them.
+Test environments use committed dependency locks. After changing an environment's dependency definition, regenerate
+the locks and commit both changes:
 
 .. code-block:: bash
 
-  $ scripts/ddtest scripts/compile-and-prune-test-requirements
+  $ scripts/test-requirements lock <environment-name>
 
-You can commit and pull request the resulting changes to files in ``.riot/requirements`` alongside the
-changes you made to ``riotfile.py``.
+Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+On Apple Silicon, select that image architecture explicitly:
+
+.. code-block:: bash
+
+  $ DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/ddtest scripts/test-requirements lock <environment-name>
+
+Use ``scripts/test-requirements`` to inspect and maintain locks:
+
+* ``check`` reports missing or obsolete lock files across all environments.
+* ``lock [environment-name ...]`` generates missing locks for exact environment names.
+* ``lock --upgrade [environment-name ...]`` upgrades existing locks for exact environment names.
+
+Without an environment name, ``lock`` operates on all environments.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -238,68 +254,14 @@ The library includes automated SLO checks that monitor performance thresholds fo
 How do I add a new test suite?
 ------------------------------
 
-We use `riot <https://ddriot.readthedocs.io/en/latest/>`_, a Python virtual environment constructor, to run the test suites.
-It is necessary to create a new ``Venv`` instance in ``riotfile.py`` if it does not exist already. It can look like this:
+Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
+locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
 
-.. code-block:: python
+How do I update a test environment to use the latest version of a package?
+----------------------------------------------------------------------------
 
-    Venv(
-        name="yaaredis",
-        command="pytest {cmdargs} tests/contrib/yaaredis",
-        pkgs={
-            "pytest-asyncio": "==0.21.1",
-            "pytest-randomly": latest,
-        },
-        venvs=[
-            Venv(
-                pys=select_pys(min_version="3.8", max_version="3.9"),
-                pkgs={"yaaredis": ["~=2.0.0", latest]},
-            ),
-        ],
-    ),
-
-Once a ``Venv`` instance has been created, you will be able to run it as explained in the section below.
-Next, we will need to add a new CI job to run the newly added test suite. This change can be made in the
-``tests/contrib/suitespec.yml`` file:
-
-.. code-block:: yaml
-
-    yaaredis:
-      parallelism: 1
-      paths:
-        - '@core'
-        - '@bootstrap'
-        - '@contrib'
-        - '@tracing'
-        - '@redis'
-        - tests/contrib/yaaredis/*
-        - tests/snapshots/tests.contrib.yaaredis.*
-      pattern: yaaredis$
-      services:
-        - redis
-      snapshot: true
-
-See ``tests/README.md`` for more detail on adding new CI jobs.
-
-How do I update a Riot environment to use the latest version of a package?
---------------------------------------------------------------------------
-
-Reading through the above example and others in ``riotfile.py``, you may notice that some package versions are specified
-as the variable ``latest``. When the Riotfile is compiled into the ``.txt`` files in the ``.riot`` directory, ``latest`` tells
-the compiler to pin the newest version of the package available on PyPI according to semantic versioning.
-
-Because this version resolution happens during Riotfile compilation, ``latest`` doesn't always mean "latest" once the compiled
-requirements files are checked into source control. In order to stay current, these requirements files need to be recompiled
-periodically.
-
-Assume you have a ``Venv`` instance in the Riotfile that uses the ``latest`` variable. Note the ``name`` field of this
-environment object.
-
-1. Run ``scripts/ddtest`` to enter a shell in the testrunner container
-2. ``export VENV_NAME=<name_you_noted_above>``
-3. Delete all of the requirements lockfiles for the chosen environment, then regenerate them:
-   ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
-4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
+Update the dependency constraint in the suite's ``suitespec.yml`` matrix, run
+``scripts/test-requirements lock --upgrade <environment-name>``, and commit the definition and resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------
@@ -333,6 +295,53 @@ Using ``@flaky`` comes with the responsibility of maintaining the test suite's c
 of using it, periodically set aside some time to ``grep -R 'flaky' tests`` and remove some of the decorators. This may require
 finding and fixing the root cause of the unreliable behavior. Upholding this responsibility is an important way to keep the test
 suite's coverage meaningfully broad while skipping tests.
+
+
+How do I find out if a slow or timed-out CI job ran on a slow machine?
+-----------------------------------------------------------------------
+
+Maintainers can read the resource metrics of the pod that ran a CI job in Datadog.
+Use the pod metrics first. They need no change to the pipeline, and they work for a job that already finished.
+
+1. Open the job in GitLab. Note the job id from the URL, the start time, and the end time.
+2. In the job log, find the line ``Running on <pod> via <runner>``. Read the ``Waiting for pod``
+   lines above it. A reason such as ``Unschedulable`` means that the job waited for a machine,
+   not for tests.
+3. In Datadog Metrics, query the pod metrics with the ``ci-job-id`` tag and the container name
+   ``build``. Use the time from 2 minutes before the job start to 1 minute after the job end.
+   Compare the CPU usage with the CPU request and limit. Compare the memory working set with the
+   memory limit. Check the OOM event count. Group the query by the ``host`` tag to see the node
+   that ran the job.
+4. To explain a slow start, query the pod phase, ready, and unschedulable metrics with the pod name.
+   These metrics do not carry the job id. Search the Kubernetes events for the same pod name to
+   find scheduling failures.
+
+Do not trust the CPU throttling counters. The counters can read zero when a container uses more
+CPU than its limit. Compare the CPU usage with the limit instead.
+
+If the pod metrics do not explain the result, turn on the runtime probe. The root ``conftest.py``
+contains the probe. When the probe is on, it prints a ``RUNTIME PROBE`` block in the job log at
+the start and at the end of each pytest session.
+The block shows the CPU count and affinity, the cgroup CPU and memory limits and counters, and
+the results of three short benchmarks.
+Use the block to compare the machine against the machines of other jobs in the same pipeline.
+
+The probe is off by default because the benchmarks add a fraction of a second to each pytest session.
+To turn the probe on for a CI run, start a new pipeline for your branch and set the pipeline
+variable ``DD_TEST_RUNTIME_PROBE`` to ``1``.
+In GitLab, use **Build > Pipelines > New pipeline** and add the variable in the form.
+The ``run-tests-trigger`` job passes the variable to the test jobs in the child pipeline.
+A retry of a single job does not accept new variables, so a retry does not turn on the probe.
+
+To turn the probe on for a local run, set the variable before you run the tests::
+
+    $ DD_TEST_RUNTIME_PROBE=1 scripts/run-tests --venv <hash>
+
+``scripts/ddtest`` passes the variable into the test container.
+
+The probe does not run in ``pytest-xdist`` workers.
+When the GitLab job timeout or an out-of-memory kill stops a job, pytest does not run its
+session-end hook. In that case, the log contains only the block from the session start.
 
 
 How do I enable debug logs for just a specific part of the library?

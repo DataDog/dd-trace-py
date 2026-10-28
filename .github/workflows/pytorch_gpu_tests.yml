@@ -73,6 +73,7 @@ jobs:
           mkdir -p "$TEST_ROOT/profiling"
           cp "$REPO_ROOT/tests/__init__.py" "$TEST_ROOT/"
           cp "$REPO_ROOT/tests/utils.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/tests/_ddtest_env_helpers.py" "$TEST_ROOT/"
           cp "$REPO_ROOT/tests/subprocesstest.py" "$TEST_ROOT/"
           cp "$REPO_ROOT/tests/profiling/__init__.py" "$TEST_ROOT/profiling/"
           cp "$REPO_ROOT/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"

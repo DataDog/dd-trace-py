@@ -16,7 +16,6 @@ from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
-from .common import _GRPC_PORT
 from .common import _GRPC_VERSION
 from .common import GrpcBaseTestCase
 from .hello_pb2 import HelloRequest
@@ -26,7 +25,7 @@ from .hello_pb2_grpc import HelloStub
 class GrpcTestCase(GrpcBaseTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -39,7 +38,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         from ddtrace import config
 
         assert config.service == "mysvc"
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -49,7 +48,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -59,7 +58,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -69,7 +68,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_client_service_name_config_env_override_v0(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -79,7 +78,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_client_service_name_config_env_override_v1(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -91,7 +90,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
     )
     def test_service_precedence_v1(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -103,7 +102,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     def test_service_precedence_v0(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -116,7 +115,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         # checking spans written to the dummy tracer
         # see https://github.com/grpc/grpc/issues/14621
 
-        spans = super(GrpcTestCase, self).get_spans()
+        spans = super().get_spans()
 
         if _GRPC_VERSION >= (1, 14):
             assert len(spans) == size
@@ -133,11 +132,11 @@ class GrpcTestCase(GrpcBaseTestCase):
     def _check_client_span(self, span, service, method_name, method_kind):
         self.assert_is_measured(span)
         assert span.name == "grpc"
-        assert span.resource == "/helloworld.Hello/{}".format(method_name)
+        assert span.resource == f"/helloworld.Hello/{method_name}"
         assert span.service == service
         assert span.error == 0
         assert span.span_type == "grpc"
-        assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
+        assert span.get_tag("grpc.method.path") == f"/helloworld.Hello/{method_name}"
         assert span.get_tag("grpc.method.package") == "helloworld"
         assert span.get_tag("grpc.method.service") == "Hello"
         assert span.get_tag("grpc.method.name") == method_name
@@ -145,24 +144,29 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert span.get_tag("grpc.status.code") == "StatusCode.OK"
         assert span.get_tag("grpc.host") == "127.0.0.1"
         assert span.get_tag("peer.hostname") is None
-        assert span.get_tag("network.destination.port") == "50531"
+        assert span.get_tag("network.destination.port") == str(self._grpc_port)
         assert span.get_tag("component") == "grpc"
         assert span.get_tag("span.kind") == "client"
 
     def _check_server_span(self, span, service, method_name, method_kind):
         self.assert_is_measured(span)
         assert span.name == "grpc"
-        assert span.resource == "/helloworld.Hello/{}".format(method_name)
+        assert span.resource == f"/helloworld.Hello/{method_name}"
         assert span.service == service
         assert span.error == 0
         assert span.span_type == "grpc"
-        assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
+        assert span.get_tag("grpc.method.path") == f"/helloworld.Hello/{method_name}"
         assert span.get_tag("grpc.method.package") == "helloworld"
         assert span.get_tag("grpc.method.service") == "Hello"
         assert span.get_tag("grpc.method.name") == method_name
         assert span.get_tag("grpc.method.kind") == method_kind
         assert span.get_tag("component") == "grpc_server"
         assert span.get_tag("span.kind") == "server"
+
+    def test_server_accepts_explicit_none_interceptors(self):
+        with logging_pool.pool(1) as server_pool:
+            server = grpc.server(server_pool, interceptors=None)
+            server.stop(None).wait()
 
     def test_insecure_channel_using_args_parameter(self):
         def insecure_channel_using_args(target):
@@ -177,7 +181,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._test_insecure_channel(insecure_channel_using_kwargs)
 
     def _test_insecure_channel(self, insecure_channel_function):
-        target = "127.0.0.1:%d" % (_GRPC_PORT)
+        target = "127.0.0.1:%d" % (self._grpc_port)
         with insecure_channel_function(target) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="test"))
@@ -201,7 +205,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._test_secure_channel(secure_channel_using_kwargs)
 
     def _test_secure_channel(self, secure_channel_function):
-        target = "127.0.0.1:%d" % (_GRPC_PORT)
+        target = "127.0.0.1:%d" % (self._grpc_port)
         with secure_channel_function(target, credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="test"))
@@ -214,7 +218,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     def test_tracer_not_activated(self):
         self.tracer.enabled = False
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="test"))
 
@@ -228,7 +232,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         def callback(response):
             callback_called.set()
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="test"))
             responses_iterator.add_done_callback(callback)
@@ -247,7 +251,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         def callback(response):
             callback_called.set()
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="once"))
             responses_iterator.add_done_callback(callback)
@@ -270,7 +274,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         def callback(response: object) -> None:
             callback_called.set()
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloTwice(HelloRequest(name="once"))
             responses_iterator.add_done_callback(callback)
@@ -286,7 +290,7 @@ class GrpcTestCase(GrpcBaseTestCase):
     def test_client_stream(self):
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHelloLast(requests_iterator)
             assert response.message == "first;second"
@@ -305,7 +309,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"])
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
             responses_iterator.add_done_callback(callback)
@@ -322,7 +326,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         # DEV: Priority sampling is enabled by default
         # Setting priority sampling reset the writer, we need to re-override it
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name="propogator"))
 
@@ -330,11 +334,13 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert f"x-datadog-trace-id={str(client_span._trace_id_64bits)}" in response.message
         assert f"_dd.p.tid={_get_64_highest_order_bits_as_hex(client_span.trace_id)}" in response.message
-        assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
+        assert f"x-datadog-parent-id={client_span.span_id}" in response.message
         assert "x-datadog-sampling-priority=1" in response.message
 
     def test_unary_abort(self):
-        with grpc.secure_channel("127.0.0.1:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        with grpc.secure_channel(
+            "127.0.0.1:%d" % (self._grpc_port), credentials=grpc.ChannelCredentials(None)
+        ) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError):
                 stub.SayHello(HelloRequest(name="abort"))
@@ -354,7 +360,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         # add an interceptor that raises a custom exception and check error tags
         # are added to spans
         raise_exception_interceptor = _RaiseExceptionClientInterceptor()
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             with self.assertRaises(_CustomException):
                 intercept_channel = grpc.intercept_channel(channel, raise_exception_interceptor)
                 stub = HelloStub(intercept_channel)
@@ -397,7 +403,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         # to requests
         requests_iterator = iter(HelloRequest(name=name) for name in ["sleep"])
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             with self.assertRaises(grpc.RpcError):
                 stub = HelloStub(channel)
                 responses_iterator = stub.SayHelloRepeatedly(requests_iterator)
@@ -419,7 +425,9 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert client_span.get_tag("span.kind") == "client"
 
     def test_unary_exception(self):
-        with grpc.secure_channel("127.0.0.1:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        with grpc.secure_channel(
+            "127.0.0.1:%d" % (self._grpc_port), credentials=grpc.ChannelCredentials(None)
+        ) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError):
                 stub.SayHello(HelloRequest(name="exception"))
@@ -447,7 +455,7 @@ class GrpcTestCase(GrpcBaseTestCase):
     def test_client_stream_exception(self):
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "exception"])
 
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError):
                 stub.SayHelloLast(requests_iterator)
@@ -479,7 +487,9 @@ class GrpcTestCase(GrpcBaseTestCase):
         def callback(response):
             callback_called.set()
 
-        with grpc.secure_channel("127.0.0.1:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        with grpc.secure_channel(
+            "127.0.0.1:%d" % (self._grpc_port), credentials=grpc.ChannelCredentials(None)
+        ) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError):
                 responses_iterator = stub.SayHelloTwice(HelloRequest(name="exception"))
@@ -506,7 +516,9 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert "grpc.StatusCode.RESOURCE_EXHAUSTED" in server_span.get_tag(ERROR_STACK)
 
     def test_unknown_servicer(self):
-        with grpc.secure_channel("127.0.0.1:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        with grpc.secure_channel(
+            "127.0.0.1:%d" % (self._grpc_port), credentials=grpc.ChannelCredentials(None)
+        ) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(grpc.RpcError) as exception_context:
                 stub.SayHelloUnknown(HelloRequest(name="unknown"))
@@ -525,7 +537,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         assert config.service == "mysvc"
 
-        channel1 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
+        channel1 = grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port))
         stub1 = HelloStub(channel1)
         stub1.SayHello(HelloRequest(name="test"))
         channel1.close()
@@ -545,7 +557,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         """
         with self.override_config("grpc", dict(service_name="myclientsvc")):
             with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                channel1 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
+                channel1 = grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port))
                 stub1 = HelloStub(channel1)
                 stub1.SayHello(HelloRequest(name="test"))
                 channel1.close()
@@ -561,7 +573,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         When a service name is specified by the user in the DD_GRPC_SERVICE env var
             It should be used in grpc client spans
         """
-        channel1 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
+        channel1 = grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port))
         stub1 = HelloStub(channel1)
         stub1.SayHello(HelloRequest(name="test"))
         channel1.close()
@@ -571,7 +583,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -582,7 +594,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="propogator"))
 
@@ -593,7 +605,7 @@ class GrpcTestCase(GrpcBaseTestCase):
 
     def test_span_parent_is_maintained(self):
         with self.tracer.trace("root") as _:
-            with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel:
                 stub = HelloStub(channel)
                 _ = stub.SayHello(HelloRequest(name="test"))
 
@@ -605,7 +617,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert client.span_id == server.parent_id
 
     def test_active_span_doesnt_leak_with_future(self):
-        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
             future = stub.SayHello.future(HelloRequest(name="test"))
 
@@ -627,7 +639,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         # add an interceptor that raises a custom exception and check error tags
         # are added to spans
         interceptor = _SpanActivationClientInterceptor(self.tracer)
-        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+        with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel:
             intercept_channel = grpc.intercept_channel(channel, interceptor)
             stub = HelloStub(intercept_channel)
             stub.SayHello(HelloRequest(name="test"))
@@ -662,11 +674,11 @@ def test_handle_response_future_like():
     def finish_span():
         span.finish()
 
-    class FutureLike(object):
+    class FutureLike:
         def add_done_callback(self, fn):
             finish_span()
 
-    class NotFutureLike(object):
+    class NotFutureLike:
         pass
 
     _handle_response(span, NotFutureLike())
@@ -703,7 +715,7 @@ def test_method_service(patch_grpc):
         options=(("grpc.so_reuseport", 0),),
     )
     port = server.add_insecure_port("[::]:0")
-    channel = grpc.insecure_channel("[::]:{}".format(port))
+    channel = grpc.insecure_channel(f"[::]:{port}")
     server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
     try:
         server.start()

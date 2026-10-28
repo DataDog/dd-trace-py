@@ -1,5 +1,7 @@
 import importlib
 import os
+from pathlib import Path
+import shutil
 
 import django
 from django.conf import settings
@@ -15,6 +17,26 @@ from tests.utils import scoped_tracer
 
 _FLAT_URLCONF = "tests.appsec.contrib_appsec.django_app.urls"
 _SUBAPP_URLCONF = "tests.appsec.contrib_appsec.django_app.urls_subapps"
+_DATABASE_TEMPLATE = Path(__file__).with_name("db.sqlite3")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def isolated_database(tmp_path_factory):
+    """Use a worker-local copy of the Django database template."""
+    database_path = tmp_path_factory.mktemp("appsec-django") / "db.sqlite3"
+    shutil.copyfile(_DATABASE_TEMPLATE, database_path)
+
+    os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
+    original_database_name = settings.DATABASES["default"]["NAME"]
+    settings.DATABASES["default"]["NAME"] = str(database_path)
+    try:
+        yield
+    finally:
+        from django.db import connections
+
+        connections.close_all()
+        importlib.import_module(_FLAT_URLCONF).DB.close()
+        settings.DATABASES["default"]["NAME"] = original_database_name
 
 
 class _Test_Django_Base:
@@ -43,7 +65,10 @@ class _Test_Django_Base:
         settings.ROOT_URLCONF = request.param
         clear_url_caches()
         endpoint_collection.reset()
-        importlib.reload(importlib.import_module(request.param))
+        urlconf = importlib.import_module(request.param)
+        if request.param == _FLAT_URLCONF:
+            urlconf.DB.close()
+        importlib.reload(urlconf)
 
         client = Client(
             f"http://localhost:{self.SERVER_PORT}",
@@ -141,6 +166,60 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
         # `<path:name>` matches one or more URL segments; substitute a non-empty multi-segment value so it resolves.
         path = re.sub(r"<path:[a-z_]+>", "a/b/c", path)
         return path if path.startswith("/") else ("/" + path)
+
+    @pytest.mark.parametrize("otel_semantics", [False, True])
+    def test_path_params_block_before_view(self, interface, otel_semantics):
+        from django.http import HttpResponse
+        from django.urls import path
+
+        from tests.utils import override_global_config
+
+        view_calls = []
+        view_middleware_calls = []
+        middleware_chain_calls = []
+
+        def blocked_view(_request, value):
+            view_calls.append(value)
+            return HttpResponse("view ran")
+
+        def process_view(_request, _view_func, _view_args, _view_kwargs):
+            view_middleware_calls.append(True)
+
+        if django.VERSION >= (3, 1):
+            interface.client.handler.load_middleware(is_async=False)
+        else:
+            interface.client.handler.load_middleware()
+        interface.client.handler._view_middleware.append(process_view)
+        middleware_chain = interface.client.handler._middleware_chain
+
+        def recording_middleware_chain(request):
+            middleware_chain_calls.append(True)
+            return middleware_chain(request)
+
+        interface.client.handler._middleware_chain = recording_middleware_chain
+
+        urlconf = importlib.import_module(settings.ROOT_URLCONF)
+        pattern = path("block-before-view/<str:value>/", blocked_view)
+        urlconf.urlpatterns.insert(0, pattern)
+        clear_url_caches()
+        try:
+            with override_global_config(
+                dict(
+                    _asm_enabled=True,
+                    _asm_static_rule_file=utils.rules.RULES_SRB,
+                    _otel_trace_semantics_enabled=otel_semantics,
+                )
+            ):
+                self.update_tracer(interface)
+                response = interface.client.get("/block-before-view/AiKfOeRcvG45/")
+
+            assert self.status(response) == 403
+            assert middleware_chain_calls == []
+            assert view_middleware_calls == []
+            assert view_calls == []
+        finally:
+            urlconf.urlpatterns.remove(pattern)
+            clear_url_caches()
 
     @pytest.mark.skipif(django.VERSION < (3, 1, 0), reason="Django ASGI requires Django 3.1+")
     def test_normalized_route_asgi(self, interface: utils.Interface, get_entry_span_tag):
@@ -244,7 +323,7 @@ def test_collect_django_routes_joins_regex_children_like_join_route(_isolated_en
     from django.urls import include
     from django.urls import re_path
 
-    from ddtrace.contrib.internal.django.patch import _collect_django_routes
+    from ddtrace.contrib.internal.django.routing import _collect_django_routes
 
     def users_view(request):
         return None
@@ -278,7 +357,7 @@ def test_collect_django_routes_handles_mixed_path_and_re_path(_isolated_endpoint
     from django.urls import path
     from django.urls import re_path
 
-    from ddtrace.contrib.internal.django.patch import _collect_django_routes
+    from ddtrace.contrib.internal.django.routing import _collect_django_routes
 
     def a(request):
         return None
@@ -302,7 +381,7 @@ def test_collect_pattern_methods_respects_require_http_methods(_django_ready):
     from django.views.decorators.csrf import csrf_exempt
     from django.views.decorators.http import require_http_methods
 
-    from ddtrace.contrib.internal.django.patch import _collect_pattern_methods
+    from ddtrace.contrib.internal.django.routing import _collect_pattern_methods
 
     @csrf_exempt
     @require_http_methods(["GET", "POST", "OPTIONS"])
@@ -315,7 +394,7 @@ def test_collect_pattern_methods_respects_require_http_methods(_django_ready):
 
 def test_collect_pattern_methods_undecorated_view_falls_back_to_wildcard(_django_ready):
     """A plain view with no method restriction and no http_method_names is tagged as '*'."""
-    from ddtrace.contrib.internal.django.patch import _collect_pattern_methods
+    from ddtrace.contrib.internal.django.routing import _collect_pattern_methods
 
     def view(request):
         return None

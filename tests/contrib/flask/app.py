@@ -1,4 +1,3 @@
-import hashlib
 import os
 import subprocess
 import sys
@@ -39,8 +38,10 @@ def identify():
 
 @app.route("/shutdown")
 def shutdown():
+    # sys.exit only ends the worker thread, so answer instead: the response is what tells the
+    # caller the flush finished and it is safe to kill the server.
     tracer.shutdown()
-    sys.exit(0)
+    return "shutdown"
 
 
 @app.route("/stream")
@@ -95,9 +96,3 @@ def run_subcommunicatenoshell():
     subp.wait()
     ret = subp.returncode
     return str(ret), 200
-
-
-@app.route("/md5sum")
-def md5sum():
-    data = request.args.get("q").encode()
-    return hashlib.md5(data).hexdigest()

@@ -54,7 +54,9 @@ def wsgi_app():
     env = os.environ.copy()
     env.update(
         {
-            "PYTHONPATH": os.path.dirname(os.path.abspath(__file__)) + ":" + env["PYTHONPATH"],
+            "PYTHONPATH": os.pathsep.join(
+                filter(None, (os.path.dirname(os.path.abspath(__file__)), env.get("PYTHONPATH")))
+            ),
             "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
             "DD_TRACE_ENABLED": "true",
         }

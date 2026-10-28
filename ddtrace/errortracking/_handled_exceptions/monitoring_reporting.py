@@ -7,6 +7,8 @@ from typing import Callable
 
 from ddtrace import tracer
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
+from ddtrace.internal import monitoring
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import filename_to_package  # noqa: F401
 from ddtrace.internal.packages import is_stdlib  # noqa: F401
@@ -15,7 +17,9 @@ from ddtrace.internal.packages import is_user_code  # noqa: F401
 from ddtrace.internal.settings.errortracking import config
 
 
-INSTRUMENTED_FILE_PATHS = []
+log = get_logger(__name__)
+
+INSTRUMENTED_FILE_PATHS: set[str] = set()
 
 
 def create_should_report_exception_optimized(checks: set[str | None]) -> Callable[[str, Path], bool]:
@@ -68,37 +72,56 @@ checks = {
     "all_third_party" if config._instrument_third_party_code else None,
     "modules" if (not config._configured_modules) is False else None,
 } - {None}
-_should_report_exception = create_should_report_exception_optimized(checks)
+_report_configured_modules = "modules" in checks
+if checks == {"modules"}:
+    # Modules-only: no static checks; only INSTRUMENTED_FILE_PATHS membership decides.
+    _should_report_exception = None
+else:
+    _should_report_exception = create_should_report_exception_optimized(checks - {"modules"})
 
 
 @cached(maxsize=4096)
-def cached_should_report_exception(file_name: str):
-    file_path = Path(file_name).resolve()
-    return _should_report_exception(file_name, file_path)
+def _cached_should_report_exception(file_name: str) -> bool:
+    """Cache only static path classification; configured module membership is dynamic."""
+    classifier = _should_report_exception
+    # Modules-only configuration has no static checks; should_report_exception
+    # short-circuits it before calling us, so this branch is only reachable directly.
+    if classifier is None:
+        return False
+    return classifier(file_name, Path(file_name).resolve())
 
 
-def _install_sys_monitoring_reporting():
+def should_report_exception(file_name: str) -> bool:
+    if _report_configured_modules and file_name in INSTRUMENTED_FILE_PATHS:
+        return True
+    if _should_report_exception is None:
+        return False
+    return _cached_should_report_exception(file_name)
+
+
+class _HandledExceptionHandler(monitoring.MonitoringEventHandler):
+    """Report handled exceptions attached to an active span."""
+
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        try:
+            span = tracer.current_span()
+            if span and should_report_exception(code.co_filename):
+                _default_errortracking_exc_callback(span=span, exc=exception)
+        except Exception:
+            log.warning("monitoring EXCEPTION_HANDLED handler failed", exc_info=True)
+
+
+_handler = _HandledExceptionHandler()
+
+
+def _install_sys_monitoring_reporting() -> None:
     if (not config._configured_modules) is False:
         MonitorHandledExceptionReportingWatchdog.install()
-
-    sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
-    sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
-
-    def _exc_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
-        span = tracer.current_span()
-        if span and cached_should_report_exception(code.co_filename):
-            _default_errortracking_exc_callback(span=span, exc=exception)
-        return True
-
-    sys.monitoring.register_callback(
-        config.HANDLED_EXCEPTIONS_MONITORING_ID,
-        sys.monitoring.events.EXCEPTION_HANDLED,
-        _exc_event_handler,
-    )
+    monitoring.register_global(_handler)
 
 
-def _disable_monitoring():
-    sys.monitoring.free_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID)
+def _uninstall_sys_monitoring_reporting() -> None:
+    monitoring.unregister_global(_handler)
 
 
 class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
@@ -117,8 +140,8 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
         for enabled_module in configured_modules:
             if module_name.startswith(enabled_module):
-                if hasattr(module, "__file__"):
-                    INSTRUMENTED_FILE_PATHS.append(module.__file__)
+                if (file_path := getattr(module, "__file__", None)) is not None:
+                    INSTRUMENTED_FILE_PATHS.add(file_path)
                 break
 
     def __init__(self):

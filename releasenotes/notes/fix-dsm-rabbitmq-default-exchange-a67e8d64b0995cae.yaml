@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kombu: This fix resolves an issue where messages published to the RabbitMQ default (unnamed)
+    exchange were not linked to their consumers in the Data Streams Monitoring map.

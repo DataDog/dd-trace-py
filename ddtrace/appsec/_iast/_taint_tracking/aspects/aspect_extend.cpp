@@ -35,11 +35,12 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         if (method_name == nullptr) {
             return nullptr;
         }
-        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
+        PyObject* extend_result = PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
         Py_DecRef(method_name);
-        if (has_pyerr()) {
+        if (extend_result == nullptr) {
             return nullptr;
         }
+        Py_DECREF(extend_result);
     } else {
         const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
         auto to_result = safe_allocate_tainted_object_copy(to_candidate);
@@ -50,11 +51,12 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         if (method_name == nullptr) {
             return nullptr;
         }
-        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
+        PyObject* extend_result = PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
         Py_DecRef(method_name);
-        if (has_pyerr()) {
+        if (extend_result == nullptr) {
             return nullptr;
         }
+        Py_DECREF(extend_result);
 
         if (to_result == nullptr) {
             Py_RETURN_NONE;

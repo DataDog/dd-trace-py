@@ -1,7 +1,7 @@
 import asyncio
 import os
+from unittest import mock
 
-import mock
 import openai as openai_module
 import pytest
 
@@ -218,7 +218,9 @@ def test_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.OpenAI()
-        client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        resp = client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 
@@ -230,7 +232,9 @@ async def test_acompletion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.AsyncOpenAI()
-        await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        resp = await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+        async for _ in resp.parse():
+            pass
 
     assert len(test_spans.pop_traces()) == 0
 
@@ -932,7 +936,14 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+    env.update(
+        {
+            "OPENAI_API_KEY": openai_api_key,
+            "DD_TRACE_HTTPX_ENABLED": "0",
+            "DD_TRACE_HTTPX2_ENABLED": "0",
+            "PYTHONPATH": ":".join(pypath),
+        }
+    )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import openai
@@ -972,7 +983,14 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+    env.update(
+        {
+            "OPENAI_API_KEY": openai_api_key,
+            "DD_TRACE_HTTPX_ENABLED": "0",
+            "DD_TRACE_HTTPX2_ENABLED": "0",
+            "PYTHONPATH": ":".join(pypath),
+        }
+    )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import asyncio
@@ -1156,7 +1174,14 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+    env.update(
+        {
+            "OPENAI_API_KEY": openai_api_key,
+            "DD_TRACE_HTTPX_ENABLED": "0",
+            "DD_TRACE_HTTPX2_ENABLED": "0",
+            "PYTHONPATH": ":".join(pypath),
+        }
+    )
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
@@ -1189,7 +1214,11 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 async def test_openai_asyncio_cancellation(openai):
     import asyncio
 
-    import httpx
+    try:
+        # openai>=3.0 vendors httpx as httpx2 to avoid colliding with a user's own httpx install.
+        import httpx2 as httpx
+    except ImportError:
+        import httpx
 
     class DelayedTransport(httpx.AsyncBaseTransport):
         def __init__(self, delay: float):

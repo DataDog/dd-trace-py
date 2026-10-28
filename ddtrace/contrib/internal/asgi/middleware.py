@@ -1,14 +1,15 @@
+from collections.abc import Mapping
 from functools import wraps
 import sys
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from urllib import parse
 
 from ddtrace import config
+from ddtrace._trace.http_tags import set_status_code_tag
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -25,13 +26,14 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -96,7 +98,7 @@ def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: M
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span._set_attribute(http.STATUS_CODE, "500")
+    set_status_code_tag(span, 500)
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -202,14 +204,11 @@ class TraceMiddleware:
             root_app = scope.get("app")
             if root_app is not None and not getattr(root_app, "_datadog_endpoints_collected", False):
                 # Set the flag before attempting collection to avoid retrying on every request
-                # if the import or walk fails (e.g., starlette not patched, pure ASGI app).
+                # if the walk fails (e.g., starlette not patched, pure ASGI app).
+                # Framework integrations (e.g. starlette) register a listener for this event
+                # to walk their route tree; asgi itself has no notion of routes.
                 root_app._datadog_endpoints_collected = True
-                try:
-                    from ddtrace.contrib.internal.starlette.patch import _collect_routes_from_app
-
-                    _collect_routes_from_app(root_app)
-                except Exception:
-                    log.debug("failed to collect routes from app for endpoint discovery", exc_info=True)
+                core.dispatch("asgi.collect_routes", (root_app,))
 
         if scope["type"] == "http":
             method = scope["method"]
@@ -217,6 +216,10 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        # Before activating distributed headers, as WSGI does: a MicroVM /run refresh detaches
+        # the active context, which would otherwise be the one just extracted from this request.
+        if scope["type"] == "http" and not is_subapp:
+            trace_utils.dispatch_asgi_web_request_starting(scope)
         try:
             headers = extract_headers(scope)
         except Exception:
@@ -252,7 +255,7 @@ class TraceMiddleware:
                 integration_config=self.integration_config,
                 is_subapp=is_subapp,
             ) as ctx,
-            ctx.span as span,
+            span_from_context(ctx) as span,
         ):
             if self.span_modifier:
                 self.span_modifier(span, scope)
@@ -279,14 +282,14 @@ class TraceMiddleware:
             raw_path = scope.get("raw_path")
             raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
-                url = "{}://{}{}".format(scheme, host_header, full_path)
-                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
+                url = f"{scheme}://{host_header}{full_path}"
+                raw_url = f"{scheme}://{host_header}{raw_path_str}"
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
-                url = "{}://{}{}".format(scheme, server_host, full_path)
-                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
+                url = f"{scheme}://{server_host}{full_path}"
+                raw_url = f"{scheme}://{server_host}{raw_path_str}"
             else:
                 url = None
                 raw_url = None
@@ -297,7 +300,8 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
                 if raw_url:
                     raw_url = f"{raw_url}?{query_string}"
-            if not self.integration_config.trace_query_string:
+            # The OTel writer decides whether to tag url.query from http_tag_query_string.
+            if not config._otel_trace_semantics_enabled and not self.integration_config.trace_query_string:
                 query_string = None
             # Body parsing is HTTP-only: sub-apps skip it (parent already handled it),
             # and websocket scopes must not have their receive() consumed here.
@@ -375,7 +379,7 @@ class TraceMiddleware:
                         current_receive_span.finish()
                         scope["datadog"].pop("current_receive_span", None)
 
-                    recv_span = ctx.span
+                    recv_span = span_from_context(ctx)
                     try:
                         message = await receive()
 
@@ -592,7 +596,11 @@ class TraceMiddleware:
         if span and message.get("type") == "http.response.start" and "status" in message:
             cookies = _parse_response_cookies(response_headers)
             status_code = message["status"]
-            if self.integration_config.obfuscate_404_resource and status_code == 404:
+            if (
+                self.integration_config.obfuscate_404_resource
+                and status_code == 404
+                and not config._otel_trace_semantics_enabled
+            ):
                 span.resource = " ".join((method, "404"))
 
             trace_utils.set_http_meta(

@@ -22,6 +22,7 @@ from ddtrace.contrib.internal.sanic.patch import patch
 from ddtrace.contrib.internal.sanic.patch import unpatch
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -152,7 +153,7 @@ if sanic_version >= (21, 9, 0):
         # Create a test client compatible with pytest-sanic test client
         class TestClient(SanicASGITestClient):
             async def request(self, *args, **kwargs):
-                request, response = await super(TestClient, self).request(*args, **kwargs)
+                request, response = await super().request(*args, **kwargs)
                 return response
 
         test_client = TestClient(app)
@@ -272,6 +273,26 @@ async def test_resource_name(tracer, client, url, expected_json, expected_resour
     spans = test_spans.pop_traces()
     request_span = spans[0][0]
     assert request_span.resource == expected_resource
+
+
+@pytest.mark.asyncio
+async def test_otel_semantics_sets_complete_request_metadata(client, test_spans):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        response = await client.get("/hello/foo")
+
+    assert _response_status(response) == 200
+    request_span = test_spans.pop_traces()[0][0]
+    assert request_span.get_tag("http.request.method") == "GET"
+    assert request_span.get_metric("http.response.status_code") == 200
+    assert request_span.get_tag("url.path") == "/hello/foo"
+    if sanic_version < (21, 0, 0):
+        # Before 21.0 there is no routing hook, so the span carries no route and is named from
+        # the method alone rather than from the raw URL path.
+        assert request_span.get_tag("http.route") is None
+        assert request_span.resource == "GET"
+    else:
+        assert request_span.get_tag("http.route") == "/hello/<first_name>"
+        assert request_span.resource == "GET /hello/<first_name>"
 
 
 @pytest.mark.asyncio
@@ -447,7 +468,7 @@ def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, sche
         "v0": service_name or "sanic",
         "v1": service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
     }[schema_version]
-    code = """
+    code = f"""
 import asyncio
 import pytest
 import sys
@@ -472,11 +493,11 @@ async def test(patch_sanic, client, integration_config, integration_http_config,
     # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
     sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
     assert len(sanic_spans) == 1
-    assert sanic_spans[0].service == "{}"
+    assert sanic_spans[0].service == "{expected_service_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -495,7 +516,7 @@ def test_operation_name_schematization(ddtrace_run_python_code_in_subprocess, sc
     expected_operation_name = {None: "sanic.request", "v0": "sanic.request", "v1": "http.server.request"}[
         schema_version
     ]
-    code = """
+    code = f"""
 import asyncio
 import pytest
 import sys
@@ -520,11 +541,11 @@ async def test(patch_sanic, client, integration_config, integration_http_config,
     # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
     sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
     assert len(sanic_spans) == 1
-    assert  sanic_spans[0].name == "{}"
+    assert  sanic_spans[0].name == "{expected_operation_name}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -613,3 +634,59 @@ async def test_inferred_spans_api_gateway_default(
 
             if test_headers["type"] == "distributed":
                 assert web_span.trace_id == 1
+
+
+@pytest.mark.skipif(sanic_version < (21, 9, 0), reason="sanic_testing provides the ASGI test client from Sanic 21.9")
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
+def test_otel_semantics_server_span_attributes():
+    import asyncio
+    from functools import partial
+
+    from sanic import Sanic
+    from sanic.response import text
+    from sanic_testing.testing import SanicASGITestClient
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    # Sanic does not report the peer address.
+    assert_span = partial(assert_otel_server_span, peer_address=False)
+
+    Sanic.test_mode = True
+    app = Sanic("otel_semantics")
+
+    @app.route("/users/<user_id:int>")
+    async def user(request, user_id):
+        return text("ok")
+
+    async def run():
+        with scoped_tracer() as tracer:
+            spans = TracerSpanContainer(tracer)
+            client = SanicASGITestClient(app)
+
+            async def request_span(path):
+                spans.reset()
+                _, response = await client.request("GET", path, headers=TEST_HEADERS)
+                return response, next(span for span in spans.get_spans() if span.name == "sanic.request")
+
+            response, span = await request_span("/users/42?q=1")
+            assert response.status_code == 200
+            assert_span(
+                span,
+                method="GET",
+                status=200,
+                path="/users/42",
+                query="q=1",
+                route="/users/<user_id:int>",
+                resource="GET /users/<user_id:int>",
+            )
+
+            # An unmatched route must not leak the URL path into the resource.
+            response, span = await request_span("/no/such/path/123")
+            assert response.status_code == 404
+            assert_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+            await client.aclose()
+
+    asyncio.run(run())

@@ -1,0 +1,11 @@
+_v: 1
+name: asgi
+display_name: ASGI
+description: Instruments inbound HTTP request handling and server-side WebSocket connection, message, and close operations
+  in ASGI applications.
+packages: []
+category:
+- http.server
+- websocket.server
+systems: []
+creation_date: '2020-08-04'

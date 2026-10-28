@@ -1,4 +1,3 @@
-import enum
 from functools import partial
 from types import FunctionType
 from types import MethodType
@@ -6,6 +5,7 @@ import typing as t
 
 import ddtrace.internal.core as core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.products import manager as product_manager
 from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.settings.code_origin import config
@@ -58,8 +58,7 @@ def stop(join: bool = False) -> None:
     SpanCodeOriginProcessorEntry.disable()
 
 
-class APMCapabilities(enum.IntFlag):
-    APM_TRACING_ENABLE_CODE_ORIGIN = 1 << 40
+APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableCodeOrigin,)
 
 
 def apm_tracing_rc(lib_config: t.Any, _config: t.Any) -> None:

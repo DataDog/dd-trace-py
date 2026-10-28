@@ -396,6 +396,96 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
         assert not any(service.encode() in msg["body"] for msg in client.crash_messages())
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
+def test_crashtracker_preload_starts_before_products() -> None:
+    # A native crash during the startup of a product is reported only if the
+    # crashtracker is already running.
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.internal.products import manager
+
+    started_before_products: list[bool] = []
+    manager.run_protocol = lambda: started_before_products.append(crashtracking.is_started())
+
+    import ddtrace.bootstrap.preload  # noqa: F401
+
+    assert started_before_products == [True]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"}, err=None)
+def test_crashtracker_preload_panic_does_not_block_products() -> None:
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.internal.products import manager
+
+    class PanicException(BaseException):
+        pass
+
+    # is_panic_exception matches on the module and class name of pyo3_runtime.PanicException.
+    PanicException.__module__ = "pyo3_runtime"
+
+    def crashtracker_init(*args: object, **kwargs: object) -> None:
+        raise PanicException("crashtracker_init panicked")
+
+    crashtracking.crashtracker_init = crashtracker_init
+
+    run_protocol_calls: list[bool] = []
+    manager.run_protocol = lambda: run_protocol_calls.append(True)
+
+    import ddtrace.bootstrap.preload  # noqa: F401
+
+    assert not crashtracking.is_started()
+    assert run_protocol_calls == [True]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"}, err=None)
+def test_crashtracker_start_failure_reinstalls_segv_handler() -> None:
+    import sys
+    import types
+
+    from ddtrace.internal.core import crashtracking
+
+    class PanicException(BaseException):
+        pass
+
+    # is_panic_exception matches on the module and class name of pyo3_runtime.PanicException.
+    PanicException.__module__ = "pyo3_runtime"
+
+    calls: list[str] = []
+    stack_mod = types.ModuleType("ddtrace.internal.datadog.profiling.stack")
+    stack_mod.uninstall_segv_handler = lambda: calls.append("uninstall")  # type: ignore[attr-defined]
+    stack_mod.reinstall_segv_handler = lambda: calls.append("reinstall")  # type: ignore[attr-defined]
+    sys.modules["ddtrace.internal.datadog.profiling.stack"] = stack_mod
+
+    for exc_type in (RuntimeError, PanicException):
+
+        def crashtracker_init(*args: object, **kwargs: object) -> None:
+            raise exc_type("crashtracker_init failed")
+
+        crashtracking.crashtracker_init = crashtracker_init
+        calls.clear()
+
+        assert crashtracking.start() is False
+        assert calls == ["uninstall", "reinstall"], (exc_type, calls)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_start_propagates_base_exception() -> None:
+    import pytest
+
+    from ddtrace.internal.core import crashtracking
+
+    def crashtracker_init(*args: object, **kwargs: object) -> None:
+        raise KeyboardInterrupt()
+
+    crashtracking.crashtracker_init = crashtracker_init
+
+    with pytest.raises(KeyboardInterrupt):
+        crashtracking.start()
+
+
 auto_code = """
 import warnings
 # This test logs the following warning in py3.12:
@@ -678,6 +768,9 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.internal.settings.profiling import config_str
+
     service = "test_crashtracker_set_tag_profiler_config"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -696,7 +789,8 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         report = utils.get_crash_report(client, service=service)
         # Now check for the profiler_config tag
         assert b"profiler_config" in report["body"]
-        profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
+
+        profiler_config = config_str(profiling_config)
         assert profiler_config.encode() in report["body"]
 
 
@@ -830,7 +924,7 @@ def test_crashtracker_process_tags():
         assert b"string_at" in report["body"]
 
         # Verify process_tags are present in crash report
-        assert "process_tags".encode() in report["body"]
+        assert b"process_tags" in report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -1026,3 +1120,339 @@ def test_crashtracker_receiver_env_inheritance():
 
     # Clean up
     os.environ.pop(test_env_key, None)
+
+
+unhandled_exception_code = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace.auto
+
+class CustomError(Exception):
+    pass
+
+raise CustomError("crashtracker_unhandled_test_message")
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
+    import json
+
+    service = "test_crashtracker_unhandled_exception"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        _stdout, stderr, exitcode, _ = run_python_code_in_subprocess(unhandled_exception_code, env=env)
+
+        # The process should exit with code 1, not a signal
+        assert exitcode == 1
+        assert b"CustomError" in stderr
+        assert b"crashtracker_unhandled_test_message" in stderr
+
+        report = utils.get_crash_report(client, service=service)
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+
+        error = message["error"]
+        error_str = json.dumps(error)
+        # The exception is defined in __main__
+        assert "__main__.CustomError" in error_str
+        assert "crashtracker_unhandled_test_message" in error_str
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
+def test_crashtracker_uploads_to_the_intake_when_agentless():
+    """Agentless must not pin crashtracking to a single, explicitly-computed endpoint.
+
+    The crash-report (telemetry intake) and errors-intake uploads go to genuinely different
+    hosts. Forcing one endpoint on both would send the errors-intake upload to the wrong host,
+    so we pass no endpoint/api_key at all here - the receiver resolves both independently from
+    DD_API_KEY/DD_SITE/_DD_DIRECT_SUBMISSION_ENABLED, which must be forwarded to it explicitly
+    since its environment is not inherited (it's spawned via a raw execve).
+    """
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    captured = {}
+
+    def fake_config(*args, **kwargs):
+        captured["endpoint"] = args[7]
+        captured["api_key"] = args[10] if len(args) > 10 else kwargs.get("api_key")
+        return mock.MagicMock()
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerConfiguration", fake_config),
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+    ):
+        crashtracking._get_args({})
+
+    assert captured["endpoint"] is None
+    assert captured["api_key"] is None
+    assert captured["receiver_env"]["_DD_DIRECT_SUBMISSION_ENABLED"] == "true"
+    assert captured["receiver_env"]["DD_API_KEY"] == "foobarkey"
+    assert captured["receiver_env"]["DD_SITE"] == "datadoghq.com"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey"})
+def test_crashtracker_uploads_to_the_agent_without_agentless():
+    """An API key alone must not divert crash reports away from the agent."""
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    captured = {}
+
+    def fake_config(*args, **kwargs):
+        captured["endpoint"] = args[7]
+        captured["api_key"] = args[10] if len(args) > 10 else kwargs.get("api_key")
+        return mock.MagicMock()
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerConfiguration", fake_config),
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+    ):
+        crashtracking._get_args({})
+
+    assert "intake" not in captured["endpoint"]
+    assert captured["api_key"] is None
+    assert "_DD_DIRECT_SUBMISSION_ENABLED" not in captured["receiver_env"]
+
+
+def test_crashtracker_receiver_strips_ddtrace_run_bootstrap_from_pythonpath():
+    """The receiver must not re-run ddtrace-run's sitecustomize.py bootstrap.
+
+    ddtrace-run prepends its bootstrap dir to PYTHONPATH so the traced app auto-instruments.
+    If the receiver process inherited that entry, its own interpreter would re-trigger the
+    bootstrap and start a second, independently-configured copy of ddtrace (remote config
+    poller, tracer, etc.), producing bogus telemetry/remote-config traffic to the agent.
+    """
+    import importlib.util
+    import os
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+    other_dir = "/some/other/dir"
+
+    captured = {}
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+        mock.patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join([bootstrap_dir, other_dir])}),
+    ):
+        crashtracking._get_args({})
+
+    pythonpath_entries = captured["receiver_env"]["PYTHONPATH"].split(os.pathsep)
+    assert bootstrap_dir not in pythonpath_entries
+    assert other_dir in pythonpath_entries
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_receiver_pythonpath_isolation(monkeypatch):
+    """The receiver must import ddtrace.internal.native._native without triggering the bootstrap.
+
+    Reproduces the regression from #19735: when PYTHONPATH contains the bootstrap directory
+    (as both ddtrace-run and SSI prepend it), the receiver's interpreter would re-trigger
+    ddtrace.bootstrap.preload and start a second, independently-configured copy of ddtrace.
+    This test captures the actual receiver args and env, then launches Python with those
+    settings to verify (a) the native extension is importable and (b) the preload is absent.
+    """
+    import importlib.util
+    import subprocess
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    receiver_spec = importlib.util.find_spec("ddtrace.commands._dd_crashtracker_receiver")
+    assert receiver_spec is not None
+    assert receiver_spec.origin is not None
+    # Reconstruct the SSI layout: bootstrap/ and its parent (injected site-packages) are
+    # both on PYTHONPATH so that ddtrace is importable without the bootstrap running.
+    ddtrace_package_dir = os.path.dirname(os.path.dirname(receiver_spec.origin))
+    bootstrap_dir = os.path.join(ddtrace_package_dir, "bootstrap")
+    injected_site_packages = os.path.dirname(ddtrace_package_dir)
+    pythonpath = [bootstrap_dir, injected_site_packages]
+    pythonpath.extend(filter(None, os.environ.get("PYTHONPATH", "").split(os.pathsep)))
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join(pythonpath))
+
+    receiver_args = None
+    receiver_env = None
+
+    def capture_receiver_config(args, env, *_rest):
+        nonlocal receiver_args, receiver_env
+        receiver_args = args
+        receiver_env = env
+        return mock.MagicMock()
+
+    with mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", capture_receiver_config):
+        crashtracking._get_args(None)
+
+    assert receiver_args is not None, "CrashtrackerReceiverConfig was never called"
+    assert receiver_env is not None
+
+    result = subprocess.run(
+        [
+            receiver_args[0],
+            "-c",
+            (
+                "import sys; "
+                "import ddtrace.internal.native._native; "
+                "assert 'ddtrace.bootstrap.preload' not in sys.modules, "
+                "repr(list(sys.modules))"
+            ),
+        ],
+        env=receiver_env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_crashtracker_receiver_trailing_bootstrap_pythonpath_preserves_cwd():
+    """Stripping bootstrap from a trailing-colon PYTHONPATH must not produce PYTHONPATH="".
+
+    PYTHONPATH=<bootstrap>: splits into ["<bootstrap>", ""], and after removing the
+    bootstrap entry only [""] remains. os.pathsep.join([""])  == "", and Python ignores
+    PYTHONPATH="" (treats it as unset), so the receiver would lose the cwd entry.
+    The fix substitutes "." so cwd remains reachable.
+    """
+    import importlib.util
+    import os
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+
+    captured = {}
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    # PYTHONPATH is exactly <bootstrap>: — one trailing colon representing cwd
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+        mock.patch.dict(os.environ, {"PYTHONPATH": bootstrap_dir + os.pathsep}),
+    ):
+        crashtracking._get_args({})
+
+    pythonpath = captured["receiver_env"].get("PYTHONPATH", "")
+    assert pythonpath, "PYTHONPATH must not be empty — cwd entry was lost"
+    entries = pythonpath.split(os.pathsep)
+    assert bootstrap_dir not in entries
+    # "." and "" are both valid cwd representations; the fix produces "."
+    assert any(e in ("", ".") for e in entries), (
+        f"Expected a cwd entry ('.' or '') in PYTHONPATH entries, got {entries!r}"
+    )
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_receiver_cwd_module_importable_with_trailing_bootstrap_pythonpath(tmp_path):
+    """Receiver launched when PYTHONPATH=<bootstrap>: can still import a cwd-only module.
+
+    Regression test for the case where stripping the bootstrap entry leaves PYTHONPATH=""
+    which Python ignores, making any module that lives only in the working directory
+    unreachable from the receiver subprocess.
+    """
+    import importlib.util
+    import subprocess
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    # Place a unique sentinel module only inside tmp_path
+    module_name = "cwd_sentinel_module_for_crashtracker_test"
+    (tmp_path / f"{module_name}.py").write_text("value = 42\n")
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+
+    receiver_args = None
+    receiver_env = None
+
+    def capture(args, env, *rest):
+        nonlocal receiver_args, receiver_env
+        receiver_args = list(args)
+        receiver_env = dict(env)
+        return mock.MagicMock()
+
+    # Simulate ddtrace-run: PYTHONPATH=<bootstrap>:
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", capture),
+        mock.patch.dict(os.environ, {"PYTHONPATH": bootstrap_dir + os.pathsep}),
+    ):
+        crashtracking._get_args(None)
+
+    assert receiver_args is not None, "CrashtrackerReceiverConfig was never called"
+
+    # The probe script must live outside tmp_path
+    probe_dir = tmp_path / "probe"
+    probe_dir.mkdir()
+    probe_script = probe_dir / "probe.py"
+    probe_script.write_text(f"import {module_name}; assert {module_name}.value == 42\n")
+
+    # Run from tmp_path (where the sentinel module lives) with the script outside it.
+    # Without the fix PYTHONPATH="" is ignored, cwd is not in sys.path, import fails.
+    result = subprocess.run(
+        [receiver_args[0], str(probe_script)],
+        env=receiver_env,
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"cwd-only module not importable in receiver.\n"
+        f"PYTHONPATH in receiver env: {receiver_env.get('PYTHONPATH')!r}\n"
+        f"stderr: {result.stderr}"
+    )
+
+
+def test_crashtracker_receiver_preserves_empty_pythonpath_components():
+    """Empty PYTHONPATH components mean cwd and must not be dropped.
+
+    PYTHONPATH=:/opt/vendor is interpreted as [cwd, /opt/vendor]. Filtering on
+    truthiness would drop that cwd entry, and if ddtrace is loaded from the
+    working directory rather than site-packages the receiver would fail to
+    import ddtrace.internal.native._native.
+    """
+    import importlib.util
+    import os
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+    other_dir = "/opt/vendor"
+
+    captured = {}
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+        mock.patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join(["", bootstrap_dir, other_dir])}),
+    ):
+        crashtracking._get_args({})
+
+    assert captured["receiver_env"]["PYTHONPATH"] == os.pathsep.join(["", other_dir])

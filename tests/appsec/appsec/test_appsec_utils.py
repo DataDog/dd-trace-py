@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -65,7 +66,7 @@ def test_get_blocked_template_user_file_missing_json():
 def test_get_blocked_template_user_file_exists_html():
     template_path = os.path.join(os.path.dirname(__file__), "blocking_template_html.html")
     with override_env(dict(DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=template_path)):
-        with open(template_path, "r") as test_template_html:
+        with open(template_path) as test_template_html:
             html_content = test_template_html.read()
         assert utils._get_blocked_template("text/html", BLOCK_ID) == html_content
         assert utils._get_blocked_template("", BLOCK_ID) == utils._format_template(BLOCKED_RESPONSE_JSON, BLOCK_ID)
@@ -77,7 +78,7 @@ def test_get_blocked_template_user_file_exists_html():
 def test_get_blocked_template_user_file_exists_json():
     template_path = os.path.join(os.path.dirname(__file__), "blocking_template_json.json")
     with override_env(dict(DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=template_path)):
-        with open(template_path, "r") as test_template_json:
+        with open(template_path) as test_template_json:
             json_content = utils._format_template(test_template_json.read(), BLOCK_ID)
         assert utils._get_blocked_template("", BLOCK_ID) == json_content
         assert utils._get_blocked_template("application/json", BLOCK_ID) == json_content
@@ -195,3 +196,14 @@ def test_block_config_get_preserves_attribute_access():
     # Both access methods should return identical values
     assert config.status_code == config.get("status_code")
     assert config.type == config.get("type")
+
+
+def test_user_info_retriever_preserves_id_and_stringifies_extra_values():
+    from ddtrace.appsec._utils import _UserInfoRetriever
+
+    retriever = _UserInfoRetriever(SimpleNamespace(pk=1, username=2, email=3, name=4))
+
+    assert retriever.get_user_info(login=True, email=True, name=True) == (
+        1,
+        {"login": "2", "email": "3", "name": "4"},
+    )

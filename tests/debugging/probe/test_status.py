@@ -1,19 +1,20 @@
+import json
 import sys
 
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal import runtime
-from ddtrace.internal.utils.http import parse_form_multipart
 from tests.debugging.utils import create_snapshot_line_probe
 
 
 class DummyProbeStatusLogger(ProbeStatusLogger):
     def __init__(self, *args, **kwargs):
-        super(DummyProbeStatusLogger, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._flush_queue = []
 
-    def _write_payload(self, data: tuple[bytes, dict]):
-        body, headers = data
-        self._flush_queue.extend(parse_form_multipart(body.decode("utf-8"), headers)["event"])
+    def _write_payload(self, body: bytes):
+        # The multipart framing is the native sender's job; what reaches it is the
+        # bare JSON array of diagnostic messages.
+        self._flush_queue.extend(json.loads(body))
 
     def clear(self):
         self._flush_queue[:] = []

@@ -29,6 +29,22 @@ class TestOpenaiPatch(PatchTestCase.Base):
         if hasattr(obj, attr_name):
             self.assert_not_double_wrapped(getattr(obj, attr_name))
 
+    def _realtime_targets(self):
+        """(cls, method_name) pairs that ``patch()`` wraps for the Realtime API, resolved for
+        whichever realtime classes exist in the installed openai version (empty on versions that
+        predate the Realtime API, so the assertions below become a no-op there).
+        """
+        from ddtrace.contrib.internal.openai._realtime import _REALTIME_WRAPS
+        from ddtrace.contrib.internal.openai._realtime import _realtime_modules
+
+        targets = []
+        for module in _realtime_modules():
+            for class_name, method_name, _ in _REALTIME_WRAPS:
+                cls = getattr(module, class_name, None)
+                if cls is not None and hasattr(cls, method_name):
+                    targets.append((cls, method_name))
+        return targets
+
     def assert_module_patched(self, openai):
         if OPENAI_VERSION >= (1, 8, 0):
             self.assert_wrapped(openai._base_client.SyncAPIClient._process_response)
@@ -79,6 +95,8 @@ class TestOpenaiPatch(PatchTestCase.Base):
         if hasattr(openai.resources, "responses"):
             self._assert_wrapped_if_exists(openai.resources.responses.Responses, "parse")
             self._assert_wrapped_if_exists(openai.resources.responses.AsyncResponses, "parse")
+        for cls, method_name in self._realtime_targets():
+            self.assert_wrapped(getattr(cls, method_name))
 
     def assert_not_module_patched(self, openai):
         if OPENAI_VERSION >= (1, 8, 0):
@@ -130,6 +148,8 @@ class TestOpenaiPatch(PatchTestCase.Base):
         if hasattr(openai.resources, "responses"):
             self._assert_not_wrapped_if_exists(openai.resources.responses.Responses, "parse")
             self._assert_not_wrapped_if_exists(openai.resources.responses.AsyncResponses, "parse")
+        for cls, method_name in self._realtime_targets():
+            self.assert_not_wrapped(getattr(cls, method_name))
 
     def assert_not_module_double_patched(self, openai):
         if OPENAI_VERSION >= (1, 8, 0):
@@ -181,3 +201,5 @@ class TestOpenaiPatch(PatchTestCase.Base):
         if hasattr(openai.resources, "responses"):
             self._assert_not_double_wrapped_if_exists(openai.resources.responses.Responses, "parse")
             self._assert_not_double_wrapped_if_exists(openai.resources.responses.AsyncResponses, "parse")
+        for cls, method_name in self._realtime_targets():
+            self.assert_not_double_wrapped(getattr(cls, method_name))

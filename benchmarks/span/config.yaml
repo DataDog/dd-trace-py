@@ -16,6 +16,10 @@ start: &base
 start-traceid128:
   <<: *base
   traceid128: true
+add-one-tag:
+  <<: *base
+  ntags: 1
+  ltags: 100
 add-tags:
   <<: *base
   ntags: 100
@@ -52,7 +56,3 @@ start-finish-traceid128:
   <<: *base
   finishspan: true
   traceid128: true
-start-finish-telemetry:
-  <<: *base
-  finishspan: true
-  telemetry: true

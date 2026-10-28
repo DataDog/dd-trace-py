@@ -3,6 +3,10 @@ This file implements the Core API, the abstraction layer between Integrations an
 The Core API enables two primary use cases: maintaining a tree of ``ExecutionContext`` objects
 and dispatching events.
 
+Contexts created with ``context_with_event`` preserve the concrete type of ``ctx.event``.
+Parents, roots, and the current context can contain different event types. String-keyed
+context items retain their dynamic value types.
+
 When using the Core API, keep concerns separate between Products and Integrations. Integrations
 should not contain any code that references Products (Tracing, AppSec, Spans, WAF, Debugging, et cetera)
 and Product code should never reference the library being integrated with (for example by importing ``flask``).
@@ -23,7 +27,7 @@ This example shows how ``core.context_with_data`` might be used to create a node
             pin=pin,
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
-        ) as ctx, ctx.span:
+        ) as ctx, span_from_context(ctx):
             return wrapped(*args, **kwargs)
 
 
@@ -101,7 +105,7 @@ The names of these events follow the pattern ``context.[started|ended].<context_
 For async integrations, ``context.ended`` may need to be emitted later, for example, from a callback,
 after the ``with`` block exits. For example::
 
-    with core.context_with_data("integration.operation", _dispatch_end_event=False) as ctx:
+    with core.context_with_data("integration.operation", dispatch_end_event=False) as ctx:
 
         try:
             future = await async_func(*args, **kwargs)
@@ -119,48 +123,47 @@ after the ``with`` block exits. For example::
         return future
 """
 
+from collections.abc import Mapping
+import contextvars
 import logging
 import types
-import typing
-from typing import Any  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Any
 from typing import Generic
-from typing import Optional  # noqa:F401
+from typing import Optional
+from typing import TypeVar
 
-from . import event_hub  # noqa:F401
-from .event_hub import EventResultDict  # noqa:F401
-from .event_hub import dispatch
-from .event_hub import dispatch_event  # noqa:F401
-from .event_hub import dispatch_with_results  # noqa:F401
-from .event_hub import has_listeners  # noqa:F401
-from .event_hub import on  # noqa:F401
-from .event_hub import reset as reset_listeners  # noqa:F401
-from .events import EventType
-
-
-if typing.TYPE_CHECKING:
-    from ddtrace._trace.span import Span  # noqa:F401
-
-import contextvars
+from . import event_hub as event_hub
+from .event_hub import EventResultDict as EventResultDict
+from .event_hub import dispatch as dispatch
+from .event_hub import dispatch_event as dispatch_event
+from .event_hub import dispatch_with_results as dispatch_with_results
+from .event_hub import has_listeners as has_listeners
+from .event_hub import on as on
+from .event_hub import reset_listeners as reset_listeners
+from .events import Event as Event
+from .events import EventType as EventType
 
 
 _MISSING = object()
-
-tracer = None
 
 log = logging.getLogger(__name__)
 
 
 ROOT_CONTEXT_ID = "__root"
 
+ContextEventType_co = TypeVar("ContextEventType_co", bound=Event, covariant=True)
 
-class ExecutionContext(Generic[EventType]):
+
+class ExecutionContext(Generic[ContextEventType_co]):
+    """A context's event reference can be cleared on completion, but its event type must stay fixed."""
+
     __slots__ = (
         "identifier",
         "_data",
         "_event",
         "_suppress_exceptions",
         "_parent",
-        "_inner_span",
         "_token",
         "_dispatch_end_event",
         "_end_event_dispatched",
@@ -169,27 +172,26 @@ class ExecutionContext(Generic[EventType]):
     def __init__(
         self,
         identifier: str,
-        parent: Optional["ExecutionContext"] = None,
-        event: Optional["EventType"] = None,
+        parent: Optional["ExecutionContext[Event]"] = None,
+        event: Optional[ContextEventType_co] = None,
         dispatch_end_event: bool = True,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         self.identifier: str = identifier
-        self._data: dict[str, Any] = {}
-        self._event: Optional["EventType"] = event
-        self._suppress_exceptions: list[type] = []
-        self._data.update(kwargs)
-        self._parent: Optional["ExecutionContext"] = parent
-        self._inner_span: Optional["Span"] = None
-        self._token: Optional[contextvars.Token["ExecutionContext"]] = None
+        self._data: dict[str, Any] = kwargs
+        self._event: Optional[ContextEventType_co] = event
+        # PERF: most contexts never suppress exceptions; allocate the list lazily.
+        self._suppress_exceptions: Optional[list[type[BaseException]]] = None
+        self._parent: Optional[ExecutionContext[Event]] = parent
+        self._token: Optional[contextvars.Token[ExecutionContext[Event]]] = None
         self._dispatch_end_event: bool = dispatch_end_event
         self._end_event_dispatched: bool = False
 
-    def __enter__(self) -> "ExecutionContext[EventType]":
+    def __enter__(self) -> "ExecutionContext[ContextEventType_co]":
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         try:
-            dispatch("context.started.%s" % self.identifier, (self,))
+            dispatch("context.started." + self.identifier, (self,))
         except BaseException:
             # If dispatch raises, __exit__ won't be called — reset the context ourselves
             # to avoid leaving _CURRENT_CONTEXT pointing at this partially-entered context.
@@ -208,25 +210,31 @@ class ExecutionContext(Generic[EventType]):
         return f"{self.__class__.__name__} '{self.identifier}' @ {id(self)}"
 
     @property
-    def parent(self) -> Optional["ExecutionContext"]:
+    def parent(self) -> Optional["ExecutionContext[Event]"]:
         return self._parent
 
     @parent.setter
-    def parent(self, value: "ExecutionContext") -> None:
+    def parent(self, value: "ExecutionContext[Event]") -> None:
         if self._parent is not None:
             raise ValueError("Cannot overwrite ExecutionContext parent")
         self._parent = value
 
+    def add_suppress_exception(self, exc_type: type[BaseException]) -> None:
+        if self._suppress_exceptions is None:
+            self._suppress_exceptions = []
+        self._suppress_exceptions.append(exc_type)
+
     def __exit__(
         self,
-        exc_type: Optional[type],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:
         if self._dispatch_end_event and not self._end_event_dispatched:
             # PERF: inline `dispatch_ended_event` here to avoid function call overhead in this branch
-            dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+            dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
             self._end_event_dispatched = True
+            self._event = None
         try:
             if self._token is not None:
                 _CURRENT_CONTEXT.reset(self._token)
@@ -238,15 +246,17 @@ class ExecutionContext(Generic[EventType]):
             )
         except LookupError:
             log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
+        finally:
+            self._token = None
         return (
             True
             if exc_type is None
-            else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
+            else bool(self._suppress_exceptions and any(issubclass(exc_type, t) for t in self._suppress_exceptions))
         )
 
     def dispatch_ended_event(
         self,
-        exc_type: Optional[type] = None,
+        exc_type: Optional[type[BaseException]] = None,
         exc_value: Optional[BaseException] = None,
         traceback: Optional[types.TracebackType] = None,
     ) -> None:
@@ -256,13 +266,14 @@ class ExecutionContext(Generic[EventType]):
         """
         if self._end_event_dispatched:
             return
-        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        dispatch("context.ended." + self.identifier, (self, (exc_type, exc_value, traceback)))
         self._end_event_dispatched = True
+        self._event = None
 
     def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
         """Traverse up the context tree to find the first occurrence of `data_key`."""
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
-        current: Optional[ExecutionContext] = self
+        current: Optional[ExecutionContext[Event]] = self
         while current is not None:
             value = current._data.get(data_key, _MISSING)
             if value is not _MISSING:
@@ -274,7 +285,7 @@ class ExecutionContext(Generic[EventType]):
         """Get an item from the local context only, without traversing up the context tree."""
         return self._data.get(data_key, default)
 
-    def __getitem__(self, key: str):
+    def __getitem__(self, key: str) -> Any:
         """Get an item from the context, traversing up the context tree. Raises KeyError if not found."""
         value = self.find_item(key)
         if value is None and key not in self._data:
@@ -289,22 +300,22 @@ class ExecutionContext(Generic[EventType]):
         """Return multiple items by their keys, only in the local context."""
         return [self.get_item(key) for key in data_keys]
 
-    def set_item(self, data_key: str, data_value: Optional[Any]) -> None:
+    def set_item(self, data_key: str, data_value: Any) -> None:
         self._data[data_key] = data_value
 
-    def set_safe(self, data_key: str, data_value: Optional[Any]) -> None:
+    def set_safe(self, data_key: str, data_value: Any) -> None:
         if data_key in self._data:
             raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
         return self.set_item(data_key, data_value)
 
-    def set_items(self, keys_values: dict[str, Optional[Any]]) -> None:
+    def set_items(self, keys_values: Mapping[str, Any]) -> None:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
     def discard_item(self, data_key: str) -> None:
         """Traverse up the context tree to find and delete the first occurrence of `data_key`."""
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
-        current: Optional[ExecutionContext] = self
+        current: Optional[ExecutionContext[Event]] = self
         while current is not None:
             if data_key in current._data:
                 del current._data[data_key]
@@ -315,40 +326,22 @@ class ExecutionContext(Generic[EventType]):
         """Delete an item from the local context only, without traversing up the context tree."""
         self._data.pop(data_key, None)
 
-    def root(self):
+    def root(self) -> "ExecutionContext[Event]":
         if self.identifier == ROOT_CONTEXT_ID:
             return self
-        current = self
+        current: ExecutionContext[Event] = self
         while current._parent is not None:
             current = current._parent
         return current
 
     @property
-    def span(self) -> "Span":
-        if self._inner_span is None:
-            log.warning(
-                "No span found in %s. "
-                "This may indicate the context.started event handler did not set a span. "
-                "Creating fallback 'default' span.",
-                self,
-            )
-            self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
-        return self._inner_span
-
-    @span.setter
-    def span(self, value: "Span") -> None:
-        self._inner_span = value
-        if "span_key" in self._data:
-            self._data[self._data["span_key"]] = value
-
-    @property
-    def event(self) -> EventType:
+    def event(self) -> ContextEventType_co:
         if self._event is None:
             raise AttributeError("ExecutionContext has no event. Use context_with_event(...)")
         return self._event
 
 
-def __getattr__(name):
+def _get_context_attribute(name: str) -> ExecutionContext[Event]:
     if name == "root":
         return _CURRENT_CONTEXT.get().root()
     if name == "current":
@@ -356,24 +349,47 @@ def __getattr__(name):
     raise AttributeError
 
 
-_CURRENT_CONTEXT: contextvars.ContextVar[ExecutionContext] = contextvars.ContextVar(
+if TYPE_CHECKING:
+    root: ExecutionContext[Event]
+    current: ExecutionContext[Event]
+else:
+    __getattr__ = _get_context_attribute
+
+
+_CURRENT_CONTEXT: contextvars.ContextVar[ExecutionContext[Event]] = contextvars.ContextVar(
     "ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID)
 )
 _CONTEXT_CLASS = ExecutionContext
 
 
-def _reset_context():
+def _reset_context() -> None:
     """private function to reset the context. Only used in testing"""
     global _CURRENT_CONTEXT
     _CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
 
 
-def context_with_data(identifier, parent=None, **kwargs):
-    return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+def context_with_data(
+    identifier: str,
+    parent: Optional[ExecutionContext[Event]] = None,
+    *,
+    event: Optional[Event] = None,
+    dispatch_end_event: bool = True,
+    **kwargs: object,
+) -> ExecutionContext[Event]:
+    return _CONTEXT_CLASS(
+        identifier,
+        parent=(parent or _CURRENT_CONTEXT.get()),
+        event=event,
+        dispatch_end_event=dispatch_end_event,
+        **kwargs,
+    )
 
 
 def context_with_event(
-    event: "EventType", parent=None, context_name_override: Optional[str] = None, dispatch_end_event=True
+    event: "EventType",
+    parent: Optional[ExecutionContext[Event]] = None,
+    context_name_override: Optional[str] = None,
+    dispatch_end_event: bool = True,
 ) -> ExecutionContext[EventType]:
     identifier = context_name_override or event.event_name
     return _CONTEXT_CLASS(
@@ -381,8 +397,8 @@ def context_with_event(
     )
 
 
-def add_suppress_exception(exc_type: type) -> None:
-    _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
+def add_suppress_exception(exc_type: type[BaseException]) -> None:
+    _CURRENT_CONTEXT.get().add_suppress_exception(exc_type)
 
 
 def find_item(data_key: str, default: Optional[Any] = None) -> Any:
@@ -405,16 +421,16 @@ def get_items(data_keys: list[str]) -> list[Optional[Any]]:
     return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
-def set_safe(data_key: str, data_value: Optional[Any]) -> None:
+def set_safe(data_key: str, data_value: Any) -> None:
     _CURRENT_CONTEXT.get().set_safe(data_key, data_value)
 
 
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
-def set_item(data_key: str, data_value: Optional[Any]) -> None:
+def set_item(data_key: str, data_value: Any) -> None:
     _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
-def set_items(keys_values: dict[str, Optional[Any]]) -> None:
+def set_items(keys_values: Mapping[str, Any]) -> None:
     _CURRENT_CONTEXT.get().set_items(keys_values)
 
 
@@ -426,19 +442,3 @@ def discard_item(data_key: str) -> None:
 def discard_local_item(data_key: str) -> None:
     """Delete an item from the local context only, without traversing up the context tree."""
     _CURRENT_CONTEXT.get().discard_local_item(data_key)
-
-
-def get_span() -> Optional["Span"]:
-    current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
-    while current is not None:
-        if current._inner_span is not None:
-            return current._inner_span
-        current = current._parent
-    return None
-
-
-def get_root_span() -> Optional["Span"]:
-    span = get_span()
-    if span is None:
-        return None if tracer is None else tracer.current_root_span()
-    return span._local_root or span

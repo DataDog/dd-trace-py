@@ -1,4 +1,5 @@
 import base64
+from collections.abc import Iterable
 from dataclasses import dataclass
 import inspect
 import json
@@ -7,32 +8,56 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.span import Span
+from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
+from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
 from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
+from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import STORAGE_SEARCH_COUNT_METRIC_KEY
+from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import WEB_SEARCH_COUNT_METRIC_KEY
+
+# Audio helpers were moved to audio_utils.py to keep this module manageable; the noqa'd names below
+# are re-exported so existing ``from ...utils import <helper>`` imports keep working.
+from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import _base64_encoded_len
+from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import g711_variant  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
@@ -159,7 +184,9 @@ LITELLM_METADATA_COMPLETION_KEYS = (
     "custom_llm_provider",
 )
 
-REACT_AGENT_TOOL_CALL_REGEX = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+# ReAct "Action: <tool>" and "Action Input: <input>" markers.
+REACT_ACTION_REGEX = re.compile(r"Action\s*(?:\d+\s*)?:")
+REACT_ACTION_INPUT_REGEX = re.compile(r"Action\s*(?:\d+\s*)?Input\s*(?:\d+\s*)?:")
 
 
 def get_llmobs_metrics_tags(integration_name, span):
@@ -200,6 +227,81 @@ def parse_llmobs_metric_args(metrics):
     return usage
 
 
+def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
+    """Extract OpenRouter's returned cost (USD) from an OpenAI-compatible ``usage`` object.
+
+    OpenRouter returns billed cost on ``usage.cost`` (with a ``usage.cost_details`` breakdown) in
+    every response. Returns an empty dict for responses without a cost (e.g. other providers).
+
+    BYOK (bring-your-own-key): when the customer calls the provider with their own credentials,
+    OpenRouter's billed ``cost`` covers only its own fee (often 0) while the provider inference
+    cost is incurred upstream and reported under ``cost_details.upstream_inference_cost``. In that
+    case (flagged by ``usage.is_byok``) add the upstream cost so the span reflects the cost the
+    customer actually incurred. For non-BYOK responses ``cost`` already includes the provider cost,
+    so the upstream figure is not added.
+    """
+    cost = _get_attr(token_usage, "cost", None)
+    if not isinstance(cost, (int, float)):
+        return {}
+    total_cost = float(cost)
+    cost_details = _get_attr(token_usage, "cost_details", {}) or {}
+    if _get_attr(token_usage, "is_byok", False):
+        upstream_cost = _get_attr(cost_details, "upstream_inference_cost", None)
+        if isinstance(upstream_cost, (int, float)):
+            total_cost += upstream_cost
+    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
+    input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
+    output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
+    if (
+        isinstance(input_cost, (int, float))
+        and isinstance(output_cost, (int, float))
+        and round((input_cost + output_cost) * 1e9) == round(total_cost * 1e9)
+    ):
+        metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
+        metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
+
+
+_OPENAI_SERVER_TOOL_CALL_METRIC_KEYS = {
+    "web_search_call": WEB_SEARCH_COUNT_METRIC_KEY,
+    "file_search_call": STORAGE_SEARCH_COUNT_METRIC_KEY,
+}
+
+
+def get_openai_server_tool_usage_metrics(resp: Any) -> dict[str, int]:
+    """Count the billable server-side tool calls in an OpenAI Responses response.
+
+    Web searches are read from the untyped tool_usage.web_search.num_requests when present, otherwise
+    counted from completed search actions (open_page / find_in_page steps are not billed). File searches
+    have no usage counter, so each completed file_search_call item counts once. Zero counts are omitted.
+    """
+    reported_web_searches = _get_attr(
+        _get_attr(_get_attr(resp, "tool_usage", None), "web_search", None), "num_requests", None
+    )
+    if not isinstance(reported_web_searches, int):
+        reported_web_searches = None
+    output = _get_attr(resp, "output", None)
+    if not isinstance(output, list):
+        output = []
+    metrics: dict[str, int] = {}
+    for item in output:
+        item_type = _get_attr(item, "type", None)
+        metric_key = _OPENAI_SERVER_TOOL_CALL_METRIC_KEYS.get(item_type)
+        if metric_key is None or _get_attr(item, "status", None) != "completed":
+            continue
+        if item_type == "web_search_call":
+            if reported_web_searches is not None:
+                continue
+            # Items without an action (older payloads) are assumed to be searches.
+            action_type = _get_attr(_get_attr(item, "action", None), "type", None)
+            if action_type is not None and action_type != "search":
+                continue
+        metrics[metric_key] = metrics.get(metric_key, 0) + 1
+    if reported_web_searches:
+        metrics[WEB_SEARCH_COUNT_METRIC_KEY] = reported_web_searches
+    return metrics
+
+
 LANGCHAIN_ROLE_MAPPING = {
     "human": "user",
     "ai": "assistant",
@@ -236,6 +338,113 @@ def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
         return (role, content) if role else content
     except AttributeError:
         return str(message)
+
+
+def format_anthropic_tool_result_content(content) -> str:
+    """Flatten the `content` field of an Anthropic `tool_result` block into a string."""
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, dict):
+        return safe_json(content)
+    elif isinstance(content, Iterable):
+        formatted_content = []
+        for tool_result_block in content:
+            if _get_attr(tool_result_block, "text", "") != "":
+                formatted_content.append(_get_attr(tool_result_block, "text", ""))
+            elif _get_attr(tool_result_block, "type", None) == "image":
+                # Store a placeholder for potentially enormous binary image data.
+                formatted_content.append(IMAGE_DETECTED_MARKER)
+        return ",".join(formatted_content)
+    return str(content)
+
+
+def get_tool_definitions_from_anthropic_tools(tools: Optional[Any]) -> list[ToolDefinition]:
+    """Build tool definitions from an Anthropic `tools` request field.
+
+    Used by the Anthropic SDK integration and by Bedrock `InvokeModel`, which sends
+    Anthropic-formatted tool definitions rather than the Converse `toolConfig` shape.
+    """
+    if not tools:
+        return []
+
+    tool_definitions = []
+    for tool in tools:
+        is_deferred = bool(_get_attr(tool, "defer_loading", False))
+        tool_definitions.append(
+            ToolDefinition(
+                name=tool.get("name", ""),
+                description="" if is_deferred else tool.get("description", ""),
+                schema={} if is_deferred else tool.get("input_schema", {}),
+            )
+        )
+    return tool_definitions
+
+
+def anthropic_tool_call_from_block(block: Any) -> ToolCall:
+    """Build a ToolCall from an Anthropic `tool_use` content block.
+
+    `input` arrives as a dict on complete responses and as an accumulated JSON string
+    when reassembled from streaming deltas, so it is normalized to a dict here.
+    """
+    input_data = _get_attr(block, "input", {})
+    if isinstance(input_data, str):
+        input_data = safe_load_json(input_data)
+    return ToolCall(
+        name=str(_get_attr(block, "name", "")),
+        arguments=input_data,
+        tool_id=str(_get_attr(block, "id", "")),
+        type=str(_get_attr(block, "type", "")),
+    )
+
+
+def anthropic_tool_result_from_block(block: Any) -> ToolResult:
+    """Build a ToolResult from an Anthropic `tool_result` content block."""
+    result = _get_attr(block, "content", {})
+    if hasattr(result, "model_dump") and callable(result.model_dump):
+        result = result.model_dump()
+    return ToolResult(
+        result=format_anthropic_tool_result_content(result),
+        tool_id=str(_get_attr(block, "tool_use_id", "")),
+        type="tool_result",
+    )
+
+
+def get_messages_from_anthropic_content(role: str, content: Any) -> list[Message]:
+    """
+    Extracts out a list of messages from an Anthropic Messages API `content` field.
+
+    `content` is either a string or a list of content blocks. Each block is a tagged union
+    discriminated by `type`, and the payload lives under a different key per type
+    (`text`, `thinking`, `input`/`name` for `tool_use`, `content` for `tool_result`).
+
+    Used by both the Anthropic SDK integration and the Bedrock `InvokeModel` integration,
+    since Bedrock passes Anthropic-formatted request and response bodies through unchanged.
+
+    For more info, see the Anthropic Messages API spec:
+    https://docs.anthropic.com/en/api/messages
+    """
+    if isinstance(content, str):
+        return [Message(content=content, role=str(role))]
+    if not isinstance(content, list):
+        return []
+
+    output_messages: list[Message] = []
+    for block in content:
+        block_type = _get_attr(block, "type", "") or ""
+        if block_type == "thinking":
+            thinking_text = _get_attr(block, "thinking", "")
+            output_messages.append(Message(content=str(thinking_text), role="reasoning"))
+            continue
+        text = _get_attr(block, "text", None)
+        message = Message(content=str(text) if text else "", role=str(role))
+        # Substring match: Anthropic also emits `server_tool_use`, `mcp_tool_use`,
+        # and `web_search_tool_result`, which carry the same payload shape.
+        if "tool_use" in block_type:
+            message["tool_calls"] = [anthropic_tool_call_from_block(block)]
+        if "tool_result" in block_type:
+            message["tool_results"] = [anthropic_tool_result_from_block(block)]
+        output_messages.append(message)
+    return output_messages
 
 
 def get_messages_from_converse_content(role: str, content: list[dict[str, Any]]) -> list[Message]:
@@ -299,7 +508,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
-                Message(content="[Unsupported content type: {}]".format(content_type), role=role)
+                Message(content=f"[Unsupported content type: {content_type}]", role=role)
             )
     message: Message = Message()
     if tool_calls_info:
@@ -316,8 +525,21 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
     return messages
 
 
+def _openai_finish_reason_metadata(finish_reasons: list[Any]) -> dict[str, Any]:
+    """Build metadata for the response-side finish reasons (e.g. "stop", "length", "content_filter").
+
+    Always a single finish_reason string so the key keeps one type and stays a clean facet. A
+    request asking for multiple choices comma-joins its reasons in choice order, so an n=2
+    request that hit the token limit on its second choice reads as "stop,length".
+    """
+    reasons = [str(reason) for reason in finish_reasons if reason]
+    if not reasons:
+        return {}
+    return {"finish_reason": ",".join(reasons)}
+
+
 def openai_set_meta_tags_from_completion(
-    span: Span, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
+    span: _LLMObsSpan, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
@@ -328,6 +550,9 @@ def openai_set_meta_tags_from_completion(
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
         output_messages = [Message(content=str(_get_attr(choice, "text", ""))) for choice in choices]
+        parameters.update(
+            _openai_finish_reason_metadata([_get_attr(choice, "finish_reason", None) for choice in choices])
+        )
     _annotate_llmobs_span_data(
         span,
         input_messages=[Message(content=p) for p in prompt],
@@ -336,40 +561,138 @@ def openai_set_meta_tags_from_completion(
     )
 
 
-def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
-    """Build an ``AudioPart`` from raw audio bytes (base64-encoded) or an existing base64 string."""
-    content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
-    return AudioPart(mime_type=mime_type, content=content)
-
-
 def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     """Build an ``ImagePart`` from raw image bytes (base64-encoded) or an existing base64 string."""
     content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
     return ImagePart(mime_type=mime_type, content=content)
 
 
-# OpenAI audio ``format`` values that don't map to ``audio/<format>``.
-_OPENAI_AUDIO_MIME_TYPES = {
-    "mp3": "audio/mpeg",
-}
+# Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
+# it, _truncate_span_event blanks the span's whole input AND output. Two gaps shared with the audio
+# guard, for the writer-side fix (MLOB-6408): bounds one image not their sum, and ignores
+# DD_LLMOBS_EVENT_SIZE_BYTES.
+LLMOBS_IMAGE_INLINE_MAX_BYTES = 4 * 1024 * 1024
+
+# Exactly Anthropic's media_type Literal, and what a browser renders inline. Mirrors the audio gate.
+_RENDERABLE_IMAGE_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
 
 
-def audio_mime_type_from_format(fmt: str) -> str:
-    """Map an OpenAI audio ``format`` (e.g. "wav", "mp3") to a MIME type."""
-    fmt = (fmt or "").strip().lower()
-    return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
+def is_renderable_image_mime(mime_type: str) -> bool:
+    """True if an inline image of this MIME type is worth capturing (the UI can render it)."""
+    return isinstance(mime_type, str) and mime_type.strip().lower() in _RENDERABLE_IMAGE_MIME_TYPES
 
 
-def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
-    """Extract readable text and audio segments from multimodal content parts (e.g., text + image + audio)."""
+def _encoded_image_len(data: Union[bytes, str]) -> int:
+    """Serialized byte length of an image payload: base64 text as UTF-8, raw bytes once encoded."""
+    if not isinstance(data, str):
+        return _base64_encoded_len(len(data))
+    # Real base64 is ASCII; non-ASCII text would undercount its UTF-8 wire cost up to 4x.
+    return len(data) if data.isascii() else len(data.encode("utf-8"))
+
+
+def format_image_part_with_guard(
+    data: Union[bytes, str], mime_type: str, max_bytes: int = LLMOBS_IMAGE_INLINE_MAX_BYTES
+) -> Optional[ImagePart]:
+    """Build an ImagePart for a renderable inline image within the size budget, else None.
+
+    The caller keeps a text marker on None. Mirrors format_audio_part_with_guard.
+    """
+    if not is_renderable_image_mime(mime_type):
+        return None
+    encoded_len = _encoded_image_len(data)
+    if encoded_len > max_bytes:
+        logger.debug(
+            "Image (%d encoded bytes) exceeds inline budget %d; omitting inline image content",
+            encoded_len,
+            max_bytes,
+        )
+        return None
+    return format_image_part(data, mime_type)
+
+
+# per-image, not cumulative. N images that each fit can still bust the event limit
+# together; a shared per-request budget is tracked under MLOB-6408.
+# Distinct from LLMOBS_IMAGE_INLINE_MAX_BYTES above on purpose: this OpenAI data-URL path tracks the
+# configured limit, while the Anthropic guard keeps its fixed default. Unifying them would change
+# already-shipped Anthropic behavior, so it stays follow-up work under the same ticket.
+_IMAGE_INLINE_BUDGET_FRACTION = 0.8
+
+_UNKNOWN_OUTPUT_ITEM_MAX_CHARS = 4096
+
+# Case-insensitive per the data-URL scheme; tolerates extra media-type params (;charset=utf-8) and
+# the whitespace some encoders use to wrap base64. A non-base64 payload must fail here.
+_BASE64_IMAGE_DATA_URL = re.compile(r"^data:(image/[-\w.+]+)(?:;[\w.=+-]+)*;base64,([A-Za-z0-9+/=\s]+)$", re.IGNORECASE)
+
+
+def _inline_image_budget() -> int:
+    """Bytes of base64 one image may contribute, leaving room for the rest of the event.
+
+    Tracks the configured limit: admitting an image bigger than the active event allowance costs
+    the span its whole input and output (_writer._truncate_span_event).
+    """
+    return int(config._llmobs_event_size_limit * _IMAGE_INLINE_BUDGET_FRACTION)
+
+
+def _is_data_url(value: Any) -> bool:
+    """Whether value carries its payload inline as a data: URL rather than by reference."""
+    if not isinstance(value, str):
+        return False
+    # Scan past leading whitespace rather than slicing: a fixed prefix can cut into the scheme, and
+    # lstrip() on a multi-megabyte URL copies the whole payload.
+    i = 0
+    while i < len(value) and value[i].isspace():
+        i += 1
+    return value[i : i + 5].lower() == "data:"
+
+
+def _capture_inline_image(url: Any) -> tuple[Optional[ImagePart], Optional[str]]:
+    """Capture a data:image/...;base64,... URL as an ImagePart.
+
+    (part, None) on capture, (None, marker) when the payload must be dropped, and (None, None)
+    when url is not a data URL, leaving the caller's own reference text in place.
+    """
+    if not _is_data_url(url):
+        return None, None
+    match = _BASE64_IMAGE_DATA_URL.match(url)
+    # An unparsable data URL must not reach the caller's reference text, or the whole payload
+    # would land in the message content.
+    if not match:
+        return None, IMAGE_FALLBACK_MARKER
+    budget = _inline_image_budget()
+    # Reject absurd inputs on the raw span first so we don't copy megabytes we discard; anything
+    # plausible is normalized and measured exactly, so wrapped payloads that do fit are kept.
+    if match.end(2) - match.start(2) > 8 * budget:
+        return None, IMAGE_TOO_LARGE_MARKER
+    payload = "".join(match.group(2).split())
+    if not payload:
+        return None, IMAGE_FALLBACK_MARKER
+    # Size is decided here rather than read off the guard's None: the guard also rejects a bad mime
+    # or empty data, and mapping that to "too large" would report a wrong reason. Every non-size
+    # rejection happens above, so this marker is always accurate.
+    if len(payload) > budget:
+        logger.debug("Image (%d base64 bytes) exceeds inline budget %d; omitting inline content", len(payload), budget)
+        return None, IMAGE_TOO_LARGE_MARKER
+    return format_image_part(payload, match.group(1).lower()), None
+
+
+def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[ImagePart]]:
+    """Extract readable text, audio and image segments from multimodal content parts."""
     extracted = []
     audio_parts: list[AudioPart] = []
+    image_parts: list[ImagePart] = []
     for part in parts:
         part_type = _get_attr(part, "type", "")
         if part_type == "text":
             extracted.append(str(_get_attr(part, "text", "")))
         elif part_type == "image_url":
-            extracted.append(IMAGE_FALLBACK_MARKER)
+            # Chat completions nest the URL as image_url.url; some callers pass a bare string.
+            image_url = _get_attr(part, "image_url", None)
+            image_part, marker = _capture_inline_image(_get_attr(image_url, "url", None) or image_url)
+            if image_part:
+                # Captured as a structured part (rendered inline), so no text marker is needed.
+                image_parts.append(image_part)
+            else:
+                extracted.append(marker or IMAGE_FALLBACK_MARKER)
         elif part_type == "input_audio":
             input_audio = _get_attr(part, "input_audio", {}) or {}
             data = _get_attr(input_audio, "data", "")
@@ -383,19 +706,20 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
                 extracted.append(AUDIO_FALLBACK_MARKER)
         else:
             extracted.append(f"[{part_type}]")
-    return "\n".join(extracted), audio_parts
+    return "\n".join(extracted), audio_parts, image_parts
 
 
 def openai_set_meta_tags_from_chat(
-    span: Span, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+    span: _LLMObsSpan, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
     for m in kwargs.get("messages", []):
         raw_content = _get_attr(m, "content", "")
         audio_parts: list[AudioPart] = []
+        image_parts: list[ImagePart] = []
         if isinstance(raw_content, list):
-            content, audio_parts = _extract_content_parts(raw_content)
+            content, audio_parts, image_parts = _extract_content_parts(raw_content)
         elif raw_content is None:
             content = ""
         else:
@@ -404,6 +728,8 @@ def openai_set_meta_tags_from_chat(
         processed_message: Message = Message(content=content, role=role)
         if audio_parts:
             processed_message["audio_parts"] = audio_parts
+        if image_parts:
+            processed_message["image_parts"] = image_parts
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -444,12 +770,14 @@ def openai_set_meta_tags_from_chat(
         return
 
     output_messages: list[Message] = []
+    finish_reasons: list[Any] = []
     if isinstance(messages, list):  # streamed response
         role = ""
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
             content = streamed_message.get("content", "")
+            finish_reasons.append(streamed_message.get("finish_reason", None))
 
             reasoning_content = streamed_message.get("reasoning_content", None)
             if reasoning_content:
@@ -472,6 +800,7 @@ def openai_set_meta_tags_from_chat(
             choice_message = _get_attr(choice, "message", {})
             role = _get_attr(choice_message, "role", "")
             content = _get_attr(choice_message, "content", "") or ""
+            finish_reasons.append(_get_attr(choice, "finish_reason", None))
 
             reasoning_content = _get_attr(choice_message, "reasoning_content", None)
             if reasoning_content:
@@ -503,11 +832,13 @@ def openai_set_meta_tags_from_chat(
                 message["tool_results"] = extracted_tool_results
                 message["content"] = ""  # set content empty to avoid duplication
             output_messages.append(message)
-    _annotate_llmobs_span_data(span, output_messages=output_messages)
+    _annotate_llmobs_span_data(
+        span, output_messages=output_messages, metadata=_openai_finish_reason_metadata(finish_reasons)
+    )
 
 
 def _openai_extract_tool_calls_and_results_chat(
-    message: dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+    message: dict[str, Any], llm_span: Optional[_LLMObsSpan] = None, dispatch_llm_choice: bool = False
 ) -> tuple[list[ToolCall], list[ToolResult]]:
     tool_calls = []
     tool_results = []
@@ -572,7 +903,7 @@ def _openai_extract_tool_calls_and_results_chat(
 
 
 def capture_plain_text_tool_usage(
-    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
+    tool_calls_info: Any, tool_results_info: Any, content: str, span: _LLMObsSpan, is_input: bool = False
 ) -> None:
     """
     Captures plain text tool calls and tool results from a content string.
@@ -589,10 +920,11 @@ def capture_plain_text_tool_usage(
         return
 
     try:
-        action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
-        if action_match and isinstance(tool_calls_info, list):
-            tool_name = action_match.group(1).strip().strip("*").strip()
-            tool_input_with_observation = action_match.group(2).split("\nObservation:")
+        action_match = REACT_ACTION_REGEX.search(content)
+        action_input_match = REACT_ACTION_INPUT_REGEX.search(content, action_match.end()) if action_match else None
+        if action_match and action_input_match and isinstance(tool_calls_info, list):
+            tool_name = content[action_match.end() : action_input_match.start()].strip().strip("*").strip()
+            tool_input_with_observation = content[action_input_match.end() :].lstrip().split("\nObservation:")
             tool_input = tool_input_with_observation[0].strip("`").strip().strip(' "')
             observation = ""
             if len(tool_input_with_observation) > 1:
@@ -700,6 +1032,7 @@ def _openai_parse_input_response_messages(
         # Handle regular message
         if role is not None and content is not None:
             processed_item_content = ""
+            image_parts: list[ImagePart] = []
             if isinstance(content, list):
                 for content_part in content:
                     processed_item_content += str(_get_attr(content_part, "text", "") or "")
@@ -707,14 +1040,25 @@ def _openai_parse_input_response_messages(
 
                     content_part_type = _get_attr(content_part, "type", None)
                     if content_part_type == INPUT_TYPE_IMAGE:
-                        processed_item_content += _extract_image_reference(content_part)
+                        raw_url = _get_attr(content_part, "image_url", None)
+                        # Unwrap the chat-shaped nested object too: the SDK does not enforce
+                        # the Responses shape at runtime and a dict here would leak inline.
+                        image_part, marker = _capture_inline_image(_get_attr(raw_url, "url", None) or raw_url)
+                        if image_part:
+                            image_parts.append(image_part)
+                        else:
+                            processed_item_content += marker or _extract_image_reference(content_part)
                     elif content_part_type == INPUT_TYPE_FILE:
                         processed_item_content += _extract_file_reference(content_part)
             else:
                 processed_item_content = content
-            if processed_item_content:
+            # An image-only message has no text left once the image is captured, but still must be
+            # emitted so the captured image_parts reach the span.
+            if processed_item_content or image_parts:
                 processed_item["content"] = str(processed_item_content)
                 processed_item["role"] = role
+            if image_parts:
+                processed_item["image_parts"] = image_parts
         elif item_type in ("function_call", "custom_tool_call"):
             # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
             arguments_str = arguments or input_ or OAI_HANDOFF_TOOL_ARG
@@ -757,6 +1101,11 @@ def _openai_parse_input_response_messages(
                 }
             )
             tool_call_ids.append(str(call_id))
+        elif item_type == "computer_call_output":
+            # A computer-use screenshot is sent back by the caller in the next request's input, so
+            # this is where it actually arrives. Without a branch here the item matches nothing and
+            # is dropped, losing the screenshot entirely.
+            processed_item.update({"role": "user", "content": _extract_image_reference(output)})
         if processed_item:
             processed.append(processed_item)
 
@@ -878,8 +1227,17 @@ def _openai_parse_output_response_messages(
         elif message_type == "mcp_list_tools":
             mcp_tool_definitions.extend(_openai_get_tool_definitions(_get_attr(item, "tools", [])))
             continue
+        elif message_type == "image_generation_call":
+            # result holds the generated image as raw base64. Capturing it as an image_part is
+            # follow-up work (MLOB-6408); the fallback below would put the whole payload in the text.
+            message.update({"content": IMAGE_FALLBACK_MARKER, "role": "assistant"})
+        elif message_type == "computer_call_output":
+            # A screenshot's image_url may be an inline data URL, which must not reach the text.
+            message.update({"content": _extract_image_reference(_get_attr(item, "output", None)), "role": "user"})
         else:
-            message.update({"content": str(item), "role": "assistant"})
+            # Bound the catch-all: an unrecognized item may carry a binary payload on any field, and
+            # str() of an SDK model renders every value. Truncate rather than leak the next one.
+            message.update({"content": str(item)[:_UNKNOWN_OUTPUT_ITEM_MAX_CHARS], "role": "assistant"})
 
         processed.append(message)
 
@@ -909,12 +1267,26 @@ def openai_get_metadata_from_response(
         if value is not None:
             metadata[field] = load_data_value(value)
 
+    # The responses API reports why generation stopped early ("content_filter", "max_output_tokens") under
+    # incomplete_details. Surface it under the same key the chat/completions paths use so both are queryable.
+    incomplete_reason = _get_attr(getattr(response, "incomplete_details", None) or {}, "reason", None)
+    if incomplete_reason:
+        metadata["finish_reason"] = str(incomplete_reason)
+
     return metadata
 
 
 def _extract_image_reference(obj: Any) -> str:
-    """Extract image reference with fallback priority: image_url → file_id → [image]."""
-    return _get_attr(obj, "image_url", None) or _get_attr(obj, "file_id", None) or IMAGE_FALLBACK_MARKER
+    """Reference text for an image: its URL, else its file_id, else the marker.
+
+    Never inline content, and never a non-str: callers concatenate this straight into message
+    text. Accepts the nested image_url.url object as well as the bare string.
+    """
+    image_url = _get_attr(obj, "image_url", None)
+    reference = _get_attr(image_url, "url", None) or image_url or _get_attr(obj, "file_id", None)
+    if not isinstance(reference, str) or _is_data_url(reference):
+        return IMAGE_FALLBACK_MARKER
+    return reference
 
 
 def _extract_file_reference(obj: Any) -> str:
@@ -1021,7 +1393,7 @@ def _has_multimodal_inputs(variables: dict[str, Any]) -> bool:
     return False
 
 
-def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None:
+def set_prompt_tracking_tags(span: _LLMObsSpan, *, is_multimodal: bool = False) -> None:
     """Set prompt tracking telemetry tags on a span.
 
     Args:
@@ -1036,7 +1408,7 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
 
 
 def openai_set_meta_tags_from_response(
-    span: Span, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
+    span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
@@ -1057,18 +1429,24 @@ def openai_set_meta_tags_from_response(
     if prompt_data:
         try:
             prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
-            variables = prompt_data.get("variables", {})
-            has_multimodal = _has_multimodal_inputs(variables)
+            raw_variables = prompt_data.get("variables", {})
+            # Read multimodality off the raw values: _has_multimodal_inputs keys off the SDK object's
+            # type attr, which normalizing to plain strings discards.
+            has_multimodal = _has_multimodal_inputs(raw_variables)
+            # Normalize unconditionally. Gating this on the chat_template path below left an inline
+            # image's full data URL on the span whenever that path was not taken -- a failed request
+            # with no response, a caller supplying its own template, or instructions not echoed back.
+            variables = _normalize_prompt_variables(raw_variables)
+            if variables:
+                prompt_data["variables"] = variables
 
             # Extract chat_template from response instructions if not already provided
             if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
                 instructions = _get_attr(response, "instructions", None)
                 if instructions:
-                    normalized_variables = _normalize_prompt_variables(variables)
-                    chat_template = _extract_chat_template_from_instructions(instructions, normalized_variables)
+                    chat_template = _extract_chat_template_from_instructions(instructions, variables)
                     if chat_template:
                         prompt_data["chat_template"] = chat_template
-                        prompt_data["variables"] = normalized_variables
 
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
             set_prompt_tracking_tags(span, is_multimodal=has_multimodal)
@@ -1093,6 +1471,33 @@ def openai_set_meta_tags_from_response(
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     tool_definitions = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
+
+
+def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
+    """Extract input, questions, and answers from a decisions api call."""
+    metadata: dict[str, Any] = {}
+    questions = kwargs.get("questions")
+    if isinstance(questions, (list, tuple)):
+        metadata["questions"] = [load_data_value(q) for q in questions]
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
+        metadata=metadata,
+    )
+    if not response:
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        return
+
+    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(answers) or "")])
+
+
+def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
+    if hasattr(answer, "model_dump"):
+        return answer.model_dump(mode="json", exclude_none=True)
+    if isinstance(answer, dict):
+        return {k: v for k, v in answer.items() if v is not None}
+    return {}
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
@@ -1150,7 +1555,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     if function_call_chunk:
         if not stored_tool_calls:
             stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
-        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
+        # ``arguments`` may be present but None on OpenAI-compatible backends (e.g. DashScope),
+        # so coerce to "" — getattr's default only applies when the attribute is absent.
+        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "") or ""
         return
     if not tool_call_chunk:
         return
@@ -1178,9 +1585,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         stored_tool_calls.append(call_dict)
         list_idx = -1
     if function_call:
-        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
+        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "") or ""
     elif custom_call:
-        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "")
+        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "") or ""
 
 
 def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
@@ -1250,7 +1657,7 @@ class OaiSpanAdapter:
         """Get the span name."""
         if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
             return self._raw_oai_span.span_data.name
-        return "openai_agents.{}".format(self.span_type.lower())
+        return f"openai_agents.{self.span_type.lower()}"
 
     @property
     def span_type(self) -> str:

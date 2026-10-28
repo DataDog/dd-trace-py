@@ -1,16 +1,17 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.span import Span
+from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -47,7 +48,7 @@ class MistralAIIntegration(BaseLLMIntegration):
     _integration_name = "mistralai"
 
     def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
+        self, span: SpanData, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
     ) -> None:
         if provider is not None:
             span._set_attribute("mistralai.request.provider", provider)
@@ -56,7 +57,7 @@ class MistralAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags(
         self,
-        span: Span,
+        span: _LLMObsSpan,
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
@@ -78,7 +79,7 @@ class MistralAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_from_llm(span, args, kwargs, response)
 
     def _llmobs_set_tags_from_llm(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         tools = _extract_tools(kwargs.get("tools"))
         _annotate_llmobs_span_data(
@@ -91,7 +92,7 @@ class MistralAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_from_embedding(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: _LLMObsSpan, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         _annotate_llmobs_span_data(
             span,
@@ -106,6 +107,18 @@ def _extract_metadata(kwargs: dict[str, Any], params: list[str]) -> dict[str, An
     return {param: value for param in params if (value := kwargs.get(param, None)) is not None}
 
 
+def _extract_thinking_text(chunk: Any) -> Optional[str]:
+    thinking = _get_attr(chunk, "thinking", None)
+    if not isinstance(thinking, list):
+        return None
+    parts = []
+    for nested in thinking:
+        text = _get_attr(nested, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "".join(parts)
+
+
 def _extract_input_messages(kwargs: dict[str, Any]) -> list[Message]:
     messages = kwargs.get("messages", []) or []
     input_messages = []
@@ -114,7 +127,11 @@ def _extract_input_messages(kwargs: dict[str, Any]) -> list[Message]:
         content = _get_attr(message, "content", None)
         if isinstance(content, list):
             for chunk in content:
-                input_messages.append(Message(content=str(_get_attr(chunk, "text", "")), role=role))
+                thinking_text = _extract_thinking_text(chunk)
+                if thinking_text is not None:
+                    input_messages.append(Message(content=thinking_text, role="reasoning"))
+                else:
+                    input_messages.append(Message(content=str(_get_attr(chunk, "text", "")), role=role))
         else:
             msg = Message(content=str(content) if content is not None else "", role=role)
             tool_calls_raw = _get_attr(message, "tool_calls", None)
@@ -132,11 +149,11 @@ def _extract_output_messages(response: Optional[Any]) -> list[Message]:
         message = _get_attr(choice, "message", None)
         if message is None:
             continue
-        output_messages.append(_extract_message_from_assistant_message(message))
+        output_messages.extend(_extract_messages_from_assistant_message(message))
     return output_messages or [Message(content="", role="assistant")]
 
 
-def _extract_tool_calls(tool_calls_raw: Any) -> list[ToolCall]:
+def _extract_tool_calls(tool_calls_raw: list[ToolCall]) -> list[ToolCall]:
     tool_calls = []
     for tool_call in tool_calls_raw:
         fn = _get_attr(tool_call, "function", None)
@@ -153,14 +170,34 @@ def _extract_tool_calls(tool_calls_raw: Any) -> list[ToolCall]:
     return tool_calls
 
 
-def _extract_message_from_assistant_message(message: Any) -> Message:
+def _extract_messages_from_assistant_message(message: Message) -> list[Message]:
     role = str(_get_attr(message, "role", "assistant") or "assistant")
-    content = str(_get_attr(message, "content", "") or "")
-    msg = Message(content=content, role=role)
+    content = _get_attr(message, "content", "")
+
+    reasoning_parts = []
+    text_parts = []
+    if isinstance(content, list):
+        for chunk in content:
+            thinking_text = _extract_thinking_text(chunk)
+            if thinking_text is not None:
+                reasoning_parts.append(thinking_text)
+            else:
+                text = _get_attr(chunk, "text", None)
+                if isinstance(text, str):
+                    text_parts.append(text)
+    else:
+        text_parts.append(str(content or ""))
+
+    messages = []
+    if reasoning_parts:
+        messages.append(Message(content="".join(reasoning_parts), role="reasoning"))
+
+    msg = Message(content="".join(text_parts), role=role)
     tool_calls_raw = _get_attr(message, "tool_calls", None)
     if tool_calls_raw:
         msg["tool_calls"] = _extract_tool_calls(tool_calls_raw)
-    return msg
+    messages.append(msg)
+    return messages
 
 
 def _extract_embedding_input_documents(kwargs: dict[str, Any]) -> list[Document]:
@@ -176,7 +213,7 @@ def _extract_embedding_output_value(response: Optional[Any]) -> str:
     data = _get_attr(response, "data", []) or []
     if data:
         embedding = _get_attr(data[0], "embedding", []) or []
-        return "[{} embedding(s) returned with size {}]".format(len(data), len(embedding))
+        return f"[{len(data)} embedding(s) returned with size {len(embedding)}]"
     return ""
 
 

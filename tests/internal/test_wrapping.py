@@ -1,14 +1,21 @@
+from __future__ import annotations
+
 import asyncio
 from contextlib import asynccontextmanager
+import contextvars
 import copy
+import gc
 import inspect
 import sys
 from types import CoroutineType
 from types import FunctionType
+from typing import Any
 from typing import cast
+import weakref
 
 import pytest
 
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
@@ -487,7 +494,7 @@ async def test_double_async_for_with_exception():
     class StreamConsumed(Exception):
         pass
 
-    class AsyncIteratorByteStream(object):
+    class AsyncIteratorByteStream:
         def __init__(self, stream):
             self._stream = stream
             self._is_stream_consumed = False
@@ -700,6 +707,47 @@ def test_wrapping_context_unwrapping():
     assert wc.exc_info is None
 
 
+def test_wrapping_context_shared_code_object_closures():
+    """Closures sharing the same code object reuse a cached bytecode template
+    (see _UniversalWrappingContext._build_template), but each wrapped closure
+    must still be instrumented with its own, independent enter/return/exit
+    callables.
+    """
+
+    def make_closure(answer):
+        def f(a, b, c=None):
+            return (a, b, c, answer)
+
+        return f
+
+    closure1 = make_closure(1)
+    closure2 = make_closure(2)
+    assert closure1.__code__ is closure2.__code__
+
+    wc1 = DummyWrappingContext(closure1)
+    wc2 = DummyWrappingContext(closure2)
+    wc1.wrap()
+    wc2.wrap()
+
+    # Each closure gets its own _UniversalWrappingContext despite sharing the
+    # same cached bytecode template.
+    uwc1 = _UniversalWrappingContext.extract(closure1)
+    uwc2 = _UniversalWrappingContext.extract(closure2)
+    assert uwc1 is not uwc2
+
+    assert closure1(1, 2, 3) == (1, 2, 3, 1)
+    assert wc1.entered
+    assert wc1.return_value == (1, 2, 3, 1)
+    assert not wc2.entered
+    assert wc2.return_value is NOTSET
+
+    assert closure2(4, 5, 6) == (4, 5, 6, 2)
+    assert wc2.entered
+    assert wc2.return_value == (4, 5, 6, 2)
+    # wc1 state from the first call must be untouched by wrapping/calling closure2
+    assert wc1.return_value == (1, 2, 3, 1)
+
+
 def test_wrapping_context_deepcopy_with_lock():
     """Deepcopy of a route decorated with functools.wraps over a wrapped endpoint must not raise.
 
@@ -821,6 +869,173 @@ def test_wrapping_context_exc_on_exit():
     _type, exc, _ = wc.exc_info
     assert _type == ValueError
     assert exc.args == ("foo",)
+
+
+def test_wrapping_context_exc_on_enter():
+    """A raising __enter__ must not prevent the wrapped body from running.
+
+    A single misbehaving context must not take down the wrapped call itself, nor any other
+    context registered on the same function, so the exception is logged and swallowed.
+    """
+
+    ran = False
+
+    class BrokenEnterWrappingContext(DummyWrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise RuntimeError("broken enter")
+
+    def foo():
+        nonlocal ran
+        ran = True
+        return 42
+
+    wc = BrokenEnterWrappingContext(foo)
+    wc.wrap()
+
+    assert foo() == 42
+
+    assert ran
+    assert wc.entered
+    assert not wc.exited
+    assert wc.return_value is NOTSET
+
+
+def test_wrapping_context_exc_on_return():
+    """A raising __return__ must override the wrapped function's return value.
+
+    __exit__ must not run either, on any version: __return__ failing means the
+    wrapped function's own body never got a chance to raise, so this is not the
+    exception __exit__ exists to observe. See _SKIP_EXIT_KEY in context.py.
+    """
+
+    class BrokenReturnWrappingContext(DummyWrappingContext):
+        def __return__(self, value):
+            super().__return__(value)
+            raise RuntimeError("broken return")
+
+    def foo():
+        return 42
+
+    wc = BrokenReturnWrappingContext(foo)
+    wc.wrap()
+
+    with pytest.raises(RuntimeError):
+        foo()
+
+    assert wc.entered
+    assert wc.return_value == 42
+    assert not wc.exited, "__exit__ must not run when __return__ itself is the failure"
+
+
+def test_wrapping_context_mid_call_registration():
+    """Registering a new context on a function while a call is in flight must not crash that call.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/19372
+
+    _UniversalWrappingContext used to read its (mutable) list of contexts twice per call: once on
+    entry, once on exit/return. register() can mutate that list in between if a new context is
+    wrapped onto the same function while a call is in flight. A context added this way was never
+    entered for that call, so exiting it crashed with AttributeError in _pop_storage. The fix
+    freezes the list of contexts on entry so that exit/return only ever see contexts that were
+    actually entered.
+    """
+    import threading
+
+    class WrappingContextA(DummyWrappingContext):
+        pass
+
+    class WrappingContextB(DummyWrappingContext):
+        pass
+
+    in_call = threading.Event()
+    released = threading.Event()
+
+    def foo(x):
+        in_call.set()
+        released.wait(5)
+        return x * 2
+
+    wc_a = WrappingContextA(foo)
+    wc_a.wrap()
+
+    results = []
+
+    def call():
+        results.append(foo(21))
+
+    thread = threading.Thread(target=call)
+    thread.start()
+    in_call.wait(5)
+
+    # Register a second context while the call above is still in flight.
+    wc_b = WrappingContextB(foo)
+    wc_b.wrap()
+
+    released.set()
+    thread.join()
+
+    assert results == [42]
+    assert wc_a.entered
+    assert wc_a.return_value == 42
+    assert not wc_a.exited
+
+    # wc_b was registered after the in-flight call had already taken its snapshot of contexts, so
+    # it must not have taken part in that call.
+    assert not wc_b.entered
+    assert wc_b.return_value is NOTSET
+    assert not wc_b.exited
+
+
+def test_wrapping_context_mid_call_registration_does_not_mask_exception():
+    """A real exception from the wrapped function must not be replaced by an AttributeError.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/19372
+
+    Same root cause as test_wrapping_context_mid_call_registration, but on the exception path: the
+    AttributeError raised while exiting an un-entered context used to shadow the application's own
+    exception.
+    """
+    import threading
+
+    class WrappingContextA(DummyWrappingContext):
+        pass
+
+    class WrappingContextB(DummyWrappingContext):
+        pass
+
+    in_call = threading.Event()
+    released = threading.Event()
+
+    def foo(x):
+        in_call.set()
+        released.wait(5)
+        raise ValueError("the real error")
+
+    wc_a = WrappingContextA(foo)
+    wc_a.wrap()
+
+    errors = []
+
+    def call():
+        try:
+            foo(21)
+        except BaseException as e:
+            errors.append(e)
+
+    thread = threading.Thread(target=call)
+    thread.start()
+    in_call.wait(5)
+
+    # Register a second context while the call above is still in flight.
+    WrappingContextB(foo).wrap()
+
+    released.set()
+    thread.join()
+
+    assert len(errors) == 1
+    assert isinstance(errors[0], ValueError)
+    assert errors[0].args == ("the real error",)
 
 
 def test_wrapping_context_priority():
@@ -979,6 +1194,55 @@ async def test_wrapping_context_async_generator():
 
 
 @pytest.mark.asyncio
+async def test_wrapping_context_async_generator_exc():
+    # On Python 3.10 the context head must be placed after GEN_START, otherwise
+    # GEN_START pops the __exit__ method and the exception surfaces as a
+    # TypeError instead of the original one.
+    async def arange(count):
+        for i in range(count):
+            yield i
+            await asyncio.sleep(0.0)
+        raise ValueError("foo")
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    a = []
+    with pytest.raises(ValueError, match="foo"):
+        async for _ in arange(3):
+            a.append(_)
+
+    assert a == list(range(3))
+
+    assert wc.entered
+    assert wc.return_value is NOTSET
+    assert wc.exited
+
+    assert wc.exc_info is not None
+    _type, exc, _ = wc.exc_info
+    assert _type is ValueError
+    assert exc.args == ("foo",)
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_generator_aclose():
+    async def arange(count):
+        for i in range(count):
+            yield i
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    agen = arange(10)
+    assert await agen.__anext__() == 0
+    await agen.aclose()
+
+    assert wc.entered
+    assert wc.exited
+    assert wc.exc_info[0] is GeneratorExit
+
+
+@pytest.mark.asyncio
 async def test_wrapping_context_async_happy() -> None:
     async def coro():
         return 1
@@ -1134,6 +1398,7 @@ class DummyLazyWrappingContext(LazyWrappingContext):
         return super().__enter__()
 
 
+@pytest.mark.skipif(is_at_least_py(3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy():
     free = 42
 
@@ -1211,6 +1476,7 @@ def test_wrapping_context_lazy_multiple_wrappers():
     assert c1.count == c2.count == 0
 
 
+@pytest.mark.skipif(is_at_least_py(3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy_unwrap_before_call():
     free = 42
 
@@ -1234,6 +1500,252 @@ def test_wrapping_context_lazy_unwrap_before_call():
         assert not _UniversalWrappingContext.is_wrapped(foo)
 
     assert wc.count == 0
+
+
+def test_wrapping_context_lazy_no_memory_leak_uncalled():
+    """Ephemeral functions lazily wrapped but never invoked (trampoline installed,
+    permanent wrapping never triggered) must not leak the function or its context
+    once all external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, never-invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, never-invoked context(s) leaked"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_lazy_no_memory_leak_invoked():
+    """Ephemeral functions lazily wrapped and then invoked (promoted to universal
+    wrapping) must still be garbage-collected, along with their context, once all
+    external references drop.
+    """
+    import gc
+    import weakref as wr
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    refs = []
+
+    def make_wrap_and_call():
+        def ephemeral():
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        assert ephemeral() == 42
+        return wr.ref(ephemeral), wr.ref(wc)
+
+    for _ in range(5):
+        refs.append(make_wrap_and_call())
+
+    gc.collect()
+
+    alive_functions = sum(1 for f_ref, _ in refs if f_ref() is not None)
+    alive_contexts = sum(1 for _, c_ref in refs if c_ref() is not None)
+    assert alive_functions == 0, f"{alive_functions} lazily-wrapped, invoked function(s) leaked"
+    assert alive_contexts == 0, f"{alive_contexts} lazily-wrapped, invoked context(s) leaked"
+
+
+@pytest.mark.subprocess(err=None, timeout=60)
+def test_wrapping_context_gc_during_wrap_does_not_deadlock():
+    """A GC pass triggered while wrap() holds the registry lock can collect other
+    wrapped functions and run their finalizers on the same thread, which take the
+    same lock. Methods of local classes are only freed by the cyclic GC, so they
+    make reliable garbage for this.
+    """
+    import faulthandler
+    import gc
+
+    import ddtrace.internal.wrapping.context as context
+    from tests.internal.test_wrapping import DummyWrappingContext
+
+    # Dump the stack instead of hanging until the subprocess timeout.
+    faulthandler.dump_traceback_later(30, exit=True)
+
+    def make_garbage():
+        class App:
+            def method(self):
+                pass
+
+        DummyWrappingContext(App.method).wrap()
+
+    gc.disable()
+    for _ in range(5):
+        make_garbage()
+
+    link_function_to_code = context.link_function_to_code
+
+    def link_and_collect(*args, **kwargs):
+        gc.collect()
+        return link_function_to_code(*args, **kwargs)
+
+    context.link_function_to_code = link_and_collect
+
+    def target():
+        return 42
+
+    DummyWrappingContext(target).wrap()
+    assert target() == 42
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_storage_vars_are_recycled():
+    """A ContextVar that has been set is retained by the running Context for the
+    lifetime of the thread. Wrapping ephemeral functions must therefore recycle
+    the storage variables of collected contexts, or the thread's context grows
+    without bound (two entries per wrapped function).
+    """
+    import contextvars
+    import gc
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    def make_wrap_and_call() -> contextvars.ContextVar:
+        def ephemeral() -> int:
+            return 42
+
+        wc = DummyLazyWrappingContext(ephemeral)
+        wc.wrap()
+        assert ephemeral() == 42
+
+        # Collect eagerly so that the number of storage variables in flight does
+        # not depend on when the garbage collector happens to run.
+        var = wc._storage
+        del wc, ephemeral
+        gc.collect()
+
+        return var
+
+    # The storage variable of a collected context is handed straight back out.
+    assert make_wrap_and_call() is make_wrap_and_call()
+
+    for _ in range(20):
+        make_wrap_and_call()
+    baseline = len(contextvars.copy_context())
+
+    for _ in range(n := 200):
+        make_wrap_and_call()
+
+    growth = len(contextvars.copy_context()) - baseline
+    assert growth == 0, f"{growth} context variables pinned by {n} ephemeral wrapped functions"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_recycled_storage_var_drops_stale_value():
+    """A context that is collected without exiting leaves its storage set, and the
+    finalizer cannot reset it because it runs in an unrelated Context. The next
+    owner of the recycled variable must drop the leftover value rather than chain
+    it into its own prev, which would restore it on every exit from then on.
+    """
+    import gc
+    import weakref as wr
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    class Payload:
+        pass
+
+    def abandoned_function():
+        pass
+
+    def heir_function():
+        pass
+
+    abandoned = DummyLazyWrappingContext(abandoned_function)
+    abandoned.__enter__()
+    abandoned.set("payload", payload := Payload())
+    var = abandoned._storage
+
+    del abandoned
+    gc.collect()
+
+    # The variable went back to the pool with the stale storage still in it.
+    assert var.get() is not None, "expected the abandoned context to leave its storage set"
+
+    heir = DummyLazyWrappingContext(heir_function)
+    assert heir._storage is var, "expected the recycled variable to be handed back out"
+
+    heir.__enter__()
+    assert heir._storage.get()["__dd_wrapping_context_prev__"] is None, "stale storage chained into the new context"
+
+    heir._pop_storage()
+    assert heir._storage.get() is None, "storage variable not restored to its default"
+
+    # Overwriting the variable released the stale storage, so nothing keeps the
+    # payload it held alive.
+    payload_ref = wr.ref(payload)
+    del payload
+    gc.collect()
+    assert payload_ref() is None, "stale storage is still reachable"
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrapping_context_storage_var_pool_is_thread_safe():
+    """Storage variables are released from a finalizer, which can run on any thread,
+    including while another thread is acquiring one. No variable may be handed out
+    to two live contexts.
+    """
+    import threading
+
+    from tests.internal.test_wrapping import DummyLazyWrappingContext
+
+    def f():
+        pass
+
+    live = set()
+    live_lock = threading.Lock()
+    errors = []
+
+    def churn():
+        try:
+            for _ in range(200):
+                contexts = [DummyLazyWrappingContext(f) for _ in range(8)]
+                acquired = {c._storage for c in contexts}
+                assert len(acquired) == len(contexts), "storage variable handed out twice on one thread"
+
+                with live_lock:
+                    assert not live & acquired, "storage variable handed out to two live contexts"
+                    live.update(acquired)
+
+                for context in contexts:
+                    context.__enter__()
+                for context in reversed(contexts):
+                    context._pop_storage()
+
+                # Stop advertising the variables before dropping the contexts, so
+                # that they are never reported as live once the finalizers have
+                # handed them back to the pool.
+                with live_lock:
+                    live.difference_update(acquired)
+                del contexts, acquired
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=churn) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors, errors
 
 
 @pytest.mark.asyncio
@@ -1271,6 +1783,90 @@ async def test_async_wrapper_frames_have_valid_linenos():
             f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
             "async wrapping injected instructions without line-number information"
         )
+
+
+def _lines_at_enter(base):
+    seen = []
+
+    class LinesAtEnter(base):
+        def __enter__(self):
+            seen.extend((frame_info.function, frame_info.lineno) for frame_info in inspect.stack())
+            return super().__enter__()
+
+    return LinesAtEnter, seen
+
+
+def _assert_entry_lines(seen, f, calls=None):
+    assert seen
+    assert all(lineno is not None for _, lineno in seen), seen
+    entry_lines = [lineno for function, lineno in seen if function == f.__name__]
+    assert entry_lines, seen
+    if calls is not None:
+        assert entry_lines == [f.__code__.co_firstlineno] * calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("base", [WrappingContext, LazyWrappingContext])
+async def test_wrapping_context_enter_on_coroutine_has_valid_lineno(base):
+    context, seen = _lines_at_enter(base)
+
+    async def coro(x):
+        await asyncio.sleep(0)
+        return x + 1
+
+    context(coro).wrap()
+
+    assert await coro(41) == 42
+    assert await coro(41) == 42
+    _assert_entry_lines(seen, coro, None if base is LazyWrappingContext else 2)
+
+
+def test_wrapping_context_enter_on_generator_has_valid_lineno():
+    context, seen = _lines_at_enter(WrappingContext)
+
+    def gen():
+        yield 1
+
+    context(gen).wrap()
+
+    assert list(gen()) == [1]
+    _assert_entry_lines(seen, gen, 1)
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_enter_on_async_generator_has_valid_lineno():
+    context, seen = _lines_at_enter(WrappingContext)
+
+    async def agen():
+        yield 1
+
+    context(agen).wrap()
+
+    assert [x async for x in agen()] == [1]
+    _assert_entry_lines(seen, agen, 1)
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 10), reason="GEN_START only exists on Python 3.10")
+def test_wrapping_context_unwrap_restores_coroutine_line_table():
+    async def coro():
+        return 1
+
+    before = list(coro.__code__.co_lines())
+    (wc := WrappingContext(coro)).wrap()
+    wc.unwrap()
+
+    assert list(coro.__code__.co_lines()) == before
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 10), reason="GEN_START only exists on Python 3.10")
+def test_wrapping_context_unwrap_one_line_coroutine_keeps_line_numbers():
+    async def coro(): return [(frame_info.function, frame_info.lineno) for frame_info in inspect.stack()]  # fmt: skip
+
+    (wc := WrappingContext(coro)).wrap()
+    wc.unwrap()
+
+    lines = asyncio.run(coro())
+    assert ("coro", coro.__code__.co_firstlineno) in lines, lines
 
 
 @pytest.mark.asyncio
@@ -1377,63 +1973,446 @@ async def test_lazy_async_wrapper_throw_forwarding():
         )
 
 
-def test_wrapping_context_foot_has_valid_linenos():
-    """Regression test: CONTEXT_FOOT.bind() must pass lineno to avoid None line numbers.
+# Thread-based concurrency: ContextVar storage must be isolated per thread.
+# ---------------------------------------------------------------------------
 
-    The CONTEXT_FOOT assembly (exception-handler epilogue injected by
-    _UniversalWrappingContext.wrap) was previously emitted without line-number
-    information.  inspect.stack() / inspect.getframeinfo() raises TypeError when
-    it encounters a frame whose f_lineno is None, so any tool that inspects the
-    call stack from inside a WrappingContext-wrapped function (e.g. IAST's
-    report_stack) would crash.
-    """
-    stack_from_inside: list = []
+
+def test_wrapping_context_thread_concurrent() -> None:
+    """Storage set by one thread must not bleed into a concurrent thread."""
+    import threading
+
+    results: dict[int, int] = {}
+    errors: list[str] = []
+
+    class ThreadIsolationContext(DummyWrappingContext):
+        def __enter__(self) -> ThreadIsolationContext:
+            super().__enter__()
+            self.set("tid", threading.get_ident())
+            return self
+
+        def __return__(self, value: Any) -> Any:
+            stored = self.get("tid")
+            current = threading.get_ident()
+            if stored != current:
+                errors.append(f"tid mismatch: stored={stored} current={current}")
+            results[current] = stored
+            return super().__return__(value)
 
     def foo():
-        stack_from_inside.extend(inspect.stack())
-        return 42
+        return threading.get_ident()
 
-    wc = DummyWrappingContext(foo)
+    wc = ThreadIsolationContext(foo)
     wc.wrap()
 
-    result = foo()
-    assert result == 42
+    barrier = threading.Barrier(10)
 
-    for frame_info in stack_from_inside:
-        lineno = frame_info.lineno
-        assert lineno is not None, (
-            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
-            "CONTEXT_FOOT was bound without line-number information"
-        )
-
-
-def test_wrapping_context_foot_has_valid_linenos_on_exception():
-    """Same lineno regression check when the wrapped function raises an exception.
-
-    The CONTEXT_FOOT assembly is only executed when an exception propagates, so
-    the lineno fix must also cover the exception path.
-    """
-    stack_from_handler: list = []
-
-    class _Sentinel(Exception):
-        pass
-
-    class CaptureOnExit(WrappingContext):
-        def __exit__(self, exc_type, exc_value, traceback):
-            stack_from_handler.extend(inspect.stack())
-            return super().__exit__(exc_type, exc_value, traceback)
-
-    def foo():
-        raise _Sentinel("boom")
-
-    CaptureOnExit(foo).wrap()
-
-    with pytest.raises(_Sentinel):
+    def run() -> None:
+        barrier.wait()
         foo()
 
-    for frame_info in stack_from_handler:
-        lineno = frame_info.lineno
-        assert lineno is not None, (
-            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
-            "CONTEXT_FOOT exception path was bound without line-number information"
-        )
+    threads: list[threading.Thread] = [threading.Thread(target=run) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, errors
+    # Each thread saw its own tid in storage.
+    for tid, stored in results.items():
+        assert tid == stored
+
+
+# ---------------------------------------------------------------------------
+# Async recursion: ContextVar stack must be correct for recursive coroutines.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_recursive() -> None:
+    """Each recursive coroutine call must have its own isolated storage slot."""
+    values: list[tuple[str, int]] = []
+
+    class AsyncRecursiveContext(DummyWrappingContext):
+        def __enter__(self) -> AsyncRecursiveContext:
+            super().__enter__()
+            n: int = self.__frame__.f_locals["n"]
+            self.set("n", n)
+            values.append(("enter", n))
+            return self
+
+        def __return__(self, value: Any) -> Any:
+            n: int = self.__frame__.f_locals["n"]
+            assert self.get("n") == n, f"storage mismatch: expected {n}, got {self.get('n')}"
+            values.append(("return", n))
+            return super().__return__(value)
+
+    async def afactorial(n: int) -> int:
+        if n == 0:
+            return 1
+        return n * await afactorial(n - 1)
+
+    wc = AsyncRecursiveContext(afactorial)
+    wc.wrap()
+
+    result = await afactorial(5)
+    assert result == 120
+
+    entered = [n for ev, n in values if ev == "enter"]
+    returned = [n for ev, n in values if ev == "return"]
+    assert entered == [5, 4, 3, 2, 1, 0]
+    assert returned == [0, 1, 2, 3, 4, 5]
+
+
+_STORAGE_PREV = "__dd_wrapping_context_prev__"
+
+
+def _storage_chain_length(storage):
+    length = 0
+    while isinstance(storage, dict):
+        length += 1
+        storage = storage.get(_STORAGE_PREV)
+    return length
+
+
+class _Blocked(BaseException):
+    """BaseException-derived, like an AppSec blocking decision."""
+
+
+def _storage_target(value):
+    if value == "raise":
+        raise ValueError("body failed")
+    return value
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        "enter",
+        pytest.param("return", marks=pytest.mark.xfail(reason="APPSEC-69961", strict=True)),
+        pytest.param("exit", marks=pytest.mark.xfail(reason="APPSEC-69961", strict=True)),
+    ],
+)
+def test_a_raising_context_releases_its_storage(where):
+    """A context that raises is skipped by the machinery that would have popped its storage.
+
+    On __enter__ it never lands in the universal context's `entered` list, which this fixes. On
+    __return__ and __exit__ the storage leaks too, but releasing it there would make _exit and
+    on_py_unwind read the flag off the enclosing call's storage; tracked in APPSEC-69961.
+    """
+
+    class _Raiser(WrappingContext):
+        def __enter__(self):
+            result = super().__enter__()
+            if where == "enter":
+                raise _Blocked("blocked")
+            return result
+
+        def __return__(self, value):
+            if where == "return":
+                raise _Blocked("blocked")
+            return super().__return__(value)
+
+        def __exit__(self, *exc):
+            if where == "exit":
+                raise _Blocked("blocked")
+            super().__exit__(*exc)
+
+    context = _Raiser(_storage_target)
+    context.wrap()
+    universal = _UniversalWrappingContext.extract(_storage_target)
+    try:
+        for _ in range(5):
+            with pytest.raises(BaseException):
+                # __exit__ only runs when the wrapped body itself raises.
+                _storage_target("raise" if where == "exit" else "ok")
+
+        assert _storage_chain_length(context._storage.get()) == 0
+        assert _storage_chain_length(universal._storage.get()) == 0
+    finally:
+        context.unwrap()
+
+
+def test_a_baseexception_from_enter_still_reaches_the_caller():
+    """Releasing the storage must not swallow the decision that caused the unwind."""
+
+    class _Raiser(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise _Blocked("blocked")
+
+    context = _Raiser(_storage_target)
+    context.wrap()
+    try:
+        with pytest.raises(_Blocked):
+            _storage_target("ok")
+    finally:
+        context.unwrap()
+
+
+def test_an_exception_from_enter_is_still_swallowed():
+    """An Exception-derived failure stays contained, so a broken context cannot break the call."""
+
+    class _Broken(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            raise RuntimeError("bug in the hook")
+
+    context = _Broken(_storage_target)
+    context.wrap()
+    try:
+        assert _storage_target("ok") == "ok"
+        assert _storage_chain_length(context._storage.get()) == 0
+    finally:
+        context.unwrap()
+
+
+class _Payload:
+    pass
+
+
+class _Probe:
+    """Record the locals and the Context copies of wrapped calls.
+
+    The probe keeps every copied Context until the test ends, as the call
+    credentials of a cached gRPC channel keep theirs for the life of the channel.
+    """
+
+    def __init__(self) -> None:
+        self.refs: list = []
+        self.copies: list = []
+
+    def track(self, payload: object) -> None:
+        self.refs.append(weakref.ref(payload))
+        self.copies.append(contextvars.copy_context())
+
+    def assert_released(self) -> None:
+        gc.collect()
+        assert self.refs, "the wrapped call never ran"
+        assert all(r() is None for r in self.refs), "locals of a wrapped call are kept alive by a copied Context"
+
+
+def _wrap(target):
+    context = WrappingContext(target)
+    context.wrap()
+    return context
+
+
+def _run_sync(f):
+    return f()
+
+
+def _run_async(f):
+    return asyncio.run(f())
+
+
+def _run_asyncgen(f):
+    async def drain():
+        return [_ async for _ in f()]
+
+    return asyncio.run(drain())
+
+
+def _make_sync(probe):
+    def target():
+        payload = _Payload()
+        probe.track(payload)
+
+    return target
+
+
+def _make_async(probe):
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(0)
+
+    return target
+
+
+def _make_asyncgen(probe):
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(0)
+        yield 1
+
+    return target
+
+
+@pytest.mark.parametrize(
+    "make, run",
+    [(_make_sync, _run_sync), (_make_async, _run_async), (_make_asyncgen, _run_asyncgen)],
+    ids=["sync", "async", "asyncgen"],
+)
+def test_copied_context_does_not_retain_wrapped_frame(make, run):
+    """A Context copied while a wrapped function runs must not keep that call's locals alive."""
+    probe = _Probe()
+    target = make(probe)
+
+    context = _wrap(target)
+    try:
+        run(target)
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_does_not_retain_frame_after_exception():
+    probe = _Probe()
+
+    def target():
+        payload = _Payload()
+        probe.track(payload)
+        raise ValueError("boom")
+
+    context = _wrap(target)
+    try:
+        # Do not bind the exception: its traceback references the frame and would
+        # keep the payload alive for the wrong reason.
+        with pytest.raises(ValueError):
+            target()
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_storage_lives_only_during_call():
+    copies: list = []
+    during: list = []
+
+    def target():
+        copy = contextvars.copy_context()
+        copies.append(copy)
+        during.append(copy[storage_var]["__frame__"].f_code.co_name)
+
+    context = _wrap(target)
+    storage_var = _UniversalWrappingContext.extract(target)._storage
+    try:
+        target()
+    finally:
+        context.unwrap()
+
+    assert during == ["target"]
+    (copy,) = copies
+    assert copy[storage_var] == {}
+
+
+def test_nested_calls_release_each_frame_and_restore_outer_storage():
+    probe = _Probe()
+    outer_frames: list = []
+
+    def target(depth):
+        payload = _Payload()
+        probe.track(payload)
+        if depth:
+            target(depth - 1)
+        # The inner pop must leave the outer call's storage populated.
+        outer_frames.append(_UniversalWrappingContext.extract(target).get("__frame__").f_locals["depth"])
+
+    context = _wrap(target)
+    try:
+        target(2)
+    finally:
+        context.unwrap()
+
+    assert outer_frames == [0, 1, 2]
+    probe.assert_released()
+
+
+@pytest.mark.xfail(
+    sys.version_info >= (3, 13),
+    reason="Closing a suspended sync generator does not run the injected exit handler, so the call is never popped",
+    strict=True,
+)
+def test_copied_context_does_not_retain_frame_on_early_generator_close():
+    probe = _Probe()
+
+    def target():
+        payload = _Payload()
+        probe.track(payload)
+        yield 1
+        yield 2
+
+    context = _wrap(target)
+    try:
+        gen = target()
+        next(gen)
+        gen.close()
+        del gen
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_does_not_retain_frame_on_async_generator_aclose():
+    probe = _Probe()
+
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        yield 1
+        yield 2
+
+    async def main():
+        gen = target()
+        await gen.__anext__()
+        await gen.aclose()
+
+    context = _wrap(target)
+    try:
+        asyncio.run(main())
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_copied_context_does_not_retain_frame_on_cancellation():
+    probe = _Probe()
+
+    async def target():
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(60)
+
+    async def main():
+        task = asyncio.ensure_future(target())
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    context = _wrap(target)
+    try:
+        asyncio.run(main())
+    finally:
+        context.unwrap()
+
+    probe.assert_released()
+
+
+def test_concurrent_tasks_keep_separate_storage_and_release_all_frames():
+    probe = _Probe()
+    seen: dict = {}
+
+    async def target(name):
+        payload = _Payload()
+        probe.track(payload)
+        await asyncio.sleep(0.01 if name == "a" else 0)
+        seen[name] = _UniversalWrappingContext.extract(target).get("__frame__").f_locals["name"]
+
+    async def main():
+        await asyncio.gather(target("a"), target("b"))
+
+    context = _wrap(target)
+    try:
+        asyncio.run(main())
+    finally:
+        context.unwrap()
+
+    assert seen == {"a": "a", "b": "b"}
+    assert len(probe.refs) == 2
+    probe.assert_released()

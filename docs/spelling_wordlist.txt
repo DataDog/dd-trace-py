@@ -1,5 +1,6 @@
 AArch
 adk
+agentic
 agentless
 aiobotocore
 aiohttp
@@ -58,6 +59,7 @@ cassandra
 cattrs
 cetera
 CGroup
+cgroup
 cgroups
 cmake
 cherrypy
@@ -108,6 +110,7 @@ dramatiq
 Dramatiq
 dsn
 dunder
+eBPF
 echion
 eg
 elasticsearch
@@ -117,6 +120,7 @@ embeddings
 Enablement
 enqueue
 enqueuer
+enqueuing
 entrypoint
 entrypoints
 env
@@ -126,6 +130,7 @@ eventbridge
 exec
 Fargate
 fastapi
+frontend
 frozenset
 Firehose
 flamegraph
@@ -174,6 +179,7 @@ IPv
 iPython
 iterable
 jinja
+JIRA
 js
 JSON
 kafka
@@ -189,6 +195,7 @@ libclang
 libdatadog
 libddwaf
 libFuzzer
+lication
 lifecycle
 linters
 litellm
@@ -223,6 +230,7 @@ mysql
 MySQL
 mysqlclient
 mysqldb
+onboarded
 onboarding
 # tests/contrib/openai/test_openai_v1.py
 Nam
@@ -279,6 +287,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+Realtime
 reentrant
 redis
 rediscluster
@@ -287,7 +296,6 @@ renderers
 repo
 resolvers
 respawn
-riotfile
 rlocation
 RLock
 rollout
@@ -333,6 +341,7 @@ subpackages
 Subprocess
 substring
 suitespec
+symlink
 Temporality
 TensorBoard
 testagent
@@ -357,8 +366,10 @@ unobfuscated
 unpatch
 unpatched
 unregister
+unschedulable
 unshallow
 unvendored
+unversioned
 uri
 url
 urls
@@ -368,6 +379,7 @@ uvloop
 uWSGI
 valkey
 vendored
+vendoring
 versioned
 vertexai
 vertica

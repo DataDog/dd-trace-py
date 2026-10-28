@@ -1,0 +1,17 @@
+[
+  {
+    "description": "The malformed flag uses the invalid regex *@datadoghq.com before a catch-all allocation. SDKs must return a parse error without poisoning the full configuration.",
+    "attributes": {
+      "email": "harish@datadoghq.com"
+    },
+    "defaultValue": "default",
+    "flag": "invalid-regex-flag",
+    "result": {
+      "errorCode": "PARSE_ERROR",
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": "harish",
+    "variationType": "STRING"
+  }
+]

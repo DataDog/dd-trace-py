@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    mcp: Resolves an error logged when a module named ``mcp`` is importable but
+    is not the MCP SDK. Patching is now skipped instead of raising.

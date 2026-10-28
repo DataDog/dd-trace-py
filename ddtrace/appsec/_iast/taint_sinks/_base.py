@@ -8,12 +8,12 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec._trace_utils import _asm_manual_keep
-from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
-from ..._constants import IAST
-from ..._constants import IAST_SPAN_TAGS
+from .._constants import IAST
+from .._constants import IAST_SPAN_TAGS
 from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
@@ -78,7 +78,7 @@ class VulnerabilityBase:
 
         report = get_iast_reporter()
         span_id = 0
-        span = core.get_root_span()
+        span = span_bus.get_root_span()
         if span:
             span_id = span.span_id
             # Mark the span as kept to avoid being dropped by the agent.

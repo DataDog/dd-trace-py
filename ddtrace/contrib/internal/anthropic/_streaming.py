@@ -1,13 +1,15 @@
+from functools import partial
 from typing import Any
 
 import anthropic
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
+from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.formats import safe_load_json
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import StreamHandler
+from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 log = get_logger(__name__)
@@ -25,32 +27,44 @@ async def _async_text_stream_generator(traced_stream):
             yield chunk.delta.text
 
 
-def handle_streamed_response(integration, resp, args, kwargs, ctx):
-    """
-    Creates a traced stream with a callback that adds a text_stream attribute
-    to the underlying stream object when it is created.
+def _consume_stream(traced_stream: Any) -> None:
+    for _ in traced_stream:
+        pass
 
-    Overrides the `text_stream` attribute to trace yielded chunks; otherwise,
+
+async def _consume_async_stream(traced_stream: Any) -> None:
+    async for _ in traced_stream:
+        pass
+
+
+def handle_streamed_response(resp, args, kwargs, ctx):
+    """
+    Creates a traced stream with callbacks that route SDK-owned stream consumers
+    through the tracing proxy.
+
+    Overrides the `text_stream` and `until_done` attribute to trace yielded chunks; otherwise,
     the underlying stream will bypass the wrapper tracing code
     """
 
     def add_text_stream(stream):
         stream.text_stream = _text_stream_generator(stream)
+        stream.until_done = partial(_consume_stream, stream)
 
     def add_async_text_stream(stream):
         stream.text_stream = _async_text_stream_generator(stream)
+        stream.until_done = partial(_consume_async_stream, stream)
 
     if _is_stream(resp) or _is_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
+            AnthropicStreamHandler(None, span_from_context(ctx), args, kwargs, ctx=ctx),
             on_stream_created=add_text_stream,
         )
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
+            AnthropicAsyncStreamHandler(None, span_from_context(ctx), args, kwargs, ctx=ctx),
             on_stream_created=add_async_text_stream,
         )
         return traced_stream
@@ -226,6 +240,9 @@ def _on_message_delta_chunk(chunk, message):
             message_usage["cache_creation_input_tokens"] = cache_creation_tokens
         if cache_read_tokens is not None:
             message_usage["cache_read_input_tokens"] = cache_read_tokens
+        server_tool_use = _get_attr(chunk_usage, "server_tool_use", None)
+        if server_tool_use is not None:
+            message_usage["server_tool_use"] = server_tool_use
 
         message["usage"] = message_usage
 

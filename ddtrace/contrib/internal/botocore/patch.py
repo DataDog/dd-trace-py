@@ -4,7 +4,7 @@ Trace queries to aws api done via botocore client
 
 import collections
 import json
-from typing import Union  # noqa:F401
+from typing import Union
 
 from botocore import __version__
 import botocore.client
@@ -16,7 +16,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 
-# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# _http_propagation_suppressed is the shared seam telling the
 # urllib3-layer subscriber to skip its own injection during AWS calls. See the
 # ownership contract on its definition in ddtrace/_trace/subscribers/http_client.py.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
@@ -35,12 +35,14 @@ from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.propagation.http import HTTPPropagator
 
+from .services.bedrock import _resolve_inference_profile_in_progress
 from .services.bedrock import patched_bedrock_api_call
 from .services.bedrock_agents import patched_bedrock_agents_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -134,7 +136,7 @@ def _inject_trace_headers_handler(request, **kwargs):
     ):
         return
 
-    # AIDEV-NOTE: Uses the global tracer's current_span() because the before-sign
+    # Uses the global tracer's current_span() because the before-sign
     # event hands us the AWSRequest, not the client, so there's no Pin to read here.
     span = ddtrace.tracer.current_span()
     if span is None:
@@ -165,7 +167,7 @@ def _botocore_before_sign_handler(request, **kwargs):
     _inject_trace_headers_handler(request, **kwargs)
 
 
-# AIDEV-NOTE: Also imported by ddtrace.contrib.internal.aiobotocore.patch;
+# Also imported by ddtrace.contrib.internal.aiobotocore.patch;
 # rename in lockstep. Each integration passes its own owner-gated handler.
 def _ensure_before_sign_handler(client, handler) -> bool:
     """Register ``handler`` for ``before-sign`` on this client's emitter, once.
@@ -206,6 +208,9 @@ config._add(
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(env.get("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "bedrock_resolve_inference_profile": asbool(
+            env.get("DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE", default=False)
+        ),
         "propagation_enabled": asbool(env.get("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(env.get("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
@@ -273,14 +278,18 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
+
+    # Don't trace response parsing for the internal bedrock:GetInferenceProfile call.
+    if _resolve_inference_profile_in_progress.get():
+        return original_func(*args, **kwargs)
     with (
         core.context_with_data(
             "botocore.instrumented_lib_function",
-            span_name="{}.{}".format(original_func.__module__, original_func.__name__),
+            span_name=f"{original_func.__module__}.{original_func.__name__}",
             tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
             pin=pin,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return original_func(*args, **kwargs)
 
@@ -290,13 +299,23 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
+    # Skip tracing the internal bedrock:GetInferenceProfile call we make to resolve an
+    # application-inference-profile ARN, so it doesn't emit a stray span. Still suppress
+    # urllib3-layer propagation injection so headers aren't added post-signing.
+    if _resolve_inference_profile_in_progress.get():
+        token = _http_propagation_suppressed.set(True)
+        try:
+            return original_func(*args, **kwargs)
+        finally:
+            _http_propagation_suppressed.reset(token)
+
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
     if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
         return original_func(*args, **kwargs)
 
     trace_operation = schematize_cloud_api_operation(
-        "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        f"{endpoint_name}.command", cloud_provider="aws", cloud_service=endpoint_name
     )
 
     operation = get_argument_value(args, kwargs, 0, "operation_name", True)
@@ -387,15 +406,13 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             params=params,
             endpoint_name=endpoint_name,
             operation=operation,
-            service=schematize_service_name(
-                "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
-            ),
+            service=schematize_service_name(f"{ext_service(pin, int_config=config.botocore)}.{endpoint_name}"),
             pin=pin,
             span_name=function_vars.get("trace_operation"),
             span_type=SpanTypes.HTTP,
             span_key="instrumented_api_call",
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         core.dispatch("botocore.patched_api_call.started", (ctx,))
         if args and config.botocore["distributed_tracing"]:
@@ -410,7 +427,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx.span.resource].is_error_code,
+                    config.botocore.operations[span_from_context(ctx).resource].is_error_code,
                 ),
             )
             raise

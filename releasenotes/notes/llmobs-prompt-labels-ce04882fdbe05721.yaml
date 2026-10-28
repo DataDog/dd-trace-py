@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    LLM Observability: The ``ManagedPrompt.label`` property is deprecated. #19399

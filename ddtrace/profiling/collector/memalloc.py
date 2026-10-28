@@ -1,5 +1,3 @@
-# -*- encoding: utf-8 -*-
-
 from __future__ import annotations
 
 import logging
@@ -19,9 +17,10 @@ if TYPE_CHECKING:
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
-    logging.getLogger(__name__).debug("failed to import memalloc", exc_info=True)
+    logging.getLogger(__name__).debug("[profiling] failed to import memalloc", exc_info=True)
     _memalloc = None  # type: ignore[assignment]
 
+from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
@@ -48,6 +47,19 @@ class MemoryCollector:
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
         mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
+
+    def __repr__(self) -> str:
+        class_name = self.__class__.__name__
+        attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
+        return f"{class_name}({attrs_str})"
+
+    @property
+    def status(self) -> service.ServiceStatus:
+        if _memalloc is not None and _memalloc.is_started():
+            return service.ServiceStatus.RUNNING
+
+        return service.ServiceStatus.STOPPED
 
     def start(self) -> None:
         """Start collecting memory profiles."""
@@ -83,7 +95,11 @@ class MemoryCollector:
             try:
                 _memalloc.stop()
             except RuntimeError:
-                LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
+                LOG.debug("[profiling] Failed to stop memalloc profiling on shutdown", exc_info=True)
+
+    def _rollback_start(self) -> None:
+        if _memalloc is not None and _memalloc.is_started():
+            _memalloc.stop()
 
     def snapshot(self) -> None:
         """Take a snapshot of collected data, to be exported."""
@@ -94,7 +110,7 @@ class MemoryCollector:
             _memalloc.heap()  # Samples are exported directly to pprof, no return value needed
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
+            LOG.debug("[profiling] Unable to collect heap events from process %d", os.getpid(), exc_info=True)
 
     def snapshot_and_parse_pprof(self, output_filename: str, assert_samples: bool = True) -> pprof_pb2.Profile:
         """Export samples to profile, upload, and parse the pprof profile.

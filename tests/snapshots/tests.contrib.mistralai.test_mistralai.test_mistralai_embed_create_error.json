@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a4557dd00000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
       "error.message": "Embeddings.create() got an unexpected keyword argument 'not_a_real_argument'",
       "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/mistralai/patch.py\", line 110, in traced_embed_generate\n    resp = func(*args, **kwargs)\nTypeError: Embeddings.create() got an unexpected keyword argument 'not_a_real_argument'\n",

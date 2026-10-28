@@ -4,6 +4,8 @@ import sys
 from types import CodeType
 import typing as t
 
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+
 
 CallbackType = t.Callable[[t.Any], t.Any]
 
@@ -51,7 +53,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
     # Instrument nested code objects recursively.
     for const_index, nested_code in enumerate(code.co_consts):
-        if isinstance(nested_code, CodeType):
+        if isinstance(nested_code, CodeType) and not is_obfuscated_code(nested_code):
             new_consts[const_index], nested_lines = inject_invocation(
                 injection_context.transfer(nested_code), path, package
             )
@@ -629,7 +631,7 @@ def _generate_exception_table(
         table.extend(to_varint(new_start >> 1, True))
         table.extend(to_varint(size >> 1))
         table.extend(to_varint(new_target >> 1))
-        table.extend(to_varint(((entry.depth << 1) | (1 if entry.lasti else 0))))
+        table.extend(to_varint((entry.depth << 1) | (1 if entry.lasti else 0)))
 
     return bytes(table)
 

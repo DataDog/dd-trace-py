@@ -1,0 +1,13 @@
+_v: 1
+name: fastapi
+display_name: FastAPI
+description: Instruments inbound FastAPI HTTP requests, WebSocket connections and messages, response serialization, and linked
+  background task execution.
+packages:
+- name: fastapi
+category:
+- http.server
+- task.execution
+- websocket.server
+systems: []
+creation_date: '2021-01-21'

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AI Guard: Added a redaction feature, which can be enabled in the UI.
+    For more info, see https://docs.datadoghq.com/security/ai_guard/setup/sdk/

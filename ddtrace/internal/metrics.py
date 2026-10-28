@@ -1,5 +1,5 @@
-from typing import Optional  # noqa:F401
-from typing import Protocol  # noqa:F401
+from typing import Optional
+from typing import Protocol
 
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.settings._agent import config as agent_config
@@ -48,7 +48,7 @@ class InstrumentationTelemetryMetricsClient(MetricsClient):
         telemetry_writer.add_distribution_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
 
 
-class Metrics(object):
+class Metrics:
     """Higher-level DogStatsD interface.
 
     This class provides automatic handling of namespaces for metrics, with the
@@ -71,34 +71,36 @@ class Metrics(object):
         self.enabled = False
         self.client = client
 
-    class Meter(object):
+    class Meter:
         def __init__(self, metrics: "Metrics", name: str) -> None:
             self.metrics = metrics
             self.name = name
+            # An empty meter name emits metric names as given, without a prefix.
+            self._prefix = f"{name}." if name else ""
 
         def increment(self, name: str, value: float = 1.0, tags: Optional[dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
-            self.metrics.client.increment(".".join((self.name, name)), value, tags)
+            self.metrics.client.increment(self._prefix + name, value, tags)
 
         def gauge(self, name: str, value: float = 1.0, tags: Optional[dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
-            self.metrics.client.gauge(".".join((self.name, name)), value, tags)
+            self.metrics.client.gauge(self._prefix + name, value, tags)
 
         def histogram(self, name: str, value: float = 1.0, tags: Optional[dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
-            self.metrics.client.histogram(".".join((self.name, name)), value, tags)
+            self.metrics.client.histogram(self._prefix + name, value, tags)
 
         def distribution(self, name: str, value: float = 1.0, tags: Optional[dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
-            self.metrics.client.distribution(".".join((self.name, name)), value, tags)
+            self.metrics.client.distribution(self._prefix + name, value, tags)
 
     def enable(self) -> None:
         self.enabled = True

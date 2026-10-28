@@ -77,6 +77,20 @@ Traces
      version_added:
        v2.7.0:
 
+   DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE:
+      type: Boolean
+      default: False
+
+      description: |
+         Enables resolving the underlying foundation model of an AWS Bedrock application inference profile. When a
+         Bedrock request uses an application-inference-profile ARN as its ``modelId``, the model name is otherwise an
+         opaque identifier and LLM Observability cannot compute cost. When enabled, the integration makes an extra
+         ``bedrock:GetInferenceProfile`` call (once per profile, cached) to report the underlying model. The caller's
+         credentials must be allowed to call ``bedrock:GetInferenceProfile``.
+
+      version_added:
+         v4.13.0:
+
    DD_BOTOCORE_EMPTY_POLL_ENABLED:
       type: Boolean
       default: True
@@ -138,6 +152,20 @@ Traces
      version_added:
        v0.41.0:
 
+   DD_TRACE_ELEVENLABS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Enables automatic instrumentation of ElevenLabs Python Agents WebSocket
+         conversations. Set to False to disable this integration.
+
+   DD_ELEVENLABS_SERVICE:
+     type: String
+     default: None
+     description: |
+         Overrides the service name for ElevenLabs conversation spans. The
+         DD_ELEVENLABS_SERVICE_NAME alias is also supported.
+
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
      default: True
@@ -162,6 +190,16 @@ Traces
        v1.7.0: default changed to ``v0.5``.
        v1.19.1: default reverted to ``v0.4``.
        v2.4.0: default changed to ``v0.5``.
+
+   DD_TRACE_OTEL_SEMANTICS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Select OpenTelemetry HTTP semantics mode for tracing. When enabled, traces use
+         OTLP export and span attribute schema ``v0``, and automatic peer-service names are
+         disabled. This setting takes precedence over conflicting trace API, schema, and
+         peer-service settings.
 
    DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH:
       type: Integer
@@ -211,6 +249,17 @@ Traces
          If a tag name is not supplied the header name will be used. For example if
          ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.headers.user-agent`` and ``http.<response/request>.headers.content-type``.
 
+   DD_TRACE_HTTP_CLIENT_ERROR_STATUSES:
+     type: String
+     default: "400-499"
+
+     description: |
+        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP
+        client request. Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
+        This setting is applied when ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` is enabled, where it sets the span
+        error status and the ``error.type`` attribute. With ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` enabled and this
+        setting not set, status codes from 400 to 499 is an error.
+
    DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
      default: True
@@ -239,7 +288,7 @@ Traces
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP:
      default: |
-         ``'(?ix)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?: bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\\w=-]|%3D)+\\.ey[I-L](?:[\\w=-]|%3D)+(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
+         ``'(?i)(?:(?:"|%22)?)(?:(?:old[-_]?|new[-_]?)?p(?:ass)?w(?:or)?d(?:1|2)?|pass(?:[-_]?phrase)?|secret|(?:api[-_]?|private[-_]?|public[-_]?|access[-_]?|secret[-_]?|app(?:lication)?[-_]?)key(?:[-_]?id)?|token|consumer[-_]?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\\s|%20)*(?::|%3A)(?:\\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|(?:bearer(?:\\s|%20)+[a-z0-9._\\-]+|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|(^|[^\\w%-]|%[0-9a-f]{2})ey[I-L][\\w-]+(?:=|%3D)*\\.ey[I-L][\\w-]+(?:=|%3D)*(?:\\.(?:[\\w.+/=-]|%3D|%2F|%2B)+)?|-{5}BEGIN(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY-{5}[^\\-]+-{5}END(?:[a-z\\s]|%20)+PRIVATE(?:\\s|%20)KEY(?:-{5})?(?:\\n|%0A)?|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\\s|%20|%09)+(?:[a-z0-9/.+]|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\\s|%20|%09)+[a-z0-9._-]+)?)'``
 
      description: A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
 
@@ -247,6 +296,14 @@ Traces
        v1.19.0: |
            ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
            and will be deleted in 2.0.0
+
+   DD_TRACE_OTEL_CTX_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+         Enables publication of OpenTelemetry thread context records for external readers such as the OpenTelemetry eBPF Profiler.
+         These records describe the active traces running within the sampled process.
 
    DD_TRACE_OTEL_ENABLED:
      type: Boolean
@@ -268,6 +325,18 @@ Traces
      type: Integer
      default: 300
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
+
+   DD_TRACE_PROPAGATION_AS_SPAN_LINKS:
+     type: String
+     default: (empty)
+     description: |
+         Comma-separated list of integration names for which upstream context is attached to the
+         child span as span links instead of being used to parent the span.
+
+         Example: ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS="google_cloud_pubsub,kafka"``.
+
+     version_added:
+       v4.15.0:
 
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
      type: Boolean
@@ -380,6 +449,21 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Enables automatic instrumentation of the asynchronous AWS SDK for Bedrock Runtime.
+       Nova 2 Sonic conversation spans also require LLM Observability to be enabled.
+
+   DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE:
+     type: String
+     default: None
+     description: |
+       Overrides the service name for AWS SDK Bedrock Runtime spans.
+       ``DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME`` is an alias.
+       When unset, spans use the application's configured service.
+
    DD_LLMOBS_PAYLOAD_SIZE_BYTES:
      type: Int
      default: 5242880
@@ -420,6 +504,35 @@ Traces
 
      version_added:
         v4.11.0:
+
+   DD_LLMOBS_SAMPLING_RULES:
+     type: JSON array
+
+     description: |
+         A JSON array of tag-based sampling rules for LLM Observability traces, mirroring the format of
+         ``DD_TRACE_SAMPLING_RULES``. Each rule requires a ``sample_rate`` and may declare a ``tags``
+         object mapping tag names to glob patterns, matched case-insensitively against the root span of
+         the trace (``*`` matches any number of characters, ``?`` exactly one). Every declared tag must
+         match, so a rule with no ``tags`` matches every trace.
+
+         Rules are evaluated in order and the first match wins, with its rate replacing
+         ``DD_LLMOBS_SAMPLE_RATE``. Traces matching no rule fall back to that global rate. One decision
+         applies to the whole trace and is propagated across distributed boundaries.
+
+         **Note** that the decision is made as late as possible and then frozen, so that every span of a
+         trace carries the same one. Because rules match against the root span's tags as they stand at
+         that moment, a tag set after the freeze does not affect sampling. The freeze happens at
+         whichever of these comes first:
+
+         * the first outbound request from an instrumented integration, which propagates the decision;
+         * handing the trace off to another thread or to an ``asyncio`` task;
+         * a partial flush (see ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS``, 300 spans by default);
+         * the root span finishing.
+
+         **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
+
+     version_added:
+        v4.16.0:
 
 Trace Context propagation
 -------------------------
@@ -522,10 +635,74 @@ Metrics
      version_added:
        v3.11.0:
 
+   DD_TRACE_STATS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 7000
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct trace metrics aggregation keys tracked during a single flush period when
+         client-side stats computation is enabled. Once the limit is reached, further keys are
+         aggregated together under a sentinel key. Lower it to bound memory usage for applications
+         with very high cardinality.
+
+   DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT:
+     type: Integer
+     default: 1024
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct resource names tracked during a single flush period when client-side stats
+         computation is enabled. Resource names beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct HTTP endpoints tracked during a single flush period when client-side stats
+         computation is enabled. Endpoints beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct peer tag combinations tracked during a single flush period when client-side
+         stats computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 100
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct combinations of the tags configured with
+         ``DD_TRACE_STATS_ADDITIONAL_TAGS`` tracked during a single flush period when client-side stats
+         computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
 Application & API Security
 --------------------------
 
 .. ddtrace-configuration-options::
+
+   DD_APPSEC_AGENTIC_ONBOARDING:
+     type: String
+     description: |
+       A legitimate Datadog variable set automatically by Datadog's agentic onboarding
+       solution when it configures App & API Protection. Its value is reported verbatim via
+       `instrumentation telemetry <https://docs.datadoghq.com/tracing/configure_data_security/#telemetry-collection>`_,
+       so that Datadog can record that the service was onboarded through the agentic flow.
+
+     version_added:
+       v4.13.0:
 
    DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING:
       type: String
@@ -612,13 +789,55 @@ AI Guard
 
 .. ddtrace-configuration-options::
 
+   DD_AI_GUARD_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       Master switch for AI Guard. When set to ``True``, the tracer evaluates LLM prompts, tool calls
+       and tool results of the instrumented integrations with the Datadog AI Guard service. When set
+       to ``False`` (default), AI Guard is not loaded and every other ``DD_AI_GUARD_*`` option is
+       ignored. Requires ``DD_API_KEY`` and ``DD_APP_KEY``.
+
+   DD_AI_GUARD_ENDPOINT:
+     type: String
+     default: (derived from ``DD_SITE``)
+     description: |
+       Overrides the AI Guard service endpoint. When unset, the endpoint is
+       ``https://app.<DD_SITE>/api/v2/ai-guard``, for example
+       ``https://app.datadoghq.com/api/v2/ai-guard``.
+
+   DD_AI_GUARD_TIMEOUT:
+     type: Integer
+     default: 10000 (unit:milliseconds)
+     description: |
+       Timeout of each request to the AI Guard service. The value is currently applied with
+       whole-second granularity: it is rounded down to the nearest second, so set it to at least
+       ``1000``. A value below ``1000`` logs a warning at startup and the default is used instead.
+
+   DD_AI_GUARD_MAX_CONTENT_SIZE:
+     type: Integer
+     default: 524288 (unit:characters)
+     description: |
+       Maximum length of each message content reported on the AI Guard span. Longer content is
+       truncated in the span only; the AI Guard service always evaluates the full content.
+
+   DD_AI_GUARD_MAX_MESSAGES_LENGTH:
+     type: Integer
+     default: 16
+     description: |
+       Maximum number of messages reported on the AI Guard span. Only the most recent messages are
+       kept; the AI Guard service always evaluates the full conversation.
+
    DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED:
      type: Boolean
      default: False
      description: |
        When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
        OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
-       are fully buffered before any chunk is returned to the caller. The complete response is
+       are fully buffered before any chunk is returned to the caller. LangChain chat model and LLM
+       streams (``stream()`` and ``astream()``) from any provider are buffered too, and the tokens
+       LangChain reports to callbacks (for example ``astream_events()`` or LangGraph
+       ``stream_mode="messages"``) are held until the response is evaluated. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
        are evaluated and streamed chunks are forwarded live.
@@ -636,6 +855,16 @@ AI Guard
        force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
        never raised, regardless of the in-app blocking setting.
 
+   DD_AI_GUARD_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Global switch for AI Guard sensitive data redaction. When set to ``True`` (default) and the
+       AI Guard service asks for redaction, the tracer replaces the affected message content with the
+       redacted values returned by the AI Guard, and reports the redacted messages instead of the
+       originals. Set to ``False`` to disable the transformation without a tracer rollback: evaluations
+       still run and sensitive data findings are still reported, but no message is modified.
+
    DD_AI_GUARD_OPENAI_ENABLED:
      type: Boolean
      default: True
@@ -644,6 +873,29 @@ AI Guard
        ``True`` (default) and AI Guard is enabled, OpenAI calls are evaluated. Set to ``False`` to
        disable AI Guard instrumentation for OpenAI only, without affecting other providers or
        requiring a tracer version rollback.
+
+   DD_AI_GUARD_ANTHROPIC_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-provider kill switch for AI Guard auto-instrumentation of the Anthropic SDK. Behaves like
+       ``DD_AI_GUARD_OPENAI_ENABLED`` but scoped to Anthropic: set to ``False`` to disable AI Guard
+       instrumentation for Anthropic only, without affecting other providers or requiring a rollback.
+
+   DD_AI_GUARD_LANGCHAIN_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-framework kill switch for AI Guard auto-instrumentation of LangChain. Set to ``False`` to
+       disable AI Guard instrumentation for LangChain only, without affecting other integrations or
+       requiring a tracer version rollback.
+
+       Note: this disables only the LangChain framework-level integration; other integrations remain
+       active. If your LangChain models run on an instrumented provider SDK, its integration will
+       still evaluate those calls — so you must disable that provider's switch too. For example, with
+       ``ChatOpenAI`` also set ``DD_AI_GUARD_OPENAI_ENABLED=false``, and with ``ChatAnthropic`` also
+       set ``DD_AI_GUARD_ANTHROPIC_ENABLED=false``. To stop AI Guard for a LangChain app regardless of
+       provider, set ``DD_AI_GUARD_ENABLED=false``.
 
 Code Security
 -------------
@@ -736,6 +988,15 @@ Test Visibility
 
 .. ddtrace-configuration-options::
 
+   DD_CODE_COVERAGE_FLAGS:
+     type: String (comma-separated list)
+
+     description: |
+        Adds flags to uploaded code coverage reports for grouping and filtering. Separate flags with commas, for example
+        ``DD_CODE_COVERAGE_FLAGS="type:unit-tests,jvm-21"``. Surrounding whitespace and empty entries are ignored;
+        order and duplicate flags are preserved. Up to 32 flags are supported. If more are provided, the flags are
+        omitted without canceling the report upload.
+
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
      default: False
@@ -759,6 +1020,32 @@ Test Visibility
 
      version_added:
         v1.13.0:
+
+   DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables dynamic, duration-based Auto Test Retries budgets. When enabled, the number of retries
+        allowed for a test is determined by the duration of its initial attempt, using the same duration
+        buckets as Early Flake Detection, instead of the flat per-test retry limit. Requires Auto Test
+        Retries to be enabled by the backend.
+
+     version_added:
+        v4.15.0:
+
+   DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS:
+     type: String
+     default: ""
+
+     description: |
+        Comma-separated list of five positive integers in ``[1, 20]`` overriding the five duration-based
+        Auto Test Retries budgets (for the 5s, 10s, 30s, 5m, and >5m buckets respectively). When unset or
+        empty, the Early Flake Detection retry settings from the backend are used. Only takes effect when
+        ``DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED`` is enabled.
+
+     version_added:
+        v4.15.0:
 
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean
@@ -828,9 +1115,10 @@ Test Visibility
      default: True
 
      description: |
-        Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
-        independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
-        also contains performance and memory usage improvements.
+        Deprecated: this option no longer has any effect. The legacy ``pytest`` plugin
+        (``ddtrace/contrib/internal/pytest``) has been removed, and the ``pytest`` plugin at
+        ``ddtrace/testing/internal/pytest`` is always used. Setting this option emits a ``DDTraceDeprecationWarning``;
+        remove the environment variable from your configuration.
 
      version_added:
         v4.3.0:
@@ -926,6 +1214,29 @@ Agent
         v0.17.0:
         v1.7.0:
 
+   DD_AGENTLESS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Submit data directly to the Datadog intake instead of through a Datadog Agent. This
+         covers instrumentation telemetry, traces, Remote Configuration, Dynamic Instrumentation,
+         OpenTelemetry metrics and logs, crash reports, Test Optimization and LLM Observability.
+
+         ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
+         startup. ``DD_SITE`` selects the intake to submit to.
+
+         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and
+         ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this value and can each be set explicitly to
+         override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
+         specific variants, likewise keeps OpenTelemetry data going to your own collector.
+
+         Health metrics, profiling and tracer flares require an agent and thus have no effect
+         in agentless mode.
+
+     version_added:
+        v4.15.0:
+
    DD_DOGSTATSD_URL:
      type: URL
 
@@ -1012,7 +1323,9 @@ Logs
 
      description: |
          When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
-         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+         by the OpenTelemetry Logging API. Setting ``OTEL_LOGS_EXPORTER=otlp`` also enables this support, while
+         ``OTEL_LOGS_EXPORTER=none`` disables it. If both environment variables are set,
+         ``DD_LOGS_OTEL_ENABLED`` takes precedence. The application must also include its own OTLP logs exporter.
 
      version_added:
        v3.12.0: Adds support for submitting logs via an OTLP Exporter.
@@ -1084,7 +1397,7 @@ Sampling
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
-         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
+         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.reque?t"}]'``
 
      version_added:
         v1.4.0:
@@ -1124,9 +1437,15 @@ Sampling
      type: JSON array
 
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", "tags", and "discard" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+
+         Setting "discard" to ``true`` on a rule fully drops a trace chunk the rule rejects, excluding it from client-side stats and the Agent.
+
+         **Note** that with partial flushing enabled (the default), a chunk is matched against the trace's local root span as it stood when that chunk was flushed, so a rule keyed on data only available later in the request (e.g. a resolved HTTP route) may miss chunks flushed earlier in the same trace.
 
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
+
+         **Example (fully drop a noisy, unsampled endpoint):** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.0,"resource":"/health","discard":true}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.'
 
@@ -1134,6 +1453,58 @@ Sampling
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
+       v4.15.0: added support for "discard"
+
+Feature Flagging
+----------------
+
+.. ddtrace-configuration-options::
+
+   DD_FEATURE_FLAGS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Stable kill switch for Feature Flagging. When ``False``, the provider is
+         disabled regardless of the configured source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE:
+     type: String
+     default: agentless
+     description: |
+         Selects where Feature Flagging loads Universal Flag Configuration from.
+         Supported values are ``agentless`` (load directly from the Datadog CDN)
+         and ``remote_config`` (deliver via the Datadog Agent's Remote
+         Configuration). ``offline`` is reserved and currently unsupported; any
+         unsupported value disables the provider without contacting either source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
+     type: String
+     default: (none)
+     description: |
+         Overrides the Datadog-managed agentless Universal Flag Configuration
+         endpoint, for local development or an operator-managed proxy. The URL must
+         use HTTP or HTTPS. An origin or root URL receives the standard rules-based
+         server path, so ``http://localhost:8080`` resolves to
+         ``http://localhost:8080/api/v2/feature-flagging/config/rules-based/server``;
+         a URL with a non-root path, such as
+         ``https://ufc-proxy.internal.example.com/ufc``, is used verbatim as the
+         exact endpoint. ``DD_API_KEY`` is never sent to a custom endpoint. Only
+         applies when ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is ``agentless``.
+         See `Use a custom agentless endpoint <https://docs.datadoghq.com/feature_flags/concepts/configuration_sources/#use-a-custom-agentless-endpoint>`_.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS:
+     type: Integer
+     default: 30
+     description: |
+         The agentless Universal Flag Configuration polling interval in seconds,
+         capped at one hour.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS:
+     type: Integer
+     default: 5
+     description: |
+         The per-request timeout in seconds for agentless Universal Flag
+         Configuration polls.
 
 Other
 -----

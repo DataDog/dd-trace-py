@@ -1,7 +1,7 @@
 import inspect
-from typing import Any  # noqa:F401
+from typing import Any
 from typing import Mapping
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 import starlette
 from starlette import requests as starlette_requests
@@ -10,11 +10,14 @@ from starlette.middleware import Middleware
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace._trace.http_tags import copy_server_url_tags
+from ddtrace._trace.http_tags import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_ROUTE
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
-from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -23,14 +26,13 @@ from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.trace import Span  # noqa:F401
+from ddtrace.trace import Span
 from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
 
@@ -98,8 +100,9 @@ def traced_route_init(wrapped, _instance, args, kwargs):
 def _collect_routes_from_app(app, prefix=""):
     """Walk an ASGI app's route tree and register all endpoints with their full paths.
 
-    Called once on first request via the ASGI TraceMiddleware. At that point the app
-    is fully constructed (all mounts done). Endpoint registration cannot happen at
+    Registered as a listener for the "asgi.collect_routes" core event, dispatched once
+    on first request via the ASGI TraceMiddleware. At that point the app is fully
+    constructed (all mounts done). Endpoint registration cannot happen at
     Route.__init__ time because the mount prefix is unknown then (sub-apps are
     created before being mounted).
     """
@@ -148,7 +151,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
 
     path, is_route = route_match
     method = scope.get("method")
-    span.resource = "{} {}".format(method, path) if method else path
+    _set_route_resource(span, method, path)
     if is_route:
         span._set_attribute(http.ROUTE, path)
 
@@ -206,7 +209,8 @@ def patch():
     starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
-    Pin().onto(starlette)
+
+    core.on("asgi.collect_routes", _collect_routes_from_app)
 
     # We need to check that Fastapi instrumentation hasn't already patched these
     if not is_wrapted(starlette.routing.Route.__init__):
@@ -225,6 +229,8 @@ def unpatch():
         return
 
     starlette._datadog_patch = False
+
+    core.reset_listeners("asgi.collect_routes", _collect_routes_from_app)
 
     _u(starlette.applications.Starlette, "__init__")
 
@@ -253,6 +259,14 @@ def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
     if effective_route_context is None:
         return None
     return getattr(effective_route_context, "path_format", None)
+
+
+def _set_route_resource(span: Span, method: Optional[str], route: str) -> None:
+    resource = f"{method} {route}" if method else route
+    set_instrumentation_resource(span, resource)
+    if config._otel_trace_semantics_enabled and method:
+        set_otel_resource_for_method(span, method, route)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_ROUTE, route)
 
 
 def traced_handler(wrapped, instance, args, kwargs):
@@ -291,7 +305,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     if full_path is not None:
         if request_spans:
-            request_spans[0].resource = "{} {}".format(scope["method"], full_path)
+            _set_route_resource(request_spans[0], scope.get("method"), full_path)
             request_spans[0]._set_attribute(http.ROUTE, full_path)
     elif len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
@@ -302,20 +316,14 @@ def traced_handler(wrapped, instance, args, kwargs):
             # Second request span gets /hello/{name}
             path = "".join(resource_paths[index:])
 
-            if scope.get("method"):
-                span.resource = "{} {}".format(scope["method"], path)
-            else:
-                span.resource = path
+            _set_route_resource(span, scope.get("method"), path)
             # route should only be in the root span
             if index == 0:
                 span._set_attribute(http.ROUTE, path)
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
-        if scope.get("method"):
-            request_spans[0].resource = "{} {}".format(scope["method"], route)
-        else:
-            request_spans[0].resource = route
+        _set_route_resource(request_spans[0], scope.get("method"), route)
         request_spans[0]._set_attribute(http.ROUTE, route)
     else:
         log.debug(
@@ -334,10 +342,7 @@ def traced_handler(wrapped, instance, args, kwargs):
                 break
 
         if request_spans:
-            if asm_config._iast_enabled:
-                from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
-
-                _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
+            core.dispatch("starlette.route.handle", (scope, request_spans[0].get_tag(http.ROUTE)))
 
             trace_utils.set_http_meta(
                 request_spans[0],
@@ -353,28 +358,33 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
-        request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
+        copy_server_url_tags(request_spans[0], request_spans[-1])
 
     return wrapped(*args, **kwargs)
 
 
-@with_traced_module
-def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
-    task = get_argument_value(args, kwargs, 0, "func")
-    current_span = tracer.current_span()
-    module_name = getattr(module, "__name__", "<unknown>")
-    task_name = getattr(task, "__name__", "<unknown>")
+def _trace_background_tasks(module):
+    def traced_background_tasks(wrapped, instance, args, kwargs):
+        if not is_tracing_enabled():
+            return wrapped(*args, **kwargs)
 
-    async def traced_task(*args, **kwargs):
-        with tracer.start_span(
-            f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
-        ) as span:
-            if current_span:
-                span.link_span(current_span.context)
-            if inspect.iscoroutinefunction(task):
-                await task(*args, **kwargs)
-            else:
-                await run_in_threadpool(task, *args, **kwargs)
+        task = get_argument_value(args, kwargs, 0, "func")
+        current_span = tracer.current_span()
+        module_name = getattr(module, "__name__", "<unknown>")
+        task_name = getattr(task, "__name__", "<unknown>")
 
-    args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
-    wrapped(*args, **kwargs)
+        async def traced_task(*args, **kwargs):
+            with tracer.start_span(
+                f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
+            ) as span:
+                if current_span:
+                    span.link_span(current_span.context)
+                if inspect.iscoroutinefunction(task):
+                    await task(*args, **kwargs)
+                else:
+                    await run_in_threadpool(task, *args, **kwargs)
+
+        args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
+        return wrapped(*args, **kwargs)
+
+    return traced_background_tasks

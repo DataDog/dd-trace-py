@@ -18,10 +18,10 @@ EXCEPTIONS = {
     # log.exception calls use constant messages
     "ddtrace/contrib/internal/aws_lambda/patch.py:34",
     # log.error in _probe/registry.py ends up with a log.debug()
-    "ddtrace/debugging/_probe/registry.py:135",
-    "ddtrace/debugging/_probe/registry.py:144",
+    "ddtrace/debugging/_probe/registry.py:142",
+    "ddtrace/debugging/_probe/registry.py:151",
     # we added a constant check for the wrapping method of add_error_log
-    "ddtrace/appsec/_iast/_metrics.py:52",
+    "ddtrace/appsec/_iast/_metrics.py:53",
     # _report_converter_error wraps add_error_log; callers pass constant messages
     "ddtrace/aiguard/integrations/_anthropic.py:59",
     # we added a constant check for the wrapping method of iast_error

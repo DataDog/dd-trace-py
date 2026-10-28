@@ -9,7 +9,7 @@ def reconstruct_openai_chat(chunks: list[Any]) -> Any:
 
     Groups per-index deltas by choice; the LLMObs helper aggregates role/content/tool_calls.
     """
-    by_choice: "collections.OrderedDict[int, list[Any]]" = collections.OrderedDict()
+    by_choice: collections.OrderedDict[int, list[Any]] = collections.OrderedDict()
     for chunk in chunks:
         for choice in getattr(chunk, "choices", None) or []:
             by_choice.setdefault(getattr(choice, "index", 0), []).append(choice)

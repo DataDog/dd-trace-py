@@ -9,20 +9,28 @@ import uuid
 
 import pytest
 
+from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_coverage_flags
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.logging import testing_logger
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import mock_backend_connector
+
+
+@pytest.fixture
+def reset_code_coverage_flags_cache():
+    _get_code_coverage_flags.cache_clear()
+    yield
+    _get_code_coverage_flags.cache_clear()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -1231,7 +1239,24 @@ class TestAPIClientGetKnownCommits:
 
 
 class TestAPIClientGetSkippableTests:
-    def test_get_skippable_tests(self, mock_telemetry: Mock) -> None:
+    @pytest.mark.parametrize(
+        "file_level_coverage,expected_headers",
+        [
+            (False, None),
+            (True, {"X-Datadog-ITR-Code-Coverage": "false"}),
+        ],
+    )
+    def test_get_skippable_tests(
+        self,
+        mock_telemetry: Mock,
+        monkeypatch: pytest.MonkeyPatch,
+        file_level_coverage: bool,
+        expected_headers: t.Optional[dict[str, str]],
+    ) -> None:
+        monkeypatch.setattr(
+            "ddtrace.testing.internal.api_client.is_file_level_coverage_enabled", lambda: file_level_coverage
+        )
+
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/ci/tests/skippable",
@@ -1306,6 +1331,7 @@ class TestAPIClientGetSkippableTests:
                         },
                     }
                 },
+                headers=expected_headers,
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
             )
         ]
@@ -1634,8 +1660,16 @@ def mock_post_files_with_error(*args, **kwargs):
 class TestAPIClientUploadCoverageReport:
     """Tests for coverage report upload functionality."""
 
-    def test_upload_coverage_report_success(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
+    def test_upload_coverage_report_success(
+        self,
+        mock_telemetry: Mock,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        reset_code_coverage_flags_cache,
+    ) -> None:
         """Test successful coverage report upload."""
+        monkeypatch.setenv("DD_CODE_COVERAGE_FLAGS", "type:unit-tests,jvm-21")
+
         mock_connector = Mock()
 
         mock_connector.post_files.side_effect = mock_post_files_with_telemetry
@@ -1699,6 +1733,7 @@ class TestAPIClientUploadCoverageReport:
         assert event_data["git.repository_url"] == "http://github.com/DataDog/some-repo.git"
         assert event_data["git.commit.sha"] == "abcd1234"
         assert event_data["git.branch"] == "some-branch"
+        assert event_data["report.flags"] == ["type:unit-tests", "jvm-21"]
 
         # Verify success message was logged
         assert "Successfully uploaded coverage report" in caplog.text

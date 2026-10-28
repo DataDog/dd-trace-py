@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Datasets, experiments, and custom evaluator publishing no longer require
+    ``DD_APP_KEY`` on the application when a Datadog Agent is used.

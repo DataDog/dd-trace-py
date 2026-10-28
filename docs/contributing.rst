@@ -20,6 +20,17 @@ If you're trying to set up a local development environment, read `this <https://
 
 Thanks for working with us!
 
+Coding assistant skills
+=======================
+
+Shared repository skills live in ``.agents/skills/<name>/SKILL.md``. Codex, Cursor,
+OpenCode, and Pi discover this directory directly. Claude Code uses the relative
+symlink ``.claude/skills`` pointing to ``../.agents/skills``.
+
+Add and edit skills and their supporting files under ``.agents/skills``. Keep the
+compatibility symlink intact so all assistants use the same skills. Repository-wide
+instructions live in ``AGENTS.md``.
+
 .. _change_process:
 
 Change Process
@@ -77,6 +88,43 @@ Release notes should be written from the user's perspective and clearly explain 
 
 Once approved, pull requests should be merged with the "Squash and Merge" option.
 At this time, do not use the merge queue option.
+
+Merging Pull Requests from Forks
+---------------------------------
+
+Pull requests opened from a fork (i.e. by an external contributor) cannot run all required CI
+directly. GitLab does not mirror branches from external forks. Pushing the fork's commit to a
+branch in this repository can start GitLab, but it does not trigger the required System Tests
+workflow; that requires a pull request owned by this repository.
+
+If you're a maintainer merging a fork PR, the mirror moves its code into a trusted CI context with
+access to credentials. The reviewer owns that trust decision. Follow this process:
+
+#. Complete the normal code review on the original fork PR. Before mirroring, you should be willing
+   to merge its exact current head commit as long as the final CI checks pass.
+#. Review everything the internal CI pipeline might execute with extra scrutiny. This includes
+   workflow definitions, scripts, tests, build and install configuration, dependency changes,
+   network calls, artifact uploads, and code that accesses credentials or changes permissions.
+   Involve the relevant code owners or security reviewers when appropriate.
+#. Immediately before mirroring, verify that the original PR's head SHA is still the SHA you
+   reviewed. If it changed, review the updates and repeat this check.
+#. Push that exact reviewed head commit to a new branch in this repository, e.g.
+   ``git push origin <fork-pr-head-sha>:refs/heads/<you>/mirror-<PR#>``. The branch name does not
+   need to match the contributor's branch.
+#. Open a draft shadow PR from that branch into ``main``. Its title must follow `Conventional
+   Commits <https://www.conventionalcommits.org/en/v1.0.0/>`_ and end with ``[DO NOT MERGE]``, for
+   example ``docs: run fork PR #1234 through CI [DO NOT MERGE]``. Its description must say it exists
+   only to run CI, must not be merged, and include ``Original PR: <URL>``.
+#. Add ``Closes: <shadow PR URL>`` to the original PR's description.
+#. Wait for the shadow PR's checks to pass. The identical SHA establishes source-commit parity;
+   it does not mean both PRs run in the same context or establish that the code is safe. That
+   assurance comes from the review before mirroring.
+#. Once the checks are green, verify that the original PR's head SHA still matches the tested
+   shadow PR, then comment ``/merge`` on the *original* fork PR.
+#. After the original PR closes, close the shadow PR without merging if it is still open, then
+   delete its branch.
+
+Never mirror speculative or partially reviewed code merely to obtain CI results.
 
 Backporting
 -----------

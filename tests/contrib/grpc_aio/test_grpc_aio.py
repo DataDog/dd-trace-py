@@ -27,7 +27,6 @@ from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeter
 from tests.utils import assert_is_measured
 
 
-_GRPC_PORT = 50531
 NUMBER_OF_REPLY = 10
 
 
@@ -42,7 +41,7 @@ class _CoroHelloServicer(HelloServicer):
         if request.name == "exception":
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
 
-        return HelloReply(message="Hello {}".format(request.name))
+        return HelloReply(message=f"Hello {request.name}")
 
     async def SayHelloTwice(self, request, context):
         await context.write(HelloReply(message="first response"))
@@ -117,7 +116,7 @@ class _SyncHelloServicer(HelloServicer):
         if request.name == "exception":
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
 
-        return HelloReply(message="Hello {}".format(request.name))
+        return HelloReply(message=f"Hello {request.name}")
 
     def SayHelloTwice(self, request, context):
         self._assert_not_in_async_context()
@@ -175,11 +174,13 @@ def patch_grpc_aio():
 @pytest.fixture
 async def async_server_info(request, tracer, event_loop):
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
-    _server = grpc.aio.server()
+    _server = grpc.aio.server(options=(("grpc.so_reuseport", 0),))
     add_MultiGreeterServicer_to_server(Greeter(), _server)
     _servicer = request.param
-    target = f"localhost:{_GRPC_PORT}"
-    _server.add_insecure_port(target)
+    # Bind to an ephemeral port so the OS atomically assigns a guaranteed-free one; avoids the
+    # fixed-port rebind races that were flaky under pytest-xdist. add_insecure_port returns it.
+    port = _server.add_insecure_port("localhost:0")
+    target = f"localhost:{port}"
     # interceptor can not catch AbortError for sync servicer
     abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
@@ -197,8 +198,8 @@ async def server_info(request, tracer, event_loop):
     """Configures grpc server and starts it in pytest-asyncio event loop."""
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
     _servicer = request.param
-    target = f"localhost:{_GRPC_PORT}"
-    _server = _create_server(_servicer, target)
+    _server, port = _create_server(_servicer)
+    target = f"localhost:{port}"
     # interceptor can not catch AbortError for sync servicer
     abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
@@ -209,25 +210,30 @@ async def server_info(request, tracer, event_loop):
     await wait_task
 
 
-def _create_server(servicer, target):
-    _server = aio.server()
-    _server.add_insecure_port(target)
+def _create_server(servicer):
+    _server = aio.server(options=(("grpc.so_reuseport", 0),))
+    port = _server.add_insecure_port("localhost:0")
     add_HelloServicer_to_server(servicer, _server)
-    return _server
+    return _server, port
 
 
 def _get_spans(tracer):
     return tracer._span_aggregator.writer.spans
 
 
-def _check_client_span(span, service, method_name, method_kind, resource="helloworld.Hello"):
+async def test_server_accepts_explicit_none_interceptors():
+    server = aio.server(interceptors=None)
+    await server.stop(None)
+
+
+def _check_client_span(span, service, method_name, method_kind, resource="helloworld.Hello", *, expected_port):
     assert_is_measured(span)
     assert span.name == "grpc"
-    assert span.resource == "/{}/{}".format(resource, method_name)
+    assert span.resource == f"/{resource}/{method_name}"
     assert span.service == service
     assert span.error == 0
     assert span.span_type == "grpc"
-    assert span.get_tag("grpc.method.path") == "/{}/{}".format(resource, method_name)
+    assert span.get_tag("grpc.method.path") == f"/{resource}/{method_name}"
     assert span.get_tag("grpc.method.package") == resource.split(".")[0]
     assert span.get_tag("grpc.method.service") == resource.split(".")[1]
     assert span.get_tag("grpc.method.name") == method_name
@@ -235,7 +241,8 @@ def _check_client_span(span, service, method_name, method_kind, resource="hellow
     assert span.get_tag("grpc.status.code") == "StatusCode.OK"
     assert span.get_tag("grpc.host") == "localhost"
     assert span.get_tag("peer.hostname") == "localhost"
-    assert span.get_tag("network.destination.port") == "50531"
+    # The server binds an ephemeral port; assert the tagged port matches the one actually used.
+    assert span.get_tag("network.destination.port") == str(expected_port)
     assert span.get_tag("component") == "grpc_aio_client"
     assert span.get_tag("span.kind") == "client"
 
@@ -243,11 +250,11 @@ def _check_client_span(span, service, method_name, method_kind, resource="hellow
 def _check_server_span(span, service, method_name, method_kind, resource="helloworld.Hello"):
     assert_is_measured(span)
     assert span.name == "grpc"
-    assert span.resource == "/{}/{}".format(resource, method_name)
+    assert span.resource == f"/{resource}/{method_name}"
     assert span.service == service
     assert span.error == 0
     assert span.span_type == "grpc"
-    assert span.get_tag("grpc.method.path") == "/{}/{}".format(resource, method_name)
+    assert span.get_tag("grpc.method.path") == f"/{resource}/{method_name}"
     assert span.get_tag("grpc.method.package") == resource.split(".")[0]
     assert span.get_tag("grpc.method.service") == resource.split(".")[1]
     assert span.get_tag("grpc.method.name") == method_name
@@ -266,7 +273,9 @@ async def test_insecure_channel(server_info, tracer):
     assert len(spans) == 2
     client_span, server_span = spans
 
-    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    _check_client_span(
+        client_span, "grpc-aio-client", "SayHello", "unary", expected_port=server_info.target.rsplit(":", 1)[-1]
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
 
 
@@ -281,7 +290,9 @@ async def test_secure_channel(server_info, tracer):
     assert len(spans) == 2
     client_span, server_span = spans
 
-    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    _check_client_span(
+        client_span, "grpc-aio-client", "SayHello", "unary", expected_port=server_info.target.rsplit(":", 1)[-1]
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
 
 
@@ -297,13 +308,17 @@ async def test_secure_channel_with_interceptor_in_args(server_info, tracer):
     assert len(spans) == 2
     client_span, server_span = spans
 
-    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    _check_client_span(
+        client_span, "grpc-aio-client", "SayHello", "unary", expected_port=server_info.target.rsplit(":", 1)[-1]
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_invalid_target(server_info, tracer, test_spans):
-    target = "localhost:50051"
+    # Port 1 is below the OS ephemeral range, so the ephemeral-bound fixture server can never
+    # occupy it; nothing listens there, so the connection is refused (UNAVAILABLE) as expected.
+    target = "localhost:1"
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
         with pytest.raises(aio.AioRpcError):
@@ -410,7 +425,13 @@ async def test_server_streaming(server_info, tracer):
     assert len(spans) == 2
     client_span, server_span = spans
 
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloTwice", "server_streaming")
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloTwice",
+        "server_streaming",
+        expected_port=server_info.target.rsplit(":", 1)[-1],
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
 
 
@@ -420,11 +441,9 @@ async def test_server_streaming(server_info, tracer):
 async def test_server_streaming_exception(server_info, tracer):
     if not server_info.abort_supported:
         pytest.skip(
-            (
-                "Skip a test with _SyncHelloServicer "
-                "because it often makes the client hang up. "
-                "See https://github.com/grpc/grpc/issues/28989."
-            )
+            "Skip a test with _SyncHelloServicer "
+            "because it often makes the client hang up. "
+            "See https://github.com/grpc/grpc/issues/28989."
         )
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -483,11 +502,9 @@ async def test_server_streaming_cancelled_before_rpc(server_info, tracer):
 async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
     if not server_info.abort_supported:
         pytest.skip(
-            (
-                "Skip a test with _SyncHelloServicer "
-                "because it often makes the server termination hang up. "
-                "See https://github.com/grpc/grpc/issues/28999."
-            )
+            "Skip a test with _SyncHelloServicer "
+            "because it often makes the server termination hang up. "
+            "See https://github.com/grpc/grpc/issues/28999."
         )
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
@@ -535,7 +552,13 @@ async def test_server_streaming_cancelled_after_rpc(server_info, tracer):
     client_span, server_span = spans
 
     # No error because cancelled after execution
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloTwice", "server_streaming")
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloTwice",
+        "server_streaming",
+        expected_port=server_info.target.rsplit(":", 1)[-1],
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
 
 
@@ -551,7 +574,13 @@ async def test_client_streaming(server_info, tracer):
     assert len(spans) == 2
     client_span, server_span = spans
 
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloLast", "client_streaming")
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloLast",
+        "client_streaming",
+        expected_port=server_info.target.rsplit(":", 1)[-1],
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloLast", "client_streaming")
 
 
@@ -626,7 +655,13 @@ async def test_client_streaming_cancelled_after_rpc(server_info, tracer):
     client_span, server_span = spans
 
     # No error because cancelled after execution
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloLast", "client_streaming")
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloLast",
+        "client_streaming",
+        expected_port=server_info.target.rsplit(":", 1)[-1],
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloLast", "client_streaming")
 
 
@@ -651,7 +686,13 @@ async def test_bidi_streaming(server_info, tracer):
     assert len(spans) == 2
     client_span, server_span = spans
 
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloRepeatedly",
+        "bidi_streaming",
+        expected_port=server_info.target.rsplit(":", 1)[-1],
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
 
 
@@ -725,11 +766,9 @@ async def test_bidi_streaming_cancelled_before_rpc(server_info, tracer):
 async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
     if not server_info.abort_supported:
         pytest.skip(
-            (
-                "Skip a test with _SyncHelloServicer "
-                "because it often makes the server termination hang up. "
-                "See https://github.com/grpc/grpc/issues/28999."
-            )
+            "Skip a test with _SyncHelloServicer "
+            "because it often makes the server termination hang up. "
+            "See https://github.com/grpc/grpc/issues/28999."
         )
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
@@ -787,7 +826,13 @@ async def test_bidi_streaming_cancelled_after_rpc(server_info, tracer):
     client_span, server_span = spans
 
     # No error because cancelled after execution
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloRepeatedly",
+        "bidi_streaming",
+        expected_port=server_info.target.rsplit(":", 1)[-1],
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
 
 
@@ -809,7 +854,7 @@ def test_schematization_of_operation(ddtrace_run_python_code_in_subprocess, serv
         "v0": ("grpc"),
         "v1": ("grpc.{}.request"),
     }[schema]
-    code = """
+    code = f"""
 import sys
 
 import pytest
@@ -838,13 +883,13 @@ async def test_client_streaming(server_info, tracer):
     assert len(spans) == 2
     client_span, server_span = spans
 
-    operation_name_format = "{}"
+    operation_name_format = "{expected_operation_name_format}"
     assert client_span.name == operation_name_format.format("client")
     assert server_span.name == operation_name_format.format("server")
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
-    """.format(expected_operation_name_format)
+    """
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service
@@ -869,7 +914,7 @@ async def run_streaming_example(server_info, use_generator=False):
         # Read from an async generator
         if use_generator:
             async for response in stub.sayHello(HelloRequestStream(name="you")):
-                assert response.message == "Hello number {}, you!".format(i)
+                assert response.message == f"Hello number {i}, you!"
                 i += 1
 
         # Direct read from the stub
@@ -879,7 +924,7 @@ async def run_streaming_example(server_info, use_generator=False):
                 response = await hello_stream.read()
                 if response == grpc.aio.EOF:
                     break
-                assert response.message == "Hello number {}, will!".format(i)
+                assert response.message == f"Hello number {i}, will!"
                 i += 1
 
 
@@ -896,7 +941,13 @@ async def test_async_streaming_direct_read(async_server_info, tracer):
     client_span, server_span = spans
 
     # No error because cancelled after execution
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
+    _check_client_span(
+        client_span,
+        "grpc-aio-client",
+        "SayHelloRepeatedly",
+        "bidi_streaming",
+        expected_port=async_server_info.target.rsplit(":", 1)[-1],
+    )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
 
 
@@ -910,7 +961,12 @@ async def test_async_streaming_generator(async_server_info, tracer):
 
     # No error because cancelled after execution
     _check_client_span(
-        client_span, "grpc-aio-client", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
+        client_span,
+        "grpc-aio-client",
+        "sayHello",
+        "server_streaming",
+        "hellostreamingworld.MultiGreeter",
+        expected_port=async_server_info.target.rsplit(":", 1)[-1],
     )
     _check_server_span(
         server_span, "grpc-aio-server", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"

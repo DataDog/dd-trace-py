@@ -16,25 +16,30 @@ def handle_kombu_produce(args, kwargs, span):
     from . import data_streams_processor as processor
 
     routing_key = get_routing_key_from_args(args)
-    dsm_identifier = get_exchange_from_args(args)
+    exchange = get_exchange_from_args(args)
     payload_size = 0
     payload_size += _calculate_byte_size(args[HEADER_POS])
     payload_size += _calculate_byte_size(args[PUBLISH_BODY_IDX])
 
     has_routing_key = str(bool(routing_key)).lower()
 
-    pathway_tags = []
-    for prefix, value in [
-        ("direction", "out"),
-        ("exchange", dsm_identifier),
-        ("has_routing_key", has_routing_key),
-        ("type", "rabbitmq"),
-    ]:
-        if value is not None:
-            pathway_tags.append(f"{prefix}:{value}")
+    # On the default (unnamed) exchange, the routing key is the destination queue name.
+    if not exchange and routing_key:
+        pathway_tags = ["direction:out", f"topic:{routing_key}", "type:rabbitmq"]
+    else:
+        pathway_tags = []
+        for prefix, value in [
+            ("direction", "out"),
+            ("exchange", exchange),
+            ("has_routing_key", has_routing_key),
+            ("type", "rabbitmq"),
+        ]:
+            if value is not None:
+                pathway_tags.append(f"{prefix}:{value}")
 
-    ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
-    DsmPathwayCodec.encode(ctx, args[HEADER_POS])
+    if (p := processor()) is not None:
+        ctx = p.set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
+        DsmPathwayCodec.encode(ctx, args[HEADER_POS])
 
 
 def handle_kombu_consume(instance, message, span):
@@ -44,9 +49,10 @@ def handle_kombu_consume(instance, message, span):
     payload_size += _calculate_byte_size(message.body)
     payload_size += _calculate_byte_size(message.headers)
 
-    ctx = DsmPathwayCodec.decode(message.headers, processor())
-    queue = instance.queues[0].name if len(instance.queues) > 0 else ""
-    ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
+    if (p := processor()) is not None:
+        ctx = DsmPathwayCodec.decode(message.headers, p)
+        queue = instance.queues[0].name if len(instance.queues) > 0 else ""
+        ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
 
 
 if config._data_streams_enabled:

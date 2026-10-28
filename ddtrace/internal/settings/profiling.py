@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import itertools
 import math
+import os
+import platform
+import sys
+import sysconfig
 import typing as t
 
 from envier import Env
@@ -25,6 +29,19 @@ from ddtrace.internal.utils.formats import parse_tags_str
 logger = get_logger(__name__)
 
 
+def _is_python_embedded() -> bool:
+    try:
+        real_exe = os.readlink("/proc/self/exe") if sys.platform == "linux" else ""
+    except OSError:
+        real_exe = ""
+
+    exe = real_exe or (getattr(sys, "executable", "") or "")
+    if not exe:
+        return True
+
+    return "python" not in os.path.basename(exe).lower()
+
+
 def _derive_default_heap_sample_size(
     heap_config: Env,
     default_heap_sample_size: int = 1024 * 1024,
@@ -38,9 +55,9 @@ def _derive_default_heap_sample_size(
         return 0
 
     try:
-        from ddtrace.vendor import psutil
+        from ddtrace.internal.native import total_memory_bytes
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = total_memory_bytes()
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -53,6 +70,22 @@ def _derive_default_heap_sample_size(
     max_samples = 2**16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
+
+
+def _is_platform_supported() -> tuple[str, bool]:
+    # Return (reason, supported) describing whether the native profiling
+    # extensions exist on this platform.
+    if hasattr(sys, "pyston_version_info"):
+        return ("profiling is not supported on Pyston", False)
+
+    system = platform.system()
+    if system not in ("Linux", "Darwin"):
+        return ("profiling is not supported on %s" % (system or "this platform"), False)
+    if not (sys.maxsize > (1 << 32)):
+        return ("profiling is not supported on 32-bit %s" % system, False)
+    if sys.version_info >= (3, 16):
+        return ("profiling is not yet supported on Python %d.%d" % sys.version_info[:2], False)
+    return ("", True)
 
 
 def _check_for_ddup_available() -> tuple[str, bool]:
@@ -70,6 +103,14 @@ def _check_for_stack_available() -> tuple[str, bool]:
     from ddtrace.internal.datadog.profiling import stack
 
     return (stack.failure_msg, stack.is_available)
+
+
+def _check_for_native_heap_available() -> tuple[str, bool]:
+    # Importing heap_gotter dlopen's the gotter cdylib but does NOT install
+    # anything; installation is an explicit, separate call. Import never raises.
+    from ddtrace.internal.datadog.profiling import heap_gotter
+
+    return (heap_gotter.failure_msg, heap_gotter.is_available)
 
 
 def _injection_enabled_has_profiler() -> bool:
@@ -107,7 +148,7 @@ def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
 
 
 def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
-    tags = {
+    updated_tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
             _update_git_metadata_tags(parse_tags_str(env.get("DD_TAGS"))).items(),
@@ -115,7 +156,19 @@ def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
         )
     }
 
-    return tags
+    return updated_tags
+
+
+# The profiling backend accepts at most this many locations per sample.
+BACKEND_MAX_LOCATIONS = 600
+# Reserve one location for the synthetic "<N frames omitted>" frame emitted when
+# a stack is truncated. Keep these constants in sync with g_backend_max_nlocations
+# and g_backend_max_nframes in constants.hpp.
+MAX_FRAMES = BACKEND_MAX_LOCATIONS - 1
+
+
+def _clamp_max_frames(value: str) -> int:
+    return min(int(value), MAX_FRAMES)
 
 
 class ProfilingConfig(DDConfig):
@@ -129,11 +182,17 @@ class ProfilingConfig(DDConfig):
         parser=_parse_profiling_enabled,
         default=False,
         help_type="Boolean",
-        help="Enable Datadog profiling when using ``ddtrace-run``",
+        help=(
+            "Enable Datadog profiling when using ``ddtrace-run``. "
+            "Experimental: set this to ``armed`` to install profiling hooks "
+            "but not start the profiler right away."
+        ),
     )
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
+
+        self.install: bool = self.source.get("DD_PROFILING_ENABLED", "").strip().lower() == "armed"
 
         # When DD_PROFILING_ENABLED is not set, envier uses the default value directly
         # without invoking the parser. This means the DD_INJECTION_ENABLED check in
@@ -198,9 +257,12 @@ class ProfilingConfig(DDConfig):
         int,
         "max_frames",
         default=64,
-        validator=validators.range(0, t.cast(int, float("inf"))),
+        parser=_clamp_max_frames,
+        validator=validators.range(0, MAX_FRAMES),
         help_type="Integer",
-        help="The maximum number of frames to capture in stack execution tracing",
+        help="The maximum number of frames to capture in stack execution tracing. Values above "
+        f"{MAX_FRAMES} are clamped so that truncated stacks, including the omitted-frame indicator, stay within "
+        f"the profiling backend's {BACKEND_MAX_LOCATIONS}-location limit.",
     )
 
     ignore_profiler = DDConfig.v(
@@ -368,6 +430,19 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    max_tasks = DDConfig.v(
+        int,
+        "max_tasks",
+        default=50,
+        validator=validators.range(0, 1000),
+        help_type="Integer",
+        help=(
+            "Maximum number of leaf asyncio tasks/greenlets to sample per cycle. "
+            "Uses reservoir sampling when exceeded. 0 = unlimited."
+        ),
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",
@@ -382,6 +457,14 @@ class ProfilingConfigStack(DDConfig):
         default=True,
         help_type="Boolean",
         help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
+    )
+
+    gc_enabled = DDConfig.v(
+        bool,
+        "gc_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to add Garbage collection frames on stacks that initiated garbage collection.",
     )
 
     fast_copy = DDConfig.v(
@@ -477,14 +560,11 @@ class ProfilingConfigMemory(DDConfig):
     mem_domain_enabled = DDConfig.v(
         bool,
         "mem_domain_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help=(
-            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
-            "Python allocations (list internal buffers, array.array data) in addition "
-            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
-            "by default for incremental rollout; will be enabled by default once the "
-            "feature is GA."
+            "Profile PyMem_Malloc/Calloc/Realloc events (allocations in the Mem domain). "
+            "Requires Python 3.12 or later. Enabled by default."
         ),
     )
 
@@ -508,6 +588,22 @@ class ProfilingConfigHeap(DDConfig):
         help="Average number of bytes allocated between memory profiler samples",
     )
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
+
+
+class ProfilingConfigNativeHeap(DDConfig):
+    __item__ = __prefix__ = "native_heap"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to enable experimental native (C/C++) heap profiling. "
+            "Requires DD_PROFILING_ENABLED=true, Linux, and a wheel built with "
+            "DD_PROFILING_NATIVE_HEAP_ENABLED=1. Disabled by default."
+        ),
+    )
 
 
 def _validate_non_negative_int(value: int) -> None:
@@ -556,7 +652,7 @@ class ProfilingConfigException(DDConfig):
     enabled = DDConfig.v(
         bool,
         "enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to enable the exception profiler",
     )
@@ -588,38 +684,107 @@ ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigNativeHeap, namespace="native_heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
-report_configuration(config)
 
-ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
+platform_unsupported_msg, platform_is_supported = _is_platform_supported()
 
-# We need to check if ddup is available, and turn off profiling if it is not.
-if not ddup_is_available:
-    msg = ddup_failure_msg or "libdd not available"
+ddup_failure_msg: t.Optional[str] = platform_unsupported_msg or None
+ddup_is_available: bool = False
+stack_failure_msg: t.Optional[str] = platform_unsupported_msg or None
+stack_is_available: bool = False
+
+if not platform_is_supported:
     if config.enabled:
-        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
-    )
+        logger.debug("Profiling is not supported on this platform (%s), disabling", platform_unsupported_msg)
     config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.install = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+    config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+else:
+    ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
-# We also need to check if stack module is available, and turn if off
-# if it s not.
-stack_failure_msg, stack_is_available = _check_for_stack_available()
-if not stack_is_available:
-    msg = stack_failure_msg or "stack not available"
-    if config.stack.enabled:
+    # We need to check if ddup is available, and turn off profiling if it is not.
+    if not ddup_is_available:
+        msg = ddup_failure_msg or "libdd not available"
         if config.enabled:
-            logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+            logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
         telemetry_writer.add_log(
             TELEMETRY_LOG_LEVEL.ERROR,
-            "Failed to load stack module (%s), disabling stack profiling" % msg,
+            f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
         )
-    config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
+
+    # We also need to check if stack module is available, and turn if off
+    # if it s not.
+    stack_failure_msg, stack_is_available = _check_for_stack_available()
+    if not stack_is_available:
+        msg = stack_failure_msg or "stack not available"
+        if config.stack.enabled:  # pyright: ignore[reportAttributeAccessIssue]
+            if config.enabled:
+                logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+            telemetry_writer.add_log(
+                TELEMETRY_LOG_LEVEL.ERROR,
+                "Failed to load stack module (%s), disabling stack profiling" % msg,
+            )
+        config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+        config.install = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Exception profiling requires sys.monitoring (Python 3.12+) and is not
+# supported on free-threaded builds.  Disable the config so that
+# config_str() / profiler_config tags reflect the effective collector state.
+
+
+def _check_for_exception_available() -> tuple[str, bool]:
+    if not hasattr(sys, "monitoring"):
+        return ("sys.monitoring unavailable (requires Python 3.12+)", False)
+    if sysconfig.get_config_var("Py_GIL_DISABLED"):
+        return ("not supported on free-threaded builds", False)
+    return ("", True)
+
+
+exception_failure_msg, exception_is_available = _check_for_exception_available()
+
+if not exception_is_available and config.exception.enabled:
+    config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Native heap profiling only arms USDT probes via the gotter cdylib.
+# Check availability lazily (only when requested) so the common disabled path
+# never dlopen's the gotter library. Disable the feature if it can't be loaded.
+if config.native_heap.enabled:
+    native_heap_failure_msg, native_heap_is_available = _check_for_native_heap_available()
+    if not native_heap_is_available:
+        msg = native_heap_failure_msg or "native heap gotter not available"
+        logger.warning("Native heap profiling requested but unavailable (%s), disabling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            f"Native heap profiling requested but unavailable ({msg}), disabling",
+        )
+        config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Fast memory copy is unsafe in embedded interpreters: the host process may
+# install its own signal handlers that conflict with the SIGSEGV/SIGBUS
+# recovery mechanism used by safe_memcpy.
+if config.stack.fast_copy and _is_python_embedded():
+    logger.debug("Python is running as an embedded interpreter; disabling fast memory copy for stack profiling")
+    config.stack.fast_copy = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Report configuration after all availability overrides so telemetry
+# reflects the effective state.
+report_configuration(config)
+if config.install:
+    # The parsed value of DD_PROFILING_ENABLED is False in armed mode
+    telemetry_writer.add_configuration(
+        "DD_PROFILING_ENABLED",
+        "armed",
+        config.value_source("DD_PROFILING_ENABLED"),
+        config.config_id("DD_PROFILING_ENABLED"),
+    )
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
@@ -638,6 +803,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("mem")
     if config.heap.sample_size > 0:
         configured_features.append("heap")
+    if config.native_heap.enabled:
+        configured_features.append("nativeheap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
     if config.exception.enabled:

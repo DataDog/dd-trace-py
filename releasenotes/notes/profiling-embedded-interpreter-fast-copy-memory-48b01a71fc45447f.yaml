@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Profiling: Fast memory copy is now automatically disabled when Python is running
+    as an embedded interpreter.

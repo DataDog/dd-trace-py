@@ -23,13 +23,17 @@ ensure_uv() {
     fi
   done
 
-  echo "[uv] uv not found, installing..."
+  echo "[uv] uv not found, installing..." >&2
   if [[ "$OSTYPE" == "darwin"* ]] || command -v brew >/dev/null 2>&1; then
-    echo "[uv] Installing via Homebrew..."
-    brew install uv
+    echo "[uv] Installing via Homebrew..." >&2
+    brew install uv >&2
   else
-    echo "[uv] Installing via installer script..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    echo "[uv] Installing via installer script..." >&2
+    local uv_installer
+    uv_installer="$(mktemp)"
+    curl -LsSf --retry 5 --retry-delay 2 --retry-connrefused -o "$uv_installer" https://astral.sh/uv/install.sh
+    sh "$uv_installer" >&2
+    rm -f "$uv_installer"
   fi
 
   for path in "${CANDIDATE_PATHS[@]}"; do
@@ -39,6 +43,6 @@ ensure_uv() {
     fi
   done
 
-  echo "[uv] ERROR: uv installation failed or not found in PATH."
+  echo "[uv] ERROR: uv installation failed or not found in PATH." >&2
   return 1
 }

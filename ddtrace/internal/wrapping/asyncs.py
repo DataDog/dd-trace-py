@@ -1,12 +1,31 @@
-import sys
+import enum
 from types import CodeType
+from typing import Optional
 
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.compat import is_at_least_py
 
 
-PY = sys.version_info[:2]
+def _ensure_common_constant_none() -> None:
+    """Extend bytecode.CommonConstant with CONSTANT_NONE when missing.
+
+    bytecode 0.18.1 only defines ASSERTION_ERROR..BUILTIN_ANY. CPython 3.15's
+    LOAD_COMMON_CONSTANT uses index 7 for None (see CONSTANT_NONE in
+    Include/internal/pycore_opcode_utils.h).
+    """
+    import bytecode.instr as instr_mod
+
+    cc = instr_mod.CommonConstant
+    if hasattr(cc, "CONSTANT_NONE"):
+        return
+
+    members: list[tuple[str, int]] = [(m.name, m.value) for m in cc]
+    members.append(("CONSTANT_NONE", 7))
+    extended = enum.IntEnum("CommonConstant", members)  # type: ignore[misc]
+    instr_mod.CommonConstant = extended  # type: ignore[misc, assignment]
 
 
 # -----------------------------------------------------------------------------
@@ -33,12 +52,139 @@ PY = sys.version_info[:2]
 
 COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
-ASYNC_HEAD_ASSEMBLY = None
+ASYNC_HEAD_ASSEMBLY: Optional[Assembly] = None
 
-if PY >= (3, 15):
-    raise NotImplementedError("This version of CPython is not supported yet")
+if is_at_least_py(3, 15):
+    _ensure_common_constant_none()
+    ASYNC_HEAD_ASSEMBLY = Assembly()
+    ASYNC_HEAD_ASSEMBLY.parse(
+        r"""
+            return_generator
+            pop_top
+        """
+    )
 
-elif PY >= (3, 14):
+    COROUTINE_ASSEMBLY.parse(
+        r"""
+            get_awaitable                   0
+            push_null
+            load_common_constant            asm.instr.CommonConstant.CONSTANT_NONE
+
+        presend:
+            send                            @send
+            yield_value                     1
+            resume                          3
+            jump_backward_no_interrupt      @presend
+        send:
+            end_send
+        """
+    )
+
+    ASYNC_GEN_ASSEMBLY.parse(
+        r"""
+        try                                 @stopiter
+            copy                            1
+            store_fast                      $__ddgen
+            load_attr                       (False, 'asend')
+            store_fast                      $__ddgensend
+            load_fast                       $__ddgen
+            load_attr                       (True, '__anext__')
+            call                            0
+
+        loop:
+            get_awaitable                   0
+            push_null
+            load_common_constant            asm.instr.CommonConstant.CONSTANT_NONE
+        presend0:
+            send                            @send0
+        tried
+
+        try                                 @genexit lasti
+            yield_value                     1
+            resume                          3
+            jump_backward_no_interrupt      @presend0
+        send0:
+            end_send
+
+        yield:
+            call_intrinsic_1                asm.Intrinsic1Op.INTRINSIC_ASYNC_GEN_WRAP
+            yield_value                     0
+            resume                          1
+            push_null
+            load_fast                       $__ddgensend
+            swap                            3
+            call                            1
+            jump_backward                   @loop
+        tried
+
+        genexit:
+        try                                 @stopiter
+            push_exc_info
+            load_const                      GeneratorExit
+            check_exc_match
+            pop_jump_if_false               @exc
+            pop_top
+            load_fast                       $__ddgen
+            load_attr                       (True, 'aclose')
+            call                            0
+            get_awaitable                   0
+            push_null
+            load_common_constant            asm.instr.CommonConstant.CONSTANT_NONE
+
+        presend1:
+            send                            @send1
+            yield_value                     1
+            resume                          3
+            jump_backward_no_interrupt      @presend1
+        send1:
+            end_send
+            pop_top
+            pop_except
+            load_const                      None
+            return_value
+
+        exc:
+            pop_top
+            load_fast                       $__ddgen
+            load_attr                       (False, 'athrow')
+            push_null
+            load_const                      sys.exc_info
+            push_null
+            call                            0
+            push_null
+            call_function_ex
+            get_awaitable                   0
+            push_null
+            load_common_constant            asm.instr.CommonConstant.CONSTANT_NONE
+
+        presend2:
+            send                            @send2
+            yield_value                     1
+            resume                          3
+            jump_backward_no_interrupt      @presend2
+        send2:
+            end_send
+            swap                            2
+            pop_except
+            jump_backward                   @yield
+        tried
+
+        stopiter:
+            push_exc_info
+            load_const                      StopAsyncIteration
+            check_exc_match
+            pop_jump_if_false               @propagate
+            pop_top
+            pop_except
+            load_const                      None
+            return_value
+
+        propagate:
+            reraise                         0
+        """
+    )
+
+elif is_at_least_py(3, 14):
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(
         r"""
@@ -163,7 +309,7 @@ elif PY >= (3, 14):
         """
     )
 
-elif PY >= (3, 13):
+elif is_at_least_py(3, 13):
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(
         r"""
@@ -287,7 +433,7 @@ elif PY >= (3, 13):
         """
     )
 
-elif PY >= (3, 12):
+elif is_at_least_py(3, 12):
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(
         r"""
@@ -411,7 +557,7 @@ elif PY >= (3, 12):
     )
 
 
-elif PY >= (3, 11):
+elif is_at_least_py(3, 11):
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(
         r"""
@@ -537,7 +683,7 @@ elif PY >= (3, 11):
     )
 
 
-elif PY >= (3, 10):
+elif is_at_least_py(3, 10):
     COROUTINE_ASSEMBLY.parse(
         r"""
             get_awaitable
@@ -622,7 +768,7 @@ elif PY >= (3, 10):
     )
 
 
-elif PY >= (3, 9):
+elif is_at_least_py(3, 9):
     COROUTINE_ASSEMBLY.parse(
         r"""
             get_awaitable
@@ -707,7 +853,7 @@ elif PY >= (3, 9):
     )
 
 else:
-    msg = "No async wrapping support for Python %d.%d" % PY[:2]
+    msg: str = "No async wrapping support for Python %d.%d" % PYTHON_VERSION_INFO[:2]
     raise RuntimeError(msg)
 
 

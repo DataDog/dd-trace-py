@@ -10,8 +10,8 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard._api_client import Message
-from ddtrace.appsec._constants import AI_GUARD
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.utils import TracerSpanContainer
 
 
@@ -24,7 +24,7 @@ def find_ai_guard_span(test_spans: TracerSpanContainer) -> Span:
     assert len(spans) == 1
     span = spans[0]
     assert span.name == AI_GUARD.RESOURCE_TYPE
-    return span
+    return span  # type: ignore[no-any-return]
 
 
 def assert_ai_guard_span(
@@ -50,6 +50,9 @@ def mock_evaluate_response(
     block: bool = True,
     sds_findings: Optional[list[Any]] = None,
     tag_probs: Optional[dict[str, float]] = None,
+    redaction_replacements: Optional[Any] = None,
+    extra_tags: Optional[Any] = None,
+    extra_metastruct: Optional[Any] = None,
 ) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
@@ -63,6 +66,12 @@ def mock_evaluate_response(
         attributes["sds_findings"] = sds_findings
     if tag_probs is not None:
         attributes["tag_probs"] = tag_probs
+    if redaction_replacements is not None:
+        attributes["redaction_replacements"] = redaction_replacements
+    if extra_tags is not None:
+        attributes["extra_tags"] = extra_tags
+    if extra_metastruct is not None:
+        attributes["extra_metastruct"] = extra_metastruct
     mock_response.get_json.return_value = {"data": {"attributes": attributes}}
     return mock_response
 
@@ -99,11 +108,11 @@ def override_ai_guard_config(values):
         "_dd_app_key",
     ]
 
-    ai_guard_config_keys = ai_guard_config._ai_guard_config_keys
+    ai_guard_config_keys = aiguard_config._ai_guard_config_keys
 
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
-    ai_guard_originals = dict((key, getattr(ai_guard_config, key)) for key in ai_guard_config_keys)
+    ai_guard_originals = dict((key, getattr(aiguard_config, key)) for key in ai_guard_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
@@ -112,7 +121,7 @@ def override_ai_guard_config(values):
     # rebuild ai guard config from env vars and global config
     for key, value in values.items():
         if key in ai_guard_config_keys:
-            setattr(ai_guard_config, key, value)
+            setattr(aiguard_config, key, value)
 
     try:
         yield
@@ -121,8 +130,8 @@ def override_ai_guard_config(values):
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
 
-        ai_guard_config.reset()
+        aiguard_config.reset()
         for key, value in ai_guard_originals.items():
-            setattr(ai_guard_config, key, value)
+            setattr(aiguard_config, key, value)
 
         ddtrace.config._reset()

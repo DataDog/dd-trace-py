@@ -58,7 +58,7 @@ def extract_flaky_tests(file_path):
                 flaky_match = None  # Reset for the next test function
                 test_name = None
 
-    except (UnicodeDecodeError, IOError):
+    except (OSError, UnicodeDecodeError):
         print(f"Skipping file due to encoding issue: {file_path}")
 
     return flaky_tests

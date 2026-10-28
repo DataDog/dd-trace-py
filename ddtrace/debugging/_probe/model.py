@@ -1,4 +1,5 @@
 import abc
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import fields
@@ -6,7 +7,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Union
 
@@ -35,12 +35,19 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     This recursively strips parent directories until it finds a file that
     exists according to sys.path.
     """
-    path = Path(_path)
+    # Probe paths can come from remote-config with Windows-style backslash
+    # separators (e.g. from a Windows client) even when running on a POSIX
+    # system, where pathlib does not treat "\\" as a separator.
+    path = Path(_path.replace("\\", "/"))
     if path.is_file():
         return path.resolve()
 
-    for relpath in (path.relative_to(_) for _ in reversed(path.parents)):
-        if (resolved_path := _resolve(relpath)) is not None:
+    # Stripping successive leading components is just successive suffixes of the
+    # parts, and avoids building a path object per ancestor. The anchor is never a
+    # candidate, which is why an absolute path starts one component in.
+    parts = path.parts
+    for start in range(1 if path.anchor else 0, len(parts)):
+        if (resolved_path := _resolve(Path(*parts[start:]))) is not None:
             return resolved_path
 
     return None
@@ -101,7 +108,8 @@ class Probe(abc.ABC):
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
+        """Whether this probe takes part in coordinated sampling."""
         return False
 
     def __hash__(self) -> int:
@@ -122,7 +130,7 @@ class RateLimitMixin(AbstractProbeMixIn):
         self.limiter = RateLimiter(
             limit_rate=self.rate,
             tau=1.0 / self.rate if self.rate else 1.0,
-            on_exceed=lambda: log.warning("Rate limit exceeded for %r", self),
+            on_exceed=lambda: log.debug("Rate limit exceeded for %r", self),
             call_once=True,
             raise_on_exceed=False,
         )
@@ -139,6 +147,8 @@ class ProbeConditionMixin(AbstractProbeMixIn):
     condition: Optional[DDExpression]
     condition_error_rate: float = field(compare=False)
     condition_error_limiter: RateLimiter = field(init=False, repr=False, compare=False)
+    # monotonic timestamp before which evaluation should be skipped at probe entry (RFC: probe-entry skip)
+    _error_throttled_until: float = field(default=0.0, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -235,7 +245,7 @@ class LiteralTemplateSegment(TemplateSegment):
 
 @dataclass
 class ExpressionTemplateSegment(TemplateSegment):
-    expr: DDExpression
+    expr: DDRedactedExpression
 
     def eval(self, scope: Mapping[str, Any]) -> Any:
         return self.expr.eval(scope)
@@ -283,13 +293,13 @@ class LogProbeMixin(AbstractProbeMixIn):
 
 @dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 

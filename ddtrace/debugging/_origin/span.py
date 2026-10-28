@@ -6,6 +6,7 @@ from types import FunctionType
 from types import MethodType
 import typing as t
 import uuid
+import weakref
 
 import ddtrace
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -13,6 +14,7 @@ from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._session import Session
+from ddtrace.debugging._signal.model import TraceContextProtocol
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
@@ -30,6 +32,10 @@ log = get_logger(__name__)
 @dataclass
 class EntrySpanProbe(LogFunctionProbe):
     __span_class__ = "entry"
+
+    def is_sampled(self) -> bool:
+        # Code origin snapshots are not coordinated with Live Debugger probes.
+        return False
 
     @classmethod
     def build(cls, name: str, module: str, function: str) -> "EntrySpanProbe":
@@ -139,7 +145,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
                 probe=self.location.probe,
                 frame=self.__frame__,
                 thread=current_thread(),
-                trace_context=root,
+                trace_context=t.cast(TraceContextProtocol, root),
             )
 
             # Capture on entry
@@ -174,7 +180,10 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: list[t.Union[FunctionType, MethodType]] = []
+    # Weak references so that functions defined dynamically (e.g. inner
+    # functions created afresh on every call) don't get leaked while this
+    # product is disabled and views are only pending instrumentation.
+    _pending: "weakref.WeakSet[FunctionType]" = weakref.WeakSet()
     _lock = RLock()
 
     @classmethod
@@ -189,7 +198,7 @@ class SpanCodeOriginProcessorEntry:
             if cls._instance is None:
                 # Entry span code origin is not enabled, so we defer the
                 # instrumentation
-                cls._pending.append(f)
+                cls._pending.add(f)
                 return
 
         _f = t.cast(FunctionType, f)
@@ -206,8 +215,9 @@ class SpanCodeOriginProcessorEntry:
             cls._instance = cls()
 
             # Instrument the pending views
-            while cls._pending:
-                cls.instrument_view(cls._pending.pop())
+            pending, cls._pending = list(cls._pending), weakref.WeakSet()
+            for f in pending:
+                cls.instrument_view(f)
 
         # Register code origin for span with the snapshot uploader
         cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)

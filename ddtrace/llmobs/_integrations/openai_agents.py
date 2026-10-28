@@ -38,7 +38,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         super().__init__(integration_config)
         # a map of openai span ids to the corresponding llm obs span
         self.oai_to_llmobs_span: weakref.WeakValueDictionary[str, Span] = weakref.WeakValueDictionary()
-        # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
+        # a map of OpenAI trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
 
@@ -60,13 +60,19 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         )
         if oai_trace:
             self.oai_to_llmobs_span[oai_trace.trace_id] = llmobs_span
-            self.llmobs_traces[format_trace_id(llmobs_span.trace_id)] = LLMObsTraceInfo(
+            self.llmobs_traces[oai_trace.trace_id] = LLMObsTraceInfo(
                 span_id=str(llmobs_span.span_id),
                 trace_id=format_trace_id(llmobs_span.trace_id),
             )
         elif oai_span:
             self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
             self._llmobs_update_trace_info_input(oai_span, llmobs_span)
+
+            # Stamp the agent kind at start (child spans resolve agent attribution against it).
+            # Guard on llmobs_enabled: super().trace() returns a plain APM span when LLMObs is
+            # off, and annotating a non-LLM span leaks meta_struct overhead into non-LLMObs traces.
+            if oai_span.llmobs_span_kind == "agent" and self.llmobs_enabled:
+                _annotate_llmobs_span_data(llmobs_span, kind="agent")
 
             if oai_span.span_type == "guardrail":
                 core.dispatch(DISPATCH_ON_GUARDRAIL_SPAN_START, (llmobs_span,))
@@ -269,25 +275,16 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         Returns:
             The trace info if found, None otherwise.
         """
-        key = None
-        if isinstance(oai_trace_or_span, OaiSpanAdapter):
-            key = oai_trace_or_span.span_id
-        elif isinstance(oai_trace_or_span, OaiTraceAdapter):
-            key = oai_trace_or_span.trace_id
-        else:
+        if not isinstance(oai_trace_or_span, (OaiSpanAdapter, OaiTraceAdapter)):
             return None
 
-        llmobs_span = self.oai_to_llmobs_span.get(key)
-        if not llmobs_span:
-            return None
-
-        return self.llmobs_traces.get(format_trace_id(llmobs_span.trace_id))
+        return self.llmobs_traces.get(oai_trace_or_span.trace_id)
 
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
 
-    # AIDEV-NOTE: MLOB-7584 — the agent's position varies by wheel (0.0.x-0.17.x): ``agent=`` kwarg
+    # MLOB-7584 — the agent's position varies by wheel (0.0.x-0.17.x): ``agent=`` kwarg
     # (0.8-0.13), ``bindings=`` kwarg (>=0.14), or positional arg[1] when streamed (arg[0] is the
     # RunResultStreaming — no Agent attrs, so it's skipped). One scanner covers every shape.
     def _extract_agent_from_call(self, args: list[Any], kwargs: dict[str, Any]) -> Optional[Any]:
@@ -299,7 +296,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                 candidates.append(value)
         candidates.extend(arg for arg in args if arg is not None)
         for candidate in candidates:
-            # AgentBindings shape (>= 0.14.0). AIDEV-NOTE: MLOB-7584 — the manifest is the user's DECLARED
+            # AgentBindings shape (>= 0.14.0). MLOB-7584 — the manifest is the user's DECLARED
             # config, so prefer ``public_agent`` over ``execution_agent`` (a possible sandbox-rewritten clone).
             bound_agent = getattr(candidate, "public_agent", None) or getattr(candidate, "execution_agent", None)
             if bound_agent is not None:

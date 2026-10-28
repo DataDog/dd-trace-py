@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from ast import literal_eval
 import asyncio
 from multiprocessing.pool import ThreadPool
@@ -8,8 +7,6 @@ from time import sleep
 
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -19,6 +16,7 @@ from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking import shift_taint_ranges
+from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking._context import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
@@ -30,6 +28,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
+from ddtrace.appsec._iast_context import _get_iast_context_id
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
@@ -314,6 +313,34 @@ def test_set_get_ranges_str():
     assert is_pyobject_tainted(s1)
     assert get_ranges(s1) == [_RANGE1, _RANGE2]
     assert not get_ranges(s2)
+
+
+@pytest.mark.parametrize("lookup", ["ranges", "tainted"])
+def test_reentrant_hash_removes_taint_during_lookup(lookup):
+    context_id = _get_iast_context_id()
+
+    class ReentrantHash(str):
+        mode = 0
+
+        def __hash__(self):
+            if self.mode == 1:
+                self.mode = 2
+                assert get_ranges(self, context_id) == []
+                self.mode = 0
+            return 12346 if self.mode == 2 else 12345
+
+    value = ReentrantHash("non-interned input")
+    source = Source(name="parameter", value="input", origin=OriginType.PARAMETER)
+    assert set_ranges(value, [TaintRange(0, len(value), source)], context_id)
+    assert len(get_ranges(value, context_id)) == 1
+
+    value.mode = 1
+    if lookup == "ranges":
+        assert get_ranges(value, context_id) == []
+    else:
+        assert not is_pyobject_tainted(value)
+    assert value.mode == 0
+    assert get_ranges(value, context_id) == []
 
 
 def test_set_get_ranges_other():

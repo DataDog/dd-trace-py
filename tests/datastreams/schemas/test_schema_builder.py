@@ -1,7 +1,7 @@
 import json
 
 from ddtrace.internal.datastreams.schemas.schema_builder import SchemaBuilder
-from ddtrace.internal.datastreams.schemas.schema_iterator import SchemaIterator
+from ddtrace.internal.datastreams.schemas.schema_builder import SchemaIterator
 
 
 class Iterator(SchemaIterator):

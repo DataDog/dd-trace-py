@@ -1,0 +1,12 @@
+_v: 1
+name: aiohttp
+display_name: aiohttp
+description: Instruments aiohttp client requests and connection establishment, plus incoming server requests handled through
+  the framework middleware.
+packages:
+- name: aiohttp
+category:
+- http.client
+- http.server
+systems: []
+creation_date: '2017-01-30'

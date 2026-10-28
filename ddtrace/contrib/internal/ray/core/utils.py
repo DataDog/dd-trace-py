@@ -14,7 +14,6 @@ from typing import Optional
 import ray
 from ray.runtime_context import get_runtime_context
 
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import _AI_OBS_ENABLED_KEY
@@ -22,6 +21,7 @@ from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.internal._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.internal.settings import env
 from ddtrace.propagation.http import _TraceContext
 
@@ -53,8 +53,10 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
 
-# Per-thread cache. Thread locals are naturally fork-safe: after os.fork() only the
-# calling thread survives, so every other thread's cached values vanish automatically.
+# Per-thread cache.
+# TODO(dubloom): Register _reset_thread_local_state with forksafe and validate cached runtime
+# invariants by job identity. The forking thread's local values survive in the child, and
+# a new Ray job can run on the same node while the cached job and worker IDs are stale.
 _local = threading.local()
 
 

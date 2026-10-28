@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where ``runtime.python.*`` metrics stopped carrying the
+    ``dd.internal.entity_id`` tag after the first flush, even when ``DD_ENTITY_ID`` was set.
+    This prevented the Datadog Agent from attaching ``pod_name`` and ``kube_namespace`` to
+    runtime metrics in Kubernetes.

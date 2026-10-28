@@ -2,30 +2,44 @@ import logging
 import os
 import sys
 import time
+from typing import Any
+from typing import Callable
+from typing import Generator
+from typing import Optional
+from typing import cast
 from unittest import mock
 
 import pytest
 
 import ddtrace
+from ddtrace.internal import service
+from ddtrace.internal import threads as internal_threads
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import Collector
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from tests.profiling._profiler_helpers import TestProfiler
+from tests.profiling._profiler_helpers import install_recording_watchdog
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 
 
 @pytest.fixture(autouse=True)
-def _reset_profiler_active_instance():
+def _reset_profiler_active_instance() -> Generator[None, None, None]:
     yield
     profiler.Profiler._active_instance = None
+    profiler.Profiler._exit_signal_handler = None
 
 
-def test_status():
+def test_status() -> None:
     p = profiler.Profiler()
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
     p.start()
@@ -34,7 +48,7 @@ def test_status():
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
 
 
-def test_restart():
+def test_restart() -> None:
     p = profiler.Profiler()
     p.start()
     p.stop(flush=False)
@@ -42,7 +56,7 @@ def test_restart():
     p.stop(flush=False)
 
 
-def test_multiple_stop():
+def test_multiple_stop() -> None:
     """Check that the profiler can be stopped twice."""
     p = profiler.Profiler()
     p.start()
@@ -50,7 +64,7 @@ def test_multiple_stop():
     p.stop(flush=False)
 
 
-def test_tracer_api(monkeypatch):
+def test_tracer_api(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler(tracer=ddtrace.tracer)
     assert prof.tracer == ddtrace.tracer
@@ -62,16 +76,20 @@ def test_tracer_api(monkeypatch):
         pytest.fail("Unable to find stack collector")
 
 
-@pytest.mark.subprocess()
-def test_default_memory():
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED=None))
+def test_default_memory() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
 
-    assert any(isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
+    mem_collectors: list[memalloc.MemoryCollector] = [
+        col for col in profiler.Profiler()._profiler._collectors if isinstance(col, memalloc.MemoryCollector)
+    ]
+    assert mem_collectors, "MemoryCollector should be enabled by default"
+    assert mem_collectors[0].mem_domain_enabled is True
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="true"))
-def test_enable_memory():
+def test_enable_memory() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
 
@@ -79,14 +97,14 @@ def test_enable_memory():
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="false"))
-def test_disable_memory():
+def test_disable_memory() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
 
     assert all(not isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
-def test_copy():
+def test_copy() -> None:
     p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
     c = p.copy()
     assert c == p
@@ -97,34 +115,74 @@ def test_copy():
     assert p.tags == c.tags
 
 
-def test_failed_start_collector(caplog, monkeypatch):
+def test_copy_keeps_collector_selection() -> None:
+    p = profiler._ProfilerInstance(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    c = p.copy()
+    for key in profiler._ProfilerInstance._COPY_PRIVATE_ATTRIBUTES:
+        assert getattr(c, key) is False, key
+    assert c._collectors == []
+
+
+def test_shallow_copy_of_profiler() -> None:
+    import copy
+
+    p = profiler.Profiler()
+    c = copy.copy(p)
+    assert c._profiler is p._profiler
+
+
+def test_profiler_does_not_mutate_custom_tags() -> None:
+    class TestProfiler(profiler._ProfilerInstance):
+        def _start_exporter(self) -> None:
+            self.tags["generated"] = "value"
+
+    tags = {"team": "profiling"}
+    p = TestProfiler(
+        tags=tags,
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    p._scheduler = mock.Mock()
+    p.start()
+    p.stop(flush=False)
+
+    assert tags == {"team": "profiling"}
+    assert p.tags == {"team": "profiling", "generated": "value"}
+
+
+def test_failed_start_collector(caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
     class ErrCollect(collector.Collector):
-        def _start_service(self):
+        def _start_service(self) -> None:
             raise RuntimeError("could not import required module")
 
-        def _stop_service(self):
+        def _stop_service(self) -> None:
             pass
 
         @staticmethod
-        def collect():
+        def collect() -> None:
             pass
 
         @staticmethod
-        def snapshot():
+        def snapshot() -> None:
             raise Exception("error!")
 
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
-
-    class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kargs):
-            return None
 
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect())
     p._collectors = [err_collector]
     p.start()
 
-    def profiling_tuples(tuples):
+    def profiling_tuples(tuples: list[tuple[str, int, str]]) -> list[tuple[str, int, str]]:
         return [t for t in tuples if t[0].startswith("ddtrace.profiling")]
 
     assert profiling_tuples(caplog.record_tuples) == [
@@ -138,8 +196,210 @@ def test_failed_start_collector(caplog, monkeypatch):
     ]
 
 
-def test_default_collectors():
+class _NoExporterProfiler(profiler._ProfilerInstance):
+    def _start_exporter(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+def _bare_profiler_instance(**kwargs: Any) -> _NoExporterProfiler:
+    options: dict[str, Any] = dict(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    options.update(kwargs)
+    return _NoExporterProfiler(**options)
+
+
+class _PartiallyStartingCollector(collector.Collector):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
+        self.resource_active: bool = False
+
+    def _start_service(self) -> None:
+        self.resource_active = True
+        raise RuntimeError("start failed")
+
+    def _stop_service(self) -> None:
+        self.resource_active = False
+
+
+def test_failed_start_collector_cleans_up_partial_resources() -> None:
+    p = _bare_profiler_instance()
+    failed_collector = _PartiallyStartingCollector()
+    p._collectors = [failed_collector]
+    p._scheduler = None
+
+    p.start()
+
+    assert failed_collector.resource_active is False
+    assert failed_collector.status == service.ServiceStatus.STOPPED
+    assert p._collectors == []
+    p.stop(flush=False)
+
+
+class _FailingFirstStopCollector(collector.Collector):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
+        self.stop_failed: bool = False
+        self.resource_active: bool = False
+
+    def _start_service(self) -> None:
+        self.resource_active = True
+
+    def _stop_service(self) -> None:
+        if not self.stop_failed:
+            self.stop_failed = True
+            raise RuntimeError("stop failed")
+        self.resource_active = False
+
+
+def test_restart_after_failed_collector_stop_keeps_collector() -> None:
+    p = _bare_profiler_instance()
+    col = _FailingFirstStopCollector()
+    p._collectors = [col]
+    p._scheduler = None
+
+    p.start()
+    p.stop(flush=False)
+
+    assert p.status == service.ServiceStatus.STOPPED
+    assert col.status == service.ServiceStatus.RUNNING
+
+    p.start()
+    try:
+        assert col.status == service.ServiceStatus.RUNNING
+        assert col.resource_active is True
+        assert p._collectors == [col]
+    finally:
+        p.stop(flush=False)
+
+    assert col.status == service.ServiceStatus.STOPPED
+    assert col.resource_active is False
+
+
+@pytest.mark.parametrize(
+    "module_name,collector_module,collector_name",
+    [
+        ("threading", profiler.threading, "ThreadingLockCollector"),
+        ("torch", profiler.pytorch, "TorchProfilerCollector"),
+    ],
+)
+def test_runtime_collector_start_failure_cleans_up_partial_resources(
+    monkeypatch: pytest.MonkeyPatch, module_name: str, collector_module: Any, collector_name: str
+) -> None:
+    instances: list[_PartiallyStartingCollector] = []
+
+    class RecordingCollector(_PartiallyStartingCollector):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__()
+            instances.append(self)
+
+    monkeypatch.setattr(collector_module, collector_name, RecordingCollector)
+    p = _bare_profiler_instance(_lock_collector_enabled=True, _pytorch_collector_enabled=True)
+    p.status = service.ServiceStatus.RUNNING
+    assert p._collectors_on_import is not None
+    hook = next(hook for module, hook in p._collectors_on_import if module == module_name)
+
+    hook(None)
+
+    assert instances[-1].resource_active is False
+    assert instances[-1].status == service.ServiceStatus.STOPPED
+    assert instances[-1] not in p._collectors
+
+
+def test_failed_lock_collector_start_preserves_patch_target() -> None:
+    original_lock = profiler.threading.ThreadingLockCollector.MODULE.Lock
+
+    class FailingLockCollector(profiler.threading.ThreadingLockCollector):
+        def patch(self) -> None:
+            raise RuntimeError("patch failed")
+
+    p = _bare_profiler_instance()
+    p._collectors = [FailingLockCollector()]
+    p._scheduler = None
+
+    try:
+        p.start()
+        installed_lock = profiler.threading.ThreadingLockCollector.MODULE.Lock
+    finally:
+        profiler.threading.ThreadingLockCollector.MODULE.Lock = original_lock
+
+    assert installed_lock is original_lock
+    p.stop(flush=False)
+
+
+@pytest.mark.parametrize("start_method", ["start", "_start_on_fork"])
+def test_failed_profiler_start_rolls_back_started_components(start_method: str) -> None:
+    internal = _bare_profiler_instance()
+    started_collector = mock.Mock(status=service.ServiceStatus.STOPPED)
+    started_collector.start.side_effect = lambda: setattr(started_collector, "status", service.ServiceStatus.RUNNING)
+    failed_scheduler = mock.Mock(status=service.ServiceStatus.STOPPED)
+    failed_scheduler.start.side_effect = RuntimeError("scheduler start failed")
+    internal._collectors = [started_collector]
+    internal._scheduler = failed_scheduler
+    wrapped = object.__new__(profiler.Profiler)
+    wrapped._profiler = internal
+
+    with (
+        mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated") as product_activated,
+        pytest.raises(RuntimeError, match="scheduler start failed"),
+    ):
+        getattr(wrapped, start_method)()
+
+    assert internal.status == service.ServiceStatus.STOPPED
+    started_collector._rollback_start.assert_called_once_with()
+    failed_scheduler._rollback_start.assert_called_once_with()
+    assert profiler.Profiler._active_instance is None
+    product_activated.assert_not_called()
+
+
+def test_stop_after_failed_deferred_scheduler_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    internal = _bare_profiler_instance()
+    internal._collectors = []
+    internal._scheduler = scheduler.Scheduler()
+    wrapped = object.__new__(profiler.Profiler)
+    wrapped._profiler = internal
+    deferred_starts: list[Callable[[], None]] = []
+    monkeypatch.setattr(internal_threads, "_forking", True)
+    monkeypatch.setattr(internal_threads, "_threads_to_start_after_fork", deferred_starts)
+
+    class FailedRestart:
+        name = "failed restart"
+        __autorestart__ = True
+
+        def start(self) -> None:
+            raise OSError("thread creation failed")
+
+    with (
+        mock.patch("ddtrace.profiling.profiler.atexit.register"),
+        mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
+        mock.patch("ddtrace.profiling.profiler.atexit.register_on_exit_signal"),
+        mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated"),
+    ):
+        wrapped.start()
+        assert deferred_starts
+
+        deferred_starts[:] = [FailedRestart().start]
+        # The child starts deferred threads from a timer, so run its callback synchronously.
+        monkeypatch.setattr(internal_threads, "_forking", False)
+        monkeypatch.setattr(internal_threads.ThreadRestartTimer, "_timestamp", 0)
+        internal_threads.ThreadRestartTimer(force_restart=False)._restart_threads()
+
+        wrapped.stop(flush=False)
+
+    assert deferred_starts == []
+    assert internal._scheduler._worker is None
+    assert internal._scheduler.status == service.ServiceStatus.STOPPED
+    assert internal.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+
+
+def test_default_collectors() -> None:
     p = profiler.Profiler()
+    p.start()
     assert any(isinstance(c, stack.StackCollector) for c in p._profiler._collectors)
     assert any(isinstance(c, threading.ThreadingLockCollector) for c in p._profiler._collectors)
     try:
@@ -154,24 +414,10 @@ def test_default_collectors():
     p.stop(flush=False)
 
 
-def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch):
-    registered_hooks = []
-    unregistered_hooks = []
-
-    class WatchdogMock(object):
-        @staticmethod
-        def register_module_hook(module, hook):
-            registered_hooks.append((module, hook))
-
-        @staticmethod
-        def unregister_module_hook(module, hook):
-            unregistered_hooks.append((module, hook))
-
-    class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kargs):
-            return None
-
-    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    registered_hooks: list[tuple[str, Callable[[Any], None]]]
+    unregistered_hooks: list[tuple[str, Callable[[Any], None]]]
+    registered_hooks, unregistered_hooks = install_recording_watchdog(monkeypatch)
 
     p = TestProfiler(
         _memory_collector_enabled=False,
@@ -188,24 +434,10 @@ def test_stop_unregisters_pytorch_hook_when_lock_collector_disabled(monkeypatch)
     assert unregistered_hooks == registered_hooks
 
 
-def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monkeypatch):
-    registered_hooks = []
-    unregistered_hooks = []
-
-    class WatchdogMock(object):
-        @staticmethod
-        def register_module_hook(module, hook):
-            registered_hooks.append((module, hook))
-
-        @staticmethod
-        def unregister_module_hook(module, hook):
-            unregistered_hooks.append((module, hook))
-
-    class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kargs):
-            return None
-
-    monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    registered_hooks: list[tuple[str, Callable[[Any], None]]]
+    unregistered_hooks: list[tuple[str, Callable[[Any], None]]]
+    registered_hooks, unregistered_hooks = install_recording_watchdog(monkeypatch)
 
     p = TestProfiler(
         _memory_collector_enabled=False,
@@ -225,16 +457,208 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
     assert unregistered_hooks == registered_hooks
 
 
-def test_profiler_serverless(monkeypatch):
+@pytest.mark.parametrize("pytorch_enabled", [False, True])
+def test_lock_collectors_keep_their_tracer(pytorch_enabled: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Use a mock ModuleWatchdog to simulate the delayed import of threading/asyncio.
+    # This is needed because in practice, when running the test suite, both threading and asyncio
+    # have already been imported by the time the profiler starts.
+    registered_hooks: list[tuple[str, Callable[[Any], None]]] = install_recording_watchdog(monkeypatch)[0]
+
+    p = profiler.Profiler(_pytorch_collector_enabled=pytorch_enabled)
+    # Hooks are armed on start, not at construction.
+    p.start()
+    try:
+        for module, hook in registered_hooks:
+            if module in ("threading", "asyncio"):
+                hook(None)
+
+        locks = [c for c in p._profiler._collectors if isinstance(c, _lock.LockCollector)]
+        assert locks, "expected lock collectors"
+        missing = sorted({type(c).__name__ for c in locks if c.tracer is None})
+        assert not missing, "lock collectors built without a tracer: %s" % missing
+    finally:
+        p.stop(flush=False)
+
+
+def test_start_does_not_half_start_when_a_collector_cannot_be_built() -> None:
+    with mock.patch.object(threading.ThreadingLockCollector, "__init__", side_effect=RuntimeError("boom")):
+        p1 = profiler.Profiler()
+        p1.start()
+        try:
+            assert profiler.Profiler._active_instance is p1, (
+                "a started profiler must be recorded even if a collector could not be built"
+            )
+        finally:
+            p1.stop(flush=False)
+
+    assert profiler.Profiler._active_instance is None
+
+
+def test_restart_rearms_collector_import_hooks() -> None:
+    p = profiler.Profiler()
+    inst = p._profiler
+    hooks = list(inst._collectors_on_import or [])
+    assert hooks, "expected lock collector import hooks to be configured"
+
+    def watched() -> set[str]:
+        hook_map = cast(ModuleWatchdog, ModuleWatchdog._instance)._hook_map
+        return {module for module, hook in hooks if any(h is hook for h in hook_map.get(module, []))}
+
+    p.start()
+    assert watched() == {"threading", "asyncio"}
+
+    p.stop(flush=False)
+    assert watched() == set(), "hooks must be disarmed while the profiler is stopped"
+
+    p.start()
+    assert watched() == {"threading", "asyncio"}, "restart must re-arm the import hooks"
+
+    p.stop(flush=False)
+    assert watched() == set()
+
+
+def test_unstarted_profiler_registers_no_import_hooks() -> None:
+    p = profiler.Profiler()
+    hooks = list(p._profiler._collectors_on_import or [])
+    assert hooks, "expected lock collector import hooks to be configured"
+
+    def registered() -> set[str]:
+        # Count this profiler's own hooks by identity. A total over _hook_map would also
+        # pick up the one-time process-wide hooks that the first lock collector and the
+        # stack collector register (gevent.monkey, faulthandler), which never come back
+        # off and would make this depend on what ran earlier in the process.
+        hook_map = cast(ModuleWatchdog, ModuleWatchdog._instance)._hook_map
+        return {module for module, hook in hooks if any(h is hook for h in hook_map.get(module, []))}
+
+    assert registered() == set(), "building a profiler must not register its import hooks"
+
+    p.start()
+    assert registered() == {module for module, _ in hooks}
+    p.stop(flush=False)
+    assert registered() == set()
+
+
+@pytest.mark.subprocess(err=None)
+def test_late_imported_module_gets_its_collector_after_restart() -> None:
+    import sys
+
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import asyncio as asyncio_collector
+
+    ASYNCIO_COLLECTORS = (
+        asyncio_collector.AsyncioLockCollector,
+        asyncio_collector.AsyncioSemaphoreCollector,
+        asyncio_collector.AsyncioBoundedSemaphoreCollector,
+        asyncio_collector.AsyncioConditionCollector,
+    )
+
+    def run(restart: bool) -> int:
+        # Drop asyncio so its hooks have something to fire on later, the way torch shows
+        # up only once the application imports it.
+        for name in [m for m in sys.modules if m == "asyncio" or m.startswith("asyncio.")]:
+            del sys.modules[name]
+
+        p = profiler.Profiler()
+        inst = p._profiler
+        assert not [c for c in inst._collectors if isinstance(c, ASYNCIO_COLLECTORS)]
+
+        p.start()
+        if restart:
+            p.stop(flush=False)
+            p.start()
+
+        import asyncio  # noqa: F401
+
+        found = len([c for c in inst._collectors if isinstance(c, ASYNCIO_COLLECTORS)])
+        p.stop(flush=False)
+        profiler.Profiler._active_instance = None
+        return found
+
+    assert run(restart=False) == 4
+    assert run(restart=True) == 4, "a restarted profiler must still pick up a late import"
+
+
+def test_stop_completes_when_a_collector_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    class BadCollector:
+        def start(self) -> None:
+            pass
+
+        def stop(self) -> None:
+            raise RuntimeError("collector teardown blew up")
+
+        def join(self, timeout: Optional[float] = None) -> None:
+            pass
+
+        def snapshot(self) -> None:
+            pass
+
+    p1 = profiler.Profiler()
+    p1.start()
+    inst = p1._profiler
+
+    real = list(inst._collectors)
+    assert real, "expected the profiler to have collectors"
+    # Last in the list, so reversed() reaches it before any of the real ones.
+    inst._collectors = real + [cast(Collector, BadCollector())]
+
+    with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+        p1.stop(flush=False)
+
+    assert inst.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+    for col in real:
+        status = getattr(col, "status", None)
+        if status is not None:
+            assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+
+    assert any("Error while stopping collector" in m for m in caplog.messages)
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)  # type: ignore[unreachable]
+
+
+def test_stop_skips_scheduler_join_when_scheduler_fails_to_stop(caplog: pytest.LogCaptureFixture) -> None:
+    p = profiler.Profiler()
+    p.start()
+    inst = p._profiler
+    sched = inst._scheduler
+    assert sched is not None
+
+    real = list(inst._collectors)
+    try:
+        with mock.patch.object(sched, "stop", side_effect=RuntimeError("scheduler stop blew up")):
+            with mock.patch.object(sched, "join") as join_mock:
+                with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+                    p.stop(flush=False)
+
+        join_mock.assert_not_called()
+        assert any("Error while stopping the profile scheduler" in m for m in caplog.messages)
+        assert inst.status == service.ServiceStatus.STOPPED
+        for col in real:
+            status = getattr(col, "status", None)
+            if status is not None:
+                assert status == service.ServiceStatus.STOPPED, "%r was left running" % col
+    finally:
+        sched.stop()
+        sched.join()
+
+
+def test_profiler_serverless(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
+
+    # Tags are applied on Profiler start, so start and stop it.
+    p.start()
+    p.stop(flush=False)
     assert p.tags["functionname"] == "foobar"
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
-def test_profiler_ddtrace_deprecation():
+def test_profiler_ddtrace_deprecation() -> None:
     """
     ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
     them when this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
@@ -256,7 +680,7 @@ def test_profiler_ddtrace_deprecation():
     env=dict(DD_PROFILING_ENABLED="true"),
     err="Failed to load ddup module (mock failure message), disabling profiling\n",
 )
-def test_libdd_failure_telemetry_logging():
+def test_libdd_failure_telemetry_logging() -> None:
     """Test that libdd initialization failures log to telemetry. This mimics
     one of the two scenarios where profiling can be configured.
     1) using ddtrace-run with DD_PROFILING_ENABLED=true
@@ -289,7 +713,7 @@ def test_libdd_failure_telemetry_logging():
     # upload code path on macOS
     err=None
 )
-def test_libdd_failure_telemetry_logging_with_auto():
+def test_libdd_failure_telemetry_logging_with_auto() -> None:
     from unittest import mock
 
     with (
@@ -315,7 +739,7 @@ def test_libdd_failure_telemetry_logging_with_auto():
     env=dict(DD_PROFILING_ENABLED="true"),
     err="Failed to load stack module (mock failure message), disabling stack profiling\n",
 )
-def test_stack_failure_telemetry_logging():
+def test_stack_failure_telemetry_logging() -> None:
     # Test that stack initialization failures log to telemetry. This is
     # mimicking the behavior of ddtrace-run, where the config is imported to
     # determine if profiling/stack is enabled
@@ -346,7 +770,7 @@ def test_stack_failure_telemetry_logging():
     # upload code path on macOS.
     err=None,
 )
-def test_stack_failure_telemetry_logging_with_auto():
+def test_stack_failure_telemetry_logging_with_auto() -> None:
     from unittest import mock
 
     with (
@@ -368,13 +792,52 @@ def test_stack_failure_telemetry_logging_with_auto():
         assert "mock failure message" in message
 
 
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err=None,
+)
+def test_unsupported_platform_disables_profiling_quietly():
+    from unittest import mock
+
+    with (
+        mock.patch("platform.system", return_value="Windows"),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
+        from ddtrace.internal.settings.profiling import config
+        from ddtrace.internal.settings.profiling import ddup_failure_msg
+        from ddtrace.internal.settings.profiling import ddup_is_available
+
+        assert config.enabled is False
+        assert config.stack.enabled is False
+        assert ddup_is_available is False
+        assert ddup_failure_msg is not None and "Windows" in ddup_failure_msg
+
+        for call in mock_add_log.call_args_list:
+            assert "Failed to load" not in call.args[1]
+
+
+@pytest.mark.subprocess(err=None)
+def test_profiling_auto_degrades_when_unavailable() -> None:
+    """import ddtrace.profiling.auto must not crash when native extensions are missing."""
+    import sys
+
+    import ddtrace.profiling as profiling_pkg
+
+    profiling_pkg.is_available = False
+    profiling_pkg.failure_msg = "native extensions missing"
+    sys.modules.pop("ddtrace.profiling.bootstrap.sitecustomize", None)
+    sys.modules.pop("ddtrace.profiling.auto", None)
+
+    import ddtrace.profiling.auto  # noqa: F401
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
 # For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
-def test_user_threads_have_native_id():
+def test_user_threads_have_native_id() -> None:
     from os import getpid
     from threading import Thread
-    from threading import _MainThread  # pyright: ignore[reportAttributeAccessIssue]
+    from threading import _MainThread  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
     from threading import current_thread
     from time import sleep
 
@@ -394,7 +857,7 @@ def test_user_threads_have_native_id():
     for _ in range(10):
         try:
             # The TID should be higher than the PID, but not too high
-            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # pyright: ignore[reportOptionalOperand]
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # type: ignore[operator]  # pyright: ignore[reportOptionalOperand]
         except AttributeError:
             # The native_id attribute is set by the thread so we might have to
             # wait a bit for it to be set.
@@ -415,12 +878,13 @@ def test_user_threads_have_native_id():
         DD_PROFILING_ENABLED="false",
     )
 )
-def test_gevent_not_patched_when_profiling_disabled():
+def test_gevent_not_patched_when_profiling_disabled() -> None:
     import gevent
+    import gevent.hub
 
     # Import these modules to ensure that they don't have a side effect enabling
     # gevent support when profiling is disabled.
-    from ddtrace.profiling import Profiler  # noqa: F401
+    from ddtrace.profiling import Profiler  # type: ignore[attr-defined]  # noqa: F401
     from ddtrace.profiling import _gevent  # noqa: F401
     from ddtrace.profiling.collector import _task  # noqa: F401
 
@@ -440,8 +904,9 @@ def test_gevent_not_patched_when_profiling_disabled():
     ddtrace_run=True,
     err=None,
 )
-def test_gevent_patched_when_ddtrace_run_is_used():
+def test_gevent_patched_when_ddtrace_run_is_used() -> None:
     import gevent
+    import gevent.hub
 
     # NOTE: In this test (and the test_gevent_patched* tests below), we do not
     # assert on `gevent.Greenlet.__module__`. That check is brittle across gevent
@@ -459,8 +924,9 @@ def test_gevent_patched_when_ddtrace_run_is_used():
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
 @pytest.mark.subprocess(err=None)
-def test_gevent_patched_when_profiling_auto():
+def test_gevent_patched_when_profiling_auto() -> None:
     import gevent
+    import gevent.hub
 
     assert gevent.spawn.__module__ != "ddtrace.profiling._gevent"
     assert gevent.spawn_later.__module__ != "ddtrace.profiling._gevent"
@@ -486,8 +952,9 @@ def test_gevent_patched_when_profiling_auto():
     ),
     err=None,
 )
-def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled():
+def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled() -> None:
     import gevent
+    import gevent.hub
 
     from ddtrace.profiling import profiler
 
@@ -552,19 +1019,230 @@ def test_same_profiler_restart_allowed() -> None:
     p.stop(flush=False)
 
 
+def test_stop_completes_teardown_when_final_upload_fails() -> None:
+    p1 = profiler.Profiler()
+    p1.start()
+
+    with mock.patch.object(ddup, "upload", side_effect=RuntimeError("upload failed")):
+        p1.stop(flush=True)
+
+    assert p1.status == service.ServiceStatus.STOPPED
+    assert profiler.Profiler._active_instance is None
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)  # type: ignore[unreachable]
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_no_samples_pushed_after_stop",
+        # Long enough that the scheduler never flushes on its own, so the only two uploads
+        # are the one Profiler.stop() makes and the one this test forces at the end.
+        DD_PROFILING_UPLOAD_INTERVAL="600",
+        # Capture every lock event, so the pre-stop sanity check below does not hinge on the
+        # default 1% sampling happening to pick up one of our acquires.
+        DD_PROFILING_CAPTURE_PCT="100",
+    ),
+    err=None,
+)
+def test_no_samples_pushed_after_stop() -> None:
+    """Stopping a Profiler must stop every collector from pushing samples to libdatadog."""
+    import os
+    import threading
+    import time
+    from typing import Any
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    # Duration of each of the two work phases of test_no_samples_pushed_after_stop. The stack
+    # sampler and the lock collector both need a little wall clock to produce samples, and the
+    # post-stop phase needs the same budget for the absence of samples to mean anything.
+    _STOP_TEST_WORK_DURATION = 2.0
+
+    def _burn_cpu_and_lock(lock: Any) -> None:
+        deadline = time.monotonic() + _STOP_TEST_WORK_DURATION
+        while time.monotonic() < deadline:
+            with lock:
+                sum(range(1000))
+
+    # The two phases of test_no_samples_pushed_after_stop call the same work through differently
+    # named wrappers, so a sample can be attributed to a phase by the frame it carries.
+    def while_profiler_is_running(lock: Any) -> None:
+        _burn_cpu_and_lock(lock)
+
+    def after_profiler_is_stopped(lock: Any) -> None:
+        _burn_cpu_and_lock(lock)
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = profiler.Profiler()
+    p.start()
+
+    # Allocated while profiling is on, so the lock collector wraps it, and reused in the
+    # post-stop phase: a wrapped lock that outlives the profiler must go quiet as well.
+    lock = threading.Lock()
+    while_profiler_is_running(lock)
+
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    for value_type in ("wall-time", "lock-acquire"):
+        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
+        assert pprof_utils.get_samples_with_function(profile, samples, "while_profiler_is_running"), (
+            f"No {value_type} sample reached libdatadog while the profiler was running, so this "
+            "test cannot tell a stopped profiler apart from one that never sampled"
+        )
+
+    after_profiler_is_stopped(lock)
+
+    # Flush whatever reached libdatadog since the profiler stopped. Nothing should have.
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+    leaked = pprof_utils.get_samples_with_function(profile, profile.sample, "after_profiler_is_stopped")
+    assert not leaked, (
+        f"{len(leaked)} sample(s) were pushed to libdatadog after the profiler was stopped: "
+        + ", ".join(
+            sorted(
+                {
+                    pprof_utils.get_location_from_id(profile, location_id).function_name
+                    for sample in leaked
+                    for location_id in sample.location_id
+                }
+            )
+        )
+    )
+
+
+def test_construction_does_not_configure_global_exporter() -> None:
+    with (
+        # Wrap the real functions: with plain mocks the profiler starts with the native profile
+        # state uninitialized, and the stack sampler can crash writing samples.
+        mock.patch.object(ddup, "config", wraps=ddup.config) as mock_config,
+        mock.patch.object(ddup, "start", wraps=ddup.start) as mock_start,
+    ):
+        p = profiler.Profiler(service="built-but-not-started")
+        mock_config.assert_not_called()
+        mock_start.assert_not_called()
+
+        p.start()
+        try:
+            mock_config.assert_called_once()
+            assert mock_config.call_args.kwargs["service"] == "built-but-not-started"
+            mock_start.assert_called_once()
+        finally:
+            p.stop(flush=False)
+
+
+def test_refused_profiler_does_not_reconfigure_running_instance() -> None:
+    p1 = profiler.Profiler(service="running-profiler")
+    p1.start()
+    try:
+        with mock.patch.object(ddup, "config") as mock_config:
+            p2 = profiler.Profiler(service="refused-profiler")
+            p2.start()
+
+            assert profiler.Profiler._active_instance is p1
+            mock_config.assert_not_called()
+    finally:
+        p1.stop(flush=False)
+
+
+def test_construction_does_not_enable_endpoint_collection() -> None:
+    endpoint_processor = ddtrace.tracer._endpoint_call_counter_span_processor
+
+    with mock.patch.object(endpoint_processor, "enable") as mock_enable:
+        p = profiler.Profiler(endpoint_collection_enabled=True)
+        mock_enable.assert_not_called()
+
+        p.start()
+        try:
+            mock_enable.assert_called_once()
+        finally:
+            p.stop(flush=False)
+
+
 @pytest.mark.subprocess(err=None)
-def test_start_registers_sigterm_handler() -> None:
-    """Profiler.start must register _stop_on_signal as a SIGTERM/SIGINT handler via register_on_exit_signal."""
+def test_start_registers_sigterm_handler_once_per_process() -> None:
     from unittest import mock
 
     from ddtrace.internal import atexit
     from ddtrace.profiling import profiler
 
-    with mock.patch.object(atexit, "register_on_exit_signal") as mock_reg:
+    with mock.patch.object(atexit, "register_on_exit_signal", wraps=atexit.register_on_exit_signal) as mock_reg:
+        p1 = profiler.Profiler()
+        p1.start()
+        mock_reg.assert_called_once_with(profiler.Profiler._stop_active_instance_on_signal)
+        assert profiler.Profiler._exit_signal_handler is not None
+        p1.stop(flush=False)
+
+        p1.start()
+        p1.stop(flush=False)
+        p2 = profiler.Profiler()
+        p2.start()
+        p2.stop(flush=False)
+
+        assert mock_reg.call_count == 1, "the exit signal handler must be registered once per process"
+
+
+@pytest.mark.subprocess(err=None)
+def test_exit_signal_handler_does_not_retain_stopped_profilers() -> None:
+    """Restarting profiling must not pin every profiler that has already run.
+
+    Regression test: start registered a handler bound to that profiler, and the chain
+    those handlers form is never unwound, so each stopped profiler stayed reachable
+    together with all of its collectors.
+    """
+    import gc
+    import weakref
+
+    from ddtrace.profiling import profiler
+
+    refs = []
+    for _ in range(3):
         p = profiler.Profiler()
         p.start()
-        mock_reg.assert_called_once_with(p._stop_on_signal)
         p.stop(flush=False)
+        refs.append(weakref.ref(p._profiler))
+        del p
+
+    for _ in range(3):
+        gc.collect()
+
+    alive = [r for r in refs if r() is not None]
+    assert not alive, "%d of %d stopped profilers were retained" % (len(alive), len(refs))
+
+
+@pytest.mark.subprocess(err=None)
+def test_exit_signal_handler_targets_the_active_profiler() -> None:
+    """The exit signal handler must act on the running profiler, not on a stopped one."""
+    from ddtrace.profiling import profiler
+
+    stopped = profiler.Profiler()
+    stopped.start()
+    stopped.stop(flush=False)
+
+    running = profiler.Profiler()
+    running.start()
+
+    called = []
+    stopped._stop_on_signal = lambda: called.append("stopped")  # type: ignore[method-assign]
+    running._stop_on_signal = lambda: called.append("running")  # type: ignore[method-assign]
+
+    profiler.Profiler._stop_active_instance_on_signal()
+    assert called == ["running"]
+
+    running.stop(flush=False)
+
+    # With nothing active the handler is a no-op rather than a flush of a dead profiler.
+    called.clear()
+    profiler.Profiler._stop_active_instance_on_signal()
+    assert called == []
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
@@ -595,12 +1273,179 @@ def test_profiler_flushes_on_sigterm() -> None:
         # (unreachable: _raise_default re-raises SIGTERM with SIG_DFL, killing the process)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_again_after_app_replaces_sigterm_handler() -> None:
+    """A restart must register the exit signal handler again if the application replaced it."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGTERM, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGTERM)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(status=-2, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_flushes_on_sigint() -> None:
+    """Profiler must flush the last profile exactly once on SIGINT when SIGINT is not default_int_handler."""
+    import os
+    import signal
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: _raise_default re-raises SIGINT with SIG_DFL, killing the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_profiler_flushes_on_sigint_before_app_handler() -> None:
+    """The profiler SIGINT handler must chain onto an application handler installed before start."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, application_handler)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_again_after_app_replaces_sigint_handler() -> None:
+    """A restart must register the exit signal handler again if the application replaced only SIGINT."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGINT, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(out="flushed\napp handler\n", err=None)
+def test_restart_registers_sigint_after_app_replaces_default_int_handler() -> None:
+    """A restart must install the SIGINT handler if the application replaced default_int_handler."""
+    import os
+    import signal
+    import types
+    from typing import Optional
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    def application_handler(sig: int, frame: Optional[types.FrameType]) -> None:
+        print("app handler", flush=True)
+        os._exit(0)
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+        p.stop(flush=False)
+
+        signal.signal(signal.SIGINT, application_handler)
+
+        p.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # (unreachable: application_handler exits the process)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT delivery via os.kill not supported on Windows")
+@pytest.mark.subprocess(status=-2, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_keeps_default_int_handler_and_flushes_on_keyboard_interrupt() -> None:
+    """With default_int_handler in place, start must leave SIGINT alone and atexit must flush on KeyboardInterrupt."""
+    import os
+    import signal
+    import time
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+    # Not a context manager: the patch must still be active when atexit runs.
+    mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)).start()
+
+    p = profiler.Profiler()
+    p.start()
+    assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+
+    os.kill(os.getpid(), signal.SIGINT)
+    # KeyboardInterrupt is raised here; Python runs atexit, then exits via SIGINT.
+    time.sleep(10)
+
+
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
     ddtrace_run=True,
     err=None,
 )
-def test_auto_profiler_blocks_manual_start():
+def test_auto_profiler_blocks_manual_start() -> None:
     """When DD_PROFILING_ENABLED=1 auto-starts a profiler, manually starting another one should log an error."""
     import logging
     import logging.handlers
@@ -628,7 +1473,7 @@ def test_auto_profiler_blocks_manual_start():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
 @pytest.mark.subprocess(err=None)
-def test_profiler_singleton_after_fork():
+def test_profiler_singleton_after_fork() -> None:
     """After fork, the child process should be able to start a new profiler."""
     import os
 
@@ -664,7 +1509,7 @@ def test_profiler_singleton_after_fork():
     env=dict(DD_PROFILING_ENABLED="true"),
     err=lambda stderr: "AssertionError" not in stderr,
 )
-def test_profiler_atexit_no_assertion_error_with_gevent():
+def test_profiler_atexit_no_assertion_error_with_gevent() -> None:
     """Regression test: atexit callbacks must not raise AssertionError when
     gevent >= 26.4.0 is monkey-patched and the gevent hub is torn down before
     atexit runs (gevent/thread.py _set_greenlet assert glet is not None).
@@ -682,3 +1527,68 @@ def test_profiler_atexit_no_assertion_error_with_gevent():
 
     # We don't need to assert anything here, we only want to make sure the subprocess
     # runs (and exits) without raising an exception/crashing.
+
+
+def test_unavailable_profiler_matches_real_interface() -> None:
+    import inspect
+
+    from ddtrace.profiling import _UnavailableProfiler
+    from ddtrace.profiling.profiler import Profiler as RealProfiler
+
+    # __init__ and __getattr__ are part of the callable contract callers rely
+    # on (construction and attribute delegation), so include them alongside
+    # public methods when comparing interfaces.
+    interesting_dunders: set[str] = {"__init__", "__getattr__"}
+
+    def _relevant_methods(cls: type) -> set[str]:
+        return {
+            name
+            for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction)
+            if not name.startswith("_") or name in interesting_dunders
+        }
+
+    real_methods: set[str] = _relevant_methods(RealProfiler)
+    stub_methods: set[str] = _relevant_methods(_UnavailableProfiler)
+    assert real_methods == stub_methods, (
+        f"Interface drift between Profiler and _UnavailableProfiler: "
+        f"missing on stub={real_methods - stub_methods}, extra on stub={stub_methods - real_methods}"
+    )
+
+    for name in real_methods:
+        real_sig: inspect.Signature = inspect.signature(getattr(RealProfiler, name))
+        stub_sig: inspect.Signature = inspect.signature(getattr(_UnavailableProfiler, name))
+        assert real_sig == stub_sig, f"Signature mismatch on {name}: real={real_sig}, stub={stub_sig}"
+
+
+def test_unavailable_profiler_preserves_public_name() -> None:
+    from ddtrace.profiling import _UnavailableProfiler
+    from ddtrace.profiling.profiler import Profiler as RealProfiler
+
+    Profiler: type[_UnavailableProfiler] = type("Profiler", (_UnavailableProfiler,), {})
+
+    assert Profiler.__name__ == RealProfiler.__name__
+    assert Profiler.__qualname__ == RealProfiler.__qualname__
+
+
+def test_unavailable_profiler_raises_import_error() -> None:
+    from ddtrace.profiling import _UnavailableProfiler
+
+    _UnavailableProfiler._import_error = RuntimeError("native ext missing")
+    try:
+        with pytest.raises(ImportError) as excinfo:
+            _UnavailableProfiler()
+        assert isinstance(excinfo.value.__cause__, RuntimeError)
+
+        # __init__ raises, so drive start/stop/__getattr__ against the class
+        # using a bare instance created without calling __init__.
+        bare: _UnavailableProfiler = _UnavailableProfiler.__new__(_UnavailableProfiler)
+        with pytest.raises(ImportError):
+            bare.start()
+        with pytest.raises(ImportError):
+            bare.stop()
+        with pytest.raises(ImportError):
+            bare.stop(flush=False)
+        with pytest.raises(ImportError):
+            _ = bare.status  # delegated attribute on the real Profiler
+    finally:
+        _UnavailableProfiler._import_error = None

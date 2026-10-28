@@ -5,12 +5,12 @@ from typing import Optional
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -30,6 +30,20 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             span.set_tag("google_adk.request.model", model)
         if provider:
             span.set_tag("google_adk.request.provider", provider)
+
+    def set_session_id(self, span: Span, session_id: Optional[str]) -> None:
+        """Set the ADK session id as the LLMObs session for this span.
+
+        Called at agent-span creation so the session id propagates to child tool and
+        code-execute spans, which are created before the agent span finishes.
+        """
+        if not self.llmobs_enabled or not session_id:
+            return
+        _annotate_llmobs_span_data(span, session_id=session_id)
+
+    def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+        agent = kwargs.get("_dd_agent")
+        return getattr(agent, "name", None) if agent else None
 
     def _llmobs_set_tags(
         self,
@@ -71,11 +85,21 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
         result = extract_messages_from_adk_events(response)
 
+        # Surface the ADK session metadata (user id, app name) as searchable span tags.
+        session_tags = {}
+        user_id = kwargs.get("user_id")
+        if user_id:
+            session_tags["user_id"] = user_id
+        app_name = kwargs.get("app_name")
+        if app_name:
+            session_tags["app_name"] = app_name
+
         _annotate_llmobs_span_data(
             span,
             name=agent_name or "Google ADK Agent",
             input_value=message,
             output_value=result,
+            tags=session_tags or None,
         )
 
     def _llmobs_set_tags_tool(
@@ -123,6 +147,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         manifest["session_management"] = {
             "session_id": kwargs.get("session_id", ""),
             "user_id": kwargs.get("user_id", ""),
+            "app_name": kwargs.get("app_name", ""),
         }
         manifest["tools"] = self._get_agent_tools(getattr(agent, "tools", []))
 

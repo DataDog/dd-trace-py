@@ -1,11 +1,11 @@
 from collections import defaultdict
 from collections import deque
+from collections.abc import Iterator
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Iterator
 from typing import Optional
 from typing import Protocol
 from typing import Union
@@ -13,11 +13,11 @@ from typing import cast
 
 from wrapt import FunctionWrapper
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils.inspection import collect_code_objects
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
@@ -247,33 +247,37 @@ class FunctionDiscovery(defaultdict[Any, Any]):
     def __init__(self, module: ModuleType) -> None:
         super().__init__(list)
 
+        self._module = module
+        # The code objects collected when the module was last compiled, if any,
+        # that this discovery is based on.
+        self._code_objects: Optional[list[CodeType]] = None
+
         module_path = origin(module)
         if module_path is None:
             # We are not going to collect anything because no code objects will
             # match the origin.
             return
 
-        self._module = module
-        if PYTHON_VERSION_INFO < (3, 11):
+        if not is_at_least_py(3, 11):
             self._name_index: dict[str, list[_FunctionCodePair]] = defaultdict(list)
         self._cached: dict[int, list[FullyNamedFunction]] = {}
 
         # Create the line to function mapping
-        if hasattr(module, "__dd_code__"):
+        self._code_objects = code_objects = ModuleCodeCollector.get_code_objects(module)
+        if code_objects is not None:
             self._fullname_index = {}
-            for code in module.__dd_code__:
+            for code in code_objects:
                 fcp = _FunctionCodePair(code=code)
 
-                if PYTHON_VERSION_INFO >= (3, 11):
+                if is_at_least_py(3, 11):
                     # From this version of Python we can derive the qualified
                     # name of the function directly from the code object.
-                    fullname = f"{module.__name__}.{code.co_qualname}"
+                    fullname = f"{module.__name__}.{code.co_qualname}"  # type: ignore[attr-defined]
                     self._fullname_index[fullname] = fcp
                 else:
                     self._name_index[code.co_name].append(fcp)
 
-                for lineno in linenos(code):
-                    self[lineno].append(fcp)
+                self._index_code(fcp)
         else:
             self._fullname_index = _collect_functions(module)
             # If the module was already loaded we don't have its code object
@@ -290,9 +294,25 @@ class FunctionDiscovery(defaultdict[Any, Any]):
                 ):
                     # We only map line numbers for functions that actually belong to
                     # the module.
-                    for lineno in linenos(cast(FunctionType, code)):
-                        self[lineno].append(_FunctionCodePair(function=cast(FunctionType, function)))
+                    self._index_code(_FunctionCodePair(function=cast(FunctionType, function)), cast(CodeType, code))
                 seen_functions.add(function)
+
+    def _index_code(self, pair: _FunctionCodePair, code: Optional[CodeType] = None) -> None:
+        code = pair.code if code is None else code
+        assert code is not None  # nosec
+        executable_lines = linenos(code)
+        for lineno in executable_lines:
+            self[lineno].append(pair)
+
+        # The lines from the first decorator (or the def line itself, if there
+        # are no decorators) up to the first executable line have no bytecode
+        # instructions of their own, so they are not included in linenos().
+        # Index them too, so probes placed anywhere on the declaration can still
+        # find the function. A one-line function has no executable lines past
+        # its declaration, so its declaration line is all there is to index.
+        first_executable_line = min(executable_lines, default=code.co_firstlineno + 1)
+        for lineno in range(code.co_firstlineno, first_executable_line):
+            self[lineno].append(pair)
 
     def at_line(self, line: int) -> list[FullyNamedFunction]:
         """Get the functions at the given line.
@@ -362,7 +382,7 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         except ValueError:
             pass
         except KeyError:
-            if PYTHON_VERSION_INFO < (3, 11):
+            if not is_at_least_py(3, 11):
                 # Check if any code objects whose names match the last part of
                 # the qualified name have a function with the same qualified
                 # name.
@@ -400,12 +420,29 @@ class FunctionDiscovery(defaultdict[Any, Any]):
             return cast("FunctionDiscovery", module.__function_discovery__)
         except AttributeError:
             fd = module.__function_discovery__ = cls(module)  # type: ignore[attr-defined]
-            if hasattr(module, "__dd_code__"):
-                # We no longer need to keep this collection around
-                del module.__dd_code__
+            # We no longer need to keep this collection around
+            ModuleCodeCollector.release(module, "di")
             return fd
 
+    def is_outdated(self) -> bool:
+        """Whether the module has been compiled again since the discovery was built.
+
+        Every compilation of the module collects a new list of code objects,
+        whereas the list this discovery was built from, if any, is either still
+        the current one or has been released after use.
+        """
+        code_objects = ModuleCodeCollector.get_code_objects(self._module)
+        return code_objects is not None and code_objects is not self._code_objects
+
     @classmethod
-    def transformer(cls, code: CodeType, module: ModuleType) -> CodeType:
-        module.__dd_code__ = collect_code_objects(code)  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-        return code
+    def cached(cls, module: ModuleType) -> Optional["FunctionDiscovery"]:
+        """Return the discovery cached on the module, without building one."""
+        return getattr(module, "__function_discovery__", None)
+
+    @classmethod
+    def invalidate(cls, module: ModuleType) -> None:
+        """Drop the discovery cached on the module, e.g. because it was recompiled."""
+        try:
+            del module.__function_discovery__
+        except AttributeError:
+            pass

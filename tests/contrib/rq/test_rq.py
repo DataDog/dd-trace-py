@@ -6,10 +6,8 @@ import pytest
 import redis
 import rq
 
-from ddtrace.contrib.internal.rq.patch import get_version
 from ddtrace.contrib.internal.rq.patch import patch
 from ddtrace.contrib.internal.rq.patch import unpatch
-from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
@@ -55,14 +53,6 @@ def sync_queue(connection):
 @snapshot(ignores=snapshot_ignores)
 def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
-
-
-def test_and_implement_get_version():
-    version = get_version()
-    assert type(version) == str
-    assert version != ""
-
-    emit_integration_and_version_to_test_agent("rq", version)
 
 
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
@@ -126,7 +116,7 @@ def test_worker_failing_job(queue):
     worker.work(burst=True)
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, wait_for_num_traces=4)
 def test_worker_class_job(queue):
     queue.enqueue(JobClass().job_on_class, 2)
     queue.enqueue(JobClass(), 4)
@@ -166,6 +156,13 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
             assert job.result == 2
         finally:
             p.terminate()
+            try:
+                p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # A worker that outlives this test keeps consuming queue "q" and steals jobs from every later
+                # test, so their SimpleWorkers find nothing to run (job.result is None, no perform_job span).
+                p.kill()
+                p.wait()
             # Wait for trace to be sent
             time.sleep(0.5)
 

@@ -1,67 +1,20 @@
 # this module must not load any other unsafe appsec module directly
 
-from _io import BytesIO
-from _io import StringIO
 import os
-from re import Match
-import sys
-from typing import Any
-from typing import Generator
-from typing import Iterator
 from typing import Literal  # noqa:F401
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
-
-
-TEXT_TYPES = (str, bytes, bytearray)
-
-TAINTEABLE_TYPES = TEXT_TYPES + (Match, BytesIO, StringIO)
-
-# Python 3.14+ template strings support
-if sys.version_info >= (3, 14):
-    from string.templatelib import Template as TemplateType
-
-    TAINTEABLE_TYPES += (TemplateType,)
-
-
-class Constant_Class(type):
-    """
-    metaclass for Constant Classes
-    - You can access constants with APPSEC.ENV or APPSEC["ENV"]
-    - Direct assignment will fail: APPSEC.ENV = "something" raise TypeError, like other immutable types
-    - Constant Classes can be iterated:
-        for constant_name, constant_value in APPSEC: ...
-    """
-
-    def __setattr__(self, __name: str, __value: Any) -> None:
-        raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
-
-    def __iter__(self) -> Iterator[tuple[str, Any]]:
-        def aux() -> Generator[tuple[str, Any], Any, None]:
-            for t in self.__dict__.items():
-                if not t[0].startswith("_"):
-                    yield t
-
-        return aux()
-
-    def get(self, k: str, default: Any = None) -> Any:
-        return self.__dict__.get(k, default)
-
-    def __contains__(self, k: str) -> bool:
-        return k in self.__dict__
-
-    def __getitem__(self, k: str) -> Any:
-        return self.__dict__[k]
+from ddtrace.internal.constants import Constant_Class  # noqa:F401
 
 
 class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
-    APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
+    AGENTIC_ONBOARDING: Literal["DD_APPSEC_AGENTIC_ONBOARDING"] = "DD_APPSEC_AGENTIC_ONBOARDING"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
@@ -123,7 +76,6 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_LOGIN_FIELD: Literal["DD_USER_MODEL_LOGIN_FIELD"] = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD: Literal["DD_USER_MODEL_EMAIL_FIELD"] = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD: Literal["DD_USER_MODEL_NAME_FIELD"] = "DD_USER_MODEL_NAME_FIELD"
-    PROPAGATION_HEADER: Literal["_dd.p.ts"] = "_dd.p.ts"
     OBFUSCATION_PARAMETER_KEY_REGEXP: Literal["DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"] = (
         "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
     )
@@ -138,73 +90,6 @@ class APPSEC(metaclass=Constant_Class):
     UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
     SERVERLESS_TRACER_ENABLED: Literal["_dd.appsec.serverless.tracer"] = "_dd.appsec.serverless.tracer"
     SECURITY_RESPONSE_ID: Literal["[security_response_id]"] = "[security_response_id]"
-
-
-TELEMETRY_OFF_NAME = "OFF"
-TELEMETRY_DEBUG_NAME = "DEBUG"
-TELEMETRY_MANDATORY_NAME = "MANDATORY"
-TELEMETRY_INFORMATION_NAME = "INFORMATION"
-IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT = 250
-
-TELEMETRY_DEBUG_VERBOSITY = 10
-TELEMETRY_INFORMATION_VERBOSITY = 20
-TELEMETRY_MANDATORY_VERBOSITY = 30
-TELEMETRY_OFF_VERBOSITY = 40
-
-
-class IAST(metaclass=Constant_Class):
-    """Specific constants for IAST"""
-
-    ENV: Literal["DD_IAST_ENABLED"] = "DD_IAST_ENABLED"
-    ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
-    ENV_PROPAGATION_ENABLED: Literal["DD_IAST_PROPAGATION_ENABLED"] = "DD_IAST_PROPAGATION_ENABLED"
-    ENV_SINK_POINTS_ENABLED: Literal["DD_IAST_SINK_POINTS_ENABLED"] = "DD_IAST_SINK_POINTS_ENABLED"
-    ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
-    ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
-    DD_IAST_VULNERABILITIES_PER_REQUEST: Literal["DD_IAST_VULNERABILITIES_PER_REQUEST"] = (
-        "DD_IAST_VULNERABILITIES_PER_REQUEST"
-    )
-    DD_IAST_MAX_CONCURRENT_REQUESTS: Literal["DD_IAST_MAX_CONCURRENT_REQUESTS"] = "DD_IAST_MAX_CONCURRENT_REQUESTS"
-    ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
-    ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH: Literal["DD_IAST_TRUNCATION_MAX_VALUE_LENGTH"] = (
-        "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH"
-    )
-    LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
-    JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
-    STRUCT: Literal["iast"] = "iast"
-    ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
-    PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
-    ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
-    DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
-    SEP_MODULES: Literal[","] = ","
-    PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
-    REDACTION_ENABLED: Literal["DD_IAST_REDACTION_ENABLED"] = "DD_IAST_REDACTION_ENABLED"
-    REDACTION_NAME_PATTERN: Literal["DD_IAST_REDACTION_NAME_PATTERN"] = "DD_IAST_REDACTION_NAME_PATTERN"
-    REDACTION_VALUE_PATTERN: Literal["DD_IAST_REDACTION_VALUE_PATTERN"] = "DD_IAST_REDACTION_VALUE_PATTERN"
-    REDACTION_VALUE_NUMERAL: Literal["DD_IAST_REDACTION_VALUE_NUMERAL"] = "DD_IAST_REDACTION_VALUE_NUMERAL"
-    STACK_TRACE_ENABLED: Literal["DD_IAST_STACK_TRACE_ENABLED"] = "DD_IAST_STACK_TRACE_ENABLED"
-
-    METRICS_REPORT_LVLS = (
-        (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
-        (TELEMETRY_INFORMATION_VERBOSITY, TELEMETRY_INFORMATION_NAME),
-        (TELEMETRY_MANDATORY_VERBOSITY, TELEMETRY_MANDATORY_NAME),
-        (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
-    )
-
-    TEXT_TYPES = TEXT_TYPES
-    TAINTEABLE_TYPES = TAINTEABLE_TYPES
-    REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
-
-
-class IAST_SPAN_TAGS(metaclass=Constant_Class):
-    """Specific constants for IAST span tags"""
-
-    TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
-    TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
-    TELEMETRY_SUPPRESSED_VULNERABILITY: Literal["_dd.iast.telemetry.suppressed.vulnerabilities"] = (
-        "_dd.iast.telemetry.suppressed.vulnerabilities"
-    )
-    TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
 class WAF_DATA_NAMES(metaclass=Constant_Class):
@@ -448,57 +333,8 @@ class STACK_TRACE(metaclass=Constant_Class):
     TAG: Literal["_dd.stack"] = "_dd.stack"
 
 
-class AI_GUARD(metaclass=Constant_Class):
-    # environment variables
-    BLOCK_ENV: Literal["DD_AI_GUARD_BLOCK"] = "DD_AI_GUARD_BLOCK"
-
-    # span related information
-    RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
-
-    TAG: Literal["ai_guard"] = "ai_guard"
-    ACTION_TAG: str = TAG + ".action"
-    REASON_TAG: str = TAG + ".reason"
-    TARGET_TAG: str = TAG + ".target"
-    BLOCKED_TAG: str = TAG + ".blocked"
-    TOOL_NAME_TAG: str = TAG + ".tool_name"
-    EVENT_TAG: str = TAG + ".event"
-
-    # core-context key used to stash the candidate client IP during an HTTP request, so it can be
-    # applied to the service-entry span only if an ai_guard span is actually created.
-    CLIENT_IP_CORE_KEY: Literal["ai_guard.http.client_ip"] = "ai_guard.http.client_ip"
-
-    # Tags copied from the local root (service-entry) span to every AI Guard span with the
-    # `ai_guard.` prefix, so anomaly detection at intake can correlate without waiting for
-    # the service-entry span to arrive in the same trace chunk.
-    # Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6596165672
-    ANOMALY_DETECTION_TAGS: tuple = (
-        "http.useragent",
-        "http.client_ip",
-        "network.client.ip",
-        "usr.id",
-        "usr.session_id",
-    )
-
-    # meta struct
-    STRUCT: Literal["ai_guard"] = "ai_guard"
-
-    # metrics
-    METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
-    REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
-    TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
-
-    # environment variables
-    ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
-    ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
-    ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
-    ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
-    ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
-    ENV_ANALYZE_STREAM_RESPONSES_ENABLED: Literal["DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"] = (
-        "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"
-    )
-    # Per-LLM kill switches: DD_AI_GUARD_<LLM>_ENABLED, true by default, set to
-    # false to disable AI Guard auto-instrumentation for that specific provider.
-    ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
+# AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the
+# top-level aiguard package. Import from there: `from ddtrace.aiguard._constants import AI_GUARD`.
 
 
 class SCA(metaclass=Constant_Class):

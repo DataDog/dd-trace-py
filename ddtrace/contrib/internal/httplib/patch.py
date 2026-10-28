@@ -6,6 +6,9 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import otel_client_url
+from ddtrace._trace.otel.http.tags import set_method_tag
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -19,6 +22,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
@@ -83,6 +87,19 @@ def _call_asm_wrap(func, instance, *args, **kwargs):
     _wrap_request_asm(func, instance, args, kwargs)
 
 
+def _finish_span(instance, exc_info=None):
+    """Finish the connection's span and detach it: _wrap_putrequest adopts any span still
+    attached, so a finished one left behind silences the next request on that connection.
+    """
+    span = getattr(instance, "_datadog_span", None)
+    if span is None:
+        return
+    if exc_info is not None:
+        span.set_exc_info(*exc_info)
+    span.finish()
+    delattr(instance, "_datadog_span")
+
+
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     if asm_config._asm_enabled and asm_config._ep_enabled:
@@ -107,6 +124,14 @@ def _wrap_request(func, instance, args, kwargs):
 
         instance._datadog_span = span
 
+        if config._otel_trace_semantics_enabled:
+            # Name the span before injection: the sampling decision made there must see the
+            # OTel resource.
+            method = get_argument_value(args, kwargs, 0, "method")
+            if isinstance(method, str):
+                set_method_tag(span, method)
+                set_otel_resource_for_method(span, method)
+
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):
             if len(args) > 3:
@@ -116,18 +141,14 @@ def _wrap_request(func, instance, args, kwargs):
             HTTPPropagator.inject(span.context, headers)
     except Exception:
         log.debug("error configuring request", exc_info=True)
-        span = getattr(instance, "_datadog_span", None)
-        if span:
-            span.finish()
+        _finish_span(instance)
 
     try:
         return func_to_call(*args, **kwargs)
-    except Exception:
-        span = getattr(instance, "_datadog_span", None)
-        exc_info = sys.exc_info()
-        if span:
-            span.set_exc_info(*exc_info)
-            span.finish()
+    except BaseException:
+        # AIDEV-NOTE: AppSec RASP blocks an outgoing request by raising BlockingException, which
+        # derives from BaseException, so this guard must not be narrowed to Exception.
+        _finish_span(instance, sys.exc_info())
         raise
 
 
@@ -154,11 +175,11 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         method, path = args[:2]
         scheme = "https" if isinstance(instance, httplib.HTTPSConnection) else "http"
-        port = ":{port}".format(port=instance.port)
+        port = f":{instance.port}"
 
         if (scheme == "http" and instance.port == 80) or (scheme == "https" and instance.port == 443):
             port = ""
-        url = "{scheme}://{host}{port}{path}".format(scheme=scheme, host=instance.host, port=port, path=path)
+        url = otel_client_url(f"{scheme}://{instance.host}{port}{path}", scheme, instance.host, instance.port, path)
 
         # sanitize url
         parsed = parse.urlparse(url)
@@ -173,18 +194,13 @@ def _wrap_putrequest(func, instance, args, kwargs):
         log.debug("error applying request tags", exc_info=True)
 
         # Close the span to prevent memory leaks.
-        span = getattr(instance, "_datadog_span", None)
-        if span:
-            span.finish()
+        _finish_span(instance)
 
     try:
         return func(*args, **kwargs)
-    except Exception:
-        span = getattr(instance, "_datadog_span", None)
-        exc_info = sys.exc_info()
-        if span:
-            span.set_exc_info(*exc_info)
-            span.finish()
+    except BaseException:
+        # AIDEV-NOTE: see the anchor in _wrap_request; a RASP block raises BaseException.
+        _finish_span(instance, sys.exc_info())
         raise
 
 

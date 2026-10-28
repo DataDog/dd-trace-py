@@ -1,0 +1,5 @@
+fixes:
+  - |
+    internal: Fixes race conditions after process forks that can cause telemetry recording to stall
+    or background workers to restart incorrectly when multiple threads resume concurrently or forks
+    are nested.

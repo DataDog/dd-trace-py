@@ -21,28 +21,29 @@ import argparse
 import itertools
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
 
-import packaging.version
-
 
 # Do a check on the pip version since older versions are known to be
-# incompatible.
-MIN_PIP_VERSION = packaging.version.parse("21.0")
+# incompatible. The OCI packaging image runs this script with a system python3
+# that has no third-party modules, so the check uses only the stdlib.
+MIN_PIP_VERSION = (21, 0)
 cmd = [sys.executable, "-m", "pip", "--version"]
 res = subprocess.run(cmd, capture_output=True)
 out = res.stdout.decode().split(" ")[1]
-pip_version = packaging.version.parse(out)
+pip_version = tuple(int(part) for part in re.match(r"(\d+)\.(\d+)", out).groups())
 if pip_version < MIN_PIP_VERSION:
     print(
         "WARNING: using known incompatible version, %r, of pip. The minimum compatible pip version is %r"
         % (pip_version, MIN_PIP_VERSION),
     )
 
-# Supported Python versions lists all python versions that can install at least one version of the ddtrace library.
-supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+# Downloader / SSI allow-list of Python versions this script will fetch wheels for.
+# Not the set of versions that can pip-install ddtrace (requires-python is currently <3.15).
+supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_2", "manylinux2014"]
 supported_flavors = ["", "slim"]

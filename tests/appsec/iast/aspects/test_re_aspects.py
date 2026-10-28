@@ -6,6 +6,8 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import aspects
+from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -22,6 +24,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
+from ddtrace.appsec._iast_context import _get_iast_context_id
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
@@ -165,6 +168,24 @@ def test_re_subn_aspect_not_tainted():
     assert res_str == "foo___bar___baz"
     assert number == 2
     assert not is_pyobject_tainted(res_str)
+
+
+@pytest.mark.parametrize("aspect, expected", [(re_sub_aspect, "baz bar"), (re_subn_aspect, ("baz bar", 1))])
+def test_re_sub_survives_request_completion(monkeypatch, aspect, expected):
+    value = taint_pyobject("foo bar", "name", "foo bar")
+    context_id = _get_iast_context_id()
+    assert is_pyobject_tainted(value)
+
+    def finish_after_positive_check(obj):
+        tainted = is_pyobject_tainted(obj)
+        if tainted:
+            # Another execution can finish the request while this one keeps its ID.
+            finish_request_context(context_id)
+        return tainted
+
+    monkeypatch.setattr(aspects, "is_pyobject_tainted", finish_after_positive_check)
+    assert aspect(None, 1, re, "foo", "baz", value) == expected
+    assert _get_iast_context_id() == context_id
 
 
 def test_re_split_aspect_not_tainted_re_object():
@@ -748,3 +769,37 @@ def test_match_group_complex(input_str, expected_result, tainted):
     result = mod.do_match_group(input_tainted)
     assert result == matches.group() == expected_result
     assert is_pyobject_tainted(result) is tainted
+
+
+@pytest.mark.parametrize(
+    "aspect, pattern",
+    [
+        (re_match_aspect, rb"(\w+) (\w+)"),
+        (re_search_aspect, rb"(\w+) (\w+)"),
+        (re_fullmatch_aspect, rb"(\w+) (\w+), (\w+)"),
+    ],
+)
+def test_re_aspects_tainted_bytearray_propagate_to_groups(aspect, pattern):
+    """A bytearray subject is unhashable, so the Match it produces needs its own hash to be tracked."""
+    tainted_isaac_newton = taint_pyobject(
+        pyobject=bytearray(b"Isaac Newton, physicist"),
+        source_name="test_re_aspects_tainted_bytearray",
+        source_value="Isaac Newton, physicist",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_obj = re.compile(pattern)
+
+    re_match = aspect(None, 1, re_obj, tainted_isaac_newton)
+    assert re_match is not None
+    assert is_pyobject_tainted(re_match)
+
+    result = re_group_aspect(None, 1, re_match, 1)
+    assert result == b"Isaac"
+    assert get_tainted_ranges(result) == [
+        TaintRange(
+            0,
+            len(result),
+            Source("test_re_aspects_tainted_bytearray", "Isaac Newton, physicist", OriginType.PARAMETER),
+        ),
+    ]

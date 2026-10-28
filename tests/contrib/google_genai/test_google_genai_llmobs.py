@@ -221,7 +221,7 @@ class TestLLMObsGoogleGenAI:
                 spans[0],
                 model_name="gemini-2.5-pro",
                 output_messages=[
-                    {"content": "Let me think about this...", "role": "assistant"},
+                    {"content": "Let me think about this...", "role": "reasoning"},
                     {"content": "The sky is blue due to rayleigh scattering", "role": "assistant"},
                 ],
                 metrics={
@@ -263,6 +263,36 @@ class TestLLMObsGoogleGenAI:
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
             **_expected_generate_content_span_data(spans[0]),
+        )
+
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_generate_content_stream_with_reasoning(
+        self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream_with_reasoning, consume_stream
+    ):
+        response = genai_client.models.generate_content_stream(
+            model="gemini-2.5-pro",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        consume_stream(response)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            **_expected_generate_content_span_data(
+                spans[0],
+                model_name="gemini-2.5-pro",
+                output_messages=[
+                    {"content": "Let me think about this...", "role": "reasoning"},
+                    {"content": "The sky is blue due to rayleigh scattering", "role": "assistant"},
+                ],
+                metrics={
+                    "input_tokens": 8,
+                    "output_tokens": 14,
+                    "total_tokens": 22,
+                    "reasoning_output_tokens": 5,
+                },
+            ),
         )
 
     def test_generate_content_stream_error(self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream):
@@ -325,6 +355,36 @@ class TestLLMObsGoogleGenAI:
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
             **_expected_generate_content_span_data(spans[0]),
+        )
+
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_generate_content_stream_async_with_reasoning(
+        self, genai_client, genai_llmobs, test_spans, mock_async_generate_content_stream_with_reasoning, consume_stream
+    ):
+        response = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.5-pro",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        await consume_stream(response)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            **_expected_generate_content_span_data(
+                spans[0],
+                model_name="gemini-2.5-pro",
+                output_messages=[
+                    {"content": "Let me think about this...", "role": "reasoning"},
+                    {"content": "The sky is blue due to rayleigh scattering", "role": "assistant"},
+                ],
+                metrics={
+                    "input_tokens": 8,
+                    "output_tokens": 14,
+                    "total_tokens": 22,
+                    "reasoning_output_tokens": 5,
+                },
+            ),
         )
 
     async def test_generate_content_stream_async_error(
@@ -638,6 +698,22 @@ class TestLLMObsGoogleGenAI:
             "output": mock.ANY,
         }
 
+    def test_code_execution_tool_use_prompt_token_count(self, genai_client_vcr, genai_llmobs, test_spans):
+        genai_client_vcr.models.generate_content(
+            model="gemini-2.5-flash",
+            contents="What is the sum of the first 50 prime numbers? Generate and run code for the calculation, and make sure you get all 50.",  # noqa: E501
+            config={"tools": [{"code_execution": {}}]},
+        )
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) >= 1
+        metrics = _get_llmobs_data_metastruct(spans[0]).get("metrics", {})
+        # Cassette usageMetadata: prompt 32, candidates 575, thoughts 199, toolUse 619, total 1425
+        assert metrics["input_tokens"] == 32 + 619
+        assert metrics["output_tokens"] == 575 + 199
+        assert metrics["total_tokens"] == 1425
+        assert metrics["input_tokens"] + metrics["output_tokens"] == metrics["total_tokens"]
+
 
 def test_shadow_tags_generate_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on Google GenAI spans when LLMObs is disabled."""
@@ -652,6 +728,8 @@ def test_shadow_tags_generate_when_llmobs_disabled(tracer):
     response.usage_metadata.candidates_token_count = 6
     response.usage_metadata.thoughts_token_count = 0
     response.usage_metadata.total_token_count = 18
+    # otherwise MagicMock auto-creates it and inflates input_tokens
+    response.usage_metadata.tool_use_prompt_token_count = None
     response.model_version = "gemini-2.0-flash"
 
     with tracer.trace("google_genai.request") as span:

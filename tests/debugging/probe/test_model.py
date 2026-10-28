@@ -12,11 +12,20 @@ def test_resolve_source_file():
     path = Path("some") / "prefix" / rpath
 
     # Test that we can handle arbitrary prefixes
-    assert _resolve_source_file(path) == Path(__file__).resolve()
+    assert _resolve_source_file(str(path)) == Path(__file__).resolve()
 
     # Test that we fail if we have incomplete source paths
     child = rpath.relative_to(rpath.parent)
-    assert _resolve_source_file(child) is None
+    assert _resolve_source_file(str(child)) is None
+
+
+def test_resolve_source_file_windows_style_separators():
+    rpath = Path(__file__).relative_to(Path.cwd())
+    winpath = str(Path("some") / "prefix" / rpath).replace("/", "\\")
+
+    # Test that Windows-style backslash separators are resolved correctly
+    # even on POSIX systems.
+    assert _resolve_source_file(winpath) == Path(__file__).resolve()
 
 
 def test_mutability():

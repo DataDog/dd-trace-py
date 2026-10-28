@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from collections import defaultdict
 from contextvars import ContextVar
 from copy import deepcopy
@@ -10,18 +11,23 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import platlib_path
 from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import resolved_code_origin
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+from ddtrace.internal.utils.paths import is_contained
+from ddtrace.internal.utils.paths import relative_path
 
 
 log = get_logger(__name__)
@@ -32,32 +38,101 @@ _original_exec = exec
 # Compiled at import time so it matches the running Python version.
 _EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
-_PY_GE_312 = sys.version_info >= (3, 12)
-_PY_GE_313 = sys.version_info >= (3, 13)
-_PY_GE_314 = sys.version_info >= (3, 14)
+_PY_GE_312 = is_at_least_py(3, 12)
+_PY_GE_313 = is_at_least_py(3, 13)
+_PY_GE_314 = is_at_least_py(3, 14)
+_FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
+_SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
 
-ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
+
+def _is_site_packages_path(path: Path) -> bool:
+    return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
+
+
+# NOTE: A mutable ContextVar default would be shared across threads until set() is called.
+# Use an immutable tuple so contexts can share collectors without sharing stack mutations.
+ctx_collectors: ContextVar[tuple["ModuleCodeCollector.CollectInContext", ...]] = ContextVar(
+    "ctx_collectors", default=()
+)
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
-# Python 3.14+ sys.monitoring callbacks run in a snapshot context and don't see ContextVar changes
-# made within the current thread. Use threading.local() as a fallback for context-level coverage.
+# Coverage hooks can execute where the coverage ContextVars are not visible, for example when code runs in
+# a fresh context. CollectInContext mirrors the context stack into a threading.local() for those cases. The TLS
+# stack is only consulted when the executing context carries no coverage state of its own, so a context that
+# carries its own still-open collector, for instance one copied while that collector was active, always takes
+# precedence over the thread's latest state. A copied context whose collectors have all completed is expired
+# and never borrows the thread's collector, which keeps late work from a finished scope out of the next one.
+# The mirror is best effort: it reflects the stack of whichever context last entered or exited a collector on
+# this thread, and Context.run does not restore thread-local state, so interleaved scopes across copied contexts
+# can leave it approximate until the next enter or exit.
+# TODO: resynchronize the mirror when execution returns from a copied context, see the xfail test
+# test_returning_from_a_copied_context_restores_the_tls_fallback.
 _tls_coverage = _threading.local()
 
 
-def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
-    if ctx_coverage_enabled.get():
-        if context_stack := ctx_covered.get():
-            return context_stack[-1]
-        log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+def _get_active_collector(
+    stack: tuple["ModuleCodeCollector.CollectInContext", ...],
+) -> t.Optional["ModuleCodeCollector.CollectInContext"]:
+    # Contexts copied during an import may still contain its completed collector.
+    for collector in reversed(stack):
+        if not collector.closed:
+            return collector
+    return None
 
-    # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars
+
+def _get_ctx_collector(coverage_enabled: bool) -> t.Optional["ModuleCodeCollector.CollectInContext"]:
+    # Hooks pass their already-checked state to avoid reading the ContextVar twice.
+    if coverage_enabled:
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector
+            if active_collector := _get_active_collector(stack):
+                return active_collector
+        # A context whose own collectors have all completed is expired, and borrowing the thread's
+        # active collector would attribute late work to an unrelated scope.
+        return None
+
+    # The same lifetime rules apply when a context without any coverage state needs the TLS fallback.
     if _PY_GE_314:
-        tls_covered = getattr(_tls_coverage, "covered", None)
-        if tls_covered is not None:
-            return tls_covered
+        return _get_active_collector(getattr(_tls_coverage, "stack", ()))
+    return None
 
+
+def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
+    # Keep direct data lookups inline to avoid extra resolver calls.
+    if ctx_coverage_enabled.get():
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector._covered_lines
+            for collector in reversed(stack):
+                if not collector.closed:
+                    return collector._covered_lines
+        # An expired copied context drops late lines rather than borrowing the thread's collector.
+        return defaultdict(CoverageLines)
+    if _PY_GE_314:
+        if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
+            return active_collector._covered_lines
     return defaultdict(CoverageLines)
+
+
+def _get_ctx_covered_files() -> set[str]:
+    if ctx_coverage_enabled.get():
+        if stack := ctx_collectors.get():
+            collector = stack[-1]
+            if not collector.closed:
+                return collector._covered_files
+            for collector in reversed(stack):
+                if not collector.closed:
+                    return collector._covered_files
+        # An expired copied context drops late files rather than borrowing the thread's collector.
+        return set()
+    if _PY_GE_314:
+        if active_collector := _get_active_collector(getattr(_tls_coverage, "stack", ())):
+            return active_collector._covered_files
+    return set()
 
 
 class ModuleCodeCollector(ModuleWatchdog):
@@ -76,17 +151,24 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._exclude_paths.append(Path(__file__).resolve().parent)
 
         self._coverage_enabled: bool = False
+        self._file_level_coverage: bool = False
         self.seen: set[tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
         self.lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
         self.covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+        self._covered_files: set[str] = set()
 
         # Import-time coverage data
         self._import_time_covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
-        self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
+        self._import_time_contexts: dict[str, ModuleCodeCollector.CollectInContext] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
+        # Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
+        # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
+        self._direct_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
+        self._import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
+        self._file_level_covered_paths_cache: OrderedDict[frozenset[str], frozenset[str]] = OrderedDict()
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -101,6 +183,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         cls,
         include_paths: t.Optional[list[Path]] = None,
         collect_import_time_coverage: bool = False,
+        file_level_coverage: t.Optional[bool] = None,
     ):
         if ModuleCodeCollector.is_installed():
             return
@@ -116,11 +199,55 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         cls._instance._include_paths = include_paths
         cls._instance._collect_import_coverage = collect_import_time_coverage
+        cls._instance._file_level_coverage = (
+            is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
+        )
 
         if collect_import_time_coverage:
             ModuleCodeCollector.register_import_exception_hook(
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
+
+    def hook_import(self, path: str, import_name: tuple[str, tuple[str, ...]]) -> None:
+        if self._collect_import_coverage and import_name not in self._import_names_by_path[path]:
+            self._import_names_by_path[path].add(import_name)
+            self._direct_import_time_dependency_paths_cache.pop(path, None)
+            self._import_time_dependency_paths_cache.clear()
+            self._file_level_covered_paths_cache.clear()
+
+    def hook_file(self, path: str) -> None:
+        if self._coverage_enabled and path not in self._covered_files:
+            self._covered_files.add(path)
+            self.covered[path].add(0)
+
+        if ctx_coverage_enabled.get():
+            collector = _get_ctx_collector(True)
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            collector = _get_ctx_collector(False)
+        else:
+            return
+        if collector is not None:
+            ctx_covered_file_paths = collector._covered_files
+            if path not in ctx_covered_file_paths:
+                ctx_covered_file_paths.add(path)
+                collector._covered_lines[path].add(0)
+
+    def hook_line(self, path: str, line: int) -> None:
+        if self._coverage_enabled:
+            lines = self.covered[path]
+            lines.add(line)
+
+        if ctx_coverage_enabled.get():
+            collector = _get_ctx_collector(True)
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            collector = _get_ctx_collector(False)
+        else:
+            return
+        if collector is not None:
+            # Import-time contexts store their lines in a non-context variable to be aggregated on request when
+            # reporting coverage
+            ctx_lines = collector._covered_lines[path]
+            ctx_lines.add(line)
 
     def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
         line: int
@@ -128,18 +255,13 @@ class ModuleCodeCollector(ModuleWatchdog):
         import_name: t.Optional[tuple[str, tuple[str, ...]]]
         line, path, import_name = arg
 
-        if self._coverage_enabled:
-            lines = self.covered[path]
-            lines.add(line)
+        if self._file_level_coverage and line == 0:
+            self.hook_file(path)
+        else:
+            self.hook_line(path, line)
 
-        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
-            # Import-time contexts store their lines in a non-context variable to be aggregated on request when
-            # reporting coverage
-            ctx_lines = _get_ctx_covered_lines()[path]
-            ctx_lines.add(line)
-
-        if import_name is not None and self._collect_import_coverage:
-            self._import_names_by_path[path].add(import_name)
+        if import_name is not None:
+            self.hook_import(path, import_name)
 
     @classmethod
     def inject_coverage(
@@ -161,11 +283,16 @@ class ModuleCodeCollector(ModuleWatchdog):
             for path, path_lines in lines.items():
                 instance.lines[path].update(path_lines)
         if covered:
+            ctx_covered_file_paths = _get_ctx_covered_files() if ctx_coverage_enabled.get() else None
             for path, path_covered in covered.items():
                 if instance._coverage_enabled:
                     instance.covered[path].update(path_covered)
+                    if instance._file_level_coverage:
+                        instance._covered_files.add(path)
                 if ctx_coverage_enabled.get() and ctx_covered_lines is not None:
                     ctx_covered_lines[path].update(path_covered)
+                    if instance._file_level_coverage and ctx_covered_file_paths is not None:
+                        ctx_covered_file_paths.add(path)
 
     @classmethod
     def report(cls, workspace_path: Path, ignore_nocover: bool = False):
@@ -198,10 +325,44 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         return covered_lines
 
-    def _add_import_time_lines(self, covered_lines):
-        """Modify given covered_lines in place and add lines that were covered at import time"""
+    def _get_direct_import_time_dependency_paths(self, path: str) -> frozenset[str]:
+        cached_dependency_paths = self._direct_import_time_dependency_paths_cache.get(path)
+        if cached_dependency_paths is not None:
+            return cached_dependency_paths
+
+        dependency_paths = set()
+        for dependencies in self._import_names_by_path.get(path, set()):
+            package, modules = dependencies
+            for module in modules:
+                dep_fqdn = f"{package}.{module}" if package else module
+                dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
+                if dep_name in self._import_time_name_to_path:
+                    dependency_paths.add(self._import_time_name_to_path[dep_name])
+
+                # Since modules can import from packages below them in the hierarchy, we may also need to find
+                # packages that were imported (eg: identifying __init__.py files). We do this by working our way
+                # from the module name to the package name "one dot at a time"
+                parent_package = dep_fqdn.split(".")[:-1]
+                while parent_package:
+                    parent_package_str = ".".join(parent_package)
+                    if parent_package_str in self._import_time_name_to_path:
+                        dependency_paths.add(self._import_time_name_to_path[parent_package_str])
+                    if parent_package_str == package:
+                        break
+                    parent_package = parent_package[:-1]
+
+        cached_dependency_paths = frozenset(dependency_paths)
+        self._direct_import_time_dependency_paths_cache[path] = cached_dependency_paths
+        return cached_dependency_paths
+
+    def _get_import_time_dependency_paths(self, root_path: str) -> frozenset[str]:
+        cached_dependency_paths = self._import_time_dependency_paths_cache.get(root_path)
+        if cached_dependency_paths is not None:
+            return cached_dependency_paths
+
+        dependency_paths = set()
         visited_paths = set()
-        to_visit_paths = set(covered_lines.keys())
+        to_visit_paths = {root_path}
 
         while to_visit_paths:
             path = to_visit_paths.pop()
@@ -214,42 +375,79 @@ class ModuleCodeCollector(ModuleWatchdog):
             if path not in self._import_time_covered:
                 continue
 
-            imported_module_lines = self._import_time_covered[path]
-            covered_lines[path].update(imported_module_lines)
+            dependency_paths.add(path)
+            to_visit_paths.update(self._get_direct_import_time_dependency_paths(path) - visited_paths)
 
-            # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
-            for dependencies in self._import_names_by_path.get(path, set()):
-                package, modules = dependencies
-                for module in modules:
-                    dep_fqdn = f"{package}.{module}" if package else module
-                    dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
-                    if dep_name in self._import_time_name_to_path:
-                        dependency_path = self._import_time_name_to_path[dep_name]
-                        if dependency_path not in visited_paths:
-                            to_visit_paths.add(dependency_path)
+        cached_dependency_paths = frozenset(dependency_paths)
+        self._import_time_dependency_paths_cache[root_path] = cached_dependency_paths
+        return cached_dependency_paths
 
-                    # Since modules can import from packages below them in the hierarchy, we may also need to find
-                    # packages that were imported (eg: identifying __init__.py files). We do this by working our way
-                    # from the module name to the package name "one dot at a time"
-                    parent_package = dep_fqdn.split(".")[:-1]
-                    while parent_package:
-                        parent_package_str = ".".join(parent_package)
-                        if parent_package_str in self._import_time_name_to_path:
-                            dependency_path = self._import_time_name_to_path[parent_package_str]
-                            if dependency_path not in visited_paths:
-                                to_visit_paths.add(dependency_path)
-                        if parent_package_str == package:
-                            break
-                        parent_package = parent_package[:-1]
+    def _add_import_time_lines(self, covered_lines):
+        """Modify given covered_lines in place and add lines that were covered at import time"""
+        processed_paths = set()
+        if self._file_level_coverage:
+            for root_path in tuple(covered_lines.keys()):
+                for dependency_path in self._get_import_time_dependency_paths(root_path):
+                    if dependency_path not in processed_paths:
+                        processed_paths.add(dependency_path)
+                        covered_lines[dependency_path].add(0)
+            return
+
+        for root_path in tuple(covered_lines.keys()):
+            for path in self._get_import_time_dependency_paths(root_path):
+                if path not in processed_paths:
+                    processed_paths.add(path)
+                    imported_module_lines = self._import_time_covered[path]
+                    covered_lines[path].update(imported_module_lines)
+
+    def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> t.AbstractSet[str]:
+        """Return file-level covered paths with import-time dependencies added.
+
+        This is the file-level equivalent of _add_import_time_lines(), but avoids
+        allocating and mutating one CoverageLines object per covered file for every
+        test. File-level coverage only needs path membership because every covered
+        file emits the same line-0 sentinel bitmap.
+        """
+        if not covered_file_paths:
+            return covered_file_paths
+
+        cache_key = frozenset(covered_file_paths)
+        cached_paths = self._file_level_covered_paths_cache.get(cache_key)
+        if cached_paths is not None:
+            self._file_level_covered_paths_cache.move_to_end(cache_key)
+            return cached_paths
+
+        paths = set(covered_file_paths)
+        import_time_covered = self._import_time_covered
+        for root_path in cache_key:
+            if root_path in import_time_covered:
+                paths.update(self._get_import_time_dependency_paths(root_path))
+
+        self._file_level_covered_paths_cache[cache_key] = frozenset(paths)
+        if len(self._file_level_covered_paths_cache) > _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE:
+            self._file_level_covered_paths_cache.popitem(last=False)
+        return paths
 
     class CollectInContext:
+        """Own coverage data for one collection scope.
+
+        Context copies share collector objects but have independent immutable stacks.
+        Object identity distinguishes scopes during value-based context restoration;
+        the shared closed flag prevents inherited contexts from writing to finished scopes.
+        """
+
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
-            if ctx_covered.get() is None:
-                ctx_covered.set([])
 
         def __enter__(self):
-            ctx_covered.get().append(defaultdict(CoverageLines))
+            # Collector objects compare by identity, so value-based context restores
+            # distinguish different collectors even when their coverage data is empty.
+            self._covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+            self._covered_files: set[str] = set()
+            # TODO: reopening a reused collector also reactivates contexts copied during its previous
+            # scope, see the xfail test test_reused_collector_does_not_reactivate_contexts_from_its_previous_scope.
+            self.closed = False
+            ctx_collectors.set(ctx_collectors.get() + (self,))
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -258,7 +456,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes,
             # so also store in thread-local as a fallback for the hook.
             if _PY_GE_314:
-                _tls_coverage.covered = ctx_covered.get()[-1]
+                _tls_coverage.stack = ctx_collectors.get()
 
             # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
             # active and update the DISABLE optimisation flag accordingly.  Then re-enable
@@ -280,27 +478,43 @@ class ModuleCodeCollector(ModuleWatchdog):
             return self
 
         def __exit__(self, *args, **kwargs):
-            covered_lines_stack = ctx_covered.get()
-            covered_lines_stack.pop()
-
-            # Stop coverage if we're exiting the last context
-            if len(covered_lines_stack) == 0:
-                ctx_coverage_enabled.set(False)
-                if _PY_GE_314:
-                    _tls_coverage.covered = None
-            elif _PY_GE_314:
-                _tls_coverage.covered = covered_lines_stack[-1]
+            # Closing the shared collector expires it in every inherited stack.
+            self.closed = True
+            stack = ctx_collectors.get()
+            if stack and stack[-1] is self:
+                stack = stack[:-1]
+                ctx_collectors.set(stack)
+            # An exit in a different context must preserve that context's collectors.
+            coverage_enabled = bool(stack) and (not stack[-1].closed or _get_active_collector(stack) is not None)
+            ctx_coverage_enabled.set(coverage_enabled)
+            if _PY_GE_314:
+                _tls_coverage.stack = stack
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
-            covered_lines = _get_ctx_covered_lines()
+            covered_lines = self._covered_lines
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._add_import_time_lines(covered_lines)
             return covered_lines
+
+        def get_covered_file_paths(self) -> t.AbstractSet[str]:
+            # Python < 3.12 and injected child-process coverage may only update the line-oriented
+            # context data. Merge those keys into the file set so file-level uploads still include
+            # every file that would have been emitted by get_covered_lines().
+            covered_file_paths = set(self._covered_files)
+            covered_file_paths.update(self._covered_lines)
+            if global_instance := ModuleCodeCollector._instance:
+                return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
+            return covered_file_paths
+
+    @classmethod
+    def file_level_coverage_enabled(cls):
+        return cls._instance is not None and cls._instance._file_level_coverage
 
     @classmethod
     def start_coverage(cls):
         if cls._instance is None:
             return
+        cls._instance._covered_files.clear()
         cls._instance._coverage_enabled = True
 
     @classmethod
@@ -357,9 +571,8 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         for abs_path_str, lines in covered.items():
             abs_path = Path(abs_path_str)
-            path_str = (
-                str(abs_path.relative_to(workspace_path)) if abs_path.is_relative_to(workspace_path) else abs_path_str
-            )
+            relative = relative_path(abs_path, workspace_path)
+            path_str = relative if relative is not None else abs_path_str
 
             sorted_lines = [i for i, v in enumerate(sorted(lines.to_sorted_list())) if v == 1]
 
@@ -377,11 +590,15 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         code_path = resolved_code_origin(code)
 
-        if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
+        if _is_site_packages_path(code_path):
+            # Do not instrument dependencies vendored or installed under the workspace.
+            return code
+
+        if not any(is_contained(code_path, include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
             return code
 
-        if any(code_path.is_relative_to(exclude_path) for exclude_path in self._exclude_paths):
+        if any(is_contained(code_path, exclude_path) for exclude_path in self._exclude_paths):
             # Don't instrument code from standard library/site packages/etc.
             return code
 
@@ -389,6 +606,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         if self._collect_import_coverage:
             self._import_time_name_to_path[_module.__name__] = code.co_filename
+            self._direct_import_time_dependency_paths_cache.clear()
+            self._import_time_dependency_paths_cache.clear()
+            self._file_level_covered_paths_cache.clear()
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
@@ -410,6 +630,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector.__exit__()
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+                self._import_time_dependency_paths_cache.clear()
+                self._file_level_covered_paths_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 
@@ -423,10 +645,19 @@ class ModuleCodeCollector(ModuleWatchdog):
             collector.__exit__()
             if covered_lines[_module.__file__]:
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+                self._import_time_dependency_paths_cache.clear()
+                self._file_level_covered_paths_cache.clear()
 
             del self._import_time_contexts[_module.__file__]
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot instrument %r for coverage: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return code
+
         # Avoid instrumenting the same code object multiple times
         if (code, code.co_filename) in self.seen:
             return code

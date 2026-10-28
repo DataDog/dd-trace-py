@@ -1,12 +1,77 @@
+import base64
 import os
+import struct
 from time import sleep
-
-from mock.mock import ANY
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.utils import override_global_config
+
+
+# The native worker serializes distributions ("sketches" request type) as a base64-encoded
+# DDSketch protobuf rather than a raw list of points. The values themselves are histogrammed
+# and lossy, but the total number of recorded values is recoverable by summing the store bin
+# counts (plus any zero count). We use that to assert how many points landed in a series.
+def _read_varint(b, i):
+    shift = 0
+    result = 0
+    while True:
+        byte = b[i]
+        i += 1
+        result |= (byte & 0x7F) << shift
+        if not (byte & 0x80):
+            break
+        shift += 7
+    return result, i
+
+
+def _decode_store_count(b):
+    i = 0
+    total = 0.0
+    while i < len(b):
+        tag, i = _read_varint(b, i)
+        field = tag >> 3
+        wt = tag & 7
+        if wt == 2:
+            ln, i = _read_varint(b, i)
+            sub = b[i : i + ln]
+            i += ln
+            if field == 2:  # contiguousBinCounts: packed doubles
+                total += sum(struct.unpack("<%dd" % (ln // 8), sub))
+        elif wt == 0:
+            _, i = _read_varint(b, i)
+        elif wt == 1:
+            i += 8
+        elif wt == 5:
+            i += 4
+    return total
+
+
+def _decode_sketch_count(sketch_b64):
+    b = base64.b64decode(sketch_b64)
+    i = 0
+    total = 0.0
+    while i < len(b):
+        tag, i = _read_varint(b, i)
+        field = tag >> 3
+        wt = tag & 7
+        if wt == 2:
+            ln, i = _read_varint(b, i)
+            sub = b[i : i + ln]
+            i += ln
+            if field in (2, 3):  # positiveValues / negativeValues stores
+                total += _decode_store_count(sub)
+        elif wt == 0:
+            _, i = _read_varint(b, i)
+        elif wt == 1:
+            v = struct.unpack("<d", b[i : i + 8])[0]
+            i += 8
+            if field == 4:  # zeroCount
+                total += v
+        elif wt == 5:
+            i += 4
+    return total
 
 
 def _assert_metric(
@@ -17,19 +82,48 @@ def _assert_metric(
 ):
     assert len(expected_metrics) > 0, "expected_metrics should not be empty"
     test_agent.telemetry_writer.periodic(force_flush=True)
-    metrics_events = test_agent.get_events(type_payload.value)
+    # The native worker emits distributions with request_type "sketches" (not "distributions").
+    event_type = "sketches" if type_payload == TELEMETRY_EVENT_TYPE.DISTRIBUTIONS else type_payload.value
+    metrics_events = test_agent.get_events(event_type)
     assert len(metrics_events) > 0, "captured metrics events should not be empty"
+
+    if type_payload == TELEMETRY_EVENT_TYPE.DISTRIBUTIONS:
+        # Distributions carry a base64 DDSketch; values are lossy, so assert on the number of
+        # recorded points (decoded from the sketch) and the tags rather than exact values.
+        series = []
+        for event in metrics_events:
+            for s in event["payload"]["series"]:
+                if s.get("namespace") == namespace.value:
+                    series.append((s["metric"], sorted(s.get("tags", [])), _decode_sketch_count(s["sketch_b64"])))
+        for expected_metric in expected_metrics:
+            key = (
+                expected_metric["metric"],
+                sorted(expected_metric["tags"]),
+                float(len(expected_metric["points"])),
+            )
+            assert key in series, "%r not in %r" % (key, series)
+        return
+
+    # The native generate-metrics payload carries ``namespace`` per-series (not at the
+    # event level), and adds ``interval``. Timestamps in ``points`` are stamped by the
+    # worker (Rust), so they are not mockable — normalize them out before comparing.
+    def _normalize(series: dict) -> dict:
+        s = {k: v for k, v in series.items() if k not in ("namespace", "interval")}
+        s["tags"] = sorted(s.get("tags", []))
+        s["points"] = [[0, value] for _, value in s.get("points", [])]
+        return s
 
     metrics = []
     for event in metrics_events:
-        if event["payload"]["namespace"] == namespace.value:
-            for metric in event["payload"]["series"]:
-                metric["tags"].sort()
-                metrics.append(metric)
+        for metric in event["payload"]["series"]:
+            if metric.get("namespace") == namespace.value:
+                metrics.append(_normalize(metric))
 
     for expected_metric in expected_metrics:
-        expected_metric["tags"].sort()
-        assert expected_metric in metrics
+        expected = dict(expected_metric)
+        expected["tags"] = sorted(expected["tags"])
+        expected["points"] = [[0, value] for _, value in expected["points"]]
+        assert expected in metrics
 
 
 def _assert_logs(test_agent, expected_logs):
@@ -38,12 +132,27 @@ def _assert_logs(test_agent, expected_logs):
     log_events = test_agent.get_events("logs")
     assert len(log_events) > 0, "captured log events should not be empty"
 
+    # The native logs payload has shape:
+    #   {message, level, count, stack_trace, tags, is_sensitive, is_crash}
+    # with ``tags`` serialized as a comma-joined string and no server timestamp. Compare only
+    # on the meaningful fields and ignore extra/server-stamped ones.
     captured_logs = []
     for event in log_events:
         captured_logs += event["payload"]["logs"]
 
+    def _matches(expected, actual):
+        for key in ("message", "level", "stack_trace", "tags"):
+            if key in expected and expected[key] != actual.get(key):
+                return False
+        if "count" in expected and expected["count"] != actual.get("count"):
+            return False
+        return True
+
     for expected_log in expected_logs:
-        assert expected_log in captured_logs
+        assert any(_matches(expected_log, log) for log in captured_logs), "%r not in %r" % (
+            expected_log,
+            captured_logs,
+        )
 
 
 def test_send_metric_flush_and_generate_metrics_series_is_restarted(telemetry_writer, test_agent_session, mock_time):
@@ -154,7 +263,6 @@ def test_send_metric_datapoint_with_different_types(telemetry_writer, test_agent
             "points": [[1642544540, 1.0]],
             "tags": ["a:b"],
             "type": "gauge",
-            "interval": 10,
         },
     ]
     _assert_metric(test_agent_session, expected_series)
@@ -339,7 +447,6 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(tel
             {
                 "level": "WARN",
                 "message": "test error 1",
-                "tracer_time": ANY,
             },
         ]
 
@@ -370,7 +477,10 @@ context = HTTPPropagator.extract(headers)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
+    # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
+    # agentless (intake) and the metrics would never reach the local test agent.
+    env.pop("DD_API_KEY", None)
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -414,7 +524,10 @@ HTTPPropagator.inject(context, headers)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
+    # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
+    # agentless (intake) and the metrics would never reach the local test agent.
+    env.pop("DD_API_KEY", None)
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -464,7 +577,10 @@ HTTPPropagator.inject(context_items, headers_items)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
+    # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
+    # agentless (intake) and the metrics would never reach the local test agent.
+    env.pop("DD_API_KEY", None)
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -500,7 +616,10 @@ HTTPPropagator.inject(context_bytes, headers_bytes)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
+    # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
+    # agentless (intake) and the metrics would never reach the local test agent.
+    env.pop("DD_API_KEY", None)
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -530,7 +649,10 @@ HTTPPropagator.extract(malformed_headers)
 """
 
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess telemetry writer in non-agentless mode so its requests land in the
+    # test-agent session. A stray DD_API_KEY in the environment would otherwise flip it to
+    # agentless (intake) and the metrics would never reach the local test agent.
+    env.pop("DD_API_KEY", None)
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr

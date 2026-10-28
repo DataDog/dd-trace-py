@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    openfeature: Adds agentless delivery for the Feature Flagging and Experimentation
+    (FFE) OpenFeature provider, loading Universal Flag Configuration directly from Datadog
+    over HTTPS without requiring a Datadog Agent. Agentless is now the default source and
+    requires ``DD_API_KEY``; set ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=remote_config`` to
+    keep loading configuration through the Datadog Agent's Remote Configuration.

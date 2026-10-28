@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    botocore: Improves the performance of AWS payload tagging by compiling each
+    JSONPath redaction expression once and reusing it, instead of rebuilding the
+    JSONPath parser and re-parsing every redaction path on each instrumented AWS
+    API call. This reduces CPU overhead when ``DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING``
+    or ``DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING`` is enabled.

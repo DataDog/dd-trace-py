@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
 
 from ..utils import extract_DD_json
@@ -55,7 +56,7 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
 def select_records_for_injection(params: list[Any], inject_trace_context: bool) -> list[tuple[Any, bool]]:
     records_to_inject_into = []
     if "Records" in params and params["Records"]:
-        # AIDEV-NOTE: Kinesis PutRecords originally injected trace context into only the
+        # Kinesis PutRecords originally injected trace context into only the
         # first record in the batch (see PR #3178 for the original discussion). We now
         # inject every record because downstream consumers can receive records
         # individually rather than as the original producer batch.
@@ -144,9 +145,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 endpoint_name=endpoint_name,
                 child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 operation=operation,
-                service=schematize_service_name(
-                    "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
-                ),
+                service=schematize_service_name(f"{ext_service(pin, int_config=config.botocore)}.{endpoint_name}"),
                 call_trace=False,
                 pin=pin,
                 span_name=span_name,
@@ -156,7 +155,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 start_ns=start_ns,
                 integration_config=config.botocore,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             core.dispatch("botocore.patched_kinesis_api_call.started", (ctx,))
 
@@ -184,7 +183,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                         ctx,
                         e.response,
                         botocore.exceptions.ClientError,
-                        config.botocore.operations[ctx.span.resource].is_error_code,
+                        config.botocore.operations[span_from_context(ctx).resource].is_error_code,
                     ),
                 )
                 raise

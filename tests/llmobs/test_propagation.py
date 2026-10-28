@@ -11,12 +11,15 @@ from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
+from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
@@ -59,6 +62,13 @@ def test_inject_llmobs_ml_app_override(llmobs):
     with llmobs.workflow(name="LLMObs span", ml_app="test-ml-app") as span:
         llmobs._inject_llmobs_context(span.context, {})
     assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-ml-app"
+
+
+def test_inject_llmobs_agent_service_uses_ml_app_key(llmobs):
+    with llmobs.workflow(name="LLMObs span", agent_service="test-agent-service") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-agent-service"
+    assert "_dd.p.llmobs_agent_service" not in span.context._meta
 
 
 def test_inject_llmobs_session_id(llmobs):
@@ -236,21 +246,21 @@ print(json.dumps(headers))
 def test_inject_distributed_headers_simple(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         request_headers = llmobs.inject_distributed_headers({}, span=root_span)
-    assert "llmobs_parent_id:{}".format(root_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{root_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_nested_llmobs_non_llmobs(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         with llmobs._instance.tracer.trace("Non-LLMObs span") as child_span:
             request_headers = llmobs.inject_distributed_headers({}, span=child_span)
-    assert "llmobs_parent_id:{}".format(root_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{root_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_non_llmobs_root_span(llmobs):
     with llmobs._instance.tracer.trace("Non-LLMObs span"):
         with llmobs.workflow("LLMObs span") as child_span:
             request_headers = llmobs.inject_distributed_headers({}, span=child_span)
-    assert "llmobs_parent_id:{}".format(child_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{child_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
@@ -258,7 +268,7 @@ def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
         with llmobs.workflow("LLMObs child span"):
             with llmobs.workflow("LLMObs grandchild span") as last_llmobs_span:
                 request_headers = llmobs.inject_distributed_headers({}, span=last_llmobs_span)
-    assert "llmobs_parent_id:{}".format(last_llmobs_span.span_id) in request_headers.get("tracestate")
+    assert f"llmobs_parent_id:{last_llmobs_span.span_id}" in request_headers.get("tracestate")
 
 
 def test_activate_distributed_headers_propagate_simple(ddtrace_run_python_code_in_subprocess, llmobs_no_ml_app):
@@ -870,3 +880,312 @@ def test_propagated_sampling_decision_in_span_event(llmobs, llmobs_events):
         pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.DROPPED
+
+
+# --- Agent attribution propagation ---------------------------------------------------------
+
+
+def test_inject_agent_attribution_under_agent(llmobs):
+    """Injecting from within an agent propagates the agent's id and name."""
+    with llmobs.agent(name="my_agent") as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) == "my_agent"
+
+
+def test_inject_agent_attribution_inherited_through_tool(llmobs):
+    """Injecting from a tool under an agent propagates the agent (inherited attribution)."""
+    with llmobs.agent(name="my_agent") as agent_span:
+        with llmobs.tool(name="my_tool"):
+            ctx = Context(trace_id=1, span_id=2)
+            llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) == "my_agent"
+
+
+def test_inject_no_agent_attribution_without_agent(llmobs):
+    """No agent in the chain: neither agent key is written."""
+    with llmobs.workflow("w"):
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) is None
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+
+def test_inject_unsafe_agent_name_skips_name_keeps_id(llmobs):
+    """An agent name with a comma (illegal in tagset values) is skipped; the id still propagates."""
+    with llmobs.agent(name="Researcher, v2") as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+
+def test_inject_oversized_agent_name_truncated(llmobs):
+    """An agent name that would overflow the tagset budget is truncated rather than dropped."""
+    # Build a name large enough to overflow the budget; it must use only safe chars.
+    oversized_name = "A" * 500
+    with llmobs.agent(name=oversized_name) as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    propagated_name = ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    # The name must be truncated (not absent, not the full oversized value).
+    assert propagated_name is not None
+    assert len(propagated_name) < len(oversized_name)
+    # The truncated name must consist only of the safe chars we used.
+    assert set(propagated_name) == {"A"}
+
+
+def test_inject_agent_name_with_equals_propagates(llmobs):
+    """`=` is legal in tagset values (only illegal in keys), so a name with `=` must propagate."""
+    with llmobs.agent(name="model=gpt4") as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) == "model=gpt4"
+
+
+def test_inject_agent_name_with_equals_survives_header_roundtrip(llmobs):
+    """A name with `=` encodes into x-datadog-tags and decodes back unchanged (value-until-comma)."""
+    with llmobs.agent(name="model=gpt4") as agent_span:
+        headers = llmobs.inject_distributed_headers({}, span=agent_span)
+    tags_header = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_pagent_name=model=gpt4" in tags_header
+    assert "_dd.propagation_error" not in tags_header
+
+
+def test_inject_unsafe_agent_name_does_not_drop_header(llmobs):
+    """Critical regression: an unsafe agent name must not poison x-datadog-tags.
+
+    The agent_attribution id key is digit-safe and the name key is skipped when unsafe, so
+    the full _dd.p.* tagset still encodes and ml_app / llmobs_trace_id survive on the wire.
+    """
+    with llmobs.agent(name="Researcher, v2") as agent_span:
+        headers = llmobs.inject_distributed_headers({}, span=agent_span)
+    tags_header = headers.get("x-datadog-tags", "")
+    # Header is present and still carries the pre-existing llmobs keys (not dropped).
+    assert "_dd.p.llmobs_ml_app" in tags_header
+    assert f"_dd.p.llmobs_pagent_span_id={agent_span.span_id}" in tags_header
+    # The unsafe name was skipped, so no propagation error and no name key.
+    assert "_dd.p.llmobs_pagent_name" not in tags_header
+    assert "_dd.propagation_error" not in tags_header
+
+
+def test_distributed_agent_attribution_round_trip(llmobs, llmobs_events):
+    """Inbound _dd.p.* agent keys are seeded onto the local context and surfaced on a child."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = "987654321"
+    ctx._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = "upstream_agent"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.tool(name="downstream_tool"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["agent_attribution"] == {
+        "pagent_name": "upstream_agent",
+        "pagent_span_id": "987654321",
+    }
+
+
+def test_distributed_agent_attribution_round_trip_no_name(llmobs, llmobs_events):
+    """Old-SDK upstream propagates only the id; the name resolves to None (backend fills it)."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = "987654321"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.tool(name="downstream_tool"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["agent_attribution"] == {
+        "pagent_name": None,
+        "pagent_span_id": "987654321",
+    }
+
+
+def test_agent_attribution_propagates_across_asyncio_task(llmobs, llmobs_events, patched_asyncio):
+    """A tool span created in an asyncio task under an agent still attributes to that agent.
+
+    The in-process llmobs context handed to the child task travels through
+    ``_current_trace_context()``; it must carry the agent id/name so the child resolves
+    attribution instead of silently dropping it.
+    """
+    import asyncio
+
+    holder = {}
+
+    async def main():
+        with llmobs.agent(name="my_agent") as agent_span:
+            holder["span_id"] = str(agent_span.span_id)
+
+            async def child():
+                with llmobs.tool(name="async_tool"):
+                    pass
+
+            await asyncio.create_task(child())
+
+    asyncio.run(main())
+    matches = [e for e in llmobs_events if e["name"] == "async_tool"]
+    assert len(matches) == 1, f"expected exactly one async_tool event, got {len(matches)}"
+    assert matches[0]["meta"].get("agent_attribution") == {
+        "pagent_name": "my_agent",
+        "pagent_span_id": holder["span_id"],
+    }
+
+
+def test_agent_version_propagates_across_asyncio_task(llmobs, llmobs_events, patched_asyncio):
+    import asyncio
+
+    async def main():
+        with llmobs.agent(name="my_agent", version="v3"):
+
+            async def child():
+                with llmobs.tool(name="async_tool"):
+                    pass
+
+            await asyncio.create_task(child())
+
+    asyncio.run(main())
+    matches = [e for e in llmobs_events if e["name"] == "async_tool"]
+    assert len(matches) == 1
+    assert "agent_version:v3" in matches[0]["tags"]
+
+
+def test_agent_version_propagates_across_thread_pool(llmobs, llmobs_events, patched_futures):
+    import concurrent.futures
+
+    def child():
+        with llmobs.tool(name="thread_tool"):
+            pass
+
+    with llmobs.agent(name="my_agent", version="v3"):
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.submit(child).result()
+    matches = [e for e in llmobs_events if e["name"] == "thread_tool"]
+    assert len(matches) == 1
+    assert "agent_version:v3" in matches[0]["tags"]
+
+
+def test_agent_version_not_propagated_across_services(llmobs):
+    with llmobs.agent(name="my_agent", version="v3"):
+        with llmobs.tool(name="my_tool") as tool_span:
+            headers = llmobs.inject_distributed_headers({}, span=tool_span)
+    assert "v3" not in json.dumps(headers)
+
+
+def test_inject_no_stale_agent_attribution_after_agent_finishes(llmobs):
+    """A sibling with no agent ancestor must not inherit the agent that injected before it.
+
+    ``Context._meta`` is trace-scoped and shared, so attribution written while inside the agent
+    outlives the agent span unless it is cleared.
+    """
+    with llmobs.workflow(name="handle_request"):
+        with llmobs.agent(name="triage"):
+            llmobs.inject_distributed_headers({})
+        with llmobs.tool(name="write_audit_log"):
+            headers = llmobs.inject_distributed_headers({})
+    tags_header = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_pagent_span_id" not in tags_header
+    assert "_dd.p.llmobs_pagent_name" not in tags_header
+
+
+def test_inject_no_stale_agent_attribution_across_asyncio_task(llmobs, patched_asyncio):
+    """Same guard for the in-process task path, which stamps via _current_trace_context()."""
+    import asyncio
+
+    holder = {}
+
+    async def main():
+        with llmobs.workflow(name="root"):
+            with llmobs.agent(name="triage"):
+
+                async def under_agent():
+                    with llmobs.tool(name="agent_tool"):
+                        pass
+
+                await asyncio.create_task(under_agent())
+            with llmobs.tool(name="sibling"):
+                holder["ctx"] = llmobs._instance._current_trace_context()
+
+    asyncio.run(main())
+    assert holder["ctx"]._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) is None
+    assert holder["ctx"]._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+
+def test_inject_stale_agent_name_not_paired_with_new_id(llmobs):
+    """An id-only upstream must not pick up a name left behind by an earlier agent."""
+    with llmobs.workflow(name="root"):
+        with llmobs.agent(name="first_agent"):
+            llmobs.inject_distributed_headers({})
+        ctx = Context(trace_id=1, span_id=2)
+        ctx._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = "first_agent"
+        _stamp_agent_attribution(ctx._meta, None, "987654321")
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == "987654321"
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+
+def test_queued_work_keeps_agent_attribution_when_sibling_clears(llmobs):
+    """Work queued under an agent keeps its attribution when a later sibling clears.
+
+    The task and thread hooks store _current_trace_context() when work is submitted and
+    activate it once that work runs. The returned context therefore has to be a snapshot: if it
+    shared the trace-level _meta, the clear performed by a sibling span with no agent ancestor
+    would strip the queued work's attribution before it ever ran.
+    """
+    with llmobs.workflow(name="handle_request"):
+        with llmobs.agent(name="triage") as agent_span:
+            queued_ctx = llmobs._instance._current_trace_context()
+        agent_span_id = str(agent_span.span_id)
+        assert queued_ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == agent_span_id
+
+        with llmobs.tool(name="write_audit_log"):
+            sibling_ctx = llmobs._instance._current_trace_context()
+
+        # The sibling has no agent ancestor, so it propagates nothing.
+        assert sibling_ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) is None
+        assert sibling_ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+        # The queued context is unaffected by that clear and still names the agent.
+        assert queued_ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == agent_span_id
+        assert queued_ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) == "triage"
+
+        # The root cause: the trace-level _meta was never written to in the first place.
+        assert PROPAGATED_PARENT_AGENT_ID_KEY not in agent_span.context._meta
+        assert PROPAGATED_PARENT_AGENT_NAME_KEY not in agent_span.context._meta
+
+
+def test_current_trace_context_does_not_mutate_shared_trace_meta(llmobs):
+    """The snapshot must not leak this span's per-span values into trace-level state."""
+    with llmobs.workflow(name="root") as root_span:
+        with llmobs.agent(name="triage") as agent_span:
+            ctx = llmobs._instance._current_trace_context()
+            # A snapshot, not the live context the active span carries.
+            assert ctx is not agent_span.context
+            assert ctx._meta is not agent_span.context._meta
+            # Identity is preserved, so activating the snapshot rejoins the same trace at the
+            # same point.
+            assert ctx.trace_id == agent_span.context.trace_id
+            assert ctx.span_id == agent_span.context.span_id
+            # The attribution landed on the snapshot and nowhere else.
+            assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+            assert PROPAGATED_PARENT_AGENT_ID_KEY not in agent_span.context._meta
+        assert PROPAGATED_PARENT_AGENT_ID_KEY not in root_span.context._meta
+
+
+def test_inject_agent_attribution_still_set_for_child_inside_agent(llmobs):
+    """No over-clearing: a child inside the agent still propagates the agent."""
+    with llmobs.workflow(name="root"):
+        with llmobs.agent(name="triage") as agent_span:
+            with llmobs.tool(name="agent_tool"):
+                headers = llmobs.inject_distributed_headers({})
+    tags_header = headers.get("x-datadog-tags", "")
+    assert f"_dd.p.llmobs_pagent_span_id={agent_span.span_id}" in tags_header
+    assert "_dd.p.llmobs_pagent_name=triage" in tags_header
+
+
+@pytest.mark.parametrize("trace_id", [None, _DECIMAL_TRACE_ID])
+def test_distributed_context_keeps_application_without_apm_parent(llmobs, trace_id):
+    ctx = _make_upstream_llmobs_context(trace_id)
+    ctx._meta[PROPAGATED_ML_APP_KEY] = "remote-app"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("detached-child") as span:
+        assert get_llmobs_ml_app(span) == "remote-app"

@@ -1,0 +1,10 @@
+_v: 1
+name: wsgi
+display_name: WSGI
+description: Instruments inbound HTTP requests through WSGI middleware, tracing application execution and response handling
+  while extracting distributed trace context.
+packages: []
+category:
+- http.server
+systems: []
+creation_date: '2021-01-27'

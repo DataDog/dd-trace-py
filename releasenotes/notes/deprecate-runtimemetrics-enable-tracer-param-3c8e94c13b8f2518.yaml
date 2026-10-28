@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    tracing: The ``tracer`` parameter of ``ddtrace.runtime.RuntimeMetrics.enable`` is deprecated
+    and will be removed in a future version. It has no effect.

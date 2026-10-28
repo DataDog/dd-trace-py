@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """
 An API to provide atexit functionalities
 """
@@ -9,6 +8,7 @@ import signal
 import threading
 import typing
 
+from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.utils import signals
 
 
@@ -29,10 +29,7 @@ def _make_safe_wrapper(func: typing.Callable) -> typing.Callable:
         try:
             func(*args, **kwargs)
         except Exception:
-            # Lazy import to avoid circular dependencies at module load time.
-            from ddtrace import config
-
-            if config._raise:
+            if _native_config.get_raise():
                 raise
 
     return _wrapped
@@ -66,27 +63,46 @@ def unregister(func: typing.Callable) -> None:
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.
-def register_on_exit_signal(f: typing.Callable) -> None:
+def register_on_exit_signal(f: typing.Callable) -> typing.Optional[tuple[typing.Any, typing.Any]]:
+    """Installs a function to be called when an exit signal (TERM or INT) is received.
+
+    Returns the SIGTERM and SIGINT handlers in place after installation, or None if
+    nothing was installed. The SIGINT handler can be one we did not install, e.g.
+    default_int_handler.
+    """
+
     def handle_exit(sig: int, frame: typing.Any) -> None:
         try:
             f()
         except Exception:
-            # Lazy import to avoid circular dependencies at module load time.
-            from ddtrace import config
-
-            if config._raise:
+            if _native_config.get_raise():
                 raise
 
-    if threading.current_thread() is threading.main_thread():
-        try:
-            signals.handle_signal(signal.SIGTERM, handle_exit)
-            # Skipping SIGINT when default_int_handler is installed allows asyncio.Runner
-            # to install its own handler; cleanup on KeyboardInterrupt is covered by atexit.
-            if signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
-                signals.handle_signal(signal.SIGINT, handle_exit)
-        except Exception:
-            # We catch a general exception here because we don't know
-            # what might go wrong, but we don't want to stop
-            # normal program execution based upon failing to register
-            # a signal handler.
-            log.debug("Encountered an exception while registering a signal", exc_info=True)
+    if threading.current_thread() is not threading.main_thread():
+        return None
+
+    # Each signal is installed on its own, and failures are not reported as "nothing
+    # installed". A caller that registers once would then register again and chain a
+    # second handler that nothing can remove.
+    # We catch a general exception here because we don't know what might go wrong, but we
+    # don't want to stop normal program execution based upon failing to register a signal
+    # handler.
+    try:
+        signals.handle_signal(signal.SIGTERM, handle_exit)
+        sigterm_handler = signal.getsignal(signal.SIGTERM)
+    except Exception:
+        log.debug("Encountered an exception while registering SIGTERM", exc_info=True)
+        # Stop here so that nothing is installed at all. A caller told "nothing
+        # installed" could register again, and a SIGINT handler put in now could not be
+        # removed before it does.
+        return None
+
+    try:
+        # Skipping SIGINT when default_int_handler is installed allows asyncio.Runner
+        # to install its own handler; cleanup on KeyboardInterrupt is covered by atexit.
+        if signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
+            signals.handle_signal(signal.SIGINT, handle_exit)
+    except Exception:
+        log.debug("Encountered an exception while registering SIGINT", exc_info=True)
+
+    return sigterm_handler, signal.getsignal(signal.SIGINT)

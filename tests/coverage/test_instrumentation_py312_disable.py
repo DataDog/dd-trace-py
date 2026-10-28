@@ -10,6 +10,50 @@ import sys
 import pytest
 
 
+# Tests for the "Datadog is the only monitoring tool" branch run in-process
+# and skip when a session-level tool such as pytest-cov already owns another slot. The
+# neighboring tests explicitly register another tool to cover the opposite branch.
+
+
+@pytest.fixture(autouse=True)
+def _restore_coverage_tool_state():
+    """Snapshot and restore the coverage module's shared sys.monitoring state around each test."""
+    if sys.version_info < (3, 12):
+        yield
+        return
+
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    def _datadog_slot():
+        return next((s for s in range(6) if sys.monitoring.get_tool(s) == "datadog"), None)
+
+    orig_tool_id = m._DD_TOOL_ID
+    orig_use_disable = m._use_disable_optimization
+    orig_hooks = dict(m._CODE_HOOKS)
+    orig_datadog_slot = _datadog_slot()
+
+    try:
+        yield
+    finally:
+        # Restore module globals. _CODE_HOOKS is restored in place because the live plugin holds a
+        # reference to this same dict object.
+        m._CODE_HOOKS.clear()
+        m._CODE_HOOKS.update(orig_hooks)
+        m._use_disable_optimization = orig_use_disable
+        m._DD_TOOL_ID = orig_tool_id
+
+        # Restore the sys.monitoring "datadog" registration to exactly what it was pre-test.
+        current_datadog_slot = _datadog_slot()
+        if current_datadog_slot != orig_datadog_slot:
+            if current_datadog_slot is not None:
+                sys.monitoring.free_tool_id(current_datadog_slot)
+            if orig_datadog_slot is not None:
+                sys.monitoring.use_tool_id(orig_datadog_slot, "datadog")
+                sys.monitoring.register_callback(orig_datadog_slot, m.EVENT, m._event_handler)
+                # Re-arm local events on the restored code objects so per-test coverage still fires.
+                m._rearm_all_events()
+
+
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_event_handler_returns_disable():
     """
@@ -18,7 +62,9 @@ def test_event_handler_returns_disable():
     This is critical for performance - returning DISABLE prevents the monitoring
     system from calling the handler repeatedly for the same line (e.g., in loops).
     """
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
     from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _USE_FILE_LEVEL_COVERAGE
     from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
 
     # Create a simple code object and register it
@@ -31,7 +77,15 @@ def test_event_handler_returns_disable():
         calls.append(line_info)
 
     # Register the code object with our hook
-    _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {})
+    _CODE_HOOKS[code_obj] = (mock_hook, "/test/path.py", {}, None, None, None)
+
+    # Pin the DISABLE optimisation on: this test is specifically about the DISABLE-returning
+    # behavior, not about how the flag gets computed. Outside this test, the real coverage
+    # collection path (CollectInContext.__enter__) may have already flipped it to False -
+    # e.g. when another sys.monitoring tool such as pytest-cov's coverage.py (which defaults
+    # to the sys.monitoring "sysmon" core on Python 3.14+) is registered for this session.
+    prev_use_disable_optimization = m._use_disable_optimization
+    m._use_disable_optimization = True
 
     try:
         # Call the handler
@@ -42,8 +96,10 @@ def test_event_handler_returns_disable():
 
         # Verify the hook was called
         assert len(calls) == 1
-        assert calls[0] == (1, "/test/path.py", None)
+        expected_line = 0 if _USE_FILE_LEVEL_COVERAGE else 1
+        assert calls[0] == (expected_line, "/test/path.py", None)
     finally:
+        m._use_disable_optimization = prev_use_disable_optimization
         # Cleanup
         if code_obj in _CODE_HOOKS:
             del _CODE_HOOKS[code_obj]
@@ -62,6 +118,78 @@ def test_event_handler_returns_disable_for_missing_code():
 
     # Should still return DISABLE (graceful handling)
     assert result == sys.monitoring.DISABLE, f"Handler should return DISABLE even for missing code, got {result}"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_event_handler_uses_specialized_file_and_import_hooks():
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    code_obj = compile("x = 1", "<test_file_hooks>", "exec")
+    generic_calls = []
+    file_calls = []
+    import_calls = []
+    import_name = ("tests.coverage", ("included_path",))
+
+    old_file_level = m._USE_FILE_LEVEL_COVERAGE
+    old_disable = m._use_disable_optimization
+    m._USE_FILE_LEVEL_COVERAGE = True
+    m._use_disable_optimization = False
+    m._CODE_HOOKS[code_obj] = (
+        lambda info: generic_calls.append(info),
+        "/test/path.py",
+        {10: import_name},
+        lambda path, line: None,
+        lambda path: file_calls.append(path),
+        lambda path, name: import_calls.append((path, name)),
+    )
+
+    try:
+        assert m._event_handler(code_obj, 0) is None
+    finally:
+        m._CODE_HOOKS.pop(code_obj, None)
+        m._USE_FILE_LEVEL_COVERAGE = old_file_level
+        m._use_disable_optimization = old_disable
+
+    assert generic_calls == []
+    assert file_calls == ["/test/path.py"]
+    assert import_calls == [("/test/path.py", import_name)]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_event_handler_uses_specialized_line_and_import_hooks():
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    code_obj = compile("x = 1", "<test_line_hooks>", "exec")
+    generic_calls = []
+    line_calls = []
+    file_calls = []
+    import_calls = []
+    import_name = ("tests.coverage", ("included_path",))
+
+    old_file_level = m._USE_FILE_LEVEL_COVERAGE
+    old_disable = m._use_disable_optimization
+    m._USE_FILE_LEVEL_COVERAGE = False
+    m._use_disable_optimization = False
+    m._CODE_HOOKS[code_obj] = (
+        lambda info: generic_calls.append(info),
+        "/test/path.py",
+        {7: import_name},
+        lambda path, line: line_calls.append((path, line)),
+        lambda path: file_calls.append(path),
+        lambda path, name: import_calls.append((path, name)),
+    )
+
+    try:
+        assert m._event_handler(code_obj, 7) is None
+    finally:
+        m._CODE_HOOKS.pop(code_obj, None)
+        m._USE_FILE_LEVEL_COVERAGE = old_file_level
+        m._use_disable_optimization = old_disable
+
+    assert generic_calls == []
+    assert line_calls == [("/test/path.py", 7)]
+    assert file_calls == []
+    assert import_calls == [("/test/path.py", import_name)]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
@@ -106,6 +234,8 @@ def test_has_other_monitoring_tools_false_when_alone():
         m._ensure_registered()
 
     try:
+        if m.has_other_monitoring_tools():
+            pytest.skip("requires Datadog to be the only active sys.monitoring tool")
         assert m.has_other_monitoring_tools() is False
     finally:
         if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
@@ -179,6 +309,8 @@ def test_update_disable_optimization_enables_when_alone():
         m._ensure_registered()
 
     try:
+        if m.has_other_monitoring_tools():
+            pytest.skip("requires Datadog to be the only active sys.monitoring tool")
         # Force to False first, then verify it gets set back to True
         m._use_disable_optimization = False
         result = m.update_disable_optimization()
@@ -210,7 +342,7 @@ def test_update_disable_optimization_rearmed_on_transition():
     # Set up a real code object and register it in _CODE_HOOKS
     code_obj = compile("x = 1", "<test_rearm>", "exec")
     calls: list[object] = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/rearm.py", {})
+    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/rearm.py", {}, None, None, None)
     sys.monitoring.set_local_events(m._DD_TOOL_ID, code_obj, m.EVENT)
 
     # Start in DISABLE mode (default)
@@ -246,6 +378,41 @@ def test_update_disable_optimization_rearmed_on_transition():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_update_disable_optimization_does_not_crash_without_registered_tool():
+    """A True to False transition must not crash when no tool slot is currently owned."""
+    import sys
+
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
+
+    # Force the inconsistent state: no owned tool slot (_DD_TOOL_ID is None) but a populated hook
+    # registry. We only null the module global; we deliberately do not touch the real "datadog"
+    # tool registration so the surrounding session state is restored exactly afterwards.
+    prev_tool_id = m._DD_TOOL_ID
+    prev_use_disable_optimization = m._use_disable_optimization
+    m._DD_TOOL_ID = None
+    m._use_disable_optimization = True
+
+    code_obj = compile("x = 1", "<test_no_tool>", "exec")
+    _CODE_HOOKS[code_obj] = (lambda info: None, "/test/no_tool.py", {}, None, None, None)
+
+    # Register another tool in a free slot so update_disable_optimization() takes the True→False
+    # transition, which is what triggers _rearm_all_events().
+    other_slot = next(s for s in range(6) if not sys.monitoring.get_tool(s))
+    sys.monitoring.use_tool_id(other_slot, "other_tool")
+
+    try:
+        # Must not raise even though _DD_TOOL_ID is None.
+        result = m.update_disable_optimization()
+        assert result is False, "Another tool is present, so the optimisation must be disabled"
+    finally:
+        sys.monitoring.free_tool_id(other_slot)
+        _CODE_HOOKS.pop(code_obj, None)
+        m._DD_TOOL_ID = prev_tool_id
+        m._use_disable_optimization = prev_use_disable_optimization
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_event_handler_returns_none_when_other_tool_present():
     """When another sys.monitoring tool is active, _event_handler returns None instead of DISABLE."""
     import sys
@@ -266,7 +433,7 @@ def test_event_handler_returns_none_when_other_tool_present():
     # Set up a code hook
     code_obj = compile("x = 1", "<test>", "exec")
     calls = []
-    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {})
+    _CODE_HOOKS[code_obj] = (lambda info: calls.append(info), "/test/path.py", {}, None, None, None)
 
     try:
         # Update the flag based on detected tools

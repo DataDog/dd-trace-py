@@ -1,4 +1,5 @@
 import copy
+import ctypes
 import os
 import platform
 import subprocess
@@ -59,7 +60,8 @@ if __name__ == "__main__":
             )
             print("IAST module load tests completed successfully")
         finally:
-            os.environ = orig_env
+            os.environ.clear()
+            os.environ.update(orig_env)
 
     # ASM WAF smoke test
     if platform.system() != "Linux" or sys.maxsize > 2**32:
@@ -70,10 +72,22 @@ if __name__ == "__main__":
         import ddtrace.appsec._ddwaf  # noqa: F401
 
         assert module.loaded
+
+        from ddtrace.internal.products import manager
+
+        assert not manager._failed, "product plugins failed to load: %s" % (manager._failed,)
+
         print("WAF module load test completed successfully")
     else:
         # Skip the test for 32-bit Linux systems
         print("Skipping test, 32-bit DDWAF not ready yet")
+
+    if platform.system() == "Linux":
+        from ddtrace.internal.native import _native
+
+        print("Running OTel thread context symbol smoke test...")
+        ctypes.c_void_p.in_dll(ctypes.CDLL(_native.__file__), "otel_thread_ctx_v1")
+        print("OTel thread context symbol smoke test completed successfully")
 
     # Profiling smoke test
     if platform.system() in ("Linux", "Darwin") and sys.maxsize > (1 << 32):

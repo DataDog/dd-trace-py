@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from contextlib import nullcontext
 import os
 import typing as t
 from unittest.mock import Mock
@@ -21,6 +22,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestSession
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import mock_api_client_settings
+from tests.testing.mocks import mock_test_environment
 from tests.testing.mocks import session_manager_mock
 from tests.testing.mocks import setup_standard_mocks
 
@@ -210,6 +212,19 @@ class TestSessionManagerIsSkippableTest:
         )
 
         assert session_manager.is_skippable_test(local_test_ref) is False
+
+
+class TestSessionManagerITRCorrelationId:
+    def test_session_manager_propagates_itr_correlation_id_to_session(self) -> None:
+        session_manager = (
+            session_manager_mock()
+            .with_settings(MockDefaults.settings(itr_enabled=True, skipping_enabled=True))
+            .with_itr_correlation_id("itr-correlation-id")
+            .build_real_with_mocks(MockDefaults.test_environment())
+        )
+
+        assert session_manager.itr_correlation_id == "itr-correlation-id"
+        assert session_manager.session.itr_correlation_id == "itr-correlation-id"
 
 
 class TestSessionManagerIsSkippableSuitePath:
@@ -905,7 +920,7 @@ class TestUploadSentinel:
             sm.upload_git_data()
 
         mock_git_cls.assert_not_called()
-        sm.api_client.get_known_commits.assert_not_called()  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.assert_not_called()
 
     def test_upload_git_data_writes_sentinel_on_all_commits_known(self, tmp_path) -> None:
         """The sentinel is written when the early-return on all-commits-known path is taken."""
@@ -913,7 +928,7 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -935,8 +950,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
-        sm.api_client.send_git_pack_file.return_value = 123  # type: ignore[attr-defined]  # bytes uploaded
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = 123  # bytes uploaded
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -957,7 +972,7 @@ class TestUploadSentinel:
         """If pack_objects fails silently (yields no files), don't trust peers with our sentinel."""
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = []
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -979,8 +994,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
-        sm.api_client.send_git_pack_file.return_value = None  # type: ignore[attr-defined]  # upload failure
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = None  # upload failure
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1002,9 +1017,9 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = []
         # First packfile succeeds, second fails.
-        sm.api_client.send_git_pack_file.side_effect = [123, None]  # type: ignore[attr-defined]
+        sm.api_client.send_git_pack_file.side_effect = [123, None]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1025,7 +1040,7 @@ class TestUploadSentinel:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
         # API returning None signals a failure that aborts the upload.
-        sm.api_client.get_known_commits.return_value = None  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = None
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -1163,7 +1178,7 @@ class TestUploadLock:
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm.api_client.get_known_commits.return_value = ["c1"]  # type: ignore[attr-defined]
+        sm.api_client.get_known_commits.return_value = ["c1"]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["c1"]
@@ -1284,8 +1299,14 @@ class TestUploadLock:
         mock_git_cls.assert_not_called()
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
 
-    def test_cleanup_removes_sentinel_and_lock(self, tmp_path) -> None:
-        """cleanup_upload_artifacts() deletes both files when present."""
+    def test_cleanup_removes_sentinel_only(self, tmp_path) -> None:
+        """cleanup_upload_artifacts() deletes the sentinel but preserves the lock file.
+
+        The lock file must not be deleted because another pytest controller
+        sharing the same workspace may still rely on it for flock coordination.
+        Deleting it would cause a new inode to be created on next open, breaking
+        the lock for any process that still holds the old inode.
+        """
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sentinel = tmp_path / ".git" / "dd-trace-py.upload-done"
@@ -1296,7 +1317,7 @@ class TestUploadLock:
         sm.cleanup_upload_artifacts()
 
         assert not sentinel.exists()
-        assert not lock.exists()
+        assert lock.exists(), "Lock file must be preserved to avoid split-lock-inode races"
 
     def test_cleanup_is_noop_when_files_absent(self, tmp_path) -> None:
         """cleanup_upload_artifacts() does not raise when files are already gone."""
@@ -1567,3 +1588,48 @@ class TestParallelInit:
         mock_client.get_test_management_properties.assert_called_once_with(
             statuses=("active", "quarantined", "disabled")
         )
+
+
+def test_build_real_with_mocks_restores_the_agentless_config() -> None:
+    """The builder restores the exact process-wide agentless state after using its patched env.
+
+    Re-reading the ambient environment loses runtime overrides and makes later tests depend on
+    execution order.
+    """
+    from ddtrace.internal.settings._agentless import config as agentless_config
+
+    expected_state = agentless_config.__dict__
+    expected_values = dict(expected_state)
+
+    session_manager_mock().build_real_with_mocks(MockDefaults.test_environment())
+
+    assert agentless_config.__dict__ is expected_state
+    assert agentless_config.__dict__ == expected_values
+
+
+@pytest.mark.parametrize("raise_error", [False, True])
+def test_mock_test_environment_resolves_and_restores_agentless_config(monkeypatch, raise_error) -> None:
+    from ddtrace.internal.settings._agentless import config as agentless_config
+    from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
+    from ddtrace.testing.internal.http import BackendConnectorSetup
+
+    # Simulate settings cached before the test's agentless environment was applied.
+    monkeypatch.setattr(agentless_config, "ci_visibility", False)
+    expected_state = agentless_config.__dict__
+    expected_values = dict(expected_state)
+    expected_env = dict(os.environ)
+
+    with pytest.raises(RuntimeError, match="test error") if raise_error else nullcontext():
+        with mock_test_environment(MockDefaults.test_environment()):
+            assert os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] == "true"
+            assert agentless_config.ci_visibility is True
+            with patch(
+                "ddtrace.testing.internal.http.BackendConnector", side_effect=AssertionError("unexpected network")
+            ):
+                assert isinstance(BackendConnectorSetup.detect_setup(), BackendConnectorAgentlessSetup)
+            if raise_error:
+                raise RuntimeError("test error")
+
+    assert agentless_config.__dict__ is expected_state
+    assert agentless_config.__dict__ == expected_values
+    assert dict(os.environ) == expected_env

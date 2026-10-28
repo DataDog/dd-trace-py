@@ -57,21 +57,15 @@ def _version_key(version: str):
         return parse_version("0")
 
 
-def _aggregate_python_version_bounds(python_versions: dict) -> tuple[str, str]:
-    minimum_versions = []
-    maximum_versions = []
-    for python_version_data in python_versions.values():
-        minimum_version = python_version_data.get("minimum_package_version", "")
-        maximum_version = python_version_data.get("maximum_package_version", "")
-        if minimum_version:
-            minimum_versions.append(minimum_version)
-        if maximum_version:
-            maximum_versions.append(maximum_version)
+def _aggregate_version_bounds(versions: list) -> tuple[str, str]:
+    tested_versions = []
+    for version_group in versions:
+        tested_versions.extend(version for version in version_group.get("tested", []) if version)
 
-    if not minimum_versions or not maximum_versions:
+    if not tested_versions:
         return "N/A", "N/A"
 
-    return min(minimum_versions, key=_version_key), max(maximum_versions, key=_version_key)
+    return min(tested_versions, key=_version_key), max(tested_versions, key=_version_key)
 
 
 def _read_supported_versions(filepath: pathlib.Path) -> Optional[dict[str, dict[str, dict[str, str]]]]:
@@ -85,9 +79,9 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[dict[str, dict[
     try:
         entries = json.loads(filepath.read_text())
         for entry in entries:
-            integration_name = entry.get("integration", "").strip().lower()
-            dependency_name = entry.get("dependency", "").strip()
-            min_version, max_version = _aggregate_python_version_bounds(entry.get("python_versions", {}))
+            integration_name = entry.get("integrationName", "").strip().lower()
+            dependency_name = entry.get("dependencyName", "").strip()
+            min_version, max_version = _aggregate_version_bounds(entry.get("versions", []))
 
             version_bounds = {
                 "min": _normalize_version_string(min_version) if min_version else "N/A",

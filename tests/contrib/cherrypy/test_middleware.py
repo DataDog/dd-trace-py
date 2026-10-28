@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 import os
 import re
@@ -48,7 +47,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         )
 
     def setUp(self):
-        super(TestCherrypy, self).setUp()
+        super().setUp()
         self.traced_app = TraceMiddleware(
             cherrypy,
             service="test.cherrypy.service",
@@ -225,7 +224,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # Encoded utf8 query strings MUST be parsed correctly.
         # Here, the URL is encoded in utf8 and then %HEX
         # See https://docs.cherrypy.org/en/latest/_modules/cherrypy/test/test_encoding.html for more
-        self.getPage(url_quote("/üŋïĉóđē".encode("utf-8")))
+        self.getPage(url_quote("/üŋïĉóđē".encode()))
         time.sleep(0.1)
         self.assertStatus("200 OK")
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
@@ -364,6 +363,27 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
+
+    def test_otel_semantics_preserves_custom_span_resource(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            self.getPage("/custom_span")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "overridden"
+
+    def test_otel_semantics_sets_method_resource_before_in_handler_sampling(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            self.getPage("/sampled_resource")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        self.assertBody("GET")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "GET"
 
     def test_http_request_header_tracing(self):
         config.cherrypy.http.trace_headers(["Host", "my-header"])
@@ -607,7 +627,7 @@ def test_service_name_schema(ddtrace_run_python_code_in_subprocess, schema_versi
         "v0": "cherrypy",
         "v1": "mysvc",
     }[schema_version]
-    code = """
+    code = f"""
 import pytest
 import cherrypy
 import time
@@ -641,12 +661,14 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "{}", "Schema Version: {{}}".format(os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"))
+        assert s.service == "{expected_service_name}", "Schema Version: {{}}".format(
+            os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA")
+        )
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_service_name)
+    """
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -663,7 +685,7 @@ def test_operation_name_schema(ddtrace_run_python_code_in_subprocess, schema_ver
         "v0": "cherrypy.request",
         "v1": "http.server.request",
     }[schema_version]
-    code = """
+    code = f"""
 import pytest
 import cherrypy
 import time
@@ -697,12 +719,14 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.name == "{}", "Schema Version: {{}}".format(os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"))
+        assert s.name == "{expected_operation_name}", "Schema Version: {{}}".format(
+            os.environ.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA")
+        )
 
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(expected_operation_name)
+    """
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

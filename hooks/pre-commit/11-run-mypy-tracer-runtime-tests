@@ -1,0 +1,25 @@
+#!/bin/sh
+LINT_CMD="${LINT_CMD:-scripts/lint}"
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '^tests/tracer/runtime/.*\.(py|pyi)$' | tr '\n' ' ')
+if [ -n "$staged_files" ]; then
+    deduped=""
+    for f in $staged_files; do
+        case "$f" in
+            *.pyi)
+                py="${f%i}"
+                case " $staged_files " in
+                    *" $py "*) continue ;;
+                esac
+                ;;
+        esac
+        deduped="$deduped $f"
+    done
+    deduped="${deduped# }"
+    if [ -n "$deduped" ]; then
+        "$LINT_CMD" typing -- $deduped
+    else
+        echo 'Run tracer-runtime mypy skipped: all staged stubs have corresponding .py files'
+    fi
+else
+    echo 'Run tracer-runtime mypy skipped: no staged tests/tracer/runtime Python files'
+fi

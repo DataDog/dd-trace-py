@@ -73,7 +73,7 @@ TEST_F(AspectModuloCheck, check_api_modulo_aspect_float_parameter_with_tainted_t
     auto source = Source("input1", "template", OriginType::PARAMETER);
     auto range = safe_allocate_taint_range(0, 8, source, {});
     TaintRangeRefs ranges{ range };
-    ASSERT_TRUE(set_ranges(candidate_text, ranges, tx_map));
+    ASSERT_EQ(set_ranges(candidate_text, ranges, tx_map), SetRangesResult::Stored);
 
     PyObject* candidate_result = PyNumber_Remainder(candidate_text, param);
     ASSERT_TRUE(candidate_result != nullptr);

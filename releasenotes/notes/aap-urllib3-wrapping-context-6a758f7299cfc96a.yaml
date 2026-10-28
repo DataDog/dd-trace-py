@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    AAP: Fixes an issue where exceptions raised by ``urllib3`` requests include an Exploit
+    Prevention frame in their traceback, which caused ordinary application errors to be
+    misattributed to Datadog. Enabling ``urllib3`` APM tracing, which is off by default,
+    still contributes a frame of its own.

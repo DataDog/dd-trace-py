@@ -2,6 +2,7 @@ import os
 import time
 
 import tornado.concurrent
+import tornado.escape
 import tornado.web
 
 from ddtrace.trace import tracer
@@ -25,7 +26,7 @@ class ResponseStatusHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self, status_code):
         self.set_status(int(status_code))
-        self.write("status_code: {}".format(status_code))
+        self.write(f"status_code: {tornado.escape.xhtml_escape(status_code)}")
 
 
 class NestedHandler(tornado.web.RequestHandler):

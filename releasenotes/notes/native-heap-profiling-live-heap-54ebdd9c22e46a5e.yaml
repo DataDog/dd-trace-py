@@ -1,0 +1,6 @@
+---
+  features:
+    - |
+      profiling: Add experimental native (C/C++) heap profiling for Python processes
+      on Linux (glibc only). Enabled with ``DD_PROFILING_NATIVE_HEAP_ENABLED=true``.
+  

@@ -1,5 +1,6 @@
 import base64
 import collections
+from collections.abc import Mapping
 import gzip
 import json
 import time
@@ -8,8 +9,6 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
-from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
 import ddtrace.appsec._asm_request_context as _asm_request_context
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
@@ -19,9 +18,13 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 import ddtrace.constants as constants
 from ddtrace.ext import http
 from ddtrace.internal import logger as ddlogger
+from ddtrace.internal._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
+from ddtrace.internal.utils.endpoint import SimplifiedEndpointComputer
+from ddtrace.internal.utils.endpoint import path_source_tag_value
 
 
 log = ddlogger.get_logger(__name__)
@@ -41,7 +44,10 @@ class TooLargeSchemaException(Exception):
     pass
 
 
-def path_param_transform(v: Any) -> Union[dict, list]:
+PathParams = Union[Mapping[str, Any], list[Any], tuple[Any, ...]]
+
+
+def path_param_transform(v: PathParams) -> Union[dict[str, Any], list[Any]]:
     if isinstance(v, (list, tuple)):
         return list(v)
     return dict(v)
@@ -88,7 +94,7 @@ class APIManager(Service):
         log.debug("%s disabled", cls.__name__)
 
     def __init__(self) -> None:
-        super(APIManager, self).__init__()
+        super().__init__()
 
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
@@ -110,7 +116,7 @@ class APIManager(Service):
             False: if sampled
             True: if we should collect
         """
-        if priority <= 0 and asm_config._apm_tracing_enabled:
+        if priority <= 0 and standalone_config.apm_tracing_enabled:
             return False
 
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
@@ -119,9 +125,9 @@ class APIManager(Service):
 
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         if route is None and env.blocked is None and not is_404:
-            endpoint = env.entry_span.get_tag(http.ENDPOINT)
+            endpoint = env.entry_span._get_str_attribute(http.ENDPOINT)
             if endpoint is None:
-                url = env.entry_span.get_tag(http.URL)
+                url = path_source_tag_value(env.entry_span)
                 endpoint = self.simplified_endpoint_computer.from_url(url)
             route = endpoint
 
@@ -221,5 +227,5 @@ class APIManager(Service):
         report_api_security(True, nb_schemas, env.framework)
 
         # If we have a schema and APM tracing is disabled, force keep the trace
-        if nb_schemas > 0 and not asm_config._apm_tracing_enabled:
+        if nb_schemas > 0 and not standalone_config.apm_tracing_enabled:
             _asm_manual_keep(root)

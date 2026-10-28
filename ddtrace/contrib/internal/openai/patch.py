@@ -7,6 +7,7 @@ from openai import version
 
 from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
+from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
@@ -76,6 +77,9 @@ _RESOURCES = {
         "create": _endpoint_hooks._ResponseHook,
         "parse": _endpoint_hooks._ResponseParseHook,
     },
+    "decisions.Decisions": {
+        "create": _endpoint_hooks._DecisionHook,
+    },
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
@@ -134,12 +138,14 @@ def patch():
             log.debug("WARNING: resource %s is not found", resource)
             continue
         for method_name, endpoint_hook in method_hook_dict.items():
-            sync_method = "resources.{}.{}".format(resource, method_name)
+            sync_method = f"resources.{resource}.{method_name}"
             async_method = "resources.{}.{}".format(".Async".join(resource.split(".")), method_name)
             if deep_getattr(openai, sync_method) is not None:
                 wrap(openai, sync_method, _patched_endpoint(endpoint_hook))
             if deep_getattr(openai, async_method) is not None:
                 wrap(openai, async_method, _patched_endpoint_async(endpoint_hook))
+
+    _realtime.patch_realtime()
 
     openai.__datadog_patch = True
 
@@ -186,6 +192,8 @@ def unpatch():
                 unwrap(sync_resource, method_name)
             if async_resource is not None and hasattr(async_resource, method_name):
                 unwrap(async_resource, method_name)
+
+    _realtime.unpatch_realtime()
 
     delattr(openai, "_datadog_integration")
 

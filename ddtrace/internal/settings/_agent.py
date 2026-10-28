@@ -6,6 +6,7 @@ from typing import Union
 from urllib.parse import urlparse
 
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 
 
@@ -25,7 +26,7 @@ def is_ipv6_hostname(hostname: Union[T, str]) -> bool:
     try:
         socket.inet_pton(socket.AF_INET6, hostname)
         return True
-    except socket.error:  # not a valid address
+    except OSError:  # not a valid address
         return False
 
 
@@ -66,6 +67,24 @@ def _derive_stats_url(config: "AgentConfig") -> str:
         else:
             url = f"udp://{DEFAULT_HOSTNAME}:{DEFAULT_STATS_PORT}"
     return url
+
+
+def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
+    # OTel semantics force OTLP export ahead of the agent-protocol override.
+    if config._trace_otel_semantics_enabled:
+        return True
+    return (
+        env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
+        and not config._trace_agent_protocol_version
+        and not config._trace_api_version
+    )
+
+
+def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
+    # When the OTLP traces export is used, always use native span events.
+    if config.trace_otlp_export_enabled:
+        return True
+    return config._trace_native_span_events
 
 
 class AgentConfig(DDConfig):
@@ -143,13 +162,41 @@ class AgentConfig(DDConfig):
         help="Stores the port of the agent",
     )
 
-    trace_native_span_events = DDConfig.v(
+    _trace_agent_protocol_version = DDConfig.v(
+        Optional[str],
+        "trace_agent_protocol_version",
+        default=None,
+        help_type="String",
+        help="Stores the agent protocol version override; when set, OTLP export is disabled "
+        "unless OTel semantics are enabled",
+    )
+
+    _trace_api_version = DDConfig.v(
+        Optional[str],
+        "trace_api_version",
+        default=None,
+        help_type="String",
+        help="Stores the trace API version override; when set, OTLP export is disabled "
+        "unless OTel semantics are enabled",
+    )
+
+    _trace_otel_semantics_enabled = DDConfig.v(
+        bool,
+        "trace_otel_semantics_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Stores whether OTel HTTP semantic conventions are enabled",
+    )
+
+    _trace_native_span_events = DDConfig.v(
         bool,
         "trace_native_span_events",
         default=False,
         help_type="Boolean",
         help="Stores whether native span events are enabled",
     )
+    trace_otlp_export_enabled = DDConfig.d(bool, _derive_trace_otlp_export_enabled)
+    trace_native_span_events = DDConfig.d(bool, _derive_trace_native_span_events)
     # Effective trace agent URL (this is the one that will be used)
     trace_agent_url = DDConfig.d(str, _derive_trace_url)
     # Effective DogStatsD URL (this is the one that will be used)

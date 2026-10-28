@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -12,17 +14,21 @@ if TYPE_CHECKING:
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
+from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
+from ddtrace.llmobs._integrations.mcp import DEFAULT_TOOL_ERROR_MESSAGE
 from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._integrations.mcp import get_tool_error_message
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
 
@@ -41,14 +47,17 @@ config._add(
 def get_version() -> str:
     from importlib.metadata import version
 
-    return version("mcp")
+    try:
+        return version("mcp")
+    except Exception:
+        return ""
 
 
 def _supported_versions() -> dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "ClientRequest":
+def _set_distributed_headers_into_mcp_request(request: ClientRequest) -> ClientRequest:
     """Inject distributed tracing headers into MCP request metadata."""
     span = tracer.current_span()
     if span is None:
@@ -88,7 +97,7 @@ def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "Clie
         return request
 
 
-def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[dict[str, str]]:
+def _extract_distributed_headers_from_mcp_request(request_root: Request) -> Optional[dict[str, str]]:
     """Extract distributed tracing headers from MCP request params.meta field."""
     request_params = _get_attr(request_root, "params", None)
     meta = _get_attr(request_params, "meta", None) if request_params else None
@@ -115,12 +124,10 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
         result = await func(*args, **kwargs)
 
         if getattr(result, "isError", False):
-            content = getattr(result, "content", [])
             span.error = 1
-
-            content_block = content[0] if content and isinstance(content, list) else None
-            if content_block and getattr(content_block, "text", None):
-                span.set_tag(ERROR_MSG, content_block.text)
+            error_message = get_tool_error_message(result)
+            if error_message:
+                span.set_tag(ERROR_MSG, error_message)
 
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=result, operation=CLIENT_TOOL_CALL_OPERATION_NAME
@@ -254,10 +261,11 @@ def traced_request_responder_exit(func, instance, args: tuple, kwargs: dict):
 
 
 async def traced_request_responder_respond(func, instance, args: tuple, kwargs: dict):
+    from mcp.types import CallToolResult
     from mcp.types import ListToolsResult
 
-    response_arg = args[0] if len(args) > 0 else None
-    response = getattr(response_arg, "root", None)
+    response_arg = args[0] if args else kwargs.get("response")
+    response = getattr(response_arg, "root", response_arg)
     integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
@@ -268,6 +276,10 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
         return await func(*args, **kwargs)
     finally:
         if span:
+            if isinstance(response, CallToolResult) and response.isError:
+                span.error = 1
+                span.set_tag(ERROR_TYPE, "ToolError")
+                span.set_tag(ERROR_MSG, get_tool_error_message(response) or DEFAULT_TOOL_ERROR_MESSAGE)
             integration.llmobs_set_tags(
                 span,
                 args=args,
@@ -281,12 +293,20 @@ def patch():
     if getattr(mcp, "__datadog_patch", False):
         return
 
+    # Claimed before the imports below so a concurrent patch() cannot clear the
+    # guard above and wrap everything a second time.
     mcp.__datadog_patch = True
-    mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
 
-    from mcp.client.session import ClientSession
-    from mcp.shared.session import BaseSession
-    from mcp.shared.session import RequestResponder
+    try:
+        from mcp.client.session import ClientSession
+        from mcp.shared.session import BaseSession
+        from mcp.shared.session import RequestResponder
+    except ImportError:
+        mcp.__datadog_patch = False
+        log.debug("mcp is importable but is not the MCP SDK, skipping instrumentation")
+        return
+
+    mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
 
     wrap(ClientSession, "__aenter__", traced_client_session_aenter)
     wrap(ClientSession, "__aexit__", traced_client_session_aexit)
@@ -294,9 +314,12 @@ def patch():
     wrap(ClientSession, "call_tool", traced_call_tool)
     wrap(ClientSession, "list_tools", traced_client_session_list_tools)
     wrap(ClientSession, "initialize", traced_client_session_initialize)
-    wrap(RequestResponder, "__enter__", traced_request_responder_enter)
-    wrap(RequestResponder, "__exit__", traced_request_responder_exit)
     wrap(RequestResponder, "respond", traced_request_responder_respond)
+
+    # RequestResponder gained the context manager protocol in mcp 1.3.0.
+    if hasattr(RequestResponder, "__enter__") and hasattr(RequestResponder, "__exit__"):
+        wrap(RequestResponder, "__enter__", traced_request_responder_enter)
+        wrap(RequestResponder, "__exit__", traced_request_responder_exit)
 
 
 def unpatch():
@@ -305,6 +328,8 @@ def unpatch():
 
     mcp.__datadog_patch = False
 
+    # Only reachable with __datadog_patch set, which patch() leaves set only
+    # when these imports succeeded, so they cannot fail here.
     from mcp.client.session import ClientSession
     from mcp.shared.session import BaseSession
     from mcp.shared.session import RequestResponder
@@ -315,8 +340,11 @@ def unpatch():
     unwrap(ClientSession, "call_tool")
     unwrap(ClientSession, "list_tools")
     unwrap(ClientSession, "initialize")
-    unwrap(RequestResponder, "__enter__")
-    unwrap(RequestResponder, "__exit__")
     unwrap(RequestResponder, "respond")
+
+    # Only wrapped on mcp >= 1.3.0, see patch().
+    if iswrapped(RequestResponder, "__enter__"):
+        unwrap(RequestResponder, "__enter__")
+        unwrap(RequestResponder, "__exit__")
 
     delattr(mcp, "_datadog_integration")

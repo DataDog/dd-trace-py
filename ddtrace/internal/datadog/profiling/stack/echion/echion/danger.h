@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
@@ -26,6 +27,26 @@ init_segv_catcher();
 
 void
 uninstall_segv_handler();
+
+// Returns true only if our signal handler owns both SIGSEGV and SIGBUS; false on any error.
+bool
+segv_handler_installed();
+
+struct SegvHandlerOwnership
+{
+    // Per-signal owner: "SIGSEGV=<owner>, SIGBUS=<owner>".
+    std::string owners;
+    // The signals our handler does not own, by the same criterion
+    // segv_handler_installed() applies: "SIGSEGV", "SIGBUS" or "SIGSEGV and SIGBUS".
+    // Empty when both are ours.
+    std::string foreign;
+};
+
+// Both fields come from one pass over the dispositions, so the names and the
+// ownership verdict cannot contradict each other.
+// Not async-signal-safe; allocation failure returns {"unknown", ""}.
+SegvHandlerOwnership
+describe_segv_handler_ownership() noexcept;
 
 #if defined PL_LINUX
 ssize_t
@@ -113,7 +134,7 @@ struct ThreadAltStack
         // owner's alt stack and break its fault handling. We free our own mapping regardless.
         stack_t cur{};
         if (sigaltstack(nullptr, &cur) == 0 && cur.ss_sp == mem && !(cur.ss_flags & SS_DISABLE)) {
-            stack_t disable{};
+            stack_t disable = cur;
             disable.ss_flags = SS_DISABLE;
             (void)sigaltstack(&disable, nullptr);
         }

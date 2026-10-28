@@ -47,7 +47,7 @@ class IntegrationRegistryManager:
     def _get_integration_name_from_traceback(self, tb_string):
         """Extracts integration name (directory name) from traceback string."""
         for line in reversed(tb_string.splitlines()):
-            if "ddtrace/contrib/internal/" in line:
+            if "ddtrace/contrib/internal/" in line and "/patch.py" in line:
                 try:
                     # e.g., ".../ddtrace/contrib/internal/flask/patch.py" -> "flask"
                     parts = line.split("ddtrace/contrib/internal/")[1].split("/")

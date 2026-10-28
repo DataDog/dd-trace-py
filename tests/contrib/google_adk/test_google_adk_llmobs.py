@@ -1,12 +1,17 @@
 from unittest import mock
 
+from google.adk.tools.function_tool import FunctionTool
 import pytest
 
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from tests.contrib.google_adk.conftest import call_tool_async
 from tests.contrib.google_adk.conftest import create_test_message
+from tests.contrib.google_adk.conftest import stream_values
+from tests.contrib.google_adk.conftest import streaming_via_call_tool_async
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
@@ -26,7 +31,11 @@ AGENT_MANIFEST_METADATA = {
             "model": "gemini-2.5-pro",
             "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
             "name": "test_agent",
-            "session_management": {"session_id": "test-session", "user_id": "test-user"},
+            "session_management": {
+                "session_id": "test-session",
+                "user_id": "test-user",
+                "app_name": "TestADKApp",
+            },
             "tools": [
                 {"description": "A tiny search tool stub.", "name": "search_docs"},
                 {"description": "Simple arithmetic tool.", "name": "multiply"},
@@ -76,7 +85,12 @@ class TestLLMObsGoogleADK:
             input_value='{"query": "test"}',
             output_value='{"results": ["Found reference for: test"]}',
             metadata={"description": "A tiny search tool stub."},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+            },
             name="search_docs",
         )
 
@@ -86,7 +100,12 @@ class TestLLMObsGoogleADK:
             input_value='{"a": 5, "b": 3}',
             output_value='{"product": 15}',
             metadata={"description": "Simple arithmetic tool."},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+            },
             name="multiply",
         )
 
@@ -95,7 +114,14 @@ class TestLLMObsGoogleADK:
             span_kind="agent",
             error=error,
             input_value="Say hello",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+                "user_id": "test-user",
+                "app_name": "TestADKApp",
+            },
             name="test_agent",
             metadata=AGENT_MANIFEST_METADATA,
             output_value=mock.ANY,
@@ -138,7 +164,12 @@ class TestLLMObsGoogleADK:
             input_value='{"query": "recurring revenue"}',
             output_value='{"results": ["Found reference for: recurring revenue"]}',
             metadata={"description": "A tiny search tool stub."},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+            },
             name="search_docs",
         )
 
@@ -147,7 +178,14 @@ class TestLLMObsGoogleADK:
             span_kind="agent",
             error=error,
             input_value="Can you search for information about recurring revenue?",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+                "user_id": "test-user",
+                "app_name": "TestADKApp",
+            },
             name="test_agent",
             metadata=AGENT_MANIFEST_METADATA,
             output_value=mock.ANY,
@@ -210,3 +248,67 @@ class TestLLMObsGoogleADK:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
             name="Google ADK Code Execute",
         )
+
+    @pytest.mark.asyncio
+    async def test_run_live_reads_metadata_from_session_object(self, test_runner, test_spans, google_adk_llmobs):
+        """run_live's deprecated ``session=`` form: session metadata is read off the Session object.
+
+        Driven end-to-end through the patched ``Runner.run_live``. The agent's live turn is stubbed so
+        the test doesn't open a real model connection; the agent span is still tagged with the session
+        id and user id resolved from the Session object, since neither is passed as a keyword.
+        """
+        from google.adk.agents.live_request_queue import LiveRequestQueue
+
+        session = await test_runner.session_service.create_session(
+            app_name=test_runner.app_name,
+            user_id="live-user",
+            session_id="live-session",
+        )
+
+        async def _stub_live_turn(*args, **kwargs):
+            # Stand in for the agent's live model turn so no real connection is opened.
+            for _ in ():
+                yield _
+
+        with mock.patch.object(type(test_runner.agent), "run_live", _stub_live_turn):
+            async for _ in test_runner.run_live(session=session, live_request_queue=LiveRequestQueue()):
+                pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        run_live_spans = [s for s in spans if s.resource.endswith("run_live")]
+        assert len(run_live_spans) == 1
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(run_live_spans[0]),
+            span_kind="agent",
+            name="test_agent",
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "live-session",
+                "user_id": "live-user",
+                "app_name": "TestADKApp",
+            },
+        )
+
+    @streaming_via_call_tool_async
+    @pytest.mark.asyncio
+    async def test_streaming_tool_output_is_tagged(self, adk, streaming_tool_context):
+        """The streamed items are tagged as the tool output, not the async generator object.
+
+        google-adk 2.7.0+ returns an async generator from `__call_tool_async` for streaming tools.
+        Asserted against `llmobs_set_tags` rather than the span metastruct because `test_spans`
+        requires a DummyWriter, which is unavailable once LLMObs is enabled.
+        """
+        tool = FunctionTool(func=stream_values)
+        count = 3
+
+        with mock.patch.object(GoogleAdkIntegration, "llmobs_set_tags", autospec=True) as llmobs_set_tags:
+            result = await call_tool_async(adk)(tool=tool, args={"count": count}, tool_context=streaming_tool_context)
+            assert len([item async for item in result]) == count, "every item must still reach the caller"
+
+        tagged = next(
+            call.kwargs["response"] for call in llmobs_set_tags.call_args_list if call.kwargs.get("operation") == "tool"
+        )
+        assert tagged == [{"value": 0}, {"value": 1}, {"value": 2}]

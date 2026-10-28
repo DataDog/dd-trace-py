@@ -69,7 +69,6 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .ddtox/
-.ddriot/
 .coverage
 .coverage.*
 .cache
@@ -128,6 +127,9 @@ venv/
 ENV/
 pip_cache_shared_venvs/
 
+# Integration registry file-lock (flock-based, persists between runs)
+scripts/integration_registry/registry.yaml.lock
+
 # Worktrees
 .worktrees/
 
@@ -164,12 +166,6 @@ CLAUDE.local.md
 
 # oh-my-claudecode
 .omc/
-
-# Riot
-.riot/venv*
-.riot/envs/
-.riot/.build.lock
-.riot/requirements/*.in
 
 # Benchmarks
 artifacts/
@@ -221,15 +217,26 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 *.debug
 *.dSYM/
 
+# Core dump files
+/core
+/core.[0-9]*
+*.core
+vgcore.*
+
 # Rust build artifacts
 src/native/target*
+src/native_heap_gotter/target*
+
+# Profiling collector local CMake build dir
+ddtrace/profiling/collector/build-test/
 
 # Fuzzing corpus, output and artifacts
 .fuzz/
 
 # APM AI Toolkit Analysis Logs
 .analysis/
+.dd-apm-byo-agent-*/
 
 # file created when running scripts/lint
 uv.lock
-.riot/*.installed
+benchmark-artifacts/

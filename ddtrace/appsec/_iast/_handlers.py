@@ -1,8 +1,9 @@
 from collections.abc import MutableMapping
 import functools
+from types import ModuleType
 from typing import Any
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_endpoint
@@ -20,14 +21,23 @@ from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.span_bus import span_from_context
 
 
 MessageMapContainer = None
-try:
-    from google._upb._message import MessageMapContainer  # type: ignore[no-redef]
-except ImportError:
-    pass
+
+
+# Only capture MessageMapContainer if the application (or another dependency)
+# imports google._upb._message on its own: importing it ourselves here would
+# force-load protobuf's upb backend during bootstrap, which the module-cloning
+# cleanup then unloads and can cause a second upb module to be loaded later,
+# breaking isinstance checks against it.
+@ModuleWatchdog.after_module_imported("google._upb._message")
+def _(module: ModuleType) -> None:
+    global MessageMapContainer
+    MessageMapContainer = getattr(module, "MessageMapContainer", None)
 
 
 log = get_logger(__name__)
@@ -378,6 +388,8 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
 
 
 def _on_iast_fastapi_patch():
+    if not asm_config._iast_enabled:
+        return
     try:
         iast_funcs = WrapFunctonsForIAST()
         # Cookies sources
@@ -463,7 +475,7 @@ def _on_iast_fastapi_patch():
 
 
 def _on_pre_tracedrequest_iast(ctx):
-    current_span = ctx.span
+    current_span = span_from_context(ctx)
     _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
 
 

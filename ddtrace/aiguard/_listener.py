@@ -4,11 +4,12 @@ from functools import partial
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Protocol
 from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.aiguard._streaming import BufferedAIGuardStream
 from ddtrace.aiguard._streaming import _is_async_plain_stream
@@ -17,24 +18,26 @@ from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
+from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
+from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_after
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_generate_before
 from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
+from ddtrace.aiguard.integrations._langchain import _langchain_stream_finally
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
-from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = ddlogger.get_logger(__name__)
@@ -58,6 +61,13 @@ def ai_guard_listen() -> None:
 
 
 def _langchain_listen(client: AIGuardClient) -> None:
+    # Per-LLM kill switch (DD_AI_GUARD_LANGCHAIN_ENABLED, true by default). When set
+    # to false, skip registering LangChain listeners so AI Guard never evaluates
+    # LangChain calls, without affecting other providers or requiring a tracer rollback.
+    if not aiguard_config._ai_guard_langchain_enabled:
+        logger.debug("AI Guard LangChain auto-instrumentation disabled via DD_AI_GUARD_LANGCHAIN_ENABLED=false")
+        return
+
     core.on("langchain.patch", partial(_langchain_patch, client))
     core.on("langchain.unpatch", _langchain_unpatch)
 
@@ -69,35 +79,40 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
-    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from
+    # LangChain marks the AI Guard context active for the whole model call, which
+    # makes the OpenAI / Anthropic listeners skip their own response evaluation.
+    # These listeners are what replaces it -- without them a LangChain model
+    # response reaches the caller unevaluated (APPSEC-70274). Streams have no after
+    # event: AI Guard's stream wrapper evaluates them instead (_langchain_buffered_stream).
+    core.on("langchain.chatmodel.generate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.chatmodel.agenerate.after", partial(_langchain_chatmodel_generate_after, client))
+    core.on("langchain.llm.generate.after", partial(_langchain_llm_generate_after, client))
+    core.on("langchain.llm.agenerate.after", partial(_langchain_llm_generate_after, client))
+
+    # ``.stream.started`` is dispatched lazily from
     # ``BaseLangchainStreamHandler.start_stream`` (called by
     # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
-    # stream created but never consumed cannot leak the counter into the
+    # stream created but never consumed cannot leak a claim into the
     # next call in the same task. The matching reset happens via
     # ``.stream.finally`` below (dispatched from ``finalize_stream``).
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 
-    # AIDEV-NOTE: ``.finally`` listeners release the AI Guard active-context
-    # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
-    # by the matching ``.before`` listener (``func(...)`` runs synchronously
-    # so set + reset wrap the SDK call). For streaming the counter is bumped
-    # by ``.stream.started`` above, and reset here once iteration ends. We
-    # listen on ``.finally`` rather than ``.after`` so the reset still fires
-    # when the underlying LLM call raises mid-iteration.
+    # The .finally listeners release the claim of the matching .before or .stream.started
+    # listener; .finally rather than .after, so the release also runs when the call raises.
     core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
     core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.llm.generate.finally", _langchain_generate_finally)
     core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
-    core.on("langchain.chatmodel.stream.finally", _langchain_generate_finally)
-    core.on("langchain.llm.stream.finally", _langchain_generate_finally)
+    core.on("langchain.chatmodel.stream.finally", _langchain_stream_finally)
+    core.on("langchain.llm.stream.finally", _langchain_stream_finally)
 
 
 def _openai_listen(client: AIGuardClient) -> None:
     # Per-LLM kill switch (DD_AI_GUARD_OPENAI_ENABLED, true by default). When set
     # to false, skip registering OpenAI listeners so AI Guard never evaluates
     # OpenAI calls, without affecting other providers or requiring a tracer rollback.
-    if not ai_guard_config._ai_guard_openai_enabled:
+    if not aiguard_config._ai_guard_openai_enabled:
         logger.debug("AI Guard OpenAI auto-instrumentation disabled via DD_AI_GUARD_OPENAI_ENABLED=false")
         return
     core.on("openai.chat.completions.create.before", partial(_openai_chat_completion_before, client))
@@ -147,7 +162,7 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
     """Install outermost streaming buffer wrappers on Chat/Responses ``create`` (raw helpers go to
     ``_install_openai_raw_wrappers``). Fires on ``openai.patch``; only when the flag is on.
     """
-    if not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
+    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
         return
 
     import openai
@@ -162,7 +177,7 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
         client, reconstruct_openai_responses, _openai_response_create_after
     )
 
-    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/openai/patch.py::patch() (the
     # ``_RESOURCES`` loop). ``parse`` is intentionally skipped: it is non-streaming
     # in the inspected SDKs. If the contrib adds/renames a streaming target, that
@@ -319,6 +334,13 @@ def _uninstall_openai_wrappers() -> None:
 
 
 def _anthropic_listen(client: AIGuardClient) -> None:
+    # Per-LLM kill switch (DD_AI_GUARD_ANTHROPIC_ENABLED, true by default). When set
+    # to false, skip registering Anthropic listeners so AI Guard never evaluates
+    # Anthropic calls, without affecting other providers or requiring a tracer rollback.
+    if not aiguard_config._ai_guard_anthropic_enabled:
+        logger.debug("AI Guard Anthropic auto-instrumentation disabled via DD_AI_GUARD_ANTHROPIC_ENABLED=false")
+        return
+
     core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
     core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
     core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
@@ -338,7 +360,7 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
     ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true`` so there is zero
     overhead on the default (flag-off) code path.
     """
-    if not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
+    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
         return
 
     import anthropic
@@ -369,7 +391,7 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
 
         return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
 
-    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/anthropic/patch.py::patch(). If the
     # contrib adds/renames a streaming target or changes the >= (0, 37) beta gate,
     # that surface silently goes unbuffered here -- a security gap with no failing
@@ -422,8 +444,14 @@ def _uninstall_anthropic_wrappers() -> None:
             logger.debug("AI Guard anthropic: failed to uninstall streaming wrapper on %s.%s", owner, attr)
 
 
+class _SpanTypeCarrier(Protocol):
+    """Structural stand-in for ddtrace._trace.span.Span"""
+
+    span_type: Optional[str]
+
+
 def _on_set_http_meta_for_ai_guard(
-    span: Span,
+    span: _SpanTypeCarrier,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],
@@ -439,15 +467,18 @@ def _on_set_http_meta_for_ai_guard(
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
-    # Stash the candidate client IP so it can be applied to the service-entry span
+    # Stash the client and peer IPs so they can be applied to the service-entry span
     # only if an ai_guard span is actually created during the request. Restricted to
     # inbound server (WEB/SERVERLESS) spans so outbound HTTP client spans can't overwrite
     # the key with forwarded-IP headers from downstream calls.
     # https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
-    if not ai_guard_config._ai_guard_enabled:
+    if not aiguard_config._ai_guard_enabled:
         return
     if span.span_type not in (SpanTypes.WEB, SpanTypes.SERVERLESS):
         return
+    # Later metadata calls (e.g. mounted ASGI apps) can omit the peer captured earlier.
+    if not peer_ip and core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY):
+        return
     candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
     if candidate_ip:
-        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, candidate_ip)
+        core.set_item(AI_GUARD.CLIENT_IP_CORE_KEY, (candidate_ip, peer_ip))

@@ -3,6 +3,7 @@ import sysconfig as _sysconfig
 import sys
 import threading
 import time
+from typing import Optional
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
@@ -12,6 +13,11 @@ from ddtrace.profiling.collector._fast_poisson import PoissonSampler
 
 LOG = logging.getLogger(__name__)
 HAS_MONITORING = hasattr(sys, "monitoring")
+if HAS_MONITORING:
+    from ddtrace.internal import monitoring as _monitoring
+else:
+    _monitoring = None
+
 _GIL_DISABLED = _sysconfig.get_config_var("Py_GIL_DISABLED")
 _current_thread = threading.current_thread
 
@@ -22,10 +28,11 @@ MAX_EXCEPTION_MESSAGE_LEN = 128
 #   0 = DEBUGGER_ID
 #   1 = COVERAGE_ID (used by dd-trace-py coverage)
 #   2 = PROFILER_ID (used by the native stack profiler)
-#   3 = used by error tracking (handled exceptions)
-#   4 = **used here**
+#   3 = used by the shared multiplexer (this module now registers through it)
+#   4 = used by the shared multiplexer as a fallback slot
 #   5 = OPTIMIZER_ID
-_MONITORING_TOOL_ID = 4
+# The exception profiler no longer claims a slot directly; it registers its
+# RAISE callback through ddtrace.internal.monitoring.register_global().
 
 
 cdef class _SamplerState:
@@ -43,7 +50,7 @@ cdef class _SamplerState:
     cdef int next_sample
     cdef object sampler  # PoissonSampler
 
-    def __init__(self, int sampling_interval, bint collect_message):
+    def __init__(self, int sampling_interval, bint collect_message) -> None:
         self.sampling_interval = sampling_interval
         self.collect_message = collect_message
         self.counter = 0
@@ -56,13 +63,13 @@ cdef class _SamplerState:
 # to share sampler state, because the profiler is process scoped, not thread scoped
 cdef _SamplerState _state = None
 
-# Reentrancy guard: _collect_exception can trigger EXCEPTION_HANDLED callbacks
+# Reentrancy guard: _collect_exception can trigger RAISE callbacks
 # (via str(exc_value) raising, or ddup internals). Without this guard,
 # the callback would recurse.
 cdef bint _collecting = False
 
 
-cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object exc_traceback) except *:
+cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object frame) except *:
     if not ddup.is_available:
         return
 
@@ -87,47 +94,81 @@ cdef void _collect_exception(_SamplerState state, object exc_type, object exc_va
     thread = _current_thread()
     handle.push_threadinfo(thread.ident or 0, getattr(thread, "native_id", 0) or 0, thread.name)
 
-    handle.push_pytraceback(exc_traceback)
+    handle.push_pyframes(frame)
     handle.push_monotonic_ns(time.monotonic_ns())
 
     handle.flush_sample()
 
 
-cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
-    """sys.monitoring.EXCEPTION_HANDLED callback — HOT PATH."""
+cpdef void _on_exception(object code, int instruction_offset, object exception):
+    """sys.monitoring.RAISE callback — HOT PATH."""
     global _collecting
 
     if _collecting:
         return
 
-    cdef _SamplerState state = _state
-    if state is None:
-        return
-
-    state.counter += 1
-
-    if state.counter < state.next_sample:
-        return
-
-    state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
-    state.counter = 0
-
-    # If an exception ever leaks from _collect_exception, this will silently
-    # disable sys.monitoring. Guard against that and against reentrancy
-    # (next_sample == 1 and _collect_exception triggers another
-    # EXCEPTION_HANDLED callback internally).
+    # Set the reentrancy guard before any attribute access on the exception
+    # object. A custom __getattribute__ that raises during the
+    # __class__ or __traceback__ lookup would fire another RAISE callback; without
+    # the guard that secondary exception could recurse and leak back into user
+    # code, replacing the original exception being raised.
+    cdef _SamplerState state
     _collecting = True
     try:
-        _collect_exception(state, type(exception), exception, exception.__traceback__)
+        # Skip control-flow exceptions (iterator/generator termination).
+        if isinstance(exception, (StopIteration, GeneratorExit, StopAsyncIteration)):
+            return
+
+        # RAISE fires in every frame the exception unwinds through, not just
+        # at the raise site. Before invoking this callback CPython appends
+        # the current frame to exception.__traceback__, so the traceback
+        # length tells us how far the exception has already propagated.
+        # A single entry (tb_next is None) is the raise site; more than one
+        # is a propagation re-raise in an ancestor frame.
+        tb = (<object> exception).__traceback__
+        if tb is None or tb.tb_next is not None:
+            return
+
+        state = _state
+        if state is None:
+            return
+
+        state.counter += 1
+
+        if state.counter < state.next_sample:
+            return
+
+        # sampling_interval=1 means sample every exception. Skip Poisson so
+        # variance cannot insert gaps of 2+.
+        if state.sampling_interval == 1:
+            state.next_sample = 1
+        else:
+            state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
+        state.counter = 0
+
+        # At the raise site the head of the traceback is the raising frame;
+        # its f_back chain is the full Python stack up to the entry point.
+        _collect_exception(state, type(exception), exception, tb.tb_frame)
     except Exception:
-        LOG.debug("Failed to collect exception")
+        LOG.debug("[profiling] Failed to collect exception", exc_info=True)
     finally:
         _collecting = False
+
+
+if HAS_MONITORING:
+    class _ExceptionMonitoringHandler(_monitoring.MonitoringEventHandler):
+        # Expose the guarded Cython callback without a Python forwarding method.
+        on_raise = staticmethod(_on_exception)
+
+    _exception_handler = _ExceptionMonitoringHandler()
+else:
+    _exception_handler = None
+
 
 class ExceptionCollector(collector.Collector):
     """Collects exception samples using sys.monitoring (Python 3.12+)."""
 
-    def __init__(self, sampling_interval: int = None, collect_message: bool = None):
+    def __init__(self, sampling_interval: Optional[int] = None, collect_message: Optional[bool] = None) -> None:
         super().__init__()
         raw_interval = sampling_interval if sampling_interval is not None else config.exception.sampling_interval
         assert raw_interval >= 1, "sampling_interval must be >= 1"
@@ -140,62 +181,52 @@ class ExceptionCollector(collector.Collector):
         global _state
 
         if _GIL_DISABLED:
-            LOG.debug("Exception profiling is not supported on free-threaded CPython, skipping")
+            LOG.debug("[profiling] Exception profiling is not supported on free-threaded CPython, skipping")
             return
 
-        if HAS_MONITORING:
-            try:
-                # Claim the tool ID *before* writing _state so that a ValueError
-                # (tool ID already in use) leaves the existing _state untouched.
-                sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
-                sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.EXCEPTION_HANDLED)
-                sys.monitoring.register_callback(
-                    _MONITORING_TOOL_ID,
-                    sys.monitoring.events.EXCEPTION_HANDLED,
-                    _on_exception_handled,
-                )
-            except ValueError:
-                LOG.exception("Failed to set up exception monitoring")
-                return
-
-            _state = _SamplerState(self._sampling_interval, self._collect_message)
-            self._monitoring_registered = True
-        else:
-            LOG.debug("Exception profiling only supports Python 3.12+, skipping")
+        if not HAS_MONITORING:
+            LOG.debug("[profiling] Exception profiling only supports Python 3.12+, skipping")
             return
 
-        LOG.debug("ExceptionCollector started: interval=%d", _state.sampling_interval)
+        if _state is not None:
+            # Reject rather than skip: Service.start() must not mark this
+            # collector RUNNING when another instance owns the active
+            # registration, and a non-owner stop must never clear it.
+            raise collector.CollectorUnavailable("an exception profiler is already running")
+
+        state = _SamplerState(self._sampling_interval, self._collect_message)
+        try:
+            # Register with the shared multiplexer before writing _state so a
+            # registration failure leaves the existing _state untouched.
+            # register_global is the atomic claim: it owns the RAISE event and
+            # rolls itself back on failure. direct=True keeps CPython calling
+            # the guarded Cython callback, as the dedicated slot did before.
+            _monitoring.register_global(_exception_handler, direct=True)
+        except _monitoring.MonitoringToolUnavailable as e:
+            LOG.exception("Failed to set up exception monitoring")
+            # Raise instead of returning so Service.start() does not mark this
+            # collector RUNNING when monitoring was never actually installed.
+            raise collector.CollectorUnavailable from e
+        except ValueError as e:
+            LOG.exception("Failed to register exception monitoring handler")
+            raise collector.CollectorUnavailable from e
+
+        _state = state
+        self._monitoring_registered = True
+        LOG.debug("[profiling] ExceptionCollector started: interval=%d", _state.sampling_interval)
 
     def _stop_service(self) -> None:
         global _state
 
         if not self._monitoring_registered:
-            _state = None
+            # This collector never owned the registration; leave the active
+            # collector's state untouched.
             return
 
-        # Each cleanup step is independent: always attempt all three so that
-        # free_tool_id() is called even if an earlier step fails.  Failing to
-        # free the tool_id permanently consumes sys.monitoring slot
-        # _MONITORING_TOOL_ID and prevents any future profiler restart from
-        # registering the callback again.
         try:
-            sys.monitoring.register_callback(
-                _MONITORING_TOOL_ID,
-                sys.monitoring.events.EXCEPTION_HANDLED,
-                None,
-            )
+            _monitoring.unregister_global(_exception_handler)
         except Exception:
-            LOG.debug("Failed to unregister exception monitoring callback", exc_info=True)
-
-        try:
-            sys.monitoring.set_events(_MONITORING_TOOL_ID, 0)
-        except Exception:
-            LOG.debug("Failed to disable exception monitoring events", exc_info=True)
-
-        try:
-            sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
-        except Exception:
-            LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
+            LOG.debug("[profiling] Failed to unregister exception monitoring handler", exc_info=True)
 
         self._monitoring_registered = False
         _state = None

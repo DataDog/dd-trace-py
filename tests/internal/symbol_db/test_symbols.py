@@ -1,5 +1,7 @@
 import atexit
+import gzip
 from importlib.machinery import ModuleSpec
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -16,15 +18,22 @@ from ddtrace.internal.symbol_db.symbols import ScopeType
 from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
 from ddtrace.internal.symbol_db.symbols import _line_ranges
+from ddtrace.internal.symbol_db.symbols import get_fields
 
 
 @pytest.fixture(autouse=True, scope="function")
 def pid_file_teardown():
+    from ddtrace.internal.ipc import SharedStringFile
     from ddtrace.internal.symbol_db.remoteconfig import shared_pid_file
 
     yield
 
     shared_pid_file.clear()
+    # pytest.mark.subprocess tests run their body in a child process, where
+    # shared_pid_file is keyed by os.getppid() -- i.e. this worker's own pid, not
+    # its ppid used above. Clear that file too, or pids leak across subprocess
+    # tests scheduled on the same pytest-xdist worker.
+    SharedStringFile(f"{os.getpid()}-symdb-pids").clear()
 
 
 def test_symbol_from_code():
@@ -35,6 +44,27 @@ def test_symbol_from_code():
     symbols = Symbol.from_code(foo.__code__)
     assert {s.name for s in symbols if s.symbol_type == SymbolType.ARG} == {"a", "b", "c"}
     assert {s.name for s in symbols if s.symbol_type == SymbolType.LOCAL} == {"loc"}
+
+
+def test_get_fields_from_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+            self.b = 2
+
+    assert get_fields(Foo) == {"a", "b"}
+
+
+def test_get_fields_skips_obfuscated_init():
+    class Foo:
+        def __init__(self):
+            self.a = 1
+
+    # Simulate a PyArmor-obfuscated __init__: disassembling it is what can
+    # hard-crash the interpreter, so get_fields must skip that step entirely
+    # rather than attempt it and rely on catching the fallout.
+    with mock.patch("ddtrace.internal.symbol_db.symbols.is_obfuscated_code", return_value=True):
+        assert get_fields(Foo) == set()
 
 
 def test_symbols_class():
@@ -69,10 +99,13 @@ def test_symbols_class():
             yield oroc
 
         def me(self) -> "Sym":
+            # The return type for this function MUST be quoted.
+            # Using from __future__ import annotations would also postpone
+            # gen's annotation, and symbol_db would then report t.Generator[...].
             return self
 
     module = ModuleType("test")
-    module.Sym = Sym
+    module.Sym = Sym  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -103,7 +136,7 @@ def test_symbols_class():
         "return_type": "typing.Generator[int, NoneType, NoneType]",
         "function_type": "generator",
     }
-    gen_line = Sym.gen.__code__.co_firstlineno + 1
+    gen_line = Sym.gen.__code__.co_firstlineno + 1  # type: ignore[attr-defined]
     assert gen_scope.symbols == [
         Symbol(symbol_type=SymbolType.ARG, name="n", line=gen_line, type="int"),
         Symbol(symbol_type=SymbolType.ARG, name="_untyped", line=gen_line, type=None),
@@ -127,7 +160,7 @@ def test_symbols_decorators():
         pass
 
     module = ModuleType("test")
-    module.foo = foo
+    module.foo = foo  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -146,8 +179,8 @@ def test_symbols_decorators_included():
         pass
 
     module = ModuleType("test")
-    module.deco = deco
-    module.foo = foo
+    module.deco = deco  # type: ignore[attr-defined]
+    module.foo = foo  # type: ignore[attr-defined]
     module.__spec__ = ModuleSpec("test", None)
     module.__spec__.origin = __file__
 
@@ -171,8 +204,48 @@ def test_symbols_decorated_methods():
             pass
 
     scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
+    assert scope is not None
     (bar_scope,) = scope.scopes
     assert bar_scope.name == "bar"
+
+
+def test_symbols_skips_obfuscated_function():
+    class Foo:
+        def bar(self):
+            pass
+
+        def baz(self):
+            pass
+
+    # PyArmor's default mode protects individual functions, so the module
+    # level check alone does not keep them from being inspected.
+    obfuscated = Foo.bar.__code__
+    with mock.patch(
+        "ddtrace.internal.symbol_db.symbols.is_obfuscated_code", side_effect=lambda code: code is obfuscated
+    ):
+        scope = Scope._get_from(Foo, ScopeData(Path(__file__), set()))
+
+    assert scope is not None
+    assert [s.name for s in scope.scopes] == ["baz"]
+
+
+@pytest.mark.subprocess
+def test_symbols_finds_decorator_discarded_function():
+    # tests.submod.custom_decorated_stuff's "home" function is rebound to None
+    # by its decorator, so a namespace walk alone would miss it. Scope.from_module
+    # recovers it from ModuleCodeCollector's code objects instead.
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("symdb")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    assert custom_decorated_stuff.home is None
+
+    scope = Scope.from_module(custom_decorated_stuff)
+
+    assert any(s.name == "home" for s in scope.scopes)
 
 
 def test_symbols_to_json():
@@ -293,19 +366,91 @@ def test_scope_context_upload_skips_empty_batch():
     """Empty scope batches must not produce a SymDB upload request."""
     context = ScopeContext()
 
-    with mock.patch("ddtrace.internal.symbol_db.symbols.connector") as mock_connector:
-        context.upload()
+    with mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as mock_sender:
+        with context._scopes_lock:
+            context._upload_locked()
 
-    mock_connector.assert_not_called()
+    mock_sender.assert_not_called()
+
+
+def test_scope_context_upload_metadata():
+    """ScopeContext exposes the upload metadata fields on the event envelope,
+    and _upload_locked populates per-batch fields on both the event and the
+    attachment payload, advancing batchNum across uploads.
+    """
+    from ddtrace.internal.symbol_db.symbols import ScopeContext
+
+    def make_scope(name: str) -> Scope:
+        return Scope(
+            scope_type=ScopeType.MODULE,
+            name=name,
+            source_file=__file__,
+            start_line=0,
+            end_line=0,
+            symbols=[],
+            scopes=[],
+        )
+
+    ctx = ScopeContext()
+    expected_upload_id = ctx._upload_id
+
+    # Static fields on the event envelope, set at construction time.
+    assert ctx._event_data["ddsource"] == "python"
+    assert ctx._event_data["type"] == "symdb"
+    assert ctx._event_data["language"] == "python"
+    assert "runtimeId" in ctx._event_data
+    assert "parentId" in ctx._event_data
+    assert ctx._event_data["uploadId"] == expected_upload_id
+    assert ctx._event_data["final"] is False
+
+    def get_attachment() -> dict:
+        # The compressed attachment is embedded verbatim in the multipart
+        # body handed to the sender; extract it by its known size instead of
+        # intercepting gzip.compress.
+        body = sender_mock.return_value.send.call_args[0][0]
+        size = ctx._event_data["attachmentSize"]
+        start = body.index(b"\x1f\x8b")  # gzip magic number
+        return json.loads(gzip.decompress(body[start : start + size]).decode("utf-8"))
+
+    with mock.patch("ddtrace.internal.symbol_db.symbols.build_symdb_sender") as sender_mock:
+        sender_mock.return_value.send.return_value.accepted = True
+
+        # First upload: batchNum starts at 1 and the attachment carries the
+        # same upload metadata as the event envelope.
+        with ctx._scopes_lock:
+            ctx._scopes.append(make_scope("first"))
+            ctx._upload_locked()
+
+        assert ctx._event_data["uploadId"] == expected_upload_id
+        assert ctx._event_data["batchNum"] == 1
+        size = ctx._event_data["attachmentSize"]
+        assert isinstance(size, int)
+        assert size > 0
+
+        attachment = get_attachment()
+        assert attachment["upload_id"] == expected_upload_id
+        assert attachment["batch_num"] == 1
+        assert attachment["final"] is False
+
+        # Second upload: batchNum must increment on both the event envelope
+        # and the attachment payload.
+        with ctx._scopes_lock:
+            ctx._scopes.append(make_scope("second"))
+            ctx._upload_locked()
+
+        assert ctx._event_data["batchNum"] == 2
+        attachment = get_attachment()
+        assert attachment["batch_num"] == 2
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
 def test_symbols_upload_enabled():
+    from ddtrace.internal.native import RemoteConfigProduct
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     assert not SymbolDatabaseUploader.is_installed()
-    assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is not None
 
 
 @pytest.mark.subprocess(
@@ -326,7 +471,7 @@ def test_symbols_force_upload():
     def get_scope(name: str) -> t.Optional[dict]:
         for scope in context.to_json()["scopes"]:
             if scope["name"] == name:
-                return scope
+                return t.cast(dict[str, t.Any], scope)
         return None
 
     for name in ("tests.submod.stuff", "tests.submod.traced_stuff"):
@@ -371,35 +516,265 @@ def test_symbols_fork_uploads():
     """
     Test that we disable Symbol DB on processes that are not the main one nor
     the first fork child.
+
+    In the first fork child, where SymDB stays enabled, also verify that the
+    ScopeContext's upload metadata (uploadId, runtimeId, parentId) is
+    refreshed by the post-fork hook.
     """
     import os
+    import typing as t
 
     from ddtrace.internal import forksafe
     from ddtrace.internal.remoteconfig import ConfigMetadata
     from ddtrace.internal.remoteconfig import Payload
     from ddtrace.internal.runtime import get_ancestor_runtime_id
+    from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     SymbolDatabaseUploader.install()
 
+    parent_runtime_id = get_runtime_id()
+    parent_context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
+    parent_upload_id = parent_context._upload_id
+
     pids = []
     rc_data = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", None)]
 
+    # Fork 10 children from the same parent. In each child, re-run the RC
+    # callback and verify the install/uninstall invariant (SymDB stays
+    # enabled only in the first fork child) and, where applicable, the
+    # post-fork ScopeContext metadata refresh.
     for _ in range(10):
-        if not (pid := os.fork()):
+        if pid := os.fork():
+            # Parent: record the child's pid and move on to the next fork.
+            pids.append(pid)
+            continue
+
+        # Child path.
+        try:
+            # We're in a forked child, so the ancestor runtime id must
+            # be set.
+            assert get_ancestor_runtime_id() is not None
             # Call the RC callback multiple times to check for stability
             for i in range(10):
                 _rc_callback(rc_data)
-                assert SymbolDatabaseUploader.is_installed() != (
-                    get_ancestor_runtime_id() is not None and forksafe.has_forked()
-                ), f"iteration {i} is stable"
-            os._exit(0)
+                # SymDB stays enabled in the first fork child and is
+                # disabled in any other (subsequent or deeper) fork
+                # child to avoid duplicate uploads.
+                #
+                # forksafe._forked flips to True in the parent via an
+                # after_in_parent hook on the first fork, so children #2..N
+                # of the same parent inherit _forked=True via the fork's
+                # memory copy. Only the first child observes False here.
+                first_child = not forksafe.has_forked()
+                assert SymbolDatabaseUploader.is_installed() == first_child, f"iteration {i} is stable"
 
-        pids.append(pid)
+            if SymbolDatabaseUploader.is_installed():
+                # First fork child: the ScopeContext forksafe hook must
+                # have refreshed the upload metadata to reflect this
+                # child's runtime rather than the parent's.
+                child_context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
+                assert child_context._event_data["runtimeId"] == get_runtime_id()
+                assert child_context._event_data["runtimeId"] != parent_runtime_id
+                assert child_context._event_data["parentId"] == parent_runtime_id
+                assert child_context._upload_id != parent_upload_id
+                assert child_context._event_data["uploadId"] == child_context._upload_id
+                assert child_context._batch_counter == 0
+        except BaseException:
+            # Print the traceback before exiting: os._exit() bypasses the
+            # normal interpreter shutdown, so an uncaught exception here
+            # would otherwise vanish without a trace in the parent's
+            # captured output.
+            import traceback
+
+            traceback.print_exc()
+            os._exit(1)
+        os._exit(0)
 
     for pid in pids:
-        os.waitpid(pid, 0)
+        _, status = os.waitpid(pid, 0)
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child {pid} exited with status {status}"
+
+
+def test_symbols_rejected_fork_child_does_not_claim_uploader_slot():
+    from ddtrace.internal.ipc import SharedStringFile
+    from ddtrace.internal.symbol_db import remoteconfig
+
+    # Sibling pytest-xdist workers share the controller-keyed pid file and clear
+    # it on teardown, so this test asserts on a file that no other worker touches.
+    pid_file = SharedStringFile(f"{os.getpid()}-symdb-pids-uploader-slot")
+    pid_file.clear()
+
+    with (
+        mock.patch.object(remoteconfig, "shared_pid_file", pid_file),
+        mock.patch.object(remoteconfig, "get_generation", return_value=1),
+        mock.patch.object(remoteconfig, "get_ancestor_runtime_id", return_value="parent-runtime-id"),
+        mock.patch.object(remoteconfig.SymbolDatabaseUploader, "is_installed", return_value=False),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "unregister_callback"),
+        mock.patch.object(remoteconfig.remoteconfig_poller, "disable_product"),
+    ):
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=200),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=True),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == []
+
+        with (
+            mock.patch.object(remoteconfig.os, "getpid", return_value=201),
+            mock.patch.object(remoteconfig.os, "getppid", return_value=100),
+            mock.patch.object(remoteconfig, "has_forked", return_value=False),
+        ):
+            remoteconfig._rc_callback([])
+
+        assert pid_file.peekall() == ["201"]
+
+    pid_file.clear()
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_symbols_fork_forces_reenable_and_install():
+    """
+    Fork force-re-enables SymDB regardless of a prior disable, since
+    ProductManager.restart_products runs on every fork child. The first fork
+    child legitimately installs, but a generation-2+ descendant must stay
+    blocked by the get_generation() > 1 guard, even though the pid file looks
+    empty from its own point of view.
+
+    Subprocess test: mutates global singleton state and calls os.fork()
+    directly, and needs ddtrace_run=True to register the real forksafe hooks
+    under test.
+    """
+    import os
+    from unittest import mock
+
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    # Simulate that this process was already correctly disabled by the guard,
+    # e.g. some ancestor already decided this branch shouldn't upload symbols.
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is None
+
+    upload_payload = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", {"upload_symbols": True})]
+
+    with mock.patch.object(SymbolDatabaseUploader, "install", wraps=SymbolDatabaseUploader.install) as mock_install:
+        if not (child := os.fork()):
+            # The after-fork hook (ProductManager.restart_products -> symbol_db.restart())
+            # has already run by this point, before any of our own code executes here.
+            assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggingSymbolDb) is not None, (
+                "fork should have force re-registered the RC callback despite the earlier disable"
+            )
+
+            # Nothing has polluted the shared pid file yet from this branch's point of
+            # view, so the guard doesn't trip and SymDB actually installs -- proving
+            # install() runs in a fork child that had just been explicitly disabled in
+            # its parent moments before the fork.
+            _rc_callback(upload_payload)
+            assert SymbolDatabaseUploader.is_installed()
+            assert mock_install.call_count == 1
+
+            # This child spawns a sub-worker of its own. The grandchild is two fork
+            # generations removed from the original process, so forksafe.get_generation()
+            # is 2 there and the guard's "generation > 1" clause must block it outright,
+            # regardless of the (still-empty, from the grandchild's point of view) shared
+            # pid file. Note that neither SymbolDatabaseUploader.is_installed() nor
+            # mock_install.call_count are reliable signals of what happens *in* the
+            # grandchild: both are inherited via copy-on-write from the already-installed
+            # child (call_count is already 1 before the grandchild runs any code of its
+            # own), so a fresh install() call in the grandchild is only visible as an
+            # *increment* from that inherited baseline, reported back through a pipe since
+            # mock state doesn't cross the fork boundary any other way.
+            baseline_install_calls = mock_install.call_count
+            r, w = os.pipe()
+            if not (grandchild := os.fork()):
+                os.close(r)
+                _rc_callback(upload_payload)
+                os.write(w, str(mock_install.call_count).encode())
+                os.close(w)
+                os._exit(0)
+            os.close(w)
+            grandchild_install_calls = int(os.read(r, 8))
+            os.close(r)
+            _, status = os.waitpid(grandchild, 0)
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"grandchild failed with status {status}"
+            assert grandchild_install_calls == baseline_install_calls, (
+                "install() must not run in a generation-2+ fork descendant, even though the "
+                "forced re-enablement fires there too"
+            )
+
+            # Second delivery to this *same* child: the grandchild's pid is now on the
+            # shared pid file, so the guard trips and uninstalls SymDB again -- even
+            # though this process had legitimately installed it moments ago in
+            # response to the same forced re-enablement.
+            _rc_callback(upload_payload)
+            assert not SymbolDatabaseUploader.is_installed()
+            assert mock_install.call_count == 1, "install() should not run again once disabled"
+
+            os._exit(0)
+
+        _, status = os.waitpid(child, 0)
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child failed with status {status}"
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_symbols_fork_sibling_workers_installs_at_most_twice():
+    """
+    The guard assumes a single long-lived parent forking worker children
+    directly (e.g. a prefork server recycling workers one at a time), not
+    workers that go on to fork their own descendants. Confirm SymDB installs
+    in at most two processes total -- the parent and the first forked worker
+    -- with every later sibling blocked, even after worker recycling.
+
+    Subprocess test for the same reasons as
+    test_symbols_fork_forces_reenable_and_install.
+    """
+    import os
+    from unittest import mock
+
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    upload_payload = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", {"upload_symbols": True})]
+
+    with mock.patch.object(SymbolDatabaseUploader, "install", wraps=SymbolDatabaseUploader.install) as mock_install:
+        # The parent installs first, as in the common case where SymDB is already
+        # enabled in the main process before it starts forking worker children.
+        _rc_callback(upload_payload)
+        assert SymbolDatabaseUploader.is_installed()
+        assert mock_install.call_count == 1
+
+        NUM_WORKERS = 4
+        install_flags = []
+        for _ in range(NUM_WORKERS):
+            r, w = os.pipe()
+            if not (worker := os.fork()):
+                os.close(r)
+                _rc_callback(upload_payload)
+                os.write(w, b"1" if SymbolDatabaseUploader.is_installed() else b"0")
+                os.close(w)
+                os._exit(0)
+            os.close(w)
+            install_flags.append(os.read(r, 1))
+            os.close(r)
+            _, status = os.waitpid(worker, 0)
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"worker failed with status {status}"
+
+        installed_count = install_flags.count(b"1")
+        assert installed_count == 1, (
+            f"expected exactly one of {NUM_WORKERS} sequentially-forked sibling workers to install SymDB, "
+            f"got {installed_count}: {install_flags}"
+        )
 
 
 @pytest.mark.subprocess(run_module=True, err=None)

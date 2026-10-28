@@ -100,7 +100,9 @@ root.wsgi_app = DispatcherMiddleware(
         "/redirect": redirect_subapp,
         "/redirect_requests": redirect_requests_subapp,
         "/redirect_httpx": redirect_httpx_subapp,
+        "/redirect_httpx2": redirect_httpx_subapp,
         "/redirect_httpx_async": redirect_httpx_async_subapp,
+        "/redirect_httpx2_async": redirect_httpx_async_subapp,
         "/redirect_urllib3": redirect_urllib3_subapp,
     },
 )

@@ -1,23 +1,12 @@
-import sys
+from types import ModuleType
+from unittest import mock
 
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
+from ddtrace.internal.utils.inspection import collect_code_objects
 import tests.submod.stuff as stuff
-
-
-@pytest.fixture
-def no_pytest_loader():
-    from _pytest.assertion.rewrite import AssertionRewritingHook
-
-    i = next(i for i, hook in enumerate(sys.meta_path) if isinstance(hook, AssertionRewritingHook))
-    pytest_loader = sys.meta_path.pop(i)
-
-    try:
-        yield
-    finally:
-        sys.meta_path.insert(i, pytest_loader)
 
 
 @pytest.fixture
@@ -33,7 +22,7 @@ def test_abs_stuff():
 
 def test_function_discovery(stuff_discovery):
     assert len(stuff_discovery.at_line(11)) == 3
-    assert not stuff_discovery.at_line(69)
+    assert len(stuff_discovery.at_line(69)) == 1
     assert len(stuff_discovery.at_line(71)) == 1
     assert not stuff_discovery.at_line(72)
     assert len(stuff_discovery.at_line(86)) == 1
@@ -104,6 +93,52 @@ def test_function_instance_method(stuff_discovery):
     assert cls.instancestuff is original_func
 
 
+def test_function_header(stuff_discovery):
+    (function,) = stuff_discovery.at_line(35)
+    assert function is stuff.Stuff.instancestuff
+
+    (function,) = stuff_discovery.at_line(28)
+    assert function is stuff.Stuff.staticstuff
+
+
+def test_nested_function_header():
+    module = ModuleType("nested_header")
+    module.__file__ = "nested_header.py"
+    exec(
+        compile(
+            "def outer():\n    def inner():\n        return 42\n    return inner\nretained = outer()\n",
+            module.__file__,
+            "exec",
+        ),
+        vars(module),
+    )
+
+    functions = FunctionDiscovery(module).at_line(2)
+    assert set(functions) == {module.outer, module.retained}
+
+
+def test_unresolved_nested_function_header():
+    module = ModuleType("unresolved_nested_header")
+    module.__file__ = "unresolved_nested_header.py"
+    code = compile("def outer():\n    def inner():\n        return 42\n    return inner\n", module.__file__, "exec")
+    exec(code, vars(module))
+
+    with mock.patch.object(ModuleCodeCollector, "get_code_objects", return_value=list(collect_code_objects(code))):
+        (function,) = FunctionDiscovery(module).at_line(2)
+    assert function is module.outer
+
+
+def test_one_line_function_header():
+    module = ModuleType("one_line_header")
+    module.__file__ = "one_line_header.py"
+    code = compile("def target(): return 42\n", module.__file__, "exec")
+    exec(code, vars(module))
+
+    with mock.patch.object(ModuleCodeCollector, "get_code_objects", return_value=list(collect_code_objects(code))):
+        (function,) = FunctionDiscovery(module).at_line(1)
+    assert function is module.target
+
+
 def test_function_decorated_method(stuff_discovery):
     method = stuff.Stuff.decoratedstuff
     (original_func,) = stuff_discovery.at_line(48)
@@ -122,7 +157,9 @@ def test_discovery_after_external_wrapping():
 
     from ddtrace.debugging._debugger import DebuggerModuleWatchdog
     from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
+    ModuleCodeCollector.register("di")
     DebuggerModuleWatchdog.install()
 
     import tests.submod.stuff as stuff
@@ -145,23 +182,46 @@ def test_property_non_function_getter(stuff_discovery):
         stuff_discovery.by_name("PropertyStuff.foo")
 
 
-def test_custom_decorated_stuff(no_pytest_loader):
-    class DiscoveryModuleWatchdog(ModuleWatchdog):
-        def transform(self, code, module):
-            return FunctionDiscovery.transformer(code, module)
+@pytest.mark.subprocess
+def test_function_discovery_after_reload():
+    from importlib import reload
 
-    DiscoveryModuleWatchdog.install()
+    from ddtrace.debugging._debugger import DebuggerModuleWatchdog
+    from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
-    try:
-        import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+    ModuleCodeCollector.register("di")
+    DebuggerModuleWatchdog.install()
+    # The debugger registers this hook itself when enabled
+    DebuggerModuleWatchdog.register_import_hook(FunctionDiscovery.invalidate)
 
-        fd = FunctionDiscovery.from_module(custom_decorated_stuff)
+    import tests.submod.stuff as stuff
 
-        (home,) = fd.at_line(17)
-        assert home.__qualname__ == "home"
+    old_modulestuff = stuff.modulestuff
+    fd = FunctionDiscovery.from_module(stuff)
+    assert fd.by_name("modulestuff") is old_modulestuff
 
-    finally:
-        DiscoveryModuleWatchdog.uninstall()
+    reload(stuff)
+
+    new_fd = FunctionDiscovery.from_module(stuff)
+    assert new_fd is not fd
+    assert new_fd.by_name("modulestuff") is stuff.modulestuff
+    assert new_fd.by_name("modulestuff") is not old_modulestuff
+
+
+@pytest.mark.subprocess
+def test_custom_decorated_stuff():
+    from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+
+    ModuleCodeCollector.register("di")
+
+    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+
+    fd = FunctionDiscovery.from_module(custom_decorated_stuff)
+
+    (home,) = fd.at_line(17)
+    assert home.__qualname__ == "home"
 
 
 @pytest.mark.subprocess
@@ -169,8 +229,10 @@ def test_discovery_after_external_wrapping_context():
     from ddtrace.debugging._debugger import DebuggerModuleWatchdog
     from ddtrace.debugging._function.discovery import FunctionDiscovery
     from ddtrace.internal.module import origin
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
     from ddtrace.internal.wrapping.context import WrappingContext
 
+    ModuleCodeCollector.register("di")
     DebuggerModuleWatchdog.install()
 
     import tests.submod.stuff as stuff

@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+from collections.abc import Iterable
 from itertools import chain
 import json
 import linecache
@@ -12,8 +13,8 @@ from types import FunctionType
 from types import ModuleType
 from types import TracebackType
 from typing import Any
-from typing import Iterable
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import cast
 
@@ -35,12 +36,14 @@ from ddtrace.debugging._probe.remoteconfig import DebuggerRCCallback
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
+from ddtrace.debugging._sampling import DebuggerSampler
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
+from ddtrace.internal.bytecode_injection import HOOK_FRAME_DEPTH
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
@@ -49,15 +52,24 @@ from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
-from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
-from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
+
+
+class TracerProtocol(Protocol):
+    """Structural stand-in for ddtrace.trace.Tracer, so this module does not need to import from the tracing
+    product.
+    """
+
+    def current_trace_context(self, *args: Any, **kwargs: Any) -> Any: ...
+
 
 _probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
 _probe_metrics.enable()
@@ -79,7 +91,7 @@ class DebuggerWrappingContext(WrappingContext):
         f: FunctionType,
         collector: SignalCollector,
         registry: ProbeRegistry,
-        tracer: Tracer,
+        tracer: TracerProtocol,
         probe_meter: Metrics.Meter,
     ) -> None:
         super().__init__(f)
@@ -219,7 +231,13 @@ class Debugger(Service):
         if di_config.metrics:
             metrics.enable()
 
+        cls.__watchdog__.install()
+
         cls._instance = debugger = cls()
+
+        cls.__watchdog__.register_import_hook(debugger._on_module_import)
+
+        DebuggerSampler.start()
 
         debugger.start()
 
@@ -242,10 +260,10 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
-        callback = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
+        callback = remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebugging)
 
-        remoteconfig_poller.unregister_callback("LIVE_DEBUGGING")
-        remoteconfig_poller.disable_product("LIVE_DEBUGGING")
+        remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebugging)
+        remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebugging)
 
         # Currently the product enablement and the callback registration are
         # tied together within the RC client so here we have to pretend that
@@ -256,8 +274,14 @@ class Debugger(Service):
 
         unregister_post_run_module_hook(cls._on_run_module)
 
+        cls.__watchdog__.unregister_import_hook(cls._instance._on_module_import)
+
         cls._instance.stop(join=join)
         cls._instance = None
+
+        DebuggerSampler.stop()
+
+        cls.__watchdog__.uninstall()
 
         if di_config.metrics:
             metrics.disable()
@@ -266,7 +290,7 @@ class Debugger(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    def __init__(self, tracer: Optional[Tracer] = None) -> None:
+    def __init__(self, tracer: Optional[TracerProtocol] = None) -> None:
         super().__init__()
 
         self._tracer = tracer or ddtrace.tracer
@@ -277,14 +301,6 @@ class Debugger(Service):
         self._probe_registry = ProbeRegistry(status_logger=status_logger)
 
         self._function_store = FunctionStore()
-
-        log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
-        self._global_rate_limiter = RateLimiter(
-            limit_rate=di_config.global_rate_limit,  # TODO: Make it configurable. Note that this is per-process!
-            on_exceed=lambda: log_limiter.limit(log.warning, "Global rate limit exceeded"),
-            call_once=True,
-            raise_on_exceed=False,
-        )
 
         self.probe_file = di_config.probe_file
 
@@ -303,8 +319,8 @@ class Debugger(Service):
                 self._probe_registry,
                 di_config.diagnostics_interval,
             )
-            remoteconfig_poller.register_callback("LIVE_DEBUGGING", di_callback)
-            remoteconfig_poller.enable_product("LIVE_DEBUGGING")
+            remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebugging, di_callback)
+            remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebugging)
 
             # Load local probes from the probe file.
             self._load_local_config()
@@ -340,7 +356,7 @@ class Debugger(Service):
             try:
                 signal = Signal.from_probe(
                     probe,
-                    frame=sys._getframe(1),
+                    frame=sys._getframe(HOOK_FRAME_DEPTH),
                     thread=threading.current_thread(),
                     trace_context=self._tracer.current_trace_context(),
                     meter=self._probe_meter,
@@ -349,7 +365,7 @@ class Debugger(Service):
                 log.error("Unsupported probe type: %r", type(probe), exc_info=True)
                 return
 
-            signal.do_line(self._global_rate_limiter if probe.is_global_rate_limited() else None)
+            signal.do_line()
 
             if signal.state is SignalState.DONE:
                 self._probe_registry.set_emitting(probe)
@@ -369,13 +385,14 @@ class Debugger(Service):
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function: dict[FullyNamedContextWrappedFunction, list[Probe]] = defaultdict(list)
+        probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
+        discovery = FunctionDiscovery.from_module(module)
         for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
                 continue
             line = probe.line
             assert line is not None  # nosec
-            functions = FunctionDiscovery.from_module(module).at_line(line)
+            functions = discovery.at_line(line)
             if not functions:
                 module_origin = str(origin(module))
                 if linecache.getline(module_origin, line):
@@ -393,12 +410,12 @@ class Debugger(Service):
                 log.error(message, extra={"send_to_telemetry": False})
                 self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
-            for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
-                probes_for_function[function].append(cast(LineProbe, probe))
+            for target_function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
+                probes_for_function[target_function].append(cast(LineProbe, probe))
 
-        for function, probes in probes_for_function.items():
+        for target_function, probes in probes_for_function.items():
             failed = self._function_store.inject_hooks(
-                function, [(self._dd_debugger_hook, cast(LineProbe, probe).line, probe) for probe in probes]
+                target_function, [(self._dd_debugger_hook, probe.line, probe) for probe in probes]
             )
 
             for probe in probes:
@@ -415,7 +432,7 @@ class Debugger(Service):
                 os.getpid(),
                 os.getppid(),
                 [probe.probe_id for probe in probes if probe.probe_id not in failed],
-                function,
+                target_function,
             )
 
     def _inject_probes(self, probes: list[LineProbe]) -> None:
@@ -465,26 +482,7 @@ class Debugger(Service):
             module = self.__watchdog__.get_by_origin(resolved_source)
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
-                probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
-                for probe in probes:
-                    if not isinstance(probe, LineLocationMixin):
-                        continue  # type: ignore[unreachable]
-                    line = probe.line
-                    assert line is not None, probe  # nosec
-                    functions = FunctionDiscovery.from_module(module).at_line(line)
-                    for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
-                        probes_for_function[function].append(probe)
-
-                for function, ps in probes_for_function.items():
-                    failed = self._function_store.eject_hooks(
-                        cast(FunctionType, function),
-                        [(self._dd_debugger_hook, probe.line, probe) for probe in ps if probe.line is not None],
-                    )
-                    for probe in ps:
-                        if probe.probe_id in failed:
-                            log.error("Failed to eject %r from %r", probe, function)
-                        else:
-                            log.debug("Ejected %r from %r", probe, function)
+                self._eject_hooks(module, probes)
 
             if not self._probe_registry.has_probes(str(resolved_source)):
                 try:
@@ -492,6 +490,71 @@ class Debugger(Service):
                     log.debug("Unregistered injection hook on source '%s'", resolved_source)
                 except ValueError:
                     log.error("Cannot unregister injection hook on %r", resolved_source, exc_info=True)
+
+    def _eject_hooks(self, module: ModuleType, probes: list[LineProbe]) -> None:
+        probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
+        discovery = FunctionDiscovery.from_module(module)
+        for probe in probes:
+            if not isinstance(probe, LineLocationMixin):
+                continue  # type: ignore[unreachable]
+            functions = discovery.at_line(probe.line)
+            for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
+                probes_for_function[function].append(probe)
+
+        for function, ps in probes_for_function.items():
+            failed = self._function_store.eject_hooks(
+                cast(FunctionType, function),
+                [(self._dd_debugger_hook, probe.line, probe) for probe in ps],
+            )
+            for probe in ps:
+                if probe.probe_id in failed:
+                    log.error("Failed to eject %r from %r", probe, function)
+                else:
+                    log.debug("Ejected %r from %r", probe, function)
+
+    def _unwrap_function(self, module: ModuleType, probe: FunctionProbe) -> None:
+        assert probe.func_qname is not None  # nosec
+        function = cast(FunctionType, FunctionDiscovery.from_module(module).by_name(probe.func_qname))
+        if DebuggerWrappingContext.is_wrapped(function):
+            context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
+            context.remove_probe(probe)
+            if not context.has_probes():
+                self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
+            log.debug("Unwrapped %r", probe)
+        else:
+            log.error("Attempted to unwrap %r, but no wrapper found", probe)
+
+    def _on_module_import(self, module: ModuleType) -> None:
+        # Probes installed at the location of an executed module are attached
+        # to code it has just replaced. Detach them via the discovery built for
+        # the replaced code and let the origin and module hooks reinstall them
+        # on the new code. No-op on first import. The replaced code belongs to
+        # the module itself on reload, or to the module previously imported
+        # from the same source if it was removed from sys.modules and imported
+        # again. The watchdog still maps the source to the latter, if alive,
+        # until this hook returns. Modules without a cached discovery have
+        # nothing to detach, and building one now would be premature.
+        if (discovery := FunctionDiscovery.cached(module)) is not None and not discovery.is_outdated():
+            # The module has not executed new code since its discovery was
+            # built, so any installed probes are already on the current code,
+            # e.g. because an earlier hook installed them.
+            return
+
+        try:
+            line_probes = self._probe_registry.reset_pending(str(o)) if (o := origin(module)) is not None else []
+            function_probes = self._probe_registry.reset_pending(module.__name__)
+            replaced = {module}
+            if o is not None and (previous := self.__watchdog__.get_by_origin(o)) is not None:
+                replaced.add(previous)
+            for m in replaced:
+                if FunctionDiscovery.cached(m) is None:
+                    continue
+                self._eject_hooks(m, cast(list[LineProbe], line_probes))
+                for probe in function_probes:
+                    self._unwrap_function(m, cast(FunctionProbe, probe))
+        finally:
+            # The new code must never be matched against the old functions
+            FunctionDiscovery.invalidate(module)
 
     def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)
@@ -533,7 +596,13 @@ class Debugger(Service):
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
                 )
-                self._function_store.wrap(cast(FunctionType, function), context)
+                try:
+                    self._function_store.wrap(cast(FunctionType, function), context)
+                except ObfuscatedCodeError:
+                    message = f"Cannot wrap {probe.func_qname!r}: code object appears to be obfuscated"
+                    self._probe_registry.set_error(probe, "ObfuscatedCode", message)
+                    log.error(message, extra={"send_to_telemetry": False})
+                    continue
                 log.debug(
                     "[%s][P: %s] Function probe %r wrapped around %r",
                     os.getpid(),
@@ -574,16 +643,7 @@ class Debugger(Service):
             if module is not None:
                 # The module is still loaded, so we can try to unwrap the function
                 touched_modules.add(probe.module)
-                assert probe.func_qname is not None  # nosec
-                function = cast(FunctionType, FunctionDiscovery.from_module(module).by_name(probe.func_qname))
-                if DebuggerWrappingContext.is_wrapped(function):
-                    context = cast(DebuggerWrappingContext, DebuggerWrappingContext.extract(function))
-                    context.remove_probe(probe)
-                    if not context.has_probes():
-                        self._function_store.unwrap(cast(FullyNamedContextWrappedFunction, function))
-                    log.debug("Unwrapped %r", registered_probe)
-                else:
-                    log.error("Attempted to unwrap %r, but no wrapper found", registered_probe)
+                self._unwrap_function(module, cast(FunctionProbe, registered_probe))
 
         # Clean up import hooks.
         for module_name in touched_modules:

@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 import os
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.trace import tracer

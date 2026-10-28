@@ -6,9 +6,10 @@ on:
       - mq-working-branch-*
   merge_group:
   pull_request:
-    # Important that we run on `labeled` and `unlabeled` to pick up `changelog/no-changelog` being added/removed
+    # Important that we run on `labeled` and `unlabeled` to pick up `changelog/no-changelog` being added/removed,
+    # and on `edited` to pick up PR title changes (the check gates on whether the title starts with fix/feat)
     # DEV: [opened, reopened, synchronize] is the default
-    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review, edited]
 jobs:
   validate:
     name: Validate changelog
@@ -41,7 +42,7 @@ jobs:
           rst2html CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: ./.github/actions/upload-artifact
         with:
           name: changelog
           path: |

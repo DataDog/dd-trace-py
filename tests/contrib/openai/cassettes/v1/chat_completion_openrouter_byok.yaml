@@ -1,0 +1,80 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "What is the capital of France?"}],
+      "model": "openai/gpt-4o-mini"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '108'
+      content-type:
+      - application/json
+      host:
+      - openrouter.ai
+      user-agent:
+      - OpenAI/Python 1.0.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://openrouter.ai/api/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/+JSgAEuAAAAAP//4kIwAQAAAP//fFFNj5swEP0ryGeSLvkgKbfdQ6Xtoe2hUg9V
+        ZTl4gGnAtjxD2tWK/94hWVIipeWC9Ob5fcy8KrSqUDW4Rbbbb7P9+n2WLzbrPNvu8m+H+uO2/HR8
+        Wj3bSqXKH35CyUIvG8PL0nehBUbvZFRGMAwi9VclVZ230ArdB3AG39WBFxu/6NChvAjRn9BClPln
+        mT8+C0YvxNDpCl0NMUR0o1kV9NbubZZluTEjCeIJS9CM42PXt63YN14gUsV3KeQs/FbFQ6paX4vL
+        gSaW6CI1WqKShC4UsQ8i6AzjCfQ/ph0QmRpU8aqib+WvDBESGwknxt4xnGN+bSApTUA2beKr5EM0
+        roQEKfliItJSuBGqnkw7pbkYSdULMAw/UtVPVpK7C6zZH8FJ/mwzWk37vsK7VLEXwyuwykYe8bk+
+        kj68+KMqOPaQ3kpqC2ywpdGrNGUD9qohL8+I/hWRYQ6b3qKfA+MBZ8BwMZ9r94FYinYaXQURZCX6
+        Ld/yYfzydXqP85b1hjp2uys3rYVu+ZvVcGdp83DXC8w7YScn+E/rYRj+AAAA//8DAAoKOUhLAwAA
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-RAY:
+      - a21e5f546e333762-BOS
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Jul 2026 20:25:17 GMT
+      Permissions-Policy:
+      - payment=(self "https://checkout.stripe.com" "https://connect-js.stripe.com"
+        "https://js.stripe.com" "https://*.js.stripe.com" "https://hooks.stripe.com")
+      Referrer-Policy:
+      - no-referrer, strict-origin-when-cross-origin
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      X-Generation-Id:
+      - gen-1785183916-4361576WbgJ5cNkB2Idf
+      access-control-expose-headers:
+      - X-Generation-Id,X-Provider-Name,cf-ray
+      set-cookie:
+      - __cf_bm=NZ0Y5k64Ioch0gNAuNxkvJShQrenMFVeHyL1Zxce1SY-1785183916.2236412-1.0.1.1-COb0Kicvi5fBX2HIJbc_htwYgHw9LOlqMS9JwNUzYDBe_D81xzc8Q0cD.fQfWg04ZEJCxOcbI6C0lVuHq2Li24G7lioB7jaM2w00EoVsMKxfss1jjZ4jN0WoTDvTCnfv;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=openrouter.ai; Expires=Mon,
+        27 Jul 2026 20:55:17 GMT
+    status:
+      code: 200
+      message: OK
+version: 1

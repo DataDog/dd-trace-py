@@ -1,9 +1,13 @@
-#include "sample.hpp"
-
+// TODO(py-315): Python.h must be included first, before any system or project headers.
+// CPython's pyconfig.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE to their current
+// POSIX standard values (202405L on 3.15+). If system headers (included transitively
+// via libdatadog_helpers.hpp → features.h) are pulled in first, they define older
+// values (200809L), and pyconfig.h's later redefinition triggers -Werror on GCC/Clang.
 #define PY_SSIZE_T_CLEAN
-
 #include <Python.h>
 #include <frameobject.h>
+
+#include "sample.hpp"
 
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
@@ -257,70 +261,6 @@ void
 Datadog::Sample::incr_dropped_frames(size_t count)
 {
     dropped_frames += count;
-}
-
-void
-Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
-{
-    /* Walk the Python traceback chain and push each frame to the sample.
-     * The chain goes from outermost (root) to innermost (leaf) via tb_next.
-     * We collect raw traceback pointers first, then extract frame info only
-     * for the frames we actually keep (up to max_nframes from the leaf end).
-     * Frames are pushed in leaf-to-root order to match the convention used
-     * by push_pyframes and the rest of the profiler.
-     * https://docs.python.org/3/reference/datamodel.html#traceback.tb_next */
-
-    PythonErrorRestorer error_restorer;
-
-    // First pass: collect raw traceback pointers root->leaf.
-    // These are borrowed references owned by the traceback chain, so no
-    // ref-counting is needed here.
-    std::vector<PyTracebackObject*> tb_nodes;
-
-    // Bias for bigger upfront allocations than multiple reallocations (Can revisit this with DOE)
-    tb_nodes.reserve(max_nframes);
-    for (; tb != nullptr; tb = reinterpret_cast<PyTracebackObject*>(tb->tb_next)) {
-        tb_nodes.push_back(tb);
-    }
-
-    // Second pass: iterate leaf->root (reverse), only extracting frame info
-    // for frames we will actually keep (up to max_nframes).
-    for (auto it = tb_nodes.rbegin(); it != tb_nodes.rend(); ++it) {
-        if (locations.size() >= max_nframes) {
-            dropped_frames += std::distance(it, tb_nodes.rend());
-            break;
-        }
-
-        PyTracebackObject* node = *it;
-
-        int lineno = node->tb_lineno;
-        if (lineno < 0) {
-            // In Python 3.12+, tb_lineno can be -1 (lazy). Resolve it through
-            // the Python property which calls PyCode_Addr2Line internally.
-            PyObject* lineno_obj = PyObject_GetAttrString(reinterpret_cast<PyObject*>(node), "tb_lineno");
-            if (lineno_obj != nullptr) {
-                lineno = static_cast<int>(PyLong_AsLong(lineno_obj));
-                Py_DECREF(lineno_obj);
-                if (lineno < 0) {
-                    lineno = 0;
-                }
-            } else {
-                PyErr_Clear();
-                lineno = 0;
-            }
-        }
-
-        PyCodeObject* code = (node->tb_frame != nullptr) ? PyFrame_GetCode(node->tb_frame) : nullptr;
-        if (code != nullptr) {
-#if defined(PY311_AND_LATER)
-            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
-#else
-            PyObject* name_obj = code->co_name;
-#endif
-            push_frame(unicode_to_string_view(name_obj), unicode_to_string_view(code->co_filename), 0, lineno);
-            Py_DECREF(code);
-        }
-    }
 }
 
 void
@@ -578,21 +518,6 @@ Datadog::Sample::reset_alloc()
     }
 }
 
-void
-Datadog::Sample::reset_heap()
-{
-    if (0U != (type_mask & SampleType::Heap)) {
-        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
-        const size_t heap_count_idx = ProfilerState::get().profile_state.val().heap_count;
-        if (heap_space_idx < values.size()) {
-            values[heap_space_idx] = 0;
-        }
-        if (heap_count_idx < values.size()) {
-            values[heap_count_idx] = 0;
-        }
-    }
-}
-
 bool
 Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 {
@@ -706,6 +631,35 @@ Datadog::Sample::push_task_name(std::string_view task_name)
 }
 
 bool
+Datadog::Sample::push_origin_task_id(uint64_t origin_task_id)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    const int64_t recoded_id =
+      reinterpret_cast<int64_t&>(origin_task_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
+    if (!push_label(ExportLabelKey::origin_task_id, recoded_id)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+bool
+Datadog::Sample::push_origin_task_name(std::string_view origin_task_name)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!push_label(ExportLabelKey::origin_task_name, origin_task_name)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
 Datadog::Sample::push_span_id(uint64_t span_id)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
@@ -768,6 +722,42 @@ Datadog::Sample::push_class_name(std::string_view class_name)
 }
 
 bool
+Datadog::Sample::push_allocator_domain(AllocatorDomain allocator_domain)
+{
+    /*
+     * Map the closed enum to a label value and copy it into the sample's string
+     * arena, which is pre-reserved and retained across clear(), so this does
+     * not allocate on the hook path.
+     */
+    std::string_view value;
+    switch (allocator_domain) {
+        case AllocatorDomain::obj:
+            value = "obj";
+            break;
+        case AllocatorDomain::mem:
+            value = "mem";
+            break;
+        case AllocatorDomain::raw:
+            value = "raw";
+            break;
+        case AllocatorDomain::unknown:
+        default:
+            value = "unknown";
+            break;
+    }
+
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!push_label(ExportLabelKey::allocator_domain, value)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push allocator domain" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
 Datadog::Sample::push_gpu_device_name(std::string_view device_name)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
@@ -818,12 +808,6 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
     }
 
     return true;
-}
-
-void
-Datadog::Sample::set_timeline(bool enabled)
-{
-    ProfilerState::get().timeline_enabled = enabled;
 }
 
 bool

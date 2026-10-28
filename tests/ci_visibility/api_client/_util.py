@@ -102,8 +102,8 @@ def _get_skippable_api_response():
 
 
 def _get_tests_api_response(
-    tests_body: t.Optional[dict] = None,
-    page_info: t.Optional[dict] = None,
+    tests_body: t.Optional[dict[str, t.Any]] = None,
+    page_info: t.Optional[dict[str, t.Any]] = None,
 ):
     response: dict[str, t.Any] = {
         "data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}
@@ -158,7 +158,7 @@ class TestTestVisibilityAPIClientBase:
 
     @pytest.fixture(scope="function", autouse=True)
     def _ci_visibility_isolation(self):
-        # AIDEV-NOTE: Suspend/resume outer CIVisibility instance so that running
+        # Suspend/resume outer CIVisibility instance so that running
         # these tests with --ddtrace in the outer pytest session does not leak the
         # outer singleton into test bodies, and test bodies cannot corrupt the outer
         # session.  _suspend() removes the outer instance without stopping it;

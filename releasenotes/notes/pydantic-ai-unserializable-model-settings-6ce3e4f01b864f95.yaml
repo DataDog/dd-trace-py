@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolve an issue where the Pydantic AI integration failed to submit
+    spans with JSON serialization errors when an agent's ``model_settings`` contained
+    non-JSON-serializable provider sentinel values.

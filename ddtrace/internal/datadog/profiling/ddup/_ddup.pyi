@@ -1,42 +1,32 @@
+from collections.abc import Mapping
 from types import FrameType
-from types import TracebackType
-from typing import Mapping
 from typing import Optional
 from typing import Union
 
 import ddtrace
 from ddtrace._trace.span import Span
-from ddtrace._trace.tracer import Tracer
 
+from .._types import ProfilerTracer
 from .._types import StringType
 
 def config(
-    env: StringType = None,
     service: StringType = None,
+    env: StringType = None,
     version: StringType = None,
     tags: Optional[Mapping[Union[str, bytes], Union[str, bytes]]] = None,
     max_nframes: Optional[int] = None,
     timeline_enabled: Optional[bool] = None,
-    output_filename: Optional[str] = None,
+    output_filename: StringType = None,
     sample_pool_capacity: Optional[int] = None,
     timeout: Optional[int] = None,
-    process_tags: Optional[str] = None,
+    process_tags: StringType = None,
 ) -> None: ...
 def start() -> None: ...
 def set_profiler_settings_json(settings_json: StringType) -> None: ...
-def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None: ...
-def init(
-    service: str,
-    env: str,
-    version: str,
-    tags: Optional[dict[Union[str, bytes], Union[str, bytes]]] = None,
-    max_nframes: Optional[int] = None,
-    timeline_enabled: Optional[bool] = None,
-    output_filename: Optional[str] = None,
-    sample_pool_capacity: Optional[int] = None,
-    timeout: Optional[int] = None,
-    url: Optional[str] = None,
+def upload(
+    tracer: Optional[ProfilerTracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None
 ) -> None: ...
+def reset(tracer: Optional[ProfilerTracer] = ddtrace.tracer) -> None: ...
 
 class SampleHandle:
     def flush_sample(self) -> None: ...
@@ -49,7 +39,6 @@ class SampleHandle:
     def push_exception_message(self, exception_message: StringType) -> None: ...
     def push_frame(self, name: StringType, filename: StringType, address: int, line: int) -> None: ...
     def push_pyframes(self, frame: FrameType) -> None: ...
-    def push_pytraceback(self, tb: TracebackType) -> None: ...
     def push_gpu_device_name(self, device_name: StringType) -> None: ...
     def push_gpu_flops(self, value: int, count: int) -> None: ...
     def push_gpu_gputime(self, value: int, count: int) -> None: ...

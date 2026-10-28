@@ -1,5 +1,4 @@
 import re
-import typing  # noqa:F401
 
 import pytest
 

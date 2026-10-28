@@ -4,19 +4,17 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
 from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
 from ddtrace.appsec._api_security._normalized_route import normalize_route_tornado
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
-from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
-from ddtrace.internal import telemetry
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -27,13 +25,13 @@ logger = get_logger(__name__)
 
 
 def _on_set_http_meta(
-    span: Span,
+    span: SpanData,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],
     method: Optional[str],
     request_headers: Optional[Mapping[str, Optional[str]]],
-    request_cookies: Optional[dict[str, str]],
+    request_cookies: Optional[Mapping[str, Union[str, list[str]]]],
     parsed_query: Optional[Mapping[str, Any]],
     request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
@@ -79,13 +77,13 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
 
 
 def _on_set_http_meta_for_normalized_route(
-    span: Span,
+    span: SpanData,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],
     method: Optional[str],
     request_headers: Optional[Mapping[str, Optional[str]]],
-    request_cookies: Optional[dict[str, str]],
+    request_cookies: Optional[Mapping[str, Union[str, list[str]]]],
     parsed_query: Optional[Mapping[str, Any]],
     request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
@@ -113,7 +111,7 @@ def _on_set_http_meta_for_normalized_route(
         return
     # Flask DM sub-apps: url_rule.rule omits the mount prefix; use FLASK_RESOURCE_FULL when set.
     if integration_name == "flask":
-        full_resource = span.get_tag(FLASK_RESOURCE_FULL)
+        full_resource = span._get_str_attribute(FLASK_RESOURCE_FULL)
         if full_resource:
             _, _, assembled = full_resource.partition(" ")
             if assembled:
@@ -124,19 +122,6 @@ def _on_set_http_meta_for_normalized_route(
         asm_env.normalized_route_emitted = True
 
 
-def _on_telemetry_periodic() -> None:
-    try:
-        telemetry.telemetry_writer.add_configuration(
-            APPSEC.ENV,
-            int(asm_config._asm_enabled),
-            asm_config.asm_enabled_origin,
-        )
-    except Exception:
-        logger.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
-
-
 def listen() -> None:
-    core.on("telemetry.periodic", _on_telemetry_periodic)
-
     core.on("set_http_meta_for_asm", _on_set_http_meta)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_normalized_route)

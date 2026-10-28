@@ -9,17 +9,258 @@ import sys
 import time
 import typing as _t
 
+import psutil
 from requests.exceptions import ConnectionError  # noqa: A004
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.utils.retry import RetryError
-from ddtrace.vendor import psutil
+from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
+from tests.utils import override_config
 from tests.webclient import Client
 
 
 FILE_PATH = Path(__file__).resolve().parent
+
+# Startup is CPU bound (IAST rewrites every import) and the CI runners are contended, so this
+# is deliberately generous. Override it rather than editing the default.
+SERVER_STARTUP_TIMEOUT = float(os.environ.get("DD_TEST_SERVER_STARTUP_TIMEOUT", "60"))
+SERVER_STARTUP_POLL_INTERVAL = 0.1
+
+
+def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
+    """Wait until the port can be bound again, returning False if it never can.
+
+    Server teardown is best effort and gunicorn workers can outlive it, so without this the
+    next test to use the same port fails to bind. 31 tests share port 8050.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if port_is_available(port):
+            return True
+        time.sleep(0.1)
+    return port_is_available(port)
+
+
+def _process_exit_code(server_process) -> _t.Optional[int]:
+    """The server's exit status, or None while it is still running, whichever API it provides."""
+    if isinstance(server_process, multiprocessing.Process):
+        return server_process.exitcode
+    return server_process.poll()
+
+
+def _wait_for_server_ready(client: Client, server_process, port: int, use_multiprocess: bool, deadline: float) -> None:
+    """Block until the server answers, re-raising the last probe failure if it never does.
+
+    Probed over HTTP unless the server was exec'd by _mp_target, which may run something that
+    does not speak it; a TCP probe alone would pass on a socket that is bound but not serving.
+    """
+    if not use_multiprocess:
+        # Matches the initial_wait the replaced client.wait() applied only to this path.
+        time.sleep(1.0)
+    while True:
+        try:
+            if use_multiprocess:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(0.2)
+                    sock.connect(("0.0.0.0", int(port)))
+            else:
+                with override_config("requests", dict(distributed_tracing=False)):
+                    # Never cap this: a timed-out probe is still served, so a retry would be served twice.
+                    response = client.get_ignored("/", timeout=max(0.5, deadline - time.monotonic()))
+                assert response.status_code == 200, f"server answered {response.status_code}"
+            assert _process_exit_code(server_process) is None, "server process exited during startup"
+            return
+        except Exception:
+            # A server that died on import is never going to answer, so spending the rest of
+            # the budget on it only makes a suite of these slow to fail.
+            if time.monotonic() >= deadline or _process_exit_code(server_process) is not None:
+                raise
+            time.sleep(SERVER_STARTUP_POLL_INTERVAL)
+
+
+def _server_diagnostics(server_process, port: int, cmd: list, port_was_free_at_start: bool = True) -> str:
+    """Facts that are not in the captured server output but explain most startup failures."""
+    exit_code = _process_exit_code(server_process)
+    already_taken = (
+        ""
+        if port_was_free_at_start
+        else f"\nport {port} was ALREADY BOUND when this server was started, so it never had a "
+        "chance to bind and the failure above is a consequence, not the cause. Something a "
+        "previous test left running still holds the port; give this test its own port (the "
+        "free_port fixture) instead of sharing a fixed one."
+    )
+    return (
+        f"port={port} port_still_bound={not port_is_available(port)} pid={server_process.pid} "
+        f"exit_code={exit_code} (None means it was still running, so it was too slow rather "
+        f"than dead; a non-zero code with the port bound means another server still holds it)\n"
+        f"command={cmd}" + already_taken
+    )
+
+
+def _read_proc_file(path: str) -> str:
+    try:
+        with open(path, errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return "?"
+
+
+def _server_cgroup(pid: int) -> str:
+    """The server's own cgroup v2 directory, falling back to the mount root (the node, without a private namespace)."""
+    for entry in _read_proc_file(f"/proc/{pid}/cgroup").splitlines():
+        if entry.startswith("0::") and entry[3:] not in ("", "/"):
+            candidate = "/sys/fs/cgroup" + entry[3:]
+            if os.path.isdir(candidate):
+                return candidate
+    return "/sys/fs/cgroup"
+
+
+def _kernel_snapshot(server_process) -> str:
+    """Kernel view of the server tree, to tell a disk stall, CPU starvation and a lock or socket wait apart.
+
+    Thread states (D is uninterruptible: disk, page faults or memory reclaim; S sleeps; R wants a CPU) and
+    wait channels are read first, at the timeout. CPU, I/O and context switch counters are then sampled
+    0.2s apart to show whether anything still moves, keeping the stack dump that follows close to the timeout.
+    """
+    try:
+        parent = psutil.Process(server_process.pid)
+        procs = [parent] + parent.children(recursive=True)
+    except psutil.Error as exc:
+        return f"could not enumerate the server tree for its kernel state: {exc}"
+
+    thread_lines: dict[int, list[str]] = {}
+    for proc in procs:
+        task_dir = f"/proc/{proc.pid}/task"
+        try:
+            tids = sorted(os.listdir(task_dir), key=int)
+        except OSError:
+            tids = []
+        thread_lines[proc.pid] = []
+        for tid in tids:
+            stat = _read_proc_file(f"{task_dir}/{tid}/stat")
+            fields = stat.rsplit(")", 1)[-1].split()
+            state = fields[0] if fields else "?"
+            thread_lines[proc.pid].append(
+                f"  pid={proc.pid} tid={tid} comm={_read_proc_file(f'{task_dir}/{tid}/comm')} state={state} "
+                f"wchan={_read_proc_file(f'{task_dir}/{tid}/wchan')}"
+            )
+
+    cgroup = _server_cgroup(server_process.pid)
+
+    def read(getter):
+        try:
+            return getter()
+        except (psutil.Error, AttributeError, NotImplementedError):
+            return None
+
+    def sample():
+        counters = {
+            proc.pid: (
+                read(lambda: proc.cpu_times()),
+                read(lambda: proc.io_counters()),
+                read(lambda: proc.num_ctx_switches()),
+            )
+            for proc in procs
+        }
+        return counters, _read_proc_file(f"{cgroup}/cpu.stat").replace("\n", ", ")
+
+    before, cgroup_before = sample()
+    time.sleep(0.2)
+    after, cgroup_after = sample()
+
+    lines = []
+    for proc in procs:
+        pid = proc.pid
+        (cpu0, io0, ctx0), (cpu1, io1, ctx1) = before[pid], after[pid]
+        line = f"pid={pid} over 0.2s:"
+        if cpu0 and cpu1:
+            line += f" cpu +{max(0.0, cpu1.user + cpu1.system - cpu0.user - cpu0.system):.2f}s"
+        if io0 and io1:
+            line += (
+                f" syscr +{io1.read_count - io0.read_count} syscw +{io1.write_count - io0.write_count}"
+                f" read_bytes +{io1.read_bytes - io0.read_bytes} write_bytes +{io1.write_bytes - io0.write_bytes}"
+            )
+        if ctx0 and ctx1:
+            line += (
+                f" main_thread_ctx_switches voluntary +{ctx1.voluntary - ctx0.voluntary}"
+                f" involuntary +{ctx1.involuntary - ctx0.involuntary}"
+            )
+        lines.append(line)
+        lines.extend(thread_lines[pid])
+    lines.append(f"cgroup {cgroup} cpu.stat before: {cgroup_before}")
+    lines.append(f"cgroup {cgroup} cpu.stat after:  {cgroup_after}")
+    for resource in ("cpu", "io", "memory"):
+        container = _read_proc_file(f"{cgroup}/{resource}.pressure").replace("\n", ", ")
+        host = _read_proc_file(f"/proc/pressure/{resource}").replace("\n", ", ")
+        lines.append(f"pressure {resource}: container {container} | host {host}")
+    return "\n".join(lines)
+
+
+def _dump_server_stacks(server_process) -> str:
+    """Fatally signal the server tree so faulthandler prints every thread's Python stack.
+
+    The servers run with PYTHONFAULTHANDLER=1, and that handler is C-level: it walks
+    interpreter state without taking the GIL, so it still reports when the process is wedged
+    holding it. A Python-level handler, or gevent's own run-info dump, needs the GIL and would
+    print nothing in the case this is here to explain.
+
+    SIGBUS rather than SIGABRT, even though both are armed by PYTHONFAULTHANDLER: gunicorn
+    workers install their own Python-level SIGABRT handler (Worker.handle_abort), which
+    replaces faulthandler's, drops the dump, and cannot run at all in a wedged process. The
+    worker is the process holding the request we need to see. gunicorn leaves SIGBUS alone.
+
+    The stacks go to the server's stderr, which is the captured output the caller points at.
+
+    Under gevent this reports the greenlet currently running on each OS thread. A greenlet
+    blocked in a C call cannot yield, so a request wedged that way is the one reported, which
+    is the case this exists for. A request merely parked on a gevent-aware wait shows up as
+    the hub instead.
+    """
+    try:
+        parent = psutil.Process(server_process.pid)
+        children = parent.children(recursive=True)
+    except psutil.Error as exc:
+        return f"could not enumerate the server tree to dump its stacks: {exc}"
+
+    # One process at a time throughout: the dumps share this stderr and interleave into
+    # nonsense if two are written at once. Waiting also lets each dump land before the
+    # teardown below tears the process group down.
+    signalled = []
+    for proc in children:
+        try:
+            proc.send_signal(signal.SIGBUS)
+        except psutil.Error:
+            # Already gone, or not ours to signal: the remaining targets still matter.
+            continue
+        signalled.append(proc.pid)
+        psutil.wait_procs([proc], timeout=3)
+
+    # The parent is this process's own child, so wait on it through its owner rather than
+    # through psutil: psutil.wait_procs() would reap it behind subprocess's back, which makes
+    # returncode read as 0 for a signalled process and leaves the teardown below with a pid
+    # that no longer exists.
+    try:
+        parent.send_signal(signal.SIGBUS)
+    except psutil.Error:
+        pass
+    else:
+        signalled.append(parent.pid)
+        _wait_for_owned_process(server_process, timeout=3)
+
+    return f"sent SIGBUS to {signalled} for a faulthandler stack dump; look for it in the output above"
+
+
+def _wait_for_owned_process(server_process, timeout: float) -> None:
+    """Wait for a process we spawned, whichever API its type provides."""
+    waiter = getattr(server_process, "wait", None) or getattr(server_process, "join", None)
+    if waiter is None:
+        return
+    try:
+        waiter(timeout=timeout)
+    except Exception:
+        # Best effort: this only exists to give the stack dump time to reach stderr.
+        pass
 
 
 @contextmanager
@@ -181,6 +422,10 @@ def django_server(
     The server is started when entering the context and stopped when exiting.
     """
     manage_py = "tests/appsec/integrations/django_tests/django_app/manage.py"
+    server_env = dict(env or {})
+    # This server does not use gevent. Module cleanup can prevent Django from
+    # discovering management commands when ddtrace is installed from a wheel.
+    server_env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
     cmd = [
         python_cmd,
         "-m",
@@ -200,7 +445,7 @@ def django_server(
         tracer_enabled=tracer_enabled,
         token=token,
         port=port,
-        env=env,
+        env=server_env,
         assert_debug=assert_debug,
         manual_propagation_debug=manual_propagation_debug,
     )
@@ -284,8 +529,7 @@ def appsec_application_server(
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
-        env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
-        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
+        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = f"X-Datadog-Test-Session-Token:{token}"
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
     else:
@@ -297,25 +541,25 @@ def appsec_application_server(
         env["DD_APM_TRACING_ENABLED"] = ""
 
     if iast_enabled is not None and iast_enabled != "false":
-        env[IAST.ENV] = iast_enabled
-        env[IAST.ENV_REQUEST_SAMPLING] = "100"
+        env["DD_IAST_ENABLED"] = iast_enabled
+        env["DD_IAST_REQUEST_SAMPLING"] = "100"
         env["DD_IAST_DEDUPLICATION_ENABLED"] = "false"
         env["_DD_IAST_PATCH_MODULES"] = "tests.appsec."
         env[IAST.ENV_NO_DIR_PATCH] = "false"
         if assert_debug:
-            env["_" + IAST.ENV_DEBUG] = iast_enabled
-            env["_" + IAST.ENV_PROPAGATION_DEBUG] = iast_enabled
+            env["_DD_IAST_DEBUG"] = iast_enabled
+            env["_DD_IAST_PROPAGATION_DEBUG"] = iast_enabled
             env["DD_TRACE_DEBUG"] = iast_enabled
     else:
-        env[IAST.ENV] = iast_enabled
+        env["DD_IAST_ENABLED"] = iast_enabled
 
     if tracer_enabled:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
     env["FLASK_RUN_PORT"] = str(port)
     env["PYTHONFAULTHANDLER"] = "1"
-    env["MALLOC_PERTURB_"] = "glibc.malloc.tcache_max=0"
-    env["GLIBC_TUNABLES"] = "255"
+    env["MALLOC_PERTURB_"] = "255"
+    env["GLIBC_TUNABLES"] = "glibc.malloc.tcache_max=0"
     env["MALLOC_CHECK_"] = "3"
 
     subprocess_kwargs = {
@@ -336,6 +580,15 @@ def appsec_application_server(
         if preexec is not None:
             subprocess_kwargs["preexec_fn"] = preexec  # type: ignore[assignment]
 
+    # A previous test's server may still hold the port, which would make this one fail to bind.
+    port_was_free_at_start = _wait_for_port_release(port)
+    if not port_was_free_at_start:
+        print(
+            f"WARNING: port {port} is still bound by something a previous test left running. "
+            "Starting anyway, but this server will almost certainly fail to bind: expect the "
+            "startup failure below to be a symptom of this, not of the server itself."
+        )
+
     if use_multiprocess:
         # Run the server command by replacing the child Python process with the target binary (exec),
         # ensuring signals/termination behave like the subprocess.Popen path.
@@ -349,44 +602,33 @@ def appsec_application_server(
     try:
         client = Client("http://0.0.0.0:%s" % port)
 
+        startup_started = time.monotonic()
         try:
             print("Waiting for server to start...")
             print(f"* Command: {cmd}")
             print(f"* Environment {env}")
             print("* *****************************************")
-            if use_multiprocess:
-                # Socket-based readiness check similar to the provided fixture snippet
-                max_attempts = 120
-                attempt = 0
-                while attempt < max_attempts:
-                    try:
-                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.settimeout(0.2)
-                            s.connect(("0.0.0.0", int(port)))
-                            break
-                    except (ConnectionRefusedError, OSError):
-                        time.sleep(0.1)
-                        attempt += 1
-                else:
-                    raise RetryError("Server failed to accept connections in time")
-                print("Server started")
-            else:
-                client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
-                print("Server started")
-        except RetryError:
-            raise AssertionError(
-                "Server failed to start, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+            _wait_for_server_ready(
+                client, server_process, port, use_multiprocess, startup_started + SERVER_STARTUP_TIMEOUT
             )
-        except Exception:
+            print("Server started in %.3fs" % (time.monotonic() - startup_started))
+        except Exception as exc:
+            # Elapsed time separates a slow contended start from a server that died on import.
+            elapsed = time.monotonic() - startup_started
+            diagnostics = _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+            # Still running means it stalled rather than died, and its stacks are the only record
+            # of where. A server that died has none, and signalling it would only add noise.
+            if _process_exit_code(server_process) is None:
+                try:
+                    diagnostics += "\n" + _kernel_snapshot(server_process)
+                except Exception as snapshot_exc:
+                    diagnostics += f"\nkernel snapshot failed: {snapshot_exc!r}"
+                diagnostics += "\n" + _dump_server_stacks(server_process)
             raise AssertionError(
-                "Server FAILED, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
-            )
+                "Server failed to start within %.3fs (of a %.1fs budget, override with "
+                "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
+                "above.\n" % (elapsed, SERVER_STARTUP_TIMEOUT) + diagnostics
+            ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         # Obtain child PID tree for gunicorn when possible
@@ -394,15 +636,23 @@ def appsec_application_server(
         children = parent.children(recursive=True)
 
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
+        shutdown_started = time.monotonic()
         try:
             client.get_ignored("/shutdown", timeout=10)
         except ConnectionError:
             pass
         except Exception:
+            # How long the client actually waited, to pair with the endpoint's own timing in the
+            # captured output above: the endpoint reports how long it took and the watchdog
+            # reports any event-loop stall, so between the three it is clear whether the time
+            # went into the shutdown, into a frozen worker, or somewhere outside the server.
             raise AssertionError(
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+                "Server shutdown request failed after %.3fs; its output is in the captured "
+                "stdout/stderr above.\n"
+                % (time.monotonic() - shutdown_started)
+                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+                + "\n"
+                + _dump_server_stacks(server_process)
             )
     finally:
         try:
@@ -420,22 +670,33 @@ def appsec_application_server(
                     pass
                 server_process.join(timeout=5)
             else:
-                os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                try:
+                    os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    # The server is already gone (_dump_server_stacks signals it, and a crashed
+                    # server needs no signal either). Raising here would replace the failure that
+                    # brought us into this block and skip the communicate() below.
+                    pass
                 server_process.terminate()
                 try:
-                    server_process.wait(timeout=10)
+                    _, stderr_output = server_process.communicate(timeout=10)
                 except subprocess.TimeoutExpired:
                     server_process.kill()
-                    server_process.wait()
+                    _, stderr_output = server_process.communicate()
                 if (assert_debug and PYTHON_VERSION_INFO >= (3, 10)) and (
                     iast_enabled is not None and iast_enabled != "false"
                 ):
-                    process_output = server_process.stderr.read()
-                    assert "Return from " in process_output
-                    assert "Return value is tainted" in process_output
-                    assert "Tainted arguments:" in process_output
+                    assert "Return from " in stderr_output
+                    assert "Return value is tainted" in stderr_output
+                    assert "Tainted arguments:" in stderr_output
         finally:
-            pass
+            # Do not hand the port to the next test while a worker still holds it.
+            if not _wait_for_port_release(port):
+                print(
+                    f"WARNING: port {port} is still bound after tearing down the server; a worker "
+                    "outlived it. Harmless while each test uses its own port, but it will break "
+                    "the next test that asks for this one."
+                )
 
 
 def _mp_target(_cmd: list[str], _env: dict) -> None:
@@ -466,15 +727,10 @@ def _mp_target(_cmd: list[str], _env: dict) -> None:
 
 
 def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
-    """Create a preexec_fn that applies resource limits if configured.
-
-    Returns None if no limits were requested.
-    """
+    """Create a preexec_fn that disables core dumps and applies resource limits if configured."""
     mem_mb = os.environ.get("TEST_SUBPROC_MEM_MB")
     cpu_aff = os.environ.get("TEST_SUBPROC_CPU_AFFINITY")
     nice_val = os.environ.get("TEST_SUBPROC_NICE")
-    if not any((mem_mb, cpu_aff, nice_val)):
-        return None
 
     # Import inside to keep portability on Windows.
     try:
@@ -483,6 +739,14 @@ def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
         resource = None  # type: ignore[assignment]
 
     def _preexec():  # pragma: no cover - exercised in integration tests
+        # No core dumps. _dump_server_stacks() fatally signals a server that failed to shut
+        # down, and the testrunner image runs with ulimit -c unlimited and core_pattern=core,
+        # which would drop a dump the size of the loaded native extensions into the workspace.
+        if resource is not None:
+            try:
+                resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            except Exception:
+                pass
         # Set process group leader (already done via start_new_session)
         # Apply niceness first to reduce priority
         if nice_val is not None:

@@ -17,6 +17,7 @@ from ddtrace.trace import tracer
 if TYPE_CHECKING:
     from vllm.v1.engine.output_processor import OutputProcessor
 
+from ._constants import ARG_POSITION_ADD_REQUEST_TRACE_HEADERS
 from ._constants import ARG_POSITION_LOG_STATS
 from ._constants import ARG_POSITION_TRACE_HEADERS
 from ._constants import ATTR_DATADOG_INTEGRATION
@@ -34,6 +35,30 @@ from .utils import set_latency_metrics
 logger = get_logger(__name__)
 
 config._add("vllm", {})
+
+
+def _supported_versions() -> dict[str, str]:
+    return {"vllm": ">=0.10.2"}
+
+
+def _uses_input_processor() -> bool:
+    from packaging.version import InvalidVersion
+    from packaging.version import parse as parse_version
+
+    version_str = getattr(vllm, "__version__", "0.0.0")
+    try:
+        base_version = parse_version(version_str).base_version
+        uses_new = parse_version(base_version) >= parse_version("0.14.0")
+    except InvalidVersion:
+        base_version = version_str
+        uses_new = False
+
+    logger.debug(
+        "vLLM %s: using %s.process_inputs.",
+        base_version,
+        "vllm.v1.engine.input_processor.InputProcessor" if uses_new else "vllm.v1.engine.processor.Processor",
+    )
+    return uses_new
 
 
 def traced_engine_init(func, instance, args, kwargs):
@@ -57,22 +82,34 @@ def traced_engine_init(func, instance, args, kwargs):
     return result
 
 
+def _inject_trace_headers_arg(args, kwargs, position: int):
+    """Inject the active trace context into the trace_headers argument."""
+    if len(args) > position:
+        injected_headers = inject_trace_context(tracer, args[position])
+        args = args[:position] + (injected_headers,) + args[position + 1 :]
+    else:
+        kwargs["trace_headers"] = inject_trace_context(tracer, kwargs.get("trace_headers"))
+    return args, kwargs
+
+
 def traced_processor_process_inputs(func, instance, args, kwargs):
     """Inject Datadog trace context into trace_headers for propagation."""
-
-    if len(args) > ARG_POSITION_TRACE_HEADERS:
-        trace_headers = args[ARG_POSITION_TRACE_HEADERS]
-        injected_headers = inject_trace_context(tracer, trace_headers)
-        args = args[:ARG_POSITION_TRACE_HEADERS] + (injected_headers,) + args[ARG_POSITION_TRACE_HEADERS + 1 :]
-    else:
-        trace_headers = kwargs.get("trace_headers")
-        kwargs["trace_headers"] = inject_trace_context(tracer, trace_headers)
-
+    args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_TRACE_HEADERS)
     return func(*args, **kwargs)
 
 
+async def traced_async_llm_add_request(func, instance, args, kwargs):
+    """Inject Datadog trace context into trace_headers before AsyncLLM preprocesses the request.
+
+    vLLM can run process_inputs in a thread pool (process_inputs_async). The thread does not get the
+    contextvars of the event loop, so the process_inputs wrapper does not see the active span there.
+    """
+    args, kwargs = _inject_trace_headers_arg(args, kwargs, ARG_POSITION_ADD_REQUEST_TRACE_HEADERS)
+    return await func(*args, **kwargs)
+
+
 def _capture_request_states(
-    instance: "OutputProcessor",
+    instance: OutputProcessor,
     engine_core_outputs: Any,
 ) -> dict[str, dict[str, Any]]:
     """Capture request state data before original function removes them.
@@ -87,12 +124,16 @@ def _capture_request_states(
         if not req_state:
             continue
 
-        spans_data[req_id] = {
-            "trace_headers": engine_core_output.trace_headers,
-            "arrival_time": req_state.stats.arrival_time if req_state.stats else None,
-            "data": extract_request_data(req_state, engine_core_output),
-            "stats": req_state.stats,
-        }
+        # Catch errors per request, so that one failure does not drop the data of the other requests in the batch.
+        try:
+            spans_data[req_id] = {
+                "trace_headers": engine_core_output.trace_headers,
+                "arrival_time": req_state.stats.arrival_time if req_state.stats else None,
+                "data": extract_request_data(req_state, engine_core_output),
+                "stats": req_state.stats,
+            }
+        except Exception:
+            logger.warning("Failed to capture vLLM request state for request %s", req_id, exc_info=True)
 
     return spans_data
 
@@ -100,7 +141,7 @@ def _capture_request_states(
 def _create_finished_spans(
     integration: VLLMIntegration,
     model_name: Optional[str],
-    instance: "OutputProcessor",
+    instance: OutputProcessor,
     spans_data: dict[str, dict[str, Any]],
 ) -> None:
     """Create and finish spans for completed requests."""
@@ -115,27 +156,34 @@ def _create_finished_spans(
             arrival_time=span_info["arrival_time"],
         )
 
-        data = span_info["data"]
-        operation = "embedding" if data.embedding_dim is not None else "completion"
+        # The span is active once created. Always finish it, so that an error here cannot leave it
+        # active as the parent of later spans. Catch errors per request, so that one failure does not
+        # drop the spans of the other finished requests in the batch.
+        try:
+            data = span_info["data"]
+            operation = "embedding" if data.embedding_dim is not None else "completion"
 
-        if operation == "completion" and span_info["stats"]:
-            data.output_tokens = span_info["stats"].num_generation_tokens
+            if operation == "completion" and span_info["stats"]:
+                data.output_tokens = span_info["stats"].num_generation_tokens
 
-        latency_metrics = extract_latency_metrics(span_info["stats"])
+            latency_metrics = extract_latency_metrics(span_info["stats"])
 
-        integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs={
-                "request_data": data,
-                "latency_metrics": latency_metrics,
-            },
-            response=None,
-            operation=operation,
-        )
+            integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs={
+                    "request_data": data,
+                    "latency_metrics": latency_metrics,
+                },
+                response=None,
+                operation=operation,
+            )
 
-        set_latency_metrics(span, latency_metrics)
-        span.finish()
+            set_latency_metrics(span, latency_metrics)
+        except Exception:
+            logger.warning("Failed to tag vLLM span for request %s", req_id, exc_info=True)
+        finally:
+            span.finish()
 
 
 def traced_output_processor_process_outputs(func, instance, args, kwargs):
@@ -147,12 +195,22 @@ def traced_output_processor_process_outputs(func, instance, args, kwargs):
     if not engine_core_outputs:
         return func(*args, **kwargs)
 
-    model_name = get_model_name(instance)
-    spans_data = _capture_request_states(instance, engine_core_outputs)
+    # This runs inside vLLM's output loop. An exception here stops the loop and fails all requests,
+    # so tracing errors must never propagate.
+    spans_data = None
+    try:
+        model_name = get_model_name(instance)
+        spans_data = _capture_request_states(instance, engine_core_outputs)
+    except Exception:
+        logger.warning("Failed to capture vLLM request state for tracing", exc_info=True)
 
     result = func(*args, **kwargs)
 
-    _create_finished_spans(integration, model_name, instance, spans_data)
+    if spans_data:
+        try:
+            _create_finished_spans(integration, model_name, instance, spans_data)
+        except Exception:
+            logger.warning("Failed to create vLLM spans", exc_info=True)
 
     return result
 
@@ -197,7 +255,15 @@ def patch():
 
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
-    wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
+    wrap("vllm.v1.engine.async_llm", "AsyncLLM.add_request", traced_async_llm_add_request)
+    if _uses_input_processor():
+        wrap(
+            "vllm.v1.engine.input_processor",
+            "InputProcessor.process_inputs",
+            traced_processor_process_inputs,
+        )
+    else:
+        wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
@@ -213,7 +279,11 @@ def unpatch():
 
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
-    unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
+    unwrap(vllm.v1.engine.async_llm.AsyncLLM, "add_request")
+    if _uses_input_processor():
+        unwrap(vllm.v1.engine.input_processor.InputProcessor, "process_inputs")
+    else:
+        unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
 
     delattr(vllm, ATTR_DATADOG_INTEGRATION)

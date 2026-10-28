@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import wraps
 import inspect
 from typing import TYPE_CHECKING
@@ -21,6 +23,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
@@ -73,7 +76,7 @@ def _get_serve_request_context_tags() -> dict[str, str]:
 
 
 def _set_deployment_method_span_metadata(ctx, deployment_name: str, method_name: str) -> None:
-    span = ctx.span
+    span = span_from_context(ctx)
     if span is None:
         return
 
@@ -116,7 +119,7 @@ async def traced_assign_request(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
 
-def traced_deployment_handle_remote(func, instance: "DeploymentHandle", args, kwargs):
+def traced_deployment_handle_remote(func, instance: DeploymentHandle, args, kwargs):
     deployment_id = getattr(instance, "deployment_id", None)
     with core.context_with_data(
         "ray.deployment.remote",
@@ -134,7 +137,7 @@ def traced_deployment_handle_remote(func, instance: "DeploymentHandle", args, kw
         return response
 
 
-async def traced_handle_request_with_rejection(func, instance: "ReplicaBase", args, kwargs):
+async def traced_handle_request_with_rejection(func, instance: ReplicaBase, args, kwargs):
     request_meta: RequestMetadata = cast(RequestMetadata, get_argument_value(args, kwargs, 0, "request_metadata"))
     context = ServeRequestContextPropagator.extract_from_request_metadata(request_meta)
 
@@ -392,6 +395,10 @@ def traced_serve_deployment(func, instance, args, kwargs):
         return decorator(_instrument_serve_deployment(func_or_class, target_deployment_name))
 
     return _traced_decorator
+
+
+def _supported_versions() -> dict[str, str]:
+    return {"ray": ">=2.47.1"}
 
 
 def patch(module) -> None:

@@ -1,9 +1,9 @@
 import io
 import json
-from typing import Any  # noqa:F401
-from typing import Mapping  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Mapping
+from typing import Optional
+from typing import Union
 import uuid
 
 import django
@@ -11,6 +11,10 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
+from ddtrace._trace.http_tags import set_instrumentation_resource
+from ddtrace._trace.otel.http.resource import otel_http_resource
+from ddtrace._trace.otel.http.tags import normalize_http_method
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -44,7 +48,7 @@ DJANGO22 = django.VERSION >= (2, 2, 0)
 REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
-_quantize_text = Union[Text, bytes]
+_quantize_text = Union[str, bytes]
 _quantize_param = Union[_quantize_text, list[_quantize_text], dict[_quantize_text, Any], Any]
 
 
@@ -61,7 +65,7 @@ def resource_from_cache_prefix(resource: str, cache: Any) -> str:
     return name.lower()
 
 
-def quantize_key_values(keys: _quantize_param) -> Text:
+def quantize_key_values(keys: _quantize_param) -> str:
     """
     Used for Django cache key normalization.
 
@@ -71,7 +75,7 @@ def quantize_key_values(keys: _quantize_param) -> Text:
 
     If text is provided we convert to text.
     """
-    args: list[Union[Text, bytes, Any]] = []
+    args: list[Union[str, bytes, Any]] = []
 
     # Normalize input values into a list[Text, bytes]
     if isinstance(keys, dict):
@@ -175,6 +179,7 @@ def get_request_uri(request):
 def _set_resolver_tags(pin, span, request):
     # Default to just the HTTP method when we cannot determine a reasonable resource
     resource = request.method
+    route = None
 
     try:
         # Get resolver match result and build resource name pieces
@@ -183,6 +188,9 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
+            if config._otel_trace_semantics_enabled:
+                # Early AppSec blocking bypasses Django's resolver assignment.
+                request.resolver_match = resolver_match
 
         if hasattr(resolver_match[0], "view_class"):
             # In django==4.0, view.__name__ defaults to <module>.views.view
@@ -191,7 +199,6 @@ def _set_resolver_tags(pin, span, request):
         else:
             handler = func_name(resolver_match[0])
 
-        route = None
         # In Django >= 2.2.0 we can access the original route or regex pattern
         # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
         if DJANGO22:
@@ -235,10 +242,20 @@ def _set_resolver_tags(pin, span, request):
             exc_info=True,
         )
     finally:
+        if config._otel_trace_semantics_enabled:
+            set_otel_resource_for_method(span, request.method, route)
         # Only update the resource name if it was not explicitly set
         # by anyone during the request lifetime
-        if span.resource == REQUEST_DEFAULT_RESOURCE:
+        elif span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = resource
+
+
+def _initial_otel_resource(request: Any) -> Optional[str]:
+    if not config._otel_trace_semantics_enabled:
+        return None
+
+    normalized_method, _ = normalize_http_method(request.method)
+    return otel_http_resource(normalized_method, None)
 
 
 def _before_request_tags(pin, span, request):
@@ -421,7 +438,7 @@ def _after_request_tags(pin, span: Span, request, response):
             core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
-            span.resource = request.method
+            set_instrumentation_resource(span, request.method)
 
 
 def _request_path_params(request):

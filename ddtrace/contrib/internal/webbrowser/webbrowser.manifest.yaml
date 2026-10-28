@@ -1,0 +1,10 @@
+_v: 1
+name: webbrowser
+display_name: Webbrowser
+description: Instruments Python's webbrowser URL-opening operation to detect and help prevent server-side request forgery
+  vulnerabilities in applications.
+packages: []
+category:
+- other
+systems: []
+creation_date: '2024-05-13'

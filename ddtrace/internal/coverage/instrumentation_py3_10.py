@@ -5,7 +5,7 @@ from types import CodeType
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 
 
 assert sys.version_info[:2] == (3, 10)  # nosec

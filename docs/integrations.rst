@@ -67,6 +67,13 @@ anthropic
 .. automodule:: ddtrace.contrib.internal.anthropic
 
 
+.. _anyio:
+
+AnyIO
+^^^^^
+.. automodule:: ddtrace.contrib.internal.anyio
+
+
 .. _asyncio:
 
 asyncio
@@ -264,6 +271,13 @@ google-adk
 .. automodule:: ddtrace.contrib.internal.google_adk
 
 
+.. _aws_sdk_bedrock_runtime:
+
+aws-sdk-bedrock-runtime
+^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aws_sdk_bedrock_runtime
+
+
 .. _google_genai:
 
 google-genai
@@ -310,6 +324,12 @@ httplib
 httpx
 ^^^^^
 .. automodule:: ddtrace.contrib.internal.httpx
+
+.. _httpx2:
+
+httpx2
+^^^^^^
+.. automodule:: ddtrace.contrib.internal.httpx2
 
 
 .. _jinja2:
@@ -423,6 +443,13 @@ mysqlclient
 .. automodule:: ddtrace.contrib.internal.mysqldb
 
 
+.. _elevenlabs:
+
+ElevenLabs
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.elevenlabs
+
+
 .. _openai:
 
 OpenAI
@@ -490,7 +517,7 @@ Pyramid
 
 pytest
 ^^^^^^
-.. automodule:: ddtrace.contrib.internal.pytest
+.. automodule:: ddtrace.testing.internal.pytest
 
 
 .. _pytest_bdd:
@@ -503,7 +530,7 @@ pytest-bdd
 
 pytest-benchmark
 ^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.pytest_benchmark
+.. automodule:: ddtrace.testing.internal.pytest.benchmark
 
 .. _protobuf:
 
@@ -614,6 +641,20 @@ Subprocess
 Tornado
 ^^^^^^^
 .. automodule:: ddtrace.contrib.internal.tornado
+
+
+.. _trio:
+
+Trio
+^^^^
+.. automodule:: ddtrace.contrib.internal.trio
+
+
+.. _typesafe:
+
+TypeSafe
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.typesafe
 
 
 .. _unittest:

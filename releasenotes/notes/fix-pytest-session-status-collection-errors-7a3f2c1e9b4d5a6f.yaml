@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fix the session status being reported as ``pass`` instead of ``fail`` when pytest exits with a non-OK, non-``NO_TESTS_COLLECTED`` exit code (e.g. collection errors, interruptions, internal errors).

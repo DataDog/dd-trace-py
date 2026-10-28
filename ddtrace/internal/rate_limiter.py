@@ -1,14 +1,22 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from dataclasses import field
 import random
-import threading
 import time
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
+from typing import Optional
+
+from ddtrace.internal.threads import Lock
 
 
-class RateLimiter(object):
+if TYPE_CHECKING:
+    from _thread import LockType
+
+
+class RateLimiter:
     """
     A token bucket rate limiter implementation
     """
@@ -40,17 +48,17 @@ class RateLimiter(object):
         """
         self.rate_limit = rate_limit
         self.time_window = time_window
-        self.tokens = rate_limit  # type: float
+        self.tokens: float = rate_limit
         self.max_tokens = rate_limit
 
         self.last_update_ns = time.monotonic_ns()
 
-        self.current_window_ns = 0  # type: float
+        self.current_window_ns: float = 0
         self.tokens_allowed = 0
         self.tokens_total = 0
-        self.prev_window_rate = None  # type: Optional[float]
+        self.prev_window_rate: Optional[float] = None
 
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
     def is_allowed(self) -> bool:
         """
@@ -153,12 +161,9 @@ class RateLimiter(object):
         return (self._current_window_rate() + self.prev_window_rate) / 2.0
 
     def __repr__(self):
-        return "{}(rate_limit={!r}, tokens={!r}, last_update_ns={!r}, effective_rate={!r})".format(
-            self.__class__.__name__,
-            self.rate_limit,
-            self.tokens,
-            self.last_update_ns,
-            self.effective_rate,
+        return (
+            f"{self.__class__.__name__}(rate_limit={self.rate_limit!r}, tokens={self.tokens!r},"
+            f" last_update_ns={self.last_update_ns!r}, effective_rate={self.effective_rate!r})"
         )
 
 
@@ -198,7 +203,7 @@ class BudgetRateLimiterWithJitter:
     budget: float = field(init=False)
     max_budget: float = field(init=False)
     last_time: float = field(init=False, default_factory=time.monotonic)
-    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
+    _lock: LockType = field(init=False, default_factory=Lock)
 
     def __post_init__(self):
         if self.limit_rate == float("inf"):
@@ -209,20 +214,66 @@ class BudgetRateLimiterWithJitter:
             self.budget = self.max_budget = 1.0
         self._on_exceed_called = False
 
+    def _accrue(self) -> None:
+        """Add the budget that has become available since the last look.
+
+        The caller is expected to hold the lock.
+        """
+        now = time.monotonic()
+        # An infinite budget never needs replenishing, and inf * 0 would turn it
+        # into NaN when no time has elapsed (e.g. with a coarse clock).
+        if self.limit_rate != float("inf"):
+            self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+        self.last_time = now
+
+    def _cap(self) -> None:
+        """Discard any budget beyond the maximum."""
+        if self.budget > self.max_budget:
+            self.budget = self.max_budget
+
+    def has_budget(self) -> bool:
+        """Whether a call would be allowed, without consuming any budget.
+
+        For a caller that wants a cheap early answer and commits separately
+        later, once it knows the call is worth it. The budget is brought up to
+        date first, as :meth:`limit` does, so the jitter for the time elapsed
+        is drawn once: a :meth:`limit` right after agrees with the answer, and
+        a caller can act on it (e.g. remember a negative one).
+
+        Neither caps nor consumes the budget, so that, as with :meth:`limit`,
+        a maximum budget below one token (a rate below one per ``tau``, or a
+        rate whose ``limit_rate * tau`` rounds just under one) does not reject
+        forever.
+        """
+        with self._lock:
+            self._accrue()
+            return self.budget >= 1.0
+
+    def consume(self, amount: float = 1.0) -> None:
+        """Spend budget whether or not there is any left.
+
+        For callers that have already incurred the cost by the time they get
+        here, so refusing is not an option. The budget is allowed to go into
+        deficit, and the overspend is repaid before anything is let through
+        again.
+        """
+        with self._lock:
+            self._accrue()
+            self._cap()
+            self.budget -= amount
+
     def limit(self, f: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any) -> Any:
         """Make rate-limited calls to a function with the given arguments."""
         should_call = False
         with self._lock:
-            now = time.monotonic()
-            self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+            self._accrue()
             should_call = self.budget >= 1.0
-            if self.budget > self.max_budget:
-                self.budget = self.max_budget
-            self.last_time = now
+            self._cap()
+            if should_call:
+                self.budget -= 1.0
 
         if should_call:
             self._on_exceed_called = False
-            self.budget -= 1.0
             return f(*args, **kwargs) if f is not None else None
 
         if self.on_exceed is not None:

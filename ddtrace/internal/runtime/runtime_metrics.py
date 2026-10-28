@@ -1,20 +1,24 @@
-import itertools
-from typing import ClassVar  # noqa:F401
-from typing import Optional  # noqa:F401
+from __future__ import annotations
 
-import ddtrace
+import itertools
+from typing import Optional
+
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
+from ddtrace.vendor.dogstatsd.base import ENTITY_ID_TAG_NAME
 
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
+from ..serverless import in_aws_lambda_microvm
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
 from .metric_collectors import GCRuntimeMetricCollector
-from .metric_collectors import PSUtilRuntimeMetricCollector
+from .metric_collectors import NativeProcessMetricCollector
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import PlatformTagCollectorV2
 from .tag_collectors import ProcessTagCollector
@@ -24,7 +28,7 @@ from .tag_collectors import TracerTagCollector
 log = get_logger(__name__)
 
 
-class RuntimeCollectorsIterable(object):
+class RuntimeCollectorsIterable:
     def __init__(self, enabled=None):
         self._enabled = enabled or self.ENABLED
         # Initialize the collectors.
@@ -34,11 +38,12 @@ class RuntimeCollectorsIterable(object):
         collected = (collector.collect(self._enabled) for collector in self._collectors)
         return itertools.chain.from_iterable(collected)
 
+    def stop(self) -> None:
+        for collector in self._collectors:
+            collector.stop()
+
     def __repr__(self):
-        return "{}(enabled={})".format(
-            self.__class__.__name__,
-            self._enabled,
-        )
+        return f"{self.__class__.__name__}(enabled={self._enabled})"
 
 
 class PlatformTags(RuntimeCollectorsIterable):
@@ -69,7 +74,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ENABLED = DEFAULT_RUNTIME_METRICS
     COLLECTORS = [
         GCRuntimeMetricCollector,
-        PSUtilRuntimeMetricCollector,
+        NativeProcessMetricCollector,
     ]
 
 
@@ -77,30 +82,34 @@ class RuntimeWorker(periodic.PeriodicService):
     """Worker thread for collecting and writing runtime metrics to a DogStatsd client."""
 
     enabled = False
-    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
+    _instance: Optional[RuntimeWorker] = None
     _lock = Lock()
 
-    def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
+    def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
-        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
-            self.dogstatsd_url or ddtrace.internal.settings._agent.config.dogstatsd_url
-        )
-        self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
+        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
-        if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in ddtrace.config._experimental_features_enabled:
+        # A MicroVM /run transition rotates the runtime ID mid-process without a fork, so MicroVMs
+        # tagging runtime-id re-read their platform tags on every flush. Everyone else keeps a single
+        # identity for their lifetime and keeps the cached tags.
+        self._identity_refresh_enabled = in_aws_lambda_microvm() and config._runtime_metrics_runtime_id_enabled
+        if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in config._experimental_features_enabled:
             # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)
             self.send_metric = self._dogstatsd_client.gauge
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
-        if ddtrace.config._runtime_metrics_runtime_id_enabled:
-            # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
-            self._platform_tags = self._format_tags(PlatformTagsV2())
-        else:
-            self._platform_tags = self._format_tags(PlatformTags())
+        self._platform_tags = self._collect_platform_tags()
 
         self._process_tags: list[str] = list(ProcessTags())
+        # Only dd.internal.entity_id needs preserving here: service/env/version are already
+        # refreshed fresh every flush via TracerTags(), so keeping them too would risk sending a
+        # stale value alongside the current one.
+        entity_id_prefix = ENTITY_ID_TAG_NAME + ":"
+        self._client_constant_tags: list[str] = [
+            tag for tag in (self._dogstatsd_client.constant_tags or []) if tag.startswith(entity_id_prefix)
+        ]
 
     @classmethod
     def disable(cls) -> None:
@@ -124,13 +133,12 @@ class RuntimeWorker(periodic.PeriodicService):
     @classmethod
     def enable(
         cls,
-        tracer: Optional[ddtrace.trace.Tracer] = None,
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         with cls._lock:
             if cls._instance is not None:
                 return
-            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, tracer, dogstatsd_url)
+            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url)
             runtime_worker.start()
 
             atexit.register(cls.disable)
@@ -138,20 +146,37 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance = runtime_worker
             cls.enabled = True
 
+    def stop(self, *args, **kwargs) -> None:
+        super().stop(*args, **kwargs)
+        self._runtime_metrics.stop()
+
     def flush(self) -> None:
-        # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
+        if self._identity_refresh_enabled:
+            # PlatformTagsV2 reads the current runtime ID, which a MicroVM /run refresh rotates.
+            self._platform_tags = self._collect_platform_tags()
+        self._flush_unlocked(self._runtime_metrics)
+
+    def _flush_unlocked(self, runtime_metrics) -> None:
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
-        log.debug("Sending runtime metrics with the following tags: %s", runtime_tags)
-        self._dogstatsd_client.constant_tags = runtime_tags
+        # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
+        # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
+        constant_tags = list(dict.fromkeys(self._client_constant_tags + runtime_tags))
+        log.debug("Sending runtime metrics with the following tags: %s", constant_tags)
+        self._dogstatsd_client.constant_tags = constant_tags
 
         with self._dogstatsd_client:
-            for key, value in self._runtime_metrics:
+            for key, value in runtime_metrics:
                 log.debug("Sending ddtrace runtime metric %s:%s", key, value)
                 self.send_metric(key, value)
 
+    def _collect_platform_tags(self) -> list[str]:
+        if config._runtime_metrics_runtime_id_enabled:
+            return self._format_tags(PlatformTagsV2())
+        return self._format_tags(PlatformTags())
+
     def _format_tags(self, tags: RuntimeCollectorsIterable) -> list[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        return ["{}:{}".format(k, v) for k, v in tags]
+        return [f"{k}:{v}" for k, v in tags]
 
     periodic = flush
     on_shutdown = flush

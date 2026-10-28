@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the agentless exporter dropped traces due to non-JSON-serializable objects being stored on a span.
+    All LLM Observability span data is now made JSON-serializable before the span is submitted. Non-string span tag keys, span metric keys,
+    and agent versions supplied via ``LLMObs.annotate(agent=...)`` are also now coerced to strings.

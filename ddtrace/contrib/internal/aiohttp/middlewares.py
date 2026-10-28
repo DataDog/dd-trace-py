@@ -1,17 +1,28 @@
+import asyncio
+
 from aiohttp import web
+from aiohttp.streams import StreamReader
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
+from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
+from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
+from ddtrace.internal.utils.http import _format_template
 
 
 CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
+REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
+DEFAULT_CLIENT_MAX_SIZE = 1024**2
 
 
 async def trace_middleware(app, handler):
@@ -59,12 +70,12 @@ async def trace_middleware(app, handler):
                 distributed_headers_config_override=app_config["distributed_tracing_enabled"],
                 # DEV: aiohttp is special case maintains separate configuration from config api
                 trace_query_string=trace_query_string,
-                query=request.query_string,
+                query=request.rel_url.raw_query_string,
                 service=service,
             ),
             dispatch_end_event=False,
         ) as ctx:
-            req_span = ctx.span
+            req_span = span_from_context(ctx)
 
             # attach the execution context to the request
             request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
@@ -72,22 +83,81 @@ async def trace_middleware(app, handler):
             request[REQUEST_CONTEXT_KEY] = req_span.context
 
             try:
-                response = await handler(request)
+                try:
+                    response = await _handle_request(ctx, request, handler)
+                except BaseException as exc:
+                    if (blocking := find_exception(exc, BlockingException)) is None:
+                        raise
+                    response = _blocked_response(ctx, request, blocking.args[0])
+                finally:
+                    core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
                 if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
                     if isinstance(response, web.StreamResponse):
                         request.task.add_done_callback(lambda _: finish_request_span(request, response))
                 return response
-            except Exception:
-                req_span.set_traceback()
+            except Exception as e:
+                # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
+                # when its status is an error status.
+                if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
+                    req_span.set_traceback()
                 raise
 
     return attach_context
 
 
+async def _handle_request(ctx, request, handler):
+    max_body_size = getattr(request, "_client_max_size", 0) or DEFAULT_CLIENT_MAX_SIZE
+    core.dispatch("aiohttp.request.start", (ctx, request, max_body_size))
+    read_body = ctx.get_item("aiohttp_request_body")
+    ctx.discard_local_item("aiohttp_request_body")
+    if read_body is not None:
+        body = await read_body
+        if body is not None:
+            _restore_request_body(request, body)
+    try:
+        response = await handler(request)
+    except web.HTTPException as exc:
+        if REQUEST_STARTED_RESPONSE_KEY not in request:
+            core.dispatch("aiohttp.request.response", (request, exc))
+        raise
+    except Exception as exc:
+        if REQUEST_STARTED_RESPONSE_KEY not in request and core.has_listeners("aiohttp.request.response"):
+            error = web.HTTPGatewayTimeout() if isinstance(exc, asyncio.TimeoutError) else web.HTTPInternalServerError()
+            core.dispatch("aiohttp.request.response", (request, error))
+        raise
+    if REQUEST_STARTED_RESPONSE_KEY not in request:
+        core.dispatch("aiohttp.request.response", (request, response))
+    return response
+
+
+def _restore_request_body(request, body):
+    stream = StreamReader(request.protocol, max(len(body), 2**16), loop=asyncio.get_running_loop())
+    stream.feed_data(body)
+    stream.feed_eof()
+    request._payload = stream
+
+
+def _blocked_response(ctx, request, block_config):
+    started_response = request.get(REQUEST_STARTED_RESPONSE_KEY)
+    if started_response is not None:
+        if request.transport is not None:
+            request.transport.close()
+        return started_response
+    core.dispatch("aiohttp.request.block", (ctx, block_config))
+    block_response = ctx.get_item("aiohttp_block_response")
+    ctx.discard_local_item("aiohttp_block_response")
+    if block_response is not None:
+        status, headers, body = block_response
+        return web.Response(status=status, headers=headers, body=body)
+    return web.Response(
+        status=403, content_type="application/json", text=_format_template(BLOCKED_RESPONSE_JSON, "default")
+    )
+
+
 def finish_request_span(request, response):
-    # safe-guard: discard if we don't have a request span
+    # Response preparation and the task callback can both finalize a request; the first releases its event.
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or not ctx.span:
+    if not ctx or ctx._end_event_dispatched or not span_from_context(ctx):
         return
 
     # default resource name
@@ -105,7 +175,7 @@ def finish_request_span(request, response):
             resource = res_info.get("prefix")
 
         # prefix the resource name by the http method
-        resource = "{} {}".format(request.method, resource)
+        resource = f"{request.method} {resource}"
 
     event: WebFrameworkRequestEvent = ctx.event
     event.resource = resource
@@ -119,6 +189,7 @@ async def on_prepare(request, response):
     The on_prepare signal is used to close the request span that is created during
     the trace middleware execution.
     """
+    request[REQUEST_STARTED_RESPONSE_KEY] = response
     # NB isinstance is not appropriate here because StreamResponse is a parent of the other
     # aiohttp response types. However in some cases this can also lead to missing the closing of
     # spans, leading to a memory leak, which is why we have this flag.

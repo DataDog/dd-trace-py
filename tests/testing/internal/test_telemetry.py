@@ -28,9 +28,18 @@ def mock_writer() -> Mock:
 
 @pytest.fixture
 def telemetry_api(mock_writer: Mock) -> t.Generator[TelemetryAPI, None, None]:
+    # `TelemetryAPI.__init__` has the side effect of overwriting the process-wide
+    # `TelemetryAPI._instance` singleton. These tests only ever call methods directly
+    # on `api`, never through `TelemetryAPI.get()`, so restore whatever singleton was
+    # live beforehand right away. Otherwise, for the duration of the test, any code
+    # elsewhere that calls the real `TelemetryAPI.get()` (e.g. a background writer
+    # flush thread from ddtrace's own self-instrumented test run) could resolve to
+    # this test's `api`/`mock_writer` and inject unrelated calls into our assertions.
+    previous_instance = TelemetryAPI._instance
     api = TelemetryAPI(connector_setup=Mock())
     api.writer = mock_writer
     mock_writer.reset_mock()
+    TelemetryAPI._instance = previous_instance
     yield api
 
 
@@ -335,6 +344,18 @@ class TestTelemetry:
         assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "test_management_tests.response_tests", 42, ())
         ]
+
+    def test_record_dynamic_atr_retries_custom_buckets(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_dynamic_atr_retries(has_custom_buckets=True)
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "dynamic_atr_retries.enabled", 1, (("has_custom_buckets", "true"),))
+        ]
+
+    def test_record_dynamic_atr_retries_no_custom_buckets(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_dynamic_atr_retries(has_custom_buckets=False)
+
+        assert mock_writer.add_count_metric.call_args_list == [call(CIVISIBILITY, "dynamic_atr_retries.enabled", 1, ())]
 
     def test_record_git_command_ok(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_git_command(command=GitTelemetry.GET_REPOSITORY, elapsed_seconds=1.2, exit_code=0)

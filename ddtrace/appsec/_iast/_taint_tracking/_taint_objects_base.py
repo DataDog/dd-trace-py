@@ -1,8 +1,6 @@
 from typing import Any
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -10,6 +8,7 @@ from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._context import is_in_taint_map
+from ddtrace.appsec._iast_context import _get_iast_context_id
 
 
 def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None, contextid=None) -> Any:
@@ -65,23 +64,28 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
 
 
 def get_tainted_ranges(pyobject: Any) -> tuple:
-    if not is_iast_request_enabled():
+    context_id = _get_iast_context_id()
+    if context_id is None:
         return tuple()
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return tuple()
     try:
-        return get_ranges(pyobject, _get_iast_context_id())
+        return get_ranges(pyobject, context_id)
     except ValueError as e:
         iast_propagation_error_log(f"get_tainted_ranges error (pyobject type {type(pyobject)})", exc=e)
     return tuple()
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
+    context_id = _get_iast_context_id()
+    if context_id is None:
+        return False
+
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False
 
     try:
-        return is_in_taint_map(pyobject, _get_iast_context_id())
+        return is_in_taint_map(pyobject, context_id)
     except ValueError as e:
         iast_propagation_error_log("Checking tainted object error", exc=e)
     return False

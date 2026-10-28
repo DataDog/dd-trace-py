@@ -28,13 +28,13 @@ from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import Function
 from ddtrace.aiguard._api_client import Message
-from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
+from ddtrace.aiguard._common import evaluate_auto
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
 
 
 logger = ddlogger.get_logger(__name__)
@@ -50,7 +50,7 @@ logger = ddlogger.get_logger(__name__)
 _RESPONSE_TEXT_BLOCK_TYPES = ("input_text", "output_text")
 # Refusal-style blocks carry their content under a ``refusal`` key.
 _RESPONSE_REFUSAL_BLOCK_TYPES = ("refusal", "output_refusal")
-# AIDEV-NOTE: Item types that must never reach the AI Guard evaluator.
+# Item types that must never reach the AI Guard evaluator.
 # - ``reasoning``: internal chain-of-thought emitted by reasoning-capable
 #   models; evaluating it would gate on the model's private deliberation
 #   rather than the user-visible conversation, and could leak CoT into AI
@@ -159,7 +159,7 @@ def _render_prompt_variable_value(value: Any) -> Optional[str]:
         if text is not None:
             return text
 
-        # AIDEV-NOTE: Prompt-template variables are user-controlled input.
+        # Prompt-template variables are user-controlled input.
         # Render unknown mappings recursively so object-valued text cannot
         # bypass AI Guard, but redact OpenAI file/image locator fields instead
         # of raw ``str(mapping)`` to avoid leaking signed URLs or opaque ids.
@@ -300,7 +300,7 @@ def _convert_openai_response_input(instructions: Any, input_: Any, prompt: Any =
       - Unknown / forward-incompatible types are silently dropped (the
         converter fails open so SDK calls don't break on new payload shapes).
 
-    AIDEV-NOTE: fail-open security tradeoff. Per-item exceptions are
+    Fail-open security tradeoff. Per-item exceptions are
     swallowed (``logger.debug`` only) and items with unrecognised shape are
     dropped. If the entire ``input`` list is unconvertible — or yields only
     a ``system`` message from ``instructions`` — the before-hook returns
@@ -413,15 +413,10 @@ def _convert_openai_response_output(resp: Any) -> list[Message]:
 
 
 def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
-    """Listener for ``openai.responses.create.before``.
+    """Listener for openai.responses.create.before; evaluates request inputs, streaming included.
 
-    Streaming requests are evaluated only when the flag is on (the response is then buffered
-    and evaluated at stream end); otherwise they are skipped.
+    Streamed response evaluation is gated separately by _install_openai_wrappers.
     """
-    if kwargs.get("stream") and not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
-        logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
-        return None
-
     if is_aiguard_context_active():
         logger.debug("AI Guard openai responses before-hook skipped: framework context active")
         return None
@@ -444,7 +439,7 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
 
     logger.debug("AI Guard openai responses before-hook evaluating %d message(s)", len(messages))
     try:
-        client.evaluate(messages, Options(block=ai_guard_config._ai_guard_block))
+        evaluate_auto(client, messages, AI_GUARD.INTEGRATION_OPENAI)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
@@ -453,12 +448,9 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
 
 
 def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any], resp: Any) -> None:
-    """Listener for ``openai.responses.create.after``.
+    """Listener for openai.responses.create.after; evaluates input + output, skipped under a framework context.
 
-    Evaluates the full conversation (input + output) after the Responses API
-    returns. ``.after`` only fires on non-streaming responses (the contrib
-    patch gates the dispatch on ``not stream``); when a framework evaluation
-    is already active we skip to avoid double-evaluation.
+    Fires for non-streaming responses, and at stream end when stream response evaluation is enabled.
     """
     if is_aiguard_context_active():
         logger.debug("AI Guard openai responses after-hook skipped: framework context active")
@@ -478,7 +470,7 @@ def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any],
     all_messages = request_messages + response_messages
 
     try:
-        client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
+        evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_OPENAI)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:

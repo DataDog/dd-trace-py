@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    gevent: Fixes an issue where context propagation bypasses a custom context provider configured on the tracer.
+features:
+  - |
+    gevent: Adds automatic synchronization of OpenTelemetry thread context when gevent switches between greenlets.

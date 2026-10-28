@@ -30,8 +30,11 @@ def _derive_tags(c: DDConfig) -> str:
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
 
+_IDENT_SEPARATORS = str.maketrans("", "", "-_@$.")
+
+
 def normalize_ident(ident: str) -> str:
-    return ident.strip().lower().replace("_", "")
+    return ident.strip().lower().translate(_IDENT_SEPARATORS)
 
 
 def validate_type_patterns(types: set[str]) -> None:
@@ -127,7 +130,7 @@ class DynamicInstrumentationConfig(DDConfig):
     redacted_types_re = DDConfig.d(
         t.Optional[re.Pattern],
         lambda c: (
-            re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
+            re.compile(f"^(?:{'|'.join(_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types)})$")
             if c.redacted_types
             else None
         ),
@@ -140,6 +143,22 @@ class DynamicInstrumentationConfig(DDConfig):
         default=set(),
         help_type="List",
         help="List of identifiers to exclude from redaction",
+    )
+
+    capture_timeout_ms = DDConfig.v(
+        int,
+        "capture.timeout_ms",
+        default=150,
+        help_type="Integer",
+        help="Maximum wall-time in milliseconds for snapshot capture and serialization per probe invocation",
+    )
+
+    evaluation_timeout_ms = DDConfig.v(
+        int,
+        "evaluation.timeout_ms",
+        default=50,
+        help_type="Integer",
+        help="Maximum wall-time in milliseconds for condition and template expression evaluation per probe invocation",
     )
 
     probe_file = DDConfig.v(

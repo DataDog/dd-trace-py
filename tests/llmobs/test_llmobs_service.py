@@ -3,12 +3,14 @@ import os
 import re
 import threading
 import time
+from unittest import mock
+import urllib.parse
 
-import mock
 import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
@@ -23,6 +25,8 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_FRAMEWORK_NAME
+from ddtrace.llmobs._telemetry import LLMObsTelemetryMetrics
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_cost_tags
@@ -48,6 +52,7 @@ from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
+from tests.llmobs._utils import _expected_llmobs_feedback_event
 from tests.llmobs._utils import assert_llmobs_span_data
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -74,18 +79,62 @@ def test_service_enable_proxy(tracer, test_spans):
         llmobs_service.disable()
 
 
+def test_service_enable_agent_service_precedence(tracer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<config-ml-app>")):
+        llmobs_service.enable(
+            _tracer=tracer,
+            agentless_enabled=False,
+            ml_app="<legacy-ml-app>",
+            agent_service="<agent-service>",
+        )
+        assert ddtrace.config._llmobs_ml_app == "<agent-service>"
+        with llmobs_service.workflow() as span:
+            pass
+        assert get_llmobs_ml_app(span) == "<agent-service>"
+        llmobs_service.disable()
+
+
+def test_service_enable_agent_service_precedence_over_service(tracer):
+    """agent_service takes precedence over both ml_app and service when enabling."""
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+        llmobs_service.enable(
+            _tracer=tracer,
+            agentless_enabled=False,
+            service="<service>",
+            ml_app="<legacy-ml-app>",
+            agent_service="<agent-service>",
+        )
+        with llmobs_service.workflow() as span:
+            pass
+        assert get_llmobs_ml_app(span) == "<agent-service>"
+        llmobs_service.disable()
+
+
+def test_service_enable_service_used_as_ml_app_fallback(tracer):
+    """When neither agent_service nor ml_app is set, service is used as the ml app."""
+    # Guard against leaked enabled=True from a prior failed test
+    llmobs_service.disable()
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app=None)):
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
+        try:
+            with llmobs_service.workflow() as span:
+                pass
+            assert get_llmobs_ml_app(span) == "<service>"
+        finally:
+            llmobs_service.disable()
+
+
 @pytest.mark.subprocess(
     env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_ML_APP": "<ml-app-name>"},
 )
 def test_enable_agentless():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable(agentless_enabled=True)
     assert llmobs_service.enabled
     assert llmobs_service._instance._llmobs_span_writer._agentless is True
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
 
 
@@ -136,30 +185,28 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
 @pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
 def test_configure_agentless_writer_swaps_writer():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable(agentless_enabled=False)
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.enable(agentless_enabled=True)
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
 def test_enable_without_api_key_does_not_swap_apm_writer():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     try:
         llmobs_service.enable()
     except ValueError:
         pass
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(
@@ -249,6 +296,41 @@ def test_export_mode_llmobs_agent_proxy_when_apm_tracing_disabled_and_agentless_
     assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_AGENT_PROXY
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_OVERRIDE_ORIGIN": "http://localhost:1234",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": "<not-a-real-key>",
+    },
+    err=None,
+)
+def test_export_mode_llmobs_agentless_when_override_origin_set_and_agentless_enabled():
+    """An override origin must not be silently ignored by letting events ride the APM trace."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable()
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_AGENTLESS
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_OVERRIDE_ORIGIN": "http://localhost:1234",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_export_mode_llmobs_agent_proxy_when_override_origin_set_and_agentless_disabled():
+    """An override origin must not be silently ignored by letting events ride the APM trace."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_AGENT_PROXY
+
+
 def test_service_disable(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)
@@ -269,15 +351,14 @@ def test_service_disable(tracer):
 def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
     """disable() reverts the APM writer when enable() was the one that switched it to agentless."""
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.enable()
     assert llmobs_service._instance._apm_writer_switched_to_agentless is True
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(
@@ -291,14 +372,13 @@ def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
 def test_disable_does_not_revert_agentless_writer_when_already_agentless():
     """disable() leaves the APM writer alone when the writer was already agentless before enable()."""
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.enable()
     assert llmobs_service._instance._apm_writer_switched_to_agentless is False
     llmobs_service.disable()
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
 
 
 def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
@@ -481,6 +561,37 @@ def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
     mock_llmobs_logs.reset_mock()
     _ = llmobs.agent(name="test_agent")
     mock_llmobs_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
+
+
+@pytest.mark.parametrize("kind", ["llm", "embedding", "tool", "task", "workflow", "agent", "retrieval"])
+def test_manual_span_sets_apm_shadow_tags(llmobs, kind):
+    with getattr(llmobs, kind)() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == kind
+    assert span.get_metric("_dd.llmobs.enabled") == 1
+
+
+def test_manual_llm_span_sets_apm_shadow_model_tags(llmobs):
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_tag("_dd.llmobs.model_provider") == "test_provider"
+
+
+def test_manual_llm_span_skips_unknown_apm_shadow_model_tags(llmobs):
+    with llmobs.llm() as span:
+        pass
+    assert span.get_tag("_dd.llmobs.model_name") is None
+    assert span.get_tag("_dd.llmobs.model_provider") is None
+
+
+def test_manual_span_sets_apm_shadow_tags_while_disabled(llmobs):
+    llmobs.disable()
+    with llmobs.llm(model_name="test_model", model_provider="test_provider") as span:
+        pass
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "test_model"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
 
 
 def test_start_span_uses_kind_as_default_name(llmobs):
@@ -1330,6 +1441,57 @@ def test_ml_app_override(llmobs):
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
 
 
+def test_agent_service_override(llmobs):
+    with llmobs.task(name="test_task", ml_app="legacy_app", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"})
+    with llmobs.tool(name="test_tool", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", tags={"ml_app": "test_app"})
+    with llmobs.llm(model_name="model_name", name="test_llm", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
+    )
+    with llmobs.embedding(model_name="model_name", name="test_embedding", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="embedding",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
+    )
+    with llmobs.workflow(name="test_workflow", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="workflow", tags={"ml_app": "test_app"})
+    with llmobs.agent(name="test_agent", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="agent", tags={"ml_app": "test_app"})
+    with llmobs.retrieval(name="test_retrieval", agent_service="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
+
+
+def test_agent_service_tag_mirrors_ml_app(llmobs):
+    """Every span carries an agent_service tag that always equals the ml_app tag, including overrides."""
+    # Inherited/default identity: agent_service mirrors whatever ml_app resolves to.
+    with llmobs.workflow(name="inherited") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags["agent_service"] == tags["ml_app"]
+    # Explicit agent_service overrides a legacy ml_app on both tags (no stale agent_service value).
+    with llmobs.task(name="override", ml_app="legacy_app", agent_service="test_app") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags["ml_app"] == "test_app"
+    assert tags["agent_service"] == "test_app"
+
+
 def test_export_span_specified_span_is_incorrect_type_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.export_span(span="asd")
@@ -1477,24 +1639,28 @@ def test_activate_distributed_headers_no_llmobs_trace_id_starts_new_context(llmo
             trace_id=123, span_id=456, meta={PROPAGATED_PARENT_ID_KEY: "123", PROPAGATED_LLMOBS_TRACE_ID_KEY: None}
         )
         mock_extract.return_value = dummy_context
-        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+        # Patch the whole context_provider (a native pyclass whose methods are read-only)
+        # rather than its `activate` method, so we can still observe the activate call.
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider") as mock_provider:
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
             mock_llmobs_logs.debug.assert_called_once_with(
                 "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
                 "Defaulting to the corresponding APM trace ID."
             )
-            mock_activate.assert_called_once_with(dummy_context)
+            mock_provider.activate.assert_called_once_with(dummy_context)
 
 
 def test_activate_distributed_headers_activates_context(llmobs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
         dummy_context = Context(trace_id=123, span_id=456, meta={PROPAGATED_PARENT_ID_KEY: "123"})
         mock_extract.return_value = dummy_context
-        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+        # Patch the whole context_provider (a native pyclass whose methods are read-only)
+        # rather than its `activate` method, so we can still observe the activate call.
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider") as mock_provider:
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
-            mock_activate.assert_called_once_with(dummy_context)
+            mock_provider.activate.assert_called_once_with(dummy_context)
 
 
 def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
@@ -1526,8 +1692,7 @@ assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad
 def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1556,8 +1721,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1588,8 +1752,7 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.internal.service import ServiceStatus
@@ -1627,8 +1790,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
@@ -1659,8 +1821,7 @@ def test_llmobs_fork_evaluator_runner_run():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
     import sys
-
-    import mock
+    from unittest import mock
 
     import ddtrace
     from ddtrace.llmobs import LLMObs as llmobs_service
@@ -1752,6 +1913,17 @@ def test_llmobs_with_evaluator_runner(llmobs, mock_llmobs_evaluator_runner):
         pass
     time.sleep(0.1)
     assert llmobs._instance._evaluator_runner.enqueue.call_count == 1
+
+
+def test_llmobs_fixture_replaces_stale_enabled_instance(request, tracer):
+    stale_evaluator_runner = mock.MagicMock()
+    with mock.patch("ddtrace.llmobs._llmobs.EvaluatorRunner", return_value=stale_evaluator_runner):
+        with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False)
+
+    llmobs = request.getfixturevalue("llmobs")
+
+    assert llmobs._instance._evaluator_runner is not stale_evaluator_runner
 
 
 def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmobs_evaluator_runner, llmobs):
@@ -1855,6 +2027,412 @@ def test_annotation_context_finished_context_does_not_modify_name(llmobs):
         pass
     with llmobs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
+
+
+def test_agent_span_sets_agent_version_tag(llmobs):
+    with llmobs.agent(name="test_agent", version="v3") as span:
+        pass
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+def test_agent_span_version_set_on_descendants(llmobs):
+    with llmobs.agent(name="test_agent", version="v3"):
+        with llmobs.workflow(name="test_workflow") as workflow_span:
+            with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                pass
+        with llmobs.tool(name="test_tool") as tool_span:
+            pass
+    for span in (workflow_span, llm_span, tool_span):
+        assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+def test_agent_version_not_set_outside_the_agent(llmobs):
+    with llmobs.workflow(name="root") as root_span:
+        with llmobs.agent(name="test_agent", version="v3"):
+            pass
+        with llmobs.tool(name="sibling") as sibling_span:
+            pass
+    for span in (root_span, sibling_span):
+        assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_sibling_agents_version_their_own_subtrees(llmobs):
+    with llmobs.workflow(name="root"):
+        with llmobs.agent(name="flight_agent", version="v1"):
+            with llmobs.tool(name="flight_tool") as flight_tool:
+                pass
+        with llmobs.agent(name="hotel_agent", version="v2"):
+            with llmobs.tool(name="hotel_tool") as hotel_tool:
+                pass
+    assert get_llmobs_tags(flight_tool)["agent_version"] == "v1"
+    assert get_llmobs_tags(hotel_tool)["agent_version"] == "v2"
+
+
+def test_agent_span_without_version_sets_no_tag(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        pass
+    assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_nested_agent_spans_each_carry_their_own_version(llmobs):
+    with llmobs.agent(name="outer_agent", version="v1") as outer_span:
+        with llmobs.agent(name="inner_agent", version="v3") as inner_span:
+            pass
+    assert get_llmobs_tags(outer_span)["agent_version"] == "v1"
+    assert get_llmobs_tags(inner_span)["agent_version"] == "v3"
+
+
+def test_nested_agent_without_version_inherits_ancestor_version(llmobs):
+    with llmobs.agent(name="outer_agent", version="v1"):
+        with llmobs.agent(name="inner_agent") as inner_span:
+            with llmobs.llm(name="inner_llm", model_name="test") as inner_llm:
+                pass
+    assert get_llmobs_tags(inner_span)["agent_version"] == "v1"
+    assert get_llmobs_tags(inner_llm)["agent_version"] == "v1"
+
+
+def test_nested_agent_version_scoped_to_its_subtree(llmobs):
+    with llmobs.agent(name="outer_agent", version="v1"):
+        with llmobs.agent(name="inner_agent", version="v2"):
+            with llmobs.llm(name="inner_llm", model_name="test") as inner_llm:
+                pass
+        with llmobs.llm(name="outer_llm", model_name="test") as outer_llm:
+            pass
+    assert get_llmobs_tags(inner_llm)["agent_version"] == "v2"
+    assert get_llmobs_tags(outer_llm)["agent_version"] == "v1"
+
+
+def test_inherited_agent_version_wins_over_explicit_tag(llmobs):
+    with llmobs.agent(name="test_agent", version="v3"):
+        with llmobs.tool(name="test_tool") as tool_span:
+            llmobs.annotate(span=tool_span, tags={"agent_version": "from_tags"})
+    assert get_llmobs_tags(tool_span)["agent_version"] == "v3"
+
+
+def test_annotation_context_agent_version_reaches_agent_subtrees_only(llmobs):
+    with llmobs.annotation_context(agent={"version": "v3"}):
+        with llmobs.workflow(name="test_workflow") as workflow_span:
+            with llmobs.agent(name="test_agent") as agent_span:
+                with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                    pass
+    assert get_llmobs_tags(agent_span)["agent_version"] == "v3"
+    assert get_llmobs_tags(llm_span)["agent_version"] == "v3"
+    assert "agent_version" not in get_llmobs_tags(workflow_span)
+
+
+def test_agent_version_option_wins_over_annotation_context(llmobs):
+    with llmobs.annotation_context(agent={"version": "from_context"}):
+        with llmobs.agent(name="test_agent", version="from_option") as agent_span:
+            with llmobs.tool(name="test_tool") as tool_span:
+                pass
+    for span in (agent_span, tool_span):
+        assert get_llmobs_tags(span)["agent_version"] == "from_option"
+
+
+def test_user_supplied_agent_version_tag_is_left_alone(llmobs):
+    """`tags` is an arbitrary user namespace, so an app already using this key keeps it when no
+    versioned agent is above the span.
+    """
+    with llmobs.annotation_context(tags={"agent_version": "mine-v1"}):
+        with llmobs.workflow(name="test_workflow") as workflow_span:
+            pass
+        with llmobs.agent(name="test_agent") as agent_span:
+            pass
+    for span in (workflow_span, agent_span):
+        assert get_llmobs_tags(span)["agent_version"] == "mine-v1"
+
+
+def test_annotation_context_agent_version_wins_over_explicit_tag(llmobs):
+    with llmobs.annotation_context(tags={"agent_version": "from_tags"}, agent={"version": "from_agent"}):
+        with llmobs.agent(name="test_agent") as span:
+            pass
+    assert get_llmobs_tags(span)["agent_version"] == "from_agent"
+
+
+@pytest.mark.parametrize("agent", [{}, {"version": None}, {"version": ""}, {"name": "no-version"}, "not_a_dict", 42])
+def test_annotation_context_agent_without_version_sets_no_tag(llmobs, agent):
+    """Agent input is unvalidated by design: anything without a usable version is a no-op."""
+    with llmobs.annotation_context(agent=agent):
+        with llmobs.agent(name="test_agent") as span:
+            pass
+    assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_annotation_context_finished_context_does_not_modify_agent_version(llmobs):
+    with llmobs.annotation_context(agent={"version": "v3"}):
+        pass
+    with llmobs.agent(name="test_agent") as span:
+        pass
+    assert "agent_version" not in get_llmobs_tags(span)
+
+
+def test_annotation_context_nested_overrides_agent_version(llmobs):
+    with llmobs.annotation_context(agent={"version": "outer"}):
+        with llmobs.annotation_context(agent={"version": "inner"}):
+            with llmobs.agent(name="test_agent") as span:
+                pass
+    assert get_llmobs_tags(span)["agent_version"] == "inner"
+
+
+def test_annotate_sets_agent_version_tag(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"version": "v3"})
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+DECLARED_AGENT = {
+    "version": "v3",
+    "name": "travel_desk",
+    "instructions": "Book travel.",
+    "model": "gpt-4o",
+    "model_settings": {"temperature": 0.1},
+    "tools": [{"name": "get_weather", "parameters": {"city": {"type": "string", "required": True}}}],
+}
+DECLARED_MANIFEST = {
+    "framework": MANUAL_FRAMEWORK_NAME,
+    "name": "travel_desk",
+    "instructions": "Book travel.",
+    "model": "gpt-4o",
+    "model_settings": {"temperature": 0.1},
+    "tools": [{"name": "get_weather", "parameters": {"city": {"type": "string", "required": True}}}],
+}
+
+
+def _agent_manifest(span):
+    return (get_llmobs_metadata(span) or {}).get("_dd", {}).get("agent_manifest")
+
+
+def test_annotate_agent_reports_a_manifest(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+
+    assert _agent_manifest(span) == DECLARED_MANIFEST
+    assert get_llmobs_tags(span)["agent_version"] == "v3", "version stays a tag, alongside the manifest"
+
+
+def test_annotate_agent_manifest_reaches_the_emitted_event(llmobs, llmobs_events):
+    """The tracer dict and the wire differ: the writer drops nulls and empties in transit."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"]["agent_manifest"] == DECLARED_MANIFEST
+
+
+def test_annotation_context_agent_manifest_on_agent_spans_only(llmobs):
+    """annotation_context reaches every span in its block; the manifest describes the agent."""
+    with llmobs.annotation_context(agent=DECLARED_AGENT):
+        with llmobs.agent(name="test_agent") as agent_span:
+            with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                pass
+            with llmobs.workflow(name="test_workflow") as workflow_span:
+                pass
+
+    assert _agent_manifest(agent_span) == DECLARED_MANIFEST
+    for span in (llm_span, workflow_span):
+        assert _agent_manifest(span) is None
+
+
+def test_agent_without_declared_configuration_reports_no_manifest(llmobs):
+    """A version-only agent is the pre-existing call, and it must not start emitting a manifest."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"version": "v3"})
+
+    assert _agent_manifest(span) is None
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+def test_declared_agent_version_is_read_at_annotate_time(llmobs):
+    """The whole declaration is read eagerly at annotate() time, so mutations to the dict
+    afterwards affect neither the tag nor the manifest.
+    """
+    declared = {"version": "v1", "name": "before"}
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=declared)
+        declared["version"] = "v2"
+
+    assert _agent_manifest(span)["name"] == "before"
+    assert get_llmobs_tags(span)["agent_version"] == "v1"
+
+
+def test_repeated_annotate_calls_compose_rather_than_overwrite(llmobs):
+    """Successive annotate(agent=...) calls on the same span accumulate fields.
+    A later call adds or overrides individual keys but does not discard earlier ones.
+    """
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"instructions": "Be brief."})
+        llmobs.annotate(span=span, agent={"model": "gpt-4o"})
+
+    manifest = _agent_manifest(span)
+    assert manifest["instructions"] == "Be brief."
+    assert manifest["model"] == "gpt-4o"
+
+
+def test_nested_annotation_contexts_compose_agent_manifest(llmobs):
+    """An outer annotation_context declaring one field and an inner one declaring another
+    must both appear in the final manifest.
+    """
+    with llmobs.annotation_context(agent={"instructions": "Be brief."}):
+        with llmobs.annotation_context(agent={"model": "gpt-4o"}):
+            with llmobs.agent(name="test_agent") as span:
+                pass
+
+    manifest = _agent_manifest(span)
+    assert manifest["instructions"] == "Be brief."
+    assert manifest["model"] == "gpt-4o"
+
+
+def test_later_annotate_call_wins_for_overlapping_key(llmobs):
+    """When the same key appears in two successive annotate() calls, the later value wins."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"model": "gpt-4o-mini"})
+        llmobs.annotate(span=span, agent={"model": "gpt-4o"})
+
+    assert _agent_manifest(span)["model"] == "gpt-4o"
+
+
+def test_a_later_model_settings_declaration_replaces_the_earlier_one(llmobs):
+    """model_settings is one field, updated whole, like every other manifest key."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"model_settings": {"temperature": 0.5, "max_tokens": 512}})
+        llmobs.annotate(span=span, agent={"model_settings": {"temperature": 0.9, "top_p": 0.95}})
+
+    assert _agent_manifest(span)["model_settings"] == {"temperature": 0.9, "top_p": 0.95}
+
+
+def test_annotation_context_declares_every_agent_span_in_the_block(llmobs):
+    """An annotation context reaches every span in its block, agent manifests included."""
+    with llmobs.annotation_context(agent=DECLARED_AGENT):
+        with llmobs.agent(name="outer_agent") as outer:
+            with llmobs.agent(name="inner_agent") as inner:
+                pass
+            with llmobs.workflow(name="test_workflow") as workflow:
+                with llmobs.agent(name="deep_agent") as deep:
+                    pass
+        with llmobs.agent(name="sibling_agent") as sibling:
+            pass
+
+    for span in (outer, inner, deep, sibling):
+        assert _agent_manifest(span) == DECLARED_MANIFEST
+    assert _agent_manifest(workflow) is None
+
+
+def test_annotate_declares_a_nested_agent_span_explicitly(llmobs):
+    """A declaration naming one span wins over what an enclosing context declared for it."""
+    with llmobs.annotation_context(agent={"name": "outer"}):
+        with llmobs.agent(name="outer_agent") as outer:
+            with llmobs.agent(name="inner_agent") as inner:
+                llmobs.annotate(span=inner, agent={"name": "inner", "model": "gpt-4o"})
+
+    assert _agent_manifest(outer)["name"] == "outer"
+    assert _agent_manifest(inner) == {"framework": MANUAL_FRAMEWORK_NAME, "name": "inner", "model": "gpt-4o"}
+
+
+@pytest.mark.parametrize(
+    "unreportable",
+    [
+        {"model": object(), "instructions": 1, "model_settings": "invalid", "tools": "invalid"},
+        # Invalid one level down: an unnamed tool and a setting outside the allowlist.
+        {"tools": [{"description": "no name"}], "model_settings": {"extra_headers": {"x": "y"}}},
+    ],
+)
+def test_an_unreportable_value_does_not_erase_a_declared_field(llmobs, unreportable):
+    """Each declaration is validated before it updates the manifest, so a later value the builder
+    drops is ignored rather than replacing the earlier one it would have overwritten.
+    """
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+        llmobs.annotate(span=span, agent=unreportable)
+
+    assert _agent_manifest(span) == DECLARED_MANIFEST
+
+
+@pytest.mark.parametrize("unset", [None, "", [], {}])
+def test_an_unset_value_does_not_erase_a_declared_field(llmobs, unset):
+    """A later annotation declaring nothing for a field leaves the earlier declaration alone."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"instructions": "Be brief.", "model_settings": {"temperature": 0.5}})
+        llmobs.annotate(span=span, agent={"instructions": unset, "model_settings": unset})
+
+    manifest = _agent_manifest(span)
+    assert manifest["instructions"] == "Be brief."
+    assert manifest["model_settings"] == {"temperature": 0.5}
+
+
+def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):
+    """An escaping error during span assembly would drop the whole event."""
+
+    class ExplodingSettings(dict):
+        def items(self):
+            raise RuntimeError("boom")
+
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"name": "travel_desk", "model_settings": ExplodingSettings(a=1)})
+
+    assert len(llmobs_events) == 1, "the span still has to ship"
+    assert _agent_manifest(span) == {"framework": MANUAL_FRAMEWORK_NAME, "name": "travel_desk"}
+
+
+def test_declared_fields_merge_into_an_integration_built_manifest(llmobs):
+    """Annotating one field leaves the rest of an integration's manifest alone.
+
+    framework keeps naming whoever built the bulk of the document, since the caller never supplies
+    it and cannot have meant to relabel a CrewAI agent.
+    """
+    with llmobs.agent(name="test_agent") as span:
+        _annotate_llmobs_span_data(
+            span,
+            agent_manifest={"framework": "CrewAI", "name": "auto_agent", "model": "gpt-4o-mini", "guardrails": ["x"]},
+        )
+        llmobs.annotate(span=span, agent={"model": "gpt-4o", "instructions": "Book travel."})
+
+    assert _agent_manifest(span) == {
+        "framework": "CrewAI",
+        "name": "auto_agent",
+        "model": "gpt-4o",
+        "instructions": "Book travel.",
+        "guardrails": ["x"],
+    }
+
+
+def test_declared_model_settings_replace_an_integration_built_one(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        _annotate_llmobs_span_data(
+            span,
+            agent_manifest={"framework": "CrewAI", "model_settings": {"temperature": 0.2, "max_tokens": 256}},
+        )
+        llmobs.annotate(span=span, agent={"model_settings": {"max_tokens": 1024, "top_p": 0.9}})
+
+    assert _agent_manifest(span)["model_settings"] == {"max_tokens": 1024, "top_p": 0.9}
+
+
+def test_manifest_name_defaults_to_the_span_name(llmobs):
+    """The panel needs something to call the agent, and a declared name overrides it."""
+    with llmobs.agent(name="travel_desk_span") as defaulted:
+        llmobs.annotate(span=defaulted, agent={"instructions": "Book travel."})
+    with llmobs.agent(name="travel_desk_span") as declared:
+        llmobs.annotate(span=declared, agent={"instructions": "Book travel.", "name": "declared_name"})
+
+    assert _agent_manifest(defaulted)["name"] == "travel_desk_span"
+    assert _agent_manifest(declared)["name"] == "declared_name"
+
+
+@pytest.mark.parametrize(
+    "forged",
+    ["boom", ["boom"], 1, {"agent_manifest": "boom"}, {"agent_manifest": ["boom"]}],
+)
+def test_a_forged_dd_metadata_key_does_not_break_the_merge(llmobs, forged):
+    """Caller metadata is not sanitized until finalization, so `_dd` is still raw when the merge
+    reads it. A non-mapping at either level is ignored rather than raising.
+    """
+    with llmobs.agent(name="travel_desk_span") as span:
+        llmobs.annotate(span=span, metadata={"_dd": forged}, agent={"model": "gpt-4o"})
+
+    assert _agent_manifest(span) == {
+        "framework": MANUAL_FRAMEWORK_NAME,
+        "name": "travel_desk_span",
+        "model": "gpt-4o",
+    }
 
 
 def test_annotation_context_nested(llmobs):
@@ -2101,25 +2679,33 @@ def test_service_enable_starts_evaluator_runner_when_evaluators_exist(tracer):
     pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
-            llmobs_service.enable(_tracer=tracer)
-            llmobs_instance = llmobs_service._instance
-            assert llmobs_instance is not None
-            assert llmobs_service.enabled
-            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-            assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            # Guard against leaked enabled=True from a prior failed test
             llmobs_service.disable()
+            llmobs_service.enable(_tracer=tracer)
+            try:
+                llmobs_instance = llmobs_service._instance
+                assert llmobs_instance is not None
+                assert llmobs_service.enabled
+                assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+                assert llmobs_service._instance._evaluator_runner.status.value == "running"
+            finally:
+                llmobs_service.disable()
 
 
 def test_service_enable_does_not_start_evaluator_runner(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        # Guard against leaked enabled=True from a prior failed test
         llmobs_service.disable()
+        llmobs_service.enable(_tracer=tracer)
+        try:
+            llmobs_instance = llmobs_service._instance
+            assert llmobs_instance is not None
+            assert llmobs_service.enabled
+            assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
+            assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
+            assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+        finally:
+            llmobs_service.disable()
 
 
 def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):
@@ -2131,10 +2717,8 @@ def test_submit_evaluation_span_incorrect_type_raises(llmobs):
     with pytest.raises(
         TypeError,
         match=re.escape(
-            (
-                "`span` must be a dictionary containing both span_id and trace_id keys. "
-                "LLMObs.export_span() can be used to generate this dictionary from a given span."
-            )
+            "`span` must be a dictionary containing both span_id and trace_id keys. "
+            "LLMObs.export_span() can be used to generate this dictionary from a given span."
         ),
     ):
         llmobs.submit_evaluation(span="asd", label="toxicity", metric_type="categorical", value="high")
@@ -2162,10 +2746,8 @@ def test_submit_evaluation_empty_span_or_trace_id_raises_error(llmobs, mock_llmo
     with pytest.raises(
         TypeError,
         match=re.escape(
-            (
-                "`span` must be a dictionary containing both span_id and trace_id keys. "
-                "LLMObs.export_span() can be used to generate this dictionary from a given span."
-            )
+            "`span` must be a dictionary containing both span_id and trace_id keys. "
+            "LLMObs.export_span() can be used to generate this dictionary from a given span."
         ),
     ):
         llmobs.submit_evaluation(span={"trace_id": "456"}, label="toxicity", metric_type="categorical", value="high")
@@ -2235,6 +2817,24 @@ def test_submit_evaluation_incorrect_score_value_type_raises_error(llmobs, mock_
         )
 
 
+def test_submit_evaluation_validation_error_telemetry(llmobs, mock_llmobs_eval_metric_writer):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_evaluation") as record_telemetry:
+        with pytest.raises(TypeError, match="value must be an integer or float for a score metric."):
+            llmobs.submit_evaluation(
+                span={"span_id": "123", "trace_id": "456"},
+                label="token_count",
+                metric_type="score",
+                value="high",
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with(
+        {"span": {"span_id": "123", "trace_id": "456"}},
+        "score",
+        "invalid_metric_value",
+    )
+
+
 def test_submit_evaluation_invalid_tags_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.submit_evaluation(
@@ -2285,7 +2885,30 @@ def test_submit_evaluation_metric_tags(llmobs, mock_llmobs_eval_metric_writer):
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+        )
+    )
+
+
+def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar"},
+        ml_app="legacy_ml_app",
+        agent_service="agent_service",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="agent_service",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:agent_service", "foo:bar"],
         )
     )
 
@@ -2399,7 +3022,7 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
         )
     )
@@ -2436,7 +3059,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2460,7 +3083,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2498,7 +3121,7 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=[f"ddtrace.version:{ddtrace.__version__}", "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             reasoning="the content of the message involved profanity",
         )
@@ -2649,10 +3272,11 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         {
+            "event_kind": "evaluation",
             "metric_type": "score",
             "label": "quality",
             "tags": [
-                "ddtrace.version:{}".format(ddtrace.__version__),
+                f"ddtrace.version:{ddtrace.__version__}",
                 "ml_app:test_app",
             ],
             "join_on": {"span": {"span_id": "123", "trace_id": "456"}},
@@ -2661,6 +3285,491 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
             "ml_app": "test_app",
             "eval_scope": "trace",
         }
+    )
+
+
+@pytest.mark.parametrize(
+    ("target_kwargs", "target_type", "target_value"),
+    [
+        pytest.param(
+            {"span": {"span_id": "span-1", "trace_id": "ignored-trace", "is_otel": True}},
+            "span_id",
+            "span-1",
+            id="span",
+        ),
+        pytest.param({"span_id": "span-2"}, "span_id", "span-2", id="span-id"),
+        pytest.param({"trace_id": "trace-1"}, "trace_id", "trace-1", id="trace-id"),
+        pytest.param({"session_id": "session-1"}, "session_id", "session-1", id="session-id"),
+        pytest.param(
+            {"feedback_join_key": "order-123"},
+            "feedback_join_key",
+            "order-123",
+            id="feedback-join-key",
+        ),
+    ],
+)
+def test_submit_feedback_enqueues_exact_target_payload(
+    llmobs,
+    mock_llmobs_eval_metric_writer,
+    target_kwargs,
+    target_type,
+    target_value,
+):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        llmobs.submit_feedback(
+            label="helpfulness",
+            metric_type="categorical",
+            value="helpful",
+            submitter={"id": "user-1", "type": "reviewer", "ignored": "not-serialized"},
+            ml_app="feedback-app",
+            **target_kwargs,
+        )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_feedback_event(
+            metric_type="categorical",
+            label="helpfulness",
+            value="helpful",
+            submitter={"id": "user-1", "type": "reviewer"},
+            target_type=target_type,
+            target_value=target_value,
+            ml_app="feedback-app",
+        )
+    )
+    record_telemetry.assert_called_once_with(target_type, "categorical", None)
+
+
+def test_submit_feedback_with_exported_span_only_emits_span_id(llmobs, mock_llmobs_eval_metric_writer):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        exported_span = llmobs.export_span(span)
+        assert exported_span is not None
+        assert exported_span["trace_id"] == get_llmobs_trace_id(span)
+        llmobs.submit_feedback(
+            span=exported_span,
+            label="comment",
+            metric_type="text",
+            value="This answer was useful.",
+            submitter={"id": "user-1"},
+            ml_app="feedback-app",
+        )
+
+    expected_event = _expected_llmobs_feedback_event(
+        metric_type="text",
+        label="comment",
+        value="This answer was useful.",
+        submitter={"id": "user-1"},
+        target_type="span_id",
+        target_value=str(span.span_id),
+        ml_app="feedback-app",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(expected_event)
+    feedback_event = mock_llmobs_eval_metric_writer.enqueue.call_args.args[0]
+    assert "trace_id" not in feedback_event
+    assert "join_on" not in feedback_event
+    assert "eval_scope" not in feedback_event
+    assert "metadata" not in feedback_event
+
+
+@pytest.mark.parametrize(
+    "target_kwargs",
+    [
+        pytest.param({}, id="no-target"),
+        pytest.param({"span_id": "span-1", "trace_id": "trace-1"}, id="multiple-targets"),
+    ],
+)
+def test_submit_feedback_requires_exactly_one_target(llmobs, mock_llmobs_eval_metric_writer, target_kwargs):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        with pytest.raises(ValueError, match="Exactly one of"):
+            llmobs.submit_feedback(
+                label="helpfulness",
+                metric_type="categorical",
+                value="helpful",
+                submitter={"id": "user-1"},
+                **target_kwargs,
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with("other", "categorical", "invalid_target_count")
+
+
+@pytest.mark.parametrize("target_type", ["span_id", "trace_id", "session_id", "feedback_join_key"])
+@pytest.mark.parametrize(
+    ("target_value", "exception_type"),
+    [
+        pytest.param("", ValueError, id="empty"),
+        pytest.param(123, TypeError, id="not-a-string"),
+    ],
+)
+def test_submit_feedback_rejects_invalid_direct_identifier(
+    llmobs,
+    mock_llmobs_eval_metric_writer,
+    target_type,
+    target_value,
+    exception_type,
+):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        with pytest.raises(exception_type, match=r"must be a non-empty string"):
+            llmobs.submit_feedback(
+                label="helpfulness",
+                metric_type="categorical",
+                value="helpful",
+                submitter={"id": "user-1"},
+                **{target_type: target_value},
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with(
+        target_type,
+        "categorical",
+        f"invalid_{target_type}",
+    )
+
+
+@pytest.mark.parametrize(
+    ("span", "exception_type", "message"),
+    [
+        pytest.param("not-a-span", TypeError, "dictionary containing a string span_id", id="not-a-dictionary"),
+        pytest.param({"trace_id": "trace-1"}, TypeError, "dictionary containing a string span_id", id="missing-id"),
+        pytest.param({"span_id": 123}, TypeError, "dictionary containing a string span_id", id="non-string-id"),
+        pytest.param({"span_id": ""}, ValueError, "non-empty string span_id", id="empty-id"),
+    ],
+)
+def test_submit_feedback_rejects_invalid_exported_span(
+    llmobs,
+    mock_llmobs_eval_metric_writer,
+    span,
+    exception_type,
+    message,
+):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        with pytest.raises(exception_type, match=message):
+            llmobs.submit_feedback(
+                span=span,
+                label="helpfulness",
+                metric_type="categorical",
+                value="helpful",
+                submitter={"id": "user-1"},
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with("span_id", "categorical", "invalid_span")
+
+
+@pytest.mark.parametrize(
+    ("submitter", "exception_type", "message"),
+    [
+        pytest.param(None, TypeError, "dictionary containing a non-empty string id", id="not-a-dictionary"),
+        pytest.param({}, TypeError, "dictionary containing a non-empty string id", id="missing-id"),
+        pytest.param({"id": 123}, TypeError, "dictionary containing a non-empty string id", id="non-string-id"),
+        pytest.param({"id": ""}, ValueError, "non-empty string id", id="empty-id"),
+        pytest.param({"id": "user-1", "type": 123}, TypeError, r"submitter.type.*string", id="invalid-type"),
+    ],
+)
+def test_submit_feedback_rejects_invalid_submitter(
+    llmobs,
+    mock_llmobs_eval_metric_writer,
+    submitter,
+    exception_type,
+    message,
+):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        with pytest.raises(exception_type, match=message):
+            llmobs.submit_feedback(
+                span_id="span-1",
+                label="helpfulness",
+                metric_type="categorical",
+                value="helpful",
+                submitter=submitter,
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with("span_id", "categorical", "invalid_submitter")
+
+
+@pytest.mark.parametrize(
+    ("metric_type", "value"),
+    [
+        pytest.param("categorical", "helpful", id="categorical"),
+        pytest.param("score", 1, id="integer-score"),
+        pytest.param("score", 0.75, id="float-score"),
+        pytest.param("boolean", True, id="boolean"),
+        pytest.param("json", {"rating": 5, "reasons": ["correct"]}, id="json"),
+        pytest.param("text", "The answer was clear.", id="text"),
+    ],
+)
+def test_submit_feedback_supports_all_metric_value_pairs(
+    llmobs,
+    mock_llmobs_eval_metric_writer,
+    metric_type,
+    value,
+):
+    llmobs.submit_feedback(
+        session_id="session-1",
+        label="user_feedback",
+        metric_type=metric_type,
+        value=value,
+        submitter={"id": "user-1"},
+        ml_app="feedback-app",
+    )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_feedback_event(
+            metric_type=metric_type,
+            label="user_feedback",
+            value=value,
+            submitter={"id": "user-1"},
+            target_type="session_id",
+            target_value="session-1",
+            ml_app="feedback-app",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("metric_type", "value", "exception_type", "message", "error"),
+    [
+        pytest.param(
+            "categorical",
+            1,
+            TypeError,
+            "string for a categorical metric",
+            "invalid_metric_value",
+            id="categorical",
+        ),
+        pytest.param(
+            "score",
+            "high",
+            TypeError,
+            "integer or float for a score metric",
+            "invalid_metric_value",
+            id="score",
+        ),
+        pytest.param(
+            "boolean",
+            1,
+            TypeError,
+            "boolean for a boolean metric",
+            "invalid_metric_value",
+            id="boolean",
+        ),
+        pytest.param(
+            "json",
+            "high",
+            TypeError,
+            "dict for a json metric",
+            "invalid_metric_value",
+            id="json",
+        ),
+        pytest.param(
+            "text",
+            1,
+            TypeError,
+            "string for a text metric",
+            "invalid_metric_value",
+            id="text",
+        ),
+        pytest.param(
+            "numerical",
+            1,
+            ValueError,
+            "metric_type must be one of",
+            "invalid_metric_type",
+            id="unknown-metric-type",
+        ),
+    ],
+)
+def test_submit_feedback_rejects_invalid_metric_value_pairs(
+    llmobs,
+    mock_llmobs_eval_metric_writer,
+    metric_type,
+    value,
+    exception_type,
+    message,
+    error,
+):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        with pytest.raises(exception_type, match=message):
+            llmobs.submit_feedback(
+                span_id="span-1",
+                label="user_feedback",
+                metric_type=metric_type,
+                value=value,
+                submitter={"id": "user-1"},
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with("span_id", metric_type, error)
+
+
+def test_submit_evaluation_still_rejects_text_metric(llmobs, mock_llmobs_eval_metric_writer):
+    with pytest.raises(
+        ValueError,
+        match="metric_type must be one of 'categorical', 'score', 'boolean', or 'json'.",
+    ):
+        llmobs.submit_evaluation(
+            span={"span_id": "span-1", "trace_id": "trace-1"},
+            label="comment",
+            metric_type="text",
+            value="This must remain unsupported.",
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+
+
+def test_submit_feedback_optional_fields_and_agent_service_precedence(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_feedback(
+        feedback_join_key="order-123",
+        label="helpfulness",
+        metric_type="score",
+        value=0.9,
+        submitter={"id": "agent-1", "type": "quality-review-bot"},
+        tags={"team": "support", "channel": "chat"},
+        ml_app="legacy-app",
+        agent_service="feedback-service",
+        timestamp_ms=1756910127022,
+        assessment="pass",
+        reasoning="The answer solved the user's problem.",
+    )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        _expected_llmobs_feedback_event(
+            metric_type="score",
+            label="helpfulness",
+            value=0.9,
+            submitter={"id": "agent-1", "type": "quality-review-bot"},
+            target_type="feedback_join_key",
+            target_value="order-123",
+            ml_app="feedback-service",
+            timestamp_ms=1756910127022,
+            tags=[
+                f"ddtrace.version:{ddtrace.__version__}",
+                "ml_app:feedback-service",
+                "team:support",
+                "channel:chat",
+            ],
+            assessment="pass",
+            reasoning="The answer solved the user's problem.",
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("optional_kwargs", "exception_type", "message", "error"),
+    [
+        pytest.param(
+            {"timestamp_ms": -1},
+            ValueError,
+            "timestamp_ms must be a non-negative integer",
+            "invalid_timestamp",
+            id="timestamp",
+        ),
+        pytest.param(
+            {"tags": ["invalid"]},
+            Exception,
+            "tags must be a dictionary",
+            "invalid_tags",
+            id="tags-container",
+        ),
+        pytest.param(
+            {"tags": {1: 2}},
+            Exception,
+            "Tags for feedback metrics must be strings",
+            "invalid_tags",
+            id="tags-values",
+        ),
+        pytest.param(
+            {"assessment": "unknown"},
+            Exception,
+            "assessment must be either 'pass' or 'fail'",
+            "invalid_assessment",
+            id="assessment",
+        ),
+        pytest.param(
+            {"reasoning": 123},
+            Exception,
+            "reasoning must be a string",
+            "invalid_reasoning",
+            id="reasoning",
+        ),
+    ],
+)
+def test_submit_feedback_preserves_optional_field_validation(
+    llmobs,
+    mock_llmobs_eval_metric_writer,
+    optional_kwargs,
+    exception_type,
+    message,
+    error,
+):
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        with pytest.raises(exception_type, match=message):
+            llmobs.submit_feedback(
+                trace_id="trace-1",
+                label="helpfulness",
+                metric_type="categorical",
+                value="helpful",
+                submitter={"id": "user-1"},
+                **optional_kwargs,
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_called_once_with("trace_id", "categorical", error)
+
+
+def test_submit_feedback_is_noop_when_disabled(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.disable()
+    with mock.patch("ddtrace.llmobs._llmobs.telemetry.record_llmobs_submit_feedback") as record_telemetry:
+        llmobs.submit_feedback(
+            span_id="span-1",
+            label="helpfulness",
+            metric_type="categorical",
+            value="helpful",
+            submitter={"id": "user-1"},
+        )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    record_telemetry.assert_not_called()
+
+
+def test_submit_feedback_emits_success_telemetry(llmobs):
+    with mock.patch("ddtrace.llmobs._telemetry.telemetry_writer.add_count_metric") as add_count_metric:
+        llmobs.submit_feedback(
+            trace_id="trace-1",
+            label="comment",
+            metric_type="text",
+            value="The response was clear.",
+            submitter={"id": "user-1"},
+        )
+
+    add_count_metric.assert_called_once_with(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.FEEDBACK_SUBMITTED,
+        value=1,
+        tags=(("error", "0"), ("metric_type", "text"), ("target_type", "trace_id")),
+    )
+
+
+def test_submit_feedback_emits_validation_error_telemetry(llmobs, mock_llmobs_eval_metric_writer):
+    with mock.patch("ddtrace.llmobs._telemetry.telemetry_writer.add_count_metric") as add_count_metric:
+        with pytest.raises(TypeError, match="string for a text metric"):
+            llmobs.submit_feedback(
+                span_id="span-1",
+                label="comment",
+                metric_type="text",
+                value=123,
+                submitter={"id": "user-1"},
+            )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+    add_count_metric.assert_called_once_with(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.FEEDBACK_SUBMITTED,
+        value=1,
+        tags=(
+            ("error", "1"),
+            ("error_type", "invalid_metric_value"),
+            ("metric_type", "text"),
+            ("target_type", "span_id"),
+        ),
     )
 
 
@@ -2679,7 +3788,7 @@ def _make_mock_response(status, body):
 
 @pytest.fixture
 def mock_get_connection(llmobs):
-    with mock.patch("ddtrace.llmobs._writer.get_connection") as m:
+    with mock.patch("ddtrace.llmobs._writer.HTTPConnection") as m:
         yield m
 
 
@@ -2693,8 +3802,13 @@ def _setup_mock_connection(mock_get_connection, pages):
     return mock_conn
 
 
+def _set_get_spans_app_key(llmobs, app_key="test-app-key"):
+    llmobs._app_key = app_key
+    llmobs._instance._api_client._app_key = app_key
+
+
 def test_get_spans_returns_span_list(mock_get_connection, llmobs):
-    llmobs._app_key = "test-app-key"
+    _set_get_spans_app_key(llmobs)
     page = {
         "data": [
             {"attributes": {"span_id": "abc", "name": "my_span", "span_kind": "llm"}},
@@ -2709,8 +3823,20 @@ def test_get_spans_returns_span_list(mock_get_connection, llmobs):
     assert result[1]["span_id"] == "def"
 
 
+def test_get_spans_agent_service_uses_ml_app_filter(mock_get_connection, llmobs):
+    _set_get_spans_app_key(llmobs)
+    page = {"data": [], "meta": {"page": {}}}
+    mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
+    llmobs.get_spans(ml_app="legacy_ml_app", agent_service="agent_service")
+
+    path = mock_conn.request.call_args.args[1]
+    query = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)
+    assert query["filter[ml_app]"] == ["agent_service"]
+    assert "filter[agent_service]" not in query
+
+
 def test_get_spans_paginates(mock_get_connection, llmobs):
-    llmobs._app_key = "test-app-key"
+    _set_get_spans_app_key(llmobs)
     page1 = {
         "data": [{"attributes": {"span_id": "s1"}}],
         "meta": {"page": {"after": "cursor-xyz"}},
@@ -2814,3 +3940,79 @@ class TestExperimentScope:
         with llmobs.task(name="standalone_task") as span:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
             assert "scope" not in data.get("_dd", {})
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agentless_via_keyword_argument_repoints_remote_configuration():
+    """Remote Configuration read the environment at import; the keyword argument came later."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True)
+
+    assert remoteconfig_poller._client.agentless is True
+    assert remoteconfig_poller._state == remoteconfig_poller._online
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": None,
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_an_api_key_passed_in_code_repoints_remote_configuration():
+    """The key exists nowhere in the environment, so only the late switch can supply it."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True, api_key="a-key-from-code")
+
+    assert remoteconfig_poller._client.agentless is True
+
+    captured = {}
+
+    def _fake_native(_runtime, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    import ddtrace.internal.native as native_mod
+
+    native_mod.RemoteConfigClient = _fake_native
+    remoteconfig_poller._client.ensure_native()
+    assert captured["api_key"] == "a-key-from-code"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agent_bound_llmobs_leaves_remote_configuration_on_the_agent():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+
+    assert remoteconfig_poller._client.agentless is False
+    assert remoteconfig_poller._state == remoteconfig_poller._agent_check

@@ -3,13 +3,15 @@ from __future__ import annotations
 from copy import deepcopy
 import re
 import sys
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Literal  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Literal
+from typing import Optional
+from typing import Union
 
+from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -19,6 +21,7 @@ from ddtrace.internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ddtrace.internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
@@ -26,20 +29,22 @@ from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
-from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
@@ -53,7 +58,7 @@ ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 DEFAULT_SERVICE_KEYS = frozenset(["_default_service", "_default_service_worker", "_default_service_producer"])
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
-    r"(?ix)"
+    r"(?i)"
     r"(?:"  # JSON-ish leading quote
     r'(?:"|%22)?'
     r")"
@@ -86,10 +91,11 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r'(?:"|%22)'  # closing '"' at end of value
     r")"
     r"|(?:"  # other common secret values
-    r" bearer(?:\s|%20)+[a-z0-9._\-]+"
+    r"bearer(?:\s|%20)+[a-z0-9._\-]+"
     r"|token(?::|%3A)[a-z0-9]{13}"
     r"|gh[opsu]_[0-9a-zA-Z]{36}"
-    r"|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
+    r"|(^|[^\w%-]|%[0-9a-f]{2})ey[I-L][\w-]+(?:=|%3D)*\.ey[I-L][\w-]+(?:=|%3D)*"
+    r"(?:\.(?:[\w.+/=-]|%3D|%2F|%2B)+)?"
     r"|-{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY-{5}[^\-]+-{5}END"
     r"(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY(?:-{5})?(?:\n|%0A)?"
     r"|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\s|%20|%09)+(?:[a-z0-9/.+]"
@@ -105,6 +111,7 @@ INTEGRATION_CONFIGS = frozenset(
         "pyodbc",
         "dramatiq",
         "flask",
+        "aws_sdk_bedrock_runtime",
         "google_genai",
         "google_adk",
         "urllib3",
@@ -165,6 +172,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dogpile_cache",
         "pylibmc",
         "httpx",
+        "httpx2",
         "httplib",
         "rq",
         "jinja2",
@@ -180,6 +188,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "elevenlabs",
         "crewai",
         "pydantic_ai",
         "vllm",
@@ -211,6 +220,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aiokafka",
         "google_cloud_pubsub",
         "mistralai",
+        "typesafe",
     }
 )
 
@@ -399,11 +409,6 @@ def _default_config() -> dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_EXPORTER",
             modifier=asbool,
         ),
-        "_sca_enabled": _ConfigItem(
-            default=None,
-            envs=["DD_APPSEC_SCA_ENABLED"],
-            modifier=asbool,
-        ),
         "_llmobs_enabled": _ConfigItem(
             default=False,
             envs=["DD_LLMOBS_ENABLED"],
@@ -419,17 +424,22 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_SAMPLE_RATE"],
             modifier=float,
         ),
+        "_llmobs_sampling_rules": _ConfigItem(
+            default=lambda: "",
+            envs=["DD_LLMOBS_SAMPLING_RULES"],
+            modifier=str,
+        ),
     }
 
 
-class Config(object):
+class Config:
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
 
-    class _HTTPServerConfig(object):
+    class _HTTPServerConfig:
         _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
@@ -456,6 +466,11 @@ class Config(object):
                     return True
             return False
 
+    class _HTTPClientConfig(_HTTPServerConfig):
+        # Same behavior as the server configuration, with its own environment variable and default.
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "400-499")
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
+
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -471,6 +486,15 @@ class Config(object):
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
+
+        agentless = AgentlessConfig()
+        self._dd_api_key = agentless.api_key
+        self._dd_site = agentless.site
+        self._agentless_enabled = agentless.enabled
+        for _name, _value, _origin in agentless.reported_configuration():
+            telemetry_writer.add_configuration(_name, _value, _origin)
+
+        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
 
         self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
@@ -512,7 +536,7 @@ class Config(object):
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
 
-        self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
+        self._span_traceback_max_size: int = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
@@ -520,24 +544,45 @@ class Config(object):
         self._propagation_http_baggage_enabled = _get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
-        self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
-
-        self._is_user_provided_service = self.service is not None
+        self.service: Optional[str] = _get_config(
+            "DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME"
+        )
 
         self._inferred_base_service = detect_service(sys.argv)
 
+        self._otel_trace_semantics_enabled = agent_config._trace_otel_semantics_enabled
+
+        # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
+        # (v0 vs v1) without importing that package, which would recreate the
+        # _config -> schema -> span_attribute_schema -> _config circular import.
+        _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
+        if self._otel_trace_semantics_enabled:
+            _span_service_name_schema_version = "v0"
+        elif _span_service_name_schema_version not in ("v0", "v1"):
+            _span_service_name_schema_version = "v0"
+        if _span_service_name_schema_version == "v0" and not asbool(
+            env.get("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False)
+        ):
+            default_span_service_name = self._inferred_base_service or None
+        else:
+            default_span_service_name = self._inferred_base_service or DEFAULT_SERVICE_NAME
+
+        self._is_user_provided_service = self.service is not None
+        _service_state.set_is_user_provided_service(self._is_user_provided_service)
+
         if self.service is None and in_aws_lambda():
-            self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", DEFAULT_SPAN_SERVICE_NAME)
+            self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", default_span_service_name)
         if self.service is None and in_gcp_function():
-            self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
+            self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], default_span_service_name)
         if self.service is None and in_azure_function():
-            self.service = _get_config("WEBSITE_SITE_NAME", DEFAULT_SPAN_SERVICE_NAME)
-        if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
-            self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
+            self.service = _get_config("WEBSITE_SITE_NAME", default_span_service_name)
+        if self.service is None and default_span_service_name:
+            self.service = _get_config("DD_SERVICE", default_span_service_name)
 
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
@@ -625,6 +670,13 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+
+        self._propagation_as_span_links = _get_config(
+            "DD_TRACE_PROPAGATION_AS_SPAN_LINKS",
+            set(),
+            # Expected format: comma-separated integration names (e.g. "kafka,google_cloud_pubsub").
+            lambda x: {name.strip() for name in x.split(",") if name.strip()},
+        )
         self._baggage_tag_keys = _get_config(
             "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
         )
@@ -640,23 +692,44 @@ class Config(object):
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
-
-        trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
+        trace_compute_stats_default = (
+            in_gcp_function() or in_azure_function() or is_at_least_py(3, 14) or agentless.enabled
+        )
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
-        self._otel_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
-        self._client_side_stats_obfuscation = _get_config(
-            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+        self._trace_stats_additional_tags = _get_config(
+            "DD_TRACE_STATS_ADDITIONAL_TAGS",
+            [],
+            lambda value: [tag.strip() for tag in value.split(",") if tag.strip()],
         )
-        self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
+        # Cardinality limits for stats aggregation keys
+        self._trace_stats_cardinality_limits: dict[str, int] = {}
+        for env_name, field, limit_default in (
+            ("DD_TRACE_STATS_CARDINALITY_LIMIT", "whole_key_limit", 7000),
+            ("DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT", "resource_limit", 1024),
+            ("DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT", "http_endpoint_limit", 512),
+            ("DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT", "peer_tags_limit", 512),
+            ("DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT", "additional_tags_limit", 100),
+        ):
+            limit = _get_config(env_name, limit_default, int)
+            if limit <= 0:
+                log.warning("Invalid value %r provided for %s, only positive values allowed", limit, env_name)
+                limit = limit_default
+            self._trace_stats_cardinality_limits[field] = limit
+
+        self._client_side_stats_obfuscation = _get_config(
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
+        )
+        self._data_streams_enabled: bool = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+        )
+        self._query_string_obfuscation_preserve_delimiter = (
+            dd_trace_obfuscation_query_string_regexp == DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
         )
         self._global_query_string_obfuscation_disabled = dd_trace_obfuscation_query_string_regexp == ""
         self._obfuscation_query_string_pattern = None
@@ -669,7 +742,7 @@ class Config(object):
             log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
             self._http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
-        self._ci_visibility_agentless_enabled = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool)
+        self._ci_visibility_agentless_enabled = agentless.ci_visibility
         self._ci_visibility_agentless_url = _get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
         self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", True, asbool)
         self._ci_visibility_log_level = _get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
@@ -678,11 +751,43 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        if self._otel_trace_semantics_enabled:
+            _peer_service_defaults_enabled = _get_config(
+                "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, asbool, report_telemetry=False
+            )
+            if _peer_service_defaults_enabled:
+                log.warning(
+                    "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED is set to true, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Peer service defaults stay disabled."
+                )
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_peer_service_defaults_enabled"),),
+                )
+            _span_attribute_schema = _get_config("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", report_telemetry=False)
+            if _span_attribute_schema != "v0":
+                log.warning(
+                    "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA is set to a version other than v0, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Schema v0 is used instead."
+                )
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_span_attribute_schema"),),
+                )
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()
         )
-        self._otel_logs_enabled = _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_logs_enabled = _get_config(
+            "DD_LOGS_OTEL_ENABLED",
+            False,
+            asbool,
+            ["OTEL_LOGS_EXPORTER", "OTEL_SDK_DISABLED"],
+        )
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
@@ -691,21 +796,24 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._dd_api_key = _get_config("DD_API_KEY", report_telemetry=False)
-        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
-        self._dd_site = _get_config("DD_SITE", "datadoghq.com")
-
-        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
+        self._llmobs_agentless_enabled = agentless.llmobs
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
-        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+        self._model_lab_enabled: bool = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
 
         self._llmobs_payload_size_limit = _get_config(
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
         )
         self._llmobs_event_size_limit = _get_config("DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int)
+        if "DD_LLMOBS_ML_APP" in env:
+            deprecate(
+                "DD_LLMOBS_ML_APP is deprecated",
+                message="Use DD_SERVICE instead to identify your agentic service.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
@@ -719,6 +827,7 @@ class Config(object):
             )
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+        self._otel_thread_context_enabled = _get_config("DD_TRACE_OTEL_CTX_ENABLED", True, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
         # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
@@ -743,14 +852,15 @@ class Config(object):
             "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
         # When True, traces are sent via the JSON span intake (agentless EvP), e.g. browser-intake-*.
-        self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
+        self._trace_agentless_enabled = agentless.apm_tracing
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless enabled: health metrics and client-side stats are disabled. "
-                "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
-                "bypassing the agent.",
+                "APM Agentless enabled: health metrics are disabled. Hostnames will be resolved by "
+                "ddtrace; spans will be sent directly to the Datadog intake, bypassing the agent. "
+                "Client-side stats, when enabled, are sent to the stats intake rather than the agent.",
             )
-            self._trace_compute_stats = False
+            # DD_TRACE_STATS_COMPUTATION_ENABLED stays honoured: libdatadog sends the stats to the
+            # stats intake instead of the agent's /v0.6/stats (see _resolve_agentless_stats_endpoint).
             self._report_hostname = True
             self._health_metrics_enabled = False
 
@@ -823,7 +933,8 @@ class Config(object):
             since it contains integration defaults.
         :param bool merge: Whether to merge any existing settings with those provided,
             or if we should overwrite the settings with those provided;
-            Note: when merging existing settings take precedence.
+            Note: when merging existing settings take precedence, and the existing HTTP settings
+            (config.<integration>.http) are kept; overwriting resets them.
         """
         if integration not in INTEGRATION_CONFIGS:
             log.error(
@@ -844,9 +955,9 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._integration_configs[integration] = IntegrationConfig(
-                self, integration, _deepmerge(existing, settings)
-            )
+            merged = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            object.__setattr__(merged, "http", getattr(existing, "http", merged.http))
+            self._integration_configs[integration] = merged
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 
@@ -908,3 +1019,5 @@ def _get_global_config() -> Config:
 
 
 config = Config()
+# Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
+config._raise = _get_config("DD_TESTING_RAISE", False, asbool)

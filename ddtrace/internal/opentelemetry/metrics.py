@@ -6,7 +6,9 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.utils import set_http_exporter_marker
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -79,12 +81,14 @@ def _build_resource() -> Optional[Any]:
     try:
         from opentelemetry.sdk.resources import Resource
 
-        resource_attributes = {
-            **config.tags,
-            "service.name": config.service,
-            "service.version": config.version,
-            "deployment.environment": config.env,
-        }
+        resource_attributes = {k: v for k, v in config.tags.items() if k not in ("service", "version", "env")}
+        resource_attributes.update(
+            {
+                "service.name": config.service,
+                "service.version": config.version,
+                "deployment.environment.name": config.env,
+            }
+        )
 
         if config._report_hostname and "host.name" not in resource_attributes:
             resource_attributes["host.name"] = get_hostname()
@@ -94,8 +98,8 @@ def _build_resource() -> Optional[Any]:
         return Resource.create(resource_attributes)
     except ImportError:
         log.warning(
-            "OpenTelemetry SDK is not installed, opentelemetry metrics will not be enabled. "
-            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Metrics support."
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP metrics export."
         )
         return None
 
@@ -105,6 +109,11 @@ def _dd_metrics_exporter(otel_exporter: type[Any], protocol: str, encoding: str)
 
     class DDMetricsExporter(otel_exporter):
         """A custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            if protocol == "http":
+                set_http_exporter_marker(self)
 
         def export(self, metrics_data: Any, timeout_millis: Any, *args: Any, **kwargs: Any) -> Any:
             """Export metrics and queues telemetry metrics."""
@@ -166,15 +175,39 @@ def _import_exporter(protocol):
         protocol_name = "grpc" if protocol == "grpc" else "http"
         return _dd_metrics_exporter(OTLPMetricExporter, protocol_name, "protobuf")
 
-    except ImportError as e:
+    except ImportError:
         log.warning(
-            "OpenTelemetry Metrics exporter for %s is not available. "
-            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
-            protocol,
-            "grpc" if protocol == "grpc" else "http",
-            str(e),
+            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
+            "OTLP metrics export."
         )
         return None
+
+
+def _prepare_agentless_export(endpoint_env_var: str, headers_env_var: str, protocol: str, signal: str) -> None:
+    """Set up a direct-to-intake OTLP export, or warn when it cannot work."""
+    if not agentless_config.enabled:
+        return
+    if env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or env.get(endpoint_env_var):
+        return
+
+    if protocol.lower() not in ("http/json", "http/protobuf"):
+        log.warning(
+            "Agentless mode exports OpenTelemetry %s to the Datadog OTLP intake over HTTP, but the "
+            "%r protocol is configured. Set OTEL_EXPORTER_OTLP_PROTOCOL to http/protobuf, or point "
+            "OTEL_EXPORTER_OTLP_ENDPOINT at a collector that speaks %r.",
+            signal,
+            protocol,
+            protocol,
+        )
+
+    if not agentless_config.api_key:
+        return
+    # Signal-specific headers win over the global ones, so carry those over rather than drop them.
+    configured = env.get(headers_env_var) or env.get("OTEL_EXPORTER_OTLP_HEADERS") or ""
+    if "dd-api-key" in configured.lower():
+        return
+    api_key_header = f"dd-api-key={agentless_config.api_key}"
+    env[headers_env_var] = f"{configured},{api_key_header}" if configured else api_key_header
 
 
 def _initialize_metrics(exporter_class, protocol, resource):
@@ -183,6 +216,9 @@ def _initialize_metrics(exporter_class, protocol, resource):
         from opentelemetry.sdk._configuration import _init_metrics
 
         # Ensure metrics exporter is configured to send payloads to a Datadog Agent.
+        _prepare_agentless_export(
+            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", protocol, "metrics"
+        )
         if "OTEL_EXPORTER_OTLP_ENDPOINT" not in env and "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" not in env:
             env["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = otel_config.exporter.METRICS_ENDPOINT
         env["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE

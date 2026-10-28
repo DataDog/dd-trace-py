@@ -5,6 +5,7 @@ from tornado.routing import PathMatches
 from tornado.web import HTTPError
 
 from ddtrace import config
+from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -12,6 +13,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
@@ -45,7 +47,7 @@ async def execute(func, handler, args, kwargs):
             distributed_headers_config_override=distributed_tracing,
             headers_case_sensitive=True,
         ) as ctx:
-            req_span = ctx.span
+            req_span = span_from_context(ctx)
             request = handler.request
             method = getattr(request, "method", "")
             protocol = getattr(request, "protocol", "http")
@@ -65,6 +67,9 @@ async def execute(func, handler, args, kwargs):
             core.dispatch("web.request.start", (ctx, config.tornado))
 
             http_route, path_params = _find_route(handler.application.default_router.rules, handler.request)
+            if http_route is None and not config._otel_trace_semantics_enabled:
+                # Without OTel semantics an unmatched request is reported with this placeholder route.
+                http_route = _UNMATCHED_ROUTE
             if http_route is not None and isinstance(http_route, str):
                 req_span._set_attribute("http.route", http_route)
             setattr(request, REQUEST_SPAN_KEY, req_span)
@@ -217,6 +222,9 @@ def _path_for_path_match(matcher: PathMatches) -> str:
     return _regex_to_route(matcher.regex.pattern)
 
 
+_UNMATCHED_ROUTE = "^$"
+
+
 def _find_route(initial_rule_set, request):
     """
     We have to walk through the same chain of rules that tornado does to find a matching rule.
@@ -237,7 +245,7 @@ def _find_route(initial_rule_set, request):
             elif hasattr(rule.target, "rules"):
                 rules.extendleft(reversed(rule.target.rules))
 
-    return "^$", {}
+    return None, {}
 
 
 def _on_flush(func, handler, args, kwargs):
@@ -262,7 +270,7 @@ def on_finish(func, handler, args, kwargs):
         # default handler class will be used so we don't pollute the resource
         # space here
         klass = handler.__class__
-        request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
+        set_instrumentation_resource(request_span, f"{klass.__module__}.{klass.__name__}")
         core.dispatch(
             "web.request.finish",
             (

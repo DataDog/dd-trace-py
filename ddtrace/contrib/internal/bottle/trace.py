@@ -1,4 +1,4 @@
-from typing import MutableMapping
+from collections.abc import MutableMapping
 from typing import cast
 
 from bottle import HTTPError
@@ -7,15 +7,16 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
+from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import deprecate
 
 
-class TracePlugin(object):
+class TracePlugin:
     name = "trace"
     api = 2
 
@@ -44,7 +45,7 @@ class TracePlugin(object):
             if not is_tracing_enabled():
                 return callback(*args, **kwargs)
 
-            resource = "{} {}".format(request.method, route.rule)
+            resource = f"{request.method} {route.rule}"
 
             method = request.method
             url = request.url
@@ -68,6 +69,7 @@ class TracePlugin(object):
             ) as ctx:
                 code = None
                 result = None
+                deferred_http_exception = None
                 try:
                     result = callback(*args, **kwargs)
                     return result
@@ -77,7 +79,13 @@ class TracePlugin(object):
                     # we also need to handle when response is raised as is the
                     # case with a 4xx status
                     code = e.status_code
-                    raise
+                    if is_otel_non_error_status(code):
+                        # An exception leaving the span context would mark it as failed, but with OTel
+                        # semantics this response is only an error when its status is. It is raised
+                        # again once the span has ended.
+                        deferred_http_exception = e
+                    else:
+                        raise
                 except Exception:
                     # bottle doesn't always translate unhandled exceptions, so
                     # we mark it here.
@@ -96,5 +104,8 @@ class TracePlugin(object):
                     event: WebFrameworkRequestEvent = ctx.event
                     event.response_status_code = response_code
                     event.response_headers = response.headers
+
+            if deferred_http_exception is not None:
+                raise deferred_http_exception
 
         return wrapped

@@ -2,7 +2,8 @@ import django
 from django.http import HttpResponse
 from django.urls import path
 
-from ddtrace.trace import tracer
+from tests.appsec._shutdown import bounded_tracer_shutdown
+from tests.appsec._shutdown import start_hub_watchdog
 from tests.appsec.integrations.django_tests.django_app import views
 
 
@@ -13,10 +14,12 @@ else:
     from django.urls import re_path as handler
 
 
+start_hub_watchdog()
+
+
 def shutdown(request):
     # Endpoint used to flush traces to the agent when doing snapshots.
-    tracer.shutdown()
-    return HttpResponse(status=200)
+    return HttpResponse(bounded_tracer_shutdown(), status=200)
 
 
 urlpatterns = [

@@ -11,6 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69f23d1700000000",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ddtrace_api",
       "language": "python",
       "runtime-id": "d5b4970d4de945f3b5f0a1d4ed0ba9e5",

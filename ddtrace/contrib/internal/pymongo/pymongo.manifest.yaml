@@ -1,0 +1,12 @@
+_v: 1
+name: pymongo
+display_name: PyMongo
+description: Instruments synchronous and asynchronous PyMongo database commands and queries, plus connection-pool checkouts
+  and Database Monitoring propagation.
+packages:
+- name: pymongo
+category:
+- db.client
+systems:
+- mongodb
+creation_date: '2016-07-28'

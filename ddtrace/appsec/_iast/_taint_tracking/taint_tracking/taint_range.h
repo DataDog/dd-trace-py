@@ -1,8 +1,10 @@
 #pragma once
+#include <pybind11/stl.h>
+
+#include <cstdint>
+#include <optional>
 #include <sstream>
 #include <utility>
-
-#include <pybind11/stl.h>
 
 #include "structmember.h"
 
@@ -142,20 +144,35 @@ api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset, RANGE_LENGTH n
 std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map);
 
-bool
+// Nothing was stored for either Rejected or NotIndexable, but only Rejected is a caller error, so
+// callers that raise must raise on Rejected alone.
+enum class SetRangesResult
+{
+    Stored,
+    Rejected,
+    NotIndexable,
+};
+
+SetRangesResult
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map);
 
 bool
-api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid);
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const std::uint64_t contextid);
 
 TaintRangeRefs
-api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id = std::nullopt);
+api_get_ranges(const py::handle& string_input, std::optional<std::uint64_t> context_id = std::nullopt);
 
 void
-api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2);
+api_copy_ranges_from_strings(py::handle& str_1,
+                             py::handle& str_2,
+                             std::optional<std::uint64_t> context_id = std::nullopt);
 
 inline void
-api_copy_and_shift_ranges_from_strings(py::handle& str_1, py::handle& str_2, int offset, int new_length);
+api_copy_and_shift_ranges_from_strings(py::handle& str_1,
+                                       py::handle& str_2,
+                                       int offset,
+                                       int new_length = -1,
+                                       std::optional<std::uint64_t> context_id = std::nullopt);
 
 PyObject*
 api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);
@@ -178,10 +195,13 @@ api_is_unicode_and_not_fast_tainted(const py::handle& str)
 TaintedObjectPtr
 get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_taint_map);
 
-Py_hash_t
+// Both return nullopt when the object cannot be hashed. The taint map hashes objects to detect
+// address reuse, which is an internal identity probe rather than a hash the application asked
+// for: a failure must leave no Python error set for the caller to trip over.
+std::optional<Py_hash_t>
 bytearray_hash(PyObject* bytearray);
 
-Py_hash_t
+std::optional<Py_hash_t>
 get_internal_hash(PyObject* obj);
 
 void
@@ -202,8 +222,7 @@ copy_and_shift_ranges_from_strings(const py::handle& str_1,
         py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
         return;
     }
-    if (const bool result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
-        not result) {
+    if (set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map) == SetRangesResult::Rejected) {
         py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }

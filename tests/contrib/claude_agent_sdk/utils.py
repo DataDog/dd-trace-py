@@ -13,6 +13,15 @@ from claude_agent_sdk import ToolUseBlock
 from claude_agent_sdk import UserMessage
 
 
+# StreamEvent (partial-message streaming) is only re-exported from the package root in
+# newer SDKs (>=0.1.49); on older matrix versions (0.0.23, 0.1.29) it lives only in
+# claude_agent_sdk.types. Import defensively so this module still loads everywhere.
+try:
+    from claude_agent_sdk import StreamEvent
+except ImportError:
+    from claude_agent_sdk.types import StreamEvent
+
+
 # Real model name from captured SDK responses
 MOCK_MODEL = "claude-sonnet-4-5-20250929"
 
@@ -75,7 +84,9 @@ EXPECTED_ASSISTANT_USAGE = {
 }
 
 
-def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dict = None) -> AssistantMessage:
+def create_mock_assistant_message(
+    text: str, model: str = MOCK_MODEL, usage: dict = None, message_id: str = None, parent_tool_use_id: str = None
+) -> AssistantMessage:
     """Create a mock AssistantMessage for testing."""
     msg = AssistantMessage(
         content=[TextBlock(text=text)],
@@ -83,6 +94,13 @@ def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dic
     )
     if usage is not None:
         msg.usage = usage
+    # message_id was added in newer claude-agent-sdk versions; set via setattr so the
+    # helper stays compatible with older SDKs whose AssistantMessage lacks the field.
+    if message_id is not None:
+        msg.message_id = message_id
+    # parent_tool_use_id is None for the main agent, the spawning tool-use id for a subagent.
+    if parent_tool_use_id is not None:
+        msg.parent_tool_use_id = parent_tool_use_id
     return msg
 
 
@@ -174,6 +192,30 @@ def create_mock_user_message(content: str) -> UserMessage:
     return UserMessage(content=content)
 
 
+def create_mock_stream_event(event: dict, parent_tool_use_id: str = None) -> StreamEvent:
+    """Create a mock StreamEvent wrapping a raw Anthropic streaming event dict.
+
+    ``parent_tool_use_id`` is None for the main agent's stream, the spawning tool-use id for a
+    subagent's — the SDK sets it on every StreamEvent so interleaved subagent streams stay distinct.
+    """
+    return StreamEvent(
+        uuid="test-uuid",
+        session_id="test-session-id",
+        event=event,
+        parent_tool_use_id=parent_tool_use_id,
+    )
+
+
+def create_mock_status_message(status: str = "requesting") -> SystemMessage:
+    """A ``SystemMessage(subtype="status")`` — a lifecycle ping the CLI only emits when
+    partial streaming is on. The integration filters these back out when it enabled the flag.
+    """
+    return SystemMessage(
+        subtype="status",
+        data={"type": "system", "subtype": "status", "status": status, "session_id": "test-session-id"},
+    )
+
+
 MOCK_SYSTEM_MESSAGE = create_mock_system_message()
 MOCK_ASSISTANT_RESPONSE = create_mock_assistant_message("4")
 MOCK_ASSISTANT_RESPONSE_TWO = create_mock_assistant_message("8")
@@ -185,6 +227,21 @@ MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE,
     MOCK_ASSISTANT_RESPONSE_TWO,
+    MOCK_RESULT_MESSAGE,
+]
+
+
+MOCK_SHARED_MESSAGE_ID = "msg_01SharedTurnAaaaaaaaaaaaaa"
+MOCK_DEDUPE_ASSISTANT_CHUNK_ONE = create_mock_assistant_message(
+    "Let me think.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_SHARED_MESSAGE_ID
+)
+MOCK_DEDUPE_ASSISTANT_CHUNK_TWO = create_mock_assistant_message(
+    "The answer is 4.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_SHARED_MESSAGE_ID
+)
+MOCK_DEDUPE_ASSISTANT_SAME_MESSAGE_ID_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_DEDUPE_ASSISTANT_CHUNK_ONE,
+    MOCK_DEDUPE_ASSISTANT_CHUNK_TWO,
     MOCK_RESULT_MESSAGE,
 ]
 
@@ -228,6 +285,194 @@ MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE_WITH_USAGE,
     MOCK_RESULT_MESSAGE,
+]
+
+
+# Simulates what the SDK stream looks like once include_partial_messages is on:
+# the AssistantMessage.usage carries only the message_start snapshot (output_tokens=1),
+# while the true per-turn output (120) shows up in the message_delta StreamEvent. The
+# ResultMessage reports the same cumulative total (120).
+MOCK_PARTIAL_TURN_MESSAGE_ID = "msg_01PartialTurnAaaaaaaaaaaa"
+MOCK_PARTIAL_SNAPSHOT_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 1,  # message_start snapshot — pre-generation
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+}
+MOCK_PARTIAL_TRUE_OUTPUT_TOKENS = 120
+MOCK_PARTIAL_RESULT_USAGE = {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS,
+}
+MOCK_PARTIAL_MESSAGES_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    create_mock_stream_event(
+        {"type": "message_start", "message": {"id": MOCK_PARTIAL_TURN_MESSAGE_ID, "usage": {"output_tokens": 1}}}
+    ),
+    create_mock_assistant_message(
+        "The answer is 4.", usage=MOCK_PARTIAL_SNAPSHOT_USAGE, message_id=MOCK_PARTIAL_TURN_MESSAGE_ID
+    ),
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
+# Same as MOCK_PARTIAL_MESSAGES_SEQUENCE but with a non-"requesting" status SystemMessage mixed in.
+# When we force partial streaming we filter only our own noise — the "requesting" ping and the
+# StreamEvents. Other status messages (here a compaction result) are caller-visible and not gated
+# on partial streaming, so they must survive the filter and reach the caller.
+MOCK_COMPACTION_STATUS_VALUE = "compacted"
+MOCK_PARTIAL_MESSAGES_STATUS_PASSTHROUGH_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),  # "requesting" ping — ours, filtered back out
+    create_mock_stream_event(
+        {"type": "message_start", "message": {"id": MOCK_PARTIAL_TURN_MESSAGE_ID, "usage": {"output_tokens": 1}}}
+    ),
+    create_mock_status_message(status=MOCK_COMPACTION_STATUS_VALUE),  # caller-visible — must pass through
+    create_mock_assistant_message(
+        "The answer is 4.", usage=MOCK_PARTIAL_SNAPSHOT_USAGE, message_id=MOCK_PARTIAL_TURN_MESSAGE_ID
+    ),
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
+# Simulates a pre-0.1.49 SDK where AssistantMessage carries no usage at all (the field was
+# added in 0.1.49). The only token source is the partial-message stream: message_start
+# carries the input/cache tokens and message_delta the true cumulative output. The
+# integration must synthesize the whole usage block from these events.
+MOCK_PARTIAL_NO_USAGE_MESSAGE_ID = "msg_01PartialNoUsageAaaaaaaaaa"
+MOCK_PARTIAL_MESSAGES_NO_ASSISTANT_USAGE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_PARTIAL_NO_USAGE_MESSAGE_ID,
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 1,  # pre-generation snapshot — ignored
+                },
+            },
+        }
+    ),
+    # message_delta carries the true output but no id of its own; the integration attributes it
+    # to the id from the preceding message_start (its _partial_current_id cursor), so the usage
+    # lands under MOCK_PARTIAL_NO_USAGE_MESSAGE_ID. It streams before the assembled AssistantMessage.
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    # Old SDKs (< 0.1.49) omit message_id on AssistantMessage entirely. With no id to match on, the
+    # usage is joined back to this turn via that same streaming message_start id (stamped when the
+    # turn began buffering), which is why the delta above had to be keyed under it.
+    create_mock_assistant_message("The answer is 4.", usage=None, message_id=None),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
+# Simulates an older SDK version where one model message (a text block plus a tool_use block) is
+# split into two message_id-less AssistantMessages. The integration must join them by the
+# streaming message id into ONE llm span carrying the whole message's tokens.
+MOCK_PARTIAL_SPLIT_MESSAGE_ID = "msg_01PartialSplitAaaaaaaaaaa"
+MOCK_PARTIAL_SPLIT_TOOL_USE_ID = "toolu_01PartialSplitBbbbbbbbbb"
+MOCK_PARTIAL_SPLIT_FINAL_MESSAGE_ID = "msg_01PartialSplitCccccccccc"
+MOCK_PARTIAL_SPLIT_FINAL_OUTPUT_TOKENS = 30
+MOCK_PARTIAL_MESSAGES_SPLIT_TEXT_TOOL_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_PARTIAL_SPLIT_MESSAGE_ID,
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 1,  # pre-generation snapshot — ignored
+                },
+            },
+        }
+    ),
+    # One message, two chunks (no message_id): the text block, then the tool_use block.
+    create_mock_assistant_message("I'll run the command.", usage=None, message_id=None),
+    create_mock_assistant_message_with_tool_use([("Bash", {"command": "echo alpha"}, MOCK_PARTIAL_SPLIT_TOOL_USE_ID)]),
+    # The message's single true output count streams in at the end, after both chunks.
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_TRUE_OUTPUT_TOKENS}}),
+    # The tool result ends the first turn and flushes the merged llm span.
+    create_mock_user_message_with_tool_result([(MOCK_PARTIAL_SPLIT_TOOL_USE_ID, "alpha")]),
+    # The model closes the turn with a final text message (its own streaming id and output count).
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_PARTIAL_SPLIT_FINAL_MESSAGE_ID,
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 1,  # pre-generation snapshot — ignored
+                },
+            },
+        }
+    ),
+    create_mock_assistant_message("The command printed alpha.", usage=None, message_id=None),
+    create_mock_stream_event(
+        {"type": "message_delta", "usage": {"output_tokens": MOCK_PARTIAL_SPLIT_FINAL_OUTPUT_TOKENS}}
+    ),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
+]
+
+
+# Simulates a main agent and a subagent streaming concurrently: their StreamEvents interleave in
+# one stream, distinguished only by parent_tool_use_id. Both message_starts arrive before either
+# id-less message_delta, so a single shared cursor would attribute both deltas to whichever
+# message_start came last, clobbering one turn's output tokens. Scoping the cursor by
+# parent_tool_use_id keeps each turn's true output attributed to its own message.
+MOCK_SUBAGENT_TOOL_USE_ID = "toolu_01SubagentScopeAaaaaaaaa"
+MOCK_SUBAGENT_MAIN_MESSAGE_ID = "msg_01SubagentMainAaaaaaaaaa"
+MOCK_SUBAGENT_CHILD_MESSAGE_ID = "msg_01SubagentChildBbbbbbbbb"
+MOCK_SUBAGENT_MAIN_OUTPUT_TOKENS = 100
+MOCK_SUBAGENT_CHILD_OUTPUT_TOKENS = 50
+MOCK_SUBAGENT_INTERLEAVED_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    # Both turns begin streaming before either produces output: main first, then the subagent.
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_SUBAGENT_MAIN_MESSAGE_ID,
+                "usage": {"input_tokens": 10, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+            },
+        }
+    ),
+    create_mock_stream_event(
+        {
+            "type": "message_start",
+            "message": {
+                "id": MOCK_SUBAGENT_CHILD_MESSAGE_ID,
+                "usage": {"input_tokens": 20, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+            },
+        },
+        parent_tool_use_id=MOCK_SUBAGENT_TOOL_USE_ID,
+    ),
+    # Each turn's id-less true output must land on its own message_start via the scoped cursor.
+    create_mock_stream_event({"type": "message_delta", "usage": {"output_tokens": MOCK_SUBAGENT_MAIN_OUTPUT_TOKENS}}),
+    create_mock_stream_event(
+        {"type": "message_delta", "usage": {"output_tokens": MOCK_SUBAGENT_CHILD_OUTPUT_TOKENS}},
+        parent_tool_use_id=MOCK_SUBAGENT_TOOL_USE_ID,
+    ),
+    # Both turns arrive as id-less AssistantMessages (pre-0.1.49 style); scope alone joins the usage.
+    create_mock_assistant_message(
+        "Subagent finished.", usage=None, message_id=None, parent_tool_use_id=MOCK_SUBAGENT_TOOL_USE_ID
+    ),
+    create_mock_assistant_message("Main agent finished.", usage=None, message_id=None),
+    create_mock_result_message(usage=MOCK_PARTIAL_RESULT_USAGE),
 ]
 
 
@@ -285,6 +530,25 @@ MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
     MOCK_FINAL_ASSISTANT,  # AssistantMessage with text → LLM span #2
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
+
+MOCK_DEDUPE_TURN_A_ID = "msg_01DedupeTurnAaaaaaaaaaaaaa"
+MOCK_DEDUPE_TEXT_CHUNK = create_mock_assistant_message(
+    "Let me read that file.", usage=MOCK_ASSISTANT_USAGE, message_id=MOCK_DEDUPE_TURN_A_ID
+)
+MOCK_DEDUPE_TOOL_USE_CHUNK = create_mock_assistant_message_with_tool_use(
+    [("Read", {"file_path": "/etc/hostname"}, MOCK_READ_TOOL_ID)],
+)
+MOCK_DEDUPE_TOOL_USE_CHUNK.usage = MOCK_ASSISTANT_USAGE
+MOCK_DEDUPE_TOOL_USE_CHUNK.message_id = MOCK_DEDUPE_TURN_A_ID
+MOCK_DEDUPE_TOOL_SPLIT_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_DEDUPE_TEXT_CHUNK,  # turn A, chunk 1 (text)
+    MOCK_DEDUPE_TOOL_USE_CHUNK,  # turn A, chunk 2 (tool_use) — same message_id → merged
+    MOCK_TOOL_RESULT_USER_READ,  # tool result → finishes tool span
+    MOCK_FINAL_ASSISTANT,  # turn B (text) → second llm span
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
 
 MOCK_PARALLEL_BASH_TOOL_IDS = (
     "toolu_parallel_01_aaaaaaaaaaaaaaaaaa",
@@ -376,4 +640,57 @@ MOCK_CLIENT_RAW_MESSAGES = [
             "output_tokens": 5,
         },
     },
+]
+
+
+# Same as MOCK_CLIENT_RAW_MESSAGES but interleaved with the partial-streaming events we inject
+# when we force include_partial_messages on at init: a StreamEvent and a status SystemMessage.
+# Used to exercise the untraced connect(prompt=...) -> receive_response() path, where there is no
+# query() span/handler to filter, so filter_forced_partial_noise must strip these back out.
+MOCK_CLIENT_RAW_MESSAGES_WITH_PARTIAL_NOISE = [
+    EXPECTED_SYSTEM_MESSAGE_DATA,
+    {
+        "type": "stream_event",
+        "uuid": "test-uuid",
+        "session_id": "test-session-id",
+        "event": {"type": "message_start", "message": {"id": "msg_01ClientNoiseAaaaaaaaaaa", "usage": {}}},
+    },
+    {
+        "type": "system",
+        "subtype": "status",
+        "status": "requesting",
+        "session_id": "test-session-id",
+    },
+    {
+        "type": "assistant",
+        "message": {"content": [{"type": "text", "text": "4"}], "model": MOCK_MODEL},
+    },
+    {
+        "type": "result",
+        "subtype": "success",
+        "stop_reason": "end_turn",
+        "duration_ms": 100,
+        "duration_api_ms": 90,
+        "is_error": False,
+        "num_turns": 1,
+        "session_id": "test-session-id",
+        "usage": {
+            "input_tokens": 3,
+            "cache_creation_input_tokens": 12742,
+            "cache_read_input_tokens": 1854,
+            "output_tokens": 5,
+        },
+    },
+]
+
+
+# A standalone query() response carrying a status SystemMessage the caller's custom transport
+# would surface on its own. When a custom transport is supplied we must NOT force partial
+# streaming (the transport is built independently of options), so we must NOT filter — this
+# status message must reach the caller untouched.
+MOCK_CUSTOM_TRANSPORT_NOISE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_status_message(),
+    MOCK_ASSISTANT_RESPONSE,
+    MOCK_RESULT_MESSAGE,
 ]

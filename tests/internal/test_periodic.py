@@ -4,15 +4,18 @@ import os
 import platform
 from threading import Barrier
 from threading import Event
+from threading import RLock
 from threading import Thread
 from time import monotonic
 from time import sleep
+from unittest import mock
 import weakref
 
 import pytest
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
+from ddtrace.internal import threads
 
 
 def test_periodic():
@@ -51,6 +54,48 @@ def test_periodic_double_start():
     t.join()
 
 
+@pytest.mark.subprocess(timeout=10)
+def test_periodic_thread_gilstate_reentry_during_thread_state_cleanup():
+    """Thread and context-local destructors may re-enter PyGILState during worker teardown."""
+    import contextvars
+    import ctypes
+    import threading
+
+    from ddtrace.internal._threads import PERIODIC_STOP
+    from ddtrace.internal._threads import PeriodicThread
+
+    ensure = ctypes.pythonapi.PyGILState_Ensure
+    ensure.argtypes = []
+    ensure.restype = ctypes.c_int
+    release = ctypes.pythonapi.PyGILState_Release
+    release.argtypes = [ctypes.c_int]
+    release.restype = None
+
+    local = threading.local()
+    context_value = contextvars.ContextVar("context_value")
+    finalized = []
+
+    class ReenterPyGILState:
+        def __init__(self, kind):
+            self.kind = kind
+
+        def __del__(self):
+            finalized.append(self.kind)
+            state = ensure()
+            release(state)
+
+    def target():
+        local.value = ReenterPyGILState("thread-local")
+        context_value.set(ReenterPyGILState("context-local"))
+        return PERIODIC_STOP
+
+    thread = PeriodicThread(0.001, target, name="SignalUploader", no_wait_at_start=True)
+    thread.start()
+    thread.join()
+
+    assert sorted(finalized) == ["context-local", "thread-local"]
+
+
 def test_periodic_join_positional_timeout_is_honored():
     """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
 
@@ -77,6 +122,68 @@ def test_periodic_join_positional_timeout_is_honored():
     finally:
         t.stop()
         t.join()
+
+
+@pytest.mark.skipif(platform.system() != "Linux", reason="requires Linux pthread id reuse behavior")
+@pytest.mark.subprocess
+def test_periodic_thread_dealloc_does_not_evict_reused_ident():
+    """Regression: stale PeriodicThread dealloc must not evict a new worker.
+
+    PeriodicThread objects are registered in ``periodic_threads`` by native
+    thread id. Linux can quickly recycle a thread id after the old worker exits.
+    The old Python PeriodicThread may then be deallocated while its stale
+    ``ident`` still matches a new live worker. Dealloc must not blindly delete
+    ``periodic_threads[ident]`` in that case.
+    """
+    import gc
+
+    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.periodic import PeriodicThread
+
+    class Holder:
+        """NativeWriter-like owner for a PeriodicThread."""
+
+        def __init__(self, name):
+            self.thread = PeriodicThread(60.0, self.work, name=name)
+            self.thread.start()
+
+        def work(self):
+            pass
+
+    holder = Holder("initial")
+    saw_reused_ident = False
+
+    try:
+        for i in range(1000):
+            old_holder = holder
+            old_thread = old_holder.thread
+            old_ident = old_thread.ident
+
+            old_thread.stop()
+            old_thread.join(timeout=1.0)
+
+            holder = Holder("replacement-%d" % i)
+            new_thread = holder.thread
+            new_ident = new_thread.ident
+
+            # Simulate NativeWriter-like owner teardown after replacement: drop
+            # the old holder -> PeriodicThread edge while old_thread.ident is
+            # still populated. On buggy builds, old_thread.tp_dealloc deletes
+            # periodic_threads[old_ident] even when it now belongs to new_thread.
+            old_holder.thread = None
+            del old_thread
+            gc.collect()
+
+            if old_ident == new_ident:
+                saw_reused_ident = True
+                assert periodic_threads.get(new_ident) is new_thread
+    finally:
+        if holder.thread is not None:
+            holder.thread.stop()
+            holder.thread.join(timeout=1.0)
+
+    if not saw_reused_ident:
+        pytest.skip("thread id was not recycled during the stress loop")
 
 
 def test_periodic_awake_after_stop_returns_not_hangs():
@@ -167,8 +274,8 @@ def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
       5. The worker cannot finish the callback and cannot reach
          the wake-completion path — both threads wait forever.
 
-    The middle-ground fix has awake() release _awake_mutex before waiting on
-    _served, so a worker-thread stop() can take the mutex freely.
+    awake() now holds _awake_mutex only to publish the request and never
+    waits for the worker, so a worker-thread stop() can take the mutex freely.
     """
 
     def _target():
@@ -254,12 +361,63 @@ def test_periodic_join_stop_no_start():
         t.stop()
 
 
+def test_periodic_thread_is_started():
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    assert t.is_started() is False
+    t.start()
+    try:
+        assert t.is_started() is True
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_periodic_service_stop_with_unstarted_worker() -> None:
+    s = periodic.PeriodicService(60.0)
+    worker = mock.Mock()
+    worker.cancel_if_not_started.return_value = True
+    s._worker = worker
+    s.status = service.ServiceStatus.RUNNING
+
+    s.stop()
+    s.join()
+
+    worker.stop.assert_not_called()
+    assert s._worker is None
+    assert s.status == service.ServiceStatus.STOPPED
+
+
+def test_periodic_service_stop_cancels_worker_start_deferred_by_fork() -> None:
+    s = periodic.PeriodicService(60.0)
+    with mock.patch.object(threads, "_forking", True):
+        s.start()
+    worker = s._worker
+    assert worker is not None
+
+    try:
+        assert worker.is_started() is False
+
+        s.stop()
+        s.join()
+
+        assert s._worker is None
+        assert s.status == service.ServiceStatus.STOPPED
+        # A start left in the queue would bring the thread up later with nothing able to stop it.
+        assert all(start.__self__ is not worker for start in threads._threads_to_start_after_fork)
+    finally:
+        threads._threads_to_start_after_fork[:] = [
+            start for start in threads._threads_to_start_after_fork if start.__self__ is not worker
+        ]
+
+
 def test_awakeable_periodic_service():
+    ran = Event()
     queue = []
 
     class AwakeMe(periodic.AwakeablePeriodicService):
         def periodic(self):
             queue.append(len(queue))
+            ran.set()
 
     interval = 1
 
@@ -267,10 +425,13 @@ def test_awakeable_periodic_service():
 
     awake_me.start()
 
-    # Manually awake the service
+    # Each awake request is served by a run of the target. awake() does not
+    # wait for it, so we wait for each run before making the next request.
     n = 10
-    for _ in range(10):
+    for _ in range(n):
+        ran.clear()
         awake_me.awake()
+        assert ran.wait(timeout=2)
 
     assert queue == list(range(n))
 
@@ -278,8 +439,123 @@ def test_awakeable_periodic_service():
     sleep(1.1 * interval)
 
     awake_me.stop()
+    awake_me.join()
 
     assert queue == list(range(n + 1))
+
+
+def test_awake_requests_coalesce():
+    """Requests made before the worker wakes up are served by a single run."""
+    release = Event()
+    entered = Event()
+    calls = []
+
+    def target():
+        calls.append(1)
+        entered.set()
+        release.wait(timeout=5)
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    t.awake()
+    assert entered.wait(timeout=2)
+
+    # The target is busy: these must all return immediately and coalesce
+    # into a single follow-up run.
+    for _ in range(10):
+        t.awake()
+
+    release.set()
+    sleep(0.2)
+    t.stop()
+    t.join()
+
+    assert len(calls) == 2
+
+
+def test_awake_does_not_block_while_target_runs():
+    release = Event()
+    entered = Event()
+
+    def target():
+        entered.set()
+        release.wait(timeout=5)
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    t.awake()
+    assert entered.wait(timeout=2)
+
+    done = Event()
+    awaker = Thread(target=lambda: (t.awake(), done.set()))
+    awaker.start()
+    try:
+        assert done.wait(timeout=1), "awake() blocked while the target was running"
+    finally:
+        release.set()
+        awaker.join(timeout=2)
+        t.stop()
+        t.join()
+
+
+def test_awake_while_holding_lock_needed_by_target():
+    """Regression: awake() from a thread holding a lock that the target needs.
+
+    The DI signal queue calls its on_full callback, which awakes the uploader,
+    while holding the queue lock, and the uploader takes that lock to flush. A
+    blocking awake() deadlocked both threads.
+    """
+    lock = RLock()
+    flushed = Event()
+
+    def target():
+        with lock:
+            flushed.set()
+
+    t = periodic.PeriodicThread(60.0, target)
+    t.start()
+    try:
+        with lock:
+            t.awake()
+        assert flushed.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_awake_from_target_does_not_deadlock():
+    calls = []
+    ran_twice = Event()
+
+    def target():
+        calls.append(1)
+        if len(calls) == 1:
+            t.awake()
+        else:
+            ran_twice.set()
+
+    t = periodic.PeriodicThread(60.0, target, no_wait_at_start=True)
+    t.start()
+    try:
+        assert ran_twice.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_awake_before_start_is_served_on_start():
+    ran = Event()
+
+    t = periodic.PeriodicThread(60.0, ran.set)
+    t.awake()
+    assert not ran.is_set()
+
+    t.start()
+    try:
+        assert ran.wait(timeout=2)
+    finally:
+        t.stop()
+        t.join()
 
 
 @pytest.mark.subprocess
@@ -501,6 +777,63 @@ def test_autorestart_false_service_restarts_in_parent_after_fork():
     )
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_nested_fork_preserves_periodic_thread_restart_policy():
+    """A nested fork must not force-restart workers inherited by the intermediate child."""
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
+    inherited_ran = Event()
+
+    class InheritedService(periodic.PeriodicService):
+        def periodic(self):
+            inherited_ran.set()
+
+    inherited = InheritedService(interval=0.05, autorestart=False)
+    inherited.start()
+    assert inherited_ran.wait(timeout=2)
+    inherited_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        local_ran = Event()
+
+        class LocalService(periodic.PeriodicService):
+            def periodic(self):
+                local_ran.set()
+
+        local = LocalService(interval=0.05, autorestart=False)
+        local.start()
+        assert local_ran.wait(timeout=2)
+        local_ran.clear()
+
+        grandchild_pid = os.fork()
+        if grandchild_pid == 0:
+            os._exit(0)
+        _, grandchild_status = os.waitpid(grandchild_pid, 0)
+        assert os.waitstatus_to_exitcode(grandchild_status) == 0
+
+        # The nested-fork parent timer must resume workers that were active locally, while
+        # leaving the autorestart=False worker inherited from the root process stopped.
+        sleep(0.5)
+        if local._worker is not None:
+            local._worker.awake()
+        assert local_ran.wait(timeout=2)
+        assert not inherited_ran.is_set()
+        local.stop()
+        local.join()
+        os._exit(0)
+
+    _, status = os.waitpid(pid, 0)
+    inherited.stop()
+    inherited.join()
+    assert os.waitstatus_to_exitcode(status) == 0
+
+
 def test_periodic_service_no_immediate_run_after_fork():
     periodic_ran = Event()
 
@@ -640,7 +973,7 @@ def _get_native_thread_name():
         # Read from /proc/self/task/<tid>/comm
         try:
             tid = ctypes.CDLL(None).syscall(186)  # SYS_gettid
-            with open(f"/proc/self/task/{tid}/comm", "r") as f:
+            with open(f"/proc/self/task/{tid}/comm") as f:
                 return f.read().strip()
         except Exception:
             return None
@@ -671,71 +1004,6 @@ def _get_native_thread_name():
         return None
 
     return None
-
-
-@pytest.mark.subprocess
-def test_periodic_thread_stop_without_join_forksafe():
-    """
-    Dropping a PeriodicThread that was stop()'d without join() in a forked child
-    must not crash, even when the OS (Linux/glibc) recycles the old pthread
-    descriptor for a new thread between the stop() call and the dealloc in the
-    child.
-
-    Scenario:
-      1. Start a PeriodicThread, call stop() — *without* join().
-      2. Wait briefly so the OS thread exits and glibc marks the pthread_t
-         reusable.
-      3. Fork.
-      4. In the child: spin up many short-lived threads to encourage glibc to
-         recycle the old pthread_t, then drop the last Python reference
-         (triggering dealloc).
-      5. Assert the child exited cleanly (not killed by a signal).
-
-    Before the fix, PeriodicThread_dealloc called join() or detach() on the
-    stale handle, which on Linux causes SIGSEGV when the pthread descriptor has
-    been reused.
-    """
-    import gc
-    import os
-    import signal
-    from threading import Thread
-    from time import sleep
-
-    from ddtrace.internal import periodic
-
-    def noop():
-        pass
-
-    t = periodic.PeriodicThread(60.0, noop)
-    t.start()
-    t.stop()
-    sleep(0.3)  # let the OS thread exit so the pthread_t is eligible for recycling
-
-    pid = os.fork()
-    if pid == 0:
-        # Churn threads to encourage glibc to recycle the victim's pthread descriptor.
-        for _ in range(5):
-            batch = [Thread(target=lambda: None, daemon=True) for _ in range(20)]
-            for th in batch:
-                th.start()
-            for th in batch:
-                th.join()
-
-        # Treat a hang (futex deadlock on dead pthread) as a failure too.
-        signal.alarm(3)
-
-        del t
-        gc.collect()
-        os._exit(0)
-    else:
-        _, status = os.waitpid(pid, 0)
-        assert not os.WIFSIGNALED(status), (
-            f"child killed by signal {os.WTERMSIG(status)} — "
-            "PeriodicThread_dealloc crashed on a stale/recycled pthread handle"
-        )
-        assert os.WEXITSTATUS(status) == 0
-        # Parent still owns a reference; join to clean up properly.
-        t.join()
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
@@ -882,6 +1150,46 @@ def test_writer_recreate_fork_child_does_not_deadlock():
     # Exit hard so the code reflects only whether a child hung/faulted, skipping
     # the interpreter's atexit join of the periodic threads.
     os._exit(2 if failed else 0)
+
+
+def test_recycled_ident_dealloc_does_not_evict_live_worker():
+    """Deterministic regression test for the same registry corruption exercised
+    probabilistically by ``test_writer_recreate_fork_child_does_not_deadlock``
+    (see that test's docstring for the full root-cause narrative).
+
+    Reproducing the bug for real requires the OS to recycle a freed thread id
+    and GC to run the stale dealloc at just the right moment, which is
+    libc/timing dependent. ``ident`` is a writable attribute on PeriodicThread
+    though, so recycling can be simulated directly instead:
+
+      1. Start a real worker; it registers ``periodic_threads[ident] = live``.
+      2. Create a second, never-started worker and force its ``ident`` to match
+         the live worker's -- simulating the OS reissuing that freed id.
+      3. Drop the stale worker and force a GC pass so its ``tp_dealloc`` runs.
+
+    Pre-fix, dealloc deleted ``periodic_threads[ident]`` by ident alone,
+    evicting the live worker's entry. Post-fix, the delete is guarded by an
+    identity check, so the live worker's entry survives.
+    """
+    from ddtrace.internal._threads import periodic_threads
+
+    live = periodic.PeriodicThread(1.0, lambda: None)
+    live.start()
+    try:
+        assert periodic_threads.get(live.ident) is live
+
+        stale = periodic.PeriodicThread(1.0, lambda: None)
+        stale.ident = live.ident  # simulate the OS recycling the freed thread id
+        del stale
+        gc.collect()
+
+        assert periodic_threads.get(live.ident) is live, (
+            "live worker's periodic_threads entry was evicted by a stale worker's "
+            "dealloc after simulated thread-id recycling"
+        )
+    finally:
+        live.stop()
+        live.join()
 
 
 def test_periodic_thread_naming():
@@ -1049,8 +1357,7 @@ def test_concurrent_start_stop():
 def test_concurrent_awake():
     """N threads call awake() on the same PeriodicThread simultaneously.
 
-    Exercises the _awake_mutex / _request / _served Event trio under
-    concurrent writers.
+    Exercises _awake_mutex and the _request Event under concurrent writers.
     """
     barrier = Barrier(_N_THREADS)
     errors = []

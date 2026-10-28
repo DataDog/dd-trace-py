@@ -13,7 +13,7 @@ from ddtrace.internal.threads import RLock
 logger = get_logger(__name__)
 
 
-class ProbeRegistryEntry(object):
+class ProbeRegistryEntry:
     __slots__ = (
         "probe",
         "installed",
@@ -47,7 +47,7 @@ def _get_probe_location(probe: Probe) -> Optional[str]:
     if isinstance(probe, ProbeLocationMixin):
         return probe.location()[0]
     else:
-        raise ValueError("Unsupported probe type: {}".format(type(probe)))
+        raise ValueError(f"Unsupported probe type: {type(probe)}")
 
 
 class ProbeRegistry(dict):  # type: ignore[type-arg]
@@ -65,6 +65,9 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
 
         # Used to keep track of probes pending installation
         self._pending: dict[str, list[Probe]] = defaultdict(list)
+        # Used to move installed probes back to pending without scanning the
+        # whole registry, since that happens on every module compilation
+        self._installed: dict[str, list[Probe]] = defaultdict(list)
 
         self._lock = RLock()
 
@@ -83,7 +86,7 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
                     self.set_error(
                         probe,
                         "UnresolvedLocation",
-                        "Unable to resolve location information for probe {}".format(probe.probe_id),
+                        f"Unable to resolve location information for probe {probe.probe_id}",
                     )
                     continue
 
@@ -104,7 +107,11 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
     def set_installed(self, probe: Probe) -> None:
         """Set the installed flag for a probe."""
         with self._lock:
-            self[probe.probe_id].set_installed()
+            entry = cast(ProbeRegistryEntry, self[probe.probe_id])
+            if not entry.installed:
+                entry.set_installed()
+                if (location := _get_probe_location(entry.probe)) is not None:
+                    self._installed[location].append(entry.probe)
 
             # No longer pending
             self._remove_pending(probe)
@@ -156,22 +163,28 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
             for entry in self.values():
                 self._log_probe_status_unlocked(entry)
 
-    def _remove_pending(self, probe: Probe) -> None:
+    @staticmethod
+    def _remove_located(probes_by_location: dict[str, list[Probe]], probe: Probe) -> None:
         if (location := _get_probe_location(probe)) is None:
             # If the probe has no location information, then it cannot be
-            # pending.
+            # tracked by location.
             return
 
-        pending_probes = self._pending[location]
+        probes = probes_by_location.get(location)
+        if probes is None:
+            return
         try:
             # DEV: Note that this is O(n), which is fine with a conservative
             # number of probes.
-            pending_probes.remove(probe)
+            probes.remove(probe)
         except ValueError:
-            # The probe wasn't pending
+            # The probe wasn't tracked at this location
             pass
-        if not pending_probes:
-            del self._pending[location]
+        if not probes:
+            del probes_by_location[location]
+
+    def _remove_pending(self, probe: Probe) -> None:
+        self._remove_located(self._pending, probe)
 
     def has_probes(self, location: str) -> bool:
         for entry in self.values():
@@ -196,12 +209,34 @@ class ProbeRegistry(dict):  # type: ignore[type-arg]
                 else:
                     probe = entry.probe
                     self._remove_pending(probe)
+                    self._remove_located(self._installed, probe)
                     unregistered_probes.append(probe)
         return unregistered_probes
 
     def get_pending(self, location: str) -> list[Probe]:
         """Get the currently pending probes by location."""
         return self._pending[location].copy()
+
+    def reset_pending(self, location: str) -> list[Probe]:
+        """Move any installed probes at the given location back to pending.
+
+        Called whenever a module backing a location is compiled. If it is
+        recompiled (e.g. via importlib.reload()), whatever function or code
+        object an installed probe was previously attached to is orphaned and a
+        fresh installation pass is required.
+
+        Returns the probes that were moved, so that the caller can detach them
+        from the orphaned objects.
+        """
+        with self._lock:
+            if (installed := self._installed.pop(location, None)) is None:
+                return []
+            for probe in installed:
+                entry = self[probe.probe_id]
+                # The probe has to prove itself again on the new code
+                entry.installed = entry.emitting = False
+            self._pending[location].extend(installed)
+            return installed
 
     def __contains__(self, probe: object) -> bool:
         """Check if a probe is in the registry."""

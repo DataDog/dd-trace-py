@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes a rare ``ZeroDivisionError`` raised from ``span.finish()`` when
+    multiple threads write traces concurrently.

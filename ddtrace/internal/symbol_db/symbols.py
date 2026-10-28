@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import dis
 from enum import Enum
+from functools import cached_property
 import gzip
 import hashlib
 from inspect import CO_VARARGS
@@ -22,28 +23,35 @@ from types import CodeType
 from types import FunctionType
 from types import ModuleType
 import typing as t
+import uuid
 
 from ddtrace import config
+from ddtrace.internal import forksafe
 from ddtrace.internal import packages
+from ddtrace.internal._runtime_id import get_ancestor_runtime_id
+from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
+from ddtrace.internal.native import SymDBSender
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
-from ddtrace.internal.runtime import get_ancestor_runtime_id
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.http import FormData
-from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_wrapped
 
 
@@ -52,6 +60,30 @@ log = get_logger(__name__)
 SOF = 0
 EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
+UPLOAD_TIMEOUT = 5.0  # seconds
+
+
+def build_symdb_sender() -> SymDBSender:
+    """Build a sender for symbol uploads."""
+    timeout_ms = int(UPLOAD_TIMEOUT * 1000)
+
+    if config._agentless_enabled:
+        return SymDBSender(
+            get_native_runtime(),
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            tags=di_config.tags,
+            timeout_ms=timeout_ms,
+            test_session_token=get_test_session_token(),
+        )
+
+    return SymDBSender(
+        get_native_runtime(),
+        url=agent_config.trace_agent_url,
+        tags=di_config.tags,
+        timeout_ms=timeout_ms,
+        test_session_token=get_test_session_token(),
+    )
 
 
 def _line_ranges(lines: set[int]) -> list[dict[str, int]]:
@@ -113,15 +145,19 @@ def get_fields(cls: type) -> set[str]:
     # Otherwise, look at the bytecode for the __init__ method.
     try:
         code = object.__getattribute__(cls, "__init__").__code__
-
-        return {
-            code.co_names[b.arg]
-            for a, b in zip(*(islice(t, i, None) for i, t in enumerate(tee(dis.get_instructions(code), 2))))
-            # Python 3.14 changed this to LOAD_FAST_BORROW
-            if a.opname.startswith("LOAD_FAST") and a.arg & 15 == 0 and b.opname == "STORE_ATTR"
-        }
     except AttributeError:
         return set()
+
+    # Trying to disassemble an obfuscated code object can lead to a crash.
+    if is_obfuscated_code(code):
+        return set()
+
+    return {
+        code.co_names[b.arg]
+        for a, b in zip(*(islice(t, i, None) for i, t in enumerate(tee(dis.get_instructions(code), 2))))
+        # Python 3.14 changed this to LOAD_FAST_BORROW
+        if a.opname.startswith("LOAD_FAST") and a.arg & 15 == 0 and b.opname == "STORE_ATTR"
+    }
 
 
 class SymbolType(str, Enum):
@@ -210,6 +246,19 @@ class Scope:
         if module_origin is None:
             return None
 
+        try:
+            # PyArmor's "obf_mod" mode encrypts the module's entire top-level
+            # code object, so everything declared in it is inspected from
+            # garbage bytecode at best. Skip the module outright instead of
+            # recursing into its classes/functions.
+            if ModuleCodeCollector.is_obfuscated(module):
+                return None
+        except KeyError:
+            # The module was never tracked by the code collector (e.g. a C
+            # extension module, or one imported before the collector was
+            # installed). Nothing to gate on; fall through to inspect it.
+            pass
+
         symbols = []
         scopes = []
 
@@ -219,8 +268,6 @@ class Scope:
                 continue
 
             try:
-                if _isinstance(child, FunctionType):
-                    child = undecorated(child, alias, module_origin)
                 scope = Scope._get_from(child, data)
                 if scope is not None:
                     scopes.append(scope)
@@ -234,6 +281,22 @@ class Scope:
                     )
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
+
+        # We use the result of the module code collector to get all the code
+        # objects declared in the module. This way we don't have to worry about
+        # decorated functions.
+        code_objects = ModuleCodeCollector.get_code_objects(module)
+        if code_objects is not None:
+            for code in code_objects:
+                try:
+                    scope = Scope._get_from(code, data)
+                except Exception:
+                    log.debug(
+                        "Cannot get child scope for code object %r of module %s", code, module.__name__, exc_info=True
+                    )
+                    continue
+                if scope is not None:
+                    scopes.append(scope)
 
         # usedforsecurity=False: this sha1 computes a git-blob identity hash of the
         # module source, not a security digest. It also prevents IAST from flagging
@@ -358,6 +421,11 @@ class Scope:
         if code_id in data.seen:
             return None
         data.seen.add(code_id)
+
+        # PyArmor's default mode protects individual functions rather than the
+        # whole module, so the module-level check does not catch these.
+        if is_obfuscated_code(code):
+            return None
 
         if (code_origin := resolved_code_origin(code)) != data.origin:
             # Comes from another module.
@@ -496,7 +564,11 @@ class Scope:
         if module_origin is None:
             raise ValueError(f"Cannot get scope of module with no origin '{module.__name__}'")
 
-        return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
+        try:
+            return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
+        finally:
+            # We no longer need to keep this collection around.
+            ModuleCodeCollector.release(module, "symdb")
 
 
 class ScopeContext:
@@ -506,16 +578,46 @@ class ScopeContext:
         self._scopes: list[Scope] = scopes if scopes is not None else []
         self._scopes_lock = RLock()
 
-        self._event_data = {
+        self._timer: t.Optional[Timer] = None
+        self._timer_lock = RLock()
+
+        # upload_id is stable for the lifetime of this process; all batches
+        # uploaded by the process share it. A forked child gets a fresh
+        # upload_id and batch counter via _reset_on_fork below.
+        self._upload_id: str = str(uuid.uuid4())
+        self._batch_counter: int = 0
+
+        # Static portion of the event message. Dynamic fields (batchNum,
+        # attachmentSize) are set per upload. uploadId/runtimeId/parentId
+        # are refreshed by _reset_on_fork in forked children.
+        self._event_data: dict[str, t.Union[str, bool, int, None]] = {
             "ddsource": "python",
             "service": config.service or DEFAULT_SERVICE_NAME,
+            "version": config.version or "",
+            "language": "python",
             "runtimeId": get_runtime_id(),
             "parentId": get_ancestor_runtime_id(),
             "type": "symdb",
+            "uploadId": self._upload_id,
+            "final": False,
         }
 
-        self._timer: t.Optional[Timer] = None
-        self._timer_lock = RLock()
+        forksafe.register(self._reset_on_fork)
+
+    @cached_property
+    def _sender(self) -> SymDBSender:
+        # Built on the first upload to reduce startup cost.
+        return build_symdb_sender()
+
+    def _reset_on_fork(self) -> None:
+        # Runs after fork in the child. The runtime module's own forksafe
+        # hook regenerates the runtime_id first (registered earlier at
+        # import time), so the calls below return the post-fork values.
+        self._upload_id = str(uuid.uuid4())
+        self._batch_counter = 0
+        self._event_data["uploadId"] = self._upload_id
+        self._event_data["runtimeId"] = get_runtime_id()
+        self._event_data["parentId"] = get_ancestor_runtime_id()
 
     def _set_timer(self) -> None:
         with self._timer_lock:
@@ -523,12 +625,13 @@ class ScopeContext:
 
                 class BatchTimer(Timer):
                     def timeout(_timer) -> None:
-                        log.debug(
-                            "[PID %d] SymDB: Flushing batch of %d module scopes due to timeout",
-                            os.getpid(),
-                            len(self._scopes),
-                        )
-                        self.upload()
+                        with self._scopes_lock:
+                            log.debug(
+                                "[PID %d] SymDB: Flushing batch of %d module scopes due to timeout",
+                                os.getpid(),
+                                len(self._scopes),
+                            )
+                            self._upload_locked()
 
                         with self._timer_lock:
                             self._timer = None
@@ -544,7 +647,7 @@ class ScopeContext:
             # Flush the scopes if we reached the size limit.
             if (n := len(self._scopes)) >= self.__scope_limit__:
                 log.debug("[PID %d] SymDB: Flushing batch of %d module scopes due to size limit", os.getpid(), n)
-                self.upload()
+                self._upload_locked()
 
             # Add the new scope.
             self._scopes.append(scope)
@@ -563,20 +666,35 @@ class ScopeContext:
                 "scopes": [_.to_json() for _ in self._scopes],
             }
 
-    def upload(self) -> None:
-        with self._scopes_lock:
-            if not self._scopes:
-                return
-            payload = self.to_json()
-            n = len(self._scopes)
-            self._scopes.clear()
+    # The caller must hold _scopes_lock.
+    def _upload_locked(self) -> None:
+        if not self._scopes:
+            return
+
+        self._batch_counter += 1
+        batch_num = self._batch_counter
+
+        payload = self.to_json()
+        # Embed the upload metadata in the attachment too, so the
+        # attachment is self-contained.
+        payload["upload_id"] = self._upload_id
+        payload["batch_num"] = batch_num
+        payload["final"] = False
+        n = len(self._scopes)
+        self._scopes.clear()
+
+        compressed = gzip.compress(json.dumps(payload).encode("utf-8"))
+
+        self._event_data["batchNum"] = batch_num
+        self._event_data["attachmentSize"] = len(compressed)
+        event_json = json.dumps(self._event_data)
 
         body, headers = multipart(
             parts=[
                 FormData(
                     name="event",
                     filename="event.json",
-                    data=json.dumps(self._event_data),
+                    data=event_json,
                     content_type="json",
                 ),
                 FormData(
@@ -591,18 +709,21 @@ class ScopeContext:
         # DEV: The as_bytes method ends up writing the data line by line, which
         # breaks the final payload. We add a placeholder instead and manually
         # replace it with the compressed JSON.
-        body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(payload).encode("utf-8")))
+        body = body.replace(b"[symbols_placeholder]", compressed)
 
-        with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
-            log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
-            conn.request("POST", "/symdb/v1/input", body, headers)
-
-            try:
-                log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
-                if (result := conn.getresponse()).status // 100 != 2:
-                    log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
-            except Exception:
-                log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
+        log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
+        try:
+            response = self._sender.send(body, headers["Content-Type"])
+        except Exception:
+            log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
+        else:
+            if not response.accepted:
+                log.error(
+                    "[PID %d] SymDB: Bad response while uploading symbols: [%d] %r",
+                    os.getpid(),
+                    response.status,
+                    response.body,
+                )
 
     def __bool__(self) -> bool:
         with self._scopes_lock:

@@ -2,7 +2,9 @@ import atexit
 import contextlib
 from dataclasses import dataclass
 import hashlib
+import io
 from itertools import chain
+import json
 import os
 import platform
 import random
@@ -13,6 +15,7 @@ import subprocess
 import sys
 import sysconfig
 import tarfile
+import tempfile
 import time
 import typing as t
 import warnings
@@ -104,7 +107,7 @@ _cpu_count = getattr(os, "process_cpu_count", os.cpu_count)() or 1
 if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
     os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = str(_cpu_count)
 
-# Retry configuration for downloads (handles GitHub API failures like 503, 429)
+# Retry configuration for downloads (handles GitHub failures like 429 and 5xx)
 DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
 DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
 DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
@@ -113,26 +116,117 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 NATIVE_CRATE = HERE / "src" / "native"
+# Standalone cdylib wrapper around libdatadog's published `libdd-profiling-heap-gotter`
+# crate (crates.io). Built out-of-band (opt-in) from the tagged `src/native` build.
+# TODO: Integrate into the `src/native` workspace as a Cargo feature flag (e.g.
+# `[features] heap-gotter = [...]`) rather than maintaining a standalone crate and
+# separate build step. This would let the heap-gotter follow the same compile, link,
+# strip, and packaging path as the other profiling native artifacts.
+NATIVE_HEAP_GOTTER_CRATE: Path = HERE / "src" / "native_heap_gotter"
 DDTRACE_DIR = HERE / "ddtrace"
 LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
 VENDOR_DIR = DDTRACE_DIR / "vendor"
-CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
+# Windows CI overrides this to keep lock-prone Rust DLLs out of the
+# Git checkout.
+CARGO_TARGET_DIR = Path(
+    os.getenv(
+        "_DD_NATIVE_CARGO_TARGET_DIR",
+        NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}",
+    )
+).absolute()
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
-BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+if sys.platform == "win32":
+    # The native module uses CPython APIs which PyO3's raw-dylib mode does not declare.
+    os.environ.setdefault("PYO3_USE_RAW_DYLIB", "0")
+
+
+def _env_truthy(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
+
+
+def is_musl_libc() -> bool:
+    """Whether the current interpreter is a musl (Alpine / musllinux) build."""
+    return any(
+        "musl" in (sysconfig.get_config_var(k) or "")
+        for k in ("SOABI", "EXT_SUFFIX", "BUILD_GNU_TYPE", "HOST_GNU_TYPE", "MULTIARCH")
+    )
+
+
+# Opt-in build of the native heap-gotter cdylib.
+# Off by default so normal builds don't pay the extra cargo fetch/compile and
+# mainline wheels don't ship the artifact until it GA's.
+# Same env var as runtime arming (ProfilingConfigNativeHeap.enabled); setup.py
+# reads it via os.getenv during the package build, independent of DDConfig.
+# Musl is always a no-op even when the env is set (see is_musl_libc).
+if _env_truthy("DD_PROFILING_NATIVE_HEAP_ENABLED") and is_musl_libc():
+    print(
+        "WARNING: DD_PROFILING_NATIVE_HEAP_ENABLED is set but the native heap-gotter "
+        "cdylib is only built on manylinux (glibc); skipping on musllinux."
+    )
+BUILD_NATIVE_HEAP_GOTTER: bool = _env_truthy("DD_PROFILING_NATIVE_HEAP_ENABLED") and not is_musl_libc()
+# Keep the staged cdylib unstripped when building with the upstream test-support
+# feature (hook-hit counter for e2e / integration tests).
+BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT = _env_truthy("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT")
 
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "2.0.0"
+LIBDDWAF_VERSION = "2.1.0"
+LIBDDWAF_CHECKSUMS = {
+    "libddwaf-2.1.0-aarch64-linux-musl.tar.gz": "ba4a51e3c96ab3421d0c83c4b711cf2ade47aa5c986653c4c66527feffd80bec",
+    "libddwaf-2.1.0-x86_64-linux-musl.tar.gz": "b1a4a57098ec86d8e07036ecd9a43f4fc3b3d4497924c9ceffd91089647ab2ac",
+    "libddwaf-2.1.0-darwin-arm64.tar.gz": "bba0f952f3bd119b10008d3a2e9f263bed892bccd5eee3e5ea576336b6978651",
+    "libddwaf-2.1.0-darwin-x86_64.tar.gz": "3ca7bd84c2d4220379a1f0ca4b42fc93677beeec99675c951f301e80885a1281",
+    "libddwaf-2.1.0-windows-arm64.tar.gz": "124247affb836e0f042514b29bf8258ee77967207c4504c3c6c1ffecc212264f",
+    "libddwaf-2.1.0-windows-win32.tar.gz": "e4cbd6f26656f4d98a5e4ccb276b15009a076486b1d36cead897d4c66cf3fb82",
+    "libddwaf-2.1.0-windows-x64.tar.gz": "b7cd03f964e5bf0de1a1191b26a33c04adaea714ef94952f7a8b44a70060b8d3",
+}
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v35.0.0 requires rust 1.87.0.
+# libdatadog v46.1.0 requires rust 1.87.0.
 RUST_MINIMUM_VERSION = "1.87.0"
+
+
+SCCACHE_START_MAX_ATTEMPTS = 3
+SCCACHE_START_TIMEOUT = 60
+
+
+def start_sccache_server(sccache_path):
+    """
+    Start the sccache server up front and report whether it is usable.
+
+    The server health-checks the storage backend (S3 in CI) when it starts, and SCCACHE_IGNORE_SERVER_IO_ERROR does
+    not cover that check. Without this, a transient backend error fails the first compile instead of just the cache.
+
+    --dist-status rather than --start-server or --show-stats: it connects to a running server or starts one, and exits
+    nonzero if the storage check fails, as the first compile would. --start-server exits nonzero with "Address in use"
+    when a server is already running, and --show-stats exits 0 with default stats even when no server can start.
+    """
+    for attempt in range(1, SCCACHE_START_MAX_ATTEMPTS + 1):
+        try:
+            subprocess.run(
+                [str(sccache_path), "--dist-status"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=SCCACHE_START_TIMEOUT,
+            )
+            return True
+        except (subprocess.SubprocessError, OSError) as e:
+            # sccache reports why it failed on stderr, not in the exception text
+            reason = (getattr(e, "stderr", None) or "").strip() or e
+            print(
+                "WARNING: sccache server unavailable (attempt %d/%d): %s"
+                % (attempt, SCCACHE_START_MAX_ATTEMPTS, reason)
+            )
+            if attempt < SCCACHE_START_MAX_ATTEMPTS:
+                time.sleep(2**attempt)
+    return False
 
 
 def interpose_sccache():
@@ -150,6 +244,9 @@ def interpose_sccache():
         return
     sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
+        if not start_sccache_server(sccache_path):
+            print("WARNING: sccache server did not start, building without sccache")
+            return
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
         # a wrapper
@@ -178,8 +275,8 @@ def retry_download(
 ):
     """
     Decorator to retry downloads with exponential backoff.
-    Handles HTTP 503, 429, network errors from GitHub API, and cargo install failures.
-    Retriable errors: HTTP 429 (rate limit), 502, 503, 504, network timeouts, and subprocess errors.
+    Handles HTTP 429 and server errors, network errors from GitHub, and cargo install failures.
+    Retriable errors: HTTP 429, 500, 502, 503, 504, network timeouts, and subprocess errors.
     """
 
     def decorator(func):
@@ -191,9 +288,10 @@ def retry_download(
                 except (HTTPError, URLError, TimeoutError, OSError, subprocess.CalledProcessError) as e:
                     # Check if it's a retriable error
                     is_retriable = False
+                    error_code: t.Optional[str] = None
                     if isinstance(e, HTTPError):
-                        # Retry on 429 (rate limit), 502/503/504 (server errors)
-                        is_retriable = e.code in (429, 502, 503, 504)
+                        # Retry on 429 (rate limit) and transient server errors
+                        is_retriable = e.code in (429, 500, 502, 503, 504)
                         error_code = f"HTTP {e.code}"
                     elif isinstance(e, (URLError, TimeoutError)):
                         # Retry on network errors and timeouts
@@ -233,54 +331,11 @@ def retry_download(
     return decorator
 
 
-def verify_checksum_from_file(sha256_filename, filename):
-    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
-    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
-    try:
-        assert expected_filename.endswith(Path(filename).name)
-        assert expected_checksum == actual_checksum
-    except AssertionError:
-        print("Checksum verification error: Checksum and/or filename don't match:")
-        print("expected checksum: %s" % expected_checksum)
-        print("actual checksum: %s" % actual_checksum)
-        print("expected filename: %s" % expected_filename)
-        print("actual filename: %s" % filename)
-        sys.exit(1)
-
-
-def verify_checksum_from_hash(expected_checksum, filename):
-    # sha256 File format is ``checksum`` followed by two whitespaces, then ``filename`` then ``\n``
-    actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
-    try:
-        assert expected_checksum == actual_checksum
-    except AssertionError:
-        print("Checksum verification error: Checksum mismatch:")
-        print("expected checksum: %s" % expected_checksum)
-        print("actual checksum: %s" % actual_checksum)
-        sys.exit(1)
-
-
-def load_module_from_project_file(mod_name, fname):
-    """
-    Helper used to load a module from a file in this project
-
-    DEV: Loading this way will by-pass loading all parent modules
-         e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
-         which has side effects like loading the tracer
-    """
-    fpath = HERE / fname
-
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(mod_name, fpath)
-    if spec is None:
-        raise ImportError(f"Could not find module {mod_name} in {fpath}")
-    mod = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        raise ImportError(f"Could not load module {mod_name} from {fpath}")
-    spec.loader.exec_module(mod)
-    return mod
+def checksum_mismatch(data: bytes, expected_checksum: str, source) -> t.Optional[str]:
+    actual_checksum = hashlib.sha256(data).hexdigest()
+    if actual_checksum == expected_checksum:
+        return None
+    return "Checksum mismatch for %s: expected %s, got %s" % (source, expected_checksum, actual_checksum)
 
 
 def is_64_bit_python():
@@ -288,7 +343,7 @@ def is_64_bit_python():
 
 
 rust_features = ["stats"]
-if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
     rust_features.append("profiling")
     if not SERVERLESS_BUILD:
         rust_features.append("crashtracker")
@@ -469,7 +524,7 @@ class LibraryDownload:
     version: t.Optional[str] = None
     url_root: t.Optional[str] = None
     available_releases: dict[str, list[str]] = {}
-    expected_checksums: t.Optional[dict[str, dict[str, str]]] = None
+    expected_checksums: dict[str, str] = {}
     translate_suffix: dict[str, tuple[str, ...]] = {}
 
     @classmethod
@@ -485,11 +540,6 @@ class LibraryDownload:
         if cls.version and version_sentinel.exists() and version_sentinel.read_text().strip() != cls.version:
             shutil.rmtree(download_dir)
             download_dir.mkdir(parents=True, exist_ok=True)
-
-        # If the directory is nonempty (beyond the sentinel), assume we're done
-        non_sentinel = [p for p in download_dir.iterdir() if p.name != ".version"]
-        if non_sentinel:
-            return
 
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
@@ -514,12 +564,22 @@ class LibraryDownload:
 
             arch_dir = download_dir / arch
 
-            # If the directory for the architecture exists and is nonempty, assume we're done
-            if arch_dir.is_dir() and any(arch_dir.iterdir()):
-                continue
-
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
             archive_name = cls.get_archive_name(arch, CURRENT_OS)
+            expected_checksum = cls.expected_checksums.get(archive_name)
+            if expected_checksum is None:
+                raise RuntimeError("No pinned checksum for %s, see docs/build_system.rst" % archive_name)
+
+            # A source checkout can be shared between host and container builds.
+            # Only the library for this OS/architecture makes an existing directory complete.
+            lib_dir = arch_dir / "lib"
+            extracted_from = arch_dir / f"{archive_name}.sha256"
+            if (
+                extracted_from.is_file()
+                and extracted_from.read_text() == expected_checksum
+                and all((lib_dir / f"lib{cls.name}{suffix}").is_file() for suffix in suffixes)
+            ):
+                continue
 
             download_address = "%s/%s/%s" % (
                 cls.url_root,
@@ -531,7 +591,17 @@ class LibraryDownload:
             if cls.USE_CACHE and not cls.CACHE_DIR.exists():
                 cls.CACHE_DIR.mkdir(parents=True)
 
-            if not (cls.USE_CACHE and download_dest.exists()):
+            archive = None
+            if cls.USE_CACHE and download_dest.exists():
+                archive = download_dest.read_bytes()
+                mismatch = checksum_mismatch(archive, expected_checksum, download_dest)
+                if mismatch:
+                    print(f"WARNING: Discarding the cached archive. {mismatch}")
+                    archive = None
+                else:
+                    print(f"Using cached {download_dest}")
+
+            if archive is None:
                 print(f"Downloading {archive_name} to {download_dest}")
                 start_ns = time.time_ns()
 
@@ -541,45 +611,48 @@ class LibraryDownload:
                     """Download file with automatic retry on transient errors."""
                     return urlretrieve(url, str(dest))
 
-                filename, _ = download_file(download_address, download_dest)
-
-                # Verify checksum of downloaded file
-                if cls.expected_checksums is None:
-                    sha256_address = download_address + ".sha256"
-                    sha256_dest = str(download_dest) + ".sha256"
-                    sha256_filename, _ = download_file(sha256_address, sha256_dest)
-                    verify_checksum_from_file(sha256_filename, str(download_dest))
-                else:
-                    expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
-                    verify_checksum_from_hash(expected_checksum, str(download_dest))
+                fd, partial_dest = tempfile.mkstemp(prefix=f"{archive_name}.", suffix=".part", dir=download_dest.parent)
+                os.close(fd)
+                try:
+                    download_file(download_address, partial_dest)
+                    archive = Path(partial_dest).read_bytes()
+                    mismatch = checksum_mismatch(archive, expected_checksum, download_address)
+                    if mismatch:
+                        raise RuntimeError(mismatch)
+                    if cls.USE_CACHE:
+                        os.replace(partial_dest, download_dest)
+                finally:
+                    with contextlib.suppress(OSError):
+                        os.unlink(partial_dest)
 
                 DebugMetadata.download_times[archive_name] = time.time_ns() - start_ns
-
-            else:
-                # If the file exists in the cache, we will use it
-                filename = str(download_dest)
-                print(f"Using cached {filename}")
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
-            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
+            with tarfile.open(fileobj=io.BytesIO(archive), mode="r|gz", errorlevel=2) as tar:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
 
-            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
+            with tarfile.open(fileobj=io.BytesIO(archive), mode="r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
-                Path(HERE / archive_dir).rename(arch_dir)
+
+            extracted_dir = Path(HERE / archive_dir)
+            if arch_dir.exists():
+                # A host and container can use the same architecture name with different library suffixes.
+                shutil.copytree(extracted_dir, arch_dir, dirs_exist_ok=True)
+                shutil.rmtree(extracted_dir)
+            else:
+                extracted_dir.rename(arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
             lib_dir = arch_dir / "lib"
             for suffix in suffixes:
-                original_file = lib_dir / "{}{}".format(cls.name, suffix)
+                original_file = lib_dir / f"{cls.name}{suffix}"
                 if original_file.exists():
-                    renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
-                    original_file.rename(renamed_file)
+                    renamed_file = lib_dir / f"lib{cls.name}{suffix}"
+                    original_file.replace(renamed_file)
 
-            if not cls.USE_CACHE:
-                Path(filename).unlink()
+            extracted_from.write_text(expected_checksum)
 
         # Record the version so future incremental runs can detect bumps.
         if cls.version:
@@ -603,6 +676,7 @@ class LibDDWafDownload(LibraryDownload):
     download_dir = LIBDDWAF_DOWNLOAD_DIR
     version = LIBDDWAF_VERSION
     url_root = "https://github.com/DataDog/libddwaf/releases/download"
+    expected_checksums = LIBDDWAF_CHECKSUMS
     available_releases = {
         "Windows": ["arm64", "win32", "x64"],
         "Darwin": ["arm64", "x86_64"],
@@ -644,11 +718,24 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
         # Developer tooling
         ".plantuml",
         ".supp",
+        # ELF debug symbol sidecars (extracted by setup.py / extract_debug_symbols.py)
+        ".debug",
     ]
 )
 
 
 class LibraryDownloader(BuildPyCommand):
+    # Opt out of bundling libddwaf, for distribution packagers that must build
+    # from source and package libddwaf separately. See docs/build_system.rst.
+    user_options = BuildPyCommand.user_options + [
+        ("no-bundle-libddwaf", None, "do not download libddwaf; load the system library at runtime"),
+    ]
+    boolean_options = BuildPyCommand.boolean_options + ["no-bundle-libddwaf"]
+
+    def initialize_options(self) -> None:
+        BuildPyCommand.initialize_options(self)
+        self.no_bundle_libddwaf = 0
+
     def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
         # is set to True when the package is being installed in editable mode, which we need to know
@@ -667,9 +754,32 @@ class LibraryDownloader(BuildPyCommand):
         # version changes even when CleanLibraries.remove_artifacts() is skipped.
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
-        LibDDWafDownload.run()
+        if self.no_bundle_libddwaf:
+            if CURRENT_OS != "Linux":
+                raise RuntimeError(
+                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no system "
+                    "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
+                    "so libddwaf must be bundled" % CURRENT_OS
+                )
+            print("Not bundling libddwaf: the runtime will load the system library")
+            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
+        else:
+            LibDDWafDownload.run()
+        self._clean_staged_libddwaf()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
+
+    def _clean_staged_libddwaf(self):
+        """Drop a previously staged libddwaf so the wheel mirrors the source tree.
+
+        Setuptools copies new and updated files into build_lib but never removes
+        files that disappeared from the source tree, so a library staged by an
+        earlier build would still reach the wheel of a --no-bundle-libddwaf
+        build and shadow the system one at load time.
+        """
+        if not self.build_lib:
+            return
+        shutil.rmtree(Path(self.build_lib) / LIBDDWAF_DOWNLOAD_DIR.relative_to(HERE), ignore_errors=True)
 
     def find_data_files(self, package, src_dir):
         """Strip build/source artifacts from wheel data files."""
@@ -832,6 +942,18 @@ SHARED_DEPS: list[SharedDep] = [
 ]
 
 
+def _first_up_to_date(candidates: list[Path], sources: list[str]) -> t.Optional[Path]:
+    """Return the first candidate artifact that is newer than every source, else None.
+
+    ext_cache restores a .so into the source tree for an editable build and into build/lib
+    for a wheel build, so both are candidates.
+    """
+    for candidate in candidates:
+        if not newer_group(sources, str(candidate), "newer"):
+            return candidate
+    return None
+
+
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
@@ -840,9 +962,15 @@ class CustomBuildExt(build_ext):
             self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
+
+        if BUILD_NATIVE_HEAP_GOTTER and CURRENT_OS == "Linux" and is_64_bit_python():
+            with _time_phase("build_heap_gotter"):
+                self.build_heap_gotter()
+        else:
+            self._clean_stale_heap_gotter()
 
         # Build all declared shared C++ dependencies before extension builds.
         with _time_phase("build_shared_deps"):
@@ -1006,6 +1134,114 @@ class CustomBuildExt(build_ext):
         else:
             print(f"Skipping libdd_wrapper build (no changes): {wrapper_name}")
 
+    def build_heap_gotter(self) -> None:
+        """Build the native heap-gotter cdylib via cargo and stage it for packaging.
+
+        Produces ``libdd_heap_gotter<EXT_SUFFIX>.so`` under
+        ``ddtrace/internal/datadog/profiling/`` (mirroring the ``_native`` /
+        ``libdd_wrapper`` naming so the ctypes activator can resolve it with the
+        same EXT_SUFFIX logic). The wrapper crate has no Python linkage, so a
+        single ``target/`` dir is shared across interpreter versions.
+        """
+        suffix: str = getattr(self, "suffix", None) or sysconfig.get_config_var("EXT_SUFFIX")
+        gotter_name: str = f"libdd_heap_gotter{suffix}"
+
+        output_dir: Path
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            output_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
+        else:
+            output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        gotter_library: Path = output_dir / gotter_name
+
+        cargo_cmd: list[str] = [
+            "cargo",
+            "build",
+            "--release",
+            "--locked",
+            "--manifest-path",
+            str(NATIVE_HEAP_GOTTER_CRATE / "Cargo.toml"),
+            # Emit machine-readable artifact records so we can locate the built
+            # cdylib no matter where cargo actually wrote it. Diagnostics still
+            # render to stderr in human form.
+            "--message-format=json-render-diagnostics",
+        ]
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
+            cargo_cmd.extend(["--features", "test-support"])
+        cargo_cmd.extend(DD_CARGO_ARGS)
+        proc: subprocess.CompletedProcess[str] = subprocess.run(
+            cargo_cmd, check=True, stdout=subprocess.PIPE, text=True
+        )
+
+        # Locate the produced cdylib from cargo's own artifact output rather than
+        # assuming a fixed `target/release` path: cargo honors CARGO_TARGET_DIR
+        # (common in CI) and DD_CARGO_ARGS may pass --target-dir / --target,
+        # either of which moves the artifact out from under a hard-coded lookup.
+        # Each "compiler-artifact" message lists the absolute output paths in
+        # "filenames"; we take the crate's cdylib (.so/.dylib).
+        built: t.Optional[Path] = None
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            msg: dict[str, t.Any]
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if msg.get("reason") != "compiler-artifact":
+                continue
+            if (msg.get("target") or {}).get("name") != "dd_heap_gotter":
+                continue
+            for filename in msg.get("filenames") or []:
+                if filename.endswith((".so", ".dylib")):
+                    built = Path(filename)
+                    break
+        if built is None or not built.exists():
+            raise RuntimeError("Not able to find heap-gotter cdylib in cargo build output")
+
+        shutil.copy2(built, gotter_library)
+        print(f"Built and copied heap-gotter cdylib: {gotter_name}")
+
+        # Set SONAME so the loader records the staged name, matching build_rust.
+        if CURRENT_OS == "Linux":
+            subprocess.run(["patchelf", "--set-soname", gotter_name, gotter_library], check=True)
+        elif CURRENT_OS == "Darwin":
+            subprocess.run(["install_name_tool", "-id", gotter_name, gotter_library], check=True)
+
+        if self._should_strip_heap_gotter():
+            debug_sidecar: t.Optional[Path] = self._extract_and_strip_staged_debug_symbols(gotter_library)
+            if debug_sidecar:
+                unstripped_size: int = built.stat().st_size
+                stripped_size: int = gotter_library.stat().st_size
+                print(
+                    f"Stripped heap-gotter cdylib for wheel packaging: "
+                    f"{unstripped_size} -> {stripped_size} bytes "
+                    f"(debug symbols: {debug_sidecar.name})"
+                )
+            else:
+                print(
+                    "WARNING: heap-gotter cdylib was not stripped (debug symbol extraction failed); "
+                    "wheel will ship the unstripped artifact",
+                    flush=True,
+                )
+
+    def _clean_stale_heap_gotter(self) -> None:
+        """Remove any previously staged heap-gotter artifacts so a default wheel
+        does not accidentally ship the opt-in cdylib.
+        """
+        candidates: list[Path] = [Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"]
+        if hasattr(self, "build_lib") and self.build_lib:
+            candidates.append(
+                Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
+            )
+        for base in candidates:
+            if not base.is_dir():
+                continue
+            for stale in base.glob("libdd_heap_gotter*"):
+                stale.unlink()
+                print(f"Removed stale heap-gotter artifact: {stale}")
+
     def build_shared_deps(self) -> None:
         """Build all shared C++ dependencies declared in SHARED_DEPS.
 
@@ -1067,25 +1303,60 @@ class CustomBuildExt(build_ext):
             try:
                 subprocess.run(["strip", "-g", so_file], check=True)
             except subprocess.CalledProcessError as e:
-                print(
-                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
-                )
+                print(f"WARNING: stripping '{so_file}' returned non-zero exit status ({e.returncode}), ignoring")
             except Exception as e:
-                print(
-                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
-                )
+                print(f"WARNING: An error occurred while stripping the symbols from '{so_file}', ignoring: {e}")
+
+    @staticmethod
+    def _should_strip_heap_gotter() -> bool:
+        if BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT:
+            return False
+        if COMPILE_MODE.lower() == "debug":
+            return False
+        return CURRENT_OS == "Linux"
+
+    @staticmethod
+    def _extract_and_strip_staged_debug_symbols(so_file: Path) -> t.Optional[Path]:
+        """Extract debug symbols from a staged shared library and strip it in place.
+
+        Mirrors ``scripts/extract_debug_symbols.create_and_strip_debug_symbols`` so
+        shipping wheels match the linux/wheel CI path (_native and other .so files
+        are stripped post-build; heap-gotter is stripped at staging time because it
+        is built out-of-band from setuptools extensions).
+        """
+        objcopy: t.Optional[str] = shutil.which("objcopy")
+        strip_bin: t.Optional[str] = shutil.which("strip")
+        if not objcopy or not strip_bin:
+            print("WARNING: objcopy/strip not found, skipping heap-gotter symbol stripping", flush=True)
+            return None
+
+        so_path: str = str(so_file)
+        subprocess.run([objcopy, "--remove-section", ".llvmbc", so_path], check=False)
+        debug_out: str = f"{so_path}.debug"
+        try:
+            subprocess.run([objcopy, "--only-keep-debug", so_path, debug_out], check=True)
+            if not Path(debug_out).is_file() or Path(debug_out).stat().st_size == 0:
+                print(f"WARNING: failed to create heap-gotter debug sidecar for {so_file}", flush=True)
+                return None
+            subprocess.run([strip_bin, "-g", so_path], check=True)
+            subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_path], check=True)
+            return Path(debug_out)
+        except subprocess.CalledProcessError as e:
+            print(f"WARNING: failed to extract/strip heap-gotter debug symbols: {e}", flush=True)
+            Path(debug_out).unlink(missing_ok=True)
+            return None
 
     def build_extension(self, ext: Extension) -> None:
         if isinstance(ext, CMakeExtension):
             try:
                 self.build_extension_cmake(ext)
             except subprocess.CalledProcessError as e:
-                print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
+                print(f"WARNING: Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
                 if ext.optional:
                     return
                 raise
             except Exception as e:
-                print("WARNING: An error occurred while building the CMake extension {}, {}.".format(ext.name, e))
+                print(f"WARNING: An error occurred while building the CMake extension {ext.name}, {e}.")
                 if ext.optional:
                     return
                 raise
@@ -1094,9 +1365,6 @@ class CustomBuildExt(build_ext):
             # sources.  ext.sources contains the .c files (post-cythonize), so
             # if Cython regenerated a .c due to a .pxd or .pyx change the .c
             # will be newer and this guard will correctly let the build proceed.
-            # We use the inplace path (source-tree location) explicitly because
-            # that is where ext_cache always restores .so files (it runs
-            # ext_hashes --inplace), regardless of the current self.inplace.
             if self.INCREMENTAL:
                 # get_ext_filename gives the package-relative path, e.g.
                 # "ddtrace/profiling/collector/_lock.cpython-313-darwin.so"
@@ -1118,15 +1386,12 @@ class CustomBuildExt(build_ext):
                 sources_for_check = [_pyx_or_c(s) for s in ext.sources]
                 # Also include all .pxd files so declaration changes invalidate the cache.
                 sources_for_check.extend(str(p.resolve()) for p in (HERE / "ddtrace").glob("**/*.pxd") if p.is_file())
-                if not newer_group(
-                    sources_for_check,
-                    str(ext_inplace),
-                    "newer",
-                ):
+                cached = _first_up_to_date([ext_inplace, full_path.resolve()], sources_for_check)
+                if cached is not None:
                     print(f"skipping '{ext.name}' extension (up-to-date)")
                     full_path.parent.mkdir(parents=True, exist_ok=True)
-                    if ext_inplace != full_path.resolve():
-                        shutil.copy(ext_inplace, full_path)
+                    if cached != full_path.resolve():
+                        shutil.copy(cached, full_path)
                 else:
                     super().build_extension(ext)
             else:
@@ -1242,18 +1507,15 @@ class CustomBuildExt(build_ext):
             else:
                 dependencies = []
 
-            if not (
-                force
-                or newer_group(
-                    [str(_.resolve()) for _ in ext.get_sources()] + dependencies, str(ext_path.resolve()), "newer"
-                )
-            ):
+            sources_for_check = [str(_.resolve()) for _ in ext.get_sources()] + dependencies
+            cached = None if force else _first_up_to_date([ext_path.resolve(), full_path.resolve()], sources_for_check)
+            if cached is not None:
                 print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 
                 # We need to copy the binary where setuptools expects it
                 full_path.parent.mkdir(parents=True, exist_ok=True)
-                if ext_path.resolve() != full_path.resolve():
-                    shutil.copy(ext_path, full_path)
+                if cached != full_path.resolve():
+                    shutil.copy(cached, full_path)
 
                 return
             else:
@@ -1274,32 +1536,29 @@ class CustomBuildExt(build_ext):
             ext.source_dir, cmake_build_dir, output_dir, extension_basename, ext.build_type
         )
 
-        if BUILD_PROFILING_NATIVE_TESTS:
-            cmake_args += ["-DBUILD_TESTING=ON"]
-        else:
-            cmake_args += ["-DBUILD_TESTING=OFF"]
+        cmake_args += ["-DBUILD_TESTING=OFF"]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
         # by setuptools/distutils
         if IS_EDITABLE:
             # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
-            cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
+            cmake_args.append(f"-DINPLACE_LIB_INSTALL_DIR={ext.source_dir}")
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
-        build_args += ["--config {}".format(ext.build_type)]
+        build_args += [f"--config {ext.build_type}"]
         if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
             # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
             # self.parallel is a Python 3 only way to set parallel jobs by hand
             # using -j in the build_ext call, not supported by pip or PyPA-build.
             # DEV: -j is supported in CMake 3.12+ only.
             if hasattr(self, "parallel") and self.parallel:
-                build_args += ["-j{}".format(self.parallel)]
+                build_args += [f"-j{self.parallel}"]
 
         # Arguments to cmake --install command
         install_args = ext.install_args or []
-        install_args += ["--config {}".format(ext.build_type)]
+        install_args += [f"--config {ext.build_type}"]
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
@@ -1417,7 +1676,7 @@ def debug_build_extension(fn):
         try:
             return fn(self, ext, *args, **kwargs)
         finally:
-            DebugMetadata.build_times[ext] = time.time_ns() - start
+            DebugMetadata.build_times[ext.name] = time.time_ns() - start
 
     return wrapper
 
@@ -1511,38 +1770,27 @@ def check_rust_toolchain():
         rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         cargo_res = subprocess.run(["cargo", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if rustc_res.returncode != 0:
-            raise EnvironmentError("rustc required to build Rust extensions")
+            raise OSError("rustc required to build Rust extensions")
         if cargo_res.returncode != 0:
-            raise EnvironmentError("cargo required to build Rust extensions")
+            raise OSError("cargo required to build Rust extensions")
 
         # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
         rustc_ver = rustc_res.stdout.decode().split(" ")[1]
         cargo_ver = cargo_res.stdout.decode().split(" ")[1]
         if rustc_ver < RUST_MINIMUM_VERSION:
-            raise EnvironmentError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
+            raise OSError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
         if cargo_ver < RUST_MINIMUM_VERSION:
-            raise EnvironmentError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
+            raise OSError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
     except FileNotFoundError:
-        raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
+        raise OSError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
 
 
 # Before adding any extensions, check that system pre-requisites are satisfied
 try:
     check_rust_toolchain()
-except EnvironmentError as e:
+except OSError as e:
     print(f"{e}")
     sys.exit(1)
-
-
-def get_exts_for(name):
-    try:
-        mod = load_module_from_project_file(
-            "ddtrace.vendor.{}.setup".format(name), "ddtrace/vendor/{}/setup.py".format(name)
-        )
-        return mod.get_extensions()
-    except Exception as e:
-        print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
-        return []
 
 
 if CURRENT_OS == "Windows":
@@ -1608,7 +1856,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
         memalloc_cmake_args = []
@@ -1668,14 +1916,9 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
             ),
-            Extension(
-                "ddtrace.internal.telemetry.metrics_namespaces",
-                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                language="c",
-            ),
         ]
 
-        if sys.version_info < (3, 15):
+        if sys.version_info < (3, 16):
             _cython_sources += [
                 CythonExtension(
                     "ddtrace.profiling._threading",
@@ -1750,12 +1993,11 @@ setup(
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ["libdd_wrapper*.*"]
+            + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
         ),
     },
     zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
     cmdclass={
         "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,
@@ -1769,6 +2011,6 @@ setup(
         "setuptools-rust<2",
         "patchelf>=0.17.0.0; sys_platform == 'linux'",
     ],
-    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
+    ext_modules=ext_modules + cython_exts,  # type: ignore[arg-type]
     distclass=PatchedDistribution,
 )

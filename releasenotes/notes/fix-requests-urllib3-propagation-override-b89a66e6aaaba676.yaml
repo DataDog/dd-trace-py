@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    requests: Fixes an issue where distributed tracing context propagated on outbound
+    ``requests`` calls pointed at the wrong span when the ``urllib3`` integration was
+    also enabled (for example via ``DD_TRACE_URLLIB3_ENABLED=true``), causing those
+    requests to be missing or show incorrect latency in downstream traces.

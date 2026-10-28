@@ -11,6 +11,8 @@ import weakref
 import wrapt
 
 from ddtrace.internal import _unpatched
+from ddtrace.internal.locks import RLock as _RLock
+from ddtrace.internal.native.exceptions import is_panic_exception
 
 
 log = logging.getLogger(__name__)
@@ -20,6 +22,8 @@ log = logging.getLogger(__name__)
 _registry: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 _registry_before_fork: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 _registry_after_parent: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
+_registry_before_child_hooks: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
+_registry_after_child_hooks: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -31,8 +35,15 @@ _soft = True
 # Flag to determine, from the parent process, if fork has been called
 _forked = False
 
-# Flag to determine if the current process is a fork child
-_fork_child = False
+# Fork generation counter. This is incremented every time a fork occurs, and is
+# used to determine if the current process is a child of a fork, and if so, how
+# many generations of forks have occurred since the original process.
+_fork_generation = 0
+
+# Process managers such as Celery can close inherited file descriptors after
+# Python's after-in-child callbacks return. Native workers must not be rebuilt while this
+# flag is set because their newly opened descriptors would be swept up by that later cleanup.
+_in_child_hook = False
 
 
 def set_forked():
@@ -46,13 +57,21 @@ def has_forked() -> bool:
 
 
 def set_fork_child() -> None:
-    global _fork_child
+    global _fork_generation
 
-    _fork_child = True
+    _fork_generation += 1
 
 
 def is_fork_child() -> bool:
-    return _fork_child
+    return _fork_generation > 0
+
+
+def get_generation() -> int:
+    return _fork_generation
+
+
+def in_child_hook() -> bool:
+    return _in_child_hook
 
 
 def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
@@ -62,11 +81,71 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
         except Exception:
             # Mimic the behaviour of Python's fork hooks.
             log.exception("Exception ignored in forksafe hook %r", hook)
+        except BaseException as e:
+            # A native hook can raise pyo3_runtime.PanicException. We handle it
+            # to allow other hooks to continue in this expected case.
+            if not is_panic_exception(e):
+                raise
+            log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
-ddtrace_after_in_child = functools.partial(run_hooks, _registry)
-ddtrace_after_in_parent = functools.partial(run_hooks, _registry_after_parent)
+# CPython runs the before-fork and after-fork-in-parent callbacks outside of
+# any lock, so several threads can be forking at the same time. Our hooks
+# assume that before-fork, fork and after-fork happen as one uninterrupted
+# sequence, so we serialize them: the thread that runs the before-fork hooks
+# holds this lock until its after-fork hooks have completed. Only the forking
+# thread survives in the child, so threads queued on the lock exist only in
+# the parent, where they take their turn once the lock is released. Threads
+# started by ddtrace never fork and never take this lock, which is what makes
+# it safe for the before-fork hooks to join them while holding it.
+#
+# This is an RLock because it records its owner as part of acquire() and
+# release(). Tracking the owner separately would leave windows where an
+# asynchronous exception (e.g. KeyboardInterrupt) leaves the lock held with no
+# recorded owner, which would block every subsequent fork.
+_fork_lock = _RLock()
+
+
+def ddtrace_before_fork() -> None:
+    _fork_lock.acquire()
+
+    run_hooks(_registry_before_fork)
+
+
+def ddtrace_after_in_parent() -> None:
+    if not _fork_lock._is_owned():  # type: ignore[attr-defined]
+        # An exception (e.g. KeyboardInterrupt) can interrupt the blocking
+        # acquire in ddtrace_before_fork, and CPython reports it and forks
+        # anyway. Another thread may be in the middle of its own fork, so
+        # running the after-parent hooks here would undo its before-fork work
+        # (e.g. restart the threads it is stopping).
+        return
+
+    try:
+        run_hooks(_registry_after_parent)
+    finally:
+        _fork_lock.release()
+
+
+def run_child_hooks() -> None:
+    global _in_child_hook, _fork_lock
+
+    # The child is single-threaded, so a fresh lock is equivalent to releasing
+    # the inherited one. Unlike a release, it also covers callers that run the
+    # child hooks without a matching before-fork call (e.g. uWSGI workers
+    # forked by the master at the C level).
+    _fork_lock = _RLock()
+
+    _in_child_hook = True
+    run_hooks(_registry_before_child_hooks)
+    try:
+        run_hooks(_registry)
+    finally:
+        run_hooks(_registry_after_child_hooks)
+        _in_child_hook = False
+
+
+ddtrace_after_in_child = run_child_hooks
 
 
 def register_hook(registry, hook):
@@ -77,6 +156,8 @@ def register_hook(registry, hook):
 register_before_fork = functools.partial(register_hook, _registry_before_fork)
 register = functools.partial(register_hook, _registry)
 register_after_parent = functools.partial(register_hook, _registry_after_parent)
+register_before_child_hooks = functools.partial(register_hook, _registry_before_child_hooks)
+register_after_child_hooks = functools.partial(register_hook, _registry_after_child_hooks)
 
 register(set_fork_child)
 register_after_parent(set_forked)
@@ -103,6 +184,20 @@ def unregister_before_fork(before_fork: typing.Callable[[], None]) -> None:
         log.info("before_in_child hook %r was unregistered without first being registered", before_fork)
 
 
+def unregister_before_child_hooks(hook: typing.Callable[[], None]) -> None:
+    try:
+        _registry_before_child_hooks.remove(hook)
+    except ValueError:
+        log.info("before-child-hooks callback %r was unregistered without first being registered", hook)
+
+
+def unregister_after_child_hooks(hook: typing.Callable[[], None]) -> None:
+    try:
+        _registry_after_child_hooks.remove(hook)
+    except ValueError:
+        log.info("after-child-hooks callback %r was unregistered without first being registered", hook)
+
+
 # Availability: Unix, not WASI, not Android, not iOS.
 # Added in version 3.7.
 if hasattr(os, "register_at_fork"):
@@ -127,7 +222,7 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         self,
         wrapped_class: type[_T],
     ) -> None:
-        super(ResetObject, self).__init__(wrapped_class())
+        super().__init__(wrapped_class())
         self._self_wrapped_class = wrapped_class
         _resetable_objects.add(self)
 
@@ -164,6 +259,10 @@ register(_reset_objects)
 
 def Lock() -> _unpatched.threading_Lock:
     return ResetObject(_unpatched.threading_Lock)
+
+
+def RLock() -> _unpatched.threading_RLock:
+    return ResetObject(_unpatched.threading_RLock)
 
 
 def Event() -> _unpatched.threading_Event:

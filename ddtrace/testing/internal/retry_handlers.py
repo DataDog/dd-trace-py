@@ -1,24 +1,20 @@
 from abc import ABC
 from abc import abstractmethod
 from collections import defaultdict
-import typing as t
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import TAG_FALSE
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
 
 
-if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.session_manager import SessionManager
-
-
 class RetryHandler(ABC):
-    def __init__(self, session_manager: "SessionManager") -> None:
-        self.session_manager = session_manager
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
 
     @abstractmethod
     def should_apply(self, test: Test) -> bool:
@@ -26,7 +22,7 @@ class RetryHandler(ABC):
         Return whether this retry policy should be applied to the given test.
 
         This is called before any test runs have happened, and should consider test properties (such as whether it's
-        new), as well as per-session retry limits (accessible via `self.session_manager`).
+        new), as well as per-session retry limits (accessible via `self.settings`).
 
         For each test, the test plugin will try each retry handler in the session's retry handlers list, and use the
         first one for which `should_apply()` returns True. The `should_apply()` check can assume that the retry feature
@@ -68,31 +64,70 @@ class RetryHandler(ABC):
 
 
 class AutoTestRetriesHandler(RetryHandler):
-    def __init__(self, session_manager: "SessionManager") -> None:
-        super().__init__(session_manager=session_manager)
+    def __init__(self, settings: Settings) -> None:
+        super().__init__(settings=settings)
         self.max_tests_to_retry_per_session = int(env.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1000"))
         self.max_retries_per_test = int(env.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "5"))
+        self._external_retry_budgets: dict[Test, tuple[int, int]] = {}
+        self._external_session_retries = 0
+        self._retries_disabled = False
 
     def get_pretty_name(self) -> str:
         return "Auto Test Retries"
 
     def should_apply(self, test: Test) -> bool:
-        return self.max_tests_to_retry_per_session > 0
+        if self._retries_disabled:
+            return False
+        return test in self._external_retry_budgets or self.max_tests_to_retry_per_session > 0
+
+    def set_external_retry_budget(
+        self,
+        test: Test,
+        retries: int,
+        retry_limit: int,
+        session_retries: int,
+    ) -> None:
+        """Account for retries performed outside this handler without creating test runs."""
+        if retries > 0:
+            self._external_retry_budgets[test] = (retries, retry_limit)
+
+        newly_seen_session_retries = max(0, session_retries - self._external_session_retries)
+        self.max_tests_to_retry_per_session = max(
+            0,
+            self.max_tests_to_retry_per_session - newly_seen_session_retries,
+        )
+        self._external_session_retries = max(self._external_session_retries, session_retries)
+
+    def disable_retries(self) -> None:
+        """Disable retries when an external retry budget cannot be read safely."""
+        self._retries_disabled = True
+
+    def _retries_so_far(self, test: Test) -> int:
+        external_retries, _ = self._external_retry_budgets.get(test, (0, self.max_retries_per_test))
+        return external_retries + len(test.test_runs) - 1
+
+    def _retry_limit_for(self, test: Test) -> int:
+        _, retry_limit = self._external_retry_budgets.get(test, (0, self.max_retries_per_test))
+        return retry_limit
 
     def should_retry(self, test: Test) -> bool:
         if test.has_passed():
             return False
 
-        retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
-        return test.last_test_run.get_status() == TestStatus.FAIL and retries_so_far < self.max_retries_per_test
+        return test.last_test_run.get_status() == TestStatus.FAIL and self._retries_so_far(
+            test
+        ) < self._retry_limit_for(test)
 
     def get_final_status(self, test: Test) -> TestStatus:
-        if len(test.test_runs) > 1:
+        external_retries, _ = self._external_retry_budgets.pop(test, (0, self.max_retries_per_test))
+        if len(test.test_runs) > 1 and external_retries == 0:
             self.max_tests_to_retry_per_session -= 1
         return test.last_test_run.get_status()
 
     def set_tags_for_test_run(self, test_run: TestRun) -> None:
-        if test_run.attempt_number == 0:
+        # The replacement worker's first run has attempt_number == 0 (fresh Test object), but it
+        # is still a retry if an external crash retry budget was applied to the test.
+        if test_run.attempt_number == 0 and test_run.test not in self._external_retry_budgets:
             return
 
         test_run.set_tags(
@@ -116,18 +151,7 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         return test.is_new() and not test.has_parameters()
 
     def _target_number_of_retries(self, test: Test) -> int:
-        efd_settings = self.session_manager.settings.early_flake_detection
-        initial_attempt_seconds = test.test_runs[0].seconds_so_far()
-
-        if initial_attempt_seconds <= 5:
-            return efd_settings.slow_test_retries_5s
-        if initial_attempt_seconds <= 10:
-            return efd_settings.slow_test_retries_10s
-        if initial_attempt_seconds <= 30:
-            return efd_settings.slow_test_retries_30s
-        if initial_attempt_seconds <= 300:
-            return efd_settings.slow_test_retries_5m
-        return 0  # No retries if the test ran for more than 5 minutes.
+        return self.settings.early_flake_detection.retries_for_duration(test.test_runs[0].seconds_so_far())
 
     def should_retry(self, test: Test) -> bool:
         if test.seconds_so_far() > self.EFD_ABORT_TEST_SECONDS:
@@ -183,7 +207,7 @@ class AttemptToFixHandler(RetryHandler):
             return False
 
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
-        return retries_so_far < self.session_manager.settings.test_management.attempt_to_fix_retries
+        return retries_so_far < self.settings.test_management.attempt_to_fix_retries
 
     def get_final_status(self, test: Test) -> TestStatus:
         final_status: TestStatus

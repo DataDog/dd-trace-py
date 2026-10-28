@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 import multiprocessing
 import os
 from pathlib import Path
@@ -6,6 +5,7 @@ import sys
 
 import pytest
 
+from ddtrace.internal.datadog.profiling import stack as _stack_ext
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
@@ -28,7 +28,7 @@ def test_call_script() -> None:
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_call_script_gevent():
+def test_call_script_gevent() -> None:
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, pid = call_program(
@@ -188,6 +188,36 @@ def test_multiprocessing(method: str, tmp_path: Path) -> None:
     assert len(child_samples) > 0
 
 
+def test_subprocess_inherited_bootstrap(tmp_path: Path) -> None:
+    """Children launched using subprocess with sys.executable (not ddtrace-run)
+    should inherit profiling bootstrap from a ddtrace-run parent.
+
+    Covers the generic child-process model used by launchers like torchrun
+    without using PyTorch in the test matrix.
+    """
+    filename = str(tmp_path / "pprof")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "_test_subprocess.py"),
+        env=env,
+    )
+    assert exitcode == 0, (stdout, stderr)
+    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+    run_pid, popen_pid = list(s.strip() for s in stdout.strip().split("\n"))
+
+    for child_pid in (run_pid, popen_pid):
+        child_profile = pprof_utils.parse_newest_profile(f"{filename}.{child_pid}")
+        cpu_samples = pprof_utils.get_samples_with_value_type(child_profile, "cpu-time")
+        wall_samples = pprof_utils.get_samples_with_value_type(child_profile, "wall-time")
+        assert len(cpu_samples) > 0, f"no cpu-time samples for pid {child_pid}"
+        assert len(wall_samples) > 0, f"no wall-time samples for pid {child_pid}"
+
+
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="1"),
@@ -215,5 +245,123 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     # This can cause segfaults if we do module clean up with later versions of
     # protobuf. This is a regression test.
     from google.protobuf import empty_pb2  # noqa:F401
+
+    print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
+@pytest.mark.subprocess(
+    env=dict(_DD_PROFILING_STACK_FAST_COPY="1"),
+    out="OK\n",
+    err=None,
+)
+def test_stack_profiler_foreign_segv_handler_detection() -> None:
+    # Regression test for PROF-14568: safe_memcpy's fault recovery needs us to own
+    # BOTH SIGSEGV and SIGBUS. segv_handler_installed() drives the sampler's
+    # detect-and-fallback decision; assert it flips when either signal is taken over.
+    import signal
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    # Our handler is installed by the extension's constructor on import.
+    assert stack.segv_handler_installed() is True
+
+    # A foreign component overwrites the SIGSEGV disposition: ownership must flip.
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert stack.segv_handler_installed() is False
+
+    # Reclaiming the handler is detected too.
+    stack.reinstall_segv_handler()
+    assert stack.segv_handler_installed() is True
+
+    # Losing only SIGBUS is just as unsafe as losing SIGSEGV: the predicate must
+    # report we no longer own the handler even though SIGSEGV is still ours.
+    signal.signal(signal.SIGBUS, signal.SIG_DFL)
+    assert stack.segv_handler_installed() is False
+
+    stack.reinstall_segv_handler()
+    assert stack.segv_handler_installed() is True
+
+    print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
+@pytest.mark.subprocess(
+    env=dict(_DD_PROFILING_STACK_FAST_COPY="1"),
+    out="OK\n",
+    err=None,
+)
+def test_unarmed_sigsegv_chains_to_crashtracker_and_keeps_handler() -> None:
+    # An unarmed SIGSEGV must reach the previous handler chain (Crash Tracking,
+    # then the Python-level handler) without removing ours: safe_memcpy must stay
+    # protected, so the sampler must not fall back to the syscall copy.
+    import signal
+    import time
+
+    import pytest
+
+    from ddtrace.internal.native._native import CrashtrackerConfiguration
+    from ddtrace.internal.native._native import CrashtrackerMetadata
+    from ddtrace.internal.native._native import CrashtrackerReceiverConfig
+    from ddtrace.internal.native._native import StacktraceCollection
+    from ddtrace.internal.native._native import crashtracker_init
+
+    handled: list[int] = []
+    signal.signal(signal.SIGSEGV, lambda signum, _frame: handled.append(signum))
+    crashtracker_init(
+        CrashtrackerConfiguration(
+            [],
+            False,
+            False,
+            100,
+            StacktraceCollection.Disabled,
+            False,
+            0,
+            None,
+            None,
+            None,
+            None,
+        ),
+        CrashtrackerReceiverConfig(["true"], {}, "/bin/true", None, None),
+        CrashtrackerMetadata("test", "0.0.0", "python", {}),
+    )
+
+    # Import after crashtracker_init so the profiler saves Crash Tracking as
+    # the previous SIGSEGV/SIGBUS disposition.
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    assert stack.segv_handler_installed() is True
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+    _stack._set_fast_copy_warmup_seconds(0.1)
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+
+    try:
+        saw_warmup: bool = False
+        upgrade_deadline: float = time.monotonic() + 10
+        while time.monotonic() < upgrade_deadline:
+            active: bool = _stack.fast_copy_memory_active()
+            if not saw_warmup:
+                saw_warmup = active is False
+            elif active is True:
+                break
+            time.sleep(0.01)
+        else:
+            pytest.fail("sampler never upgraded to safe_memcpy")
+
+        signal.raise_signal(signal.SIGSEGV)
+        assert handled == [signal.SIGSEGV]
+
+        # Give the sampler time to run its ownership check several times.
+        time.sleep(0.5)
+        assert stack.segv_handler_installed() is True
+        assert _stack.fast_copy_memory_active() is True
+    finally:
+        stack.stop()
 
     print("OK")

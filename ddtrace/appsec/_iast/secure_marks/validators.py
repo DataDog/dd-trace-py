@@ -4,10 +4,10 @@ Validators are functions that check their input arguments for security issues.
 If a validator approves an input, we mark that input as secure for specific vulnerability types.
 """
 
+from collections.abc import Sequence
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.secure_marks.base import add_secure_mark

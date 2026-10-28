@@ -99,7 +99,7 @@ def test_civisibility_intake_with_apikey():
         CIVisibility.disable()
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=b"")
 def test_civisibility_intake_payloads():
     import gzip
     from unittest import mock

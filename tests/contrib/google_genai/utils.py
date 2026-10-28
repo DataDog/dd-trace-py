@@ -42,7 +42,7 @@ MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING = types.GenerateContentResponse(
             content=types.Content(
                 role="model",
                 parts=[
-                    types.Part.from_text(text="Let me think about this..."),
+                    types.Part(text="Let me think about this...", thought=True),
                     types.Part.from_text(text="The sky is blue due to rayleigh scattering"),
                 ],
             )
@@ -52,6 +52,39 @@ MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING = types.GenerateContentResponse(
         prompt_token_count=8, candidates_token_count=9, thoughts_token_count=5, total_token_count=22
     ),
 )
+
+MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING_STREAM = [
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(content=types.Content(role="model", parts=[types.Part(text="Let me think", thought=True)]))
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(role="model", parts=[types.Part(text=" about this...", thought=True)])
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
+    ),
+    types.GenerateContentResponse(
+        candidates=[types.Candidate(content=types.Content(role="model", parts=[types.Part.from_text(text="The sky")]))],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model", parts=[types.Part.from_text(text=" is blue due to rayleigh scattering")]
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=8, candidates_token_count=9, thoughts_token_count=5, total_token_count=22
+        ),
+    ),
+]
 
 MOCK_GENERATE_CONTENT_RESPONSE_STREAM = [
     types.GenerateContentResponse(
@@ -224,10 +257,24 @@ MOCK_EMBED_CONTENT_RESPONSE = types.EmbedContentResponse(
 )
 
 
+def _as_submitted(value):
+    """Mirror the conversion a metadata value undergoes on its way onto the span.
+
+    Span data is made JSON-serializable at span finish, which turns pydantic config objects such as
+    SafetySetting into plain dicts. Dumping here rather than hardcoding the result keeps these
+    expectations correct across the google-genai versions in the test matrix.
+    """
+    if isinstance(value, list):
+        return [_as_submitted(v) for v in value]
+    if hasattr(value, "model_dump"):
+        return value.model_dump(exclude_none=True)
+    return value
+
+
 def get_expected_metadata():
     metadata = {}
     for param in GENERATE_METADATA_PARAMS:
-        metadata[param] = getattr(FULL_GENERATE_CONTENT_CONFIG, param, None)
+        metadata[param] = _as_submitted(getattr(FULL_GENERATE_CONTENT_CONFIG, param, None))
 
     return metadata
 
@@ -235,6 +282,6 @@ def get_expected_metadata():
 def get_expected_tool_metadata():
     metadata = {}
     for param in GENERATE_METADATA_PARAMS:
-        metadata[param] = getattr(TOOL_GENERATE_CONTENT_CONFIG, param, None)
+        metadata[param] = _as_submitted(getattr(TOOL_GENERATE_CONTENT_CONFIG, param, None))
 
     return metadata

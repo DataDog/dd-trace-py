@@ -10,7 +10,9 @@ To install all git hooks, run:
 hooks/autohook.sh install
 ```
 
-This will create symlinks in `.git/hooks/` for all configured hook types.
+This will create symlinks in the repository's shared hooks directory for all configured
+hook types. Running it once covers the main checkout and every `git worktree` created
+from it, so it does not need to be repeated per worktree.
 
 ## Available Hooks
 
@@ -32,6 +34,7 @@ Individual pre-commit hooks (run in numeric order):
 | `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
+| `12-check-test-locks` | Checks that staged lock or suitespec changes still match the staged test lock inventory (index snapshot, not the live worktree) |
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
@@ -164,12 +167,14 @@ git commit --no-verify  # Skip pre-commit hooks
 
 To disable specific hooks:
 ```bash
-chmod -x .git/hooks/<hook-type>
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+chmod -x "$HOOKS_DIR/<hook-type>"
 ```
 
 To re-enable:
 ```bash
-chmod +x .git/hooks/<hook-type>
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+chmod +x "$HOOKS_DIR/<hook-type>"
 ```
 
 ## Troubleshooting
@@ -177,7 +182,8 @@ chmod +x .git/hooks/<hook-type>
 ### Hook Not Running
 Check if hooks are installed:
 ```bash
-ls -la .git/hooks/
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+ls -la "$HOOKS_DIR/"
 ```
 
 If missing, run:

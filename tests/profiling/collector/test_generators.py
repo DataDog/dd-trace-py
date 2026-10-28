@@ -9,9 +9,9 @@ import pytest
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_generators_stacks() -> None:
+    from collections.abc import Generator
     import os
     import time
-    from typing import Generator
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler

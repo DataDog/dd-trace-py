@@ -1,8 +1,8 @@
 import abc
+from collections.abc import Sequence
 import dataclasses
 from typing import Any
 from typing import Optional
-from typing import Sequence
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -15,7 +15,7 @@ class ConfigMetadata:
     product_name: str
     sha256_hash: Optional[str]
     length: Optional[int]
-    tuf_version: Optional[int]
+    tuf_version: Optional[int] = dataclasses.field(compare=False)
     apply_state: Optional[int] = dataclasses.field(default=1, compare=False)
     apply_error: Optional[str] = dataclasses.field(default=None, compare=False)
 

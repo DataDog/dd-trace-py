@@ -7,8 +7,10 @@ from pathlib import Path
 import typing as t
 import uuid
 
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import EMPTY_NAME
+from ddtrace.testing.internal.constants import SKIPPABLE_ITR_CODE_COVERAGE_HEADER
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -417,14 +419,30 @@ class APIClient:
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 
+        # The skippable-tests endpoint can be slow on the first call for dd-trace-py (backend computes the list on
+        # demand), so give it a longer timeout than the global default while the proper per-endpoint timeout lands.
+        _extend_timeout = self.service == "dd-trace-py"
+        if _extend_timeout:
+            _prev_timeout = self.connector.conn.timeout
+            self.connector.conn.close()
+            self.connector.conn.timeout = max(10.0, _prev_timeout or 0.0)
         try:
-            result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
+            result = self.connector.post_json(
+                "/api/v2/ci/tests/skippable",
+                request_data,
+                headers=SKIPPABLE_ITR_CODE_COVERAGE_HEADER if is_file_level_coverage_enabled() else None,
+                telemetry=telemetry,
+            )
             result.on_error_raise_exception()
 
         except Exception as e:
             log.warning("Error getting skippable tests from API: %s", e)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
+        finally:
+            if _extend_timeout:
+                self.connector.conn.close()
+                self.connector.conn.timeout = _prev_timeout
 
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()

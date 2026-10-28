@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI visibility: adds ``DD_CODE_COVERAGE_FLAGS`` to group and filter uploaded code coverage reports.

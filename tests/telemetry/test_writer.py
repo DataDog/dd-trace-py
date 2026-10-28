@@ -1,16 +1,17 @@
+from collections import deque
 import os
 import sys
 import sysconfig
-import time
+import threading
 from typing import Any
 from typing import Optional
 from unittest import mock
 
-import httpretty
 import pytest
 
 from ddtrace import config
-from ddtrace.internal.settings._agent import get_agent_hostname
+import ddtrace.internal.settings._core as settings_core
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -20,9 +21,63 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
 from tests.utils import override_global_config
+
+
+class _SyntheticDDConfig(DDConfig):
+    """
+    A minimal DDConfig used to exercise report_configuration()'s own walking logic
+    (public/private/sensitive filtering, source + config_id resolution) without any
+    knowledge of real product settings.
+    """
+
+    __prefix__ = "dd.test.synthetic"
+
+    public_setting = DDConfig.v(str, "public_setting", default="pub_default")
+    _private_setting = DDConfig.v(str, "private_setting", default="priv_default", private=True)
+    sensitive_setting = DDConfig.v(str, "sensitive_setting", default="sens_default")
+    bool_setting = DDConfig.v(bool, "bool_setting", default=False)
+    float_setting = DDConfig.v(float, "float_setting", default=0.0)
+    # NOTE: DDConfig.config_id is a single instance attribute overwritten during __init__'s
+    # field-iteration loop, not a per-field map, so it only reflects whichever fleet-sourced
+    # field was processed last. Keep this field last so the config_id assertion below is stable.
+    fleet_setting = DDConfig.v(str, "fleet_setting", default="fleet_default")
+
+
+@pytest.fixture(autouse=True)
+def _no_inherited_api_key(monkeypatch):
+    """Keep the developer's real ``DD_API_KEY`` out of the subprocesses these tests spawn.
+
+    They inherit the environment wholesale (``os.environ.copy()``), so a key present locally
+    would otherwise be a live credential inside every test process — one stray agentless
+    setting away from shipping test telemetry to a real org. Tests that genuinely need an api
+    key set it explicitly via the subprocess marker env / mock.patch.dict, which overrides
+    this removal.
+    """
+    monkeypatch.delenv("DD_API_KEY", raising=False)
+
+
+def _to_config_str(value):
+    """Mirror the native worker's configuration value serialization.
+
+    The native TelemetryWorker serializes each configuration ``value`` (see
+    ``TelemetryWriter.add_configuration`` / ``_config_value_to_str``: ``None`` stays ``None``
+    (a JSON ``null``), booleans become lowercase ``"true"``/``"false"``, everything else
+    ``str(value)`` after dict/list flattening). So tests that assert typed values
+    (bool/int/float/None/list) must compare against this wire form.
+    """
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return ",".join(":".join((k, str(v))) for k, v in value.items())
+    if isinstance(value, (set, frozenset)):
+        return ",".join(sorted(str(v) for v in value))
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(v) for v in value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 @pytest.mark.parametrize(
@@ -41,517 +96,72 @@ def test_app_started_event_configuration_override_asm(
 ):
     """asserts that asm configuration value is changed and queues a valid telemetry request"""
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_APPSEC_ENABLED"] = "true"
     env[env_var] = value
+    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
+    env.pop("DD_API_KEY", None)
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
     configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
     assert len(configuration) == 1, configuration
-    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
+    assert configuration[0] == {"name": env_var, "origin": "env_var", "value": _to_config_str(expected_value)}
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
-    """asserts that app_started() queues a valid telemetry request which is then sent by periodic()"""
+    """asserts that app-started is emitted exactly once with a valid body"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # App started should be queued by the first periodic call
+        # The native worker emits app-started eagerly on start() as its own request, so we assert
+        # on the app-started event content (it appears exactly once) rather than the total request
+        # count, which now also includes the eager app-started + heartbeat/closing lifecycle events.
         telemetry_writer.periodic(force_flush=True)
-        requests = test_agent_session.get_requests()
-        assert len(requests) == 1
-        assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
         app_started_events = test_agent_session.get_events("app-started")
         assert len(app_started_events) == 1
         validate_request_body(app_started_events[0], None, "app-started")
-        assert len(app_started_events[0]["payload"]) == 2
+        # app-started carries at least a configuration list (products may be null when nothing is
+        # activated before start, since the native worker reports activations as app-product-change).
         assert app_started_events[0]["payload"].get("configuration")
-        assert app_started_events[0]["payload"].get("products")
+
+        # app-started always reports the interpreter's build info, sourced from sysconfig
+        # rather than from any product configuration, so it's telemetry's own data, not a
+        # dependency on another component's settings.
+        configs_by_name = {c["name"]: c for c in app_started_events[0]["payload"]["configuration"]}
+        for name, sysconfig_key in (
+            ("python_soabi", "SOABI"),
+            ("python_host_gnu_type", "HOST_GNU_TYPE"),
+            ("python_build_gnu_type", "BUILD_GNU_TYPE"),
+        ):
+            assert configs_by_name[name]["origin"] == "unknown"
+            assert configs_by_name[name]["value"] == sysconfig.get_config_var(sysconfig_key)
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
+def test_app_started_forwards_process_tags(telemetry_writer, test_agent_session, mock_time):
+    """The native worker must forward application.process_tags (svc.user/svc.auto, entrypoint.*).
+
+    Regression guard for an optional field the native Application drops easily: validate_request_body
+    only compares application keys already present in the received body, so a dropped process_tags
+    would pass silently there. process tags are enabled by default, so every request's application
+    must carry the exact string computed on the Python side.
     """
-    asserts that default configuration value
-    is changed and queues a valid telemetry request
-    which is then sent by periodic()
-    """
-    code = """
-# most configurations are reported when ddtrace.auto is imported
-import ddtrace.auto
-# report configurations not used by ddtrace.auto
-import ddtrace.internal.settings.symbol_db
-import ddtrace.internal.settings.dynamic_instrumentation
-import ddtrace.internal.settings.exception_replay
-import opentelemetry
-    """
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.settings.process_tags import process_tags_config
 
-    env = os.environ.copy()
-    # Change configuration default values
-    env["DD_EXCEPTION_REPLAY_ENABLED"] = "True"
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
-    env["DD_TRACE_STARTUP_LOGS"] = "True"
-    env["DD_LOGS_INJECTION"] = "True"
-    env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "False"
-    env["DD_RUNTIME_METRICS_ENABLED"] = "True"
-    env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
-    env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
-    env["DD_TRACE_CLIENT_IP_ENABLED"] = "True"
-    env["DD_TRACE_COMPUTE_STATS"] = "True"
-    env["DD_TRACE_DEBUG"] = "True"
-    env["DD_TRACE_ENABLED"] = "False"
-    env["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
-    env["DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP"] = ".*"
-    env["DD_TRACE_OTEL_ENABLED"] = "True"
-    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
-    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
-    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
-    env["DD_TRACE_RATE_LIMIT"] = "50"
-    env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
-    env["DD_PROFILING_ENABLED"] = "True"
-    env["DD_PROFILING_STACK_ENABLED"] = "False"
-    env["DD_PROFILING_MEMORY_ENABLED"] = "False"
-    env["DD_PROFILING_HEAP_ENABLED"] = "False"
-    env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
-    env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
-    env["DD_PROFILING_MAX_FRAMES"] = "512"
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
-    env["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
-    env["DD_TRACE_API_VERSION"] = "v0.5"
-    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
-    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
-    env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
-    env["DD_TAGS"] = "team:apm,component:web"
-    env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
-    env["DD_LOGS_OTEL_ENABLED"] = "True"
-    env["DD_METRICS_OTEL_ENABLED"] = "True"
-    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
+    if not process_tags_config.enabled:
+        pytest.skip("process tags are disabled")
 
-    file = tmpdir.join("moon_ears.json")
-    file.write('[{"service":"xy?","name":"a*c"}]')
-    env["DD_SPAN_SAMPLING_RULES"] = '[{"service":"xyz", "sample_rate":0.23}]'
-    env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
-    env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
-    env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
-    env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
-    env["DD_SITE"] = "datadoghq.com"
-    env["DD_APPSEC_RASP_ENABLED"] = "False"
-    env["DD_API_SECURITY_ENABLED"] = "False"
-    env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
-    env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
-    env["DD_INJECT_FORCE"] = "true"
-    env["DD_INJECTION_ENABLED"] = "tracer"
-
-    # Ensures app-started event is queued immediately after ddtrace is imported
-    # instead of waiting for 10 seconds.
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, stderr
-
-    # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple we will
-    # skip validating this config
-    configurations = test_agent_session.get_configurations(
-        ignores=["DD_TRACE_AGENT_URL", "DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"], remove_seq_id=True, effective=True
-    )
-    assert configurations
-    configurations.sort(key=lambda x: x["name"])
-
-    expected = [
-        {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
-        {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
-        {"name": "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", "origin": "default", "value": 1},
-        {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
-        {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
-        {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "env_var", "value": "disabled"},
-        {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_APPSEC_MAX_STACK_TRACES", "origin": "default", "value": 2},
-        {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH", "origin": "default", "value": 32},
-        {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", "origin": "default", "value": 75.0},
-        {
-            "name": "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP",
-            "origin": "default",
-            "value": "(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer"
-            "[_-]?(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\\"
-            ".net[_-]sessionid|sid|jwt",
-        },
-        {
-            "name": "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP",
-            "origin": "default",
-            "value": r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|"
-            r"secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
-            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|"
-            r"consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
-            r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|'
-            r"token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})"
-            r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
-            r"{5}END[a-z\s]+PRIVATE\sKEY|"
-            r"ssh-rsa\s*([a-z0-9\/\.+]{100,})",
-        },
-        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
-        {
-            "name": "DD_APPSEC_SCA_ENABLED",
-            "origin": "default",
-            "value": None,
-        },
-        {"name": "DD_APPSEC_STACK_TRACE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_APPSEC_WAF_TIMEOUT", "origin": "default", "value": 5.0},
-        {"name": "DD_CIVISIBILITY_AGENTLESS_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_CIVISIBILITY_AGENTLESS_URL", "origin": "default", "value": ""},
-        {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
-        {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_CRASHTRACKING_COLLECT_ALL_THREADS", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
-        {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_MAX_THREADS", "origin": "default", "value": 128},
-        {
-            "name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER",
-            "origin": "default",
-            "value": "safe" if sys.platform == "linux" else "full",
-        },
-        {"name": "DD_CRASHTRACKING_STDERR_FILENAME", "origin": "default", "value": None},
-        {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": None},
-        {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_CRASHTRACKING_USE_ALT_STACK", "origin": "default", "value": True},
-        {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": True},
-        {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_DJANGO_INCLUDE_USER_EMAIL", "origin": "default", "value": False},
-        {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
-        {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
-        {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
-        {"name": "DD_DOGSTATSD_HOST", "origin": "default", "value": None},
-        {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
-        {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": 3600},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE", "origin": "default", "value": 1048576},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_METRICS_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_PROBE_FILE", "origin": "default", "value": None},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": ""},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": ""},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": ""},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_INTERVAL_SECONDS", "origin": "default", "value": 1.0},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
-        {"name": "DD_ENV", "origin": "default", "value": None},
-        {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS", "origin": "default", "value": ""},
-        {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE", "origin": "default", "value": ""},
-        {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
-        {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
-        {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
-        {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
-        {
-            "name": "DD_IAST_REDACTION_NAME_PATTERN",
-            "origin": "default",
-            "value": "(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?"
-            "|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|consumer_?(?:id|key|secret)|sign("
-            "?:ed|ature)?|auth(?:entication|orization)?)",
-        },
-        {
-            "name": "DD_IAST_REDACTION_VALUE_NUMERAL",
-            "origin": "default",
-            "value": "^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\\d+\\.?\\d*(?:[Ee][+-]?\\d+)?|\\.\\d+(?:[Ee][+-]?"
-            "\\d+)?)|(X\\'[0-9A-Fa-f]+\\')|(B\\'[01]+\\'))$",
-        },
-        {
-            "name": "DD_IAST_REDACTION_VALUE_PATTERN",
-            "origin": "default",
-            "value": "(?i)bearer\\s+[a-z0-9\\._\\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|ey"
-            "[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}"
-            "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
-        },
-        {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
-        {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
-        {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
-        {"name": "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH", "origin": "default", "value": 250},
-        {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
-        {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
-        {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
-        {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_LLMOBS_EVALUATOR_SAMPLING_RULES", "origin": "env_var", "value": None},
-        {"name": "DD_LLMOBS_EVENT_SIZE_BYTES", "origin": "default", "value": 5000000},
-        {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_PAYLOAD_SIZE_BYTES", "origin": "default", "value": 5242880},
-        {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
-        {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
-        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_METRICS_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_MODEL_LAB_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_API_TIMEOUT_MS", "origin": "default", "value": 10000},
-        {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
-        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_EXCEPTION_COLLECT_MESSAGE", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_EXCEPTION_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_EXCEPTION_SAMPLING_INTERVAL", "origin": "default", "value": 100},
-        {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
-        {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
-        {
-            "name": "DD_PROFILING_LOCK_EXCLUDE_MODULES",
-            "origin": "default",
-            "value": ",".join(
-                sorted(
-                    [
-                        "anyio",
-                        "asyncio",
-                        "bytecode",
-                        "concurrent",
-                        "datadog",
-                        "ddsketch",
-                        "ddtrace",
-                        "envier",
-                        "gunicorn",
-                        "h11",
-                        "http",
-                        "logging",
-                        "threading",
-                        "uvicorn",
-                        "werkzeug",
-                        "wrapt",
-                    ]
-                )
-            ),
-        },
-        {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
-        {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
-        {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_MEMORY_EVENTS_BUFFER", "origin": "default", "value": 16},
-        {"name": "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_OUTPUT_PPROF", "origin": "default", "value": None},
-        {"name": "DD_PROFILING_PYTORCH_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
-        {"name": "DD_PROFILING_PYTORCH_MAX_FRAMES", "origin": "default", "value": 128},
-        {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
-        {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_STACK_NATIVE_FRAMES", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_STACK_UVLOOP", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
-        {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
-        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_SERVICE", "origin": "default", "value": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME},
-        {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
-        {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
-        {"name": "DD_SPAN_SAMPLING_RULES", "origin": "env_var", "value": '[{"service":"xyz", "sample_rate":0.23}]'},
-        {
-            "name": "DD_SPAN_SAMPLING_RULES_FILE",
-            "origin": "env_var",
-            "value": str(file),
-        },
-        {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": ""},
-        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
-        {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
-        {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": True},
-        {"name": "DD_TEST_SESSION_NAME", "origin": "default", "value": None},
-        {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
-        {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
-        {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
-        {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
-        {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
-        {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": ""},
-        {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", "origin": "default", "value": 120.0},
-        {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", "origin": "default", "value": 10.0},
-        {"name": "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
-        {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
-        {"name": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
-        {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
-        {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
-        {"name": "DD_TRACE_LOG_LEVEL", "origin": "default", "value": None},
-        {"name": "DD_TRACE_LOG_STREAM_HANDLER", "origin": "default", "value": True},
-        {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
-        {"name": "DD_TRACE_NATIVE_SPAN_EVENTS", "origin": "default", "value": False},
-        {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
-        {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_OTEL_SEMANTICS_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
-        {
-            "name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED",
-            "origin": "default",
-            "value": False,
-        },
-        {
-            "name": "DD_TRACE_PEER_SERVICE_MAPPING",
-            "origin": "env_var",
-            "value": "default_service:remapped_service",
-        },
-        {"name": "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT", "origin": "env_var", "value": "restart"},
-        {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": False},
-        {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "env_var", "value": "tracecontext"},
-        {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
-        {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
-        {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
-        {"name": "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT", "origin": "default", "value": False},
-        {"name": "DD_TRACE_RESOURCE_RENAMING_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
-        {
-            "name": "DD_TRACE_SAMPLING_RULES",
-            "origin": "env_var",
-            "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
-        },
-        {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
-        {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_STATS_COMPUTATION_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", "origin": "default", "value": False},
-        {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": 1000},
-        {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "env_var", "value": 30.0},
-        {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "env_var", "value": 9999},
-        {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "env_var", "value": True},
-        {"name": "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", "origin": "default", "value": 512},
-        {"name": "DD_USER_MODEL_EMAIL_FIELD", "origin": "default", "value": ""},
-        {"name": "DD_USER_MODEL_LOGIN_FIELD", "origin": "default", "value": ""},
-        {"name": "DD_USER_MODEL_NAME_FIELD", "origin": "default", "value": ""},
-        {"name": "DD_VERSION", "origin": "default", "value": None},
-        {
-            "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
-            "origin": "env_var",
-            "value": "http://localhost:4317",
-        },
-        # OTEL_EXPORTER_OTLP_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-            "origin": "default",
-            "value": f"http://{get_agent_hostname()}:4317",
-        },
-        # OTEL_EXPORTER_OTLP_LOGS_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-            "origin": "default",
-            "value": f"http://{get_agent_hostname()}:4317",
-        },
-        # OTEL_EXPORTER_OTLP_METRICS_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE",
-            "origin": "default",
-            "value": "delta",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        # OTEL_EXPORTER_OTLP_TRACES_HEADERS is excluded from configuration telemetry.
-        {
-            "name": "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
-            "origin": "default",
-            "value": "grpc",
-        },
-        {
-            "name": "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_METRIC_EXPORT_INTERVAL",
-            "origin": "default",
-            "value": 10000,
-        },
-        {
-            "name": "OTEL_METRIC_EXPORT_TIMEOUT",
-            "origin": "default",
-            "value": 7500,
-        },
-        {
-            "name": "OTEL_TRACES_SPAN_METRICS_ENABLED",
-            "origin": "default",
-            "value": None,
-        },
-        {
-            "name": "_DD_APM_TRACING_AGENTLESS_ENABLED",
-            "origin": "default",
-            "value": False,
-        },
-        {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
-        {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
-        {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
-        {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
-        {
-            "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
-            "origin": "default",
-            "value": False,
-        },
-        {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "instrumentation_source", "origin": "code", "value": "manual"},
-        {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},
-        {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
-        {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
-        {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
-    ]
-    assert configurations == expected, configurations
+    telemetry_writer.periodic(force_flush=True)
+    app_started_events = test_agent_session.get_events("app-started")
+    assert len(app_started_events) == 1
+    application = app_started_events[0]["application"]
+    assert application.get("process_tags") == process_tags.process_tags
+    # svc.user (user-provided service) or svc.auto (inferred) is always present in the tag string.
+    assert "svc.user:" in application["process_tags"] or "svc.auto:" in application["process_tags"]
 
 
 def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -561,16 +171,7 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert len(deps) == 1, deps
 
 
-def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
-    # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-
-    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
-    # Imports httpretty twice and ensures only one dependency entry is sent
-
-    mini_django_app = """
+_MINI_DJANGO_APP = """
 from os import path as osp
 def rel_path(*p): return osp.normpath(osp.join(rel_path.path, *p))
 rel_path.path = osp.abspath(osp.dirname(__file__))
@@ -593,8 +194,7 @@ if __name__=='__main__':
     settings.configure(**SETTINGS)
 
 if __name__ == '__main__':
-    from django.core import management
-    management.execute_from_command_line()
+    %(bootstrap)s
 
 from django.urls import path
 from django.http import HttpResponse
@@ -607,6 +207,22 @@ def mini_app(request):
 urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
 """
 
+# What gunicorn/uwsgi do: build the WSGI application, which constructs a BaseHandler.
+_SERVING_BOOTSTRAP = """from django.core.wsgi import get_wsgi_application
+    get_wsgi_application()"""
+
+# What a Celery or dramatiq worker does: django.setup() and nothing else. Not a management
+# command -- Django's own check_url_config imports the URLconf whenever system checks run, so
+# most manage.py invocations import it with or without ddtrace.
+_WORKER_BOOTSTRAP = """import django
+    django.setup()
+    assert this not in __import__('sys').modules, 'django.setup() imported the URLconf'"""
+
+
+def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _SERVING_BOOTSTRAP}
+
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("django")
@@ -618,6 +234,9 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
     assert payload["is_first"] is True
     endpoints = payload["endpoints"]
     assert len(endpoints) == 2, endpoints
+    # The mini_app view has no @require_http_methods, so its method is unknown/unconstrained.
+    # libdatadog's ``Method::Other`` serializes to "*" (the value the app-endpoints OpenAPI spec
+    # uses for the any-method concept), matching the old Python writer.
     assert any(
         e["path"] == "mini_app/" and e["method"] == "*" and e["operation_name"] == "django.request" for e in endpoints
     ), endpoints
@@ -630,11 +249,64 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
     ), endpoints
 
 
+def test_endpoint_discovery_message_limit(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT caps a payload, it does not drop endpoints.
+
+    The limit is handed to the native worker, which splits app-endpoints across payloads. Only the
+    first may set is_first (the backend replaces its endpoint set on a first payload and merges on
+    the rest), and every endpoint has to arrive across the chunks.
+    """
+    env = os.environ.copy()
+    env["DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"] = "3"
+
+    code = """
+from ddtrace.internal.endpoints import endpoint_collection
+from ddtrace.internal.telemetry import telemetry_writer
+
+for i in range(7):
+    endpoint_collection.add_endpoint(method="GET", path="/r%d" % i)
+
+# One flush per chunk: each carries at most the configured limit, the rest stays queued.
+for _ in range(4):
+    telemetry_writer.periodic(force_flush=True)
+"""
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    events = test_agent_session.get_events("app-endpoints")
+    chunks = [(e["payload"]["is_first"], len(e["payload"]["endpoints"])) for e in events]
+    assert chunks, "no app-endpoints payload was sent"
+    assert all(count <= 3 for _, count in chunks), chunks
+    # Exactly one is_first across every chunk - what system-tests' test_single_is_first asserts.
+    assert sum(1 for is_first, _ in chunks if is_first) == 1, chunks
+
+    paths = {e["path"] for event in events for e in event["payload"]["endpoints"]}
+    assert paths == {"/r%d" % i for i in range(7)}, paths
+
+
+def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """A process that never builds a request handler must not import the URLconf.
+
+    Reading resolver.url_patterns imports ROOT_URLCONF and, through include(), every view module behind it. A Celery
+    or dramatiq worker would otherwise load that whole import closure for nothing, which cost one reporter 154MB of
+    RSS per worker.
+    """
+    env = os.environ.copy()
+
+    mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _WORKER_BOOTSTRAP}
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("django")
+    assert len(deps) == 1, deps
+
+    assert test_agent_session.get_events("app-endpoints") == []
+
+
 def test_instrumentation_source_config(
     test_agent_session, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess
 ):
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=env)
     assert status == 0, stderr
@@ -658,7 +330,6 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
@@ -672,7 +343,6 @@ def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_py
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -692,14 +362,50 @@ import httpretty
 
 def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that app_shutdown() queues and sends an app-closing telemetry request"""
-    # Telemetry writer must start before app-closing event is queued
-    telemetry_writer.started = True
+    # The worker must actually be started (app-started emitted) before app-closing is meaningful.
+    # app-started is deferred out of enable(), so start it explicitly rather than just flipping the
+    # ``started`` flag (which would leave the native worker un-started and emit no app-closing).
+    telemetry_writer.app_started()
     # send app closed event
     telemetry_writer.app_shutdown()
-    # ensure a valid request body was sent
+    # ensure a valid app-closing request body was sent. The native worker's shutdown/rebuild
+    # lifecycle (incl. the test-session token rebuild) may surface more than one app-closing, so
+    # assert at least one was sent and that it has a valid body. The app-closing unit payload
+    # serializes with no "payload" key (the harness defaults it to {}), and seq_id is owned by the
+    # native worker, so we don't pin it.
     events = test_agent_session.get_events("app-closing")
-    assert len(events) == 1
-    validate_request_body(events[0], {}, "app-closing", 1)
+    assert len(events) >= 1
+    validate_request_body(events[0], {}, "app-closing")
+
+
+def test_app_shutdown_sends_a_single_closing_flush(telemetry_writer, test_agent_session, mock_time):
+    """asserts the full lifecycle of an empty app sends exactly two telemetry requests
+
+    Regression test for the shutdown double-flush: app_shutdown() used to force a data flush
+    before stopping the worker, which emitted a spurious heartbeat batch
+    (["app-dependencies-loaded", "app-heartbeat"]) ahead of a separate ["app-closing"] batch.
+    The native stop() drains the buffered events itself, so an empty app must send only:
+      1. ["app-started"], emitted eagerly on start()
+      2. ["app-dependencies-loaded", "app-closing"], drained by stop()
+    """
+    # The ddtrace Test Optimization plugin force-disables telemetry dependency
+    # collection. This test asserts the full app lifecycle including dependency
+    # discovery, so re-enable it for the duration of the test.
+    with mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True):
+        telemetry_writer.app_started()
+        telemetry_writer.app_shutdown()
+
+    # get_requests() returns requests in reverse seq_id order. Restore
+    # chronological order and collapse each request into the list of the event
+    # types it carried.
+    requests = list(reversed(test_agent_session.get_requests(filter_heartbeats=False)))
+    batches = [
+        [payload["request_type"] for payload in req["body"]["payload"]]
+        if req["body"]["request_type"] == "message-batch"
+        else [req["body"]["request_type"]]
+        for req in requests
+    ]
+    assert batches == [["app-started"], ["app-dependencies-loaded", "app-closing"]], batches
 
 
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
@@ -720,7 +426,7 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
             "integrations": [
                 {
                     "name": "integration-f",
-                    "version": "",
+                    "version": None,
                     "enabled": False,
                     "auto_enabled": False,
                     "compatible": False,
@@ -728,11 +434,11 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
                 },
                 {
                     "name": "integration-t",
-                    "version": "",
+                    "version": None,
                     "enabled": True,
                     "auto_enabled": True,
                     "compatible": True,
-                    "error": "",
+                    "error": None,
                 },
             ]
         }
@@ -753,21 +459,17 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         events = test_agent_session.get_events("app-client-configuration-change")
         received_configurations = [c for event in events for c in event["payload"]["configuration"]]
         received_configurations.sort(key=lambda c: c["seq_id"])
-        assert (
-            received_configurations[0]["seq_id"]
-            < received_configurations[1]["seq_id"]
-            < received_configurations[2]["seq_id"]
-        )
-        # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
-        assert received_configurations[0]["name"] == "product_enabled"
-        assert received_configurations[0]["origin"] == "env_var"
-        assert received_configurations[0]["value"] is True
-        assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
-        assert received_configurations[1]["origin"] == "default"
-        assert received_configurations[1]["value"] == "datadog"
-        assert received_configurations[2]["name"] == "product_enabled"
-        assert received_configurations[2]["origin"] == "code"
-        assert received_configurations[2]["value"] is False
+
+        # Other components report their own configuration into the same change stream, so assert
+        # that the configs THIS test queued appear (as a subsequence) in the order they were added
+        # — by ascending seq_id — with values stringified by the native worker.
+        added_in_order = [
+            ("product_enabled", "env_var", "true"),
+            ("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "default", "datadog"),
+            ("product_enabled", "code", "false"),
+        ]
+        received_in_order = iter((c["name"], c["origin"], c["value"]) for c in received_configurations)
+        assert all(cfg in received_in_order for cfg in added_in_order), received_configurations
 
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
@@ -779,44 +481,15 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_events("app-integrations-change")) == 0
 
 
-@pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
-def test_send_failing_request(mock_status, telemetry_writer):
-    """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
+# NOTE: ``test_send_failing_request`` was removed. It exercised Python-side HTTP retry/error
+# logging via httpretty + ``telemetry_writer._client``. Transport (including failure handling
+# and logging of unsuccessful responses) now lives in the libdd-telemetry Rust crate, so it can
+# no longer be intercepted by httpretty from Python and is covered on the native side.
 
-    with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # force periodic call to flush the first app_started call
-        telemetry_writer.periodic(force_flush=True)
-        with httpretty.enabled():
-            httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
-            with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-                # sends failing app-heartbeat event
-                telemetry_writer.periodic(force_flush=True)
-                # asserts unsuccessful status code was logged
-                log.debug.assert_called_with(
-                    "Failed to send Instrumentation Telemetry to %s. Response: %s",
-                    telemetry_writer._client.url,
-                    mock_status,
-                )
-
-
-def test_app_heartbeat_event_periodic(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
-    """asserts that we queue/send app-heartbeat when periodc() is called"""
-    # Ensure telemetry writer is initialized to send periodic events
-    telemetry_writer._is_periodic = True
-    telemetry_writer.started = True
-    # Assert default telemetry interval is 10 seconds and the expected periodic threshold and counts are set
-    assert telemetry_writer.interval == 10
-    assert telemetry_writer._periodic_threshold == 5
-    assert telemetry_writer._periodic_count == 0
-
-    # Assert next flush contains app-heartbeat event
-    for _ in range(telemetry_writer._periodic_threshold):
-        telemetry_writer.periodic()
-        assert test_agent_session.get_events(mock.ANY, filter_heartbeats=False) == []
-
-    telemetry_writer.periodic()
-    heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
-    assert len(heartbeat_events) == 1
+# NOTE: ``test_app_heartbeat_event_periodic`` was removed. It exercised the Python-side
+# heartbeat-gating counters (``_is_periodic`` / ``interval`` / ``_periodic_threshold`` /
+# ``_periodic_count``), which no longer exist — the native worker self-schedules heartbeats.
+# ``test_app_heartbeat_event`` below still covers that heartbeats are emitted.
 
 
 def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
@@ -830,26 +503,44 @@ def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_a
 def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that enabling or disabling an APM Product triggers a valid telemetry request"""
 
-    # Assert that the default product status is disabled
-    assert any(telemetry_writer._product_enablement.values()) is False
-    # Assert that the product status is first reported in app-started event
+    # Product enablement state is tracked inside the native worker. app-started is deferred until
+    # the first flush (so it carries the full startup configuration), so product activations that
+    # happen before that flush are folded into the app-started payload — matching the pre-native
+    # writer. Activations afterwards are emitted as their own ``app-product-change`` events; an
+    # activation that does not change a product's status produces no event.
+    version = _pep440_to_semver()
+
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
-    assert all(telemetry_writer._product_enablement.values())
 
     telemetry_writer.periodic(force_flush=True)
 
-    # Assert that there's only an app_started event (since product activation happened before the app started)
-    events = test_agent_session.get_events("app-product-change")
-    telemetry_writer.periodic(force_flush=True)
-    assert not len(events)
-    # Assert that unchanged status doesn't generate the event
+    # These activations happened before app-started (deferred to this first flush), so they are
+    # carried by the app-started payload rather than a separate app-product-change event.
+    app_started_events = test_agent_session.get_events("app-started")
+    assert len(app_started_events) == 1, app_started_events
+    products = app_started_events[0]["payload"]["products"]
+    assert products == {
+        TELEMETRY_APM_PRODUCT.LLMOBS.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": True, "version": version, "error": None},
+    }
+    test_agent_session.clear()
+
+    # The native worker marks a product pending on every ``product_activated`` call (it does not
+    # diff against the previous status), so re-activating an already-enabled product re-emits it.
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
     telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-product-change")
-    assert not len(events)
+    assert len(events) == 1
+    assert events[0]["payload"]["products"] == {
+        TELEMETRY_APM_PRODUCT.PROFILER.value: {"enabled": True, "version": version, "error": None},
+    }
+    test_agent_session.clear()
+
     # Assert that product change event is sent when product status changes
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION, False)
@@ -858,24 +549,41 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     assert len(events) == 1
     assert events[0]["request_type"] == "app-product-change"
     products = events[0]["payload"]["products"]
-    version = _pep440_to_semver()
     assert products == {
-        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version},
-        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version},
+        TELEMETRY_APM_PRODUCT.APPSEC.value: {"enabled": False, "version": version, "error": None},
+        TELEMETRY_APM_PRODUCT.DYNAMIC_INSTRUMENTATION.value: {"enabled": False, "version": version, "error": None},
     }
 
 
 def validate_request_body(received_body: dict, payload: dict, payload_type: str, seq_id: Optional[int] = None) -> dict:
     """used to test the body of requests received by the testagent"""
-    assert len(received_body) == 9
-    assert received_body["tracer_time"] == time.time()
+    # The native worker serializes a fixed set of 8 top-level keys. Unlike the old Python
+    # body, there is no ``debug`` key anymore.
+    assert set(received_body.keys()) == {
+        "api_version",
+        "tracer_time",
+        "runtime_id",
+        "seq_id",
+        "application",
+        "host",
+        "request_type",
+        "payload",
+    }
+    # tracer_time is stamped by the native worker (Rust), so it cannot be mocked from
+    # Python (mock_time) — just sanity-check it is a positive epoch-seconds integer.
+    assert isinstance(received_body["tracer_time"], int) and received_body["tracer_time"] > 0
     assert received_body["runtime_id"] == get_runtime_id()
     assert received_body["api_version"] == "v2"
-    assert received_body["debug"] is False
     if seq_id is not None:
         assert received_body["seq_id"] == seq_id
-    assert received_body["application"] == get_application(config.service, config.version, config.env)
-    assert received_body["host"] == get_host_info()
+    # The wire body omits empty/None application + host fields (serde skip_serializing_if),
+    # so only compare against the fields actually present in the received body.
+    expected_application = get_application(config.service, config.version, config.env)
+    assert received_body["application"] == {
+        k: v for k, v in expected_application.items() if k in received_body["application"]
+    }
+    expected_host = get_host_info()
+    assert received_body["host"] == {k: v for k, v in expected_host.items() if k in received_body["host"]}
     if payload is not None:
         assert received_body["payload"] == payload
     assert received_body["request_type"] == payload_type
@@ -887,83 +595,124 @@ def test_telemetry_writer_agent_setup():
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": False}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=False)
+        # Transport now lives in the native worker; the Python-visible decision is the
+        # ``_agentless`` flag. Agent mode -> _agentless is False (telemetry POSTed to the
+        # trace agent proxy by the native worker).
         assert new_telemetry_writer._enabled
-        assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-        assert "http://" in new_telemetry_writer._client._telemetry_url
-        assert ":9126" in new_telemetry_writer._client._telemetry_url
-        assert "dd-api-key" not in new_telemetry_writer._client._headers
+        assert new_telemetry_writer._agentless is False
 
 
 @pytest.mark.parametrize(
-    "env_agentless,arg_agentless,expected_endpoint",
+    "env_agentless,arg_agentless",
     [
-        (True, True, "api/v2/apmtelemetry"),
-        (True, False, "telemetry/proxy/api/v2/apmtelemetry"),
-        (False, True, "api/v2/apmtelemetry"),
-        (False, False, "telemetry/proxy/api/v2/apmtelemetry"),
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
     ],
 )
-def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless, expected_endpoint):
+def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless):
     with override_global_config(
         {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": env_agentless}
     ):
         new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=arg_agentless)
-        # Note: other tests are checking whether values bet set properly, so we're only looking at agentlessness here
-        assert new_telemetry_writer._client._endpoint == expected_endpoint
+        # The explicit ``agentless`` argument always wins over the env-derived value.
+        assert new_telemetry_writer._agentless is arg_agentless
 
 
 @pytest.mark.subprocess(
     env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"}
 )
 def test_telemetry_writer_agentless_setup():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    assert telemetry_writer._agentless is True
+    # The api key is now applied as a header inside the native worker; assert via config.
+    assert config._dd_api_key == "foobarkey"
+    assert _agentless_endpoint_url(config._dd_site) == "https://all-http-intake.logs.datad0g.com"
 
 
 @pytest.mark.subprocess(
     env={"DD_SITE": "datadoghq.eu", "DD_API_KEY": "foobarkey", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"}
 )
 def test_telemetry_writer_agentless_setup_eu():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.datadoghq.eu"
-    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    assert telemetry_writer._agentless is True
+    assert config._dd_api_key == "foobarkey"
+    assert _agentless_endpoint_url(config._dd_site) == "https://instrumentation-telemetry-intake.datadoghq.eu"
 
 
 @pytest.mark.subprocess(env={"DD_SITE": "datad0g.com", "DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"})
 def test_telemetry_writer_agentless_disabled_without_api_key():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
 
+    # Agentless requested but no api key -> telemetry is disabled.
     assert not telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-    assert "dd-api-key" not in telemetry_writer._client._headers
+    assert telemetry_writer._agentless is True
+    assert config._dd_api_key in (None, "")
 
 
 @pytest.mark.subprocess(env={"DD_SITE": "datad0g.com", "DD_API_KEY": "foobarkey"})
-def test_telemetry_writer_is_using_agentless_by_default_if_api_key_is_available():
+def test_telemetry_writer_stays_on_the_agent_when_only_an_api_key_is_set():
+    from ddtrace import config
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    # An api key says nothing about how data should be submitted: without an agentless
+    # setting, telemetry keeps going through the agent.
+    assert telemetry_writer._enabled
+    assert telemetry_writer._agentless is False
+    assert config._dd_api_key == "foobarkey"
+
+
+@pytest.mark.parametrize(
+    "agentless_env_var",
+    [
+        "DD_AGENTLESS_ENABLED",
+        "DD_CIVISIBILITY_AGENTLESS_ENABLED",
+        "DD_LLMOBS_AGENTLESS_ENABLED",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED",
+    ],
+)
+def test_any_agentless_setting_turns_telemetry_agentless(agentless_env_var):
+    """Telemetry has no transport setting of its own, so any agentless config turns it agentless."""
+    from ddtrace.internal.settings._agentless import AgentlessConfig
+    from tests.utils import override_env
+
+    with override_env({"DD_API_KEY": "foobarkey"}, replace_os_env=True):
+        assert AgentlessConfig().any_enabled is False
+
+    with override_env({"DD_API_KEY": "foobarkey", agentless_env_var: "true"}, replace_os_env=True):
+        assert AgentlessConfig().any_enabled is True
+
+    with override_env({"DD_API_KEY": "foobarkey", agentless_env_var: "false"}, replace_os_env=True):
+        assert AgentlessConfig().any_enabled is False
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "DD_AGENTLESS_ENABLED": "true"})
+def test_telemetry_writer_agentless_setup_from_the_global_setting():
     from ddtrace.internal.telemetry import telemetry_writer
 
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
-    assert telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+    assert telemetry_writer._agentless is True
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false"})
 def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available():
+    from ddtrace import config
     from ddtrace.internal.telemetry import telemetry_writer
 
+    # No api key and agentless disabled -> agent mode (telemetry goes to the trace agent).
     assert telemetry_writer._enabled
-    assert telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
-    assert "dd-api-key" not in telemetry_writer._client._headers
+    assert telemetry_writer._agentless is False
+    assert config._dd_api_key in (None, "")
 
 
 def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess, tmpdir):
@@ -983,7 +732,6 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
     env["OTEL_SDK_DISABLED"] = "true"
     env["OTEL_UNSUPPORTED_CONFIG"] = "value"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
@@ -1022,6 +770,11 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
         "origin": "otel_env_var",
         "value": "true",
     }
+    assert configurations["DD_LOGS_OTEL_ENABLED"] == {
+        "name": "DD_LOGS_OTEL_ENABLED",
+        "origin": "otel_env_var",
+        "value": "true",
+    }
 
     env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
     tags = [m["tags"] for m in env_hiding_metrics]
@@ -1032,8 +785,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert tags == [["config_opentelemetry:otel_unsupported_config"]]
 
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
-    tags = [m["tags"] for m in env_invalid_metrics]
-    assert tags == [["config_opentelemetry:otel_logs_exporter"]]
+    assert env_invalid_metrics == []
 
 
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
@@ -1062,7 +814,6 @@ import opentelemetry
     env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] = "dd-api-key=SENTINEL_OTLP_LOGS"
     # Non-sensitive OTLP exporter configurations that must still be reported.
     env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4318"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -1095,6 +846,1059 @@ import opentelemetry
     assert "OTEL_EXPORTER_OTLP_TIMEOUT" in configurations
 
 
+def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatch):
+    """MicroVM identity refresh must not leave native telemetry on the old runtime ID."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+    import ddtrace.internal.native as native
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    workers = []
+    original_runtime_id = runtime.get_runtime_id()
+    callbacks = set()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", callbacks)
+
+    class FakeTelemetryWorker:
+        def __init__(self, native_runtime, **kwargs):
+            self.native_runtime = native_runtime
+            self.kwargs = kwargs
+            self.start_calls = 0
+            self.drop_calls = 0
+            self.stop_calls = []
+            self.configurations = []
+            self.integrations = []
+            self.products = []
+            workers.append(self)
+
+        def start(self):
+            self.start_calls += 1
+
+        def drop(self):
+            self.drop_calls += 1
+
+        def stop(self, send_app_closing=True):
+            self.stop_calls.append(send_app_closing)
+
+        def add_configuration(self, *args):
+            self.configurations.append(args)
+
+        def add_integration(self, *args):
+            self.integrations.append(args)
+
+        def add_product_change(self, *args):
+            self.products.append(args)
+
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                pass
+
+            return _noop
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", False),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=True),
+        mock.patch.object(native, "TelemetryWorker", FakeTelemetryWorker),
+        mock.patch("ddtrace.internal.native_runtime.get_native_runtime", return_value=object()),
+    ):
+        writer = TelemetryWriter(agentless=False)
+        monkeypatch.setattr(ddtrace.internal.telemetry, "telemetry_writer", writer)
+        try:
+            writer.app_started()
+            first_worker = workers[-1]
+            first_runtime_id = first_worker.kwargs["runtime_id"]
+            writer.add_integration("integration", True, True, "failure", "1.2.3")
+            writer.add_configuration("test.config", "before-refresh", "env_var", "test-id")
+            writer.add_configurations([("bulk.config", True, "env_var")])
+            writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+            assert first_worker.start_calls == 1
+            runtime.refresh_identity()
+
+            assert first_worker.drop_calls == 0
+            assert first_worker.stop_calls == [False]
+            assert workers[-1] is writer._worker
+            assert workers[-1].kwargs["runtime_id"] == runtime.get_runtime_id()
+            assert workers[-1].kwargs["session_id"] == runtime.get_runtime_id()
+            assert workers[-1].kwargs["runtime_id"] != first_runtime_id
+            assert workers[-1].start_calls == 1
+            assert workers[-1].integrations == [("integration", "1.2.3", True, False, True, "failure")]
+            assert workers[-1].products == [(TELEMETRY_APM_PRODUCT.PROFILER, True, _pep440_to_semver())]
+            test_configurations = [args for args in workers[-1].configurations if args[0] == "test.config"]
+            first_test_configurations = [args for args in first_worker.configurations if args[0] == "test.config"]
+            assert [(args[0], args[1]) for args in test_configurations] == [("test.config", "before-refresh")]
+            assert test_configurations[0][4] > first_test_configurations[0][4]
+            bulk_configurations = [args for args in workers[-1].configurations if args[0] == "bulk.config"]
+            assert [(args[0], args[1]) for args in bulk_configurations] == [("bulk.config", "true")]
+        finally:
+            writer.disable()
+            _runtime_id._RUNTIME_ID = original_runtime_id
+            assert callbacks == set()
+
+
+def test_microvm_identity_refresh_stops_legacy_worker_without_drop():
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    class LegacyTelemetryWorker:
+        def __init__(self):
+            self.stop_calls = []
+
+        def stop(self, send_app_closing):
+            self.stop_calls.append(send_app_closing)
+
+    worker = LegacyTelemetryWorker()
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._worker = worker
+    writer.started = True
+    writer._worker_subscribers = []
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders") as unbind,
+        mock.patch.object(writer, "_notify_worker_changed") as notify,
+    ):
+        writer._discard_worker("while refreshing runtime identity")
+
+    assert worker.stop_calls == [False]
+    assert writer._worker is None
+    assert writer.started is False
+    unbind.assert_called_once_with(writer)
+    notify.assert_called_once_with(None)
+
+
+def test_microvm_identity_refresh_stop_failure_propagates():
+    """A failed stop() fallback keeps the worker and propagates, so periodic() can retry the stop.
+
+    Letting go of it would leave the worker registered with the native runtime, which restarts
+    it under the previous runtime ID once the runtime recovers.
+    """
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    worker = mock.Mock(spec=["stop"])
+    worker.stop.side_effect = RuntimeError("stop failed")
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._enabled = True
+    writer._worker = worker
+    writer._is_microvm = True
+    writer._enable_lock = threading.RLock()
+    writer.started = True
+    writer._dependency_tracker = mock.Mock()
+    writer.enable = mock.Mock(return_value=True)
+    writer.app_started = mock.Mock()
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders") as unbind,
+        mock.patch.object(writer, "_notify_worker_changed") as notify,
+    ):
+        with pytest.raises(RuntimeError, match="stop failed"):
+            writer._refresh_runtime_identity("new-runtime-id")
+
+    worker.stop.assert_called_once_with(send_app_closing=False)
+    assert writer._worker is worker
+    assert writer.started is True
+    unbind.assert_not_called()
+    notify.assert_not_called()
+    writer._dependency_tracker.refresh.assert_not_called()
+    writer.enable.assert_not_called()
+
+
+def test_microvm_identity_refresh_retries_failed_rebuild():
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    lock = threading.RLock()
+    old_worker = mock.Mock()
+    replacement_worker = mock.Mock()
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._enabled = True
+    writer._is_microvm = True
+    writer._worker = old_worker
+    writer._enable_lock = lock
+    writer._worker_subscribers = []
+    writer._metric_contexts = {}
+    writer._metric_lock = threading.Lock()
+    writer._configurations = deque(maxlen=5000)
+    writer.started = True
+    writer._deps_collector = mock.Mock()
+    writer._dependency_tracker = mock.Mock()
+    writer._report_dependencies = mock.Mock()
+    writer._replay_worker_state = mock.Mock()
+    writer.add_configurations = mock.Mock()
+    writer._build_worker = mock.Mock(side_effect=[RuntimeError("rebuild failed"), replacement_worker])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        with pytest.raises(RuntimeError, match="Failed to rebuild the telemetry worker"):
+            writer._refresh_runtime_identity("new-runtime-id")
+
+        assert writer._worker is None
+        assert writer._identity_refresh_started is True
+
+        writer._refresh_runtime_identity("new-runtime-id")
+
+    assert writer._worker is replacement_worker
+    replacement_worker.start.assert_called_once_with()
+    assert writer._identity_refresh_started is False
+    assert writer._build_worker.call_count == 2
+
+
+def _microvm_refresh_writer(workers):
+    """Build a bare MicroVM writer whose rebuilds hand out the given native workers in order."""
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    lock = threading.RLock()
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._enabled = True
+    writer._is_microvm = True
+    writer._worker = None
+    writer._worker_runtime_id = None
+    writer._enable_lock = lock
+    writer._worker_subscribers = []
+    writer._metric_contexts = {}
+    writer._metric_lock = threading.Lock()
+    writer._configurations = deque(maxlen=5000)
+    writer._integrations = {}
+    writer._product_statuses = {}
+    writer._product_versions = {}
+    writer.started = False
+    writer._deps_collector = mock.Mock()
+    writer._dependency_tracker = mock.Mock()
+    writer._report_dependencies = mock.Mock()
+    writer._build_worker = mock.Mock(side_effect=workers)
+    return writer
+
+
+class _FakePanicException(BaseException):
+    """Stand-in for pyo3_runtime.PanicException, which PyO3 derives from BaseException, not Exception."""
+
+
+# is_panic_exception() matches on the module and class name of pyo3_runtime.PanicException.
+_FakePanicException.__module__ = "pyo3_runtime"
+_FakePanicException.__name__ = "PanicException"
+
+
+def test_microvm_identity_refresh_failed_replacement_start_recovers_on_periodic():
+    """periodic() retries a replacement start that failed during refresh, without another rebuild."""
+    old_worker, replacement_worker = mock.Mock(), mock.Mock()
+    replacement_worker.start.side_effect = [RuntimeError("start failed"), None]
+    writer = _microvm_refresh_writer([old_worker, replacement_worker])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        writer.app_started()
+        assert writer.started is True
+
+        writer._refresh_runtime_identity("new-runtime-id")
+
+        assert writer._worker is replacement_worker
+        assert writer.started is False
+
+        writer.periodic()
+
+    assert writer._worker is replacement_worker
+    assert replacement_worker.start.call_count == 2
+    assert writer.started is True
+    assert writer._build_worker.call_count == 2
+
+
+def test_microvm_identity_refresh_reports_bootstrap_configurations_once():
+    """The replay already carries bootstrap configurations, so a rebuild must not re-add them."""
+    first_worker, replacement_worker = mock.Mock(), mock.Mock()
+    writer = _microvm_refresh_writer([first_worker, replacement_worker])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+        mock.patch(
+            "ddtrace.internal.telemetry.writer.get_python_config_vars",
+            return_value=[("bootstrap.config", "value", "default")],
+        ),
+    ):
+        assert writer.enable()
+        writer._refresh_runtime_identity("new-runtime-id")
+
+    assert writer._worker is replacement_worker
+    for worker in (first_worker, replacement_worker):
+        names = [call.args[0] for call in worker.add_configuration.call_args_list]
+        assert names.count("bootstrap.config") == 1
+    assert [entry[0] for entry in writer._configurations].count("bootstrap.config") == 1
+
+
+def test_microvm_identity_refresh_replay_does_not_overwrite_concurrent_update():
+    """An update made on another thread while the refresh replays must outlast the replayed older value."""
+    first_worker, replacement_worker = mock.Mock(), mock.Mock()
+    writer = _microvm_refresh_writer([first_worker, replacement_worker])
+    concurrent_update = threading.Thread(target=writer.product_activated, args=("profiler", False))
+
+    def change_profiler_mid_replay(product, *_args):
+        # Replay sends "appsec" before "profiler". Change "profiler" from another thread in between and
+        # give that thread time to finish, which it can only do if the replacement is already published.
+        if product == "appsec" and concurrent_update.ident is None:
+            concurrent_update.start()
+            concurrent_update.join(0.2)
+
+    replacement_worker.add_product_change.side_effect = change_profiler_mid_replay
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        writer.product_activated("appsec", True)
+        writer.product_activated("profiler", True)
+        writer._refresh_runtime_identity("new-runtime-id")
+        concurrent_update.join(5)
+
+    assert not concurrent_update.is_alive()
+    profiler_states = [
+        call.args[1] for call in replacement_worker.add_product_change.call_args_list if call.args[0] == "profiler"
+    ]
+    assert profiler_states[-1] is False
+    assert writer._product_statuses == {"appsec": True, "profiler": False}
+
+
+def test_microvm_periodic_retries_failed_discard():
+    """The /run refresh runs once, so the heartbeat retries a discard that failed there."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    old_worker, replacement_worker = mock.Mock(), mock.Mock()
+    old_worker.stop.side_effect = [RuntimeError("stop failed"), None]
+    writer = _microvm_refresh_writer([old_worker, replacement_worker])
+    original_runtime_id = runtime.get_runtime_id()
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        try:
+            writer.app_started()
+            _runtime_id._refresh_runtime_id()
+
+            with pytest.raises(RuntimeError, match="stop failed"):
+                writer._refresh_runtime_identity(runtime.get_runtime_id())
+            assert writer._worker is old_worker
+
+            writer.periodic()
+
+            assert writer._worker is replacement_worker
+            assert writer._worker_runtime_id == runtime.get_runtime_id()
+            assert old_worker.stop.call_count == 2
+            replacement_worker.start.assert_called_once_with()
+            assert writer.started is True
+        finally:
+            _runtime_id._RUNTIME_ID = original_runtime_id
+
+
+def test_microvm_identity_refresh_contains_native_panic_and_keeps_stale_worker():
+    """A Rust panic from the old worker's stop() must not abort /run, and the stale worker stays for the retry."""
+    old_worker, replacement_worker = mock.Mock(), mock.Mock()
+    old_worker.stop.side_effect = [_FakePanicException("stop panicked"), KeyboardInterrupt(), None]
+    writer = _microvm_refresh_writer([old_worker, replacement_worker])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        writer.app_started()
+
+        writer._refresh_runtime_identity("new-runtime-id")
+        assert writer._worker is old_worker
+        assert writer._build_worker.call_count == 1
+
+        # Only Rust panics are contained; other BaseExceptions still propagate.
+        with pytest.raises(KeyboardInterrupt):
+            writer._refresh_runtime_identity("new-runtime-id")
+        assert writer._worker is old_worker
+
+        writer._refresh_runtime_identity("new-runtime-id")
+
+    assert writer._worker is replacement_worker
+    replacement_worker.start.assert_called_once_with()
+
+
+def test_microvm_periodic_contains_native_panic_from_stale_worker_rebuild():
+    """A Rust panic while the heartbeat retries a stale worker must not escape periodic()."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    old_worker, replacement_worker = mock.Mock(), mock.Mock()
+    old_worker.stop.side_effect = [_FakePanicException("stop panicked"), None]
+    writer = _microvm_refresh_writer([old_worker, replacement_worker])
+    original_runtime_id = runtime.get_runtime_id()
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        try:
+            writer.app_started()
+            _runtime_id._refresh_runtime_id()
+
+            writer.periodic()
+            assert writer._worker is old_worker
+
+            writer.periodic()
+            assert writer._worker is replacement_worker
+            assert writer._worker_runtime_id == runtime.get_runtime_id()
+        finally:
+            _runtime_id._RUNTIME_ID = original_runtime_id
+
+
+def test_microvm_disable_waits_for_in_flight_rebuild_and_stops_replacement():
+    """disable() during a refresh rebuild must stop the replacement instead of leaving it running."""
+    old_worker, replacement_worker = mock.Mock(), mock.Mock()
+    writer = _microvm_refresh_writer([old_worker])
+    build_entered, release_build = threading.Event(), threading.Event()
+
+    def blocking_build(_runtime_id):
+        build_entered.set()
+        release_build.wait(5)
+        return replacement_worker
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        writer.app_started()
+        writer._build_worker = mock.Mock(side_effect=blocking_build)
+
+        refresh = threading.Thread(target=writer._refresh_runtime_identity, args=("new-runtime-id",), daemon=True)
+        refresh.start()
+        assert build_entered.wait(5)
+
+        disable = threading.Thread(target=writer.disable, daemon=True)
+        disable.start()
+        disable.join(0.2)
+        # Returning now would see no worker and leave the replacement the refresh is about to publish running.
+        assert disable.is_alive()
+
+        release_build.set()
+        refresh.join(5)
+        disable.join(5)
+
+    assert not refresh.is_alive()
+    assert not disable.is_alive()
+    replacement_worker.stop.assert_called_once()
+    assert writer._worker is None
+
+
+def test_microvm_disable_racing_rebuild_setup_leaves_no_collector():
+    """disable() during a data-path rebuild must not be followed by that rebuild starting a new collector."""
+    replacement_worker = mock.Mock()
+    writer = _microvm_refresh_writer([replacement_worker])
+    disable = threading.Thread(target=writer.disable, daemon=True)
+    disable_blocked_during_setup = []
+
+    def disable_during_setup():
+        disable.start()
+        disable.join(0.2)
+        disable_blocked_during_setup.append(disable.is_alive())
+
+    writer._report_endpoints = mock.Mock(side_effect=disable_during_setup)
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer.endpoint_collection"),
+        mock.patch("ddtrace.internal.telemetry.writer._TelemetryDependencyCollector") as collector_cls,
+    ):
+        assert writer.enable() is True
+        disable.join(5)
+
+    # Finishing during the setup would let enable() start a collector on the disabled writer.
+    assert disable_blocked_during_setup == [True]
+    assert not disable.is_alive()
+    collector_cls.assert_not_called()
+    assert writer._deps_collector is None
+    replacement_worker.stop.assert_called_once()
+    assert writer._worker is None
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_enable_contains_native_panic_from_worker_build_only_in_microvm(is_microvm):
+    """After a refresh whose rebuild panicked, the lazy rebuild runs on an app thread, so a MicroVM contains it."""
+    writer = _microvm_refresh_writer([_FakePanicException("build panicked")])
+    writer._is_microvm = is_microvm
+
+    if is_microvm:
+        assert writer.enable() is False
+        assert writer._worker is None
+    else:
+        with pytest.raises(_FakePanicException):
+            writer.enable()
+
+
+def test_microvm_product_update_racing_refresh_reaches_new_worker():
+    """A refresh that runs between an update's worker read and its replay record must not lose the update."""
+    first_worker, replacement_worker = mock.Mock(), mock.Mock()
+    writer = _microvm_refresh_writer([first_worker, replacement_worker])
+
+    class RefreshOnRecord(dict):
+        """Runs a whole refresh just before the update is recorded, as if this thread were preempted there."""
+
+        refreshed = False
+
+        def __setitem__(self, key, value):
+            if not self.refreshed:
+                self.refreshed = True
+                writer._refresh_runtime_identity("new-runtime-id")
+            super().__setitem__(key, value)
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        assert writer.enable()
+        writer._product_statuses = RefreshOnRecord()
+        writer.product_activated("appsec", True)
+
+    assert writer._worker is replacement_worker
+    assert [call.args[:2] for call in replacement_worker.add_product_change.call_args_list] == [("appsec", True)]
+
+
+@pytest.mark.parametrize(
+    "update,sent",
+    [
+        (
+            lambda writer: writer.add_configuration("dynamic.config", "value", "code"),
+            lambda worker: worker.add_configuration.call_args_list,
+        ),
+        (
+            lambda writer: writer.add_configurations([("dynamic.config", "value", "code")]),
+            lambda worker: worker.add_configuration.call_args_list,
+        ),
+        (
+            lambda writer: writer.add_integration("flask", True, version="1.0"),
+            lambda worker: worker.add_integration.call_args_list,
+        ),
+        (
+            lambda writer: writer.product_activated("appsec", True),
+            lambda worker: worker.add_product_change.call_args_list,
+        ),
+    ],
+    ids=["add_configuration", "add_configurations", "add_integration", "product_activated"],
+)
+def test_microvm_update_that_builds_the_worker_is_sent_once(update, sent):
+    """With no worker yet, enable() replays the recorded update into the worker it builds, so the update
+    must not also be sent directly.
+    """
+    worker = mock.Mock()
+    writer = _microvm_refresh_writer([worker])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer.get_python_config_vars", return_value=[]),
+    ):
+        update(writer)
+
+    assert writer._worker is worker
+    assert len(sent(worker)) == 1
+
+
+def test_microvm_configuration_update_racing_rebuild_is_sent_once():
+    """An update made while a refresh builds the replacement reaches it once, not through both the replay
+    and a direct send that would carry a newer sequence ID than later updates.
+    """
+    first_worker, replacement_worker = mock.Mock(), mock.Mock()
+    writer = _microvm_refresh_writer([first_worker])
+    build_entered = threading.Event()
+    release_build = threading.Event()
+
+    def blocking_build(_runtime_id):
+        build_entered.set()
+        release_build.wait(5)
+        return replacement_worker
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer.get_python_config_vars", return_value=[]),
+    ):
+        assert writer.enable()
+        writer._build_worker = mock.Mock(side_effect=blocking_build)
+
+        refresh = threading.Thread(target=writer._refresh_runtime_identity, args=("new-runtime-id",), daemon=True)
+        refresh.start()
+        assert build_entered.wait(5)
+        update = threading.Thread(
+            target=writer.add_configuration, args=("dynamic.config", "value", "code"), daemon=True
+        )
+        update.start()
+        # Give the update time to reach the point where it waits for the refresh.
+        update.join(0.2)
+        release_build.set()
+        refresh.join(5)
+        update.join(5)
+
+    assert not refresh.is_alive()
+    assert not update.is_alive()
+    assert writer._worker is replacement_worker
+    names = [call.args[0] for call in replacement_worker.add_configuration.call_args_list]
+    assert names.count("dynamic.config") == 1
+
+
+def test_microvm_bootstrap_configurations_precede_update_that_retries_failed_build():
+    """When an update retries a failed first build, bootstrap configurations are still reported, and
+    before the update, as they are outside MicroVMs.
+    """
+    worker = mock.Mock()
+    writer = _microvm_refresh_writer([RuntimeError("build failed"), worker])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch(
+            "ddtrace.internal.telemetry.writer.get_python_config_vars",
+            return_value=[("bootstrap.config", "value", "unknown")],
+        ),
+    ):
+        assert not writer.enable()
+        writer.add_configuration("dynamic.config", "value", "code")
+
+    assert writer._worker is worker
+    assert [call.args[0] for call in worker.add_configuration.call_args_list] == [
+        "bootstrap.config",
+        "dynamic.config",
+    ]
+    seq_ids = [call.args[4] for call in worker.add_configuration.call_args_list]
+    assert seq_ids == sorted(seq_ids)
+    assert [entry[0] for entry in writer._configurations] == ["bootstrap.config", "dynamic.config"]
+
+
+def _enabled_root_writer():
+    """A real non-MicroVM writer, constructed with telemetry disabled so it installs no global hooks."""
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", False),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=False),
+    ):
+        writer = TelemetryWriter(agentless=False)
+    writer._enabled = True
+    writer._deps_collector = mock.Mock()
+    writer._report_endpoints = mock.Mock()
+    return writer
+
+
+def test_enable_builds_worker_with_the_runtime_id_it_records():
+    """The worker's runtime and session IDs match the ID enable() records, even if the ID rotates mid-build."""
+    from ddtrace.internal import native
+
+    writer = _enabled_root_writer()
+    runtime_ids = iter(["recorded-id"])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer.endpoint_collection"),
+        mock.patch.object(native, "TelemetryWorker") as worker_cls,
+        mock.patch("ddtrace.internal.native_runtime.get_native_runtime", return_value=object()),
+        mock.patch(
+            "ddtrace.internal.telemetry.writer.get_runtime_id",
+            side_effect=lambda: next(runtime_ids, "rotated-id"),
+        ),
+    ):
+        assert writer.enable()
+
+    kwargs = worker_cls.call_args.kwargs
+    assert kwargs["runtime_id"] == kwargs["session_id"] == writer._worker_runtime_id == "recorded-id"
+
+
+def test_bootstrap_reporting_reenters_enable_after_worker_is_cleared():
+    """Outside MicroVMs, an agentless switch can clear the worker right after enable() publishes it. The
+    bootstrap report's own enable() call then rebuilds under the lock enable() already holds, so the
+    lock must be reentrant.
+    """
+    first_worker, replacement_worker = mock.Mock(), mock.Mock()
+    writer = _enabled_root_writer()
+    writer._build_worker = mock.Mock(side_effect=[first_worker, replacement_worker])
+    reported = []
+
+    def clear_worker_on_first_report():
+        if not reported:
+            # What enable_agentless_client() does from another thread.
+            writer._worker = None
+        reported.append(True)
+        return [("bootstrap.config", "value", "unknown")]
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer.endpoint_collection"),
+        mock.patch(
+            "ddtrace.internal.telemetry.writer.get_python_config_vars", side_effect=clear_worker_on_first_report
+        ),
+    ):
+        enable = threading.Thread(target=writer.enable, daemon=True)
+        enable.start()
+        enable.join(5)
+
+    assert not enable.is_alive()
+    assert writer._worker is replacement_worker
+
+
+def test_microvm_refresh_during_root_start_still_starts_replacement():
+    """A refresh that lands while app_started() is between start() and setting started must still start the
+    replacement, instead of leaving started set for a worker that never started.
+    """
+    old_worker, replacement_worker = mock.Mock(), mock.Mock()
+    writer = _microvm_refresh_writer([old_worker, replacement_worker])
+    refresh = threading.Thread(target=writer._refresh_runtime_identity, args=("new-runtime-id",), daemon=True)
+
+    def start_then_refresh():
+        # Run the refresh from another thread while this one is still inside app_started().
+        refresh.start()
+        refresh.join(0.2)
+
+    old_worker.start.side_effect = start_then_refresh
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer.get_python_config_vars", return_value=[]),
+    ):
+        assert writer.enable()
+        writer.app_started()
+        refresh.join(5)
+
+    assert not refresh.is_alive()
+    assert writer._worker is replacement_worker
+    replacement_worker.start.assert_called_once_with()
+    assert writer.started is True
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_app_started_holds_enable_lock_only_in_microvm(is_microvm):
+    """In a MicroVM a refresh must not land between start() and setting started; outside one nothing is locked."""
+    worker = mock.Mock()
+    writer = _microvm_refresh_writer([worker])
+    writer._is_microvm = is_microvm
+    lock_held = []
+    worker.start.side_effect = lambda: lock_held.append(writer._enable_lock._is_owned())
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer.get_python_config_vars", return_value=[]),
+    ):
+        writer.app_started()
+
+    assert lock_held == [is_microvm]
+    assert writer.started is True
+
+
+def test_endpoint_replay_survives_route_registered_during_replay():
+    """A route registered on another thread while enable() replays endpoints must not abort the replay."""
+    from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+
+    def endpoint(path):
+        return mock.Mock(
+            method="GET", path=path, operation_name="", resource_name="", response_body_type=(), response_code=()
+        )
+
+    endpoints = {endpoint("/a"), endpoint("/b")}
+    collection = mock.Mock(endpoints=endpoints)
+    worker = mock.Mock()
+    # The first replayed endpoint lets another thread register a route, which reaches the worker on its own.
+    worker.add_endpoint.side_effect = lambda *_args, **_kwargs: (
+        endpoints.add(endpoint("/late")) if len(endpoints) == 2 else None
+    )
+    writer = _microvm_refresh_writer([])
+    writer._worker = worker
+
+    with (
+        mock.patch.object(appsec_telemetry_config, "ENDPOINT_COLLECTION_ENABLED", True),
+        mock.patch("ddtrace.internal.telemetry.writer.endpoint_collection", collection),
+    ):
+        writer._report_endpoints()
+
+    assert worker.add_endpoint.call_count == 2
+    assert len(endpoints) == 3
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_dependency_report_holds_enable_lock_only_in_microvm(is_microvm):
+    """A MicroVM refresh must not land between reading the worker and consuming the dependency report."""
+    writer = _microvm_refresh_writer([mock.Mock()])
+    writer._is_microvm = is_microvm
+    lock_held = []
+    tracker = mock.Mock()
+    tracker.collect_report.side_effect = lambda: lock_held.append(writer._enable_lock._is_owned()) or [
+        {"name": "dep", "version": "1.0"}
+    ]
+    writer._dependency_tracker = tracker
+    # The helper stubs _report_dependencies on the instance; use the real method.
+    del writer._report_dependencies
+
+    with mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"):
+        assert writer.enable()
+    assert writer._report_dependencies() == [{"name": "dep", "version": "1.0"}]
+
+    assert lock_held == [is_microvm]
+    writer._worker.add_dependency.assert_called_once_with("dep", "1.0", None)
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_start_retry_contains_native_panic_only_in_microvm(is_microvm):
+    """periodic() retries a start that panicked during a refresh; a panic escaping it would end the heartbeat thread."""
+    worker = mock.Mock()
+    worker.start.side_effect = [_FakePanicException("start panicked"), None]
+    writer = _microvm_refresh_writer([worker])
+    writer._is_microvm = is_microvm
+
+    with mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"):
+        if not is_microvm:
+            with pytest.raises(_FakePanicException):
+                writer.app_started()
+            return
+
+        writer.periodic()
+        assert writer.started is False
+
+        writer.periodic()
+
+    assert writer.started is True
+    assert worker.start.call_count == 2
+
+
+@pytest.mark.parametrize("error", [RuntimeError("replay failed"), _FakePanicException("replay panicked")])
+def test_microvm_replay_failure_stops_unpublished_worker(error):
+    """A replacement whose replay fails is never published, so enable() must stop it to release its native task."""
+    first_worker, replacement_worker = mock.Mock(), mock.Mock()
+    replacement_worker.add_configuration.side_effect = error
+    writer = _microvm_refresh_writer([first_worker, replacement_worker])
+
+    with (
+        mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"),
+        mock.patch("ddtrace.internal.telemetry.writer._unbind_metric_recorders"),
+    ):
+        # The first worker records the bootstrap configurations that the replacement then replays.
+        assert writer.enable()
+        with pytest.raises(RuntimeError, match="Failed to rebuild the telemetry worker"):
+            writer._refresh_runtime_identity("new-runtime-id")
+
+    replacement_worker.stop.assert_called_once_with(send_app_closing=False)
+    assert writer._worker is None
+
+
+def test_periodic_skips_stale_worker_check_outside_microvm():
+    worker = mock.Mock()
+    writer = _microvm_refresh_writer([worker])
+    writer._is_microvm = False
+
+    with mock.patch("ddtrace.internal.telemetry.writer._bind_metric_recorders"):
+        writer.app_started()
+    writer._worker_runtime_id = "older-runtime-id"
+
+    with mock.patch.object(writer, "_rebuild_stale_worker_without_lock") as rebuild:
+        writer.periodic()
+
+    rebuild.assert_not_called()
+    assert writer._worker is worker
+    assert writer._build_worker.call_count == 1
+
+
+def test_microvm_identity_refresh_emits_new_runtime_id(telemetry_writer, test_agent_session, monkeypatch):
+    """Telemetry emitted after identity refresh uses the refreshed runtime ID.
+
+    Without a native drop(), the old worker is stopped, which flushes and sends app-closing under the
+    previous runtime ID once (a known MicroVM gap). With drop(), the old worker sends nothing.
+    """
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    original_runtime_id = runtime.get_runtime_id()
+    callbacks = set()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", callbacks)
+    worker_has_drop = hasattr(telemetry_writer._worker, "drop")
+
+    telemetry_writer._is_microvm = True
+    # The fixture writer was built outside a MicroVM with a non-reentrant lock; refresh re-enters
+    # it through enable(), so install the RLock a MicroVM writer would use.
+    telemetry_writer._enable_lock = threading.RLock()
+    runtime.on_runtime_identity_refresh(telemetry_writer._refresh_runtime_identity)
+
+    try:
+        telemetry_writer.periodic(force_flush=True)
+        test_agent_session.clear()
+
+        runtime.refresh_identity()
+        telemetry_writer.periodic(force_flush=True)
+
+        app_started_events = test_agent_session.get_events("app-started")
+        assert len(app_started_events) == 1
+        assert app_started_events[0]["runtime_id"] == runtime.get_runtime_id()
+        old_app_closing_events = [
+            e for e in test_agent_session.get_events("app-closing") if e["runtime_id"] == original_runtime_id
+        ]
+        assert len(old_app_closing_events) == (0 if worker_has_drop else 1)
+    finally:
+        telemetry_writer.disable()
+        _runtime_id._RUNTIME_ID = original_runtime_id
+
+
+def test_non_microvm_writer_does_not_register_identity_refresh(monkeypatch):
+    """Identity refresh callbacks are only registered for MicroVM writers."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    callbacks = set()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", callbacks)
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(TelemetryWriter, "enable", return_value=True),
+        mock.patch.object(TelemetryWriter, "install_excepthook"),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=False),
+        mock.patch("ddtrace.internal.telemetry.writer.atexit.register"),
+        mock.patch("ddtrace.internal.telemetry.writer.forksafe.register"),
+    ):
+        writer = TelemetryWriter(agentless=False)
+
+    assert writer._is_microvm is False
+    assert callbacks == set()
+
+    with mock.patch.object(writer, "_refresh_runtime_identity_without_lock") as refresh:
+        writer._refresh_runtime_identity("new-runtime-id")
+    refresh.assert_not_called()
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_configuration_replay_store_is_microvm_only(is_microvm):
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = is_microvm
+    writer._worker = mock.Mock()
+    writer._enable_lock = threading.RLock()
+    writer._configurations = deque(maxlen=5000)
+    writer.enable = mock.Mock(return_value=True)
+
+    with mock.patch(
+        "ddtrace.internal.telemetry.writer._native_telemetry_enums",
+        return_value={"origin": mock.Mock(env_var="env_var", unknown="unknown")},
+    ):
+        writer.add_configuration("single.config", True, "env_var")
+        writer.add_configurations([("bulk.config", False, "env_var")])
+
+    assert writer._worker.add_configuration.call_count == 2
+    if is_microvm:
+        assert list(writer._configurations) == [
+            ("single.config", "true", "env_var", None),
+            ("bulk.config", "false", "env_var", None),
+        ]
+    else:
+        assert not writer._configurations
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_integration_and_product_replay_store_is_microvm_only(is_microvm):
+    """Outside MicroVMs nothing is kept for replay, so a rebuilt worker gets no replayed state."""
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = is_microvm
+    writer._worker = mock.Mock()
+    writer._enable_lock = threading.RLock()
+    writer._integrations = {}
+    writer._product_statuses = {}
+    writer._product_versions = {}
+    writer.enable = mock.Mock(return_value=True)
+
+    writer.add_integration("flask", True, auto_patched=True, error_msg="", version="1.0")
+    writer.product_activated("appsec", True)
+
+    writer._worker.add_integration.assert_called_once_with("flask", "1.0", True, True, True, None)
+    writer._worker.add_product_change.assert_called_once()
+    if is_microvm:
+        assert writer._integrations == {"flask": ("1.0", True, True, True, None)}
+        assert writer._product_statuses == {"appsec": True}
+    else:
+        assert writer._integrations == {}
+        assert writer._product_statuses == {}
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_microvm_error_handler_skips_records_below_error(monkeypatch, is_microvm):
+    """In a MicroVM, refresh logs DEBUG while holding the enable lock, and the handler forwards ERROR
+    records to add_log() (which can wait for that lock) while holding its own lock. DEBUG records must
+    not take the handler lock there. Outside MicroVMs the handler is unchanged.
+    """
+    import logging
+
+    from ddtrace.internal import _runtime_id
+
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", set())
+    ddtrace_logger = mock.Mock()
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(TelemetryWriter, "enable", return_value=True),
+        mock.patch.object(TelemetryWriter, "install_excepthook"),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=is_microvm),
+        mock.patch("ddtrace.internal.telemetry.writer.atexit.register"),
+        mock.patch("ddtrace.internal.telemetry.writer.forksafe.register"),
+        mock.patch("ddtrace.internal.telemetry.writer.get_logger", return_value=ddtrace_logger),
+    ):
+        TelemetryWriter(agentless=False)
+
+    (handler,), _ = ddtrace_logger.addHandler.call_args
+    logger = logging.Logger("test_microvm_error_handler")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+
+    # Handler.handle() is what takes the handler lock; the logger only calls it at or above the handler level.
+    with mock.patch.object(handler, "handle") as handle:
+        logger.debug("refresh failed")
+
+    if is_microvm:
+        assert handler.level == logging.ERROR
+        handle.assert_not_called()
+    else:
+        assert handler.level == logging.NOTSET
+        handle.assert_called_once()
+
+
+def test_metric_recorder_rebind_keeps_context_paired_with_worker():
+    """add() reads _worker and _context separately. A rebind between those reads (a MicroVM identity
+    refresh on another thread) must not hand the old native worker a None context.
+    """
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.internal.telemetry.metrics import MetricRecorder
+
+    recorder = MetricRecorder(TELEMETRY_NAMESPACE.TRACERS, "spans_created")
+    old_context = object()
+    contexts = []
+
+    class OldWorker:
+        @property
+        def add_point(self):
+            # Runs after add() loads _worker and before it loads _context.
+            recorder._rebind(mock.Mock())
+            return lambda context, value: contexts.append(context)
+
+    recorder._worker = OldWorker()
+    recorder._context = old_context
+
+    recorder.add()
+
+    assert contexts == [old_context]
+
+
+def test_metric_context_registered_on_replaced_worker_is_not_cached():
+    """Contexts are worker-specific. A thread that read the worker before a MicroVM identity refresh
+    replaced it must not cache the old worker's context for the new one.
+    """
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._metric_lock = threading.Lock()
+    writer._metric_contexts = {}
+    old_worker, new_worker = object(), object()
+    writer._worker = new_worker
+    old_context, new_context = object(), object()
+
+    with mock.patch(
+        "ddtrace.internal.telemetry.writer.register_metric_context", side_effect=[old_context, new_context]
+    ):
+        assert writer._register_metric_context(old_worker, "count", TELEMETRY_NAMESPACE.TRACERS, "m") is old_context
+        assert writer._metric_contexts == {}
+        assert writer._register_metric_context(new_worker, "count", TELEMETRY_NAMESPACE.TRACERS, "m") is new_context
+
+    assert writer._metric_contexts == {(TELEMETRY_NAMESPACE.TRACERS, "m", "count"): new_context}
+
+
 def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):
     """DD_API_KEY and DD_APP_KEY values are excluded from configuration telemetry.
 
@@ -1108,21 +1912,24 @@ def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_sessi
         os.environ,
         {"DD_API_KEY": "SENTINEL_DD_API_KEY", "DD_APP_KEY": "SENTINEL_DD_APP_KEY"},
     ):
-        # Read each sensitive key the way settings do; the value must not be queued for telemetry.
+        # Read each sensitive key the way settings do; the value must not be reported via telemetry.
         assert get_config("DD_API_KEY") == "SENTINEL_DD_API_KEY"
         assert get_config("DD_APP_KEY") == "SENTINEL_DD_APP_KEY"
         # A non-sensitive control config is still reported, proving reporting is otherwise active.
         get_config("DD_SITE", "datadoghq.com")
 
-    queued = list(telemetry_writer._queued_configs)
-    queued_names = {c["name"] for c in queued}
-    assert "DD_API_KEY" not in queued_names, queued
-    assert "DD_APP_KEY" not in queued_names, queued
-    for cfg in queued:
+    # Flush the queued configurations to the native worker -> test agent.
+    telemetry_writer.periodic(force_flush=True)
+
+    configurations = test_agent_session.get_configurations()
+    reported_names = {c["name"] for c in configurations}
+    assert "DD_API_KEY" not in reported_names, configurations
+    assert "DD_APP_KEY" not in reported_names, configurations
+    for cfg in configurations:
         assert "SENTINEL_DD_API_KEY" not in str(cfg["value"]), cfg
         assert "SENTINEL_DD_APP_KEY" not in str(cfg["value"]), cfg
     # Sanity check: the non-sensitive control config was reported.
-    assert "DD_SITE" in queued_names, queued
+    assert "DD_SITE" in reported_names, configurations
 
 
 def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
@@ -1295,8 +2102,31 @@ def test_error_log_handler_strips_skipped_suffix(mock_time, telemetry_writer, te
 )
 def test_redact_filename(filename, result):
     """Test file redaction logic"""
-    writer = TelemetryWriter(is_periodic=False)
+    writer = TelemetryWriter()
     assert writer._format_file_path(filename) == result
+
+
+def test_endpoint_subscription_lifecycle(telemetry_writer):
+    """``enable`` subscribes the writer to the endpoint collection, ``disable`` unsubscribes it."""
+    from ddtrace.internal.endpoints import endpoint_collection
+
+    assert endpoint_collection.on_endpoint_registered == telemetry_writer._record_endpoint
+
+    telemetry_writer.disable()
+    assert endpoint_collection.on_endpoint_registered is None
+
+
+def test_disable_leaves_a_foreign_endpoint_subscriber_alone(telemetry_writer):
+    """Only the writer's own subscription is cleared, so a disable cannot unhook someone else."""
+    from ddtrace.internal.endpoints import endpoint_collection
+
+    def other(endpoint):
+        pass
+
+    endpoint_collection.on_endpoint_registered = other
+    telemetry_writer.disable()
+
+    assert endpoint_collection.on_endpoint_registered is other
 
 
 def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):
@@ -1315,32 +2145,137 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
     assert len(configs) == 6, configs
 
     sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
+    # The native worker owns the configuration seq_id and stamps the eagerly-reported
+    # ``python_*`` configs first, so absolute seq_ids are offset. Assert the relative order
+    # (each source increments the seq_id, in insertion order) instead of absolute values.
+    seq_ids = [c["seq_id"] for c in sorted_configs]
+    assert seq_ids == sorted(seq_ids) and len(set(seq_ids)) == 6, seq_ids
+
     assert sorted_configs[0]["value"] == "unamed_python_service"
     assert sorted_configs[0]["origin"] == "default"
-    assert sorted_configs[0]["seq_id"] == 1
 
     assert sorted_configs[1]["value"] == "otel_service"
     assert sorted_configs[1]["origin"] == "otel_env_var"
-    assert sorted_configs[1]["seq_id"] == 2
 
     assert sorted_configs[2]["value"] == "dd_service"
     assert sorted_configs[2]["origin"] == "env_var"
-    assert sorted_configs[2]["seq_id"] == 3
 
     assert sorted_configs[3]["value"] == "monkey"
     assert sorted_configs[3]["origin"] == "code"
-    assert sorted_configs[3]["seq_id"] == 4
 
     assert sorted_configs[4]["value"] == "baboon"
     assert sorted_configs[4]["origin"] == "remote_config"
-    assert sorted_configs[4]["seq_id"] == 5
 
     assert sorted_configs[5]["value"] == "baboon"
     assert sorted_configs[5]["origin"] == "fleet_stable_config"
-    assert sorted_configs[5]["seq_id"] == 6
 
 
-@pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"})
+def test_report_configuration_walks_ddconfig(telemetry_writer, test_agent_session, monkeypatch):
+    """report_configuration() reports every public, non-sensitive item of a DDConfig with its
+    resolved value, source and config_id, and skips private and sensitive items entirely.
+    """
+    monkeypatch.setenv("DD_TEST_SYNTHETIC_PUBLIC_SETTING", "from_env")
+    monkeypatch.setenv("DD_TEST_SYNTHETIC_BOOL_SETTING", "true")
+    monkeypatch.setenv("DD_TEST_SYNTHETIC_FLOAT_SETTING", "1.5")
+
+    with (
+        mock.patch.dict(settings_core.FLEET_CONFIG, {"DD_TEST_SYNTHETIC_FLEET_SETTING": "from_fleet"}),
+        mock.patch.dict(settings_core.FLEET_CONFIG_IDS, {"DD_TEST_SYNTHETIC_FLEET_SETTING": "config-id-123"}),
+    ):
+        synthetic_config = _SyntheticDDConfig()
+
+    with mock.patch.object(
+        ddtrace.internal.telemetry,
+        "SENSITIVE_CONFIGURATIONS",
+        frozenset({"DD_TEST_SYNTHETIC_SENSITIVE_SETTING"}),
+    ):
+        ddtrace.internal.telemetry.report_configuration(synthetic_config)
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+
+    assert reported["DD_TEST_SYNTHETIC_PUBLIC_SETTING"]["origin"] == "env_var"
+    assert reported["DD_TEST_SYNTHETIC_PUBLIC_SETTING"]["value"] == "from_env"
+
+    assert reported["DD_TEST_SYNTHETIC_FLEET_SETTING"]["origin"] == "fleet_stable_config"
+    assert reported["DD_TEST_SYNTHETIC_FLEET_SETTING"]["value"] == "from_fleet"
+    assert reported["DD_TEST_SYNTHETIC_FLEET_SETTING"]["config_id"] == "config-id-123"
+
+    assert "DD_TEST_SYNTHETIC_PRIVATE_SETTING" not in reported
+    assert "DD_TEST_SYNTHETIC_SENSITIVE_SETTING" not in reported
+
+    # The native worker serializes every configuration value as a string, so compare against
+    # the wire form (see _to_config_str) rather than the DDConfig item's declared type.
+    assert reported["DD_TEST_SYNTHETIC_BOOL_SETTING"]["value"] == _to_config_str(True)
+    assert reported["DD_TEST_SYNTHETIC_FLOAT_SETTING"]["value"] == _to_config_str(1.5)
+
+
+def test_get_config_reports_all_sources_by_precedence(telemetry_writer, test_agent_session, monkeypatch):
+    """get_config() reports telemetry for every source that supplies a value and returns the
+    value from the highest-precedence source: fleet stable config > env var > local stable
+    config > default.
+    """
+    name = "DD_TEST_SYNTHETIC_GET_CONFIG_SETTING"
+
+    assert ddtrace.internal.telemetry.get_config(name, "default_value") == "default_value"
+
+    with mock.patch.dict(ddtrace.internal.telemetry.LOCAL_CONFIG, {name: "local_value"}):
+        assert ddtrace.internal.telemetry.get_config(name, "default_value") == "local_value"
+
+    monkeypatch.setenv(name, "env_value")
+    with mock.patch.dict(ddtrace.internal.telemetry.LOCAL_CONFIG, {name: "local_value"}):
+        assert ddtrace.internal.telemetry.get_config(name, "default_value") == "env_value"
+
+    with (
+        mock.patch.dict(ddtrace.internal.telemetry.LOCAL_CONFIG, {name: "local_value"}),
+        mock.patch.dict(ddtrace.internal.telemetry.FLEET_CONFIG, {name: "fleet_value"}),
+        mock.patch.dict(ddtrace.internal.telemetry.FLEET_CONFIG_IDS, {name: "config-id-456"}),
+    ):
+        assert ddtrace.internal.telemetry.get_config(name, "default_value") == "fleet_value"
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = test_agent_session.get_configurations(name=name, remove_seq_id=False, effective=False)
+    origins = {c["origin"] for c in reported}
+    assert origins == {"default", "local_stable_config", "env_var", "fleet_stable_config"}
+
+    fleet_entry = next(c for c in reported if c["origin"] == "fleet_stable_config")
+    assert fleet_entry["value"] == "fleet_value"
+    assert fleet_entry["config_id"] == "config-id-456"
+
+
+def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writer, test_agent_session, monkeypatch):
+    """get_config() honors registered aliases of the canonical env var name and never reports
+    telemetry for configurations marked sensitive, regardless of which source supplies them.
+    """
+    canonical = "DD_TEST_SYNTHETIC_CANONICAL_SETTING"
+    alias = "DD_TEST_SYNTHETIC_LEGACY_ALIAS"
+    monkeypatch.setenv(alias, "aliased_value")
+
+    with mock.patch.dict(ddtrace.internal.telemetry.CONFIGURATION_ALIASES, {canonical: [alias]}):
+        assert ddtrace.internal.telemetry.get_config(canonical, "default_value") == "aliased_value"
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+    assert reported[canonical]["origin"] == "env_var"
+    assert reported[canonical]["value"] == "aliased_value"
+
+    sensitive_name = "DD_TEST_SYNTHETIC_SENSITIVE_GET_CONFIG_SETTING"
+    monkeypatch.setenv(sensitive_name, "leaked_value")
+    with mock.patch.object(
+        ddtrace.internal.telemetry,
+        "SENSITIVE_CONFIGURATIONS",
+        frozenset({sensitive_name}),
+    ):
+        assert ddtrace.internal.telemetry.get_config(sensitive_name, "default_value") == "leaked_value"
+
+    telemetry_writer.periodic(force_flush=True)
+    reported = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+    assert sensitive_name not in reported
+
+
+# err=None: with telemetry debug enabled the native worker logs its actions to stderr, which is
+# expected here, so the default "no stderr" check must be relaxed.
+@pytest.mark.subprocess(env={"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true"}, err=None)
 def test_telemetry_debug_enabled_by_telemetry_env_var():
     """Telemetry debug mode is enabled only by DD_INTERNAL_TELEMETRY_DEBUG_ENABLED, not DD_TRACE_DEBUG."""
     from ddtrace.internal.telemetry import telemetry_writer

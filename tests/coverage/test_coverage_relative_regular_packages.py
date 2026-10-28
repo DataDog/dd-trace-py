@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_regular_package_import_normal():
     """This test validates that regular packages are correctly covered when imported normally"""
     import os
@@ -67,7 +67,7 @@ def test_coverage_regular_package_import_normal():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_regular_package_import_late():
     """Regular packages are correctly covered when they are imported late"""
     import os
@@ -151,7 +151,7 @@ def test_coverage_regular_package_import_late():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_regular_package_rpa_import_parent_normal():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -205,7 +205,7 @@ def test_coverage_regular_package_rpa_import_parent_normal():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_regular_package_rpa_import_parent_late():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -264,7 +264,7 @@ def test_coverage_regular_package_rpa_import_parent_late():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_regular_package_rpa_import_dot_normal():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os
@@ -326,7 +326,7 @@ def test_coverage_regular_package_rpa_import_dot_normal():
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_regular_package_rpa_import_dot_late():
     """Regular packages are correctly covered when imported normally when using a nested package"""
     import os

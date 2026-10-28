@@ -1,10 +1,8 @@
-import sys
+from collections.abc import Iterator
 from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Iterator
-from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
 from typing import cast
@@ -14,12 +12,17 @@ import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace.internal.compat import is_at_least_py
+from ddtrace.internal.compat import is_supported_python_version
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping.asyncs import wrap_async
 from ddtrace.internal.wrapping.generators import wrap_generator
 
 
-PY = sys.version_info[:2]
+log = get_logger(__name__)
 
 # Maps each wrapped function to its inner copy (the singly-linked list of
 # wrapping layers). WeakKeyDictionary so functions are not kept alive by the
@@ -27,11 +30,53 @@ PY = sys.version_info[:2]
 _wrapped: weakref.WeakKeyDictionary[FunctionType, FunctionType] = weakref.WeakKeyDictionary()
 _wrapped_lock = Lock()
 
+
+class _IdentityWeakValueDictionary:
+    """Maps code objects to functions by code-object identity, not equality.
+
+    CodeType overrides __eq__/__hash__ (equal for structurally-identical code,
+    e.g. two CodeType.replace() clones of the same original, or two exec()'d
+    copies of identical source). A plain weakref.WeakValueDictionary keyed by
+    CodeType would conflate such distinct objects, returning the wrong
+    function for a given code object. This keys on id(code) instead, holding
+    the code object strongly (it may otherwise be referenced only here, once
+    the owning function's __code__ is replaced by wrapping) and the function
+    weakly, so wrapped ephemeral functions are not kept alive by this mapping
+    alone -- inspection.py falls back to gc.get_referrers on a miss.
+    """
+
+    __slots__ = ("_data",)
+
+    def __init__(self) -> None:
+        self._data: dict[int, tuple[CodeType, weakref.ref[FunctionType]]] = {}
+
+    def _make_remove(self, code_id: int) -> Any:
+        def remove(_ref: "weakref.ref[FunctionType]") -> None:
+            self._data.pop(code_id, None)
+
+        return remove
+
+    def __setitem__(self, code: CodeType, function: FunctionType) -> None:
+        code_id = id(code)
+        self._data[code_id] = (code, weakref.ref(function, self._make_remove(code_id)))
+
+    def __getitem__(self, code: CodeType) -> FunctionType:
+        item = self._data.get(id(code))
+        if item is not None:
+            stored_code, ref = item
+            if stored_code is code:
+                function = ref()
+                if function is not None:
+                    return function
+        raise KeyError(code)
+
+    def clear(self) -> None:
+        self._data.clear()
+
+
 # Maps original code objects to the functions that own them. Written by
 # link_function_to_code; read by functions_for_code in inspection.py.
-# WeakValueDictionary so that wrapped ephemeral functions are not kept alive by
-# this mapping alone — inspection.py falls back to gc.get_referrers on a miss.
-_code_to_fn: MutableMapping[CodeType, FunctionType] = weakref.WeakValueDictionary()
+_code_to_fn: _IdentityWeakValueDictionary = _IdentityWeakValueDictionary()
 
 
 def link_function_to_code(code: CodeType, function: FunctionType) -> None:
@@ -50,14 +95,14 @@ Wrapper = Callable[[FunctionType, tuple[Any], dict[str, Any]], Any]
 
 
 def _add(lineno: int) -> Instr:
-    if PY >= (3, 11):
+    if is_at_least_py(3, 11):
         return Instr("BINARY_OP", bc.BinaryOp.ADD, lineno=lineno)
 
     return Instr("INPLACE_ADD", lineno=lineno)
 
 
 HEAD = Assembly()
-if PY >= (3, 13):
+if is_at_least_py(3, 13):
     HEAD.parse(
         r"""
             resume              0
@@ -67,7 +112,7 @@ if PY >= (3, 13):
         """
     )
 
-elif PY >= (3, 11):
+elif is_at_least_py(3, 11):
     HEAD.parse(
         r"""
             resume              0
@@ -88,7 +133,7 @@ else:
 
 _UPDATE_MAP_FAST = Assembly()
 _UPDATE_MAP_DEREF = Assembly()
-if PY >= (3, 12):
+if is_at_least_py(3, 12):
     _UPDATE_MAP_FAST.parse(
         r"""
             copy                1
@@ -107,7 +152,7 @@ if PY >= (3, 12):
             pop_top
         """
     )
-elif PY >= (3, 11):
+elif is_at_least_py(3, 11):
     _UPDATE_MAP_FAST.parse(
         r"""
             copy                1
@@ -151,14 +196,14 @@ else:
 
 def _generate_update_map(name: str, code: CodeType, lineno: int) -> Iterator[Any]:
     """Yield opcodes to call ``dict.update(name)`` where ``name`` may be a cell var."""
-    if PY >= (3, 11) and name in code.co_cellvars:
+    if is_at_least_py(3, 11) and name in code.co_cellvars:
         yield from _UPDATE_MAP_DEREF.bind({"varkwargsname": bc.CellVar(name)}, lineno=lineno)  # type: ignore[attr-defined]
     else:
         yield from _UPDATE_MAP_FAST.bind({"varkwargsname": name}, lineno=lineno)
 
 
 CALL_RETURN = Assembly()
-if PY >= (3, 12):
+if is_at_least_py(3, 12):
     CALL_RETURN.parse(
         r"""
             call                {arg}
@@ -166,7 +211,7 @@ if PY >= (3, 12):
         """
     )
 
-elif PY >= (3, 11):
+elif is_at_least_py(3, 11):
     CALL_RETURN.parse(
         r"""
             precall             {arg}
@@ -184,7 +229,7 @@ else:
     )
 
 
-FIRSTLINENO_OFFSET = int(PY >= (3, 11))
+FIRSTLINENO_OFFSET = int(is_at_least_py(3, 11))
 
 
 def _load_var(name: str, code: CodeType, lineno: int) -> Instr:
@@ -193,7 +238,7 @@ def _load_var(name: str, code: CodeType, lineno: int) -> Instr:
     On Python 3.11+, parameters captured by inner closures become cell
     variables and must be loaded with LOAD_DEREF instead of LOAD_FAST.
     """
-    if PY >= (3, 11) and name in code.co_cellvars:
+    if is_at_least_py(3, 11) and name in code.co_cellvars:
         return Instr("LOAD_DEREF", bc.CellVar(name), lineno=lineno)  # type: ignore[attr-defined]
     return Instr("LOAD_FAST", name, lineno=lineno)
 
@@ -257,6 +302,9 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     return a coroutine function, and so on. The signature is also preserved to
     avoid breaking, e.g., usages of the ``inspect`` module.
     """
+    # wrap() trampoline is live through the rolling runtime ceiling.
+    if not is_supported_python_version():
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
 
     code = wrapped.__code__
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
@@ -278,7 +326,7 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     instrs.extend(CALL_RETURN.bind({"arg": 3}, lineno=lineno))
 
     # Include code for handling free/cell variables, if needed
-    if PY >= (3, 11):
+    if is_at_least_py(3, 11):
         if code.co_cellvars:
             instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]  # type: ignore[attr-defined]
 
@@ -304,6 +352,13 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
+    if not is_supported_python_version():
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
+
+    if is_obfuscated_code(f.__code__):
+        log.warning("Cannot wrap %r: code object appears to be obfuscated (e.g. by PyArmor)", f.__code__.co_name)
+        return cast(WrappedFunction, f)
+
     wrapped = FunctionType(
         code := f.__code__,
         f.__globals__,
@@ -340,8 +395,9 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     wrapped_code.kwonlyargcount = kwonlycount
     wrapped_code.name = code.co_name
     wrapped_code.posonlyargcount = code.co_posonlyargcount
-    if PY >= (3, 11):
+    if is_at_least_py(3, 11):
         wrapped_code.cellvars = list(code.co_cellvars)
+        wrapped_code.qualname = code.co_qualname  # type: ignore[attr-defined]
 
     # Replace the function code with the trampoline bytecode
     f.__code__ = wrapped_code.to_code()

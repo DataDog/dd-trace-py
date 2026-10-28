@@ -1,4 +1,6 @@
-import mock
+from typing import Optional
+from unittest import mock
+
 import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
@@ -9,7 +11,6 @@ from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
@@ -24,32 +25,25 @@ from ..utils import override_global_config
 
 
 def assert_sampling_decision_tags(
-    span,
-    agent=None,
-    limit=None,
-    rule=None,
-    sampling_priority=None,
-    trace_tag=None,
-):
-    """Check span attribute given an expected sampling decision
-
-    :param agent: expected agent rate ``_dd.agent_psr``
-    :param limit: expected rate limit ``_dd.limit_psr``
-    :param rule: expected sampler rule rate ``_dd.rule_psr``
-    :param sampling_priority: expected sampling priority ``_sampling_priority_v1``
-    :param trace_tag: expected sampling decision trace tag ``_dd.p.dm``. Format is ``-{SAMPLINGMECHANISM}``.
-    """
+    span: Span,
+    agent: Optional[float] = None,
+    limit: Optional[float] = None,
+    rule: Optional[float] = None,
+    sampling_priority: Optional[int] = None,
+    trace_tag: Optional[str] = None,
+) -> None:
+    """Check supplied metric expectations, including zero; None leaves a metric unchecked."""
     metric_agent = span.get_metric(_SAMPLING_AGENT_DECISION)
     metric_limit = span.get_metric(_SAMPLING_LIMIT_DECISION)
     metric_rule = span.get_metric(_SAMPLING_RULE_DECISION)
     metric_sampling_priority = span.get_metric(_SAMPLING_PRIORITY_KEY)
-    if agent:
+    if agent is not None:
         assert metric_agent == agent
-    if limit:
+    if limit is not None:
         assert metric_limit == limit
-    if rule:
+    if rule is not None:
         assert metric_rule == rule
-    if sampling_priority:
+    if sampling_priority is not None:
         assert metric_sampling_priority == sampling_priority
 
     if trace_tag:
@@ -119,7 +113,7 @@ class TestRateSampler:
 
             for _ in range(10):
                 rule_sample_decision = rule.sample(span)
-                rate_sample_decision = rate.sample(span)
+                rate_sample_decision = rate.sample(span._trace_id_64bits)
                 assert rule_sample_decision == rate_sample_decision == expected_decision, (
                     f"Trace ID {trace_id} should be {'kept' if expected_decision else 'dropped'} "
                     f"with sample rate {sample_rate}, but got SamplingRule:{rule_sample_decision} "
@@ -201,6 +195,22 @@ def test_sampling_rule_init():
     assert rule.sample_rate == 0.0, "SamplingRule should store the rate it's initialized with"
     assert rule.service.pattern == a_string, "SamplingRule should store the service it's initialized with"
     assert rule.name.pattern == a_regex, "SamplingRule should store the name regex it's initialized with"
+
+
+def test_sampling_rule_init_discard_default():
+    rule = SamplingRule(sample_rate=1.0)
+    assert rule.discard is False, "SamplingRule discard should default to False"
+
+
+def test_sampling_rule_init_discard():
+    rule = SamplingRule(sample_rate=0.0, discard=True)
+    assert rule.discard is True
+    assert "discard=True" in repr(rule)
+
+
+def test_sampling_rule_eq_discard():
+    assert SamplingRule(sample_rate=1.0, discard=True) == SamplingRule(sample_rate=1.0, discard=True)
+    assert SamplingRule(sample_rate=1.0, discard=True) != SamplingRule(sample_rate=1.0, discard=False)
 
 
 @pytest.mark.parametrize(
@@ -375,6 +385,7 @@ def test_sampling_rule_init_via_env():
     with mock.patch("ddtrace._trace.sampler.log") as mock_log:
         with override_global_config(dict(_trace_sampling_rules='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
             sampling_rule = DatadogSampler().rules
+    assert sampling_rule == []
     mock_log.error.assert_has_calls(
         [
             mock.call(
@@ -382,24 +393,6 @@ def test_sampling_rule_init_via_env():
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
                 [],
                 exc_info=True,
-                extra={"send_to_telemetry": False},
-            )
-        ]
-    )
-
-    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
-        with override_global_config(
-            dict(
-                _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
-                + '{"service":"my-service","name":"my-name"}]'
-            )
-        ):
-            sampling_rule = DatadogSampler().rules
-    mock_log.error.assert_has_calls(
-        [
-            mock.call(
-                "No sample_rate provided for sampling rule: %s. Skipping.",
-                {"service": "my-service", "name": "my-name"},
                 extra={"send_to_telemetry": False},
             )
         ]
@@ -418,9 +411,7 @@ def test_sampling_rule_init_via_env():
     ],
 )
 def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
-        rule, span, span_expected_to_match_rule
-    )
+    assert rule.matches(span) is span_expected_to_match_rule, f"{rule} -> {span} -> {span_expected_to_match_rule}"
 
 
 @pytest.mark.parametrize(
@@ -437,9 +428,7 @@ def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
     ],
 )
 def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
-        rule, span, span_expected_to_match_rule
-    )
+    assert rule.matches(span) is span_expected_to_match_rule, f"{rule} -> {span} -> {span_expected_to_match_rule}"
 
 
 @pytest.mark.parametrize(
@@ -501,9 +490,7 @@ def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
     ],
 )
 def test_sampling_rule_matches(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
-        rule, span, span_expected_to_match_rule
-    )
+    assert rule.matches(span) is span_expected_to_match_rule, f"{rule} -> {span} -> {span_expected_to_match_rule}"
 
 
 @pytest.mark.subprocess(
@@ -542,6 +529,36 @@ def test_sampling_rule_sample_rate_0():
     assert sum(rule.sample(Span(name=str(i))) for i in range(iterations)) == 0, (
         "SamplingRule with rate=0 should never keep samples"
     )
+
+
+def test_datadog_sampler_sample_discard_true_on_rejected_trace():
+    """discard=True + rejected -> sample_or_discard reports discard=True."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, discard=True)])
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
+    assert sampled is False
+    assert discard is True
+
+
+def test_datadog_sampler_sample_discard_false_when_sampled():
+    """discard=True only matters for rejected chunks; a kept chunk reports discard=False."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=1.0, discard=True)])
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
+    assert sampled is True
+    assert discard is False
+
+
+def test_datadog_sampler_sample_discard_false_by_default():
+    """discard=False (default) + rejected -> unchanged legacy behavior: kept with reject priority."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0)])
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
+    assert sampled is False
+    assert discard is False
+
+
+def test_datadog_sampler_sample_public_api_unchanged():
+    """DatadogSampler.sample(span) -> bool keeps its public signature/behavior."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, discard=True)])
+    assert sampler.sample(Span(name="test.span")) is False
 
 
 @pytest.mark.subprocess(
@@ -623,36 +640,41 @@ def test_datadog_sampler_init():
     ], "DatadogSampler holds rules in the order they were given during initialization"
 
 
-@mock.patch("ddtrace._trace.sampler.RateSampler.sample")
-def test_datadog_sampler_sample_no_rules(mock_sample, tracer, test_spans):
-    sampler = DatadogSampler()
-    tracer._sampler = sampler
-
-    mock_sample.return_value = True
+def test_datadog_sampler_sample_no_rules(tracer, test_spans):
     tracer.trace("test").finish()
     spans = test_spans.pop()
     assert len(spans) == 1, "Span should have been written"
     assert_sampling_decision_tags(
         spans[0],
-        agent=None,
-        limit=None,
-        rule=None,
         sampling_priority=AUTO_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.DEFAULT),
+        trace_tag=f"-{SamplingMechanism.DEFAULT}",
     )
+    assert spans[0].get_metric(_SAMPLING_AGENT_DECISION) is None
+    assert spans[0].get_metric(_SAMPLING_LIMIT_DECISION) is None
+    assert spans[0].get_metric(_SAMPLING_RULE_DECISION) is None
 
-    mock_sample.return_value = False
-    tracer.trace("test").finish()
-    spans = test_spans.pop()
-    assert len(spans) == 1, "Span should have been written"
+
+@pytest.mark.parametrize(
+    "agent_rates, expected_rate",
+    [
+        ({"service:,env:": 0.25}, 0.25),
+        ({"service:,env:": 0.25, "service:test,env:": 0.75}, 0.75),
+    ],
+)
+def test_datadog_sampler_agent_rate_for_unmatched_rule(agent_rates, expected_rate):
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, service="other")])
+    sampler.update_rate_by_service_sample_rates(agent_rates)
+    span = Span("span", service="test")
+
+    with mock.patch("ddtrace._trace.sampler.RateSampler.sample", return_value=True):
+        assert sampler.sample(span) is True
+
     assert_sampling_decision_tags(
-        spans[0],
-        agent=None,
-        limit=None,
-        rule=None,
-        sampling_priority=AUTO_REJECT,
-        trace_tag="-{}".format(SamplingMechanism.DEFAULT),
+        span,
+        agent=expected_rate,
+        trace_tag=f"-{SamplingMechanism.AGENT_RATE_BY_SERVICE}",
     )
+    assert span.context.sampling_priority == AUTO_KEEP
 
 
 class MatchSample(SamplingRule):
@@ -706,7 +728,7 @@ class MatchNoSample(SamplingRule):
             USER_KEEP,
             SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0.5,
-            None,
+            1.0,
         ),
         (
             DatadogSampler(
@@ -719,7 +741,7 @@ class MatchNoSample(SamplingRule):
             USER_KEEP,
             SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0.5,
-            None,
+            1.0,
         ),
         (
             DatadogSampler(
@@ -743,7 +765,7 @@ class MatchNoSample(SamplingRule):
             USER_KEEP,
             SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             1,
-            None,
+            1.0,
         ),
         (
             DatadogSampler(
@@ -755,7 +777,7 @@ class MatchNoSample(SamplingRule):
             USER_REJECT,
             SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             1,
-            None,
+            0.0,
         ),
         (
             DatadogSampler(
@@ -773,7 +795,7 @@ class MatchNoSample(SamplingRule):
             ),
             AUTO_KEEP,
             SamplingMechanism.DEFAULT,
-            0,
+            None,
             None,
         ),
     ],
@@ -788,9 +810,9 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
         "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
     )
     trace_tag = "-%d" % sampling_mechanism if sampling_mechanism is not None else None
-    assert_sampling_decision_tags(
-        span, rule=rule, limit=limit, sampling_priority=sampling_priority, trace_tag=trace_tag
-    )
+    assert_sampling_decision_tags(span, sampling_priority=sampling_priority, trace_tag=trace_tag)
+    assert span.get_metric(_SAMPLING_RULE_DECISION) == rule
+    assert span.get_metric(_SAMPLING_LIMIT_DECISION) == limit
 
 
 def test_datadog_sampler_tracer_child(tracer, test_spans):
@@ -806,17 +828,17 @@ def test_datadog_sampler_tracer_child(tracer, test_spans):
     assert_sampling_decision_tags(
         spans[0],
         rule=1.0,
-        limit=None,
+        limit=1.0,
         sampling_priority=USER_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+        trace_tag=f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
     )
     assert_sampling_decision_tags(
         spans[1],
-        agent=None,
-        rule=None,
-        limit=None,
-        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+        trace_tag=f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
     )
+    assert spans[1].get_metric(_SAMPLING_AGENT_DECISION) is None
+    assert spans[1].get_metric(_SAMPLING_RULE_DECISION) is None
+    assert spans[1].get_metric(_SAMPLING_LIMIT_DECISION) is None
 
 
 def test_datadog_sampler_tracer_start_span(tracer, test_spans):
@@ -829,9 +851,9 @@ def test_datadog_sampler_tracer_start_span(tracer, test_spans):
     assert_sampling_decision_tags(
         spans[0],
         rule=1.0,
-        limit=None,
+        limit=1.0,
         sampling_priority=USER_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+        trace_tag=f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}",
     )
 
 
@@ -917,5 +939,41 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
     from ddtrace.internal.sampling import SamplingMechanism
     from ddtrace.internal.sampling import _set_sampling_tags
 
-    _set_sampling_tags(span, True, sample_rate, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
+    _set_sampling_tags(
+        span,
+        True,
+        sample_rate,
+        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        probabilistic_decision=True,
+    )
     assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr
+
+
+@pytest.mark.parametrize(
+    "argument,key",
+    [
+        ("agent", _SAMPLING_AGENT_DECISION),
+        ("limit", _SAMPLING_LIMIT_DECISION),
+        ("rule", _SAMPLING_RULE_DECISION),
+        ("sampling_priority", _SAMPLING_PRIORITY_KEY),
+    ],
+)
+def test_sampling_assertions_check_zero(argument: str, key: str) -> None:
+    span = Span("assertion-check")
+    span._set_attribute(key, 1)
+    with pytest.raises(AssertionError):
+        assert_sampling_decision_tags(
+            span,
+            agent=0 if argument == "agent" else None,
+            limit=0 if argument == "limit" else None,
+            rule=0 if argument == "rule" else None,
+            sampling_priority=0 if argument == "sampling_priority" else None,
+        )
+
+
+def test_sampling_assertions_skip_unspecified_metrics() -> None:
+    span = Span("assertion-check")
+    for key in (_SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION, _SAMPLING_RULE_DECISION, _SAMPLING_PRIORITY_KEY):
+        span._set_attribute(key, 1)
+    assert_sampling_decision_tags(span)
+    assert_sampling_decision_tags(span, agent=None, limit=None, rule=None, sampling_priority=None)

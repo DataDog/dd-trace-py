@@ -1,7 +1,45 @@
+from collections.abc import Generator
+from collections.abc import Iterator
+from typing import Any
+
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+
+
+WEB_REQUEST_STARTING_EVENT = "web.request.starting"
+_WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
+
+
+class Constant_Class(type):
+    """
+    metaclass for Constant Classes
+    - You can access constants with APPSEC.ENV or APPSEC["ENV"]
+    - Direct assignment will fail: APPSEC.ENV = "something" raise TypeError, like other immutable types
+    - Constant Classes can be iterated:
+        for constant_name, constant_value in APPSEC: ...
+    """
+
+    def __setattr__(self, __name: str, __value: Any) -> None:
+        raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
+
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
+        def aux() -> Generator[tuple[str, Any], Any, None]:
+            for t in self.__dict__.items():
+                if not t[0].startswith("_"):
+                    yield t
+
+        return aux()
+
+    def get(self, k: str, default: Any = None) -> Any:
+        return self.__dict__.get(k, default)
+
+    def __contains__(self, k: str) -> bool:
+        return k in self.__dict__
+
+    def __getitem__(self, k: str) -> Any:
+        return self.__dict__[k]
 
 
 PROPAGATION_STYLE_DATADOG = "datadog"
@@ -34,7 +72,13 @@ SAMPLING_HASH_MODULO = 1 << 64
 # and other tracers to allow chained sampling
 SAMPLING_KNUTH_FACTOR = 1111111111111111111
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
+# Propagated tag consolidating which product(s) originated/retained a trace as an
+# 8-bit (min) case-insensitive hex mask, per the DD_TRACE_ENABLED RFC. See TraceSource.
+TRACE_SOURCE_PROPAGATION_KEY = "_dd.p.ts"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
+# Shared standalone switch: when false, security and AI products keep working but the tracer stops
+# billing APM. Owned by ddtrace.internal.settings.standalone, not by any single product.
+APM_TRACING_ENV = "DD_APM_TRACING_ENABLED"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
@@ -90,6 +134,15 @@ MESSAGING_OPERATION = "messaging.operation"
 MESSAGING_SYSTEM = "messaging.system"
 
 USER_AGENT_HEADER = "user-agent"
+OTLP_HTTP_EXPORT_HEADER = "dd-otlp-export"
+OTLP_HTTP_EXPORT_HEADER_VALUE = "true"
+OTLP_GRPC_EXPORT_METHODS = frozenset(
+    {
+        "/opentelemetry.proto.collector.logs.v1.LogsService/Export",
+        "/opentelemetry.proto.collector.metrics.v1.MetricsService/Export",
+        "/opentelemetry.proto.collector.trace.v1.TraceService/Export",
+    }
+)
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
@@ -109,6 +162,8 @@ DD_TRACE_TRACESTATE_MAX_ITEMS = 32
 DD_TRACE_TRACESTATE_MAX_BYTES = 512
 # Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
 DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
+# W3C limits each list-member value to 256 characters.
+W3C_DD_LIST_MEMBER_MAX_CHARS = 256
 
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
@@ -122,7 +177,7 @@ LOG_ATTR_VALUE_ZERO = "0"
 LOG_ATTR_VALUE_EMPTY = ""
 
 
-class SamplingMechanism(object):
+class SamplingMechanism:
     DEFAULT = 0
     AGENT_RATE_BY_SERVICE = 1
     REMOTE_RATE = 2  # not used, this mechanism is deprecated
@@ -137,6 +192,34 @@ class SamplingMechanism(object):
     REMOTE_USER_TRACE_SAMPLING_RULE = 11
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
     AI_GUARD = 13
+
+
+PROBABILISTIC_SAMPLING_MECHANISMS = frozenset(
+    (
+        SamplingMechanism.DEFAULT,
+        SamplingMechanism.AGENT_RATE_BY_SERVICE,
+        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
+    )
+)
+
+
+class TraceSource:
+    """Bit values for the _dd.p.ts (trace source) propagation tag.
+
+    Each enabled product ORs its bit into the mask to signal it originated or retained
+    the trace, so the trace is kept when APM tracing is disabled (DD_TRACE_ENABLED RFC).
+    Serialized as a min 2-char, case-insensitive hex string (e.g. "20" for AI Guard,
+    "22" for ASM + AI Guard). APM (0x01) is implicit and should not be set explicitly.
+    """
+
+    APM = 0x01
+    ASM = 0x02
+    DSM = 0x04
+    DJM = 0x08
+    DBM = 0x10
+    AI_GUARD = 0x20
 
 
 SAMPLING_MECHANISM_TO_PRIORITIES = {
@@ -157,3 +240,8 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
+
+
+# server.port is required whenever server.address is set, so a URL that omits the port falls
+# back to the port its scheme implies.
+DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}

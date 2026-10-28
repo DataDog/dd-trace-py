@@ -1,59 +1,76 @@
+from collections.abc import Iterable
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib.internal.anthropic._constants import TAG_MODEL
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._constants import WEB_SEARCH_COUNT_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import anthropic_tool_call_from_block
+from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
+from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
+from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
+from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
+from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
-from ddtrace.llmobs.types import ToolResult
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
-
-
-MODEL = "anthropic.request.model"
 
 _ANTHROPIC_MODEL_PROVIDER = "anthropic"
 _BEDROCK_MODEL_PROVIDER = "amazon"
 _VERTEX_MODEL_PROVIDER = "google"
 
 
+def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, str], str]]:
+    """Return (data, media_type) for an inline base64 Anthropic image block, else None.
+
+    Unencoded, so the caller's guard can reject an oversized image before paying to encode it.
+    """
+    source = _get_attr(block, "source", {})
+    if _get_attr(source, "type", "") != "base64":
+        return None
+    data = _get_attr(source, "data", "")
+    # source.data may be IO[bytes] or PathLike (anthropic Base64FileInput) -- keep those out of spans.
+    if not data or not isinstance(data, (str, bytes)):
+        return None
+    # base64 is ASCII; len() would undercount non-ASCII text 4x and slip it past the guard.
+    if isinstance(data, str) and not data.isascii():
+        return None
+    # Reject bad mime here, not in the guard, so the caller's "too large" marker can't misreport.
+    media_type = str(_get_attr(source, "media_type", ""))
+    if not is_renderable_image_mime(media_type):
+        return None
+    return data, media_type
+
+
 class AnthropicIntegration(BaseLLMIntegration):
     _integration_name = "anthropic"
 
-    def _set_base_span_tags(
-        self,
-        span: Span,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        **kwargs: dict[str, Any],
-    ) -> None:
-        """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Record the request base_url on the span; the contrib sets the APM model tag itself."""
         # Store base_url per-span rather than on the singleton integration so a streaming
         # span that finalizes after concurrent requests still resolves the right provider.
         base_url = self._get_base_url(**kwargs)
         if base_url is not None:
             span._set_ctx_item(REQUEST_BASE_URL, base_url)
-        if model is not None:
-            span._set_attribute(MODEL, model)
 
     def _llmobs_set_tags(
         self,
@@ -82,6 +99,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         # the model call errors the span but keeps a valid response (APPSEC-68147).
         if response is not None:
             output_messages = self._extract_output_message(response)
+            # Recorded under "finish_reason" to match openai/litellm
+            finish_reason = _get_attr(response, "stop_reason", None) or _get_attr(response, "finish_reason", None)
+            if finish_reason:
+                parameters["finish_reason"] = str(finish_reason)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 
         usage = _get_attr(response, "usage", {})
@@ -90,7 +111,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind=span_kind,
-            model_name=span.get_tag("anthropic.request.model") or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
             model_provider=self._get_model_provider(span),
             input_messages=input_messages,
             metadata=parameters,
@@ -103,7 +124,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
-        model_name = span.get_tag("anthropic.request.model")
+        model_name = span.get_tag(TAG_MODEL)
         self._apply_shadow_metrics(
             span,
             metrics,
@@ -146,8 +167,18 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_messages.append(Message(content=str(_get_attr(block, "text", "")), role=str(role)))
 
                     elif content_type == "image":
-                        # Store a placeholder for potentially enormous binary image data.
-                        input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
+                        source = _extract_anthropic_image_source(block)
+                        if source is None:
+                            input_messages.append(Message(content=IMAGE_DETECTED_MARKER, role=str(role)))
+                            continue
+                        data, media_type = source
+                        image_part = format_image_part_with_guard(data, media_type)
+                        if image_part is None:
+                            input_messages.append(Message(content=IMAGE_TOO_LARGE_MARKER, role=str(role)))
+                            continue
+                        image_message: Message = Message(content="", role=str(role))
+                        image_message["image_parts"] = [image_part]
+                        input_messages.append(image_message)
 
                     elif content_type == "thinking":
                         thinking_text = _get_attr(block, "thinking", "")
@@ -155,91 +186,32 @@ class AnthropicIntegration(BaseLLMIntegration):
 
                     elif "tool_use" in (content_type or ""):
                         text = _get_attr(block, "text", None)
-                        input_data = _get_attr(block, "input", {})
-                        if isinstance(input_data, str):
-                            input_data = safe_load_json(input_data)
-                        tool_call_info = ToolCall(
-                            name=str(_get_attr(block, "name", "")),
-                            arguments=input_data,
-                            tool_id=str(_get_attr(block, "id", "")),
-                            type=str(_get_attr(block, "type", "")),
-                        )
                         if text is None:
                             text = ""
-                        input_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
+                        input_messages.append(
+                            Message(
+                                content=str(text),
+                                role=str(role),
+                                tool_calls=[anthropic_tool_call_from_block(block)],
+                            )
+                        )
 
                     elif "tool_result" in (content_type or ""):
-                        content = _get_attr(block, "content", None)
-                        formatted_content = self._format_tool_result_content(content)
-                        tool_result_info = ToolResult(
-                            result=formatted_content,
-                            tool_id=str(_get_attr(block, "tool_use_id", "")),
-                            type="tool_result",
+                        input_messages.append(
+                            Message(
+                                content="",
+                                role=str(role),
+                                tool_results=[anthropic_tool_result_from_block(block)],
+                            )
                         )
-                        input_messages.append(Message(content="", role=str(role), tool_results=[tool_result_info]))
                     else:
                         input_messages.append(Message(content=str(block), role=str(role)))
 
         return input_messages
 
-    def _format_tool_result_content(self, content) -> str:
-        if isinstance(content, str):
-            return content
-        elif isinstance(content, dict):
-            return safe_json(content)
-        elif isinstance(content, Iterable):
-            formatted_content = []
-            for tool_result_block in content:
-                if _get_attr(tool_result_block, "text", "") != "":
-                    formatted_content.append(_get_attr(tool_result_block, "text", ""))
-                elif _get_attr(tool_result_block, "type", None) == "image":
-                    # Store a placeholder for potentially enormous binary image data.
-                    formatted_content.append("([IMAGE DETECTED])")
-            return ",".join(formatted_content)
-        return str(content)
-
     def _extract_output_message(self, response) -> list[Message]:
         """Extract output messages from the stored response."""
-        output_messages: list[Message] = []
-        content = _get_attr(response, "content", "")
-        role = _get_attr(response, "role", "")
-
-        if isinstance(content, str):
-            return [Message(content=content, role=str(role))]
-
-        elif isinstance(content, list):
-            for completion in content:
-                completion_type = _get_attr(completion, "type", "") or ""
-                if completion_type == "thinking":
-                    thinking_text = _get_attr(completion, "thinking", "")
-                    output_messages.append(Message(content=str(thinking_text), role="reasoning"))
-                    continue
-                text = _get_attr(completion, "text", None)
-                output_message = Message(content=str(text) if text else "", role=str(role))
-                if "tool_use" in completion_type:
-                    input_data = _get_attr(completion, "input", {})
-                    if isinstance(input_data, str):
-                        input_data = safe_load_json(input_data)
-                    tool_call_info = ToolCall(
-                        name=str(_get_attr(completion, "name", "")),
-                        arguments=input_data,
-                        tool_id=str(_get_attr(completion, "id", "")),
-                        type=str(completion_type),
-                    )
-                    output_message["tool_calls"] = [tool_call_info]
-                if "tool_result" in completion_type:
-                    result = _get_attr(completion, "content", {})
-                    if hasattr(result, "model_dump") and callable(result.model_dump):
-                        result = result.model_dump()
-                    formatted_result = self._format_tool_result_content(result)
-                    tool_result_info = ToolResult(
-                        result=formatted_result,
-                        tool_id=str(_get_attr(completion, "tool_use_id", "")),
-                        type="tool_result",
-                    )
-                    output_message["tool_results"] = [tool_result_info]
-                output_messages.append(output_message)
-        return output_messages
+        return get_messages_from_anthropic_content(_get_attr(response, "role", ""), _get_attr(response, "content", ""))
 
     def _extract_usage(self, span: Span, usage: dict[str, Any]):
         if not usage:
@@ -273,6 +245,11 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         if cache_read_tokens is not None:
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+
+        server_tool_use = _get_attr(usage, "server_tool_use", None)
+        web_search_requests = _get_attr(server_tool_use, "web_search_requests", None) if server_tool_use else None
+        if web_search_requests is not None and web_search_requests > 0:
+            metrics[WEB_SEARCH_COUNT_METRIC_KEY] = web_search_requests
         return metrics
 
     def _get_model_provider(self, span: Span) -> str:
@@ -301,16 +278,4 @@ class AnthropicIntegration(BaseLLMIntegration):
         return str(base_url) if base_url else None
 
     def _extract_tools(self, tools: Optional[Any]) -> list[ToolDefinition]:
-        if not tools:
-            return []
-
-        tool_definitions = []
-        for tool in tools:
-            is_deferred = bool(_get_attr(tool, "defer_loading", False))
-            tool_def = ToolDefinition(
-                name=tool.get("name", ""),
-                description="" if is_deferred else tool.get("description", ""),
-                schema={} if is_deferred else tool.get("input_schema", {}),
-            )
-            tool_definitions.append(tool_def)
-        return tool_definitions
+        return get_tool_definitions_from_anthropic_tools(tools)

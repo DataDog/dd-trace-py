@@ -9,7 +9,7 @@ OUTPUT_FILE = "restructured_flaky_tests.json"
 
 def load_json(file_path):
     """Loads the JSON file."""
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         return json.load(f)
 
 

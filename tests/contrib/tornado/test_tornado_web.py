@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -5,6 +7,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -615,7 +618,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
+        assert "mysvc" == request_span.service, f"Expected 'mysvc' but got {request_span.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_service_name_schematization_v0(self):
@@ -625,7 +628,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
+        assert "mysvc" == request_span.service, f"Expected 'mysvc' but got {request_span.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_service_name_schematization_v1(self):
@@ -635,7 +638,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "mysvc" == request_span.service, "Expected 'mysvc' but got {}".format(request_span.service)
+        assert "mysvc" == request_span.service, f"Expected 'mysvc' but got {request_span.service}"
 
     @TracerTestCase.run_in_subprocess()
     def test_unspecified_service_name_schematization_default(self):
@@ -645,7 +648,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "tornado-web" == request_span.service, "Expected 'tornado-web' but got {}".format(request_span.service)
+        assert "tornado-web" == request_span.service, f"Expected 'tornado-web' but got {request_span.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_name_schematization_v0(self):
@@ -655,7 +658,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "tornado-web" == request_span.service, "Expected 'tornado-web' but got {}".format(request_span.service)
+        assert "tornado-web" == request_span.service, f"Expected 'tornado-web' but got {request_span.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_name_schematization_v1(self):
@@ -665,8 +668,8 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert DEFAULT_SPAN_SERVICE_NAME == request_span.service, "Expected '{}' but got {}".format(
-            DEFAULT_SPAN_SERVICE_NAME, request_span.service
+        assert DEFAULT_SPAN_SERVICE_NAME == request_span.service, (
+            f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' but got {request_span.service}"
         )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -677,7 +680,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "tornado.request" == request_span.name, "Expected 'tornado.request' but got {}".format(request_span.name)
+        assert "tornado.request" == request_span.name, f"Expected 'tornado.request' but got {request_span.name}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_operation_name_schematization_v1(self):
@@ -687,9 +690,7 @@ class TestSchematization(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        assert "http.server.request" == request_span.name, "Expected 'http.server.request' but got {}".format(
-            request_span.name
-        )
+        assert "http.server.request" == request_span.name, f"Expected 'http.server.request' but got {request_span.name}"
 
 
 class TestAPIGatewayTracing(TornadoTestCase):
@@ -767,3 +768,93 @@ class TestAPIGatewayTracing(TornadoTestCase):
                     else:
                         web_span = traces[0][0]
                         assert web_span._parent is None
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, err=None)
+def test_otel_semantics_server_span_attributes():
+    import asyncio
+
+    from tornado.httpclient import AsyncHTTPClient
+    from tornado.httpserver import HTTPServer
+    from tornado.testing import bind_unused_port
+    import tornado.web
+
+    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+    from ddtrace.contrib.internal.tornado.patch import patch
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    class UserHandler(tornado.web.RequestHandler):
+        def get(self, user_id):
+            self.write("ok")
+
+    patch()
+    patch_futures()
+
+    async def run():
+        app = tornado.web.Application([(r"/users/([0-9]+)", UserHandler)])
+        sock, port = bind_unused_port()
+        server = HTTPServer(app)
+        server.add_sockets([sock])
+        client = AsyncHTTPClient()
+
+        with scoped_tracer() as tracer:
+            spans = TracerSpanContainer(tracer)
+            response = await client.fetch("http://127.0.0.1:%d/users/42?q=1" % port, headers=TEST_HEADERS)
+            await asyncio.sleep(0.1)
+            span = next(span for span in spans.get_spans() if span.name == "tornado.request")
+            assert response.code == 200
+            assert_otel_server_span(
+                span,
+                method="GET",
+                status=200,
+                path="/users/42",
+                query="q=1",
+                route="/users/%s",
+                resource="GET /users/%s",
+            )
+            assert span.get_metric("server.port") == port
+        server.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, err=None)
+def test_otel_semantics_server_unmatched_route():
+    import asyncio
+
+    from tornado.httpclient import AsyncHTTPClient
+    from tornado.httpserver import HTTPServer
+    from tornado.testing import bind_unused_port
+    import tornado.web
+
+    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+    from ddtrace.contrib.internal.tornado.patch import patch
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    patch()
+    patch_futures()
+
+    async def run():
+        app = tornado.web.Application([])
+        sock, port = bind_unused_port()
+        server = HTTPServer(app)
+        server.add_sockets([sock])
+
+        with scoped_tracer() as tracer:
+            spans = TracerSpanContainer(tracer)
+            response = await AsyncHTTPClient().fetch(
+                "http://127.0.0.1:%d/no/such/path/123" % port, headers=TEST_HEADERS, raise_error=False
+            )
+            await asyncio.sleep(0.1)
+            span = next(span for span in spans.get_spans() if span.name == "tornado.request")
+            assert response.code == 404
+            assert_otel_server_span(span, method="GET", status=404, path="/no/such/path/123", resource="GET")
+        server.stop()
+
+    asyncio.run(run())

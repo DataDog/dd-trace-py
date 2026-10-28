@@ -6,7 +6,6 @@ from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 import pytest
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from tests.contrib.grpc.common import _GRPC_PORT
 from tests.contrib.grpc.common import GrpcBaseTestCase
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloStub
@@ -38,14 +37,14 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
     def test_taint_iast_single(self):
         with self.override_config("grpc", dict(service_name="myclientsvc")):
             with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                channel1 = grpc.insecure_channel("localhost:%d" % (self._grpc_port))
                 stub1 = HelloStub(channel1)
                 res = stub1.SayHello(HelloRequest(name="test"))
                 assert hasattr(res, "message")
                 _check_test_range(res.message)
 
     def test_taint_iast_single_server(self):
-        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
+        with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel1:
             stub1 = HelloStub(channel1)
             res = stub1.SayHello(HelloRequest(name="test"))
             assert hasattr(res, "message")
@@ -54,7 +53,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
     def test_taint_iast_twice(self):
         with self.override_config("grpc", dict(service_name="myclientsvc")):
             with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
+                with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel1:
                     stub1 = HelloStub(channel1)
                     responses_iterator = stub1.SayHelloTwice(HelloRequest(name="test"))
                     for res in responses_iterator:
@@ -68,7 +67,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
         def callback(response):
             callback_called.set()
 
-        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
+        with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel1:
             stub1 = HelloStub(channel1)
             responses_iterator = stub1.SayHelloTwice(HelloRequest(name="test"))
             responses_iterator.add_done_callback(callback)
@@ -81,7 +80,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
     def test_taint_iast_repeatedly(self):
         with self.override_config("grpc", dict(service_name="myclientsvc")):
             with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                channel1 = grpc.insecure_channel("localhost:%d" % (self._grpc_port))
                 stub1 = HelloStub(channel1)
                 requests_iterator = iter(
                     HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"]
@@ -98,7 +97,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
         def callback(response):
             callback_called.set()
 
-        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
+        with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel1:
             stub1 = HelloStub(channel1)
             requests_iterator = iter(
                 HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"]
@@ -114,7 +113,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
     def test_taint_iast_last(self):
         with self.override_config("grpc", dict(service_name="myclientsvc")):
             with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                channel1 = grpc.insecure_channel("localhost:%d" % (self._grpc_port))
                 stub1 = HelloStub(channel1)
                 requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
                 res = stub1.SayHelloLast(requests_iterator)
@@ -122,7 +121,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                 _check_test_range(res.message)
 
     def test_taint_iast_last_server(self):
-        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel1:
+        with grpc.insecure_channel("localhost:%d" % (self._grpc_port)) as channel1:
             stub1 = HelloStub(channel1)
             requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
             res = stub1.SayHelloLast(requests_iterator)
@@ -152,7 +151,7 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
             override_config("grpc_server", dict(service_name="myserversvc")),
         ):
             with mock.patch("ddtrace.appsec._asm_request_context.set_waf_address") as mock_set_waf_addr:
-                channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                channel1 = grpc.insecure_channel("localhost:%d" % (self._grpc_port))
                 stub1 = HelloStub(channel1)
                 res = stub1.SayHello(HelloRequest(name="test"))
                 assert hasattr(res, "message")

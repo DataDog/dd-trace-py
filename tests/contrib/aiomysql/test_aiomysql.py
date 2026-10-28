@@ -1,12 +1,16 @@
 import os
+from unittest import mock
 
 import aiomysql
-import mock
 import pymysql
 import pytest
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.aiomysql.patch import AIOTracedCursor
 from ddtrace.contrib.internal.aiomysql.patch import patch
 from ddtrace.contrib.internal.aiomysql.patch import unpatch
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
@@ -56,6 +60,32 @@ async def test_queries(snapshot_conn):
     cur = await db.cursor()
     with pytest.raises(pymysql.err.ProgrammingError):
         await cur.execute(q)
+
+
+@pytest.mark.asyncio
+async def test_query_is_blocked_before_execution() -> None:
+    cursor = mock.AsyncMock()
+    traced_cursor = AIOTracedCursor(cursor, db_tags={})
+
+    for method in ("execute", "executemany"):
+        with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+            with pytest.raises(BlockingException):
+                await getattr(traced_cursor, method)("SELECT 1")
+
+        dispatch_event.assert_called_once_with(
+            DbQueryEvent(query="SELECT 1", span_name_prefix="mysql", get_encoding=traced_cursor._dbapi_query_encoding)
+        )
+        getattr(cursor, method).assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_byte_query_uses_connection_encoding():
+    for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+        conn = await aiomysql.connect(**AIOMYSQL_CONFIG, charset=charset)
+        try:
+            await shared_tests._test_byte_query_event(await conn.cursor(), codec, "mysql")
+        finally:
+            conn.close()
 
 
 @pytest.mark.asyncio

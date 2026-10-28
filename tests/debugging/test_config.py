@@ -13,11 +13,20 @@ from tests.utils import override_env
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs, replace_os_env=True):
+        from ddtrace.debugging._redaction import redact
+        from ddtrace.debugging._redaction import redact_type
         from ddtrace.internal.settings._config import Config
         import ddtrace.internal.settings.dynamic_instrumentation
 
         old_config = ddtrace.internal.settings.dynamic_instrumentation.ddconfig
         old_di_config = ddtrace.internal.settings.dynamic_instrumentation.config.__dict__
+
+        # redact and redact_type memoize their results, but the answer
+        # depends on the (swapped) configuration below. Clear the caches on the
+        # way in and out so a config change is actually observed and does not
+        # leak into other tests.
+        redact.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+        redact_type.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
 
         try:
             ddtrace.internal.settings.dynamic_instrumentation.ddconfig = Config()
@@ -29,6 +38,8 @@ def debugger_config(**kwargs):
         finally:
             ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = old_di_config
             ddtrace.internal.settings.dynamic_instrumentation.ddconfig = old_config
+            redact.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+            redact_type.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
 
 
 def test_tags():
@@ -59,6 +70,16 @@ def test_service_name():
 def test_redacted_identifiers():
     with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS="foo , bar") as config:
         assert config.redacted_identifiers == frozenset(["foo", "bar"])
+
+
+def test_redacted_identifiers_normalizes_separators() -> None:
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS="X-My-Secret, my_other.secret") as config:
+        assert config.redacted_identifiers == frozenset(["xmysecret", "myothersecret"])
+
+
+def test_redaction_excluded_identifiers_normalizes_separators():
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS="X-Api-Key") as config:
+        assert config.redaction_excluded_identifiers == frozenset(["xapikey"])
 
 
 def test_redacted_types():

@@ -2,8 +2,9 @@
 components:
   profiling:
     - ddtrace/profiling/*
+    - ddtrace/internal/profiling/*
     - ddtrace/internal/datadog/profiling/*
-    - ddtrace/internal/processor/endpoint_call_counter.py
+    - ddtrace/_trace/processor/endpoint_call_counter.py
     - ddtrace/internal/settings/profiling.py
 suites:
   profile:
@@ -12,36 +13,102 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
       - tests/profiling/*
     pattern: profile$
     retry: 2
+    matrix:
+      command: >-
+        pytest -v --capture=no
+        --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py'
+        {cmdargs} tests/profiling
+      env:
+        CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # The suite has more environments than jobs, so some jobs build two.
+        UV_NO_CACHE: '1'
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
+      variants:
+        - name: profile
+          python: ['3.9', '3.10']
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==3.19.0']
+        - name: profile
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
+        - name: profile
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'gunicorn[gevent]', gevent, protobuf]
+          env:
+            DD_PROFILE_TEST_GEVENT: '1'
+        - name: profile
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, uvloop, protobuf]
+          env:
+            USE_UVLOOP: '1'
+        - name: profile
+          python: ['3.11', '3.12', '3.13']
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
   profile-uwsgi:
+    venvs_per_job: 1
     env:
       DD_TRACE_AGENT_URL: ''
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
       - tests/profiling/*
     pattern: profile-uwsgi
     retry: 2
+    matrix:
+      command: >-
+        pytest -v --capture=no {cmdargs} tests/profiling/test_uwsgi.py
+      env:
+        CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      variants:
+        - name: profile-uwsgi
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, 'uwsgi<2.0.30', protobuf]
   profile-memalloc:
+    venvs_per_job: 3
     env:
       DD_TRACE_AGENT_URL: ''
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
       - tests/profiling/*
     pattern: profile-memalloc
     retry: 2
+    matrix:
+      command: >-
+        pytest -v --capture=no --benchmark-disable
+        {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
+      env:
+        CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
+      runs:
+        - env:
+            PYTHONMALLOC: malloc
+        - env:
+            PYTHONMALLOC: pymalloc
+        - env:
+            PYTHONMALLOC: malloc_debug
+        - env:
+            PYTHONMALLOC: pymalloc_debug
+      variants:
+        - name: profile-memalloc
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, protobuf]

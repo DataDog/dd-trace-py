@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 from functools import partial
 import sys
 from time import sleep
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils import time
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
@@ -65,6 +65,20 @@ _LOG_ERROR_FAIL_SEPARATOR = (
 )
 def test_parse_env_tags(tag_str, expected_tags):
     assert parse_tags_str(tag_str) == expected_tags, tag_str
+
+
+@pytest.mark.parametrize(
+    "tag_str,sep,expected_tags",
+    [
+        # No comma anywhere: auto-detection would fall back to whitespace and split "Bearer <token>".
+        # An explicit "," separator keeps it as a single value.
+        ("Authorization:Bearer abc123xyz", ",", {"Authorization": "Bearer abc123xyz"}),
+        # Explicit " " separator forces a whitespace split even though a comma is present.
+        ("a:b,c bKey:bVal", " ", {"a": "b,c", "bKey": "bVal"}),
+    ],
+)
+def test_parse_env_tags_explicit_sep(tag_str, sep, expected_tags):
+    assert parse_tags_str(tag_str, sep=sep) == expected_tags, tag_str
 
 
 @pytest.mark.parametrize(
@@ -142,7 +156,7 @@ def test_context_manager():
     assert watch.elapsed() > 0
 
 
-class SomethingCallable(object):
+class SomethingCallable:
     """
     A dummy class that implements __call__().
     """
@@ -181,7 +195,7 @@ minus_two = partial(minus, b=2)  # partial funcs need special handling (no modul
 plus_three = lambda x: x + 3  # noqa: E731
 
 
-class TestContrib(object):
+class TestContrib:
     """
     Ensure that contrib utility functions handles corner cases
     """
@@ -311,7 +325,7 @@ def test_cachedmethod():
     def expensive(key):
         return key[::-1].lower()
 
-    class Foo(object):
+    class Foo:
         @cachedmethod(cache_size)
         def cheap(self, key):
             witness(key)
@@ -396,6 +410,126 @@ def test_callonce_signature():
         @callonce
         def _():
             yield 42
+
+
+def test_identity_weak_key_dictionary_never_hashes_keys():
+    class Meta(type):
+        def __hash__(cls):
+            raise AssertionError("key hashed")
+
+        def __eq__(cls, other):
+            raise AssertionError("key compared")
+
+    class Unhashable(metaclass=Meta):
+        pass
+
+    d = IdentityWeakKeyDictionary()
+    d[Unhashable] = 42
+
+    assert Unhashable in d
+    assert d[Unhashable] == 42
+    assert d.get(Unhashable) == 42
+    assert list(d) == [Unhashable]
+    assert len(d) == 1
+
+
+def test_identity_weak_key_dictionary_distinguishes_equal_keys():
+    code = compile("x = 1", "<test>", "exec")
+    clone = code.replace()
+    assert code == clone and code is not clone
+
+    d = IdentityWeakKeyDictionary()
+    d[code] = "original"
+    d[clone] = "clone"
+
+    assert d[code] == "original"
+    assert d[clone] == "clone"
+    assert len(d) == 2
+
+
+def test_identity_weak_key_dictionary_missing_keys():
+    class Key:
+        pass
+
+    key = Key()
+    d = IdentityWeakKeyDictionary()
+
+    assert key not in d
+    assert d.get(key) is None
+    assert d.get(key, 1) == 1
+    assert d.pop(key, 2) == 2
+    with pytest.raises(KeyError):
+        d[key]
+    with pytest.raises(KeyError):
+        del d[key]
+    with pytest.raises(KeyError):
+        d.pop(key)
+
+    d[key] = 3
+    assert d.pop(key) == 3
+    assert key not in d
+
+
+def test_identity_weak_key_dictionary_drops_collected_keys():
+    import gc
+
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+
+    key = Key()
+    d[key] = "value"
+    del key
+    gc.collect()
+
+    assert len(d) == 0
+    assert removed == [True]
+
+
+def test_identity_weak_key_dictionary_stale_callback_keeps_new_entry():
+    import gc
+
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+
+    key = Key()
+    d[key] = "old"
+    stale_ref = d._data[id(key)][0]
+    # Overwrite the slot, then fire the callback of the replaced weakref by hand,
+    # as would happen if the old key died after its id was reused.
+    d[key] = "new"
+    d._make_remove(id(key))(stale_ref)
+
+    assert d[key] == "new"
+    assert removed == []
+
+    del key, stale_ref
+    gc.collect()
+    assert len(d) == 0
+    assert removed == [True]
+
+
+def test_identity_weak_key_dictionary_clear():
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+    keys = [Key() for _ in range(3)]
+    for k in keys:
+        d[k] = None
+
+    d.clear()
+    del keys
+
+    assert len(d) == 0
+    assert list(d) == []
+    assert removed == []
 
 
 @pytest.mark.parametrize(

@@ -11,7 +11,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
 
@@ -27,9 +27,11 @@ log = get_logger(__name__)
 PATCH_MODULES = {
     "aiokafka": True,
     "aiomysql": True,
+    "anyio": True,
     "aredis": True,
     "asyncio": True,
     "avro": True,
+    "aws_sdk_bedrock_runtime": True,
     "boto": True,
     "botocore": True,
     "bottle": True,
@@ -47,6 +49,7 @@ PATCH_MODULES = {
     "gevent": True,
     "graphql": True,
     "grpc": True,
+    "httpx2": True,
     "httpx": True,
     "kafka": True,
     "langgraph": True,
@@ -70,6 +73,7 @@ PATCH_MODULES = {
     "snowflake": False,
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,
+    "typesafe": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
     "aiohttp_jinja2": True,
     "aiopg": True,
@@ -105,7 +109,9 @@ PATCH_MODULES = {
     "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
+    "trio": True,
     "openai": True,
+    "elevenlabs": True,
     "langchain": True,
     "anthropic": True,
     "crewai": True,
@@ -179,6 +185,7 @@ _MODULES_FOR_CONTRIB = {
     "mistralai": ("mistralai.client",),
     "openai_agents": ("agents",),
     "pytorch": ("torch",),
+    "typesafe": ("typesafe_sdk",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}

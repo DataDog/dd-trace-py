@@ -1,5 +1,6 @@
 # Opentelemetry Tracer shim Unit Tests
 import logging
+from unittest.mock import patch
 
 from opentelemetry.trace import Link
 from opentelemetry.trace import SpanKind as OtelSpanKind
@@ -12,7 +13,11 @@ from opentelemetry.trace.status import Status as OtelStatus
 from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
+from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.opentelemetry.sampling import _random_value
 from ddtrace.internal.opentelemetry.span import Span
 
 
@@ -78,7 +83,7 @@ def test_otel_span_events(oteltracer):
 )
 def test_otel_span_attributes_overrides(oteltracer, override):
     otel, value = override
-    with oteltracer.start_span("set-{}".format(otel)) as span:
+    with oteltracer.start_span(f"set-{otel}") as span:
         span.set_attribute(otel, value)
 
 
@@ -160,6 +165,50 @@ def test_otel_span_status_with_status_code(oteltracer):
     assert span2._ddspan.get_tag("error.message") is None
 
 
+def test_set_status_error_with_description_overwrites_error_msg(oteltracer):
+    """Non-compat mode: set_status(ERROR) with a description updates ERROR_MSG."""
+    with oteltracer.start_span("otel-error-with-desc") as span:
+        span.set_status(OtelStatusCode.ERROR, "first message")
+        assert span._ddspan.get_tag("error.message") == "first message"
+        span.set_status(OtelStatusCode.ERROR, "second message")
+        assert span._ddspan.error == 1
+        assert span._ddspan.get_tag("error.message") == "second message"
+
+
+def test_set_status_error_without_description_does_not_overwrite_error_msg(oteltracer):
+    """Non-compat mode: set_status(ERROR) without description leaves existing ERROR_MSG unchanged."""
+    with oteltracer.start_span("otel-error-no-desc") as span:
+        span.set_status(OtelStatusCode.ERROR, "original message")
+        assert span._ddspan.get_tag("error.message") == "original message"
+        # Second set_status with no description should NOT overwrite the existing error.message
+        span.set_status(OtelStatusCode.ERROR)
+        assert span._ddspan.error == 1
+        assert span._ddspan.get_tag("error.message") == "original message"
+
+
+def test_set_status_error_with_description_in_compat_mode_overwrites_error_msg(oteltracer):
+    """Compat mode: set_status(ERROR) with description updates ERROR_MSG to that description."""
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("otel-error-compat-desc") as span:
+            span.set_status(OtelStatusCode.ERROR, "first message")
+            assert span._ddspan.get_tag("error.message") == "first message"
+            span.set_status(OtelStatusCode.ERROR, "second message")
+            assert span._ddspan.error == 1
+            assert span._ddspan.get_tag("error.message") == "second message"
+
+
+def test_set_status_error_without_description_in_compat_mode_removes_error_msg(oteltracer):
+    """Compat mode: set_status(ERROR) without description removes ERROR_MSG even if previously set."""
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("otel-error-compat-no-desc") as span:
+            span.set_status(OtelStatusCode.ERROR, "original message")
+            assert span._ddspan.get_tag("error.message") == "original message"
+            # Second set_status with no description should REMOVE error.message in compat mode
+            span.set_status(OtelStatusCode.ERROR)
+            assert span._ddspan.error == 1
+            assert span._ddspan.get_tag("error.message") is None
+
+
 def test_otel_add_event(oteltracer):
     with oteltracer.start_span("otel-client") as client:
         client.add_event("no op event", dict(), 1671826913)
@@ -219,7 +268,10 @@ def test_otel_get_span_context(oteltracer):
     # By default ddtrace set sampled=True for all spans
     assert span_context.trace_flags == TraceFlags.SAMPLED
     # Default tracestate values set on all Datadog Spans
-    assert span_context.trace_state.to_header() == "dd=p:{:016x};s:1;t.dm:-0".format(span_context.span_id)
+    assert (
+        span_context.trace_state.to_header()
+        == f"dd=p:{span_context.span_id:016x};s:1;t.dm:-0,ot=rv:{_random_value(span_context.trace_id):014x};th:0"
+    )
 
 
 def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
@@ -229,9 +281,9 @@ def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
     otelspan.end()
 
     span_context = otelspan.get_span_context()
-    assert (
-        span_context.trace_state.to_header()
-        == "dd=p:{:016x};s:1;t.dm:-0;t.congo:t61rcWkgMzE;t.some_val:tehehe".format(span_context.span_id)
+    assert span_context.trace_state.to_header() == (
+        f"dd=p:{span_context.span_id:016x};s:1;t.dm:-0;t.congo:t61rcWkgMzE;"
+        f"t.some_val:tehehe,ot=rv:{_random_value(span_context.trace_id):014x};th:0"
     )
 
 
@@ -241,6 +293,47 @@ def test_otel_get_span_context_with_default_trace_state(oteltracer):
 
         span_context = otelspan.get_span_context()
         assert span_context.trace_flags == TraceFlags.DEFAULT
+
+
+@pytest.mark.parametrize(("sampling_priority", "expected_flags"), [(0, 0x2), (1, 0x3)])
+@pytest.mark.parametrize(("version", "future_fields"), [("00", ""), ("01", "-what-the-future-looks-like")])
+def test_otel_get_span_context_preserves_inherited_random_trace_id_flag(
+    oteltracer, sampling_priority, expected_flags, version, future_fields
+):
+    otelspan = oteltracer.start_span("otel-server")
+    context = otelspan._ddspan.context
+    context.sampling_priority = sampling_priority
+    context._meta[W3C_TRACEPARENT_KEY] = f"{version}-{context.trace_id:032x}-{context.span_id:016x}-03{future_fields}"
+    context._meta[W3C_TRACESTATE_KEY] = "ot=th:8"
+
+    span_context = otelspan.get_span_context()
+
+    assert span_context.trace_flags == TraceFlags(expected_flags)
+    assert "ot=th:8" in span_context.trace_state.to_header()
+
+
+def test_otel_child_span_context_reflects_root_sampling_decision(oteltracer):
+    """A child span surfaces the sampling decision made on its local root.
+
+    A child span's Datadog context is built lazily as a copy of its parent's that shares the
+    trace-level ``_metrics`` (where sampling priority lives) by reference. get_span_context()
+    makes the sampling decision on the local root the first time it is read; because the child
+    shares that ``_metrics`` dict, the decision is visible through the child's context. Assert
+    the child reports a consistent, non-None sampling decision matching the root.
+    """
+    with oteltracer.start_as_current_span("otel-root") as root_span:
+        with oteltracer.start_as_current_span("otel-child") as child_span:
+            # Read the child first: this samples the local root and records the decision in the
+            # trace-level metrics shared with the child's lazily-built context.
+            child_context = child_span.get_span_context()
+            root_context = root_span.get_span_context()
+
+            assert child_context.trace_id == root_context.trace_id
+            # A concrete (non-None) sampling decision is visible through the child's context.
+            assert child_span._ddspan.context.sampling_priority is not None
+            # The child and root agree on the sampling decision (shared trace-level metrics).
+            assert child_context.trace_flags == root_context.trace_flags
+            assert child_context.trace_flags == TraceFlags.SAMPLED
 
 
 @pytest.mark.parametrize("trace_flags", [TraceFlags.SAMPLED, TraceFlags.DEFAULT])
@@ -274,3 +367,95 @@ def test_otel_span_interoperability(oteltracer):
         otel_span_clone = Span(otel_span_og._ddspan)
         # Ensure all properties are consistent
         assert otel_span_clone.__dict__ == otel_span_og.__dict__
+
+
+def test_otel_span_attribute_remapping_default(oteltracer):
+    """DD_TRACE_OTEL_SEMANTICS_ENABLED=false (default): OTel attributes are remapped to DD names."""
+    with oteltracer.start_span("test-remapping") as span:
+        span.set_attribute("http.response.status_code", 200)
+        assert span._ddspan.get_tag("http.status_code") == "200"
+        assert span._ddspan.get_tag("http.response.status_code") is None
+
+
+def test_otel_span_attribute_remapping_disabled_with_otel_trace_semantics(oteltracer):
+    """DD_TRACE_OTEL_SEMANTICS_ENABLED=true: OTel attributes are stored as-is without remapping."""
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("test-no-remapping") as span:
+            span.set_attribute("http.response.status_code", 200)
+            # int values are stored as metrics under the original OTel key (not remapped to http.status_code)
+            assert span._ddspan.get_metrics().get("http.response.status_code") == 200
+            assert span._ddspan.get_tag("http.status_code") is None
+
+
+def test_otel_record_exception_suppresses_dd_tags_with_otel_trace_semantics(oteltracer):
+    """DD_TRACE_OTEL_SEMANTICS_ENABLED=true: record_exception does not set DD error tags on the span."""
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("test-exc-compat") as span:
+            try:
+                raise ValueError("test error")
+            except ValueError as exc:
+                span.record_exception(exc)
+            assert span._ddspan.get_tag("error.message") is None
+            assert span._ddspan.get_tag("error.type") is None
+            assert span._ddspan.get_tag("error.stack") is None
+
+
+def test_otel_record_exception_adds_stacktrace_to_event_with_otel_trace_semantics(oteltracer):
+    """DD_TRACE_OTEL_SEMANTICS_ENABLED=true: record_exception always adds exception.stacktrace to the span event."""
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("test-exc-stacktrace-compat") as span:
+            try:
+                raise ValueError("test error")
+            except ValueError as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            assert len(events) == 1
+            assert "exception.stacktrace" in events[0].attributes
+
+
+class _OuterClass:
+    class _NestedError(Exception):
+        pass
+
+
+def test_otel_record_exception_type_formatting(oteltracer):
+    """exception.type uses module.__name__ (no qualname) when semantics disabled,
+    and module.__qualname__ (skipping 'builtins') when semantics enabled.
+
+    The distinction matters for nested exception classes:
+      __name__     = '_NestedError'          (simple name only)
+      __qualname__ = '_OuterClass._NestedError'  (includes outer class)
+    """
+    nested_exc_cls = _OuterClass._NestedError
+
+    # Scenario 1: semantics disabled — uses __name__, so nested class outer is omitted
+    with patch.object(config, "_otel_trace_semantics_enabled", False):
+        with oteltracer.start_span("test-exc-type-compat") as span:
+            try:
+                raise nested_exc_cls("nested error")
+            except nested_exc_cls as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            # __name__ = '_NestedError', NOT '_OuterClass._NestedError'
+            assert events[0].attributes["exception.type"] == f"{nested_exc_cls.__module__}._NestedError"
+
+    # Scenario 2: semantics enabled — builtin exception omits 'builtins.' prefix
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("test-exc-type-otel-builtin") as span:
+            try:
+                raise ValueError("builtin error")
+            except ValueError as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            assert events[0].attributes["exception.type"] == "ValueError"
+
+    # Scenario 3: semantics enabled — uses __qualname__, so nested class outer is included
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("test-exc-type-otel-nested") as span:
+            try:
+                raise nested_exc_cls("nested error")
+            except nested_exc_cls as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            # __qualname__ = '_OuterClass._NestedError'
+            assert events[0].attributes["exception.type"] == f"{nested_exc_cls.__module__}._OuterClass._NestedError"

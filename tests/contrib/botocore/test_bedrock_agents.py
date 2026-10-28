@@ -47,6 +47,9 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
         "meta._dd.p.llmobs_parent_id",
         "meta._dd.p.llmobs_sd",
         "meta._dd.p.llmobs_sr",
+        "meta._dd.p.llmobs_pagent_name",
+        "meta._dd.p.llmobs_pagent_span_id",
+        "meta._dd.p.llmobs_trace_id",
         "meta_struct",
     ]
 )
@@ -75,6 +78,9 @@ def test_agent_invoke_with_step_spans(bedrock_agent_client, request_vcr, bedrock
         "meta._dd.p.llmobs_parent_id",
         "meta._dd.p.llmobs_sd",
         "meta._dd.p.llmobs_sr",
+        "meta._dd.p.llmobs_pagent_name",
+        "meta._dd.p.llmobs_pagent_span_id",
+        "meta._dd.p.llmobs_trace_id",
         "meta_struct",
     ],
 )
@@ -110,7 +116,7 @@ def test_span_finishes_after_generator_exit(bedrock_agent_client, request_vcr, t
                     raise GeneratorExit
         span = test_spans.pop_traces()[0][0]
         assert span is not None
-        assert span.name == "Bedrock Agent {}".format(AGENT_ID)
+        assert span.name == f"Bedrock Agent {AGENT_ID}"
         assert span.resource == "aws.bedrock-agent-runtime"
 
 
@@ -129,7 +135,7 @@ def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, test_spa
     trace = test_spans.pop_traces()[0]
     assert len(trace) == 1
     span = trace[0]
-    assert span.name == "Bedrock Agent {}".format(AGENT_ID)
+    assert span.name == f"Bedrock Agent {AGENT_ID}"
     assert span.resource == "aws.bedrock-agent-runtime"
 
 
@@ -150,5 +156,5 @@ def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, t
     trace = test_spans.pop_traces()[0]
     assert len(trace) == 1
     span = trace[0]
-    assert span.name == "Bedrock Agent {}".format(AGENT_ID)
+    assert span.name == f"Bedrock Agent {AGENT_ID}"
     assert span.resource == "aws.bedrock-agent-runtime"

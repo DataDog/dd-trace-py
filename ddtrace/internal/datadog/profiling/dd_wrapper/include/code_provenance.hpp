@@ -8,12 +8,7 @@ namespace Datadog {
 class CodeProvenance
 {
   public:
-    // Public static method to access the CodeProvenance instance
-    static CodeProvenance& get_instance()
-    {
-        static CodeProvenance instance;
-        return instance;
-    }
+    static CodeProvenance& get_instance();
 
     // Delete copy constructor and assignment operator to prevent copies
     CodeProvenance(CodeProvenance const&) = delete;

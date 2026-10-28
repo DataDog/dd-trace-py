@@ -1,11 +1,16 @@
 import _thread
+from contextlib import ExitStack
 import inspect
 import os
 from pathlib import Path
 import sys
 import threading
 import time
+from types import CodeType
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
+from typing import Iterator
 from unittest import mock
 
 import pytest
@@ -140,7 +145,7 @@ def _raise_long_exception_message() -> None:
         pass
 
 
-def _lineno_of(func, substring):
+def _lineno_of(func: Callable[..., Any], substring: str) -> int:
     """Return the 1-based line number of the first source line of func containing substring."""
     source_lines, start_lineno = inspect.getsourcelines(func)
     for offset, line in enumerate(source_lines):
@@ -152,10 +157,225 @@ def _lineno_of(func, substring):
 def test_exception_config_defaults() -> None:
     """Test that exception profiling config has expected default values."""
     from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.internal.settings.profiling import exception_is_available
 
-    assert profiling_config.exception.enabled is False
+    assert exception_is_available
+    assert profiling_config.exception.enabled is True
     assert profiling_config.exception.sampling_interval == 100
     assert profiling_config.exception.collect_message is False
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_monitoring_setup_failure_releases_registration():
+    """A failed registration rolls the multiplexer back so a later start can succeed.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import sys
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import exception
+
+    real_set_events = sys.monitoring.set_events
+    # The subprocess harness runs the function body as module-level code, so a
+    # mutable container replaces the nonlocal flag a closure would normally use.
+    failed = [False]
+
+    def fail_first_enable(tool_id: int, events: int) -> None:
+        if events == sys.monitoring.events.RAISE and not failed[0]:
+            failed[0] = True
+            raise RuntimeError("set events failed")
+        real_set_events(tool_id, events)
+
+    sys.monitoring.set_events = fail_first_enable
+    first = exception.ExceptionCollector(sampling_interval=1)
+
+    with pytest.raises(RuntimeError, match="set events failed"):
+        first.start()
+
+    ambient = len(monitoring._registry)
+    assert monitoring._global_raise_handler is None
+    if not ambient:
+        assert monitoring._tool_id is None
+        assert sys.monitoring.get_tool(3) is None
+
+    sys.monitoring.set_events = real_set_events
+    second = exception.ExceptionCollector(sampling_interval=1)
+    second.start()
+    try:
+        assert second.status == service.ServiceStatus.RUNNING
+        tool_id = monitoring.get_tool_id()
+        assert sys.monitoring.get_tool(tool_id) == "ddtrace"
+        assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE
+    finally:
+        second.stop()
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_stop_unregistration_failure_is_contained():
+    """A failed unregister during stop must not wedge the collector.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import _exception as _exc
+    from ddtrace.profiling.collector import exception
+
+    def failing_unregister(handler: object) -> None:
+        raise RuntimeError("unregister failed")
+
+    real_unregister = monitoring.unregister_global
+    monitoring.unregister_global = failing_unregister
+    collector = exception.ExceptionCollector(sampling_interval=1)
+    collector.start()
+
+    collector.stop()
+    assert collector.status == service.ServiceStatus.STOPPED
+    assert monitoring._global_raise_handler is _exc._exception_handler
+
+    monitoring.unregister_global = real_unregister
+    monitoring.unregister_global(_exc._exception_handler)
+    assert monitoring._global_raise_handler is None
+    if not len(monitoring._registry):
+        assert monitoring._tool_id is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_stop_releases_shared_tool_when_last_registration():
+    """Stopping the last registration frees the shared tool and removes the RAISE callback.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import sys
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import exception
+
+    ambient = len(monitoring._registry)
+    collector = exception.ExceptionCollector(sampling_interval=1)
+    collector.start()
+    tool_id = monitoring.get_tool_id()
+
+    collector.stop()
+    assert collector.status == service.ServiceStatus.STOPPED
+    assert monitoring._global_raise_handler is None
+    assert not (sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE)
+    if ambient:
+        assert monitoring._tool_id == tool_id
+    else:
+        assert monitoring._tool_id is None
+        assert sys.monitoring.get_tool(tool_id) is None
+        assert sys.monitoring.get_events(tool_id) == 0
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_monitoring_unavailable_raises_collector_unavailable():
+    """With every candidate slot taken, start surfaces CollectorUnavailable."""
+    import sys
+
+    import pytest
+
+    sys.monitoring.use_tool_id(3, "external-3")
+    sys.monitoring.use_tool_id(4, "external-4")
+
+    from ddtrace.internal import service
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector import exception
+
+    collector_instance = exception.ExceptionCollector(sampling_interval=1)
+    with pytest.raises(collector.CollectorUnavailable):
+        collector_instance.start()
+    assert collector_instance.status == service.ServiceStatus.STOPPED
+    assert sys.monitoring.get_tool(3) == "external-3"
+    assert sys.monitoring.get_tool(4) == "external-4"
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_second_collector_start_is_rejected():
+    """A second collector cannot run alongside the active one or clear its state.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import sys
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector import exception
+
+    first = exception.ExceptionCollector(sampling_interval=1)
+    first.start()
+
+    second = exception.ExceptionCollector(sampling_interval=1)
+    with pytest.raises(collector.CollectorUnavailable):
+        second.start()
+    assert second.status == service.ServiceStatus.STOPPED
+
+    # The active collector is untouched by the rejected start.
+    assert monitoring._global_raise_handler is not None
+    tool_id = monitoring.get_tool_id()
+    assert sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE
+
+    first.stop()
+    assert monitoring._global_raise_handler is None
+    if not len(monitoring._registry):
+        assert monitoring._tool_id is None
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_exception_sampler_setup_failure_does_not_claim_tool():
+    """A sampler failure must not leave a global registration behind.
+
+    On Python 3.15+ the asyncio monitoring hook registers with the shared
+    multiplexer at import time, so the tool is only fully released when no
+    ambient registration exists.
+    """
+    import os
+    import sys
+    from unittest import mock
+
+    import pytest
+
+    from ddtrace.internal import monitoring
+    from ddtrace.internal import service
+    from ddtrace.profiling.collector import exception
+
+    real_urandom = os.urandom
+    os.urandom = mock.Mock(side_effect=RuntimeError("sampler setup failed"))
+    first = exception.ExceptionCollector(sampling_interval=1)
+
+    ambient = len(monitoring._registry)
+
+    with pytest.raises(RuntimeError, match="sampler setup failed"):
+        first.start()
+
+    assert monitoring._global_raise_handler is None
+    if not ambient:
+        assert monitoring._tool_id is None
+
+    os.urandom = real_urandom
+    second = exception.ExceptionCollector(sampling_interval=1)
+    second.start()
+    try:
+        assert second.status == service.ServiceStatus.RUNNING
+        assert sys.monitoring.get_events(monitoring.get_tool_id()) & sys.monitoring.events.RAISE
+    finally:
+        second.stop()
 
 
 def test_poisson_sampling_distribution() -> None:
@@ -170,6 +390,70 @@ def test_poisson_sampling_distribution() -> None:
     mean = sum(samples) / len(samples)
     # Mean of 1000 exponential(100) samples has std ≈ 3.16; use wide bounds to avoid flakes
     assert 80 <= mean <= 120, f"Expected mean ~100, got {mean}"
+
+
+@pytest.mark.parametrize("profiler_first", [False, True])
+def test_exception_profiler_shares_tool_with_handled_exceptions(profiler_first: bool) -> None:
+    """Profiler and handled-error startup order does not change global event ownership."""
+    from ddtrace.internal import monitoring
+    from ddtrace.profiling.collector._exception import _exception_handler
+
+    class HandledExceptionHandler(monitoring.MonitoringEventHandler):
+        def on_exception_handled(
+            self, code: CodeType, instruction_offset: int, handled_exception: BaseException
+        ) -> None:
+            pass
+
+    handled_handler = HandledExceptionHandler()
+    collector = exception.ExceptionCollector(sampling_interval=100)
+
+    with ExitStack() as stack:
+        if profiler_first:
+            stack.enter_context(collector)
+            monitoring.register_global(handled_handler)
+            stack.callback(monitoring.unregister_global, handled_handler)
+        else:
+            monitoring.register_global(handled_handler)
+            stack.callback(monitoring.unregister_global, handled_handler)
+            stack.enter_context(collector)
+
+        tool_id = monitoring.get_tool_id()
+        sys_monitoring = getattr(sys, "monitoring")
+        events = sys_monitoring.get_events(tool_id)
+        assert events & sys_monitoring.events.EXCEPTION_HANDLED
+        assert events & sys_monitoring.events.RAISE
+        assert monitoring._global_exception_handled_handler is handled_handler
+        assert monitoring._global_raise_handler is _exception_handler
+        # Direct delivery: CPython calls the profiler's guarded Cython callback,
+        # while the wrapped EXCEPTION_HANDLED callback stays multiplexer-owned.
+        assert (
+            sys_monitoring.register_callback(tool_id, sys.monitoring.events.RAISE, _exception_handler.on_raise)
+            is _exception_handler.on_raise
+        )
+        assert (
+            sys_monitoring.register_callback(
+                tool_id, sys_monitoring.events.EXCEPTION_HANDLED, monitoring._on_exception_handled
+            )
+            is monitoring._on_exception_handled
+        )
+
+
+@pytest.mark.parametrize("attribute", ["__class__", "__traceback__"])
+def test_exception_callback_contains_attribute_failure(attribute: str) -> None:
+    """A failing exception attribute lookup cannot recurse into user code."""
+
+    class FailingTracebackError(Exception):
+        def __getattribute__(self, name: str):
+            if name == attribute:
+                raise RuntimeError("attribute lookup failed")
+            return super().__getattribute__(name)
+
+    error = FailingTracebackError("application error")
+    with exception.ExceptionCollector(sampling_interval=100):
+        try:
+            raise error
+        except FailingTracebackError as caught:
+            assert caught is error
 
 
 # Pprof profile tests
@@ -672,3 +956,218 @@ def test_exception_uses_push_monotonic_ns() -> None:
         ts: int = call[0][0]
         assert isinstance(ts, int), f"Expected int timestamp, got {type(ts)}"
         assert before <= ts <= after, f"Expected monotonic timestamp in [{before}, {after}], got {ts}"
+
+
+class _CountingIterator:
+    """Iterator that raises StopIteration after *n* items."""
+
+    def __init__(self, n: int) -> None:
+        self._remaining = n
+
+    def __iter__(self) -> "_CountingIterator":
+        return self
+
+    def __next__(self) -> int:
+        if self._remaining <= 0:
+            raise StopIteration
+        self._remaining -= 1
+        return self._remaining
+
+
+def test_stopiteration_not_sampled(tmp_path: Path) -> None:
+    """StopIteration from iterator exhaustion must not appear in exception profiles."""
+    output_filename = _setup_profiler(tmp_path, "test_stopiteration")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(100):
+            for _item in _CountingIterator(5):
+                pass
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+
+    for sample in samples:
+        for loc_id in sample.location_id:
+            loc = next(location for location in profile.location if location.id == loc_id)
+            for line in loc.line:
+                func = profile.function[line.function_id - 1]
+                func_name = profile.string_table[func.name]
+                assert func_name != "__next__", "StopIteration from __next__ should not appear in exception profiles"
+
+
+def test_generatorexit_not_sampled(tmp_path: Path) -> None:
+    """GeneratorExit from generator.close() must not appear in exception profiles."""
+    output_filename = _setup_profiler(tmp_path, "test_generatorexit")
+
+    def _gen() -> Iterator[int]:
+        while True:
+            yield 1
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(100):
+            g = _gen()
+            next(g)
+            g.close()
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    generator_exit_samples = []
+    for s in samples:
+        label = pprof_utils.get_label_with_key(profile.string_table, s, "exception type")
+        if label is not None and "GeneratorExit" in profile.string_table[label.str]:
+            generator_exit_samples.append(s)
+    assert len(generator_exit_samples) == 0, (
+        f"Expected no GeneratorExit exception samples, got {len(generator_exit_samples)}"
+    )
+
+
+def test_real_exceptions_still_sampled_with_iterators(tmp_path: Path) -> None:
+    """Real exceptions must still be captured even when iterators are also running."""
+    output_filename = _setup_profiler(tmp_path, "test_real_with_iterators")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _item in _CountingIterator(10):
+            pass
+        for _ in range(10):
+            try:
+                raise ValueError("real error")
+            except ValueError:
+                pass
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0, "Real ValueError exceptions should still be sampled"
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.ValueError",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="test_real_exceptions_still_sampled_with_iterators",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(
+                        test_real_exceptions_still_sampled_with_iterators, 'raise ValueError("real error")'
+                    ),
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+def _propagate_depth_3() -> None:
+    raise ValueError("propagated")
+
+
+def _propagate_depth_2() -> None:
+    _propagate_depth_3()
+
+
+def _propagate_depth_1() -> None:
+    _propagate_depth_2()
+
+
+def test_raise_fires_once_per_exception(tmp_path: Path) -> None:
+    """
+    Verify that RAISE fires once at the raise site, not once per unwound frame.
+    """
+    output_filename = _setup_profiler(tmp_path, "test_raise_fires_once")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        try:
+            _propagate_depth_1()
+        except ValueError:
+            pass
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+
+    # With sampling_interval=1 every exception is sampled. ddup aggregates samples
+    # with identical stacks into a single pprof row with a summed count value.
+    # The invariant we are looking for is that the total exception-samples count for the
+    # ValueError we raised must not exceed 1.
+    # If RAISE fired once per unwound frame (depth=3), we'd see 3 samples.
+    # Filter to only ValueError samples to avoid flakiness from stray internal exceptions.
+    sample_type_idx = pprof_utils.get_sample_type_index(profile, "exception-samples")
+    value_error_count = 0
+    for s in samples:
+        label = pprof_utils.get_label_with_key(profile.string_table, s, "exception type")
+        if label is not None and "ValueError" in profile.string_table[label.str]:
+            value_error_count += s.value[sample_type_idx]
+    assert value_error_count == 1, (
+        f"Expected 1 ValueError exception event, got {value_error_count}. "
+        f"RAISE is firing per unwound frame instead of once at the raise site."
+    )
+
+
+def _full_stack_leaf() -> None:
+    raise RuntimeError("leaf error")
+
+
+def _full_stack_middle() -> None:
+    _full_stack_leaf()
+
+
+def _full_stack_top() -> None:
+    try:
+        _full_stack_middle()
+    except RuntimeError:
+        pass
+
+
+def test_exception_captures_full_python_stack(tmp_path: Path) -> None:
+    """
+    Test that the captured stack spans from the leaf raise site to the top-level caller.
+    """
+    output_filename = _setup_profiler(tmp_path, "test_full_stack")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(10):
+            _full_stack_top()
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.RuntimeError",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="_full_stack_leaf",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_full_stack_leaf, "raise RuntimeError"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="_full_stack_middle",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_full_stack_middle, "_full_stack_leaf()"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="_full_stack_top",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_full_stack_top, "_full_stack_middle()"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="test_exception_captures_full_python_stack",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(test_exception_captures_full_python_stack, "_full_stack_top()"),
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )

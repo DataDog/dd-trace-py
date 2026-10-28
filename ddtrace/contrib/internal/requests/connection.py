@@ -1,22 +1,19 @@
-from typing import Optional  # noqa:F401
+from typing import Optional
 from urllib import parse
 
 import requests
 
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
-from ddtrace.internal.constants import USER_AGENT_HEADER
+from ddtrace.internal.constants import OTLP_HTTP_EXPORT_HEADER
+from ddtrace.internal.constants import OTLP_HTTP_EXPORT_HEADER_VALUE
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
-from ddtrace.internal.settings import env
-from ddtrace.internal.settings._opentelemetry import ExporterConfig
-from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -25,58 +22,7 @@ log = get_logger(__name__)
 
 def is_otlp_export(request: requests.models.Request) -> bool:
     """Determine if a request is submitting data to the OpenTelemetry OTLP exporter."""
-    if not config._otel_enabled:
-        return False
-    user_agent = request.headers.get(USER_AGENT_HEADER, "")
-    normalized_user_agent = user_agent.lower().replace(" ", "-")
-    if OTLP_EXPORTER_HEADER_IDENTIFIER in normalized_user_agent:
-        return True
-    # The OTLP HTTP metrics exporter omits the OTLP user-agent header that the trace and
-    # log exporters set, so fall back to matching the enabled OTLP export URLs.
-    return _normalize_otlp_url(request.url) in _OTLP_EXPORT_URLS
-
-
-def _normalize_otlp_url(url: str) -> "Optional[tuple]":
-    parsed = parse.urlparse(url)
-    if not parsed.hostname:
-        return None
-    return (parsed.scheme, parsed.hostname, parsed.port, parsed.path.rstrip("/"))
-
-
-def _otlp_export_urls() -> frozenset:
-    """Full export URLs for the enabled OTLP signals, resolved as the OpenTelemetry SDK does."""
-    base = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    urls = set()
-    for enabled, signal_endpoint_var, endpoint, path in (
-        (
-            config._otel_metrics_enabled,
-            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-            otel_config.exporter.METRICS_ENDPOINT,
-            ExporterConfig.METRICS_PATH,
-        ),
-        (
-            config._otel_logs_enabled,
-            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-            otel_config.exporter.LOGS_ENDPOINT,
-            ExporterConfig.LOGS_PATH,
-        ),
-        (
-            _is_otlp_traces_exporter_enabled(otel_config.exporter),
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-            otel_config.exporter.TRACES_ENDPOINT,
-            ExporterConfig.TRACES_PATH,
-        ),
-    ):
-        if not enabled:
-            continue
-        url = base.rstrip("/") + path if base and not env.get(signal_endpoint_var) else endpoint
-        normalized = _normalize_otlp_url(url)
-        if normalized is not None:
-            urls.add(normalized)
-    return frozenset(urls)
-
-
-_OTLP_EXPORT_URLS = _otlp_export_urls()
+    return request.headers.get(OTLP_HTTP_EXPORT_HEADER, "").lower() == OTLP_HTTP_EXPORT_HEADER_VALUE
 
 
 def _extract_hostname_and_path(uri: str) -> tuple[Optional[str], str]:
@@ -117,7 +63,7 @@ def _get_service_name(request, hostname) -> Optional[str]:
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
     # skip if tracing is not enabled
-    if not tracer.enabled and not asm_config._apm_opt_out:
+    if not tracer.enabled and not standalone_config.apm_opt_out:
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
@@ -152,3 +98,13 @@ def _wrap_send(func, instance, args, kwargs):
         finally:
             if response is not None:
                 ctx.event.set_response(response)
+
+
+def _wrap_adapter_send(func, instance, args, kwargs):
+    # Scoped to the per-hop HTTPAdapter.send (not Session.send, which recurses on
+    # redirects) so redirected requests.request spans aren't also suppressed.
+    token = _http_propagation_suppressed.set(True)
+    try:
+        return func(*args, **kwargs)
+    finally:
+        _http_propagation_suppressed.reset(token)

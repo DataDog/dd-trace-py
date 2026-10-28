@@ -3,10 +3,12 @@ from types import FunctionType
 from typing import Any
 from typing import Callable
 from typing import cast
+import weakref
 
 from ddtrace.debugging._function.discovery import FullyNamed
 from ddtrace.internal.bytecode_injection import HookInfoType
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.bytecode_injection import eject_all_hooks
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hooks
 from ddtrace.internal.wrapping import get_function_code
@@ -22,7 +24,7 @@ class FullyNamedContextWrappedFunction(FullyNamed, ContextWrappedFunction):
     """A fully named wrapper function."""
 
 
-class FunctionStore(object):
+class FunctionStore:
     """Function object store.
 
     This class provides a storage layer for patching operations, which allows us
@@ -33,11 +35,16 @@ class FunctionStore(object):
 
     If extra attributes are defined during the patching process, they will get
     removed when the functions are restored.
+
+    The maps are keyed by weak reference to the function so that a function
+    orphaned by a module recompile (e.g. importlib.reload()) doesn't keep
+    piling up here forever: once nothing else references it, its entry is
+    dropped automatically instead of leaking for the lifetime of the process.
     """
 
     def __init__(self) -> None:
-        self._code_map: dict[FunctionType, CodeType] = {}
-        self._wrapper_map: dict[FunctionType, WrappingContext] = {}
+        self._code_map: weakref.WeakKeyDictionary[FunctionType, CodeType] = weakref.WeakKeyDictionary()
+        self._wrapper_map: weakref.WeakKeyDictionary[FunctionType, WrappingContext] = weakref.WeakKeyDictionary()
 
     def __enter__(self) -> "FunctionStore":
         return self
@@ -78,10 +85,15 @@ class FunctionStore(object):
         return not not self.eject_hooks(function, [(hook, line, arg)])
 
     def wrap(self, function: FunctionType, wrapping_context: WrappingContext) -> None:
-        """Wrap a function with a hook."""
+        """Wrap a function with a hook.
+
+        Raises ObfuscatedCodeError if the function's code is obfuscated and
+        cannot be safely rewritten; the function is left untouched in that
+        case and is not tracked for restoration.
+        """
         self._store(function)
-        self._wrapper_map[function] = wrapping_context
         wrapping_context.wrap()
+        self._wrapper_map[function] = wrapping_context
 
     def unwrap(self, function: FullyNamedContextWrappedFunction) -> None:
         """Unwrap a hook around a wrapped function."""
@@ -89,5 +101,14 @@ class FunctionStore(object):
 
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
-        for function, code in self._code_map.items():
+        for function, wrapping_context in list(self._wrapper_map.items()):
+            wrapping_context.unwrap()
+
+        for function, code in list(self._code_map.items()):
+            # Restoring __code__ alone would leave 3.15+ line hooks (keyed by
+            # code object) still firing.
+            eject_all_hooks(function)
             function.__code__ = code
+
+        self._code_map.clear()
+        self._wrapper_map.clear()

@@ -11,6 +11,7 @@ from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
 
@@ -126,7 +127,7 @@ def _trace_actor_method_execution(self: Any, method: Callable[..., Any], dd_trac
             actor_method_name=actor_method_name,
         )
     ) as ctx:
-        yield ctx.span
+        yield span_from_context(ctx)
 
 
 def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:

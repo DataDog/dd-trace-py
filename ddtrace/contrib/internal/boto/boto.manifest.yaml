@@ -1,0 +1,12 @@
+_v: 1
+name: boto
+display_name: boto2
+description: Instruments AWS service API requests made through boto2 connection clients, recording service, operation, region,
+  HTTP method, and response status.
+packages:
+- name: boto
+category:
+- cloud_provider.client
+systems:
+- aws
+creation_date: '2017-03-16'

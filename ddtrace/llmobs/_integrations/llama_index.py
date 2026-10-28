@@ -2,12 +2,12 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
@@ -34,6 +34,10 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             span._set_attribute(MODEL, model)
         if provider is not None:
             span._set_attribute(PROVIDER, provider)
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # Event-based: on_started calls this with operation=event.operation (no trace() path).
+        return "agent" if kwargs.get("operation") == "agent" else None
 
     def _llmobs_set_tags(
         self,
@@ -146,7 +150,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
                     # Single query: one embedding vector
                     embedding_count = 1
                     embedding_dim = len(response)
-                output_value = "[{} embedding(s) returned with size {}]".format(embedding_count, embedding_dim)
+                output_value = f"[{embedding_count} embedding(s) returned with size {embedding_dim}]"
 
         _annotate_llmobs_span_data(
             span,

@@ -18,6 +18,12 @@ if [ -z "$S3_PATH" ]; then
 fi
 
 shopt -s nullglob
+
+if [ ! -d pywheels ]; then
+  echo "No packages found in pywheels/"
+  exit 0
+fi
+
 WHEELS=(pywheels/*.whl pywheels/*.tar.gz)
 
 if [ ${#WHEELS[@]} -eq 0 ]; then
@@ -38,12 +44,18 @@ else
   METADATA_FILE="metadata.txt"
 fi
 
+# The default policy tries each S3 request 3 times. A short network fault can use all
+# 3 attempts and fail the job. AWS CLI 2.4.29 ignores AWS_MAX_ATTEMPTS and AWS_RETRY_MODE,
+# so the script writes the policy to the CLI config file.
+aws configure set retry_mode standard
+aws configure set max_attempts 6
+
 echo "Uploading ${#WHEELS[@]} package(s) to s3://${BUCKET}/${S3_PATH}/"
 
-# Upload wheel files
-for wheel in "${WHEELS[@]}"; do
-  aws s3 cp "$wheel" "s3://${BUCKET}/${S3_PATH}/$(basename "$wheel")"
-done
+# One recursive copy lets the AWS CLI run the uploads in parallel. The filters
+# select the same files as the WHEELS glob: top-level, not hidden.
+aws s3 cp pywheels/ "s3://${BUCKET}/${S3_PATH}/" --recursive --no-progress \
+  --exclude '*' --include '*.whl' --include '*.tar.gz' --exclude '.*' --exclude '*/*'
 
 # Generate and upload index + helper scripts + metadata
 S3_BASE_URL="https://${BUCKET}.s3.amazonaws.com/${S3_PATH}"

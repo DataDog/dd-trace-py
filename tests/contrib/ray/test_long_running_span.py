@@ -1,6 +1,7 @@
 import time
 
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.ray.span_manager import get_span_manager
 from ddtrace.contrib.internal.ray.span_manager import start_long_running_span
 from ddtrace.contrib.internal.ray.span_manager import stop_long_running_span
@@ -10,13 +11,23 @@ from tests.utils import TracerTestCase
 _ray_span_manager = get_span_manager()
 
 
+def _wait_then_get_partial_id(span: Span, timeout: float = 5.0) -> float:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        partial_version = span.get_metric("_dd.partial_version")
+        if partial_version is not None:
+            return partial_version
+        time.sleep(0.01)
+    raise AssertionError(f"{span.name} was not partially flushed within {timeout} seconds")
+
+
 class TestLongRunningSpan(TracerTestCase):
     """Test long running span functionality without Ray dependencies"""
 
     def setUp(self):
         super().setUp()
         # Override timing values to make tests run quickly
-        self.original_long_running_flush_interval = getattr(config, "_long_running_span_submission_interval", 120.0)
+        self.original_long_running_flush_interval = config._long_running_flush_interval
         self.original_long_running_initial_flush_interval = getattr(
             config, "_long_running_initial_flush_interval", 10.0
         )
@@ -27,6 +38,8 @@ class TestLongRunningSpan(TracerTestCase):
 
         # Clear any existing spans from the job manager
         with _ray_span_manager._lock:
+            for timer in _ray_span_manager._timers.values():
+                timer.cancel()
             _ray_span_manager._job_spans.clear()
             _ray_span_manager._root_spans.clear()
             _ray_span_manager._timers.clear()
@@ -58,9 +71,7 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertIn(submission_id, _ray_span_manager._job_spans)
             self.assertIn((span.trace_id, span.span_id), _ray_span_manager._job_spans[submission_id])
 
-        time.sleep(1.5)
-
-        self.assertGreater(span.get_metric("_dd.partial_version"), 0)
+        self.assertGreater(_wait_then_get_partial_id(span), 0)
         self.assertEqual(span.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(span)
@@ -116,12 +127,10 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertIn((span1.trace_id, span1.span_id), job_spans)
             self.assertIn((span2.trace_id, span2.span_id), job_spans)
 
-        time.sleep(2)
-
-        self.assertGreater(span1.get_metric("_dd.partial_version"), 0)
+        self.assertGreater(_wait_then_get_partial_id(span1), 0)
         self.assertEqual(span1.get_tag("ray.job.status"), "RUNNING")
 
-        self.assertGreater(span2.get_metric("_dd.partial_version"), 0)
+        self.assertGreater(_wait_then_get_partial_id(span2), 0)
         self.assertEqual(span2.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(span1)
@@ -143,7 +152,7 @@ class TestLongRunningSpan(TracerTestCase):
         child1._set_attribute("ray.submission_id", submission_id)
         start_long_running_span(child1)
 
-        time.sleep(3)
+        self.assertGreater(_wait_then_get_partial_id(child1), 0)
         stop_long_running_span(child1)
         self.assertTrue(child1.finished)
         self.assertEqual(child1.get_metric("_dd.was_long_running"), 1)
@@ -164,11 +173,9 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertNotIn((child1.trace_id, child1.span_id), job_spans)
             self.assertNotIn((child2.trace_id, child2.span_id), job_spans)
 
-        time.sleep(1.5)
-
-        self.assertGreater(parent_span.get_metric("_dd.partial_version"), 0)
+        self.assertGreater(_wait_then_get_partial_id(child3), 0)
+        self.assertGreater(parent_span.get_metric("_dd.partial_version") or -1, 0)
         self.assertEqual(parent_span.get_tag("ray.job.status"), "RUNNING")
-        self.assertGreater(child3.get_metric("_dd.partial_version"), 0)
         self.assertEqual(child3.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(child3)

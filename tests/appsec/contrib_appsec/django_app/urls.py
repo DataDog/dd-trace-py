@@ -125,6 +125,22 @@ def rasp(request, endpoint: str):
 
                         r = requests.get(urlname, timeout=0.15)
                         res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx2_async"):
+                        import asyncio
+
+                        import httpx2
+
+                        async def _request():
+                            async with httpx2.AsyncClient() as client:
+                                return await client.get(urlname, timeout=0.15)
+
+                        r = asyncio.run(_request())
+                        res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx2"):
+                        import httpx2
+
+                        r = httpx2.get(urlname, timeout=0.15)
+                        res.append(f"Url: {r.text}")
                     elif param.startswith("url_httpx_async"):
                         import asyncio
 
@@ -249,7 +265,10 @@ def redirect_requests(request, route: str, port: int):
 
 @csrf_exempt
 def redirect_httpx(request, route: str, port: int):
-    import httpx
+    if request.path.startswith("/redirect_httpx2/"):
+        import httpx2 as httpx_client
+    else:
+        import httpx as httpx_client
 
     full_url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.body.decode()
@@ -262,7 +281,7 @@ def redirect_httpx(request, route: str, port: int):
     if body is not None:
         headers["Content-Type"] = "application/json"
     try:
-        with httpx.Client() as client:
+        with httpx_client.Client() as client:
             response = client.request(
                 method,
                 full_url,
@@ -283,7 +302,10 @@ def redirect_httpx(request, route: str, port: int):
 def redirect_httpx_async(request, route: str, port: int):
     import asyncio
 
-    import httpx
+    if request.path.startswith("/redirect_httpx2_async/"):
+        import httpx2 as httpx_client
+    else:
+        import httpx as httpx_client
 
     full_url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.body.decode()
@@ -298,7 +320,7 @@ def redirect_httpx_async(request, route: str, port: int):
     try:
 
         async def _request():
-            async with httpx.AsyncClient() as client:
+            async with httpx_client.AsyncClient() as client:
                 return await client.request(
                     method,
                     full_url,
@@ -461,7 +483,9 @@ if django.VERSION >= (2, 0, 0):
         path("redirect/<str:route>/<int:port>", redirect, name="redirect"),
         path("redirect_requests/<str:route>/<int:port>", redirect_requests, name="redirect_requests"),
         path("redirect_httpx/<str:route>/<int:port>", redirect_httpx, name="redirect_httpx"),
+        path("redirect_httpx2/<str:route>/<int:port>", redirect_httpx, name="redirect_httpx2"),
         path("redirect_httpx_async/<str:route>/<int:port>", redirect_httpx_async, name="redirect_httpx_async"),
+        path("redirect_httpx2_async/<str:route>/<int:port>", redirect_httpx_async, name="redirect_httpx2_async"),
         path(route="login/", view=login_user, name="login"),
         path("login", login_user, name="login"),
         path("login_sdk/", login_user_sdk, name="login_sdk"),
@@ -482,10 +506,16 @@ else:
         path(r"redirect/(?P<route>[^/]+)/(?P<port>[0-9]+)$", redirect, name="redirect"),
         path(r"redirect_requests/(?P<route>[^/]+)/(?P<port>[0-9]+)$", redirect_requests, name="redirect_requests"),
         path(r"redirect_httpx/(?P<route>[^/]+)/(?P<port>[0-9]+)$", redirect_httpx, name="redirect_httpx"),
+        path(r"redirect_httpx2/(?P<route>[^/]+)/(?P<port>[0-9]+)$", redirect_httpx, name="redirect_httpx2"),
         path(
             r"redirect_httpx_async/(?P<route>[^/]+)/(?P<port>[0-9]+)$",
             redirect_httpx_async,
             name="redirect_httpx_async",
+        ),
+        path(
+            r"redirect_httpx2_async/(?P<route>[^/]+)/(?P<port>[0-9]+)$",
+            redirect_httpx_async,
+            name="redirect_httpx2_async",
         ),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),

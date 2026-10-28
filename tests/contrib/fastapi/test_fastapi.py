@@ -1,19 +1,26 @@
 import asyncio
 import os
+import sys
+import threading
 import time
 
+import anyio
 import fastapi
 from fastapi.testclient import TestClient
 import httpx
 import pytest
 import starlette
 
+import ddtrace
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.anyio.patch import patch as anyio_patch
+from ddtrace.contrib.internal.anyio.patch import unpatch as anyio_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -21,10 +28,77 @@ from tests.utils import override_http_config
 from tests.utils import snapshot
 
 
+if sys.platform == "linux":
+    from tests.tracer.test_otel_thread_context import _published_context
+
+    def _worker_state():
+        return threading.get_ident(), _published_context()
+
+
 def assert_serialize_span(serialize_span):
     assert serialize_span.service == "fastapi"
     assert serialize_span.name == "fastapi.serialize_response"
     assert serialize_span.error == 0
+
+
+def _trace_context_ids(tracer):
+    context = tracer.current_trace_context()
+    if context is None:
+        return None
+    return context.trace_id, context.span_id
+
+
+@pytest.mark.skipif(
+    parse_version(starlette.__version__) < parse_version("0.15.0"),
+    reason="Starlette < 0.15 uses run_in_executor instead of AnyIO workers",
+)
+@pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
+def test_sync_handlers_publish_and_clear_native_thread_context(fastapi_tracer):
+    """Sync handlers publish request context and clear it when a worker becomes idle."""
+    handler_states = []
+    application = fastapi.FastAPI()
+
+    def record_handler_state():
+        handler_states.append((threading.get_ident(), _trace_context_ids(fastapi_tracer), _published_context()))
+
+    @application.get("/success")
+    def successful_handler():
+        record_handler_state()
+        return {"ok": True}
+
+    @application.get("/failure")
+    def failing_handler():
+        record_handler_state()
+        raise RuntimeError("handler failure")
+
+    was_patched = getattr(anyio, "_datadog_patch", False)
+    ddtrace.patch(anyio=True)
+    try:
+        with TestClient(application) as client:
+            assert client.get("/success").status_code == 200
+            assert client.portal is not None
+            # AIDEV-NOTE: Disable entry publication so probing cannot hide stale native context.
+            anyio_unpatch()
+            idle_after_success = client.portal.call(anyio.to_thread.run_sync, _worker_state)
+            anyio_patch()
+            with pytest.raises(RuntimeError, match="handler failure"):
+                client.get("/failure")
+            anyio_unpatch()
+            idle_after_failure = client.portal.call(anyio.to_thread.run_sync, _worker_state)
+    finally:
+        anyio_unpatch()
+        if was_patched:
+            anyio_patch()
+
+    assert len(handler_states) == 2
+    for _, active_context, published_context in handler_states:
+        assert active_context is not None
+        assert published_context is not None
+        assert published_context[:2] == active_context
+    assert handler_states[0][1] != handler_states[1][1]
+    assert handler_states[0][0] == handler_states[1][0] == idle_after_success[0] == idle_after_failure[0]
+    assert idle_after_success[1] is None
+    assert idle_after_failure[1] is None
 
 
 def test_read_homepage(client, tracer, test_spans):
@@ -1022,3 +1096,37 @@ def test_fastapi_app_is_picklable(tracer):
     pickled = cloudpickle.dumps(app)
     assert pickled is not None
     assert len(pickled) > 0
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
+def test_otel_semantics_server_span_attributes():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.contrib.otel_http_server import with_peer_address
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    app = FastAPI()
+
+    @app.get("/items/{item_id}")
+    async def item(item_id: int):
+        return {"item_id": item_id}
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        with TestClient(with_peer_address(app)) as client:
+            response = client.get("/items/42?q=1", headers=TEST_HEADERS)
+            assert response.status_code == 200
+            span = next(span for span in spans.get_spans() if span.name == "fastapi.request")
+            assert_otel_server_span(
+                span,
+                method="GET",
+                status=200,
+                path="/items/42",
+                query="q=1",
+                route="/items/{item_id}",
+                resource="GET /items/{item_id}",
+            )

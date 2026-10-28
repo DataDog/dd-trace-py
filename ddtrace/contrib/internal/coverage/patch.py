@@ -1,8 +1,10 @@
 from typing import Any
 from typing import Optional
+from typing import Union
 
 import wrapt
 
+from ddtrace.contrib.internal.coverage.lcov import report_lcov
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -22,7 +24,11 @@ PCT_COVERED_KEY = "pct_covered"
 
 # Coverage instance and percentage cache
 _coverage_instance: Optional[Any] = None
+_owns_coverage_instance = False
 _cached_coverage_percentage: Optional[float] = None
+
+# External tools such as pytest-cov can own Coverage.current(). We may cache
+# their instance to generate reports, but must never stop, save, or erase it.
 
 
 def get_version() -> str:
@@ -90,7 +96,7 @@ def generate_coverage_report(format_type: str = "text", cov: Optional[Any] = Non
 
     try:
         if format_type == "lcov":
-            pct_covered = cov.lcov_report(**kwargs)
+            pct_covered = report_lcov(cov, **kwargs)
         else:  # Default to text report
             pct_covered = cov.report(**kwargs)
 
@@ -118,7 +124,7 @@ def start_coverage(
     include: Any = None,
     config_file: Any = True,
     auto_data: bool = False,
-    data_suffix: Optional[str] = None,
+    data_suffix: Optional[Union[bool, str]] = None,
     **kwargs: Any,
 ) -> Optional[Any]:
     """
@@ -136,8 +142,6 @@ def start_coverage(
     Returns:
         The Coverage instance, or None if coverage.py is not available
     """
-    global _coverage_instance
-
     if Coverage is None:
         log.debug("coverage.py is not available")
         return None
@@ -147,7 +151,8 @@ def start_coverage(
         existing = Coverage.current()
         if existing is not None:
             log.debug("Coverage is already running")
-            set_coverage_instance(existing)
+            if existing is not _coverage_instance:
+                set_coverage_instance(existing)
             return existing
     except Exception:
         log.debug("Failed to access running coverage", exc_info=True)
@@ -163,7 +168,7 @@ def start_coverage(
             **kwargs,
         )
         cov.start()
-        set_coverage_instance(cov)
+        _set_coverage_instance(cov, owned=True)
         log.debug("Started coverage collection")
         return cov
     except Exception as e:
@@ -189,6 +194,15 @@ def stop_coverage(save: bool = True, erase: bool = False) -> Optional[Any]:
     if cov is None:
         log.debug("No coverage instance is running")
         return None
+
+    if not _owns_coverage_instance:
+        log.debug("Coverage instance is externally managed; skipping stop")
+        if erase:
+            # Clear our reference even though we don't own the instance.  The caller
+            # asked for a clean slate; we must not touch the external session but we
+            # must reflect the "not running" state in is_coverage_running().
+            reset_coverage_state()
+        return cov
 
     try:
         cov.stop()
@@ -234,17 +248,23 @@ def set_coverage_instance(cov_instance: Any) -> None:
     Args:
         cov_instance: The coverage instance to set
     """
-    global _coverage_instance
-    _coverage_instance = cov_instance
+    _set_coverage_instance(cov_instance, owned=False)
     log.debug("Set coverage instance")
+
+
+def _set_coverage_instance(cov_instance: Any, owned: bool) -> None:
+    global _coverage_instance, _owns_coverage_instance
+    _coverage_instance = cov_instance
+    _owns_coverage_instance = owned
 
 
 def reset_coverage_state() -> None:
     """
     Reset all coverage state.
     """
-    global _coverage_instance, _cached_coverage_percentage
+    global _coverage_instance, _owns_coverage_instance, _cached_coverage_percentage
     _coverage_instance = None
+    _owns_coverage_instance = False
     _cached_coverage_percentage = None
     log.debug("Reset coverage state")
 
@@ -309,6 +329,11 @@ def is_coverage_running() -> bool:
     return get_coverage_instance() is not None
 
 
+def owns_coverage_instance() -> bool:
+    """Whether the cached coverage instance was started (and is owned) by ddtrace."""
+    return _owns_coverage_instance
+
+
 def generate_lcov_report(cov: Optional[Any] = None, **kwargs: Any) -> Optional[float]:
     return generate_coverage_report("lcov", cov, **kwargs)
 
@@ -332,7 +357,7 @@ def get_coverage_data() -> dict[str, Any]:
 def erase_coverage() -> None:
     """Erase all coverage data and clear the cache."""
     cov = get_coverage_instance()
-    if cov:
+    if cov and _owns_coverage_instance:
         try:
             cov.erase()
         except Exception as e:

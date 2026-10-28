@@ -8,7 +8,7 @@ AND an openai/LLMObs span finished with ``error=1`` and an ``AIGuardAbortError``
 either OpenAI surface fails the same assertions.
 """
 
-from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.aiguard._constants import AI_GUARD
 
 
 def find_ai_guard_span(spans):

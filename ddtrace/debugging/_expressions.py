@@ -24,17 +24,17 @@ Full grammar:
     arg_op_type             =>  filter | substring | getmember | index
 """  # noqa
 
+from collections.abc import Collection
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import chain
 import re
-import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Collection
-from typing import Mapping
 from typing import Optional
+from typing import TypeVar
 from typing import Union
 from typing import cast
 
@@ -45,7 +45,8 @@ from bytecode import Instr
 from bytecode import Label
 
 from ddtrace.debugging._safety import safe_getitem
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.debugging._safety import safe_qualname
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
 
@@ -62,12 +63,11 @@ _SAFE_RECONSTRUCTIBLE_TYPES: frozenset[type] = frozenset({list, tuple, set, froz
 # Direct handles on type's own C-level getset_descriptors.
 # _type_dict_descriptor: calling .__get__(cls) returns the class namespace
 # (tp_dict) as a mappingproxy, bypassing any metaclass __dict__ override.
-# _type_module_descriptor / _type_qualname_descriptor: calling .__get__(cls)
-# reads tp_module / tp_name directly, bypassing any metaclass __module__ or
-# __qualname__ property that could invoke arbitrary user code.
+# _type_module_descriptor: calling .__get__(cls) reads tp_module directly,
+# bypassing any metaclass __module__ property that could invoke arbitrary
+# user code. See safe_qualname() for the __qualname__ equivalent.
 _type_dict_descriptor: Any = type.__dict__["__dict__"]  # type: ignore[index]
 _type_module_descriptor: Any = type.__dict__["__module__"]  # type: ignore[index]
-_type_qualname_descriptor: Any = type.__dict__["__qualname__"]  # type: ignore[index]
 
 # Builtin sized/container types whose unbound methods are safe to call.
 # We use _isinstance (issubclass(type(obj), t) — purely C-level, no descriptors)
@@ -125,9 +125,9 @@ def _is_identifier(name: str) -> bool:
 
 def short_circuit_instrs(op: str, label: Label) -> list[Instr]:
     value = "FALSE" if op == "and" else "TRUE"
-    if PY >= (3, 13):
+    if is_at_least_py(3, 13):
         return [Instr("COPY", 1), Instr("TO_BOOL"), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
-    elif PY >= (3, 12):
+    elif is_at_least_py(3, 12):
         return [Instr("COPY", 1), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
 
     return [Instr(f"JUMP_IF_{value}_OR_POP", label)]
@@ -145,7 +145,7 @@ def instanceof(value: Any, type_qname: str) -> bool:
                 # __qualname__ so that a custom metaclass property for either
                 # attribute cannot be invoked as a side effect.
                 module = _type_module_descriptor.__get__(c)
-                qualname = _type_qualname_descriptor.__get__(c)
+                qualname = safe_qualname(c)
                 if f"{module}.{qualname}" == type_qname:
                     return True
         except Exception:
@@ -182,8 +182,8 @@ class DDCompiler:
         return safe_getitem(o, i)
 
     @classmethod
-    def __ref__(cls, x: Any) -> Any:
-        return x
+    def __ref__(cls, _locals: Mapping[str, Any], name: str) -> Any:
+        return get_local(_locals, name)
 
     def _make_function(self, instrs: list[Instr], args: tuple[str, ...], name: str) -> FunctionType:
         abstract_code = Bytecode([*instrs, Instr("RETURN_VALUE")])
@@ -192,7 +192,7 @@ class DDCompiler:
         abstract_code.argnames = list(args)
         abstract_code.name = name
 
-        if sys.version_info >= (3, 11):
+        if is_at_least_py(3, 11):
             abstract_code.insert(0, Instr("RESUME", 0))
 
         return FunctionType(abstract_code.to_code(), {}, name, (), None)
@@ -232,7 +232,7 @@ class DDCompiler:
         elif _type == "isEmpty":
             value = self._call_function(_safe_is_empty, value)
         else:  # "not"
-            if PY >= (3, 13):
+            if is_at_least_py(3, 13):
                 # UNARY_NOT requires a boolean value
                 value.append(Instr("TO_BOOL"))
             value.append(Instr("UNARY_NOT"))
@@ -341,19 +341,17 @@ class DDCompiler:
                     raise ValueError(msg)
                 return [Instr("LOAD_FAST", f"_dd_{arg[1:]}")]
 
-            return self._call_function(
-                get_local, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", self.__ref__(arg))]
-            )
+            return self._call_function(self.__ref__, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", arg)])
 
         return None
 
     def _call_function(self, func: Callable[..., Any], *args: list[Instr]) -> list[Instr]:
         _func: Any = func  # Instr does not accept a Callable
-        if PY >= (3, 13):
+        if is_at_least_py(3, 13):
             return [Instr("LOAD_CONST", _func), Instr("PUSH_NULL")] + list(chain(*args)) + [Instr("CALL", len(args))]
-        if PY >= (3, 12):
+        if is_at_least_py(3, 12):
             return [Instr("PUSH_NULL"), Instr("LOAD_CONST", _func)] + list(chain(*args)) + [Instr("CALL", len(args))]
-        if PY >= (3, 11):
+        if is_at_least_py(3, 11):
             return (
                 [Instr("PUSH_NULL"), Instr("LOAD_CONST", _func)]
                 + list(chain(*args))
@@ -383,7 +381,7 @@ class DDCompiler:
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
 
-            if PY >= (3, 14):
+            if is_at_least_py(3, 14):
                 subscr_instruction = Instr("BINARY_OP", BinaryOp.SUBSCR)
             else:
                 subscr_instruction = Instr("BINARY_SUBSCR")
@@ -486,13 +484,21 @@ class DDExpressionEvaluationError(Exception):
         self.error = str(e)
 
 
-def _invalid_expression(_: Any) -> None:
-    """Forces probes with invalid expression/conditions to never trigger.
+class DDExpressionCompilationError(Exception):
+    """Thrown when a dsl expression cannot be compiled.
 
-    Any signs of invalid conditions in logs is an indication of a problem with
-    the expression compiler.
+    Propagated so that the probe that carries the expression is rejected with
+    an ERROR diagnostic instead of being installed in a state where it can
+    never trigger.
     """
-    return None
+
+    def __init__(self, dsl: str, e: Exception) -> None:
+        super().__init__('Cannot compile expression "%s": %s' % (dsl, str(e)))
+        self.dsl = dsl
+        self.error = str(e)
+
+
+E = TypeVar("E", bound="DDExpression")
 
 
 @dataclass
@@ -512,18 +518,13 @@ class DDExpression:
         return self.eval(scope)
 
     @classmethod
-    def on_compiler_error(cls, dsl: str, exc: Exception) -> Callable[[Mapping[str, Any]], Any]:
-        log.error("Cannot compile expression: %s", dsl, exc_info=True)
-        return _invalid_expression
-
-    @classmethod
-    def compile(cls, expr: Mapping[str, Any]) -> "DDExpression":
+    def compile(cls: type[E], expr: Mapping[str, Any]) -> E:
         ast = expr["json"]
         dsl = expr["dsl"]
 
         try:
             compiled = cls.__compiler__(ast)
         except Exception as e:
-            compiled = cls.on_compiler_error(dsl, e)
+            raise DDExpressionCompilationError(dsl, e) from e
 
         return cls(dsl=dsl, callable=compiled)

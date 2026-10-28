@@ -3,8 +3,8 @@ import json
 from operator import itemgetter
 import os
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -454,38 +454,48 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
 
     complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
-    # Use the APM trace (parent-first ordering) directly; the legacy test indexed by
-    # ``trace[i]`` here, and that maps 1:1 to the LLMObs spans on the same Spans.
     trace = test_spans.pop_traces()[0]
     spans = [s for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 5
 
+    # RunnableParallel completion order is nondeterministic, so identify spans by
+    # hierarchy and LLMObs data instead of relying on their flush order.
+    root_span = next(span for span in spans if span.parent_id is None)
+    workflow_span = next(span for span in spans if span is not root_span and get_llmobs_span_kind(span) == "workflow")
+    task_span = next(span for span in spans if get_llmobs_span_kind(span) == "task")
+    llm_spans_by_prompt = {
+        get_llmobs_input_prompt(span)["id"]: span for span in spans if get_llmobs_span_kind(span) == "llm"
+    }
+    first_llm_span = llm_spans_by_prompt["langchain.unknown_prompt_template"]
+    second_llm_span = llm_spans_by_prompt["test_langchain_llmobs.prompt2"]
+
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[0]),
+        _get_llmobs_data_metastruct(root_span),
         span_kind="workflow",
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
         tags=COMMON_TAGS,
     )
-    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
+    assert _get_llmobs_data_metastruct(root_span).get("span_links")
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[1]),
+        _get_llmobs_data_metastruct(workflow_span),
         span_kind="workflow",
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
         tags=COMMON_TAGS,
     )
-    assert _get_llmobs_data_metastruct(spans[1]).get("span_links")
+    assert _get_llmobs_data_metastruct(workflow_span).get("span_links")
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[2]),
+        _get_llmobs_data_metastruct(task_span),
         span_kind="task",
         input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}, sort_keys=True),
         output_value="Spanish",
         tags=COMMON_TAGS,
     )
-    assert _get_llmobs_data_metastruct(spans[2]).get("span_links")
+    assert _get_llmobs_data_metastruct(task_span).get("span_links")
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[3]), **_expected_llm_span_data(spans[3], mock_token_metrics=True)
+        _get_llmobs_data_metastruct(first_llm_span),
+        **_expected_llm_span_data(first_llm_span, mock_token_metrics=True),
     )
-    assert _get_llmobs_data_metastruct(spans[3]).get("span_links")
+    assert _get_llmobs_data_metastruct(first_llm_span).get("span_links")
     expected_prompt_3 = {
         "id": "langchain.unknown_prompt_template",
         "ml_app": "langchain_test",
@@ -494,12 +504,13 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
         "_dd_context_variable_keys": ["context"],
         "_dd_query_variable_keys": ["question"],
     }
-    assert get_llmobs_input_prompt(spans[3]) == expected_prompt_3
+    assert get_llmobs_input_prompt(first_llm_span) == expected_prompt_3
 
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[4]), **_expected_llm_span_data(spans[4], mock_token_metrics=True)
+        _get_llmobs_data_metastruct(second_llm_span),
+        **_expected_llm_span_data(second_llm_span, mock_token_metrics=True),
     )
-    assert _get_llmobs_data_metastruct(spans[4]).get("span_links")
+    assert _get_llmobs_data_metastruct(second_llm_span).get("span_links")
     expected_prompt_4 = {
         "id": "test_langchain_llmobs.prompt2",
         "ml_app": "langchain_test",
@@ -508,7 +519,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
         "_dd_context_variable_keys": ["context"],
         "_dd_query_variable_keys": ["question"],
     }
-    assert get_llmobs_input_prompt(spans[4]) == expected_prompt_4
+    assert get_llmobs_input_prompt(second_llm_span) == expected_prompt_4
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
@@ -1100,6 +1111,11 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         DD_API_KEY="<not-a-real-key>",
     )
 
+    google_genai_env_config = dict(
+        GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY", "testing"),
+        DD_API_KEY="<not-a-real-key>",
+    )
+
     def setUp(self):
         # Install a DummyWriter so we can pop spans off the global tracer in-process.
         ddtrace.tracer._span_aggregator.writer = DummyWriter()
@@ -1107,7 +1123,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
         LLMObsSpanWriterMock = patcher.start()
         LLMObsSpanWriterMock.return_value = mock.MagicMock()
-        super(TestTraceStructureWithLLMIntegrations, self).setUp()
+        super().setUp()
 
     def tearDown(self):
         LLMObs.disable()
@@ -1171,6 +1187,104 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         llm = Anthropic(**kwargs)
         llm.invoke("When do you use 'whom' instead of 'who'?")
+
+    @staticmethod
+    def _call_google_genai_chat(ChatGoogleGenerativeAI):
+        from google.genai import types
+
+        mock_response = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        # Mock below ddtrace-patched generate_content so the google_genai span is still created.
+        with mock.patch("google.genai.models.Models._generate_content", return_value=mock_response):
+            llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+            llm.invoke("When do you use 'whom' instead of 'who'?")
+
+    @staticmethod
+    def _call_google_genai_chat_stream(ChatGoogleGenerativeAI):
+        from google.genai import types
+
+        mock_chunk = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        with mock.patch("google.genai.models.Models._generate_content_stream", return_value=iter([mock_chunk])):
+            llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+            for _ in llm.stream("When do you use 'whom' instead of 'who'?"):
+                pass
+
+    @staticmethod
+    def _call_google_genai_chat_legacy_client(ChatGoogleGenerativeAI):
+        from google.genai import types
+
+        mock_response = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        # Simulates langchain-google-genai<4: a client not backed by google.genai, so ddtrace's
+        # google_genai integration never patches it regardless of whether it's enabled elsewhere.
+        class _LegacyClient:
+            class models:
+                @staticmethod
+                def generate_content(*args, **kwargs):
+                    return mock_response
+
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+        llm.client = _LegacyClient()
+        llm.invoke("When do you use 'whom' instead of 'who'?")
+
+    @staticmethod
+    def _call_google_genai_llm(GoogleGenerativeAI):
+        from google.genai import types
+
+        mock_response = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        with mock.patch("google.genai.models.Models._generate_content", return_value=mock_response):
+            llm = GoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+            llm.invoke("When do you use 'whom' instead of 'who'?")
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled(self):
@@ -1262,6 +1376,90 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_anthropic_chat(ChatAnthropic)
+        self._assert_span_kinds(["llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_enabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_disabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_enabled_stream(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat_stream(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_enabled_legacy_client(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat_legacy_client(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_llm_enabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import GoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_llm(GoogleGenerativeAI)
+        self._assert_span_kinds(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_llm_disabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import GoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_llm(GoogleGenerativeAI)
         self._assert_span_kinds(["llm"])
 
 

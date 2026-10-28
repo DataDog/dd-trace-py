@@ -22,6 +22,13 @@ class LLMObsExportMode(str, Enum):
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
+LLMOBS_SAMPLING = "_llmobs.sampling"
+# Routing context captured at span start. Stamped on the span because a span may finish in a
+# different execution context than the one it started in, at which point the contextvar is gone.
+CACHED_LLMOBS_ROUTING_CTX_KEY = "_llmobs.routing"
+# LLMObs trace ID of a routed span. Its meta_struct is removed when the span finishes, so this keeps
+# the ID that the tenant intake received available to export_span().
+CACHED_LLMOBS_TRACE_ID_CTX_KEY = "_llmobs.trace_id"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -44,6 +51,12 @@ LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
+# Agent attribution: nearest-agent identity propagated across process boundaries.
+# The id is always str(span_id) (digit-safe); the name is an arbitrary user string. Both are
+# written via _stamp_agent_attribution, which drops the name (or both) rather than overflow
+# the x-datadog-tags budget (see _utils.py).
+PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_pagent_span_id"
+PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_pagent_name"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
@@ -75,6 +88,16 @@ REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
+# Server-side tool calls billed per call by the provider, on top of token costs.
+WEB_SEARCH_COUNT_METRIC_KEY = "web_search_count"
+STORAGE_SEARCH_COUNT_METRIC_KEY = "storage_search_count"
+
+# Cost metric keys (USD). When set on a span, these take precedence over any cost estimated from
+# token metrics. Integrations set them when a provider returns the actual cost (e.g. OpenRouter).
+INPUT_COST_METRIC_KEY = "input_cost"
+OUTPUT_COST_METRIC_KEY = "output_cost"
+TOTAL_COST_METRIC_KEY = "total_cost"
+
 LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
 LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
 LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY = "_dd.llmobs.total_tokens"
@@ -84,6 +107,20 @@ LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
 LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
+LLMOBS_ARTIFICIAL_GEN_AI_TAGS_KEY = "_dd.llmobs.artificial_gen_ai_tags"
+
+GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
+GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
+GEN_AI_PROVIDER_NAME_TAG_KEY = "gen_ai.provider.name"
+GEN_AI_APPLICATION_NAME_TAG_KEY = "gen_ai.application.name"
+GEN_AI_CONVERSATION_ID_TAG_KEY = "gen_ai.conversation.id"
+
+GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY = "gen_ai.usage.total_tokens"
+GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_read_input_tokens"
+GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_write_input_tokens"
+GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.reasoning_output_tokens"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -97,9 +134,9 @@ SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"
-AGENTLESS_SPAN_BASE_URL = "https://{}".format(SPAN_SUBDOMAIN_NAME)
-AGENTLESS_EVAL_BASE_URL = "https://{}".format(EVAL_SUBDOMAIN_NAME)
-AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
+AGENTLESS_SPAN_BASE_URL = f"https://{SPAN_SUBDOMAIN_NAME}"
+AGENTLESS_EVAL_BASE_URL = f"https://{EVAL_SUBDOMAIN_NAME}"
+AGENTLESS_EXP_BASE_URL = f"https://{EXP_SUBDOMAIN_NAME}"
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
@@ -124,6 +161,17 @@ PROMPT_TRACKING_INSTRUMENTATION_METHOD = "prompt_tracking_instrumentation_method
 PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
+
+# Agent tracking tag set at span finish.
+AGENT_VERSION_TAG_KEY = "agent_version"
+# Holds the version an annotation supplied, until the span kind is known at finish.
+AGENT_VERSION = "_ml_obs.agent_annotation"
+# Holds the version of the nearest agent ancestor, resolved at activation. Also carried on the
+# in-process context handed to asyncio tasks and threads. It is never propagated across services.
+PARENT_AGENT_VERSION = "_ml_obs.parent_agent_version"
+# Holds the manifest the annotations declared, for the same reason. Each annotation is validated
+# and shallow-merged into it as it runs.
+AGENT_MANIFEST = "_ml_obs.agent_declaration_annotation"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
@@ -160,6 +208,15 @@ DEFAULT_PROJECT_NAME = "default-project"
 IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
 AUDIO_FALLBACK_MARKER = "[audio]"
+# Distinct from IMAGE_FALLBACK_MARKER so a dropped inline image stays greppable instead of looking
+# like a remote reference we never fetch.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
+
+# Anthropic/Bedrock marker for an image we saw but did not capture (URL, file id, unsupported source).
+IMAGE_DETECTED_MARKER = "([IMAGE DETECTED])"
+
+# Deliberately size-free: span content is aggregated, and a per-image size would fragment grouping.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
 
 # OpenAI input types
 INPUT_TYPE_IMAGE = "input_image"
@@ -181,6 +238,8 @@ class LLMOBS_STRUCT:
     KEY: Final = "_llmobs"
     NAME: Final = "name"
     PARENT_ID: Final = "parent_id"
+    PARENT_AGENT_NAME: Final = "pagent_name"
+    PARENT_AGENT_SPAN_ID: Final = "pagent_span_id"
     TRACE_ID: Final = "trace_id"
     ML_APP: Final = "ml_app"
     SESSION_ID: Final = "session_id"
@@ -219,7 +278,9 @@ class LLMOBS_STRUCT:
 SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "anthropic": "anthropic",
     "bedrock": "botocore",
+    "aws_sdk_bedrock_runtime": "aws_sdk_bedrock_runtime",
     "openai": "openai",
+    "elevenlabs": "elevenlabs",
     "langchain": "langchain",
     "google_adk": "google_adk",
     "google_genai": "google_genai",
@@ -232,6 +293,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "mistralai": "mistralai",
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
+    "typesafe": "typesafe",
 }
 
 # Deprecated constants kept for backwards compatibility with downstream consumers of ddtrace internals.

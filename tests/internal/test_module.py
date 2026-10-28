@@ -2,16 +2,16 @@ import json
 import os
 from pathlib import Path
 import sys
+from unittest import mock
 from warnings import warn
 
-import mock
 import pytest
 
+import ddtrace
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
-from tests.utils import DDTRACE_PATH
 from tests.utils import _build_env
 
 
@@ -56,22 +56,24 @@ def test_watchdog_install_uninstall():
     import sys
 
     from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.module import _UniversalModuleWatchdog
 
     if ModuleWatchdog.is_installed():
         ModuleWatchdog.uninstall()
 
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, _UniversalModuleWatchdog) for m in sys.meta_path)
 
     ModuleWatchdog.install()
 
     assert ModuleWatchdog.is_installed()
-    assert isinstance(sys.meta_path[0], ModuleWatchdog)
+    assert isinstance(sys.meta_path[0], _UniversalModuleWatchdog)
+    assert ModuleWatchdog._instance in sys.meta_path[0]._watchdogs
 
     ModuleWatchdog.uninstall()
 
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
+    assert not any(isinstance(m, _UniversalModuleWatchdog) for m in sys.meta_path)
 
 
 def test_import_origin_hook_for_imported_module(module_watchdog):
@@ -90,21 +92,12 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_after_module_imported_decorator(module_watchdog):
-    hook = mock.Mock()
-    module = sys.modules[__name__]
-    module_watchdog.after_module_imported(module.__name__)(hook)
-
-    hook.assert_called_once_with(module)
-
-
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
 def test_import_origin_hook_for_module_not_yet_imported():
     import os
     from pathlib import Path
     import sys
-
-    from mock import mock
+    from unittest import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -137,8 +130,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
 @pytest.mark.subprocess
 def test_import_module_hook_for_module_not_yet_imported():
     import sys
-
-    from mock import mock
+    from unittest import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -182,7 +174,7 @@ def test_module_deleted():
     name = "json"
     path = Path(os.getenv("MODULE_ORIGIN")).resolve()
 
-    class Counter(object):
+    class Counter:
         count = 0
 
         def __call__(self, _):
@@ -289,7 +281,7 @@ def test_module_import_hierarchy():
 
         def after_import(self, module):
             self.imports.add(module.__name__)
-            return super(ImportCatcher, self).after_import(module)
+            return super().after_import(module)
 
     ImportCatcher.install()
 
@@ -329,13 +321,13 @@ def test_module_watchdog_propagation():
     class BaseCollector(ModuleWatchdog):
         def __init__(self):
             self.__modules__ = set()
-            super(BaseCollector, self).__init__()
+            super().__init__()
 
         def after_import(self, module):
             # We save the module name as proof that the after_import method
             # was called on the subclass instance.
             self.__modules__.add(module.__name__)
-            return super(BaseCollector, self).after_import(module)
+            return super().after_import(module)
 
     class Alice(BaseCollector):
         pass
@@ -356,6 +348,40 @@ def test_module_watchdog_propagation():
 
     Bob.uninstall()
     Alice.uninstall()
+
+
+@pytest.mark.subprocess(err=None)
+def test_module_watchdog_after_import_hook_isolation():
+    # A failing after_import hook on one watchdog subclass must not prevent
+    # another watchdog subclass's after_import hook from running for the
+    # same import.
+    from ddtrace.internal.module import ModuleWatchdog
+
+    class Failing(ModuleWatchdog):
+        def after_import(self, module):
+            super().after_import(module)
+            raise ValueError("boom")
+
+    class Collector(ModuleWatchdog):
+        def __init__(self):
+            self.__modules__ = set()
+            super().__init__()
+
+        def after_import(self, module):
+            self.__modules__.add(module.__name__)
+            return super().after_import(module)
+
+    Failing.install()
+    Collector.install()
+
+    c = Collector._instance
+
+    import tests.submod.stuff  # noqa:F401
+
+    assert c.__modules__ >= {"tests.submod.stuff"}, c.__modules__
+
+    Collector.uninstall()
+    Failing.uninstall()
 
 
 @pytest.mark.subprocess(out="ddtrace imported\naccessing lazy module\nlazy loaded\n")
@@ -541,7 +567,7 @@ def test_public_modules_in_ddtrace_contrib():
     """Ensures that integration implementation details are not accidentally added to our public api.
     By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/
     """
-    contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
+    contrib_dir = Path(ddtrace.__file__).resolve().parent / "contrib"
 
     public_modules = set()
     for directory, _, file_names in os.walk(contrib_dir):
@@ -616,6 +642,7 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
     import threading
 
     from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.module import _UniversalModuleWatchdog
 
     bootstrap = sys.modules.get("importlib._bootstrap")
     if bootstrap is None or not hasattr(bootstrap, "_get_module_lock"):
@@ -634,7 +661,7 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
 
     def background():
         for finder in sys.meta_path:
-            if isinstance(finder, ModuleWatchdog):
+            if isinstance(finder, _UniversalModuleWatchdog):
                 finder.find_spec("tests._ddtrace_regression_nonexistent", None, None)
                 break
         background_done.set()
@@ -649,3 +676,116 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
         )
     finally:
         lock.release()
+
+
+def test_universal_module_watchdog_single_finder_invariant():
+    from ddtrace.internal.module import _UniversalModuleWatchdog
+
+    classes = [type(f"Watchdog{i}", (ModuleWatchdog,), {}) for i in range(5)]
+    for cls in classes:
+        cls.install()
+    try:
+        universal_finders = [m for m in sys.meta_path if isinstance(m, _UniversalModuleWatchdog)]
+        assert len(universal_finders) == 1
+        assert not any(cls._instance in sys.meta_path for cls in classes)
+    finally:
+        for cls in classes:
+            cls.uninstall()
+
+
+def test_universal_module_watchdog_constant_find_spec_calls():
+    from ddtrace.internal.module import _UniversalModuleWatchdog
+
+    # Ensure the parent package is already imported so that importing the
+    # child module below triggers exactly one find_spec call, rather than one
+    # per not-yet-imported ancestor package.
+    import tests.submod.stuff  # noqa:F401
+
+    for num_watchdogs in (1, 3, 6):
+        classes = [type(f"Watchdog{i}", (ModuleWatchdog,), {}) for i in range(num_watchdogs)]
+        for cls in classes:
+            cls.install()
+        try:
+            universal = _UniversalModuleWatchdog._instance
+            call_count = 0
+            original_find_spec = universal.find_spec
+
+            def counting_find_spec(*args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                return original_find_spec(*args, **kwargs)
+
+            universal.find_spec = counting_find_spec
+            try:
+                sys.modules.pop("tests.submod.stuff", None)
+                import tests.submod.stuff  # noqa:F401,F811
+            finally:
+                del universal.find_spec
+
+            assert call_count == 1, f"expected 1 find_spec call for {num_watchdogs} watchdogs, got {call_count}"
+        finally:
+            for cls in classes:
+                cls.uninstall()
+            sys.modules.pop("tests.submod.stuff", None)
+
+
+@pytest.mark.subprocess
+def test_universal_module_watchdog_first_registered_wins():
+    # DEV: Run in an isolated subprocess. Otherwise other pre_exec_module hooks
+    # already registered by product code elsewhere in the test session, or
+    # "tests.submod.stuff" already being cached in sys.modules from an unrelated
+    # test, can make this test flaky.
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    calls = []
+
+    class First(ModuleWatchdog):
+        pass
+
+    class Second(ModuleWatchdog):
+        pass
+
+    First.install()
+    Second.install()
+    try:
+        First.register_pre_exec_module_hook(
+            lambda name: name == "tests.submod.stuff", lambda loader, module: calls.append("first")
+        )
+        Second.register_pre_exec_module_hook(
+            lambda name: name == "tests.submod.stuff", lambda loader, module: calls.append("second")
+        )
+
+        sys.modules.pop("tests.submod.stuff", None)
+        import tests.submod.stuff  # noqa:F401
+
+        assert calls == ["first"]
+    finally:
+        sys.modules.pop("tests.submod.stuff", None)
+        Second.uninstall()
+        First.uninstall()
+
+
+@pytest.mark.subprocess
+def test_universal_module_watchdog_teardown():
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.module import _UniversalModuleWatchdog
+
+    # ddtrace startup can install product watchdogs before this isolated test runs.
+    # Remove those participants so this test can exercise last-participant teardown.
+    if _UniversalModuleWatchdog._instance is not None:
+        for watchdog in list(_UniversalModuleWatchdog._instance._watchdogs):
+            type(watchdog).uninstall()
+
+    classes = [type(f"Watchdog{i}", (ModuleWatchdog,), {}) for i in range(3)]
+    for cls in classes:
+        cls.install()
+
+    for cls in classes:
+        cls.uninstall()
+
+    assert _UniversalModuleWatchdog._instance is None
+    assert not any(isinstance(m, _UniversalModuleWatchdog) for m in sys.meta_path)

@@ -2,8 +2,8 @@
 
 Covers the converters (``_convert_openai_response_input`` /
 ``_convert_openai_response_output``) and the before/after listeners wired
-into ``openai.responses.create``. Streaming coverage is delivered in a
-follow-up PR; the before-hook here explicitly skips streaming requests.
+into openai.responses.create. Streaming requests have their inputs
+evaluated by the before-hook; buffered response evaluation lives in test_streaming.py.
 """
 
 from unittest.mock import patch
@@ -812,22 +812,18 @@ class _RecordingClient:
     def __init__(self):
         self.calls: list = []
 
-    def evaluate(self, messages, options):
+    def evaluate(self, messages, options, **kwargs):
         self.calls.append(list(messages))
         return None
 
 
-def test_before_hook_skips_streaming():
-    """PR 1 contract: streaming requests bypass the before-hook entirely.
-
-    The streaming gate is the user-facing difference between PR 1 and PR 2 —
-    a regression that removes it here would silently activate streaming
-    coverage before the streaming PR adds the matching end-of-stream logic.
-    """
+def test_before_hook_evaluates_streaming_with_flag_off():
+    """Streaming request inputs are evaluated even when stream response evaluation is off."""
     client = _RecordingClient()
     kwargs = {"input": "Hi", "stream": True}
-    assert _openai_response_create_before(client, kwargs) is None
-    assert client.calls == []
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=False)):
+        assert _openai_response_create_before(client, kwargs) is None
+    assert client.calls == [[{"role": "user", "content": "Hi"}]]
 
 
 def test_before_hook_skips_when_no_input():
@@ -1032,24 +1028,29 @@ def test_responses_sync_after_block(mock_execute_request, openai_responses_clien
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_responses_sync_streaming_skips_dispatch(mock_execute_request, openai_responses_client_mock):
-    """Streaming Responses API requests bypass AI Guard in PR 1.
+def test_responses_sync_streaming_evaluates_input(mock_execute_request, openai_responses_stream_client):
+    """Flag off: a streaming request is evaluated once on its inputs; the after-hook never fires."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
-    The before-hook gates on ``stream`` and short-circuits; the after-hook is
-    not dispatched by the contrib layer because the dispatch site itself is
-    gated on ``not kwargs.get("stream")``. Net result: zero evaluations.
-    """
-    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    stream = openai_responses_stream_client.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
+    assert list(stream)
 
-    # The transport returns a non-streaming body, so iterating would fail with
-    # a parse error — but the streaming gate runs synchronously at call time,
-    # which is what we actually need to verify here.
-    try:
-        openai_responses_client_mock.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
-    except Exception:
-        pass
+    mock_execute_request.assert_called_once()
 
-    mock_execute_request.assert_not_called()
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_sync_streaming_blocks_on_deny(mock_execute_request, openai_responses_stream_client, decision):
+    """Flag off: a blocking verdict on streaming request inputs raises before the stream is returned."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        openai_responses_stream_client.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
+
+    assert isinstance(exc_info.value, AIGuardAbortError)
+    mock_execute_request.assert_called_once()
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])

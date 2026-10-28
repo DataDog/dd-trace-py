@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.webclient import Client
@@ -157,7 +158,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
@@ -165,7 +166,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
@@ -173,7 +174,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "mysvc", "Expected 'mysvc' and got {}".format(s.service)
+        assert s.service == "mysvc", f"Expected 'mysvc' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess()
     def test_schematized_unspecified_service_name_default(self):
@@ -181,7 +182,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
@@ -189,7 +190,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "pyramid", "Expected 'pyramid' and got {}".format(s.service)
+        assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
@@ -197,9 +198,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' and got {}".format(
-            DEFAULT_SPAN_SERVICE_NAME, s.service
-        )
+        assert s.service == DEFAULT_SPAN_SERVICE_NAME, f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' and got {s.service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
@@ -207,7 +206,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.name == "pyramid.request", "Expected 'pyramid.request' and got {}".format(s.name)
+        assert s.name == "pyramid.request", f"Expected 'pyramid.request' and got {s.name}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
@@ -215,7 +214,7 @@ class TestSchematization(PyramidBase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.name == "http.server.request", "Expected 'http.server.request' and got {}".format(s.name)
+        assert s.name == "http.server.request", f"Expected 'http.server.request' and got {s.name}"
 
 
 @pytest.fixture
@@ -372,3 +371,46 @@ class TestAPIGatewayTracing(PyramidBase):
                     else:
                         web_span = spans[0]
                         assert web_span._parent is None
+
+
+def _otel_pyramid_app():
+    from pyramid.config import Configurator
+    from pyramid.response import Response
+    import webtest
+
+    def user(request):
+        return Response("user")
+
+    with Configurator() as configurator:
+        configurator.add_route("user", "/users/{user_id}")
+        configurator.add_view(user, route_name="user")
+        return webtest.TestApp(configurator.make_wsgi_app(), lint=False)
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV, ddtrace_run=True, err=None)
+def test_otel_semantics_server_span_attributes():
+    from functools import partial
+
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.contrib.pyramid.test_pyramid import _otel_pyramid_app
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    assert_span = partial(assert_otel_server_span, peer_address=False)
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = _otel_pyramid_app()
+
+        response = client.get("/users/42?q=1", headers=TEST_HEADERS)
+        assert response.status_int == 200
+        assert_span(
+            next(span for span in spans.get_spans() if span.name == "pyramid.request"),
+            method="GET",
+            status=200,
+            path="/users/42",
+            query="q=1",
+            route="/users/{user_id}",
+            resource="GET /users/{user_id}",
+        )

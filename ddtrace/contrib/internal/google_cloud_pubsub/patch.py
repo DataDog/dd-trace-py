@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_reg
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -98,7 +99,7 @@ def _traced_subscribe_callback(callback, project_id, subscription_id, subscripti
         subscription_id=subscription_id,
         message=message,
     ) as ctx:
-        core.dispatch("google_cloud_pubsub.receive.pre", (subscription, message, ctx.span))
+        core.dispatch("google_cloud_pubsub.receive.pre", (subscription, message, span_from_context(ctx)))
         callback(message)
 
 
@@ -223,7 +224,7 @@ def _traced_publish(func, instance, args, kwargs):
         topic_id=topic_id,
         publish_kwargs=kwargs,
     ) as ctx:
-        core.dispatch("google_cloud_pubsub.send.pre", (args, kwargs, ctx.span))
+        core.dispatch("google_cloud_pubsub.send.pre", (args, kwargs, span_from_context(ctx)))
         try:
             result = func(*args, **kwargs)
         except BaseException as e:

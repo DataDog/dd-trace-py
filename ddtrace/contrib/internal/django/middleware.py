@@ -8,12 +8,11 @@ from typing import cast
 
 import ddtrace
 from ddtrace.contrib.internal import trace_utils as contrib_trace_utils
-from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped
@@ -98,34 +97,10 @@ def traced_auth_middleware_process_request(func: FunctionType, args: tuple[Any],
         try:
             return func(*args, **kwargs)
         finally:
-            mode = asm_config._user_event_mode
-            if mode != "disabled":
-                try:
-                    if request:
-                        if hasattr(request, "user") and hasattr(request.user, "_setup"):
-                            request.user._setup()
-                            request_user = request.user._wrapped
-                        else:
-                            request_user = request.user
-                        if hasattr(request, "session") and hasattr(request.session, "session_key"):
-                            session_key = request.session.session_key
-                        else:
-                            session_key = None
-                        core.dispatch(
-                            "django.process_request",
-                            (
-                                request_user,
-                                session_key,
-                                mode,
-                                kwargs,
-                                _DjangoUserInfoRetriever(request_user, credentials=kwargs),
-                                config_django,
-                            ),
-                        )
-                except Exception:
-                    log.debug(
-                        "Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True
-                    )
+            try:
+                core.dispatch("django.process_request", (request, kwargs, config_django))
+            except Exception:
+                log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
 
 
 def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
@@ -156,7 +131,7 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
                 request=request,
             ) as ctx:
                 # Don't flag the span as errored on routine ASGI cancellation (#17728).
-                ctx.span._ignore_exception(asyncio.CancelledError)
+                span_from_context(ctx)._ignore_exception(asyncio.CancelledError)
                 return await middleware(*args, **kwargs)
 
         return traced_async_middleware_func
@@ -205,7 +180,7 @@ def _make_async_traced_middleware_hook(mw_path: str, hook: str) -> Any:
             request=request,
         ) as ctx:
             # Don't flag the span as errored on routine ASGI cancellation (#17728).
-            ctx.span._ignore_exception(asyncio.CancelledError)
+            span_from_context(ctx)._ignore_exception(asyncio.CancelledError)
             return await func(*args, **kwargs)
 
     return wrapper

@@ -1,17 +1,23 @@
+from collections import UserList
 from contextlib import contextmanager
 import json
 import os
 from typing import Optional
 from typing import Union
+from unittest.mock import Mock
 from unittest.mock import patch
 import warnings
 
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.openfeature._source_selection import AGENTLESS
+from ddtrace.internal.openfeature._source_selection import DISABLED
+from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
@@ -33,8 +39,9 @@ TEXT_PROMPT_RESPONSE = {
     "prompt_uuid": "prompt-uuid-123",
     "prompt_version_uuid": "version-uuid-456",
     "version": "v1",
-    "label": "production",
+    "labels": ["development", "production"],
     "template": "Hello {name}!",
+    "config": {"model": {"temperature": 0.2}, "unknown": True},
 }
 
 CHAT_PROMPT_RESPONSE = {
@@ -42,7 +49,7 @@ CHAT_PROMPT_RESPONSE = {
     "prompt_uuid": "chat-uuid-123",
     "prompt_version_uuid": "chat-version-uuid-456",
     "version": "v2",
-    "label": "production",
+    "labels": ["production"],
     "template": [
         {"role": "system", "content": "You are {{persona}}."},
         {"role": "user", "content": "{{question}}"},
@@ -54,8 +61,24 @@ DEV_PROMPT_RESPONSE = {
     "prompt_uuid": "dev-prompt-uuid-789",
     "prompt_version_uuid": "dev-version-uuid-012",
     "version": "dev-v1",
-    "label": "development",
+    "labels": ["development"],
     "template": "DEBUG: Hello {name}!",
+}
+
+VERSION_PROMPT_RESPONSE = {
+    "ID": "version-uuid-789",
+    "prompt_uuid": "prompt-uuid-123",
+    "prompt_id": "test-prompt-01",
+    "template": [
+        {"role": "system", "content": "test-prompt-01"},
+        {"role": "user", "content": "My {{template_variable}}"},
+    ],
+    "version": 3,
+    "user_version": "0.3.0",
+    "labels": ["development"],
+    "created_at": "2026-05-28T11:03:06.098777Z",
+    "version_created_at": "2026-05-28T11:03:06.098777Z",
+    "author": "author-uuid-456",
 }
 
 
@@ -122,10 +145,60 @@ def assert_prompt_matches_response(prompt, response, expected_source):
     assert prompt.source == expected_source
     assert prompt._uuid == response.get("prompt_uuid")
     assert prompt._version_uuid == response.get("prompt_version_uuid")
+    assert prompt.config == response.get("config", {})
 
 
 class TestPrompts:
     """Tests for the Managed Prompt Registry SDK."""
+
+    @pytest.mark.parametrize("chat", [False, True])
+    @pytest.mark.parametrize(
+        "template, expected",
+        [
+            ("Hello {name}!", "Hello Ada!"),
+            ("Hello {{ name }}!", "Hello Ada!"),
+            ("Hello {{name}!", "Hello {Ada!"),
+            ("Hello {name}}!", "Hello Ada}!"),
+            ("{{name}}}", "Ada}"),
+            ("{{{name}}}", "{Ada}"),
+            ("User {user_id}", "User 123"),
+            ("Hello {name}; {{missing}}", "Hello Ada; {{missing}}"),
+        ],
+    )
+    def test_format_balanced_placeholders(self, chat, template, expected):
+        prompt = ManagedPrompt(
+            id="greeting",
+            version="v1",
+            label=None,
+            source="registry",
+            template=[{"role": "user", "content": template}] if chat else template,
+        )
+
+        assert prompt.format(name="Ada", user_id="123") == (
+            [{"role": "user", "content": expected}] if chat else expected
+        )
+
+    @pytest.mark.parametrize("chat", [False, True])
+    @pytest.mark.parametrize(
+        "template",
+        [
+            '{"user": {"age": {age}}}',
+            '{"user": {"age": {{age}}}}',
+        ],
+    )
+    def test_format_preserves_json_braces(self, chat, template):
+        prompt = ManagedPrompt(
+            id="profile",
+            version="v1",
+            label=None,
+            source="registry",
+            template=[{"role": "user", "content": template}] if chat else template,
+        )
+
+        rendered = prompt.format(age="42")
+        text = rendered[0]["content"] if chat else rendered
+        assert text == '{"user": {"age": 42}}'
+        assert json.loads(text) == {"user": {"age": 42}}
 
     def test_fetch_and_render_text_prompt(self):
         """Fetch a text prompt from registry and render with variables."""
@@ -135,6 +208,21 @@ class TestPrompts:
         assert isinstance(prompt, ManagedPrompt)
         assert_prompt_matches_response(prompt, TEXT_PROMPT_RESPONSE, "registry")
         assert prompt.format(name="Alice") == "Hello Alice!"
+        returned_config = prompt.config
+        returned_config["model"]["temperature"] = 1
+        assert prompt.config["model"]["temperature"] == 0.2
+
+    def test_get_prompt_reattaches_base_url_path_prefix(self):
+        """A base_url with a path prefix (e.g. DD_LLMOBS_OVERRIDE_ORIGIN pointing at a proxy) must
+        have that prefix reattached to the request path, since get_connection() strips it.
+        """
+        manager = PromptManager(
+            api_key="test-key", base_url="https://proxy.example.com/dd-proxy", file_cache_enabled=False
+        )
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            manager.get_prompt("greeting")
+
+        assert conn.requests[0]["path"] == "/dd-proxy" + PROMPTS_ENDPOINT + "/greeting"
 
     def test_fetch_and_render_chat_prompt(self):
         """Fetch a chat template and render as messages."""
@@ -147,6 +235,116 @@ class TestPrompts:
         assert len(messages) == 2
         assert messages[0]["content"] == "You are helpful assistant."
         assert messages[1]["content"] == "What is Python?"
+
+    def test_render_chat_message_placeholders(self):
+        template = [
+            {"role": "system", "content": "You are {{persona}}."},
+            {"type": "placeholder", "name": "history"},
+            {"type": "placeholder", "name": "examples"},
+            {"type": "placeholder", "name": "history"},
+            {"role": "user", "content": "{{question}}"},
+        ]
+        prompt = ManagedPrompt(id="assistant", version="1", label=None, source="registry", template=template)
+        history = [{"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}}]
+        tools = [
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "openai-1",
+                        "type": "function",
+                        "function": {"name": "lookup", "arguments": '{"id":"{{opaque}}"}'},
+                        "provider_field": "preserved",
+                    }
+                ],
+            },
+            {"role": "tool", "content": "found", "tool_call_id": "openai-1"},
+            {"role": "assistant", "content": "text", "tool_calls": [{"id": None, "function": None}]},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"name": "lookup", "arguments": {"id": 1}, "tool_id": "call-1"}],
+            },
+            {
+                "role": "tool",
+                "tool_results": [{"name": "lookup", "result": "found", "tool_id": "call-1"}],
+            },
+        ]
+
+        rendered = prompt.format(persona="concise", question="Help", history=history, examples=tools)
+        assert rendered == [
+            {"role": "system", "content": "You are concise."},
+            {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
+            *tools,
+            {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
+            {"role": "user", "content": "Help"},
+        ]
+        tools[0]["tool_calls"][0]["function"]["arguments"] = "changed"
+        assert rendered[2]["tool_calls"][0]["function"]["arguments"] == '{"id":"{{opaque}}"}'
+        history[0]["provider_field"]["id"] = 2
+        assert rendered[1]["provider_field"]["id"] == 1
+        rendered[1]["provider_field"]["id"] = 3
+        assert rendered[-2]["provider_field"]["id"] == 1
+
+    @pytest.mark.parametrize(
+        "variables, error",
+        [
+            ({}, "Missing value"),
+            ({"history": "not-a-list"}, "must be a list"),
+            ({"history": [{"role": "user"}]}, "string role and text or tool content"),
+            ({"history": [{"role": "assistant", "content": None}]}, "string role and text or tool content"),
+            ({"history": [{"role": "assistant", "tool_calls": []}]}, "string role and text or tool content"),
+            (
+                {"history": [{"role": "assistant", "content": "text", "tool_calls": ["bad"]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"role": "assistant", "tool_calls": [{"function": {"name": "lookup", "arguments": {}}}]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"role": "tool", "content": "text", "tool_call_id": 1}]},
+                "string role and text or tool content",
+            ),
+            ({"history": [{"role": "assistant", "tool_calls": [{"id": 1}]}]}, "string role and text or tool content"),
+            (
+                {"history": [{"role": "assistant", "content": [{"type": "image"}], "tool_calls": [{}]}]},
+                "string role and text or tool content",
+            ),
+            (
+                {"history": [{"type": "placeholder", "name": "nested", "role": "user", "content": "x"}]},
+                "string role and text or tool content",
+            ),
+        ],
+    )
+    def test_render_chat_message_placeholder_errors(self, variables, error):
+        prompt = ManagedPrompt(
+            id="assistant",
+            version="1",
+            label=None,
+            source="registry",
+            template=[{"type": "placeholder", "name": "history"}],
+        )
+
+        with pytest.raises(ValueError, match=error):
+            prompt.format(**variables)
+
+    def test_message_placeholder_annotation_excludes_runtime_messages(self, tracer):
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        template = [
+            {"role": "system", "content": "You are {{persona}}."},
+            {"type": "placeholder", "name": "history"},
+        ]
+        prompt = ManagedPrompt(id="assistant", version="1", label=None, source="registry", template=template)
+
+        annotation = prompt.to_annotation_dict(persona="concise", history=[{"role": "user", "content": "private"}])
+
+        with LLMObs.annotation_context(prompt=annotation):
+            with LLMObs.llm(model_name="test-model", name="test") as span:
+                prompt_data = get_llmobs_input_prompt(span)
+
+        assert prompt_data["chat_template"] == template
+        assert prompt_data["variables"] == {"persona": "concise"}
 
     def test_caching_returns_from_cache(self):
         """Second call returns cached prompt without API call."""
@@ -190,7 +388,8 @@ class TestPrompts:
             with pytest.warns(DDTraceDeprecationWarning):
                 prod_prompt = LLMObs.get_prompt("greeting", label="production")
         assert prod_prompt.version == "v1"
-        assert prod_prompt.label == "production"
+        with pytest.warns(DDTraceDeprecationWarning):
+            assert prod_prompt.label == "production"
 
         LLMObs.clear_prompt_cache(hot=True, warm=True)
 
@@ -198,8 +397,26 @@ class TestPrompts:
             with pytest.warns(DDTraceDeprecationWarning):
                 dev_prompt = LLMObs.get_prompt("greeting", label="development")
         assert dev_prompt.version == "dev-v1"
-        assert dev_prompt.label == "development"
+        with pytest.warns(DDTraceDeprecationWarning):
+            assert dev_prompt.label == "development"
         assert "DEBUG" in dev_prompt.format(name="Test")
+
+    def test_internal_label_reads_do_not_warn(self):
+        prompt = ManagedPrompt(id="greeting", version="v1", label="production", source="registry", template="Hello!")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DDTraceDeprecationWarning)
+            assert prompt.to_annotation_dict()["label"] == "production"
+            assert "label='production'" in repr(prompt)
+            assert prompt._serialize()["label"] == "production"
+            assert prompt._with_source("cache").source == "cache"
+
+    def test_text_prompt_remains_hashable(self):
+        prompt = ManagedPrompt(id="greeting", version="v1", label=None, source="registry", template="Hello!")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DDTraceDeprecationWarning)
+            assert prompt in {prompt}
 
     def test_string_fallback_on_error(self):
         """String fallback used when API returns 500."""
@@ -218,6 +435,7 @@ class TestPrompts:
 
         assert prompt.source == "fallback"
         assert prompt.format(name="Alice") == [{"role": "user", "content": "Hi Alice"}]
+        assert prompt.config == {}
 
     def test_callable_fallback_lazy(self):
         """Callable fallback only invoked when API fails."""
@@ -226,7 +444,11 @@ class TestPrompts:
         def get_fallback():
             nonlocal call_count
             call_count += 1
-            return {"template": "Lazy: {name}", "version": "local-v1"}
+            return {
+                "template": "Lazy: {name}",
+                "version": "local-v1",
+                "config": {"model": {"temperature": 0}},
+            }
 
         with mock_api(500, "Error"):
             prompt = LLMObs.get_prompt("greeting", fallback=get_fallback)
@@ -235,6 +457,7 @@ class TestPrompts:
         assert prompt.source == "fallback"
         assert prompt.version == "local-v1"
         assert prompt.format(name="Bob") == "Lazy: Bob"
+        assert prompt.config == {"model": {"temperature": 0}}
 
     def test_callable_fallback_not_called_on_success(self):
         """Callable fallback NOT invoked when API succeeds."""
@@ -330,7 +553,7 @@ class TestPrompts:
                 prompt_data = get_llmobs_input_prompt(span)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
-                assert prompt_data["label"] == "production"
+                assert "label" not in prompt_data
                 assert prompt_data["variables"] == {"name": "Alice"}
                 assert prompt_data["prompt_uuid"] == "prompt-uuid-123"
                 assert prompt_data["prompt_version_uuid"] == "version-uuid-456"
@@ -435,9 +658,9 @@ class TestPrompts:
         manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
 
         class ImmediateThread:
-            def __init__(self, target=None, daemon=None):
+            def __init__(self, target=None, name=None):
                 self._target = target
-                self.daemon = daemon
+                self.name = name
 
             def start(self):
                 if self._target is not None:
@@ -448,7 +671,7 @@ class TestPrompts:
 
         spec = _PromptRequest(prompt_id="greeting", label="production")
         with patch.object(manager, "_background_refresh", return_value=None) as refresh_mock:
-            with patch("ddtrace.llmobs._prompts.manager.threading.Thread", ImmediateThread):
+            with patch("ddtrace.llmobs._prompts.manager.Thread", ImmediateThread):
                 manager._trigger_background_refresh(spec)
                 assert spec.key not in manager._refresh_threads
                 manager._trigger_background_refresh(spec)
@@ -467,19 +690,67 @@ class TestPrompts:
         ff_mock.assert_not_called()
         assert prompt.source == "registry"
 
-    def test_route_env_agent_to_ff(self):
-        manager = _make_manager(agentless=False)
-        with _ffe_enabled():
+    @pytest.mark.parametrize("api_key", ["test-key", ""])
+    def test_route_env_agent_to_ff(self, api_key):
+        with (
+            override_global_config(dict(_dd_api_key=api_key, _llmobs_agentless_enabled=False)),
+            patch.object(LLMObs, "_app_key", ""),
+            _ffe_enabled(),
+        ):
             _deliver_prompt_flag(
                 "greeting",
-                {"prompt_id": "greeting", "version": "ff-v1", "template": "FF Hello!"},
+                {
+                    "prompt_id": "greeting",
+                    "version": "ff-v1",
+                    "template": "FF Hello!",
+                    "config": {"model": "ff-model"},
+                },
             )
-            with patch.object(manager, "_get_prompt_http") as http_mock:
-                prompt = manager.get_prompt("greeting")
+            with patch.object(PromptManager, "_get_prompt_http") as http_mock:
+                prompt = LLMObs.get_prompt("greeting", targeting_key="user-1")
         http_mock.assert_not_called()
         assert prompt.source == "ff"
         assert prompt.version == "ff-v1"
         assert prompt.template == "FF Hello!"
+        assert prompt.config == {"model": "ff-model"}
+
+    @pytest.mark.parametrize(
+        "source,expected_source,provider_calls,rc_calls",
+        [
+            (AGENTLESS, "ff", 1, 0),
+            (REMOTE_CONFIG, "ff", 1, 1),
+            (DISABLED, "resolve", 0, 0),
+        ],
+    )
+    def test_route_env_honors_ffe_configuration_source(self, source, expected_source, provider_calls, rc_calls):
+        manager = _make_manager()
+        client = Mock()
+        client.get_object_details.return_value = Mock(
+            error_code=None,
+            value={"prompt_id": "greeting", "version": "ff-v1", "template": "FF Hello!"},
+        )
+        resolved_prompt = ManagedPrompt(
+            id="greeting", version="v1", label=None, source="resolve", template="HTTP Hello!"
+        )
+
+        with patch("ddtrace.internal.settings.openfeature.resolve_configuration_source", return_value=source):
+            with patch("ddtrace.internal.openfeature._remoteconfiguration.enable_featureflags_rc") as enable_rc:
+                with patch("openfeature.api.set_provider") as set_provider:
+                    with patch("openfeature.api.get_client", return_value=client):
+                        with patch.object(manager, "_get_prompt_http", return_value=resolved_prompt) as fetch_http:
+                            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                                cfg.env = "staging"
+                                prompts = [manager.get_prompt("greeting") for _ in range(2)]
+
+        assert [prompt.source for prompt in prompts] == [expected_source, expected_source]
+        assert set_provider.call_count == provider_calls
+        assert client.get_object_details.call_count == provider_calls * 2
+        assert enable_rc.call_count == rc_calls
+        assert fetch_http.call_count == (0 if provider_calls else 2)
+        if provider_calls:
+            from ddtrace.internal.openfeature._provider import DataDogProvider
+
+            assert isinstance(set_provider.call_args.args[0], DataDogProvider)
 
     def test_route_env_agentless_to_http_resolve(self):
         manager = _make_manager(agentless=True)
@@ -494,6 +765,32 @@ class TestPrompts:
         assert spec.use_resolve and spec.env == "production" and spec.targeting_key == "user-1"
         assert kwargs["fallback"] is None
         assert prompt.source == "resolve"
+
+    def test_route_version_to_static_registry_ignores_env(self):
+        with override_global_config(dict(env="production", _llmobs_agentless_enabled=False)):
+            with mock_api(200, VERSION_PROMPT_RESPONSE) as conn:
+                with patch.object(PromptManager, "_fetch_from_ff") as ff_mock:
+                    prompt = LLMObs.get_prompt("test-prompt-01", version=3)
+
+        ff_mock.assert_not_called()
+        req = conn.requests[-1]
+        assert req["method"] == "GET"
+        assert req["path"].endswith("/test-prompt-01/versions/3")
+        assert "DD-APPLICATION-KEY" not in req["headers"]
+        assert prompt.version == "0.3.0"
+        assert prompt.template == VERSION_PROMPT_RESPONSE["template"]
+        assert prompt._version_uuid == VERSION_PROMPT_RESPONSE["ID"]
+        assert prompt.source == "registry"
+
+    def test_mutually_exclusive_selectors_have_distinct_cache_keys(self):
+        requests = [
+            _PromptRequest(prompt_id="greeting"),
+            _PromptRequest(prompt_id="greeting", version=1),
+            _PromptRequest(prompt_id="greeting", version=2),
+            _PromptRequest(prompt_id="greeting", label="production"),
+            _PromptRequest(prompt_id="greeting", env="production", targeting_key="user-1", attributes={"tier": 1}),
+        ]
+        assert len({req.key for req in requests}) == len(requests)
 
     def test_route_targeting_key_to_ff(self):
         manager = _make_manager(agentless=False)
@@ -524,7 +821,7 @@ class TestPrompts:
     # which resolves the same env-scoped variant server-side.
     def test_route_not_ready_to_http_resolve(self):
         manager = _make_manager()
-        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="resolve", template="Hi")
+        sentinel = ManagedPrompt(id="greeting", version="v1", label=None, source="resolve", template="Hi")
         with _ffe_enabled():
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 prompt = manager.get_prompt("greeting")
@@ -535,7 +832,7 @@ class TestPrompts:
 
     def test_route_no_flag_to_http_resolve(self):
         manager = _make_manager()
-        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="resolve", template="Hi")
+        sentinel = ManagedPrompt(id="greeting", version="v1", label=None, source="resolve", template="Hi")
         with _ffe_enabled():
             _deliver_prompt_flag("other-prompt", {"prompt_id": "other-prompt", "version": "1", "template": "x"})
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
@@ -602,9 +899,10 @@ class TestPrompts:
                 manager.get_prompt("greeting", targeting_key="u1", tier="free")  # new attrs -> new fetch
         assert len(conns) == 2
 
-    def test_no_app_key_env_uses_fallback_without_calling_resolve(self):
+    @pytest.mark.parametrize("api_key", ["test-key", ""])
+    def test_no_app_key_env_uses_fallback_without_calling_resolve(self, api_key):
         """Without an app key/SAT, /resolve can't be authorized; use the fallback and skip the doomed call."""
-        manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
+        manager = PromptManager(api_key=api_key, base_url="https://api.datadoghq.com", file_cache_enabled=False)
         with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                 cfg.env = "production"
@@ -683,6 +981,67 @@ class TestPromptManagement:
     """Tests for prompt management (write) operations."""
 
     @pytest.mark.parametrize(
+        "call",
+        [
+            lambda: LLMObs.create_prompt("p1", [{"role": "user", "content": "hi"}], env_ids=["env-1"]),
+            lambda: LLMObs.create_prompt_version("p1", [{"role": "user", "content": "hi"}], env_ids=["env-1"]),
+            lambda: LLMObs.update_prompt_version("p1", 1, env_ids=["env-1"]),
+        ],
+    )
+    def test_write_prompt_env_ids(self, call):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch, patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+            call()
+
+        assert json.loads(conn.requests[-1]["body"])["env_ids"] == ["env-1"]
+
+    @pytest.mark.parametrize("method", ["create_prompt", "create_prompt_version"])
+    def test_write_prompt_accepts_sequence(self, method):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        template = UserList([{"role": "user", "content": "hi"}])
+        with mock_patch:
+            getattr(manager, method)("p1", template)
+
+        assert json.loads(conn.requests[-1]["body"])["template"] == list(template)
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda: LLMObs.create_prompt("p1", [{"role": "user", "content": "hi"}]),
+            lambda: LLMObs.create_prompt_version("p1", [{"role": "user", "content": "hi"}]),
+        ],
+    )
+    def test_write_prompt_omits_unsupplied_config(self, call):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch, patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+            call()
+
+        assert "config" not in json.loads(conn.requests[-1]["body"])
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda config: LLMObs.create_prompt("p1", [{"role": "user", "content": "hi"}], config=config),
+            lambda config: LLMObs.create_prompt_version("p1", [{"role": "user", "content": "hi"}], config=config),
+        ],
+    )
+    def test_write_prompt_explicit_config(self, call):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch, patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+            call({})
+
+        assert json.loads(conn.requests[-1]["body"])["config"] == {}
+
+        for invalid in (None, [], "value", 1):
+            with patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+                with pytest.raises(PromptValidationError, match="config must be a dictionary"):
+                    call(invalid)
+
+    @pytest.mark.parametrize(
         "status,exc_type",
         [
             (400, PromptValidationError),
@@ -716,20 +1075,18 @@ class TestPromptManagement:
 
         assert len(manager._hot_cache) == 0
 
-    def test_enable_with_app_key_refreshes_manager_cached_by_read_path(self, tracer):
-        """Regression: a read path that builds the prompt manager before enable(app_key=...)
-        must not strand write APIs with the then-empty app key.
-        """
+    @pytest.mark.parametrize("key", ["api_key", "app_key"])
+    def test_enable_with_key_refreshes_manager_cached_by_read_path(self, tracer, key):
         LLMObs._app_key = ""
-        with mock_api(200, TEXT_PROMPT_RESPONSE):
-            LLMObs.get_prompt("greeting")
-        assert LLMObs._prompt_manager is not None
-        assert LLMObs._prompt_manager._app_key == ""
+        with override_global_config(dict(_dd_api_key="")):
+            LLMObs.get_prompt("greeting", fallback="Hello")
+            assert LLMObs._prompt_manager is not None
+            assert getattr(LLMObs._prompt_manager, "_" + key) == ""
 
-        LLMObs.enable(_tracer=tracer, app_key="new-app-key", agentless_enabled=False)
+            LLMObs.enable(_tracer=tracer, agentless_enabled=False, **{key: "new-key"})
 
-        assert LLMObs._prompt_manager is None
-        assert LLMObs._ensure_prompt_manager()._app_key == "new-app-key"
+            assert LLMObs._prompt_manager is None
+            assert getattr(LLMObs._ensure_prompt_manager(), "_" + key) == "new-key"
 
     def test_refresh_prompt_requires_api_key(self):
         manager = _make_manager()
@@ -825,6 +1182,15 @@ class TestPromptManagement:
 
         assert cache.get("a/b:")[0].id == "a/b"
         assert cache.get("a_b:")[0].id == "a_b"
+
+    def test_warm_cache_round_trips_config(self, tmp_path):
+        cache = WarmCache(cache_dir=str(tmp_path), ttl_seconds=60)
+        original = ManagedPrompt(
+            id="configured", version="v1", label=None, source="registry", template="hello", _config={"nested": {"x": 1}}
+        )
+        cache.set("configured:", original)
+
+        assert cache.get("configured:")[0].config == {"nested": {"x": 1}}
 
     @pytest.mark.parametrize("call", [lambda m: m.update_prompt("p1"), lambda m: m.update_prompt_version("p1", 1)])
     def test_update_requires_a_field(self, call):

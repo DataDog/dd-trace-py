@@ -11,9 +11,8 @@ import pytest
     ),
     err=None,
 )
-def test_internal_adaptive_sampling():
+def test_internal_adaptive_sampling() -> None:
     import asyncio
-    import glob
     import json
     import os
     import time
@@ -22,6 +21,7 @@ def test_internal_adaptive_sampling():
     from ddtrace import ext
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     sleep_time = 0.2
     loop_run_time = 4
@@ -33,7 +33,7 @@ def test_internal_adaptive_sampling():
 
         await asyncio.get_running_loop().run_in_executor(executor=None, func=lambda: time.sleep(1))
 
-    async def hello():
+    async def hello() -> tuple[asyncio.Task[None], asyncio.Task[None]]:
         t1 = asyncio.create_task(stuff(), name="sleep 1")
         t2 = asyncio.create_task(stuff(), name="sleep 2")
         await stuff()
@@ -52,7 +52,7 @@ def test_internal_adaptive_sampling():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
 
     # With adaptive sampling enabled, the sampling interval can grow up to 1 second
     # (g_max_sampling_period_us). Since the upload interval is also 1 second, the
@@ -63,7 +63,7 @@ def test_internal_adaptive_sampling():
     found_at_least_one_with_sampling_interval = False
     total_sample_count = 0
     for f in files:
-        with open(f, "r") as fp:
+        with open(f) as fp:
             internal_metadata = json.load(fp)
 
             assert internal_metadata is not None

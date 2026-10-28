@@ -20,6 +20,29 @@ class EarlyFlakeDetectionSettings:
     slow_test_retries_5m: int = 2
     faulty_session_threshold: int = 30
 
+    def retry_bucket_index_for_duration(self, initial_attempt_seconds: float) -> int:
+        """Return the EFD retry-bucket index for an initial test duration."""
+        if initial_attempt_seconds <= 5:
+            return 0
+        if initial_attempt_seconds <= 10:
+            return 1
+        if initial_attempt_seconds <= 30:
+            return 2
+        if initial_attempt_seconds <= 300:
+            return 3
+        return 4
+
+    def retries_for_duration(self, initial_attempt_seconds: float) -> int:
+        """Return the configured retry budget for an initial test duration."""
+        retries = (
+            self.slow_test_retries_5s,
+            self.slow_test_retries_10s,
+            self.slow_test_retries_30s,
+            self.slow_test_retries_5m,
+            0,
+        )
+        return retries[self.retry_bucket_index_for_duration(initial_attempt_seconds)]
+
     @classmethod
     def from_attributes(cls, efd_attributes: dict[str, t.Any]) -> EarlyFlakeDetectionSettings:
         # Tolerate a partial response: each missing field falls back to its default instead of raising. A raise here

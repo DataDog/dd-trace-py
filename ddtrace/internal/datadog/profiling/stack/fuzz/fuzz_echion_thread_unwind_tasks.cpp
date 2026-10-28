@@ -19,15 +19,19 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     EchionSampler echion_sampler;
     auto tid = 123;
     ThreadInfo thread(tid, tid, "name", 1234);
-    PyThreadState tstate;
+    PyThreadState tstate{};
 
 #if PY_VERSION_HEX >= 0x030d0000
     // This is obviously wrong, but it's a no-op if copy fails
     tstate.current_frame = reinterpret_cast<_PyInterpreterFrame*>(123456);
 #elif PY_VERSION_HEX >= 0x030b0000
-    _PyCFrame cframe;
-    cframe.current_frame = reinterpret_cast<_PyInterpreterFrame*>(123456);
-    tstate.cframe = &cframe;
+    // Keep the initial C frame readable so a copy failure does not prevent task fuzzing.
+    std::vector<uint8_t> memory_image(data, data + size);
+    memory_image.resize(size + sizeof(_PyCFrame));
+    _PyCFrame cframe{};
+    std::memcpy(memory_image.data() + size, &cframe, sizeof(cframe));
+    set_memory_image(memory_image.data(), memory_image.size());
+    tstate.cframe = reinterpret_cast<_PyCFrame*>(kRemoteBase + size);
 #else
     tstate.frame = reinterpret_cast<PyFrameObject*>(123456);
 #endif
@@ -48,10 +52,17 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
     auto p_scheduled = reinterpret_cast<PyObject*>(addr_from_u64(load_u64_le(data, size, 2 * sizeof(uintptr_t))));
     echion_sampler.init_asyncio(p_scheduled, Py_None);
+#if PY_VERSION_HEX >= 0x030e0000
+    // These synthetic state objects need only list heads. Small offsets keep both lists reachable with short inputs;
+    // the host interpreter's offsets would describe its own structs, not the fuzz memory image.
+    echion_sampler.set_asyncio_offsets(
+      AsyncioOffsets{ .interpreter_tasks_head = 2 * sizeof(uintptr_t), .thread_tasks_head = sizeof(uintptr_t) });
+    tstate.interp =
+      reinterpret_cast<PyInterpreterState*>(addr_from_u64(load_u64_le(data, size, 3 * sizeof(uintptr_t))));
+#endif
 
-    // Tries to unwind_python_stack (which does nothing because we
-    // have bogus data), then unwind_tasks (the one we test here)
-    thread.unwind(echion_sampler, &tstate);
+    // An empty or unreadable Python frame chain still lets us exercise task discovery.
+    (void)thread.unwind(echion_sampler, &tstate, 0);
 
     g_data = nullptr;
     g_size = 0;

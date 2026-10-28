@@ -4,8 +4,6 @@ Drives each lifecycle operation explicitly and asserts the exact sequence the
 wrapped generator must produce.
 """
 
-import sys
-
 import pytest
 
 from tests.wrapping.mechanisms import xfail_mechanism
@@ -74,11 +72,6 @@ def test_close_runs_finally(mech):
     assert log == ["cleanup"]
 
 
-@xfail_mechanism(
-    "wrapping_context",
-    reason="WrappingContext.throw() on an unstarted generator crashes on 3.11+ (internal AttributeError)",
-    condition=sys.version_info >= (3, 11),
-)
 def test_throw_on_unstarted_generator(mech):
     def g():
         yield 1

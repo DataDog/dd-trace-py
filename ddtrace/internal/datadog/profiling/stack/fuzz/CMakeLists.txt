@@ -18,9 +18,11 @@ set(FUZZ_ECHION_SOURCES
     ../src/echion/strings.cc
     ../src/echion/tasks.cc
     ../src/echion/threads.cc
+    ../src/gc_frame_tracker.cpp
+    ../src/origin_task_links.cpp
     ../src/stack_renderer.cpp
     ../src/sampler.cpp
-    ../src/thread_span_links.cpp)
+    ../src/span_links.cpp)
 
 # Helper function: register a single fuzz target with all shared build settings.
 function(add_fuzz_target TARGET_NAME)
@@ -66,7 +68,7 @@ function(add_fuzz_target TARGET_NAME)
     endif()
 
     # Link against dd_wrapper (imported target defined by the parent stack/CMakeLists.txt)
-    target_link_libraries(${TARGET_NAME} PRIVATE dd_wrapper)
+    target_link_libraries(${TARGET_NAME} PRIVATE dd_wrapper ${CMAKE_DL_LIBS})
 
     if(Python3_LIBRARIES)
         target_link_libraries(${TARGET_NAME} PRIVATE ${Python3_LIBRARIES})

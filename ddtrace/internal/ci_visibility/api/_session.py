@@ -8,6 +8,7 @@ from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+from ddtrace.internal.ci_visibility.api._protocols import TestVisibilitySessionProtocol
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -25,7 +26,9 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 log = get_logger(__name__)
 
 
-class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilityModule]):
+class TestVisibilitySession(
+    TestVisibilityParentItem[TestModuleId, TestVisibilityModule], TestVisibilitySessionProtocol
+):
     """This class represents a Test session and is the top level in the hierarchy of Test visibility items.
 
     It does not access its skip-level descendents directly as they are expected to be managed through their own parent
@@ -55,8 +58,9 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
     def _get_hierarchy_tags(self) -> dict[str, Any]:
+        session_span = self.get_span()
         return {
-            SESSION_ID: str(self.get_span_id()),
+            SESSION_ID: str(session_span.parent_id if session_span and session_span.parent_id else self.get_span_id()),
         }
 
     def get_session_settings(self) -> TestVisibilitySessionSettings:

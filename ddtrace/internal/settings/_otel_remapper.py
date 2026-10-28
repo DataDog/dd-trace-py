@@ -10,6 +10,7 @@ from ddtrace.internal.settings import env
 log = get_logger(__name__)
 
 OTEL_UNIFIED_TAG_MAPPINGS = {
+    "deployment.environment.name": ENV_KEY,
     "deployment.environment": ENV_KEY,
     "service.name": "service",
     "service.version": VERSION_KEY,
@@ -28,7 +29,7 @@ def _remap_otel_propagators(otel_value: str) -> Optional[str]:
     accepted_styles = []
     for style in otel_value.split(","):
         style = style.strip().lower()
-        if style in ["b3", "b3multi", "datadog", "tracecontext", "none"]:
+        if style in ["b3", "b3multi", "baggage", "datadog", "tracecontext", "none"]:
             if style not in accepted_styles:
                 accepted_styles.append(style)
         else:
@@ -75,6 +76,15 @@ def _remap_metrics_exporter(otel_value: str) -> Optional[str]:
     return None
 
 
+def _remap_logs_exporter(otel_value: str) -> Optional[str]:
+    """Remaps the otel logs exporter to ddtrace logs enabled"""
+    if otel_value == "none":
+        return "False"
+    if otel_value == "otlp":
+        return "True"
+    return None
+
+
 def _remap_otel_tags(otel_value: str) -> Optional[str]:
     """Remaps the otel tags to ddtrace tags"""
     dd_tags: list[str] = []
@@ -85,9 +95,13 @@ def _remap_otel_tags(otel_value: str) -> Optional[str]:
             key, value = tag.split("=")
             otel_user_tag_dict[key] = value
 
+        has_stable_environment = any(key.lower() == "deployment.environment.name" for key in otel_user_tag_dict)
         for key, value in otel_user_tag_dict.items():
-            if key.lower() in OTEL_UNIFIED_TAG_MAPPINGS:
-                dd_key = OTEL_UNIFIED_TAG_MAPPINGS[key.lower()]
+            normalized_key = key.lower()
+            if normalized_key == "deployment.environment" and has_stable_environment:
+                continue
+            if normalized_key in OTEL_UNIFIED_TAG_MAPPINGS:
+                dd_key = OTEL_UNIFIED_TAG_MAPPINGS[normalized_key]
                 dd_tags.insert(0, f"{dd_key}:{value}")
             else:
                 dd_tags.append(f"{key}:{value}")
@@ -97,8 +111,8 @@ def _remap_otel_tags(otel_value: str) -> Optional[str]:
     if len(dd_tags) > 10:
         dd_tags, remaining_tags = dd_tags[:10], dd_tags[10:]
         log.warning(
-            "To preserve metrics cardinality, only the following first 10 tags have been processed %s. "
-            "The following tags were not ingested: %s",
+            "To reduce cardinality, only the first 10 tags derived from OpenTelemetry resource attributes were "
+            "kept: %s. Reduce the number of resource attributes to avoid dropping tags. Dropped tags: %s",
             dd_tags,
             remaining_tags,
         )
@@ -126,6 +140,7 @@ ENV_VAR_MAPPINGS: dict[str, tuple[str, Callable[[str], Optional[str]]]] = {
     "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLING_RULES", _remap_traces_sampler),
     "OTEL_TRACES_EXPORTER": ("DD_TRACE_ENABLED", _remap_traces_exporter),
     "OTEL_METRICS_EXPORTER": ("DD_RUNTIME_METRICS_ENABLED", _remap_metrics_exporter),
+    "OTEL_LOGS_EXPORTER": ("DD_LOGS_OTEL_ENABLED", _remap_logs_exporter),
     "OTEL_RESOURCE_ATTRIBUTES": ("DD_TAGS", _remap_otel_tags),
     "OTEL_SDK_DISABLED": ("DD_TRACE_OTEL_ENABLED", _remap_otel_sdk_config),
 }

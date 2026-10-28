@@ -1,15 +1,17 @@
+from collections.abc import Generator
 from typing import Any
-from typing import Generator
 from typing import Optional
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import DEFAULT_SPAN_DURATION_NS
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
@@ -17,10 +19,14 @@ from ddtrace.llmobs._integrations.bedrock_agents import _get_or_create_bedrock_t
 from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
+from ddtrace.llmobs._integrations.utils import anthropic_tool_call_from_block
+from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
+from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
+from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
+from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
@@ -31,6 +37,10 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # interface_type="agent" is set only by the top-level Bedrock agent trace() call.
+        return "agent" if kwargs.get("interface_type") == "agent" else None
 
     def _llmobs_set_tags(
         self,
@@ -85,16 +95,21 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
 
         prompt = request_params.get("prompt", "")
-        tool_config = request_params.get("tool_config", {})
-        tool_definitions = self._extract_tool_definitions(tool_config)
 
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
+        # Converse wraps definitions in `toolConfig.tools[].toolSpec`; InvokeModel carries
+        # the provider's own format, which for Anthropic models is `tools[]`.
+        tool_definitions = (
+            self._extract_tool_definitions(request_params.get("tool_config", {}))
+            if is_converse
+            else get_tool_definitions_from_anthropic_tools(request_params.get("tools", []))
+        )
         input_messages = (
             self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
+        if response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
@@ -178,11 +193,11 @@ class BedrockIntegration(BaseLLMIntegration):
         """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
-        step_spans_by_step_id: dict[str, Span] = {}
+        step_spans_by_step_id: dict[str, _LLMObsSpan] = {}
         # Holds a span whose output event hasn't arrived yet (e.g. modelInvocationInput waiting
         # for its matching modelInvocationOutput).
-        pending_span_by_step_id: dict[str, Span] = {}
-        child_spans_by_step_id: dict[str, list[Span]] = {}
+        pending_span_by_step_id: dict[str, _LLMObsSpan] = {}
+        child_spans_by_step_id: dict[str, list[_LLMObsSpan]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
             if trace_step_id is None:
@@ -290,8 +305,8 @@ class BedrockIntegration(BaseLLMIntegration):
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
                 for token_type in ("input", "output", "total"):
-                    if "{}Tokens".format(token_type) in usage:
-                        usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
+                    if f"{token_type}Tokens" in usage:
+                        usage_metrics[f"{token_type}_tokens"] = usage[f"{token_type}Tokens"]
 
                 cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
                     "cacheReadInputTokens", None
@@ -373,12 +388,36 @@ class BedrockIntegration(BaseLLMIntegration):
         for p in prompt:
             content = p.get("content", "")
             if isinstance(content, list) and isinstance(content[0], dict):
+                role = str(p.get("role", ""))
                 for entry in content:
-                    if entry.get("type") == "text":
-                        input_messages.append(Message(content=entry.get("text", ""), role=str(p.get("role", ""))))
-                    elif entry.get("type") == "image":
+                    entry_type = entry.get("type", "") or ""
+                    if entry_type == "text":
+                        input_messages.append(Message(content=entry.get("text", ""), role=role))
+                    elif entry_type == "image":
                         # Store a placeholder for potentially enormous binary image data.
-                        input_messages.append(Message(content="([IMAGE DETECTED])", role=str(p.get("role", ""))))
+                        input_messages.append(Message(content=IMAGE_DETECTED_MARKER, role=role))
+                    elif entry_type == "thinking":
+                        input_messages.append(Message(content=str(entry.get("thinking", "")), role="reasoning"))
+                    elif "tool_use" in entry_type:
+                        input_messages.append(
+                            Message(
+                                content=str(entry.get("text", "") or ""),
+                                role=role,
+                                tool_calls=[anthropic_tool_call_from_block(entry)],
+                            )
+                        )
+                    elif "tool_result" in entry_type:
+                        input_messages.append(
+                            Message(
+                                content="",
+                                role=role,
+                                tool_results=[anthropic_tool_result_from_block(entry)],
+                            )
+                        )
+                    else:
+                        # Unrecognized block types are stringified rather than dropped, so a
+                        # provider adding a new one degrades visibly instead of silently.
+                        input_messages.append(Message(content=str(entry), role=role))
             else:
                 input_messages.append(Message(content=str(content), role=str(p.get("role", ""))))
         return input_messages
@@ -386,7 +425,12 @@ class BedrockIntegration(BaseLLMIntegration):
     @staticmethod
     def _extract_output_message(response) -> list[Message]:
         """Extract output messages from the stored response.
-        Anthropic allows for chat messages, which requires some special casing.
+
+        Most Bedrock providers return plain text. Anthropic models return an
+        Anthropic Messages API `content` field: a list of tagged content blocks
+        (`text`, `thinking`, `tool_use`, ...), which is handed to the shared
+        Anthropic extractor so InvokeModel captures the same data the Anthropic
+        SDK and Converse integrations do.
         """
         resp_text = response.get("text", "")
         if isinstance(resp_text, str):
@@ -395,7 +439,7 @@ class BedrockIntegration(BaseLLMIntegration):
             if isinstance(resp_text[0], str):
                 return [Message(content=str(content)) for content in resp_text]
             if isinstance(resp_text[0], dict):
-                return [Message(content=resp_text[0].get("text", ""))]
+                return get_messages_from_anthropic_content("assistant", resp_text)
         return []
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
