@@ -380,6 +380,18 @@ def get_system_instructions_vertexai(model_instance):
     return system_instructions
 
 
+# The part fields extract_message_from_part_google_genai turns into a message
+_PART_KINDS = (
+    "text",
+    "function_call",
+    "function_response",
+    "executable_code",
+    "code_execution_result",
+    "inline_data",
+    "file_data",
+)
+
+
 def extract_messages_from_adk_events(events) -> list[Message]:
     """
     Extract messages from Google ADK Event objects.
@@ -390,14 +402,14 @@ def extract_messages_from_adk_events(events) -> list[Message]:
     Returns:
         list of message dictionaries with format {"role": role, "content": content, ...}
     """
-    messages_per_event = []
+    messages_per_event: list[tuple[Any, list[tuple[str, Message]]]] = []
 
     # Handle both single event and list of events
     if not isinstance(events, list):
         events = [events]
 
     for event in events:
-        messages = []
+        messages: list[tuple[str, Message]] = []
         messages_per_event.append((event, messages))
         content = _get_attr(event, "content", None)
         if not content:
@@ -414,18 +426,20 @@ def extract_messages_from_adk_events(events) -> list[Message]:
             message = extract_message_from_part_google_genai(part, role)
             # skips e.g. a thought-signature-only part, which has nothing to show
             if message.get("content") or message.get("tool_calls") or message.get("tool_results"):
-                messages.append(message)
+                if _get_attr(part, "thought", False):
+                    kind = "thought"
+                else:
+                    kind = next((kind for kind in _PART_KINDS if _get_attr(part, kind, None)), "text")
+                messages.append((kind, message))
 
     # A streamed response arrives as partial events and then once more as one assembled event, so drop
-    # partials whose kinds of output the next non-partial event repeats.
+    # partial output of a kind that the next non-partial event of the same turn repeats.
     kinds_after: set[str] = set()
     for event, messages in reversed(messages_per_event):
-        kinds = {key for message in messages for key in message if key != "role"}
-        if not kinds:
-            continue
-        if not _get_attr(event, "partial", False):
+        kinds = {kind for kind, _ in messages}
+        if _get_attr(event, "partial", False):
+            messages[:] = [(kind, message) for kind, message in messages if kind not in kinds_after]
+        elif kinds or _get_attr(event, "turn_complete", False) or _get_attr(event, "interrupted", False):
             kinds_after = kinds
-        elif kinds <= kinds_after:
-            messages.clear()
 
-    return [message for _, messages in messages_per_event for message in messages]
+    return [message for _, messages in messages_per_event for _, message in messages]

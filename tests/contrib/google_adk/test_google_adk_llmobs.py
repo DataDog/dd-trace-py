@@ -75,6 +75,28 @@ _CALL = types.Part(function_call=types.FunctionCall(name="lookup"))
             [_event(types.Part(text="Hel"), partial=True), _event(types.Part(text="lo"), partial=True), _event()],
             ["Hel", "lo"],
         ),
+        # run_live: a turn ending without an assembled event, then a later turn
+        (
+            [
+                _event(types.Part(text="Hi"), partial=True),
+                Event(author="model", turn_complete=True),
+                _event(types.Part(text="Bye")),
+            ],
+            ["Hi", "Bye"],
+        ),
+        # partial thoughts before an assembled answer that leaves them out
+        (
+            [_event(types.Part(text="Hmm", thought=True), partial=True), _event(types.Part(text="Hi"))],
+            ["Hmm", "Hi"],
+        ),
+        # partial text before an assembled image only
+        (
+            [
+                _event(types.Part(text="Look"), partial=True),
+                _event(types.Part(inline_data=types.Blob(mime_type="image/png", data=b"x"))),
+            ],
+            ["Look", "[inline data: image/png]"],
+        ),
         # partial text before an assembled tool call only
         (
             [
