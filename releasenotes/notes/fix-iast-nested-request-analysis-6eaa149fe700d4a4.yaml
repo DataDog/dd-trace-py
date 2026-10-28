@@ -1,0 +1,4 @@
+fixes:
+  - |
+    IAST: Fixes missing vulnerability findings in response middleware around mounted
+    web applications when nested request spans finish before the enclosing request.

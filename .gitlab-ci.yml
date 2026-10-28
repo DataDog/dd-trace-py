@@ -647,6 +647,17 @@ test_resolve_base_branch:
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
 
+# Fails when test jobs stop collecting core dumps and backtraces on crash.
+# Runs the collector in script, since after_script failures don't fail the job.
+coredump_smoke:
+  extends: .testrunner
+  stage: tests
+  needs: []
+  timeout: 5m
+  script:
+    - bash .gitlab/scripts/coredump-smoke.sh
+  after_script: []
+
 # Runs in the image of package-oci, so that the tests use the same python3 and
 # GNU realpath as prepare-oci-package.sh.
 test_oci_package_scripts:

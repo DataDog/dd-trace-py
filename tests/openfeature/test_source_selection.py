@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from ddtrace.internal.openfeature._source_selection import AGENTLESS
@@ -123,6 +125,33 @@ def test_create_custom_endpoint_starts_without_api_key():
     with override_global_config({"_dd_api_key": None}):
         src = create_agentless_source(cfg, lambda _: None)
     assert src is not None  # missing key does not block a custom endpoint
+
+
+def test_create_debug_logs_skipped_agentless_setup(caplog):
+    cfg = _config(DD_FEATURE_FLAGS_CONFIGURATION_SOURCE="remote_config")
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._source_selection"):
+        create_agentless_source(cfg, lambda _: None)
+    assert (
+        "Feature Flags: configuration source is remote_config, not agentless; skipping agentless setup"
+        in caplog.messages
+    )
+
+
+def test_create_debug_logs_only_the_endpoint_origin(caplog):
+    base_url = "https://user:pass@flags.example.test:8443/sig/abc?token=t"
+    cfg = _config(DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL=base_url)
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._source_selection"):
+        create_agentless_source(cfg, lambda _: None)
+
+    started = [m for m in caplog.messages if m.startswith("Feature Flags: starting agentless")]
+    assert started == ["Feature Flags: starting agentless configuration source at https://flags.example.test:8443"]
+
+
+def test_create_passes_env_for_diagnostics():
+    with override_global_config({"_dd_api_key": "secret", "env": "staging"}):
+        src = create_agentless_source(_config(), lambda _: None)
+    assert src is not None
+    assert src._env == "staging"
 
 
 @pytest.mark.parametrize("bad_url", ["ftp://flags.example.test", "https://flags.example.test path"])
