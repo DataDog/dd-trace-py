@@ -1,3 +1,4 @@
+import importlib
 import json
 import logging
 import os.path
@@ -11,7 +12,6 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf.waf import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -27,6 +27,9 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
 
+
+# The helper of whichever libddwaf backend is selected.
+py_ddwaf_builder_get_config_paths = importlib.import_module(DDWaf.__module__).py_ddwaf_builder_get_config_paths
 
 APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 config_asm = {"_asm_enabled": True}
@@ -121,7 +124,7 @@ def test_nested_different_service_web_span_uses_separate_asm_context(tracer):
         assert _asm_request_context.get_active_asm_context() is parent_env
 
 
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_only_owner_finish_flushes_shared_asm_context(mock_run, tracer):
     from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
@@ -462,24 +465,13 @@ def test_appsec_abort_on_waf_failure():
     AppSecSpanProcessor enablement occurs in `load_appsec` with `override_global_config` and should abort
     completely if an error is found in the bindings layer.
     """
-    import ctypes
     from unittest import mock
 
+    from ddtrace.internal.native._native import ddwaf as native_ddwaf
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
 
-    original_cdll = ctypes.CDLL
-
-    ERROR_MESSAGE = "mock libddwaf load failure"
-
-    def _raise_on_libddwaf(path, *args, **kwargs):
-        if path == asm_config._asm_libddwaf:
-            raise OSError(ERROR_MESSAGE)
-        return original_cdll(path, *args, **kwargs)
-
-    with (
-        mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
-    ):
+    with mock.patch.object(native_ddwaf, "load", side_effect=OSError("mock libddwaf load failure")):
         with override_global_config(
             dict(
                 _asm_enabled=True,
@@ -751,7 +743,7 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     with (
         caplog.at_level(logging.DEBUG),
         mock.patch(
-            "ddtrace.appsec._ddwaf.waf.ddwaf_context_eval",
+            "ddtrace.appsec._ddwaf.DDWaf.run",
             side_effect=TypeError("expected c_long instead of int"),
         ),
     ):
@@ -790,7 +782,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_context_eval", side_effect=OSError("ddwaf run failed")),
+        mock.patch("ddtrace.appsec._ddwaf.DDWaf.run", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -945,7 +937,7 @@ def test_required_addresses():
     "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
 )
 @pytest.mark.parametrize("non_persistent", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_persistent_dedup_and_non_persistent_resend(mock_run, persistent, non_persistent):
     # dd-trace-py only sends each persistent address to the WAF once per request (it persists in
     # the context), while non-persistent addresses are re-sent on every call. This dedup policy is
@@ -975,7 +967,7 @@ def test_persistent_dedup_and_non_persistent_resend(mock_run, persistent, non_pe
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_waf_action_none_value_non_persistent_address(mock_run):
     from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
@@ -1136,7 +1128,7 @@ def test_rasp_subcontext_fresh_per_non_ssrf_call():
     assert waf.created == 2
 
 
-@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_rasp_bypassed_when_subcontext_unavailable(mock_run):
     """If a RASP subcontext can't be created, the WAF call is bypassed entirely (not run on the
     main context, which would persist the non-persisting RASP data).

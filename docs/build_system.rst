@@ -348,6 +348,11 @@ What the packaging must guarantee
   identical to 2.0.1's. ``LIBDDWAF_VERSION`` in ``setup.py`` is the version ddtrace pins and tests against, so prefer that
   one; a 3.x will need a new ddtrace release.
 
+The library is opened by the ``_native`` Rust extension (``src/native/appsec/waf``) through ``libloading``, using
+C declarations checked in next to that code: building the extension needs neither a libddwaf binary nor libclang.
+Registering the extension does not open the library; AppSec loads it when it starts. The legacy ctypes bindings
+remain selectable via ``asm_config._asm_waf_backend = "ctypes"`` while the native backend is being validated.
+
 If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disables itself; the rest of the tracer is
 unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
 

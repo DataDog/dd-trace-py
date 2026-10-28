@@ -443,6 +443,7 @@ dependencies = [
  "libdd-telemetry",
  "libdd-trace-utils",
  "libdd-tracer-flare",
+ "libloading",
  "native-proc-macro",
  "once_cell",
  "percent-encoding",
@@ -2093,6 +2094,16 @@ dependencies = [
  "thiserror 1.0.69",
  "untrusted 0.7.1",
  "url",
+]
+
+[[package]]
+name = "libloading"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link 0.2.1",
 ]
 
 [[package]]
