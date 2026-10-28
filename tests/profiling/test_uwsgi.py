@@ -270,6 +270,7 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
     proc = uwsgi("--enable-threads", "--py-call-uwsgi-fork-hooks", "--processes", "2")
 
+    worker_pids: list[int] = []
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
         assert len(worker_pids) == 2, "expected 2 workers, saw %r (uwsgi returncode=%r)" % (
@@ -281,6 +282,14 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
     finally:
         proc.terminate()
         exit_code = proc.wait()
+        # Without --master, nothing forwards SIGTERM to the other worker, so it would keep
+        # running (and profiling) for the rest of the test session. Kill it explicitly.
+        for pid in worker_pids:
+            if pid != proc.pid:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     # Without --master, SIGTERM terminates a worker via uWSGI's end_me() handler.
     assert exit_code == UWSGI_END_CODE
@@ -442,6 +451,49 @@ def test_uwsgi_threads_processes_primary(
     finally:
         # Ensure uwsgi is torn down even on assertion failure so we do not
         # leak master + workers into subsequent tests / CI cleanup.
+        proc.terminate()
+        exit_code = proc.wait()
+
+    assert exit_code == 0
+
+
+@pytest.mark.skip(reason="A worker can crash in the uWSGI postfork callback Profiler._start_on_fork")
+def test_uwsgi_import_ddtrace_auto_processes_primary_skip_atexit(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test the profiler started by ddtrace.auto in the master of a non-lazy, multi-worker uwsgi.
+
+    The master loads ddtrace.auto, then forks the workers without the Python fork hooks. The profiler
+    must be started in the master, so that it registers its postfork callback and chains Profiler.stop
+    into uwsgi.atexit. The test verifies that each worker collects wall-time samples.
+    """
+    filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+
+    app = tmp_path / "app.py"
+    app.write_text("def application(environ, start_response):\n    pass\n")
+    socket_name = str(tmp_path / "uwsgi.sock")
+    cmd = [
+        "uwsgi",
+        "--need-app",
+        "--die-on-term",
+        "--socket",
+        socket_name,
+        "--import=ddtrace.auto",
+        "--wsgi-file",
+        str(app),
+    ]
+    proc = run_uwsgi(cmd)("--enable-threads", "--master", "--processes", "2", "--skip-atexit")
+
+    try:
+        worker_pids = _get_worker_pids(proc.stdout, 2)
+        assert len(worker_pids) == 2
+        for pid in worker_pids:
+            _wait_for_profile_samples(filename, pid, "wall-time")
+    finally:
         proc.terminate()
         exit_code = proc.wait()
 
@@ -654,3 +706,16 @@ def test_uwsgi_require_skip_atexit_when_lazy_without_master(
 
     for pid in worker_pids:
         os.kill(pid, signal.SIGTERM)
+
+    # In this configuration (uwsgi<2.0.30 without --skip-atexit) a worker can hang while exiting,
+    # spinning at 100% CPU for the rest of the test session. Give the workers time to exit, then
+    # kill whatever is left.
+    try:
+        proc.wait(timeout=5)
+    except TimeoutExpired:
+        pass
+    for pid in worker_pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
