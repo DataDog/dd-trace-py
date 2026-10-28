@@ -257,12 +257,21 @@ def test_simplejson_encode_list(iast_context_defaults):
     assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
 
 
-def test_taint_structure(iast_context_defaults):
+@pytest.mark.parametrize("container", [list, tuple])
+@pytest.mark.parametrize("key", ["value", 1])
+def test_taint_structure(iast_context_defaults, mapping_factory, container, key):
     from ddtrace.appsec._iast._taint_utils import taint_structure
 
-    d = {1: "foo"}
-    tainted = taint_structure(d, OriginType.PARAMETER, OriginType.PARAMETER)
-    assert is_pyobject_tainted(tainted[1])
+    original = mapping_factory(key=container([mapping_factory({key: "foo"})]))
+    tainted = taint_structure(original, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+    assert tainted == original
+    assert type(tainted) is type(tainted["key"][0]) is mapping_factory
+    assert type(tainted["key"]) is container
+    assert is_pyobject_tainted(next(iter(tainted)))
+    assert get_tainted_ranges(next(iter(tainted)))[0].source.origin == OriginType.PARAMETER_NAME
+    assert is_pyobject_tainted(tainted["key"][0][key])
+    source = get_tainted_ranges(tainted["key"][0][key])[0].source
+    assert (source.name, source.origin) == (str(key), OriginType.PARAMETER)
 
 
 def _fresh_source_value(payload, text_type):
