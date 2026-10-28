@@ -78,8 +78,7 @@ ddtrace = "ddtrace.testing.internal.pytest.entry_point"
 datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.integration_hooks']
-anthropic = "ddtrace.llmobs._contrib.anthropic"
-llama_index = "ddtrace.llmobs._contrib.llama_index"
+"llmobs" = "ddtrace.llmobs._product"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"

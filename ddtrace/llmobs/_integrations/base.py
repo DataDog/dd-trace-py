@@ -1,5 +1,6 @@
 import abc
 from typing import Any  # noqa:F401
+from typing import ClassVar
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
@@ -44,6 +45,13 @@ log = get_logger(__name__)
 
 class BaseLLMIntegration:
     _integration_name = "baseLLM"
+    # Integration classes by name, so a span's component resolves to its integration class.
+    _by_name: ClassVar[dict[str, type["BaseLLMIntegration"]]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if "_integration_name" in cls.__dict__:
+            BaseLLMIntegration._by_name[cls._integration_name] = cls
 
     def __init__(self, integration_config: IntegrationConfig) -> None:
         self.integration_config = integration_config

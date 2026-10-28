@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.llama_index.patch import patch
+from ddtrace import patch
 from ddtrace.contrib.internal.llama_index.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.llama_index.utils import get_request_vcr
@@ -37,7 +37,7 @@ def llama_index():
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
         )
     ):
-        patch()
+        patch(llama_index=True)
         import llama_index
 
         yield llama_index

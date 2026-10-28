@@ -5,6 +5,7 @@ that operators can enable/disable LLMObs and set the ml_app name at runtime
 without restarting the service.
 """
 
+from importlib.util import find_spec
 import typing as t
 
 from ddtrace.internal.logger import get_logger
@@ -37,6 +38,26 @@ def restart(join: bool = False) -> None:
 
 def stop(join: bool = False) -> None:
     pass
+
+
+def subscribers() -> tuple[type, ...]:
+    from ddtrace.llmobs._subscribers import LLMObsLlmSubscriber
+
+    return (LLMObsLlmSubscriber,)
+
+
+def on_integration_patched(integration_name: str) -> None:
+    """Register the LLMObs subscribers once an integration with an LLMObs counterpart is patched.
+
+    This runs whether or not LLMObs is enabled, so APM spans carry the LLMObs shadow tags. The
+    subscribers stay registered on unpatch so in-flight requests and streams still finish.
+    """
+    if find_spec(f"ddtrace.llmobs._integrations.{integration_name}") is None:
+        return
+
+    from ddtrace.internal.products import manager
+
+    manager.register_subscribers("llmobs")
 
 
 def post_preload() -> None:

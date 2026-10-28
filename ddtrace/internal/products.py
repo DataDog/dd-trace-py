@@ -25,6 +25,16 @@ def get_product_entry_points() -> list[t.Any]:
     return get_entry_points("ddtrace.products")
 
 
+def get_integration_hook_entry_points() -> list[t.Any]:
+    return get_entry_points("ddtrace.integration_hooks")
+
+
+class ProductSubscriber(Protocol):
+    def register(self) -> None: ...
+
+    def unregister(self) -> None: ...
+
+
 class Product(Protocol):
     requires: list[str]
 
@@ -45,6 +55,8 @@ class ProductManager:
     def __init__(self) -> None:
         self._products: t.Optional[list[tuple[str, Product]]] = None  # Topologically sorted products
         self._failed: set[str] = set()
+        self._registered: dict[str, tuple[ProductSubscriber, ...]] = {}
+        self._integration_hooks: t.Optional[list[tuple[str, Product]]] = None
 
     def _load_products(self) -> None:
         for product_plugin in get_product_entry_points():
@@ -141,9 +153,14 @@ class ProductManager:
             # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
             try:
                 activated = getattr(product, "activated", None)
-                telemetry_writer.product_activated(name.replace("-", "_"), bool(activated()) if activated else True)
+                is_activated = bool(activated()) if activated else True
+                telemetry_writer.product_activated(name.replace("-", "_"), is_activated)
             except Exception:
                 log.debug("Failed to report activation state for product '%s'", name, exc_info=True)
+                continue
+
+            if is_activated:
+                self.register_subscribers(name)
 
         # NOTE: Keep post_start hooks after the full start loop. RC uses
         # this barrier to collect dependent products before its first poll, and
@@ -193,6 +210,7 @@ class ProductManager:
                 if not product.enabled():
                     continue
                 product.stop(join=join)
+                self.unregister_subscribers(name)
                 log.debug("Stopped product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), False)
             except Exception:
@@ -267,6 +285,79 @@ class ProductManager:
         # Ordinary process
         else:
             self._do_products()
+
+    def register_subscribers(self, product_name: str) -> None:
+        """Register the subscribers returned by the product's optional ``subscribers()`` hook.
+
+        Registering a product whose subscribers are already registered does nothing, so a product
+        can request registration from every activation path.
+        """
+        if product_name in self._registered:
+            return
+
+        if (product := self._get_product(product_name)) is None:
+            return
+        if (subscribers := getattr(product, "subscribers", None)) is None:
+            return
+
+        registered: list[ProductSubscriber] = []
+        try:
+            for subscriber in subscribers():
+                subscriber.register()
+                registered.append(subscriber)
+        except Exception:
+            log.exception("Failed to register subscribers for product '%s'", product_name)
+        # Track partial registrations too, so unregister_subscribers() can clean them up. Products that
+        # returned no subscribers are not tracked, so a later call evaluates the product again.
+        if registered:
+            self._registered[product_name] = tuple(registered)
+
+    def unregister_subscribers(self, product_name: str) -> None:
+        """Unregister the subscribers registered for the product, if any."""
+        for subscriber in self._registered.pop(product_name, ()):
+            try:
+                subscriber.unregister()
+            except Exception:
+                log.exception("Failed to unregister subscribers for product '%s'", product_name)
+
+    def integration_patched(self, integration_name: str) -> None:
+        """Notify the products registered under the ddtrace.integration_hooks group that an integration
+        was patched, by calling their ``on_integration_patched(integration_name)``.
+
+        Patching does not go through the product lifecycle (e.g. a manual ``patch()`` call), so only the
+        products that opted in are imported, rather than every product.
+        """
+        for name, product in self._get_integration_hooks():
+            try:
+                product.on_integration_patched(integration_name)  # type: ignore[attr-defined]
+            except Exception:
+                log.exception("Product '%s' failed to handle integration '%s' patch", name, integration_name)
+
+    def _get_product(self, product_name: str) -> t.Optional[Product]:
+        if (product := self.__products__.get(product_name)) is not None:
+            return product
+        # The product lifecycle may not have run (e.g. a manual patch()), so load only this product.
+        for product_plugin in get_product_entry_points():
+            if product_plugin.name == product_name and is_trusted(product_plugin):
+                try:
+                    product = product_plugin.load()
+                except Exception:
+                    log.exception("Failed to load product plugin '%s'", product_name)
+                    return None
+                return product
+        return None
+
+    def _get_integration_hooks(self) -> list[tuple[str, Product]]:
+        if self._integration_hooks is None:
+            self._integration_hooks = []
+            for plugin in get_integration_hook_entry_points():
+                if not is_trusted(plugin):
+                    continue
+                try:
+                    self._integration_hooks.append((plugin.name, plugin.load()))
+                except Exception:
+                    log.exception("Failed to load integration hooks for product '%s'", plugin.name)
+        return self._integration_hooks
 
     def is_enabled(self, product_name: str) -> bool:
         if (product := self.__products__.get(product_name)) is None:

@@ -1,3 +1,5 @@
+import sys
+from types import ModuleType
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -12,6 +14,8 @@ class ProductManagerTest(ProductManager):
         self._products = None
         self.__products__ = products
         self._failed = failed
+        self._registered = {}
+        self._integration_hooks = None
 
 
 class BaseProduct(Product):
@@ -149,6 +153,8 @@ def test_product_manager_restart():
             self._products = None
             self.__products__ = products
             self._failed = failed
+            self._registered = {}
+            self._integration_hooks = None
 
     class BaseProduct(Product):
         requires = []
@@ -359,3 +365,149 @@ def test_product_manager_activated_failure_does_not_fail_product():
     assert broken.started and broken.post_started
     assert dependent.started and dependent.post_started
     telemetry_writer.product_activated.assert_called_once_with("dependent", True)
+
+
+class SubscribingProduct(BaseProduct):
+    def __init__(self, subscribers: list[MagicMock], activated: bool = True) -> None:
+        super().__init__()
+        self._subscribers = subscribers
+        self._activated = activated
+
+    def subscribers(self):
+        return self._subscribers
+
+    def activated(self) -> bool:
+        return self._activated
+
+
+def test_product_manager_registers_subscribers_once():
+    subscriber = MagicMock()
+    manager = ProductManagerTest({"foo": SubscribingProduct([subscriber])})
+
+    manager.register_subscribers("foo")
+    manager.register_subscribers("foo")
+    subscriber.register.assert_called_once_with()
+
+    manager.unregister_subscribers("foo")
+    manager.unregister_subscribers("foo")
+    subscriber.unregister.assert_called_once_with()
+
+
+def test_product_manager_registers_subscribers_of_activated_products():
+    active, inactive = MagicMock(), MagicMock()
+    manager = ProductManagerTest(
+        {
+            "active": SubscribingProduct([active]),
+            "inactive": SubscribingProduct([inactive], activated=False),
+        }
+    )
+
+    manager.start_products()
+    active.register.assert_called_once_with()
+    inactive.register.assert_not_called()
+
+    manager.stop_products()
+    active.unregister.assert_called_once_with()
+    inactive.unregister.assert_not_called()
+
+
+def test_product_manager_reevaluates_products_without_subscribers():
+    subscriber = MagicMock()
+    subscribers = []
+    manager = ProductManagerTest({"foo": SubscribingProduct(subscribers)})
+
+    manager.register_subscribers("foo")
+    subscribers.append(subscriber)
+    manager.register_subscribers("foo")
+
+    subscriber.register.assert_called_once_with()
+
+
+def test_product_manager_unregisters_partially_registered_subscribers():
+    registered, failing, skipped = MagicMock(), MagicMock(), MagicMock()
+    failing.register.side_effect = RuntimeError
+    manager = ProductManagerTest({"foo": SubscribingProduct([registered, failing, skipped])})
+
+    manager.register_subscribers("foo")
+    skipped.register.assert_not_called()
+
+    manager.unregister_subscribers("foo")
+    registered.unregister.assert_called_once_with()
+    failing.unregister.assert_not_called()
+
+
+def test_product_manager_ignores_products_without_subscribers_hook():
+    manager = ProductManagerTest({"foo": BaseProduct()})
+
+    manager.register_subscribers("foo")
+    manager.register_subscribers("unknown")
+
+    assert manager._registered == {}
+
+
+def test_product_manager_notifies_integration_hooks():
+    failing, hook = MagicMock(), MagicMock()
+    failing.on_integration_patched.side_effect = RuntimeError
+    manager = ProductManagerTest({})
+    entry_points = [MagicMock(load=MagicMock(return_value=failing)), MagicMock(load=MagicMock(return_value=hook))]
+
+    with (
+        patch("ddtrace.internal.products.get_integration_hook_entry_points", return_value=entry_points),
+        patch("ddtrace.internal.products.is_trusted", return_value=True),
+    ):
+        manager.integration_patched("flask")
+        manager.integration_patched("redis")
+
+    for entry_point in entry_points:
+        entry_point.load.assert_called_once_with()
+    failing.on_integration_patched.assert_called_with("redis")
+    assert [c.args for c in hook.on_integration_patched.call_args_list] == [("flask",), ("redis",)]
+
+
+def test_product_manager_loads_only_the_requested_product():
+    subscriber = MagicMock()
+    foo = MagicMock(load=MagicMock(return_value=SubscribingProduct([subscriber])))
+    foo.name = "foo"
+    bar = MagicMock()
+    bar.name = "bar"
+    manager = ProductManagerTest({})
+
+    with (
+        patch("ddtrace.internal.products.get_product_entry_points", return_value=[bar, foo]),
+        patch("ddtrace.internal.products.is_trusted", return_value=True),
+    ):
+        manager.register_subscribers("foo")
+
+    subscriber.register.assert_called_once_with()
+    bar.load.assert_not_called()
+
+
+def test_product_manager_skips_untrusted_products():
+    foo = MagicMock()
+    foo.name = "foo"
+    manager = ProductManagerTest({})
+
+    with (
+        patch("ddtrace.internal.products.get_product_entry_points", return_value=[foo]),
+        patch("ddtrace.internal.products.is_trusted", return_value=False),
+    ):
+        manager.register_subscribers("foo")
+
+    foo.load.assert_not_called()
+
+
+@pytest.mark.parametrize("patch_error", [None, RuntimeError("patch failed")])
+def test_patching_an_integration_notifies_products(monkeypatch, patch_error):
+    from ddtrace import _monkey
+
+    integration = ModuleType("fake_integration_patch")
+    integration.patch = MagicMock(side_effect=patch_error)
+    monkeypatch.setitem(sys.modules, "fake_integration_patch", integration)
+
+    with patch.object(_monkey.product_manager, "integration_patched") as integration_patched:
+        _monkey._on_import_factory("fake_integration", "%s_patch", raise_errors=False)(MagicMock())
+
+    if patch_error is None:
+        integration_patched.assert_called_once_with("fake_integration")
+    else:
+        integration_patched.assert_not_called()

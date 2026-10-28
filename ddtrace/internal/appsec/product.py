@@ -17,6 +17,24 @@ def activated() -> bool:
     return bool(config._asm_enabled)
 
 
+def subscribers() -> tuple[type, ...]:
+    if not config._ep_enabled:
+        return ()
+
+    # Operations monitored by Exploit Prevention.
+    from ddtrace.appsec._contrib.dbapi.subscribers import AppSecDbApiSubscriber
+    from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxRequestContextSubscriber
+    from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxSingleRequestContextSubscriber
+    from ddtrace.appsec._contrib.subprocess.subscribers import AppSecSubprocessCommandSubscriber
+
+    return (
+        AppSecDbApiSubscriber,
+        AppSecHttpxRequestContextSubscriber,
+        AppSecHttpxSingleRequestContextSubscriber,
+        AppSecSubprocessCommandSubscriber,
+    )
+
+
 def start() -> None:
     if config._asm_enabled or config._asm_can_be_enabled:
         # The product owns common-patch setup for both static and remote activation.
