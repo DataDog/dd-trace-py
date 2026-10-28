@@ -37,8 +37,11 @@ class SpanLinks
   public:
     static SpanLinks& get_instance()
     {
-        static SpanLinks instance;
-        return instance;
+        // Never destroyed: the sampling thread is detached and can still be running when uWSGI
+        // calls exit() and runs C++ static destructors, before Py_Finalize() stops the profiler.
+        // See Sampler::get().
+        static SpanLinks* const instance = new SpanLinks();
+        return *instance;
     }
 
     // Delete Copy constructor and assignment operator to prevent copies

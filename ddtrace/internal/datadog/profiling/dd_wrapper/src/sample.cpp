@@ -291,7 +291,9 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     std::string_view val_str = string_storage.insert(val);
-    const static std::string unit_str = "";
+    // A string literal, not a static std::string, so that exit() has nothing to destroy while the
+    // sampling thread may still be pushing labels. See Sampler::get().
+    constexpr std::string_view unit_str = "";
 
     // Otherwise, persist the val string and add the label
     labels.push_back({
@@ -301,7 +303,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
       .str = to_slice(val_str),
       .num = 0,
       // Do not intern this because it could be a memory leak if values are high-cardinality.
-      .num_unit = to_slice(unit_str.c_str()),
+      .num_unit = to_slice(unit_str),
     });
     return true;
 }

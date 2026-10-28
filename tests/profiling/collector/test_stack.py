@@ -606,6 +606,49 @@ def test_restarts_do_not_stack_thread_hooks() -> None:
     assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="uses the glibc __cxa_atexit exit-handler order")
+@pytest.mark.subprocess(err=None)
+def test_sampler_survives_native_exit_handlers() -> None:
+    """The sampler must not crash when C++ static destructors run while it is still sampling.
+
+    uWSGI calls exit() from C while Python is alive and only calls Py_Finalize() from an exit handler it
+    registered at startup. glibc runs exit handlers in reverse order of registration, so destructors of
+    profiler singletons created later run first, while the detached sampling thread is still running.
+    """
+    import ctypes
+    import threading
+    import time
+
+    libc = ctypes.CDLL(None)
+    EXIT_HANDLER = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+
+    def keep_sampling(_arg: object) -> None:
+        # Like uWSGI's Py_Finalize() handler, this runs after the profiler singletons' destructors.
+        time.sleep(0.5)
+
+    handler = EXIT_HANDLER(keep_sampling)
+    # Registered before the profiler starts, like uWSGI's handler.
+    libc.__cxa_atexit(handler, None, None)
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_sampler_survives_native_exit_handlers", version="my_version")
+    ddup.start()
+    stack.StackCollector().start()
+
+    def sleep_forever() -> None:
+        while True:
+            time.sleep(0.001)
+
+    for _ in range(16):
+        threading.Thread(target=sleep_forever, daemon=True).start()
+    time.sleep(0.5)
+
+    # Exit from C without stopping the profiler, as uWSGI does.
+    libc.exit(0)
+
+
 @pytest.mark.subprocess
 def test_restart_reinstalls_replaced_thread_hooks() -> None:
     import threading

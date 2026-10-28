@@ -51,6 +51,9 @@ class StackChunk
 
 // ----------------------------------------------------------------------------
 
-inline std::unique_ptr<StackChunk> stack_chunk = nullptr;
+// Never destroyed: the sampling thread is detached and can still be running when uWSGI
+// calls exit() and runs C++ static destructors, before Py_Finalize() stops the profiler.
+// See Sampler::get().
+inline std::unique_ptr<StackChunk>& stack_chunk = *new std::unique_ptr<StackChunk>();
 
 #endif // PY_VERSION_HEX >= 0x030b0000
