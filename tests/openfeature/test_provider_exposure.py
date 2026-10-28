@@ -262,6 +262,7 @@ class TestExposureReporting:
             mock_details_a.error_message = None
             mock_details_a.do_log = True  # Enable exposure logging
             mock_details_a.serial_id = None
+            mock_details_a.dependency_evaluations = []
             mock_resolve.return_value = mock_details_a
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -282,6 +283,7 @@ class TestExposureReporting:
             mock_details_b.error_message = None
             mock_details_b.do_log = True  # Enable exposure logging
             mock_details_b.serial_id = None
+            mock_details_b.dependency_evaluations = []
             mock_resolve.return_value = mock_details_b
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -302,6 +304,7 @@ class TestExposureReporting:
             mock_details_b2.error_message = None
             mock_details_b2.do_log = True  # Enable exposure logging
             mock_details_b2.serial_id = None
+            mock_details_b2.dependency_evaluations = []
             mock_resolve.return_value = mock_details_b2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -319,6 +322,7 @@ class TestExposureReporting:
             mock_details_a2.error_message = None
             mock_details_a2.do_log = True  # Enable exposure logging
             mock_details_a2.serial_id = None
+            mock_details_a2.dependency_evaluations = []
             mock_resolve.return_value = mock_details_a2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -366,6 +370,7 @@ class TestExposureReporting:
             mock_details.error_message = None
             mock_details.do_log = False  # Exposure logging disabled
             mock_details.serial_id = None
+            mock_details.dependency_evaluations = []
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("no-log-flag", False, evaluation_context)
@@ -397,6 +402,7 @@ class TestExposureReporting:
             mock_details.error_message = None
             mock_details.do_log = True  # Exposure logging enabled
             mock_details.serial_id = None
+            mock_details.dependency_evaluations = []
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("log-flag", False, evaluation_context)
