@@ -133,6 +133,24 @@ def test_extract_messages_keeps_partials_of_a_cut_off_response():
     ]
 
 
+def test_extract_messages_keeps_partials_before_a_tool_call_in_a_later_answered_run():
+    from google.adk.events import Event
+    from google.genai import types
+
+    tool_call_event = Event(
+        author="model",
+        content=types.Content(role="model", parts=[types.Part(function_call=types.FunctionCall(name="lookup"))]),
+    )
+    events = [
+        _adk_text_event("Checking.", partial=True),
+        tool_call_event,
+        _adk_text_event("Done.", partial=True),
+        _adk_text_event("Done."),
+    ]
+    messages = extract_messages_from_adk_events(events)
+    assert [m.get("content") for m in messages] == ["Checking.", None, "Done."]
+
+
 def test_extract_messages_skips_empty_parts():
     from google.adk.events import Event
     from google.genai import types
