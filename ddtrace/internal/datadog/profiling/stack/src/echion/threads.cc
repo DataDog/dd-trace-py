@@ -25,6 +25,12 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
     reset_cycle_state();
 
+    // Created before any frame is copied, so that keys created during this unwind are ignored. It reads the switch of
+    // the domain rendered on this thread: tasks when the thread has an asyncio loop, greenlets otherwise.
+    const Datadog::LogicalSpanReader spans(Datadog::SpanLinks::get_instance(),
+                                           asyncio_loop ? Datadog::SpanLinkDomain::AsyncioTask
+                                                        : Datadog::SpanLinkDomain::Greenlet);
+
     // Asyncio stitching needs the root-side event-loop boundary and overlap
     // metadata, so preserve Echion's existing discovery depth for task-aware
     // stacks. Non-task thread stacks can stop at the configured reporting limit.
@@ -39,12 +45,12 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(echion, tstate, wall_time_us);
+        (void)unwind_tasks(echion, tstate, wall_time_us, spans);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(echion, tstate, native_id, wall_time_us);
+        unwind_greenlets(echion, tstate, native_id, wall_time_us, spans);
     }
     return Result<void>::ok();
 }
@@ -140,7 +146,10 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
+ThreadInfo::unwind_tasks(EchionSampler& echion,
+                         PyThreadState* tstate,
+                         microsecond_t wall_time_us,
+                         const Datadog::LogicalSpanReader& spans)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
     const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
@@ -301,6 +310,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // Must match _task.task_object_address() so lock and stack samples correlate.
         auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
+        // The task's coroutine frames were copied into task_coro_stacks above.
+        stack_info->span = spans.read(task_id);
         auto& stack = stack_info->stack;
         if (leaf_task_idx > 0) {
             stack_info->walltime_ns = scaled_walltime_ns;
@@ -697,7 +708,8 @@ void
 ThreadInfo::unwind_greenlets(EchionSampler& echion,
                              PyThreadState* tstate,
                              unsigned long cur_native_id,
-                             microsecond_t wall_time_us)
+                             microsecond_t wall_time_us,
+                             const Datadog::LogicalSpanReader& spans)
 {
     std::vector<GreenletSnapshot> snapshots;
 
@@ -837,6 +849,9 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
             auto gc_frame = echion.use_gc_frame(on_cpu ? echion.current_gc_frame() : nullptr);
             temp.unwind(echion, snap.frame, tstate, stack);
         }
+        // Read after the greenlet's frames were copied, and outside greenlet_info_map_lock, so greenlet switches never
+        // wait for the span links mutex.
+        stack_info->span = spans.read(snap.greenlet_id);
 
         for (auto& [parent_name, parent_frame] : snap.parent_chain) {
             GreenletInfo parent_temp(0, parent_frame, parent_name);
@@ -887,8 +902,11 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(
-                  task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
+                renderer.render_task_begin(task_name,
+                                           task_stack_info->on_cpu,
+                                           task_stack_info->task_id,
+                                           task_stack_info->walltime_ns,
+                                           task_stack_info->span);
             });
 
             task_stack_info->stack.render(echion, TruncationStatus::Unknown);
@@ -898,8 +916,11 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(
-                  task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
+                renderer.render_task_begin(task_name,
+                                           greenlet_stack->on_cpu,
+                                           greenlet_stack->task_id,
+                                           greenlet_stack->walltime_ns,
+                                           greenlet_stack->span);
             });
 
             auto& stack = greenlet_stack->stack;

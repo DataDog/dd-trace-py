@@ -379,6 +379,26 @@ stack_span_links_close(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
+// Turns per-unit span attribution on or off for one logical domain, see SpanLinks::set_logical_attribution. The
+// Thread domain has no switch, so it is rejected.
+static PyObject*
+stack_set_logical_attribution(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int domain = 0;
+    int enabled = 0;
+    if (!PyArg_ParseTuple(args, "ip", &domain, &enabled)) {
+        return nullptr;
+    }
+    if (domain != static_cast<int>(SpanLinkDomain::AsyncioTask) &&
+        domain != static_cast<int>(SpanLinkDomain::Greenlet)) {
+        PyErr_Format(PyExc_ValueError, "invalid logical span link domain %d", domain);
+        return nullptr;
+    }
+
+    SpanLinks::get_instance().set_logical_attribution(static_cast<SpanLinkDomain>(domain), enabled != 0);
+    Py_RETURN_NONE;
+}
+
 // Test-only. Returns None for a missing key, otherwise (entry_or_none, birth). The thread domain uses the
 // PyThreadState thread id, which is threading.get_ident().
 static PyObject*
@@ -1294,6 +1314,10 @@ static PyMethodDef stack_methods[] = {
     { "clear_greenlet", stack_span_links_clear_greenlet, METH_VARARGS, "Remove the span link key of a greenlet" },
     { "links_open", stack_span_links_open, METH_NOARGS, "Clear span links and advance to an odd lifecycle token" },
     { "links_close", stack_span_links_close, METH_NOARGS, "Clear span links and advance to an even lifecycle token" },
+    { "set_logical_attribution",
+      stack_set_logical_attribution,
+      METH_VARARGS,
+      "Turn per-unit span attribution on or off for asyncio tasks or greenlets" },
     { "_span_link_entry", stack_span_link_entry, METH_VARARGS, "Test-only: return one span link key's entry" },
     { "link_origin_task",
       reinterpret_cast<PyCFunction>(stack_link_origin_task),

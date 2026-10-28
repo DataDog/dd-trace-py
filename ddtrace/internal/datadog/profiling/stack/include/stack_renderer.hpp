@@ -15,6 +15,7 @@
 #include <string_view>
 
 #include "dd_wrapper/include/sample.hpp"
+#include "span_links.hpp"
 
 #include "echion/frame.h"
 #include "echion/timing.h"
@@ -80,6 +81,13 @@ class StackRenderer
     SampleHandle sample;
     ThreadState thread_state = {};
 
+    // True while the current sample still needs its span and origin-task labels. They are pushed late, not in
+    // render_thread_begin, because the first task or greenlet sample of a thread reuses the sample that
+    // render_thread_begin started. Only render_task_begin knows whether that sample gets a span of its own.
+    bool span_labels_pending = false;
+    // Pushes span (if any) and the thread's origin-task labels to the current sample.
+    void push_span_labels(const std::optional<Span>& span);
+
     // Caches for interned strings and function IDs. These are used to avoid
     // re-interning the same strings and function IDs multiple times (even though libdatadog
     // deduplicates entries, keeping track of which items have been interned is faster than
@@ -94,10 +102,12 @@ class StackRenderer
                              microsecond_t wall_time_us,
                              uintptr_t thread_id,
                              unsigned long native_id);
+    // logical_span is the task's or greenlet's own span. When it is not attributed, the sample gets the thread's span.
     void render_task_begin(std::string_view task_name,
                            bool on_cpu,
                            uint64_t task_id,
-                           std::optional<int64_t> walltime_ns_override = std::nullopt);
+                           std::optional<int64_t> walltime_ns_override,
+                           const LogicalSpan& logical_span);
     void render_frame(Frame& frame);
     void mark_truncated();
     void render_gc_frame();
@@ -113,6 +123,9 @@ class StackRenderer
 
     // Clear caches after fork to avoid using stale interned string/function IDs
     void postfork_child();
+
+    // Reads the labels of the sample being built.
+    friend class StackRendererSpanLabels;
 };
 
 } // namespace Datadog

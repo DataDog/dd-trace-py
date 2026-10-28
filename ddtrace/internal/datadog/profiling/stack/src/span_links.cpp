@@ -252,6 +252,59 @@ SpanLinks::reset()
 }
 
 void
+SpanLinks::set_logical_attribution(SpanLinkDomain domain, bool enabled)
+{
+    switch (domain) {
+        case SpanLinkDomain::AsyncioTask:
+            asyncio_task_attribution.store(enabled, std::memory_order_relaxed);
+            break;
+        case SpanLinkDomain::Greenlet:
+            greenlet_attribution.store(enabled, std::memory_order_relaxed);
+            break;
+        case SpanLinkDomain::Thread:
+            break;
+    }
+}
+
+bool
+SpanLinks::logical_attribution(SpanLinkDomain domain) const
+{
+    switch (domain) {
+        case SpanLinkDomain::AsyncioTask:
+            return asyncio_task_attribution.load(std::memory_order_relaxed);
+        case SpanLinkDomain::Greenlet:
+            return greenlet_attribution.load(std::memory_order_relaxed);
+        case SpanLinkDomain::Thread:
+            break;
+    }
+    return false;
+}
+
+LogicalSpanReader::LogicalSpanReader(SpanLinks& span_links, SpanLinkDomain unit_domain)
+  : domain(unit_domain)
+{
+    if (span_links.logical_attribution(unit_domain)) {
+        links = &span_links;
+        birth_watermark = span_links.birth_watermark();
+    }
+}
+
+LogicalSpan
+LogicalSpanReader::read(uint64_t unit_id) const
+{
+    if (links == nullptr) {
+        return {};
+    }
+
+    LogicalSpan result{ true, std::nullopt };
+    const std::optional<SpanLinkEntry> entry = links->get_entry({ domain, unit_id });
+    if (entry.has_value() && entry->birth <= birth_watermark) {
+        result.span = entry->span;
+    }
+    return result;
+}
+
+void
 SpanLinks::postfork_child()
 {
     auto& instance = get_instance();

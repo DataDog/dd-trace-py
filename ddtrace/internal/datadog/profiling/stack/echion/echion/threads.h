@@ -127,8 +127,15 @@ class ThreadInfo
 
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
-    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
-    void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long, microsecond_t wall_time_us);
+    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&,
+                                            PyThreadState*,
+                                            microsecond_t wall_time_us,
+                                            const Datadog::LogicalSpanReader& spans);
+    void unwind_greenlets(EchionSampler&,
+                          PyThreadState*,
+                          unsigned long,
+                          microsecond_t wall_time_us,
+                          const Datadog::LogicalSpanReader& spans);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
     [[nodiscard]] Result<void> for_each_task_address(EchionSampler&,
                                                      PyThreadState* tstate,

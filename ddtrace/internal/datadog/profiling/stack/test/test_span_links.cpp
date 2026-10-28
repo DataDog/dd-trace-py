@@ -123,6 +123,8 @@ TEST(SpanLinks, FinishedSpanClearsOnlyItsOwnThreadKeys)
 
 namespace {
 
+using Datadog::LogicalSpan;
+using Datadog::LogicalSpanReader;
 using Datadog::run_locked;
 using Datadog::Span;
 using Datadog::SpanLinkDomain;
@@ -556,6 +558,117 @@ TEST(SpanLinksKeyed, WritersAfterCloseNeverLand)
             ASSERT_FALSE(links.holds_span(id));
         }
     }
+}
+
+TEST(LogicalAttribution, SwitchesAreOffByDefaultAndSurviveTheLifecycle)
+{
+    auto& links = SpanLinks::get_instance();
+    EXPECT_FALSE(links.logical_attribution(SpanLinkDomain::AsyncioTask));
+    EXPECT_FALSE(links.logical_attribution(SpanLinkDomain::Greenlet));
+    EXPECT_FALSE(links.logical_attribution(SpanLinkDomain::Thread));
+
+    links.set_logical_attribution(SpanLinkDomain::AsyncioTask, true);
+    EXPECT_TRUE(links.logical_attribution(SpanLinkDomain::AsyncioTask));
+    EXPECT_FALSE(links.logical_attribution(SpanLinkDomain::Greenlet));
+
+    links.set_logical_attribution(SpanLinkDomain::Greenlet, true);
+    links.set_logical_attribution(SpanLinkDomain::Thread, true);
+    EXPECT_FALSE(links.logical_attribution(SpanLinkDomain::Thread));
+
+    fresh_lifecycle(links);
+    links.close();
+    EXPECT_TRUE(links.logical_attribution(SpanLinkDomain::AsyncioTask));
+    EXPECT_TRUE(links.logical_attribution(SpanLinkDomain::Greenlet));
+
+    links.set_logical_attribution(SpanLinkDomain::AsyncioTask, false);
+    links.set_logical_attribution(SpanLinkDomain::Greenlet, false);
+    EXPECT_FALSE(links.logical_attribution(SpanLinkDomain::AsyncioTask));
+    EXPECT_FALSE(links.logical_attribution(SpanLinkDomain::Greenlet));
+}
+
+TEST(LogicalAttribution, SwitchOffReadsNothing)
+{
+    auto& links = SpanLinks::get_instance();
+    const uint64_t token = fresh_lifecycle(links);
+    links.link(token, std::nullopt, 1, 1, span_link(10));
+
+    for (const auto domain : { SpanLinkDomain::AsyncioTask, SpanLinkDomain::Greenlet }) {
+        const LogicalSpan found = LogicalSpanReader(links, domain).read(1);
+        EXPECT_FALSE(found.attributed);
+        EXPECT_EQ(found.span, std::nullopt);
+    }
+
+    links.close();
+}
+
+TEST(LogicalAttribution, ReadsOnlyItsOwnDomain)
+{
+    auto& links = SpanLinks::get_instance();
+    const uint64_t token = fresh_lifecycle(links);
+    links.set_logical_attribution(SpanLinkDomain::AsyncioTask, true);
+    links.set_logical_attribution(SpanLinkDomain::Greenlet, true);
+
+    links.link(token, 1, 2, 3, span_link(10));
+    links.link(token, std::nullopt, 0, 4, span_link(11));
+    const LogicalSpanReader tasks(links, SpanLinkDomain::AsyncioTask);
+    const LogicalSpanReader greenlets(links, SpanLinkDomain::Greenlet);
+
+    EXPECT_EQ(tasks.read(2).span, span_link(10));
+    EXPECT_EQ(greenlets.read(3).span, span_link(10));
+    EXPECT_EQ(greenlets.read(4).span, span_link(11));
+    // The thread key and the other domain's keys are not this domain's units. A missing key means no span, never the
+    // thread's span.
+    for (const LogicalSpan& found :
+         { tasks.read(1), tasks.read(3), tasks.read(4), greenlets.read(1), greenlets.read(2) }) {
+        EXPECT_TRUE(found.attributed);
+        EXPECT_EQ(found.span, std::nullopt);
+    }
+
+    links.set_logical_attribution(SpanLinkDomain::AsyncioTask, false);
+    links.set_logical_attribution(SpanLinkDomain::Greenlet, false);
+    links.close();
+}
+
+// Test 40: the sampler ignores keys born after it read the watermark.
+TEST(LogicalAttribution, IgnoresKeysBornAfterTheReaderWasCreated)
+{
+    auto& links = SpanLinks::get_instance();
+    const uint64_t token = fresh_lifecycle(links);
+    links.set_logical_attribution(SpanLinkDomain::AsyncioTask, true);
+
+    // Task 1 exists before the unwind starts. Task 2's key is a tombstone. Task 3's key is created during the unwind.
+    links.link(token, std::nullopt, 1, 0, span_link(10));
+    links.link(token, std::nullopt, 2, 0, span_link(20));
+    links.link(token, std::nullopt, 2, 0, std::nullopt);
+    const LogicalSpanReader reader(links, SpanLinkDomain::AsyncioTask);
+    links.link(token, std::nullopt, 3, 0, span_link(30));
+
+    EXPECT_EQ(reader.read(1).span, span_link(10));
+    EXPECT_EQ(reader.read(2).span, std::nullopt);
+    EXPECT_EQ(reader.read(3).span, std::nullopt);
+    EXPECT_TRUE(reader.read(3).attributed);
+
+    // Writes during the unwind keep a key's birth, so an existing key is read with its current value. That includes a
+    // tombstone getting a span again.
+    links.link(token, std::nullopt, 1, 0, span_link(11));
+    links.link(token, std::nullopt, 2, 0, span_link(21));
+    EXPECT_EQ(reader.read(1).span, span_link(11));
+    EXPECT_EQ(reader.read(2).span, span_link(21));
+    links.retarget(token, 11, span_link(12));
+    EXPECT_EQ(reader.read(1).span, span_link(12));
+
+    // The address is reused: task 1's key is removed and a new task at the same address links a span.
+    links.clear(task_key(1));
+    links.link(token, std::nullopt, 1, 0, span_link(13));
+    EXPECT_EQ(reader.read(1).span, std::nullopt);
+
+    // The next unwind sees the new keys.
+    const LogicalSpanReader next(links, SpanLinkDomain::AsyncioTask);
+    EXPECT_EQ(next.read(1).span, span_link(13));
+    EXPECT_EQ(next.read(3).span, span_link(30));
+
+    links.set_logical_attribution(SpanLinkDomain::AsyncioTask, false);
+    links.close();
 }
 
 int

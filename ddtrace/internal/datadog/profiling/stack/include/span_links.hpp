@@ -110,6 +110,17 @@ struct SpanLinkEntry
     bool operator==(const SpanLinkEntry& other) const { return span == other.span && birth == other.birth; }
 };
 
+// The span labels of one task or greenlet sample, as the sampler read them for it.
+struct LogicalSpan
+{
+    // False while the domain's set_logical_attribution switch is off. The sample then gets its thread's span, as it
+    // did before tasks and greenlets had keys of their own.
+    bool attributed = false;
+    // When attributed is true, the unit's own span. Empty means the sample gets no span at all. It never falls back to
+    // the thread's span, because that span may belong to another task or greenlet running on the same thread.
+    std::optional<Span> span;
+};
+
 // Runs fn under mtx. If mtx is free, fn runs right away and on_contention is never called. If mtx is held,
 // on_contention gets a function that blocks on mtx, runs fn and releases mtx before returning.
 //
@@ -274,6 +285,16 @@ class SpanLinks
     // be in flight.
     static void postfork_child();
 
+    // Logical attribution labels a task or greenlet sample with the span of that task or greenlet (its own key),
+    // instead of the span of the thread it ran on. There is one switch for AsyncioTask and one for Greenlet, both off
+    // by default. While a domain's switch is off, the sampler labels its task or greenlet samples with the thread's
+    // span, as before. Once it is on, those samples get only their own key's span, or no span. The switches exist so
+    // that the sampler can learn to read task and greenlet keys before anything writes them: with a switch on and no
+    // writer, those samples would lose the thread span they get today. They live outside the maps, so open, close and
+    // postfork_child leave them alone. The Thread domain has no switch, and setting it does nothing.
+    void set_logical_attribution(SpanLinkDomain domain, bool enabled);
+    bool logical_attribution(SpanLinkDomain domain) const;
+
   private:
     using KeySet = std::unordered_set<SpanLinkKey, SpanLinkKeyHash>;
     using KeyToEntry = std::unordered_map<SpanLinkKey, SpanLinkEntry, SpanLinkKeyHash>;
@@ -314,9 +335,32 @@ class SpanLinks
     std::atomic<uint64_t> lifecycle_token{ 0 };
     std::atomic<uint64_t> birth_counter{ 0 };
 
+    std::atomic<bool> asyncio_task_attribution{ false };
+    std::atomic<bool> greenlet_attribution{ false };
+
     // Private Constructor/Destructor
     SpanLinks() = default;
     ~SpanLinks() = default;
+};
+
+// Reads the span of each task or greenlet the sampler renders on one thread. Create one right before unwinding the
+// thread, then call read() for each unit after its frames have been copied.
+//
+// Creating it reads the domain's switch and birth_watermark(), once for the whole thread. read() ignores a key whose
+// birth is larger: that key was created during the unwind, maybe for a new object at the address of a unit whose
+// frames were already copied (see SpanLinkEntry::birth).
+class LogicalSpanReader
+{
+  public:
+    LogicalSpanReader(SpanLinks& span_links, SpanLinkDomain unit_domain);
+
+    LogicalSpan read(uint64_t unit_id) const;
+
+  private:
+    // Null when the domain's switch was off. read() then returns a LogicalSpan that is not attributed.
+    SpanLinks* links = nullptr;
+    SpanLinkDomain domain = SpanLinkDomain::Thread;
+    uint64_t birth_watermark = 0;
 };
 
 }
