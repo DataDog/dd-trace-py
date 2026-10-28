@@ -874,6 +874,7 @@ Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
             if (it->second->native_id == native_id) {
                 (*maybe_thread_info)->asyncio_loop = it->second->asyncio_loop;
                 (*maybe_thread_info)->using_uvloop = it->second->using_uvloop;
+                (*maybe_thread_info)->running_asyncio_loop = it->second->running_asyncio_loop;
             }
             it->second = std::move(*maybe_thread_info);
         } else {
@@ -1008,6 +1009,50 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
     if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
         it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
+}
+
+bool
+Sampler::enter_running_loop(uintptr_t thread_id, uintptr_t loop, bool unowned, const OnLockContention& on_contention)
+{
+    bool entered = false;
+    run_locked(
+      echion->thread_info_map_lock(),
+      [&] {
+          if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
+              entered = it->second->enter_running_loop(loop, unowned);
+          }
+      },
+      on_contention);
+    return entered;
+}
+
+void
+Sampler::exit_running_loop(uintptr_t thread_id, uintptr_t loop, const OnLockContention& on_contention)
+{
+    run_locked(
+      echion->thread_info_map_lock(),
+      [&] {
+          if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
+              it->second->exit_running_loop(loop);
+          }
+      },
+      on_contention);
+}
+
+std::optional<AsyncioLoopSlots>
+Sampler::asyncio_loop_slots(uintptr_t thread_id)
+{
+    const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    auto it = echion->thread_info_map().find(thread_id);
+    if (it == echion->thread_info_map().end()) {
+        return std::nullopt;
+    }
+    const ThreadInfo& thread = *it->second;
+    return AsyncioLoopSlots{ thread.asyncio_loop,
+                             thread.using_uvloop,
+                             thread.running_asyncio_loop,
+                             thread.effective_loop(),
+                             thread.effective_uvloop() };
 }
 
 void

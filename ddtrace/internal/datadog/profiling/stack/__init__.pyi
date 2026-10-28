@@ -131,6 +131,20 @@ def unregister_thread(python_thread_id: int) -> None: ...
 
 # Asyncio support
 def track_asyncio_loop(thread_id: int, loop: Optional[asyncio.AbstractEventLoop]) -> None: ...
+def enter_running_loop(thread_id: int, loop: asyncio.AbstractEventLoop, unowned: bool = False, /) -> bool:
+    """Set the running loop of a registered thread. Only pass plain asyncio loops (BaseEventLoop), not uvloop.
+
+    The sampler renders the tasks of the running loop when one is set, otherwise those of the configured loop that
+    track_asyncio_loop sets. An owned call (unowned=False) always replaces the slot. An unowned call, made when the
+    profiler starts inside a loop that is already running, only fills an empty slot. Returns whether the slot was
+    set. Does nothing and returns False for an unregistered thread.
+    """
+    ...
+
+def exit_running_loop(thread_id: int, loop: asyncio.AbstractEventLoop, /) -> None:
+    """Clear the running loop of a registered thread if it still holds loop."""
+    ...
+
 def link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
 def weak_link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
 def init_asyncio(

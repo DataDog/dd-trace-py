@@ -56,9 +56,50 @@ class ThreadInfo
 #endif
     microsecond_t cpu_time = 0;
 
+    // The configured loop: the one set with set_event_loop, created by uvloop.new_event_loop, or attached when the
+    // profiler started inside a loop that cannot use the running-loop slot (any loop before Python 3.13, uvloop, or a
+    // loop class that overrides run_forever).
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
     bool using_uvloop = false; // Whether this thread is using uvloop instead of asyncio
+
+    // The running loop: the plain asyncio loop (a BaseEventLoop) whose run_forever is running on this thread right
+    // now, or 0. Python hooks on run_forever set and clear it, and on Python 3.13+ so does a profiler start inside a
+    // running loop. It exists because a loop can run without ever being configured, for example with
+    // asyncio.Runner(loop_factory=...) or a bare loop.run_until_complete(), and because set_event_loop(B) while loop A
+    // runs must not make the sampler read B. uvloop loops never go here, so a running loop always uses plain asyncio
+    // unwinding.
+    uintptr_t running_asyncio_loop = 0;
+
+    // Sets the running loop. An owned call comes from a run_forever hook that has already checked that no loop runs
+    // on this thread, so any existing value is stale and is replaced. An unowned call comes from the profiler
+    // starting inside a loop that is already running: it fills an empty slot only, so it never replaces the loop
+    // that a hook registered. Returns whether the slot was set.
+    bool enter_running_loop(uintptr_t loop, bool unowned) noexcept
+    {
+        if (unowned && running_asyncio_loop != 0) {
+            return false;
+        }
+        running_asyncio_loop = loop;
+        return true;
+    }
+
+    // Clears the running loop if it still holds loop. Example: if loop B replaced A, exiting A leaves B in place.
+    void exit_running_loop(uintptr_t loop) noexcept
+    {
+        if (running_asyncio_loop == loop) {
+            running_asyncio_loop = 0;
+        }
+    }
+
+    // The loop and uvloop mode that the sampler uses for this thread: the running loop if one is set, otherwise the
+    // configured loop. The sampler holds thread_info_map_lock for a whole unwind, and the setters take the same lock,
+    // so every read during one unwind sees the same values.
+    [[nodiscard]] uintptr_t effective_loop() const noexcept
+    {
+        return running_asyncio_loop != 0 ? running_asyncio_loop : asyncio_loop;
+    }
+    [[nodiscard]] bool effective_uvloop() const noexcept { return running_asyncio_loop != 0 ? false : using_uvloop; }
 
     [[nodiscard]] Result<void> update_cpu_time();
 

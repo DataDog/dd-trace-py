@@ -143,9 +143,97 @@ def link_existing_loop_to_current_thread() -> None:
         # No existing loop to track, nothing to do
         return
 
-    # We have a running loop, track it
-    stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), running_loop)
+    thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+    if (
+        sys.version_info >= (3, 13)
+        and isinstance(running_loop, asyncio.BaseEventLoop)
+        and type(running_loop).run_forever is asyncio.BaseEventLoop.run_forever
+    ):
+        # The loop may have started before our run_forever hooks existed, or before this thread was registered, so
+        # no hook recorded it. BaseEventLoop.run_forever calls _run_forever_cleanup by name, so our cleanup hook still
+        # runs when it stops and clears this entry. A subclass that overrides run_forever may never call cleanup, so
+        # it takes the configured-slot path below instead. The call is unowned: it does not replace a running loop
+        # that a hook already recorded. The configured loop is left as is, so a loop set with set_event_loop keeps it.
+        stack.enter_running_loop(thread_id, running_loop, True)
+    else:
+        # Before 3.13, the running run_forever frame may have started before our hook existed, and we cannot tell, so
+        # nothing is guaranteed to clear a running-loop entry when the loop stops. uvloop and other loops never use
+        # the running-loop slot. So these loops go into the configured slot, as set_event_loop would do.
+        uvloop_module: typing.Optional[ModuleType] = sys.modules.get("uvloop")
+        if (
+            config.stack.uvloop  # pyright: ignore[reportAttributeAccessIssue]
+            and uvloop_module is not None
+            and isinstance(running_loop, uvloop_module.Loop)
+        ):
+            # Turning uvloop support off (DD_PROFILING_STACK_UVLOOP=false) also turns off uvloop unwinding here.
+            stack.set_uvloop_mode(thread_id, True)
+        stack.track_asyncio_loop(thread_id, running_loop)
     _call_init_asyncio(asyncio)
+
+
+def _install_running_loop_hooks(asyncio: ModuleType) -> None:
+    """Record, in the native thread record, which plain asyncio loop is running on the thread right now.
+
+    The sampler renders the tasks of a thread's loop. The configured loop (set by set_event_loop or
+    uvloop.new_event_loop) misses loops that run without being set, for example asyncio.Runner(loop_factory=...) or a
+    bare loop.run_until_complete(). So the hooks below fill a separate running-loop slot while a BaseEventLoop runs.
+
+    The hooks never check whether profiling is running. Thread records outlive a profiler stop, so an exit skipped
+    while stopped would leave a stale entry behind.
+    """
+    base_event_loop: type[typing.Any] = asyncio.base_events.BaseEventLoop
+
+    if sys.version_info >= (3, 13):
+        # run_forever calls these two methods by name, and custom loops (for example GUI integrations) may call them
+        # without run_forever. Setup raises before it changes anything when the loop is closed or a loop already
+        # runs on the thread, and run_forever skips cleanup when setup raised. So registering after a successful
+        # setup and clearing before cleanup only ever touches a loop that really runs.
+
+        @partial(wrap, base_event_loop._run_forever_setup)
+        def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
+            result = f(*args, **kwargs)
+            try:
+                stack.enter_running_loop(typing.cast(int, ddtrace_threading.current_thread().ident), args[0])
+            except Exception:  # nosec B110 -- a profiler failure must not change application behavior
+                pass
+            return result
+
+        @partial(wrap, base_event_loop._run_forever_cleanup)
+        def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
+            try:
+                stack.exit_running_loop(typing.cast(int, ddtrace_threading.current_thread().ident), args[0])
+            except Exception:  # nosec B110 -- a profiler failure must not change application behavior
+                pass
+            return f(*args, **kwargs)
+
+    else:
+
+        @partial(wrap, base_event_loop.run_forever)
+        def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
+            loop: typing.Any = args[0]
+            thread_id: int = 0
+            outermost_run = False
+            try:
+                thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+                # run_forever raises when the loop is closed, already running, or when another loop runs on this
+                # thread (a nested run). Such a call must not touch the slot of the loop that does run. When the
+                # check passes, this is the outermost run on the thread, so clearing on exit is always right, even
+                # if the thread was not registered yet when it started.
+                outermost_run = (
+                    not loop.is_closed() and not loop.is_running() and asyncio.events._get_running_loop() is None
+                )
+                if outermost_run:
+                    stack.enter_running_loop(thread_id, loop)
+            except Exception:  # nosec B110 -- a profiler failure must not change application behavior
+                pass
+            try:
+                return f(*args, **kwargs)
+            finally:
+                if outermost_run:
+                    try:
+                        stack.exit_running_loop(thread_id, loop)
+                    except Exception:  # nosec B110 -- a profiler failure must not change application behavior
+                        pass
 
 
 @ModuleWatchdog.after_module_imported("asyncio")
@@ -194,6 +282,7 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
     if init_stack:
+        _install_running_loop_hooks(asyncio)
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:

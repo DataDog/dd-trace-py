@@ -179,7 +179,9 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 // Keyed span link operations. They are called with the GIL held, and keep holding it while SpanLinks' mutex is free.
 // Only when the mutex is contended, by the sampling thread or by another writer that already released the GIL, do
 // they release the GIL, block on the mutex, do the work and release the mutex before re-acquiring the GIL. Neither
-// kind of holder needs the GIL while it holds the mutex, so this cannot deadlock.
+// kind of holder needs the GIL while it holds the mutex, so this cannot deadlock. The running-loop bindings
+// (enter_running_loop, exit_running_loop) use the same two helpers for thread_info_map_lock, which follows this rule
+// too.
 namespace {
 
 struct ReleaseGilOnContention
@@ -506,6 +508,73 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_enter_running_loop(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long thread_id = 0;
+    PyObject* loop = nullptr;
+    int unowned = 0;
+    if (!PyArg_ParseTuple(args, "kO|p", &thread_id, &loop, &unowned)) {
+        return nullptr;
+    }
+
+    bool entered = false;
+    if (!run_span_links_op([&] {
+            entered = Sampler::get().enter_running_loop(
+              thread_id, reinterpret_cast<uintptr_t>(loop), unowned != 0, ReleaseGilOnContention{});
+        })) {
+        return nullptr;
+    }
+    return PyBool_FromLong(entered ? 1 : 0);
+}
+
+static PyObject*
+stack_exit_running_loop(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long thread_id = 0;
+    PyObject* loop = nullptr;
+    if (!PyArg_ParseTuple(args, "kO", &thread_id, &loop)) {
+        return nullptr;
+    }
+
+    if (!run_span_links_op([&] {
+            Sampler::get().exit_running_loop(thread_id, reinterpret_cast<uintptr_t>(loop), ReleaseGilOnContention{});
+        })) {
+        return nullptr;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_asyncio_loop_slots(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long thread_id = 0;
+    if (!PyArg_ParseTuple(args, "k", &thread_id)) {
+        return nullptr;
+    }
+
+    std::optional<AsyncioLoopSlots> slots;
+    Py_BEGIN_ALLOW_THREADS;
+    slots = Sampler::get().asyncio_loop_slots(thread_id);
+    Py_END_ALLOW_THREADS;
+
+    if (!slots.has_value()) {
+        Py_RETURN_NONE;
+    }
+    const AsyncioLoopSlots& value = slots.value();
+    return Py_BuildValue("{s:K,s:O,s:K,s:K,s:O}",
+                         "configured_loop",
+                         static_cast<unsigned long long>(value.configured_loop),
+                         "using_uvloop",
+                         value.using_uvloop ? Py_True : Py_False,
+                         "running_loop",
+                         static_cast<unsigned long long>(value.running_loop),
+                         "effective_loop",
+                         static_cast<unsigned long long>(value.effective_loop),
+                         "effective_uvloop",
+                         value.effective_uvloop ? Py_True : Py_False);
 }
 
 static PyObject*
@@ -1329,6 +1398,18 @@ static PyMethodDef stack_methods[] = {
       "Clear the originating asyncio task for the current (executor worker) thread" },
     // asyncio task support
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
+    { "enter_running_loop",
+      stack_enter_running_loop,
+      METH_VARARGS,
+      "Set the asyncio loop running on a thread; return whether it was set" },
+    { "exit_running_loop",
+      stack_exit_running_loop,
+      METH_VARARGS,
+      "Clear the asyncio loop running on a thread if it is still the given loop" },
+    { "_asyncio_loop_slots",
+      stack_asyncio_loop_slots,
+      METH_VARARGS,
+      "Test-only: return the asyncio loop fields of a registered thread, or None" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },

@@ -153,6 +153,90 @@ def test_asyncio_task_samples_use_the_thread_span_until_the_task_switch_is_on() 
     )
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_logical_attribution_unconfigured_loop",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+    timeout=60,
+)
+def test_asyncio_task_on_a_loop_never_passed_to_set_event_loop_is_attributed() -> None:
+    """The sampler picks the task domain from the loop it actually reads, not only from the configured loop.
+
+    A loop made with new_event_loop and run with run_until_complete is never passed to set_event_loop, so the thread's
+    configured loop stays empty and only the running-loop slot holds it. Its tasks must still be read as task samples
+    with the AsyncioTask switch on: the linked task gets its own span and the unlinked task gets no span. If the domain
+    came from the configured loop, the sampler would read the Greenlet switch, which is off, and both tasks would get
+    the thread's span.
+    """
+    import asyncio
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack_logical_attribution import THREAD_SPAN_ID
+    from tests.profiling.collector.test_stack_logical_attribution import THREAD_TRACE_TYPE
+    from tests.profiling.collector.test_stack_logical_attribution import UNIT_SPAN_ID
+    from tests.profiling.collector.test_stack_logical_attribution import UNIT_TRACE_TYPE
+    from tests.profiling.collector.test_stack_logical_attribution import assert_unit_span_labels
+
+    thread_span = (THREAD_SPAN_ID, 1000, THREAD_TRACE_TYPE, _stack.SPAN_LINK_KIND_SPAN)
+    unit_span = (UNIT_SPAN_ID, 2000, UNIT_TRACE_TYPE, _stack.SPAN_LINK_KIND_SPAN)
+
+    stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_ASYNCIO_TASK, True)
+
+    def busy() -> None:
+        deadline = time.thread_time_ns() + 300_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    def linked_task_work() -> None:
+        busy()
+
+    def unlinked_task_work() -> None:
+        busy()
+
+    async def linked_task() -> None:
+        stack.link(stack.lifecycle(), False, id(asyncio.current_task()), 0, unit_span)
+        linked_task_work()
+
+    async def unlinked_task() -> None:
+        unlinked_task_work()
+
+    async def main() -> None:
+        # The case under test: the loop is only in the running-loop slot, never in the configured slot.
+        slots = _stack._asyncio_loop_slots(threading.get_ident())
+        assert slots is not None
+        assert slots["configured_loop"] == 0, slots
+        assert slots["running_loop"] == id(asyncio.get_running_loop()), slots
+        stack.link(stack.lifecycle(), True, 0, 0, thread_span)
+        loop = asyncio.get_running_loop()
+        await asyncio.gather(loop.create_task(linked_task()), loop.create_task(unlinked_task()))
+
+    p = profiler.Profiler()
+    p.start()
+    # Nothing in the profiler opens the keyed span links yet, so the test opens them for its own writes.
+    stack.links_open()
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(main())
+    loop.close()
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert_unit_span_labels(
+        profile,
+        pprof_utils.get_samples_with_function(profile, wall_samples, "linked_task_work"),
+        pprof_utils.get_samples_with_function(profile, wall_samples, "unlinked_task_work"),
+        attributed=True,
+    )
+
+
 @pytest.mark.skipif(
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",

@@ -26,15 +26,16 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     reset_cycle_state();
 
     // Created before any frame is copied, so that keys created during this unwind are ignored. It reads the switch of
-    // the domain rendered on this thread: tasks when the thread has an asyncio loop, greenlets otherwise.
+    // the domain rendered on this thread: tasks when the thread has an asyncio loop, greenlets otherwise. The loop is
+    // effective_loop(), so a loop that runs without set_event_loop also counts.
     const Datadog::LogicalSpanReader spans(Datadog::SpanLinks::get_instance(),
-                                           asyncio_loop ? Datadog::SpanLinkDomain::AsyncioTask
-                                                        : Datadog::SpanLinkDomain::Greenlet);
+                                           effective_loop() ? Datadog::SpanLinkDomain::AsyncioTask
+                                                            : Datadog::SpanLinkDomain::Greenlet);
 
     // Asyncio stitching needs the root-side event-loop boundary and overlap
     // metadata, so preserve Echion's existing discovery depth for task-aware
     // stacks. Non-task thread stacks can stop at the configured reporting limit.
-    const size_t max_frames = asyncio_loop ? MAX_STACK_UNWIND_SAFETY_LIMIT : echion.stack_max_frames();
+    const size_t max_frames = effective_loop() ? MAX_STACK_UNWIND_SAFETY_LIMIT : echion.stack_max_frames();
     python_stack_unwind_result = UnwindResult::Unknown();
     auto frame_unwind_result = unwind_python_stack(echion, tstate, python_stack, max_frames);
     if (!frame_unwind_result) {
@@ -42,7 +43,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     }
     python_stack_unwind_result = *frame_unwind_result;
 
-    if (asyncio_loop) {
+    if (effective_loop()) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
         (void)unwind_tasks(echion, tstate, wall_time_us, spans);
@@ -72,7 +73,7 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
     auto& asyncio_boundary_frame = echion.asyncio_boundary_frame();
     auto& uvloop_boundary_frame = echion.uvloop_boundary_frame();
 
-    auto& boundary_frame = using_uvloop ? uvloop_boundary_frame : asyncio_boundary_frame;
+    auto& boundary_frame = effective_uvloop() ? uvloop_boundary_frame : asyncio_boundary_frame;
 
     for (size_t i = 0; i < python_stack.size(); i++) {
         const auto& frame = python_stack[i];
@@ -88,7 +89,7 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
             }
             const auto& frame_name = maybe_frame_name->get();
 
-            if (using_uvloop) {
+            if (effective_uvloop()) {
                 // For uvloop, the boundary frame depends on the Python version:
                 // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
                 // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
@@ -252,7 +253,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion,
     std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         FrameStack task_stack;
-        task->unwind(echion, task_stack, using_uvloop);
+        task->unwind(echion, task_stack, effective_uvloop());
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
@@ -365,7 +366,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion,
                     auto python_frame = python_stack[i];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
-                    if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
+                    if (is_uvloop_wrapper_frame(echion, effective_uvloop(), python_frame)) {
                         continue;
                     }
                     if (!leaf_owns_gc_marker) {
@@ -450,7 +451,7 @@ Result<void>
 ThreadInfo::for_each_task_address_from_thread_list(EchionSampler& echion, const TaskAddressCallback& callback)
 {
     const size_t tasks_head_offset = echion.asyncio_thread_tasks_head_offset();
-    if (this->tstate_addr == 0 || this->asyncio_loop == 0 || tasks_head_offset == 0 ||
+    if (this->tstate_addr == 0 || this->effective_loop() == 0 || tasks_head_offset == 0 ||
         tasks_head_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
         return Result<void>::ok();
     }
@@ -478,7 +479,7 @@ ThreadInfo::for_each_task_address_from_interpreter_list(EchionSampler& echion,
                                                         const TaskAddressCallback& callback)
 {
     const size_t tasks_head_offset = echion.asyncio_interpreter_tasks_head_offset();
-    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0 || tasks_head_offset == 0) {
+    if (tstate == nullptr || tstate->interp == nullptr || this->effective_loop() == 0 || tasks_head_offset == 0) {
         return Result<void>::ok();
     }
 
@@ -557,7 +558,7 @@ ThreadInfo::get_task_addresses_from_linked_list(uintptr_t head_addr)
 Result<void>
 ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, const TaskAddressCallback& callback)
 {
-    if (this->asyncio_loop == 0)
+    if (this->effective_loop() == 0)
         return Result<void>::ok();
 
     // Python 3.14+ task discovery combines four sources:
@@ -625,7 +626,7 @@ ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, 
 Result<void>
 ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState*, const TaskAddressCallback& callback)
 {
-    if (this->asyncio_loop == 0)
+    if (this->effective_loop() == 0)
         return Result<void>::ok();
 
     auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
@@ -684,7 +685,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     std::vector<TaskInfo::Ptr> tasks;
     auto result = for_each_task_address(echion, tstate, [&](TaskObj* task_addr) -> Result<void> {
         auto maybe_task_info = TaskInfo::create(echion, task_addr);
-        if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
+        if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->effective_loop()) {
             tasks.push_back(std::move(*maybe_task_info));
         }
         // Individual unreadable Tasks are expected in a lock-free snapshot and remain best effort.
