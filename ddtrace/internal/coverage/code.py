@@ -580,7 +580,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
     def _register_import_time_name(self, name: str, module_file: str) -> None:
         """Register a module name to file mapping for dependency resolution."""
-        self._import_time_name_to_path.setdefault(name, module_file)
+        if name not in self._import_time_name_to_path:
+            self._import_time_name_to_path[name] = module_file
+            self._invalidate_import_metadata()
 
     def _is_instrumentable_path(self, code_path: Path) -> bool:
         if _is_site_packages_path(code_path):

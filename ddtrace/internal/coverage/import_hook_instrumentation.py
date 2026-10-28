@@ -21,12 +21,11 @@ For each executed import statement, the wrapper records through the collector's 
 - import dependency edges (importing file -> imported names) in the collector's name
   graph, mirroring what the bytecode-injected import hooks record in instrumented modes
 
-Known blind spots, by design: modules imported through `importlib` machinery
-(`importlib.import_module` bypasses `builtins.__import__`) never record edges; their
-own files are still recorded at transform/after_import time by the collector. Files whose
-code executes during a test without any import statement executing from a tracked file
-and outside the import-time closure are not attributed (measured in practice to be test
-harness files, e.g. conftest).
+`importlib.import_module` is wrapped separately to record dynamic imports and cache
+hits. References to it captured before installation bypass the wrapper: first loads
+are still seen by the module watchdog, but cache hits and caller edges are invisible.
+Code that executes without importing anything, outside the anchored import closure,
+is not observable. See poc/itr-import-poc/README.md for the limits of this model.
 """
 
 import builtins
@@ -35,10 +34,9 @@ import os
 import sys
 import typing as t
 
+from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.logger import get_logger
 
-
-ImportName = tuple[str, tuple[str, ...]]
 
 log = get_logger(__name__)
 
@@ -55,10 +53,7 @@ def _realpath(path: str) -> str:
     return cached
 
 
-_original_import: t.Optional[t.Callable[..., t.Any]] = None
-_original_import_module: t.Optional[t.Callable[..., t.Any]] = None
-_collector: t.Optional[t.Any] = None
-_should_track: t.Optional[t.Callable[[str], bool]] = None
+_installed_hook: t.Optional["_ImportHook"] = None
 
 
 def _resolve_absolute_name(name: str, glb: t.Optional[t.Mapping[str, t.Any]], level: int) -> str:
@@ -84,7 +79,7 @@ def _resolve_absolute_name(name: str, glb: t.Optional[t.Mapping[str, t.Any]], le
 
 
 def _record(
-    collector: t.Any,
+    collector: CoverageMode,
     should_track: t.Callable[[str], bool],
     abs_name: str,
     fromlist: t.Any,
@@ -128,38 +123,13 @@ def _record(
     # The importing file executed an import statement: it is covered.
     collector.record_import_file(caller)
 
-    # Dependency edge for the import-time closure, in the same (package, names) shape the
-    # bytecode-injected import hooks record. The collector's resolution logic tries
-    # "<package>.<name>" first and falls back to the bare name, so absolute names work
-    # regardless of the caller's package.
-    caller_package = ""
-    if glb is not None:
-        caller_package = glb.get("__package__") or ""
+    # These names are already absolute. Passing the caller's package would let
+    # the shared resolver select an unrelated package-local module with the same
+    # name and would walk the wrong parent packages.
     names = [abs_name]
     if fromlist:
         names.extend(f"{abs_name}.{sub}" for sub in fromlist if isinstance(sub, str) and sub)
-    collector.record_import_edge(caller, (caller_package, tuple(names)))
-
-
-def _ddtrace_import_hook(
-    name: str,
-    globals: t.Optional[t.Mapping[str, t.Any]] = None,  # noqa: A002
-    locals: t.Optional[t.Mapping[str, t.Any]] = None,  # noqa: A002
-    fromlist: t.Any = (),
-    level: int = 0,
-) -> t.Any:
-    original_import = t.cast(t.Callable[..., t.Any], _original_import)
-    module = original_import(name, globals, locals, fromlist, level)
-    # Failed imports raise above and record nothing, matching the injected import hooks
-    # (which sit after the import opcode).
-    try:
-        abs_name = _resolve_absolute_name(name, globals, level)
-        if abs_name and _collector is not None and _should_track is not None:
-            _record(_collector, _should_track, abs_name, fromlist, globals)
-    except Exception:
-        # Recording must never break an import.
-        log.debug("Import hook recording failed for %r", name, exc_info=True)
-    return module
+    collector.record_import_edge(caller, ("", tuple(names)))
 
 
 def _resolve_import_module_absolute_name(name: str, package: t.Optional[str]) -> t.Optional[str]:
@@ -179,55 +149,80 @@ def _resolve_import_module_absolute_name(name: str, package: t.Optional[str]) ->
     return ".".join(base + ([rest] if rest else []))
 
 
-def _ddtrace_import_module_hook(name: str, package: t.Optional[str] = None) -> t.Any:
-    module = _original_import_module(name, package)  # type: ignore[misc]
-    # importlib.import_module bypasses builtins.__import__: record the same import
-    # event data the __import__ wrapper would have seen (e.g. dialect loading driven
-    # by test parametrization through importlib.import_module).
-    try:
-        abs_name = _resolve_import_module_absolute_name(name, package)
-        if abs_name and _collector is not None and _should_track is not None:
-            caller_frame = sys._getframe(1)
-            _record(_collector, _should_track, abs_name, (), caller_frame.f_globals)
-    except Exception:
-        # Recording must never break an import.
-        log.debug("importlib.import_module hook recording failed for %r", name, exc_info=True)
-    return module
+class _ImportHook:
+    """One installation, retaining its own delegates after it is deactivated.
 
-
-def install_import_hook(collector: t.Any, should_track: t.Callable[[str], bool]) -> None:
-    """Wrap builtins.__import__ so import statements record coverage.
-
-    collector must provide record_import_file(path) and record_import_edge(path, import_name)
-    should_track(path) decides whether a file is inside the instrumented paths.
+    Other tools can retain our wrappers. Clearing shared delegate globals breaks
+    those callers on uninstall; replacing them on reinstall creates a cycle.
     """
-    global _original_import, _original_import_module, _collector, _should_track
-    if _collector is not None:
+
+    def __init__(self, collector: CoverageMode, should_track: t.Callable[[str], bool]) -> None:
+        self.collector: t.Optional[CoverageMode] = collector
+        self.should_track = should_track
+        self.original_import = builtins.__import__
+        self.original_import_module = importlib.import_module
+
+    def import_name(
+        self,
+        name: str,
+        globals: t.Optional[t.Mapping[str, t.Any]] = None,  # noqa: A002
+        locals: t.Optional[t.Mapping[str, t.Any]] = None,  # noqa: A002
+        fromlist: t.Any = (),
+        level: int = 0,
+    ) -> t.Any:
+        module = self.original_import(name, globals, locals, fromlist, level)
+        # Failed imports raise above and record nothing, matching injected hooks.
+        collector = self.collector
+        if collector is not None:
+            try:
+                abs_name = _resolve_absolute_name(name, globals, level)
+                if abs_name:
+                    _record(collector, self.should_track, abs_name, fromlist, globals)
+            except Exception:
+                # Recording must never break an import.
+                log.debug("Import hook recording failed for %r", name, exc_info=True)
+        return module
+
+    def import_module(self, name: str, package: t.Optional[str] = None) -> t.Any:
+        module = self.original_import_module(name, package)
+        collector = self.collector
+        if collector is not None:
+            try:
+                abs_name = _resolve_import_module_absolute_name(name, package)
+                if abs_name:
+                    _record(collector, self.should_track, abs_name, (), sys._getframe(1).f_globals)
+            except Exception:
+                # Recording must never break an import.
+                log.debug("importlib.import_module hook recording failed for %r", name, exc_info=True)
+        return module
+
+
+def install_import_hook(collector: CoverageMode, should_track: t.Callable[[str], bool]) -> None:
+    """Wrap import statements and importlib.import_module, including cache hits."""
+    global _installed_hook
+    if _installed_hook is not None:
         return
-    _original_import = builtins.__import__
-    _original_import_module = importlib.import_module
-    _collector = collector
-    _should_track = should_track
-    builtins.__import__ = _ddtrace_import_hook
-    importlib.import_module = _ddtrace_import_module_hook
+    hook = _installed_hook = _ImportHook(collector, should_track)
+    builtins.__import__ = hook.import_name
+    importlib.import_module = hook.import_module
 
 
 def uninstall_import_hook() -> None:
-    """Restore builtins.__import__ and importlib.import_module, unless someone wrapped
-    them on top of us.
-    """
-    global _original_import, _original_import_module, _collector, _should_track
-    if _collector is None:
+    """Deactivate retained wrappers and restore hooks we still own."""
+    global _installed_hook
+    hook = _installed_hook
+    if hook is None:
         return
-    if builtins.__import__ is _ddtrace_import_hook:
-        builtins.__import__ = t.cast(t.Any, _original_import)
-    if importlib.import_module is _ddtrace_import_module_hook:
-        importlib.import_module = t.cast(t.Any, _original_import_module)
-    _original_import = None
-    _original_import_module = None
-    _collector = None
-    _should_track = None
+    hook.collector = None
+    # Release the bound should_track method too: it retains the collector.
+    hook.should_track = lambda path: False
+    if builtins.__import__ == hook.import_name:
+        builtins.__import__ = hook.original_import
+    if importlib.import_module == hook.import_module:
+        importlib.import_module = hook.original_import_module
+    _installed_hook = None
+    _realpath_cache.clear()
 
 
 def import_hook_installed() -> bool:
-    return _collector is not None
+    return _installed_hook is not None
