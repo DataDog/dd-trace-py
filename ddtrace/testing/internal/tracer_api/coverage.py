@@ -54,6 +54,21 @@ def _relative_coverage_path(absolute_path: str, relative_to: str) -> t.Optional[
 _FILE_LEVEL_BITMAP = bytes(CoverageLines.from_list([0]).to_bytes())
 
 
+def _anchor_files(anchor_path: Path) -> list[Path]:
+    """The anchor file plus every ancestor package __init__.py, mirroring what
+    `import pkg.sub.test_module` would have touched.
+    """
+    resolved = anchor_path.resolve()
+    files = [resolved]
+    for parent in resolved.parents:
+        init = parent / "__init__.py"
+        if init.is_file():
+            files.append(init)
+        else:
+            break
+    return files
+
+
 class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
@@ -79,9 +94,23 @@ class CoverageData:
 
 
 @contextlib.contextmanager
-def coverage_collection() -> t.Generator[CoverageData, None, None]:
+def coverage_collection(
+    anchor_path: t.Optional[Path] = None,
+) -> t.Generator[CoverageData, None, None]:
     with ModuleCodeCollector.CollectInContext() as coverage_collector:
         coverage_data = CoverageData()
+        # Import-only mode has no execution events to cover the test's own file with,
+        # so the framework integration anchors it (plus its ancestor package __init__
+        # files, which pytest imports through importlib machinery that bypasses
+        # builtins.__import__). Anchored files are the roots the import-time closure
+        # expands module-level dependencies from. Instrumented modes already cover the
+        # test file (its code executes), so the anchor stays off there to keep their
+        # payloads unchanged.
+        if anchor_path is not None:
+            instance = ModuleCodeCollector._instance
+            if instance is not None and instance._import_only_coverage:
+                for anchor in _anchor_files(anchor_path):
+                    coverage_collector.anchor_file(str(anchor))
         yield coverage_data
         if ModuleCodeCollector.file_level_coverage_enabled():
             coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()

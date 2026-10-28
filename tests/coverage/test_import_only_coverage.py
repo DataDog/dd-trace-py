@@ -205,6 +205,68 @@ def test_import_only_site_packages_paths_are_not_recorded():
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
 @pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_anchor_attributes_test_file_closure():
+    """Anchoring a test file attributes it plus its import-time closure, with no
+    import statement executing inside the coverage window.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.installer import install
+    from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.io_test_module import io_test_z  # noqa: F401
+
+    anchor = Path(cwd_path + "/tests/coverage/included_path/io_test_module.py")
+    with coverage_collection(anchor_path=anchor) as coverage_data:
+        # Execute nothing: the anchor alone must attribute the file and its closure.
+        pass
+
+    covered = {str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths}
+    assert "tests/coverage/included_path/io_test_module.py" in covered
+    assert "tests/coverage/included_path/io_mod_abc.py" in covered, "module-level import closure"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_session_level_import_edges_expand_from_anchor():
+    """Import statements executed outside any coverage window (session-level lazy
+    imports) still become import-time edges, so anchored closures expand them.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.installer import install
+    from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.io_session_import import io_session_importer
+
+    # Session-level import: executes the lazy import OUTSIDE any coverage window.
+    assert io_session_importer() == 10
+
+    anchor = Path(cwd_path + "/tests/coverage/included_path/io_session_import.py")
+    with coverage_collection(anchor_path=anchor) as coverage_data:
+        pass
+
+    covered = {str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths}
+    assert "tests/coverage/included_path/io_session_import.py" in covered
+    assert "tests/coverage/included_path/io_mod_hjk.py" in covered, (
+        "the out-of-window lazy import edge must expand from the anchor"
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Test specific to Python 3.10+ coverage modes")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
 def test_import_only_uninstall_restores_import():
     """Uninstalling the collector restores builtins.__import__."""
     import builtins

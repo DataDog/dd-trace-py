@@ -257,7 +257,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
             stack = getattr(_tls_coverage, "stack", ())
         else:
-            return
+            stack = ()
         for collector in reversed(stack):
             if collector.closed:
                 continue
@@ -267,6 +267,11 @@ class ModuleCodeCollector(ModuleWatchdog):
             else:
                 collector._import_names[path].add(import_name)
             return
+        # No open collector: the import statement executed outside any coverage window
+        # (e.g. a session-level lazy import such as engine/dialect loading). Treat it as
+        # a module-level edge so every context covering the importing file expands it.
+        self._import_time_names_by_path[path].add(import_name)
+        self._static_import_time_dependency_paths_cache.clear()
 
     def hook_file(self, path: str) -> None:
         if self._coverage_enabled and path not in self._covered_files:
@@ -510,24 +515,26 @@ class ModuleCodeCollector(ModuleWatchdog):
         # Context closure: expand from the root through the context's own edges, unioning
         # the cached static closure of every node reached, to a fixpoint. This is
         # equivalent to a BFS over the merged edge maps, but does not re-walk the shared
-        # static graph (which is large) for every test.
+        # static graph (which is large) for every test: only the (few) paths with edges
+        # recorded in this context can expand the closure further.
         if root_path not in self._import_time_covered:
             return frozenset()
 
         result = set(self._get_static_import_time_dependency_paths(root_path))
-        changed = True
-        while changed:
-            changed = False
-            for path in tuple(result):
-                for dep in self._get_direct_import_time_dependency_paths(path, import_names):
-                    if dep in result or dep not in self._import_time_covered:
-                        continue
-                    result.add(dep)
-                    changed = True
-                    for static_dep in self._get_static_import_time_dependency_paths(dep):
-                        if static_dep not in result:
-                            result.add(static_dep)
-                            changed = True
+        to_visit = [path for path in result if path in import_names]
+        while to_visit:
+            path = to_visit.pop()
+            for dep in self._get_direct_import_time_dependency_paths(path, import_names):
+                if dep in result or dep not in self._import_time_covered:
+                    continue
+                result.add(dep)
+                if dep in import_names:
+                    to_visit.append(dep)
+                for static_dep in self._get_static_import_time_dependency_paths(dep):
+                    if static_dep not in result:
+                        result.add(static_dep)
+                        if static_dep in import_names:
+                            to_visit.append(static_dep)
         return frozenset(result)
 
     def _add_import_time_lines(
@@ -644,6 +651,16 @@ class ModuleCodeCollector(ModuleWatchdog):
             ctx_coverage_enabled.set(coverage_enabled)
             if _PY_GE_314:
                 _tls_coverage.stack = stack
+
+        def anchor_file(self, path: str) -> None:
+            """Mark a file as covered in this scope without an import event.
+
+            Import-only mode has no execution events to attribute the test's own file
+            (and its package __init__ files) with, so the framework integration anchors
+            them: they become the roots the import-time closure expands from.
+            """
+            self._covered_files.add(path)
+            self._covered_lines[path].add(0)
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = self._covered_lines
