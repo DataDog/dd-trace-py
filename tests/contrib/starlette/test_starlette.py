@@ -790,6 +790,49 @@ def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
     )
 
 
+def test_resource_with_same_mount_in_each_router(tracer, test_spans):
+    """A request that is routed again by another Router with the same Mount, as connexion does
+    with one Router per middleware, must have the mount path in its resource only once.
+    """
+    from starlette.middleware import Middleware
+    from starlette.routing import Mount
+    from starlette.routing import Router
+
+    async def item(request):
+        return PlainTextResponse("ok")
+
+    class Forward:
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            await self.app(scope["original_scope"], receive, send)
+
+    class RoutingMiddleware:
+        """Routes the request with its own Router, then passes the original scope on."""
+
+        def __init__(self, app):
+            forward = Forward(app)
+            self.router = Router(routes=[Mount("/api", routes=[Route("/items/{item_id:int}", endpoint=forward)])])
+
+        async def __call__(self, scope, receive, send):
+            scope["original_scope"] = dict(scope)
+            await self.router(scope, receive, send)
+
+    app = Starlette(
+        routes=[Mount("/api", routes=[Route("/items/{item_id:int}", endpoint=item)])],
+        middleware=[Middleware(RoutingMiddleware)],
+    )
+
+    with TestClient(app) as client:
+        r = client.get("/api/items/1")
+
+    assert r.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "GET /api/items/{item_id:int}"
+    assert request_span.get_tag("http.route") == "/api/items/{item_id:int}"
+
+
 def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
     """Starlette route resolution is safe before span finish and request teardown.
 
