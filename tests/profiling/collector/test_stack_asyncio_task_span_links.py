@@ -9,8 +9,8 @@ _stack._span_link_entry returns None for a missing key, and otherwise (entry, bi
 kept with no span (entry is None), for example after the root span the task ran finished. The birth is a counter
 value fixed when the key is created, so an unchanged birth shows that the same key was updated, not recreated.
 
-The sampler does not use task keys yet, because the per-task attribution switch is still off. So these tests read the
-keys with the test-only _stack._span_link_entry getter instead of decoding profiles.
+These tests read the keys with the test-only _stack._span_link_entry getter. test_stack_asyncio_task_attribution.py
+checks the span labels that the sampler takes from these keys, by decoding profiles.
 """
 
 import asyncio
@@ -490,6 +490,49 @@ def test_no_inherited_key_when_the_provider_has_its_own_active_rule(
             assert task_key(inherits) is None
             assert await inherits is None
             await asyncio.create_task(child())
+
+    run(main())
+
+
+def test_swapped_provider_decides_what_happens_to_existing_keys_when_their_span_finishes(
+    collector: StackCollector, tracer: Tracer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A key holding a span follows the provider in place when that span finishes, not the one that wrote it.
+
+    With DefaultContextProvider (inheritance mode), the key moves to the finished span's unfinished parent. With a
+    provider that has its own active() rule, the key is cleared and kept as a tombstone, which means no span.
+    """
+
+    async def main() -> None:
+        future = asyncio.get_running_loop().create_future()
+        with tracer.trace("parent") as parent:
+            # Written in inheritance mode, finished after the swap: cleared.
+            inherited = tracer.start_span("inherited", child_of=parent, activate=True)
+            inherits = asyncio.create_task(wait_forever(future))
+            found = task_key(inherits)
+            assert found is not None
+            entry, birth = found
+            assert entry == span_entry(inherited)
+            monkeypatch.setattr(tracer, "context_provider", _OwnActiveRuleProvider())
+            on_another_thread(inherited.finish)
+            assert task_key(inherits) == (None, birth)
+
+            # Written after the swap, finished after swapping back: moved to the parent.
+            own = tracer.start_span("own", child_of=parent)
+
+            async def activates_own() -> None:
+                tracer.context_provider.activate(own)
+                await future
+
+            activates = asyncio.create_task(activates_own())
+            await asyncio.sleep(0)
+            assert task_entry(activates) == span_entry(own)
+            monkeypatch.undo()
+            on_another_thread(own.finish)
+            assert task_entry(activates) == span_entry(parent)
+
+            future.set_result(None)
+            await asyncio.gather(inherits, activates)
 
     run(main())
 

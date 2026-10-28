@@ -1,9 +1,12 @@
 """Tests for the set_logical_attribution switches of the stack extension.
 
-While a domain's switch is off, which is the default, task and greenlet samples get their thread's span, as they did
-before tasks and greenlets had span link keys of their own. Once it is on, they get only their own key's span, or no
-span at all. The sampler reads only the switch of the domain it renders on a thread: tasks on a thread with an asyncio
-loop, greenlets otherwise. So the other domain's switch changes nothing there.
+While a domain's switch is off, which is the native default, task and greenlet samples get their thread's span, as
+they did before tasks and greenlets had span link keys of their own. Once it is on, they get only their own key's
+span, or no span at all. The sampler reads only the switch of the domain it renders on a thread: tasks on a thread
+with an asyncio loop, greenlets otherwise. So the other domain's switch changes nothing there.
+
+The profiler turns SPAN_LINK_DOMAIN_ASYNCIO_TASK on when it hooks asyncio (see _install_task_span_link_hooks), so the
+asyncio tests here set that switch explicitly.
 """
 
 import os
@@ -108,9 +111,9 @@ def test_asyncio_task_samples_use_the_thread_span_until_the_task_switch_is_on() 
     unit_span = (UNIT_SPAN_ID, 2000, UNIT_TRACE_TYPE, _stack.SPAN_LINK_KIND_SPAN)
 
     switch = os.environ["LOGICAL_ATTRIBUTION_SWITCH"]
-    if switch == "asyncio_task":
-        stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_ASYNCIO_TASK, True)
-    elif switch == "greenlet":
+    # The profiler turned the AsyncioTask switch on when it hooked asyncio, on import, so the other cases turn it off.
+    stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_ASYNCIO_TASK, switch == "asyncio_task")
+    if switch == "greenlet":
         stack.set_logical_attribution(_stack.SPAN_LINK_DOMAIN_GREENLET, True)
 
     def busy() -> None:

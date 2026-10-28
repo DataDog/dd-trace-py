@@ -554,7 +554,8 @@ def _install_running_loop_hooks(asyncio: ModuleType) -> None:
 def _install_task_span_link_hooks(asyncio: ModuleType) -> None:
     """Let the activation listener find the running task, and seed the span of new tasks in BaseEventLoop.create_task.
 
-    Unlike the running-loop hooks, these do nothing while profiling is stopped.
+    Then turn on per-task attribution in the sampler. Unlike the running-loop hooks, these do nothing while profiling
+    is stopped.
     """
     global _running_task
 
@@ -565,6 +566,12 @@ def _install_task_span_link_hooks(asyncio: ModuleType) -> None:
         f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
     ) -> typing.Any:
         return _create_task_with_span_link(f, args[0], 1, args, kwargs)
+
+    # With these hooks, a task's key is written when the task activates a span and when it is created. So the sampler
+    # can label a task's samples with the task's own span instead of the thread's span, which is whichever span any
+    # task on the thread activated last. A task without a key then gets no span. The switch is turned on only here,
+    # after the writers are installed, so it is never on without them.
+    stack.set_logical_attribution(stack.SPAN_LINK_DOMAIN_ASYNCIO_TASK, True)
 
 
 @ModuleWatchdog.after_module_imported("asyncio")
