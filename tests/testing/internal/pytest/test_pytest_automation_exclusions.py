@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from functools import partial
+import inspect
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
@@ -23,11 +26,74 @@ def _ref(name: str) -> TestRef:
     return TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), name)
 
 
-def test_decorators_preserve_callback() -> None:
-    async def callback(value: int) -> int:
+@pytest.mark.parametrize("use_partial", [False, True])
+def test_decorators_preserve_callback(use_partial: bool) -> None:
+    async def callback(value: int = 42) -> int:
         return value
 
-    assert no_auto_retry(prevent_failure_suppression(callback)) is callback
+    source = partial(callback) if use_partial else callback
+    annotated = no_auto_retry(prevent_failure_suppression(source))
+    assert annotated is not callback
+    assert inspect.iscoroutinefunction(annotated)
+    assert inspect.signature(annotated) == inspect.signature(callback)
+    assert asyncio.run(annotated()) == 42
+    assert not hasattr(callback, "_dd_no_auto_retry")
+    assert not hasattr(callback, "_dd_prevent_failure_suppression")
+
+
+def test_decorators_preserve_method_binding_and_generator() -> None:
+    class Example:
+        @no_auto_retry
+        @prevent_failure_suppression
+        def callback(self, *, value: int = 42):
+            yield self, value
+
+    instance = Example()
+    assert inspect.isgeneratorfunction(instance.callback)
+    assert list(instance.callback()) == [(instance, 42)]
+
+
+@pytest.mark.parametrize("protected", [False, True])
+def test_shared_callback_annotations_are_isolated(pytester: Pytester, protected: bool) -> None:
+    decorator = "prevent_failure_suppression" if protected else "no_auto_retry"
+    pytester.makepyfile(
+        test_foo=f"""
+        from pathlib import Path
+        from ddtrace.testing import {decorator}
+        def callback():
+            with Path("attempts").open("a") as attempts:
+                attempts.write("attempt\\n")
+            assert False
+        test_control = callback
+        test_annotated = {decorator}(callback)
+        """
+    )
+    refs = {_ref("test_control"), _ref("test_annotated")}
+    with (
+        patch(
+            "ddtrace.testing.internal.session_manager.APIClient",
+            return_value=mock_api_client_settings(
+                auto_retries_enabled=not protected,
+                test_management_enabled=protected,
+                known_tests_enabled=True,
+                known_tests=refs,
+                test_management_properties={ref: TestProperties(disabled=True) for ref in refs} if protected else {},
+            ),
+        ),
+        setup_standard_mocks(),
+        EventCapture.capture() as capture,
+    ):
+        result = pytester.inline_run("--ddtrace", "-q")
+    assert result.ret == 1
+    assert len((pytester.path / "attempts").read_text().splitlines()) == (1 if protected else 7)
+    control = list(capture.events_by_test_name("test_control"))
+    annotated = list(capture.events_by_test_name("test_annotated"))
+    assert len(control) == (1 if protected else 6)
+    assert len(annotated) == 1
+    assert control[0]["content"]["meta"]["test.status"] == ("skip" if protected else "fail")
+    for event in control:
+        assert PREFIX + decorator not in event["content"]["meta"]
+    assert annotated[0]["content"]["meta"][PREFIX + decorator] == "true"
 
 
 @pytest.mark.parametrize("passing", [False, True])
