@@ -83,6 +83,13 @@ case "$cmd" in
     "$SCRIPT_DIR/lint" sg-test
     ;;
 
+  # --- environment preparation ---
+  # Create/update the shared .venv-lint environment up front so parallel
+  # lint invocations don't queue behind the uv environment lock.
+  prepare)
+    uv sync --only-group lint
+    ;;
+
   # --- individual checks ---
   typing)
     uv_lint mypy "$@"
@@ -194,6 +201,7 @@ Subcommands:
 
   style [paths]             format_check + ruff check + cython-lint + cformat + cmakeformat
   checks                    Run all lint/type/spell/security/etc checks
+  prepare                   Create/update the shared lint venv (used before parallel checks)
 
   typing [args]             mypy
   spelling [paths]          codespell

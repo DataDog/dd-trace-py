@@ -225,6 +225,11 @@ class ServiceNameProcessor(TraceProcessor):
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
+    def __init__(self, apm_opt_out: bool):
+        super().__init__()
+        # Cached to avoid computing the opt-out property on every trace.
+        self.apm_opt_out = apm_opt_out
+
     def _set_git_metadata(self, chunk_root):
         repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
@@ -243,8 +248,9 @@ class TraceTagsProcessor(TraceProcessor):
         # When using the native writer and CSS, TraceTagsProcessor runs before dropping spans.
         # Thus trace tags are applied to a root span which may be dropped by sampling, even though
         # some spans of the chunk are sampled. We prevent it by adding trace tags to the first
-        # single-sampled span of the chunk.
-        if config._trace_compute_stats:
+        # single-sampled span of the chunk. Standalone opt-out shadows stats computation, so
+        # single-sampled spans do not outlive their root and must not receive the tags.
+        if config._trace_compute_stats and not self.apm_opt_out:
             for span in trace:
                 if span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE:
                     spans_to_tag.append(span)
@@ -345,7 +351,7 @@ class SpanAggregator(SpanProcessor):
         self.sampling_processor = TraceSamplingProcessor(
             config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out
         )
-        self.tags_processor = TraceTagsProcessor()
+        self.tags_processor = TraceTagsProcessor(standalone_config.apm_opt_out)
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
@@ -587,13 +593,19 @@ class SpanAggregator(SpanProcessor):
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
+        self.writer = self.writer.recreate(
+            appsec_enabled=appsec_enabled,
+            llmobs_enabled=llmobs_enabled,
+            compute_stats_enabled=compute_stats,
+            stats_opt_out=apm_opt_out,
+        )
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
 
         if apm_opt_out is not None:
             self.sampling_processor.apm_opt_out = apm_opt_out
+            self.tags_processor.apm_opt_out = apm_opt_out
 
         if user_processors is not None:
             self.user_processors = user_processors

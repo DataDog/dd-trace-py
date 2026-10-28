@@ -65,12 +65,14 @@ def test_aggregator_reset_with_args():
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is False
+    assert aggr.tags_processor.apm_opt_out is False
     # Reset the aggregator with new args and new user processors and expect the new values to be set
     aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
     assert aggr.user_processors == []
     assert dd_proc in aggr.dd_processors
     assert aggr.sampling_processor.apm_opt_out is True
     assert aggr.sampling_processor._compute_stats_enabled is True
+    assert aggr.tags_processor.apm_opt_out is True
     assert aggr.writer._api_version == "v0.4"
     assert span.trace_id in aggr._traces
 
