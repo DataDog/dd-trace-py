@@ -174,5 +174,7 @@ class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[Traci
         ctx: core.ExecutionContext[TracingEventType],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        core.dispatch(f"{SpanCycleEvents.SPAN_FINISHING.value}.{ctx.identifier}", (ctx,))
-        super()._on_context_ended(ctx, exc_info)
+        try:
+            core.dispatch(f"{SpanCycleEvents.SPAN_FINISHING.value}.{ctx.identifier}", (ctx,))
+        finally:
+            super()._on_context_ended(ctx, exc_info)
