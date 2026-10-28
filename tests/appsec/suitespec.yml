@@ -184,6 +184,9 @@ suites:
       variants:
         - name: appsec_integrations_pygoat
           dependencies: [requests, 'pyyaml==6.0.1', 'pip<25']
+        - name: appsec_integrations_pygoat
+          python: ['3.15']
+          dependencies: [requests, 'PyYAML==6.0.3', 'pip==26.2.1']
   appsec_integrations_packages:
     venvs_per_job: 3
     env:
