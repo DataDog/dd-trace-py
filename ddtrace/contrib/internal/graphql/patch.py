@@ -78,7 +78,15 @@ _GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
 _GRAPHQL_OPERATION_NAME = "graphql.operation.name"
 
 try:
-    from graphql.execution import execute as _execute
+    if _graphql_version >= (3, 3):
+        # In graphql-core 3.3, execute() and execute_sync() both delegate
+        # directly to experimental_execute_incrementally(), so wrapping
+        # execute() alone would miss every execute_sync() call. Wrap the
+        # shared implementation instead; the span keeps the "graphql.execute"
+        # name that the public entry points funnel through.
+        from graphql.execution import experimental_execute_incrementally as _execute
+    else:
+        from graphql.execution import execute as _execute
 
     # graphql-core reshuffles execute()'s positional parameters between
     # releases (3.2.10 inserted max_coercion_errors before middleware, and
@@ -120,6 +128,13 @@ def _get_patching_candidates():
             ("graphql.language.parser", "parse", _traced_parse),
             ("graphql.validation.validation", "validate", _traced_validate),
             ("graphql.execution.executor", "execute", _traced_execute),
+        ]
+    if _graphql_version >= (3, 3):
+        return [
+            ("graphql.graphql", "graphql_impl", _traced_query),
+            ("graphql.language.parser", "parse", _traced_parse),
+            ("graphql.validation.validate", "validate", _traced_validate),
+            ("graphql.execution.execute", "experimental_execute_incrementally", _traced_execute),
         ]
     return [
         ("graphql.graphql", "graphql_impl", _traced_query),
