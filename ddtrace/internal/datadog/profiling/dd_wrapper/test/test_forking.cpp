@@ -7,9 +7,10 @@
 
 // Initiate an upload in a separate thread, otherwise we won't be mid-upload during fork
 void*
-upload_in_thread(void*)
+upload_in_thread(void* arg)
 {
     ddup_upload();
+    reinterpret_cast<std::atomic<bool>*>(arg)->store(true);
 
     return nullptr;
 }
@@ -94,8 +95,9 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     // Collect some profiling data for a few ms, then upload in a thread before forking
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
+    std::atomic<bool> upload_done(false);
     pthread_t thread;
-    if (pthread_create(&thread, nullptr, upload_in_thread, nullptr) != 0) {
+    if (pthread_create(&thread, nullptr, upload_in_thread, &upload_done) != 0) {
         std::cout << "failed to create thread" << std::endl;
         std::exit(1);
     }
@@ -119,6 +121,9 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     int status;
     done.store(true);
     waitpid(pid, &status, 0);
+    while (!upload_done.load()) {
+        std::this_thread::yield();
+    }
     ddup_upload();
     join_pthread_samplers(thread_handles, done);
     ddup_cleanup();
