@@ -27,6 +27,7 @@ from collections import defaultdict
 import os
 from pathlib import Path
 import sys
+from types import CodeType
 from types import ModuleType
 import typing as t
 
@@ -80,7 +81,7 @@ class ImportOnlyCoverage:
     # Import-event recording (called by the __import__ wrapper)
     # ------------------------------------------------------------------
 
-    def hook_import_file(self, path: str) -> None:
+    def record_import_file(self, path: str) -> None:
         """Record a file seen through an import event.
 
         Context recording targets the innermost NON-import collector so that an
@@ -105,7 +106,7 @@ class ImportOnlyCoverage:
                 collector_ctx._covered_lines[path].add(0)
             return
 
-    def hook_import(self, path: str, import_name: ImportName) -> None:
+    def record_import_edge(self, path: str, import_name: ImportName) -> None:
         """Record an import dependency edge: globally, then routed by scope.
 
         The collector's global recording (_import_names_by_path, used by the
@@ -237,6 +238,34 @@ class ImportOnlyCoverage:
         """Collector notification: import-time metadata changed, drop derived caches."""
         self._static_import_time_dependency_paths_cache.clear()
 
+    def install(self) -> None:
+        from ddtrace.internal.coverage.import_hook_instrumentation import install_import_hook
+
+        install_import_hook(self, self.should_track)
+        self.backfill_already_imported()
+
+    def uninstall(self) -> None:
+        from ddtrace.internal.coverage.import_hook_instrumentation import uninstall_import_hook
+
+        uninstall_import_hook()
+
+    def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
+        self._collector.lines[code.co_filename].add(0)
+        return code
+
+    def after_module_context(self, code: CodeType, module: ModuleType) -> None:
+        """No empty-module recording needed without instrumentation."""
+
+    def on_module_body_finished(self, module: ModuleType) -> None:
+        self.record_module(module)
+
+    def arm(self, import_context: bool) -> None:
+        """Nothing to re-arm: no monitoring events."""
+
+    @property
+    def is_import_only(self) -> bool:
+        return True
+
     def _direct_dependency_paths(self, path: str, import_names: dict[str, set[ImportName]]) -> frozenset[str]:
         dependency_paths: set[str] = set()
         for dependencies in import_names.get(path, ()):
@@ -306,9 +335,7 @@ class ImportOnlyCoverage:
                             to_visit.append(static_dep)
         return frozenset(result)
 
-    def add_import_time_lines_for_context(
-        self, covered_lines: dict[str, t.Any], import_names: dict[str, set[ImportName]]
-    ) -> None:
+    def expand_context_lines(self, covered_lines: dict[str, t.Any], import_names: dict[str, set[ImportName]]) -> None:
         """File-level variant of the collector's _add_import_time_lines for one context."""
         processed_paths = set()
         for root_path in tuple(covered_lines.keys()):
@@ -317,7 +344,7 @@ class ImportOnlyCoverage:
                     processed_paths.add(dependency_path)
                     covered_lines[dependency_path].add(0)
 
-    def covered_file_paths_for_context(
+    def expand_context_files(
         self, covered_file_paths: set[str], import_names: dict[str, set[ImportName]]
     ) -> t.AbstractSet[str]:
         """File-level covered paths with import-time dependencies added, for one context."""

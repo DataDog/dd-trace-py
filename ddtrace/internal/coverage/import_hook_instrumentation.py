@@ -120,13 +120,13 @@ def _record(
 
     for file in candidate_files:
         if should_track(file):
-            collector.hook_import_file(file)
+            collector.record_import_file(file)
 
     if not should_track(caller):
         return
 
     # The importing file executed an import statement: it is covered.
-    collector.hook_import_file(caller)
+    collector.record_import_file(caller)
 
     # Dependency edge for the import-time closure, in the same (package, names) shape the
     # bytecode-injected import hooks record. The collector's resolution logic tries
@@ -138,7 +138,7 @@ def _record(
     names = [abs_name]
     if fromlist:
         names.extend(f"{abs_name}.{sub}" for sub in fromlist if isinstance(sub, str) and sub)
-    collector.hook_import(caller, (caller_package, tuple(names)))
+    collector.record_import_edge(caller, (caller_package, tuple(names)))
 
 
 def _ddtrace_import_hook(
@@ -198,7 +198,7 @@ def _ddtrace_import_module_hook(name: str, package: t.Optional[str] = None) -> t
 def install_import_hook(collector: t.Any, should_track: t.Callable[[str], bool]) -> None:
     """Wrap builtins.__import__ so import statements record coverage.
 
-    collector must provide hook_import_file(path) and hook_import(path, import_name).
+    collector must provide record_import_file(path) and record_import_edge(path, import_name)
     should_track(path) decides whether a file is inside the instrumented paths.
     """
     global _original_import, _original_import_module, _collector, _should_track

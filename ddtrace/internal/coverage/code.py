@@ -18,11 +18,9 @@ from ddtrace.internal.coverage.context_state import ctx_collectors
 from ddtrace.internal.coverage.context_state import ctx_coverage_enabled
 from ddtrace.internal.coverage.context_state import ctx_is_import_coverage  # noqa: F401
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
-from ddtrace.internal.coverage.engine import CoverageEngine
-from ddtrace.internal.coverage.engine import create_engine
-from ddtrace.internal.coverage.import_hook_instrumentation import install_import_hook
-from ddtrace.internal.coverage.import_hook_instrumentation import uninstall_import_hook
 from ddtrace.internal.coverage.import_only import ImportOnlyCoverage
+from ddtrace.internal.coverage.instrumented_mode import InstrumentedCoverage
+from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
@@ -35,7 +33,6 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.utils.inspection import resolved_code_origin
-from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.utils.paths import is_contained
 from ddtrace.internal.utils.paths import relative_path
 
@@ -69,16 +66,11 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         self._coverage_enabled: bool = False
         self._file_level_coverage: bool = False
-        # The mode is decided once, at construction: import-only coverage collects
-        # exclusively from import events (see import_hook_instrumentation.py) and never
-        # creates an instrumentation engine; instrumented modes encapsulate their
-        # version-specific machinery (sys.monitoring vs bytecode traps) behind the
-        # engine API — see ddtrace.internal.coverage.engine.
-        self._import_only: t.Optional[ImportOnlyCoverage] = (
-            ImportOnlyCoverage(self) if is_import_only_coverage_enabled() else None
+        # The mode is decided once, at construction, and the collector delegates
+        # every mode-specific decision to it (see mode.py for the contract).
+        self._mode: CoverageMode = (
+            ImportOnlyCoverage(self) if is_import_only_coverage_enabled() else InstrumentedCoverage(self)
         )
-        self._engine: t.Optional[CoverageEngine] = None if self._import_only is not None else create_engine(self)
-        self.seen: set[tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
         self.lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
@@ -136,16 +128,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
         )
 
-        import_only = cls._instance._import_only
-        if import_only is not None:
-            # Import-only mode is file-level by construction (paths only, no lines), and
-            # the import-time dependency graph is the attribution mechanism for
-            # module-level imports, so both are forced on. The import-event wrapper
-            # replaces all code instrumentation.
+        if cls._instance._mode.is_import_only:
             cls._instance._file_level_coverage = True
             cls._instance._collect_import_coverage = True
-            install_import_hook(import_only, import_only.should_track)
-            import_only.backfill_already_imported()
+        cls._instance._mode.install()
 
         if cls._instance._collect_import_coverage:
             ModuleCodeCollector.register_import_exception_hook(
@@ -199,9 +185,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         3.9. `import_context` marks per-module-import contexts, which engines with
         self-disabling events may skip re-arming for. Import-only mode arms nothing.
         """
-        if self._import_only is not None or self._engine is None:
-            return
-        self._engine.arm(import_context=import_context)
+        self._mode.arm(import_context)
 
     def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
         line: int
@@ -469,10 +453,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = self._covered_lines
             if global_instance := ModuleCodeCollector._instance:
-                if global_instance._import_only is not None:
-                    global_instance._import_only.add_import_time_lines_for_context(covered_lines, self._import_names)
-                else:
-                    global_instance._add_import_time_lines(covered_lines)
+                global_instance._mode.expand_context_lines(covered_lines, self._import_names)
             return covered_lines
 
         def get_covered_file_paths(self) -> t.AbstractSet[str]:
@@ -482,16 +463,12 @@ class ModuleCodeCollector(ModuleWatchdog):
             covered_file_paths = set(self._covered_files)
             covered_file_paths.update(self._covered_lines)
             if global_instance := ModuleCodeCollector._instance:
-                if global_instance._import_only is not None:
-                    return global_instance._import_only.covered_file_paths_for_context(
-                        covered_file_paths, self._import_names
-                    )
-                return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
+                return global_instance._mode.expand_context_files(covered_file_paths, self._import_names)
             return covered_file_paths
 
     @classmethod
     def import_only_enabled(cls):
-        return cls._instance is not None and cls._instance._import_only is not None
+        return cls._instance is not None and cls._instance._mode.is_import_only
 
     @classmethod
     def file_level_coverage_enabled(cls):
@@ -584,8 +561,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._direct_import_time_dependency_paths_cache.clear()
         self._import_time_dependency_paths_cache.clear()
         self._file_level_covered_paths_cache.clear()
-        if self._import_only is not None:
-            self._import_only.on_import_metadata_changed()
+        self._mode.on_import_metadata_changed()
 
     def _record_file_covered(self, path: str) -> None:
         """Record a file as covered in the global (non-context) coverage window."""
@@ -624,24 +600,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         if not self._is_instrumentable_path(code_path):
             return code
 
-        if self._import_only is not None:
-            # No code instrumentation: the line-0 sentinel stands in for executable lines,
-            # and the shared module-context registration below still runs so the module
-            # participates in the import-time dependency graph.
-            self.lines[code.co_filename].add(0)
-            if self._collect_import_coverage:
-                self._enter_module_context(code, _module)
-            return code
-
-        retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
+        retval = self._mode.instrument_module(code, _module)
 
         if self._collect_import_coverage:
             self._enter_module_context(code, _module)
 
-        # Empty-module recording is instrumentation-specific (e.g. Python 3.13+
-        # sys.monitoring does not fire LINE events for empty modules): the engine records it
-        # after the import-time context is set up so coverage lands in the correct context.
-        self._engine.on_empty_module(code, (_module.__package__ or "") if _module is not None else "")  # type: ignore[union-attr]
+        self._mode.after_module_context(code, _module)
 
         return retval
 
@@ -687,28 +651,8 @@ class ModuleCodeCollector(ModuleWatchdog):
         if covered_lines[module_file]:
             self._import_time_covered[module_file].update(covered_lines[module_file])
             self._invalidate_import_metadata()
-        elif self._import_only is not None:
-            self._import_only.record_module(_module)
-
-    def instrument_code(self, code: CodeType, package) -> CodeType:
-        if is_obfuscated_code(code):
-            log.warning(
-                "Cannot instrument %r for coverage: code object appears to be obfuscated (e.g. by PyArmor)",
-                code.co_name,
-            )
-            return code
-
-        # Avoid instrumenting the same code object multiple times
-        if (code, code.co_filename) in self.seen:
-            return code
-        self.seen.add((code, code.co_filename))
-
-        new_code, lines = t.cast(CoverageEngine, self._engine).instrument(code, code.co_filename, package)
-        self.seen.add((new_code, code.co_filename))
-        # Keep note of all the lines that have been instrumented. These will be
-        # the ones that can be covered.
-        self.lines[code.co_filename].update(lines)
-        return new_code
+        else:
+            self._mode.on_module_body_finished(_module)
 
     def _exec(self, _object, _globals=None, _locals=None, **kwargs):
         # The pytest module loader doesn't implement a get_code method so we
@@ -735,7 +679,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         except ImportError:
             pass
 
-        # Restore the original __import__ (import-only mode)
-        uninstall_import_hook()
+        if cls._instance is not None:
+            cls._instance._mode.uninstall()
 
         return super().uninstall()
