@@ -1,7 +1,10 @@
 import contextvars
 from functools import partial
+import importlib
+from types import ModuleType
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Optional
 from typing import Sequence
 import uuid
@@ -42,16 +45,24 @@ _SCOPES: contextvars.ContextVar[tuple["_CallScope", ...]] = contextvars.ContextV
 )
 
 
-def _langchain_patch(client: AIGuardClient) -> None:
-    # langchain < 1.0: agents subclass one of the action-agent classes and
-    # decide tool calls through ``plan`` / ``aplan``. Each is wrapped in its
-    # own try/except because the available classes vary across versions.
-    for class_ in action_agents_classes:
+def _action_agent_modules() -> Iterator[ModuleType]:
+    for module_name in ("langchain.agents", "langchain_classic.agents"):
         try:
-            wrap("langchain.agents", class_ + ".plan", partial(_langchain_agent_plan, client))
-            wrap("langchain.agents", class_ + ".aplan", partial(_langchain_agent_aplan, client))
+            yield importlib.import_module(module_name)
         except Exception:
-            logger.debug("Failed to instrument %s", class_, exc_info=True)
+            logger.debug("Agent module %s is unavailable", module_name, exc_info=True)
+
+
+def _langchain_patch(client: AIGuardClient) -> None:
+    # Legacy agents decide tool calls through plan/aplan. LangChain v1 moved
+    # these agents into langchain-classic; available classes vary by version.
+    for agents_module in _action_agent_modules():
+        for class_ in action_agents_classes:
+            try:
+                wrap(agents_module, class_ + ".plan", partial(_langchain_agent_plan, client))
+                wrap(agents_module, class_ + ".aplan", partial(_langchain_agent_aplan, client))
+            except Exception:
+                logger.debug("Failed to instrument %s.%s", agents_module.__name__, class_, exc_info=True)
 
     # langchain >= 1.0: agents are built with ``create_agent`` and client-side
     # tools are executed by langgraph's ``ToolNode``. Instrument the per-call
@@ -86,20 +97,16 @@ def _langchain_patch(client: AIGuardClient) -> None:
 
 
 def _langchain_unpatch() -> None:
-    try:
-        import langchain.agents
-    except ImportError:
-        logger.debug("Failed to unpatch langchain.agents")
-    else:
+    for agents_module in _action_agent_modules():
         for class_ in action_agents_classes:
             try:
-                agent_class = langchain.agents
+                agent_class = agents_module
                 for part in class_.split("."):
                     agent_class = getattr(agent_class, part)
                 unwrap(agent_class, "plan")
                 unwrap(agent_class, "aplan")
             except Exception:
-                logger.debug("Failed to unpatch %s", class_, exc_info=True)
+                logger.debug("Failed to unpatch %s.%s", agents_module.__name__, class_, exc_info=True)
 
     try:
         from langgraph.prebuilt.tool_node import ToolNode
