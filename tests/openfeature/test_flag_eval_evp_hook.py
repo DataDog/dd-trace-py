@@ -5,7 +5,7 @@ Validates the hook design:
 - finally_after does cheap capture only (no aggregation, no I/O)
 - variant=None → runtime_default_used True
 - eval_time_ms from metadata["dd.eval.timestamp_ms"] when present; fallback to hook-fire time
-- DD_FLAGGING_EVALUATION_COUNTS_ENABLED killswitch gates the EVP path only
+- DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED killswitch gates the EVP path only
 """
 
 import json
@@ -373,11 +373,20 @@ class TestMetadataSourceMatchesOTelHook:
 
 
 class TestKillswitchGating:
+    @pytest.fixture(autouse=True)
+    def clear_evaluation_count_environment(self, monkeypatch):
+        monkeypatch.delenv("DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED", raising=False)
+        monkeypatch.delenv("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", raising=False)
+
     def test_default_enabled_registers_evp_hook(self):
         """Default (no env var set) must register the EVP hook + writer."""
         from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 
-        env = {k: v for k, v in os.environ.items() if k != "DD_FLAGGING_EVALUATION_COUNTS_ENABLED"}
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED", "DD_FLAGGING_EVALUATION_COUNTS_ENABLED")
+        }
         # No env var → enabled by default.
         with mock.patch.dict(os.environ, env, clear=True):
             from tests.utils import override_global_config
@@ -390,9 +399,12 @@ class TestKillswitchGating:
                 assert provider._flag_eval_evp_hook is not None
                 assert isinstance(provider._flag_eval_evp_hook, FlagEvalEVPHook)
 
-    def test_killswitch_false_does_not_register_evp_hook(self):
-        """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=false must suppress EVP hook (killswitch)."""
-        with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "false"}):
+    @pytest.mark.parametrize(
+        "env_name", ["DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED", "DD_FLAGGING_EVALUATION_COUNTS_ENABLED"]
+    )
+    def test_killswitch_false_does_not_register_evp_hook(self, env_name):
+        """Either environment name can disable evaluation-count delivery."""
+        with mock.patch.dict(os.environ, {env_name: "false"}):
             from tests.utils import override_global_config
 
             with override_global_config({"experimental_flagging_provider_enabled": True}):
@@ -402,9 +414,12 @@ class TestKillswitchGating:
                 assert provider._flag_eval_evp_writer is None
                 assert provider._flag_eval_evp_hook is None
 
-    def test_killswitch_false_does_not_affect_otel_hook(self):
+    @pytest.mark.parametrize(
+        "env_name", ["DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED", "DD_FLAGGING_EVALUATION_COUNTS_ENABLED"]
+    )
+    def test_killswitch_false_does_not_affect_otel_hook(self, env_name):
         """Killswitch must not suppress the OTel FlagEvalMetricsHook (OTel non-regression)."""
-        with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "false"}):
+        with mock.patch.dict(os.environ, {env_name: "false"}):
             from tests.utils import override_global_config
 
             with override_global_config(
@@ -444,9 +459,12 @@ class TestKillswitchGating:
         join_call = mock.call.join(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
         assert writer.mock_calls.index(mock.call.stop()) < writer.mock_calls.index(join_call)
 
-    def test_killswitch_enabled_true_registers_evp_hook(self):
-        """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true must register the EVP hook."""
-        with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "true"}):
+    @pytest.mark.parametrize(
+        "env_name", ["DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED", "DD_FLAGGING_EVALUATION_COUNTS_ENABLED"]
+    )
+    def test_killswitch_enabled_true_registers_evp_hook(self, env_name):
+        """Either environment name can enable evaluation-count delivery."""
+        with mock.patch.dict(os.environ, {env_name: "true"}):
             from tests.utils import override_global_config
 
             with override_global_config({"experimental_flagging_provider_enabled": True}):

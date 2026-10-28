@@ -73,7 +73,7 @@ class OpenFeatureConfig(DDConfig):
     # path is unaffected by this flag.
     flagging_evaluation_counts_enabled = DDConfig.var(
         bool,
-        "DD_FLAGGING_EVALUATION_COUNTS_ENABLED",
+        "DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED",
         default=True,
     )
 
