@@ -9,8 +9,10 @@ from typing import Any
 from typing import Optional
 from typing import TypedDict
 from typing import Union
+from typing import cast
 
 from ddtrace import config
+from ddtrace.internal import forksafe
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
@@ -21,6 +23,8 @@ from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelec
 from ddtrace.internal.openfeature._evp_transport import _is_definitive_pre_send_failure
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
 from ddtrace.internal.openfeature._evp_transport import get_feature_flag_evp_route_selector
+from ddtrace.internal.openfeature._telemetry import Progress
+from ddtrace.internal.openfeature._telemetry import register
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
@@ -90,6 +94,12 @@ class BatchedExposures(TypedDict, total=False):
     exposures: list[ExposureEvent]
 
 
+class _ExposureProcessState:
+    def __init__(self) -> None:
+        self.buffer: list[ExposureEvent] = []
+        self.buffer_size = 0
+
+
 class ExposureWriter(PeriodicService):
     """
     Async writer for feature flag exposure events.
@@ -118,8 +128,10 @@ class ExposureWriter(PeriodicService):
 
         super().__init__(interval=interval)
         self._lock = RLock()
-        self._buffer: list[ExposureEvent] = []
-        self._buffer_size: int = 0
+        self._flush_lock = forksafe.Lock()
+        self._progress = cast(Progress, forksafe.ResetObject(Progress))
+        register(self)
+        self._process_state = cast(_ExposureProcessState, forksafe.ResetObject(_ExposureProcessState))
         self._timeout: float = timeout
         self._enabled: bool = enabled
         self._route_selector = route_selector or get_feature_flag_evp_route_selector()
@@ -143,6 +155,22 @@ class ExposureWriter(PeriodicService):
             self._enabled,
             interval,
         )
+
+    @property
+    def _buffer(self) -> list[ExposureEvent]:
+        return self._process_state.buffer
+
+    @_buffer.setter
+    def _buffer(self, value: list[ExposureEvent]) -> None:
+        self._process_state.buffer = value
+
+    @property
+    def _buffer_size(self) -> int:
+        return self._process_state.buffer_size
+
+    @_buffer_size.setter
+    def _buffer_size(self, value: int) -> None:
+        self._process_state.buffer_size = value
 
     def start(self, *args, **kwargs):
         if not self._enabled:
@@ -173,41 +201,45 @@ class ExposureWriter(PeriodicService):
             return
 
         event_size = len(json.dumps(event).encode("utf-8"))
-        with self._lock:
-            if len(self._buffer) >= BUFFER_LIMIT:
-                logger.debug("ExposureWriter event buffer full (limit is %d), dropping event", BUFFER_LIMIT)
-                return
-
-            if self._buffer_size + event_size > PAYLOAD_SIZE_LIMIT:
-                logger.debug("manually flushing buffer because queueing next event will exceed payload limit")
-                self.periodic()
-
-            self._buffer.append(event)
-            self._buffer_size += event_size
-            logger.debug("enqueued exposure event, buffer size: %d", len(self._buffer))
+        while True:
+            with self._lock:
+                if len(self._buffer) >= BUFFER_LIMIT:
+                    logger.debug("ExposureWriter event buffer full (limit is %d), dropping event", BUFFER_LIMIT)
+                    return
+                if not self._buffer or self._buffer_size + event_size <= PAYLOAD_SIZE_LIMIT:
+                    self._buffer.append(event)
+                    self._buffer_size += event_size
+                    self._progress.accept()
+                    return
+            # Keep the existing payload-limit flush without holding the intake
+            # lock while waiting for another send to finish.
+            self.periodic()
 
     def periodic(self) -> None:
-        """
-        Periodically flush buffered events to the intake.
-        """
-        with self._lock:
-            if not self._buffer:
-                return
-            events = self._buffer
-            self._buffer = []
-            self._buffer_size = 0
-
-        payload = self._encode(events)
-        if not payload:
-            return
-
-        try:
-            route = self._route_selector.select()
-            if route is None:
-                return
-            self._send_payload_with_retry(payload, len(events), route)
-        except Exception:
-            logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
+        """Flush one buffer and acknowledge it only after endpoint acceptance."""
+        with self._flush_lock:
+            with self._lock:
+                if not self._buffer:
+                    return
+                events = self._buffer
+                self._buffer = []
+                self._buffer_size = 0
+                with self._progress.lock:
+                    target = self._progress.accepted
+            success = False
+            try:
+                payload = self._encode(events)
+                if not payload:
+                    return
+                route = self._route_selector.select()
+                if route is None:
+                    return
+                response = self._send_payload_with_retry(payload, len(events), route)
+                success = 200 <= response.status < 300
+            except Exception:
+                logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
+            finally:
+                self._progress.finish(target, success)
 
     def _send_payload_with_retry(self, payload: bytes, num_events: int, route: EVPRoute) -> Response:
         if self._route_selector.configuration_source != REMOTE_CONFIG:
