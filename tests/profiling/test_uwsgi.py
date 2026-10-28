@@ -448,10 +448,11 @@ def test_uwsgi_threads_processes_primary(
     assert exit_code == 0
 
 
+@pytest.mark.parametrize("num_workers", [1, 2])
 def test_uwsgi_import_ddtrace_auto_processes_primary_skip_atexit(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, num_workers: int
 ) -> None:
-    """Test the profiler started by ddtrace.auto in the master of a non-lazy, multi-worker uwsgi.
+    """Test the profiler started by ddtrace.auto in the master of a non-lazy uwsgi, with one or more workers.
 
     The master loads ddtrace.auto, then forks the workers without the Python fork hooks. The profiler
     must be started in the master, so that it registers its postfork callback and chains Profiler.stop
@@ -479,11 +480,11 @@ def test_uwsgi_import_ddtrace_auto_processes_primary_skip_atexit(
         "--wsgi-file",
         str(app),
     ]
-    proc = run_uwsgi(cmd)("--enable-threads", "--master", "--processes", "2", "--skip-atexit")
+    proc = run_uwsgi(cmd)("--enable-threads", "--master", "--processes", str(num_workers), "--skip-atexit")
 
     try:
-        worker_pids = _get_worker_pids(proc.stdout, 2)
-        assert len(worker_pids) == 2
+        worker_pids = _get_worker_pids(proc.stdout, num_workers)
+        assert len(worker_pids) == num_workers
         for pid in worker_pids:
             _wait_for_profile_samples(filename, pid, "wall-time")
     finally:

@@ -80,6 +80,13 @@ def test_non_lazy_multi_process_with_master_is_deferred_to_worker(fake_uwsgi):
         uwsgi.check_uwsgi()
 
 
+def test_non_lazy_single_process_with_master_is_deferred_to_worker(fake_uwsgi) -> None:
+    """With --master, the master forks the single worker without the fork hooks, so it defers to postfork too."""
+    fake_uwsgi(opt={"enable-threads": True, "master": True}, numproc=1, worker_id=0)
+    with pytest.raises(uwsgi.uWSGIMasterProcess):
+        uwsgi.check_uwsgi()
+
+
 def test_lazy_apps_multi_process_is_ordinary(fake_uwsgi):
     fake_uwsgi(opt={"enable-threads": True, "lazy-apps": True, "master": True}, numproc=2, worker_id=0)
     # lazy-apps: each worker loads independently, no special-casing needed.
