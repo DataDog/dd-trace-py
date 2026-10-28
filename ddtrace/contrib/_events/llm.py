@@ -35,7 +35,7 @@ class LlmRequestEvent(TracingEvent):
 
     provider: str = event_field()
     model: Optional[str] = event_field(default=None)
-    # Integrations that have moved to SpanCycleEvents subscribers leave this unset.
+    # Integrations that have moved to SpanLifecycleEvents subscribers leave this unset.
     llmobs_integration: Optional[BaseLLMIntegration] = event_field(default=None)
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)

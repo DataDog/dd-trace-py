@@ -13,7 +13,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.span_cycle import SpanCycleEvents
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -164,9 +164,9 @@ class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[Traci
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
-        core.dispatch(f"{SpanCycleEvents.SPAN_STARTING.value}.{ctx.identifier}", (ctx,))
+        core.dispatch(f"{SpanLifecycleEvents.SPAN_STARTING.value}.{ctx.identifier}", (ctx,))
         super()._on_context_started(ctx)
-        core.dispatch(f"{SpanCycleEvents.SPAN_STARTED.value}.{ctx.identifier}", (ctx,))
+        core.dispatch(f"{SpanLifecycleEvents.SPAN_STARTED.value}.{ctx.identifier}", (ctx,))
 
     @classmethod
     def _on_context_ended(
@@ -175,6 +175,6 @@ class SpanLifecycleSubscriber(TracingSubscriber[TracingEventType], Generic[Traci
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         try:
-            core.dispatch(f"{SpanCycleEvents.SPAN_FINISHING.value}.{ctx.identifier}", (ctx,))
+            core.dispatch(f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{ctx.identifier}", (ctx,))
         finally:
             super()._on_context_ended(ctx, exc_info)

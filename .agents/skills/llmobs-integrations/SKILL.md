@@ -12,7 +12,7 @@ Use `apm-integrations` as well when changing contrib patching, registration, or 
 
 Standard request spans use `LlmRequestEvent` and `core.context_with_event()`; the tracing
 subscriber owns span creation, errors, and finishing. For new integrations, leave the event's
-`llmobs_integration` unset and connect extraction through `SpanCycleEvents` subscribers under
+`llmobs_integration` unset and connect extraction through `SpanLifecycleEvents` subscribers under
 `ddtrace/llmobs/_contrib/<name>/`. Specialized agent/tool/duplex integrations may use direct spans.
 Preserve the existing lifecycle when extending an integration.
 

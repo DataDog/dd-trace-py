@@ -3,7 +3,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
-from ddtrace.contrib._events.span_cycle import SpanCycleEvents
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal.anthropic._constants import COMPONENT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -15,7 +15,7 @@ from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 
 
 class LLMObsAnthropicSubscriber(Subscriber):
-    """Base for LLMObs subscribers to the SpanCycleEvents of the Anthropic contrib's llm.request spans.
+    """Base for LLMObs subscribers to the SpanLifecycleEvents of the Anthropic contrib's llm.request spans.
 
     llm.request is shared by every LLM integration, so handlers ignore contexts
     whose event belongs to another component.
@@ -37,7 +37,7 @@ class LLMObsAnthropicSubscriber(Subscriber):
 
 
 class LLMObsAnthropicSpanStartingSubscriber(LLMObsAnthropicSubscriber):
-    event_names = (f"{SpanCycleEvents.SPAN_STARTING.value}.{LlmRequestEvent.event_name}",)
+    event_names = (f"{SpanLifecycleEvents.SPAN_STARTING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
@@ -51,7 +51,7 @@ class LLMObsAnthropicSpanStartingSubscriber(LLMObsAnthropicSubscriber):
 
 
 class LLMObsAnthropicSpanStartedSubscriber(LLMObsAnthropicSubscriber):
-    event_names = (f"{SpanCycleEvents.SPAN_STARTED.value}.{LlmRequestEvent.event_name}",)
+    event_names = (f"{SpanLifecycleEvents.SPAN_STARTED.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
@@ -72,7 +72,7 @@ class LLMObsAnthropicSpanStartedSubscriber(LLMObsAnthropicSubscriber):
 
 
 class LLMObsAnthropicSpanFinishingSubscriber(LLMObsAnthropicSubscriber):
-    event_names = (f"{SpanCycleEvents.SPAN_FINISHING.value}.{LlmRequestEvent.event_name}",)
+    event_names = (f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, event_instance: core.ExecutionContext[LlmRequestEvent]) -> None:
