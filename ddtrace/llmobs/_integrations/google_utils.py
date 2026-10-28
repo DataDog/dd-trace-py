@@ -421,7 +421,8 @@ def extract_messages_from_adk_events(events) -> list[Message]:
         for part in parts:
             # Reuse the existing Google GenAI part extraction logic
             message = extract_message_from_part_google_genai(part, role)
-            if message:
+            # e.g. a thought-signature-only part, which has nothing to show
+            if message.get("content") or message.get("tool_calls") or message.get("tool_results"):
                 messages.append(message)
 
     return messages

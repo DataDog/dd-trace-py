@@ -121,6 +121,17 @@ def test_extract_messages_keeps_partials_when_only_tool_call_is_assembled():
     assert messages[2]["tool_calls"][0]["name"] == "lookup"
 
 
+def test_extract_messages_skips_empty_parts():
+    from google.adk.events import Event
+    from google.genai import types
+
+    event = Event(
+        author="model",
+        content=types.Content(role="model", parts=[types.Part(text="Hi."), types.Part(thought_signature=b"sig")]),
+    )
+    assert extract_messages_from_adk_events([event]) == [{"role": "assistant", "content": "Hi."}]
+
+
 class TestLLMObsGoogleADK:
     @pytest.mark.asyncio
     async def test_agent_run1(self, test_runner, request_vcr, test_spans, google_adk_llmobs):
