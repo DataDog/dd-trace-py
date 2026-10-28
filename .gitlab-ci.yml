@@ -109,7 +109,7 @@ include:
 
 tests-gen:
   stage: tests
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
     NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
@@ -133,6 +133,7 @@ tests-gen:
       - .gitlab/tests-gen.yml
       - .gitlab/benchmarks/microbenchmarks-gen.yml
       - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+    expire_in: 1 week
 
 run-tests-trigger:
  stage: tests
@@ -179,9 +180,13 @@ serverless lambda tests:
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
-  extends: .testrunner
+  extends: .ci_utils
   stage: tests
   needs: []
+  variables:
+    # scripts/lint pins Python 3.10, which uv downloads here. The image's default
+    # managed Python directory is root-owned, so install into the checkout instead.
+    UV_PYTHON_INSTALL_DIR: "${CI_PROJECT_DIR}/.cache/uv-python"
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
@@ -302,7 +307,7 @@ apm-sdks-benchmarks:
 check_new_flaky_tests:
   stage: tests
   needs: ["run-tests-trigger"]
-  extends: .testrunner
+  extends: .ci_utils
   script:
     - export DD_SITE=datadoghq.com
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
@@ -375,7 +380,7 @@ check_requirements_lockfiles:
 check_ci_dependencies:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   script:
     - scripts/check-ci-dependencies
 
@@ -442,7 +447,7 @@ codeowners:
 detect_circular_imports:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   rules:
     - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
       allow_failure: true
@@ -451,7 +456,6 @@ detect_circular_imports:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
-    - pip install uv
     - cd ..
     # Keep copies of PR scripts so they survive the git checkout of the base branch below
     - cp dd-trace-py/scripts/import-analysis/cycles.py cycles.py
@@ -482,7 +486,7 @@ detect_circular_imports:
 detect_layering_violations:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   rules:
     - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
       allow_failure: true
@@ -491,7 +495,6 @@ detect_layering_violations:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
-    - pip install uv
     - cd ..
     # Keep copies of PR scripts (and their config) so they survive the git checkout of the base branch below
     - cp dd-trace-py/scripts/import-analysis/layers.py layers.py
@@ -524,7 +527,7 @@ detect_layering_violations:
 check_added_file_size:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     # Needs full history to reliably compute a merge-base against the fetched
     # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
@@ -557,7 +560,7 @@ check_added_file_size:
 check_no_new_aidev_anchors:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     # Needs full history to reliably compute a merge-base against the fetched
     # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
@@ -591,7 +594,7 @@ check_no_new_aidev_anchors:
 check_type_comments:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     # Needs full history to reliably compute a merge-base against the fetched
     # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
@@ -621,16 +624,12 @@ check_type_comments:
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_type_comments.py --base-ref FETCH_HEAD
 
-# Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
-# tests stub git/curl (no network), so we skip the heavier .testrunner setup.
+# Unit tests for resolve-base-branch.sh. They only need bash+jq and stub git/curl
+# (no network).
 test_resolve_base_branch:
+  extends: .ci_utils
   stage: tests
   needs: []
-  image:
-    name: ${TESTRUNNER_IMAGE}
-    docker:
-      user: bits
-  tags: [ "arch:amd64" ]
   timeout: 5m
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
