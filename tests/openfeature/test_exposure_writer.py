@@ -2,7 +2,6 @@
 Tests for the ExposureWriter class.
 """
 
-from functools import partial
 import json
 from unittest import mock
 
@@ -18,7 +17,6 @@ from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_global_config
 
 
@@ -69,11 +67,14 @@ def remote_config_transport():
         site="datadoghq.com",
         info_provider=info_provider,
     )
-    writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=connection_factory)
     sleep_intervals = []
-    local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep_intervals.append)
-    with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
-        yield writer, connection_factory, info_provider, sleep_intervals
+    writer = ExposureWriter(
+        interval=0.1,
+        route_selector=selector,
+        connection_factory=connection_factory,
+        retry_wait=sleep_intervals.append,
+    )
+    yield writer, connection_factory, info_provider, sleep_intervals
 
 
 class TestExposureWriter:
@@ -325,16 +326,15 @@ class TestExposureWriter:
         for connection in connections:
             connection.request.side_effect = ConnectionFailedError("connection refused")
         connection_factory = mock.Mock(side_effect=connections)
+        sleep_intervals = []
         writer = ExposureWriter(
             route_selector=_route_selector(source=AGENTLESS, endpoints=endpoints, api_key=api_key),
             connection_factory=connection_factory,
+            retry_wait=sleep_intervals.append,
         )
         writer.enqueue(sample_exposure_event)
 
-        sleep_intervals = []
-        local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep_intervals.append)
-        with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
-            writer.periodic()
+        writer.periodic()
 
         assert connection_factory.call_count == expected_attempts
         for connection in connections:

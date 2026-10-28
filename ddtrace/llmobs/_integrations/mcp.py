@@ -1,14 +1,13 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
+from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
@@ -23,7 +22,6 @@ log = get_logger(__name__)
 
 MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
-DEFAULT_TOOL_ERROR_MESSAGE = "tool resulted in an error"
 MCP_SESSION_ID_HEADER = "mcp-session-id"
 MCP_RESERVED_META_KEY_PREFIX = "io.modelcontextprotocol/"
 # Client identity is self-reported and repeated on every tool call span in a session
@@ -79,22 +77,6 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
         if value:
             tags[f"mcp_client_{field}"] = str(value)[:MAX_CLIENT_INFO_TAG_LENGTH]
     return tags
-
-
-def is_tool_error(result: Any) -> bool:
-    return bool(_get_attr(result, "isError", None) or _get_attr(result, "is_error", None))
-
-
-def get_tool_error_message(result: Any) -> Optional[str]:
-    content = _get_attr(result, "content", None) or []
-    if not isinstance(content, list):
-        return None
-    for item in content:
-        if _get_attr(item, "type", None) == "text":
-            text = _get_attr(item, "text", None)
-            if text:
-                return str(text)
-    return None
 
 
 class MCPIntegration(BaseLLMIntegration):
@@ -239,10 +221,6 @@ class MCPIntegration(BaseLLMIntegration):
             override_tags["mcp_tool"] = tool_name
             override_tags["mcp_tool_kind"] = "server"
 
-        if response and is_tool_error(response):
-            span.error = 1
-            span.set_tag(ERROR_TYPE, "ToolError")
-            span.set_tag(ERROR_MSG, get_tool_error_message(response) or DEFAULT_TOOL_ERROR_MESSAGE)
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
     def process_telemetry_argument(self, span: Span, request: Any) -> None:

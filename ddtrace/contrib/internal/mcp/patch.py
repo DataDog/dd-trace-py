@@ -8,9 +8,13 @@ import mcp
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.mcp._constants import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._tool_result import DEFAULT_TOOL_ERROR_MESSAGE
+from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
+from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.contrib.internal.mcp.utils import DatadogServerMiddleware
 from ddtrace.contrib.internal.mcp.utils import extract_distributed_headers_from_mcp_request
 from ddtrace.contrib.internal.mcp.utils import set_distributed_headers_into_mcp_request
@@ -24,8 +28,6 @@ from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
-from ddtrace.llmobs._integrations.mcp import get_tool_error_message
-from ddtrace.llmobs._integrations.mcp import is_tool_error
 from ddtrace.trace import tracer
 
 
@@ -211,10 +213,11 @@ def traced_request_responder_exit(func, instance, args: tuple, kwargs: dict):
 
 
 async def traced_request_responder_respond(func, instance, args: tuple, kwargs: dict):
+    from mcp.types import CallToolResult
     from mcp.types import ListToolsResult
 
-    response_arg = args[0] if len(args) > 0 else None
-    response = getattr(response_arg, "root", None)
+    response_arg = args[0] if args else kwargs.get("response")
+    response = getattr(response_arg, "root", response_arg)
     integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
@@ -225,6 +228,10 @@ async def traced_request_responder_respond(func, instance, args: tuple, kwargs: 
         return await func(*args, **kwargs)
     finally:
         if span:
+            if isinstance(response, CallToolResult) and response.isError:
+                span.error = 1
+                span.set_tag(ERROR_TYPE, "ToolError")
+                span.set_tag(ERROR_MSG, get_tool_error_message(response) or DEFAULT_TOOL_ERROR_MESSAGE)
             integration.llmobs_set_tags(
                 span,
                 args=args,

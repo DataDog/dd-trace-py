@@ -125,6 +125,18 @@ def test_tool_error(mcp_llmobs, test_spans, run_client, mode):
 
 
 @pytest.mark.parametrize("mode", CLIENT_MODES)
+def test_tool_error_without_llmobs(mcp_setup, test_spans, run_client, mode):
+    assert not mcp_setup._datadog_integration.llmobs_enabled
+    result = run_client(mode, lambda client: client.call_tool("failing_tool", {"param": "value"}))
+
+    assert result.is_error
+    server_span = _only(_pop_spans(test_spans), "server_tool_call")
+    assert server_span.error == 1
+    assert server_span.get_tag("error.type") == "ToolError"
+    assert server_span.get_tag("error.message").startswith("Error executing tool failing_tool")
+
+
+@pytest.mark.parametrize("mode", CLIENT_MODES)
 def test_intent_capture(mcp_llmobs, test_spans, run_client, mode):
     async def list_then_call(client):
         tools = await client.list_tools()

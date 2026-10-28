@@ -26,6 +26,7 @@ from tests.aiguard.utils import mock_evaluate_response
 
 
 MESSAGES = [{"role": "user", "content": "What is the meaning of life?"}]
+TOOL_CALL = [{"role": "assistant", "tool_calls": [{"id": "call_1", "function": {"name": "lookup", "arguments": "{}"}}]}]
 
 
 def _error_metrics(add_count_metric: Mock) -> list[dict[str, str]]:
@@ -133,7 +134,7 @@ class TestInternalErrorsAreNotAttributedToTransport:
         """_get_tool_name runs before the HTTP call, so its failure never reaches the classifier."""
         with patch.object(ai_guard_client, "_get_tool_name", side_effect=RuntimeError("bug")):
             with pytest.raises(RuntimeError):
-                ai_guard_client.evaluate(MESSAGES)
+                ai_guard_client.evaluate(TOOL_CALL)
 
         errors = _error_metrics(add_count_metric)
         assert len(errors) == 1

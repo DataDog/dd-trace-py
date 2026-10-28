@@ -18,11 +18,16 @@ if TYPE_CHECKING:
 
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
+from ddtrace.contrib.internal.mcp._tool_result import DEFAULT_TOOL_ERROR_MESSAGE
+from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
+from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
@@ -128,6 +133,10 @@ class DatadogServerMiddleware:
         result = None
         try:
             result = await call_next(ctx)
+            if method == "tools/call" and is_tool_error(result):
+                span.error = 1
+                span.set_tag(ERROR_TYPE, "ToolError")
+                span.set_tag(ERROR_MSG, get_tool_error_message(result) or DEFAULT_TOOL_ERROR_MESSAGE)
             return result
         except Exception:
             span.set_exc_info(*sys.exc_info())
