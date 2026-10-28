@@ -23,7 +23,7 @@ _FFE_SNAPSHOT: Optional[_FfeSnapshot] = None
 # _provider.py because _native.py sets the configuration and must trigger the
 # notification without importing _provider.py (which itself imports _native.py).
 # Providers are registered/unregistered via _register_provider/_unregister_provider and
-# must implement on_configuration_received().
+# must implement on_configuration_received() and on_configuration_removed().
 _provider_instances: list[Any] = []
 
 
@@ -47,6 +47,9 @@ def _set_ffe_config(value: Optional[_FfeSnapshot]) -> None:
 
     if _FFE_SNAPSHOT is not None:
         _notify_providers_config_received()
+    else:
+        for provider in _provider_instances:
+            provider.on_configuration_removed()
 
 
 def _register_provider(provider: Any) -> None:
