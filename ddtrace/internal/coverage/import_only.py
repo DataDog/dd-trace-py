@@ -13,8 +13,8 @@ What lives here:
   shared import-time edge store; edges executed inside a test window belong to that
   test's context only; edges executed outside any window (session-level lazy
   imports) go back to the shared store.
-- module bookkeeping (prepare_module/record_module): the line-0 sentinel and
-  name-to-path registration that the closure machinery needs.
+- module bookkeeping (record_module): the line-0 sentinel for a module whose
+  import context carried no line data (no instrumentation ran during the body).
 - backfill of modules imported before the collector installed: they never went
   through transform, so without the backfill they are invisible closure nodes and
   edges recorded later (e.g. lazy dialect loads) hang off them unreachable.
@@ -27,7 +27,6 @@ from collections import defaultdict
 import os
 from pathlib import Path
 import sys
-from types import CodeType
 from types import ModuleType
 import typing as t
 
@@ -90,10 +89,7 @@ class ImportOnlyCoverage:
         stack (first-time imports). Import-time contexts themselves are skipped:
         their data is only used for the importing module's own file.
         """
-        collector = self._collector
-        if collector._coverage_enabled and path not in collector._covered_files:
-            collector._covered_files.add(path)
-            collector.covered[path].add(0)
+        self._collector._record_file_covered(path)
 
         if ctx_coverage_enabled.get():
             stack = ctx_collectors.get()
@@ -154,15 +150,6 @@ class ImportOnlyCoverage:
     # Module bookkeeping (called from transform / after_import)
     # ------------------------------------------------------------------
 
-    def prepare_module(self, code: CodeType, module: ModuleType) -> None:
-        """Bookkeeping at transform time for a module about to execute."""
-        collector = self._collector
-        collector._import_time_name_to_path[module.__name__] = code.co_filename
-        self.clear_caches()
-        module_context = collector.CollectInContext(is_import_coverage=True)
-        module_context.__enter__()  # type: ignore[no-untyped-call]
-        collector._import_time_contexts[code.co_filename] = module_context
-
     def record_module(self, module: ModuleType) -> None:
         """Finish import-time bookkeeping for an imported module.
 
@@ -172,16 +159,11 @@ class ImportOnlyCoverage:
         window is open (import events may miss the module itself:
         importlib.import_module bypasses the wrapper).
         """
-        collector = self._collector
-        module_file = module.__file__
-        if module_file is None:
+        if module.__file__ is None:
             return
-        module_file = os.path.realpath(module_file)  # canonicalize: __file__ is unresolved before 3.10
-        collector._import_time_covered[module_file].add(0)
-        self.clear_caches()
-        if collector._coverage_enabled and module_file not in collector._covered_files:
-            collector._covered_files.add(module_file)
-            collector.covered[module_file].add(0)
+        module_file = os.path.realpath(module.__file__)  # canonicalize: __file__ is unresolved before 3.10
+        self._collector._record_import_time_sentinel(module_file)
+        self._collector._record_file_covered(module_file)
 
     def backfill_already_imported(self) -> None:
         """Register modules that were imported before the collector installed.
@@ -207,11 +189,10 @@ class ImportOnlyCoverage:
             if not self.should_track(module_file):
                 continue
             if module_file not in collector._import_time_covered:
-                collector._import_time_covered[module_file].add(0)
-            collector._import_time_name_to_path.setdefault(name, module_file)
+                collector._record_import_time_sentinel(module_file)
+            collector._register_import_time_name(name, module_file)
             for edge in self._static_module_level_import_names(name, module_file):
                 self._add_import_time_name(module_file, edge)
-        self.clear_caches()
 
     @staticmethod
     def _static_module_level_import_names(module_name: str, module_file: str) -> tuple[ImportName, ...]:
@@ -252,21 +233,9 @@ class ImportOnlyCoverage:
     # Closures
     # ------------------------------------------------------------------
 
-    def _clear_static_cache(self) -> None:
+    def on_import_metadata_changed(self) -> None:
+        """Collector notification: import-time metadata changed, drop derived caches."""
         self._static_import_time_dependency_paths_cache.clear()
-
-    def clear_caches(self) -> None:
-        """Invalidate everything derived from the import-time metadata.
-
-        Called whenever the graph grows (new module registered, new edge, sentinel
-        added): the shared resolution cache, the collector's closure caches and the
-        static-closure cache all depend on it.
-        """
-        collector = self._collector
-        collector._dependency_paths_for_import_name_cache.clear()
-        collector._import_time_dependency_paths_cache.clear()
-        collector._file_level_covered_paths_cache.clear()
-        self._clear_static_cache()
 
     def _direct_dependency_paths(self, path: str, import_names: dict[str, set[ImportName]]) -> frozenset[str]:
         dependency_paths: set[str] = set()

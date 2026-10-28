@@ -109,12 +109,10 @@ def coverage_collection(
         # module-level dependencies from. Instrumented modes already cover the
         # test file (its code executes), so the anchor stays off there to keep their
         # payloads unchanged.
-        if anchor_paths is not None:
-            instance = ModuleCodeCollector._instance
-            if instance is not None and instance._import_only_coverage:
-                for anchor_path in anchor_paths:
-                    for anchor in _anchor_files(anchor_path):
-                        coverage_collector.anchor_file(anchor)
+        if anchor_paths is not None and ModuleCodeCollector.import_only_enabled():
+            for anchor_path in anchor_paths:
+                for anchor in _anchor_files(anchor_path):
+                    coverage_collector.anchor_file(anchor)
         yield coverage_data
         if ModuleCodeCollector.file_level_coverage_enabled():
             coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()
