@@ -5,6 +5,7 @@ from confluent_kafka import TopicPartition
 import pytest
 
 from ddtrace.internal.datastreams import data_streams_processor
+from ddtrace.internal.datastreams.kafka import _headers_byte_size
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
@@ -317,6 +318,112 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     # DSM header 'dd-pathway-ctx-base64' was propagated in the headers
     assert message.headers()[0][0] == PROPAGATION_KEY_BASE_64
     assert message.headers()[0][1] is not None
+
+
+@pytest.mark.parametrize(
+    "headers,expected",
+    [
+        ([("tag", b"a"), ("tag", b"b")], 8),
+        ({"tag": b"a"}, 4),
+        ([("tag",)], 0),
+        (None, 0),
+    ],
+    ids=["repeated-keys", "dict", "malformed", "none"],
+)
+def test_headers_byte_size(headers, expected):
+    assert _headers_byte_size(headers) == expected
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [[(PROPAGATION_KEY_BASE_64, b"stale"), ("a", b"b")], {PROPAGATION_KEY_BASE_64: b"stale", "a": b"b"}],
+    ids=["list", "dict"],
+)
+def test_headers_byte_size_exclude(headers):
+    assert _headers_byte_size(headers, exclude=PROPAGATION_KEY_BASE_64) == 2
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [[(PROPAGATION_KEY_BASE_64, b"stale"), ("a", b"b")], {PROPAGATION_KEY_BASE_64: b"stale", "a": b"b"}],
+    ids=["list", "dict"],
+)
+def test_data_streams_produce_payload_size_ignores_forwarded_pathway_header(
+    dsm_processor, producer, empty_kafka_topic, headers
+):
+    """A forwarded pathway header is replaced on produce, so only the new one counts toward payload size."""
+    payload, key = b"payload", "key"
+    expected_payload_size = len(payload) + len(key) + len("a") + len(b"b")
+    expected_payload_size += len(PROPAGATION_KEY_BASE_64) + DSM_TEST_PATH_HEADER_SIZE
+    expected_sketch = DDSketch()
+    expected_sketch.add(float(expected_payload_size))
+
+    with override_config("kafka", dict(distributed_tracing_enabled=False)):
+        producer.produce(empty_kafka_topic, payload, key=key, headers=headers)
+        producer.flush()
+
+    with dsm_processor._lock:
+        produce_stats = [
+            stats
+            for bucket in dsm_processor._buckets.values()
+            for stat_key, stats in bucket.pathway_stats.items()
+            if "direction:out" in stat_key[0]
+        ]
+    assert produce_stats, "no DSM produce checkpoint recorded"
+    for stats in produce_stats:
+        assert stats.payload_size.to_proto() == expected_sketch.to_proto()
+
+
+@pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        [("app-header", b"app-value")],
+        [("app-header", b"app-value"), (PROPAGATION_KEY_BASE_64, b"stale")],
+        None,
+    ],
+    ids=["list", "forwarded-list", "none"],
+)
+def test_data_streams_produce_with_list_or_none_headers(
+    dsm_processor, fresh_consumer, producer, empty_kafka_topic, headers, distributed_tracing_enabled
+):
+    """confluent-kafka accepts headers as a list of (key, value) tuples or None, not only a dict."""
+    original_headers = list(headers) if headers is not None else None
+    PAYLOAD = b"list or none headers"
+
+    with override_config("kafka", dict(distributed_tracing_enabled=distributed_tracing_enabled)):
+        producer.produce(empty_kafka_topic, PAYLOAD, key="test_key", headers=headers)
+        producer.flush()
+
+    message = None
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        polled = fresh_consumer.poll(timeout=1.0)
+        if polled is not None and polled.error() is None:
+            message = polled
+            break
+    assert message is not None, "Consumer did not receive the produced message within 10s"
+
+    header_keys = [h[0] for h in (message.headers() or [])]
+    assert header_keys.count(PROPAGATION_KEY_BASE_64) == 1, f"expected exactly one DSM pathway header: {header_keys}"
+    assert (PROPAGATION_KEY_BASE_64, b"stale") not in message.headers(), "stale DSM pathway header was forwarded"
+    if original_headers is not None:
+        assert ("app-header", b"app-value") in message.headers()
+        assert headers == original_headers, "caller's headers list was mutated"
+
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
+    produce_key = PartitionKey(empty_kafka_topic, 0, cluster_id)
+    with dsm_processor._lock:
+        produce_tracked = any(
+            produce_key in bucket.latest_produce_offsets for bucket in dsm_processor._buckets.values()
+        )
+    assert produce_tracked, "DSM did not track the produce offset"
+
+    # The consume checkpoint must chain onto the produce checkpoint rather than start a new pathway.
+    stat_keys = all_pathway_stat_keys(dsm_processor)
+    produce_hashes = {k[1] for k in stat_keys if "direction:out" in k[0]}
+    consume_parents = {k[2] for k in stat_keys if "direction:in" in k[0]}
+    assert produce_hashes & consume_parents, "consume checkpoint is not linked to the produce checkpoint"
 
 
 def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):

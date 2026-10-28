@@ -9,6 +9,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
@@ -17,7 +18,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
-from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class StackCollector(collector.Collector):
         "_native_call_monitor",
     )
 
-    def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None) -> None:
+    def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[ProfilerTracer] = None) -> None:
         super().__init__()
 
         self.nframes = nframes if nframes is not None else config.max_frames
@@ -93,14 +93,12 @@ class StackCollector(collector.Collector):
                 native_call_monitor.start()
                 self._native_call_monitor = native_call_monitor
             except Exception:
-                LOG.debug("Failed to start native call monitor", exc_info=True)
+                LOG.debug("[profiling] Failed to start native call monitor", exc_info=True)
 
         # Now patch the Threading module and register existing threads/asyncio loops.
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()
 
-        # Register only after every fallible initialization step. A failed collector is dropped without
-        # _stop_service(), so registering earlier could leave process-wide tracing listeners behind.
         if self.tracer is not None:
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
@@ -164,22 +162,22 @@ class StackCollector(collector.Collector):
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
-        LOG.debug("Profiling StackCollector starting")
+        LOG.debug("[profiling] StackCollector starting")
         self._init()
-        LOG.debug("Profiling StackCollector started")
+        LOG.debug("[profiling] StackCollector started")
 
     def _stop_service(self) -> None:
-        LOG.debug("Profiling StackCollector stopping")
+        LOG.debug("[profiling] StackCollector stopping")
         if self._native_call_monitor is not None:
             try:
                 self._native_call_monitor.stop()
             except Exception:
-                LOG.debug("Failed to stop native call monitor", exc_info=True)
+                LOG.debug("[profiling] Failed to stop native call monitor", exc_info=True)
             self._native_call_monitor = None
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
             core.reset_listeners("trace.span_finish", _unlink_finished_span)
-        LOG.debug("Profiling StackCollector stopped")
+        LOG.debug("[profiling] StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
         stack.stop()

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 
@@ -86,3 +87,37 @@ class ConftestTestCase(TracerTestCase):
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run(file_name)
         rec.assertoutcome(passed=0, failed=0, skipped=1)
+
+
+@pytest.mark.parametrize("optimization", ["0", "1", "2"])
+def test_subprocess_assertions_with_optimization(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, optimization: str
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    pytester.makeconftest((root / "tests/conftest.py").read_text())
+    pytester.makepyfile(application="def optimized():\n    return not __debug__\n")
+    pytester.makepyfile(
+        test_assertions="""
+        import pytest
+
+        @pytest.mark.subprocess(timeout=10)
+        def test_failing_assertion():
+            assert False, "subprocess assertion must execute"
+
+        @pytest.mark.subprocess(timeout=10)
+        def test_application_optimization():
+            import os
+            import sys
+            import application
+
+            expected = int(os.environ["PYTHONOPTIMIZE"])
+            assert sys.flags.optimize == expected
+            assert application.optimized() is bool(expected)
+        """
+    )
+    monkeypatch.setenv("PYTHONOPTIMIZE", optimization)
+    monkeypatch.setenv("DD_API_KEY", "foobar.baz")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(pytester.path), str(root), os.getenv("PYTHONPATH", "")]))
+    result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "test_assertions.py", timeout=30)
+    result.assert_outcomes(passed=1, failed=1)
+    result.stdout.fnmatch_lines(["*subprocess assertion must execute*"])

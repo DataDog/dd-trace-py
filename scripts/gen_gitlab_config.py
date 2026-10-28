@@ -19,6 +19,7 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import importlib
+import json
 import os
 import re
 import shlex
@@ -26,7 +27,8 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
-MAX_TOTAL_TEST_JOBS = 600
+# DEV: Do not edit this without first attempting to find ways to reduce current job count
+MAX_TOTAL_TEST_JOBS = 425
 # Keep VCR-backed and network-behavior tests off the proxy so their behavior stays deterministic.
 NO_PROXY_ADDITIONS = (
     "icanhazdadjoke.com",
@@ -62,6 +64,24 @@ def _wait_lockfile() -> str:
 
     environments = get_test_environments(nightly=False)["wait"]
     return str(next(environment.lockfile for environment in environments if environment.python == "3.9"))
+
+
+# tests/wait-for-services.py needs a client library from the wait lockfile to check these services. The script
+# checks the other services over HTTP with the standard library, or skips them if it does not know them.
+_WAIT_CLIENT_LIBRARY_SERVICES = frozenset(
+    ("azuresqledge", "azurite", "cassandra", "mysql", "postgres", "rabbitmq", "redis", "vertica")
+)
+
+
+def _wait_python(services: t.Iterable[str]) -> str:
+    """Return the interpreter command that runs tests/wait-for-services.py for these services."""
+    if _WAIT_CLIENT_LIBRARY_SERVICES.isdisjoint(services):
+        # The environment from the wait lockfile takes seconds to build, and the standard library is enough here.
+        return "python"
+    return (
+        f"uv run --no-project --python 3.9 --no-python-downloads --with-requirements {_wait_lockfile()} "
+        "--no-progress python"
+    )
 
 
 @dataclass
@@ -153,9 +173,7 @@ class JobSpec:
             if "testagent" in wait_for:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             lines.append(
-                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
-                f"--with-requirements {_wait_lockfile()} --no-progress "
-                f"python tests/wait-for-services.py {' '.join(wait_for)}"
+                f"    - {wait_environment}{_wait_python(wait_for)} tests/wait-for-services.py {' '.join(wait_for)}"
             )
 
         env = dict(self.env or {})
@@ -631,7 +649,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check test locks",
         command="scripts/test-requirements check",
-        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-requirements", "tests/suitespec.py"},
+        paths={"**/suitespec.yml", "tests/requirements_locks/*", "scripts/test-requirements", "tests/suitespec.py"},
     )
     check(
         name="Check microbenchmark SLO ownership",
@@ -668,7 +686,10 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check project dependencies",
-        command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
+        command=(
+            "scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py"
+            " && scripts/test_check_dependency_ci_coverage.py"
+        ),
         paths={
             "pyproject.toml",
             "tests/suitespec.py",
@@ -679,6 +700,7 @@ def gen_pre_checks() -> None:
             ".gitlab/**/*.yml",
             ".github/workflows/*.yml",
             "scripts/check-dependency-ci-coverage.py",
+            "scripts/test_check_dependency_ci_coverage.py",
         },
     )
     check(
@@ -725,15 +747,31 @@ prechecks:
       echo -e "\\e[0Ksection_end:`date +%s`:pip_cache_info\\r\\e[0K"
         """
         )
-        for i, (name, command) in enumerate(checks):
-            f.write(
-                rf"""
-    - |
-      echo -e "\e[0Ksection_start:`date +%s`:section_{i}[collapsed=true]\\r\\e[0K{name}"
-      {command}
-      echo -e "\e[0Ksection_end:`date +%s`:section_{i}\\r\\e[0K"
+        f.write(
             """
-            )
+    - |
+      # Build the shared lint environment once up front: the checks below run
+      # in parallel and would otherwise all queue behind the uv environment
+      # lock while the first one creates .venv-lint.
+      scripts/lint prepare
+    - |
+      # Run the selected checks in parallel. The runner buffers each check's
+      # output and prints it as a collapsible section (failed checks stay
+      # expanded), followed by a summary; it exits non-zero if any check fails.
+      scripts/run-parallel-prechecks.py - <<'EOF'
+"""
+        )
+        # The check list is passed to the runner on stdin, one JSON
+        # object per line: {"name": ..., "command": ...}. The six-space
+        # indent matches the YAML block above so the heredoc body starts
+        # at column zero; the runner strips each line before parsing as
+        # defense against indentation drift.
+        for name, command in checks:
+            f.write("      " + json.dumps({"name": name, "command": command}) + "\n")
+        f.write(
+            """      EOF
+"""
+        )
         f.write(
             """
   cache:

@@ -9,13 +9,11 @@ if TYPE_CHECKING:
     from mcp.types import InitializeRequest
     from mcp.types import ListToolsResult
 
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -29,6 +27,9 @@ CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 SERVER_REQUEST_OPERATION_NAME = "server_request"
 # This operation is handled the same as server_request but has a different name for legacy reasons
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
+DEFAULT_TOOL_ERROR_MESSAGE = "tool resulted in an error"
+# Client identity is self-reported and repeated on every tool call span in a session
+MAX_CLIENT_INFO_TAG_LENGTH = 256
 
 
 TELEMETRY_KEY = "telemetry"
@@ -62,6 +63,36 @@ def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
         if span._get_ctx_item(MCP_SPAN_TYPE) == "client_session":
             return span
         span = span._parent
+    return None
+
+
+def get_client_info(request_params: Any, session: Any) -> Any:
+    """mcp<2 uses camelCase field names, mcp>=2 uses snake_case."""
+    client_info = _get_attr(request_params, "clientInfo", None) or _get_attr(request_params, "client_info", None)
+    if client_info:
+        return client_info
+    client_params = _get_attr(session, "client_params", None)
+    return _get_attr(client_params, "clientInfo", None) or _get_attr(client_params, "client_info", None)
+
+
+def get_client_info_tags(client_info: Any) -> dict[str, str]:
+    tags = {}
+    for field in ("name", "title", "version"):
+        value = _get_attr(client_info, field, None)
+        if value:
+            tags[f"mcp_client_{field}"] = str(value)[:MAX_CLIENT_INFO_TAG_LENGTH]
+    return tags
+
+
+def get_tool_error_message(result: Any) -> Optional[str]:
+    content = _get_attr(result, "content", None) or []
+    if not isinstance(content, list):
+        return None
+    for item in content:
+        if _get_attr(item, "type", None) == "text":
+            text = _get_attr(item, "text", None)
+            if text:
+                return str(text)
     return None
 
 
@@ -203,11 +234,6 @@ class MCPIntegration(BaseLLMIntegration):
             override_tags["mcp_tool"] = tool_name
             override_tags["mcp_tool_kind"] = "server"
 
-        is_error = _get_attr(response, "isError", False) if response else False
-        if is_error:
-            span.error = 1
-            span.set_tag(ERROR_TYPE, "ToolError")
-            span.set_tag(ERROR_MSG, "tool resulted in an error")
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
     def process_telemetry_argument(self, span: Span, request: "CallToolRequest") -> None:
@@ -260,6 +286,9 @@ class MCPIntegration(BaseLLMIntegration):
         )
         if maybe_session_id:
             common_tags["mcp_session_id"] = str(maybe_session_id)
+
+        client_info = get_client_info(_get_attr(request_root, "params", None), _get_attr(responder, "_session", None))
+        common_tags.update(get_client_info_tags(client_info))
 
         # Exclude tracing context metadata from the recorded input
         if request_root and hasattr(request_root, "model_dump"):

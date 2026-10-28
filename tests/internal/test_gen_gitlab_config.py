@@ -2,6 +2,7 @@
 
 import importlib.util
 import io
+import json
 import pathlib
 import subprocess
 import sys
@@ -105,7 +106,7 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
     metadata = {
         "env123": (
-            ".riot/requirements/env123.txt",
+            "tests/requirements_locks/env123.txt",
             "tests/tracer/**/test*.py",
             "pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
             "PYTHONOPTIMIZE=1",
@@ -121,7 +122,7 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
         environments=[("env123", "3.12")],
         k=1,
         metadata=metadata,
-        wait_lockfile=".riot/requirements/wait.txt",
+        wait_lockfile="tests/requirements_locks/wait.txt",
     )
 
     content = output.getvalue()
@@ -187,7 +188,7 @@ def test_unpinned_jobs_allow_prerelease_dependencies(gen_gitlab_config_mod, monk
 
 
 def test_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
-    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value=".riot/requirements/wait.txt"):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="tests/requirements_locks/wait.txt"):
         config = str(
             gen_gitlab_config_mod.JobSpec(name="requests", stage="contrib", suite="contrib::requests", snapshot=True)
         )
@@ -196,3 +197,122 @@ def test_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
 
     assert extends == ".test_base_snapshot"
     assert f"{extends}:" in test_templates
+
+
+def _wait_command(gen_gitlab_config_mod, services, snapshot=True):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="tests/requirements_locks/wait.txt"):
+        config = str(
+            gen_gitlab_config_mod.JobSpec(
+                name="example", stage="contrib", suite="contrib::example", snapshot=snapshot, services=services
+            )
+        )
+    return next(line for line in config.splitlines() if "tests/wait-for-services.py" in line)
+
+
+@pytest.mark.parametrize("services", [[], ["elasticsearch", "httpbin"], ["memcached", "kafka"]])
+def test_http_only_services_wait_without_a_client_environment(gen_gitlab_config_mod, services):
+    command = _wait_command(gen_gitlab_config_mod, services)
+
+    assert "uv run" not in command
+    assert command.endswith(f"python tests/wait-for-services.py {' '.join([*services, 'testagent'])}")
+    assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" ' in command
+
+
+@pytest.mark.parametrize("services", [["postgres"], ["memcached", "redis"], ["azurite", "azureeventhubsemulator"]])
+def test_client_library_services_wait_in_the_client_environment(gen_gitlab_config_mod, services):
+    command = _wait_command(gen_gitlab_config_mod, services, snapshot=False)
+
+    assert (
+        "uv run --no-project --python 3.9 --no-python-downloads "
+        "--with-requirements tests/requirements_locks/wait.txt --no-progress "
+        f"python tests/wait-for-services.py {' '.join(services)}"
+    ) in command
+
+
+def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatch, tmp_path):
+    """The prechecks job must feed every selected check to the parallel runner."""
+    # Stub needs_testrun: its real module needs uv-script dependencies (lxml,
+    # vcrpy, ...) that are not installed in the test environment.
+    fake_needs_testrun = types.ModuleType("needs_testrun")
+    fake_needs_testrun.pr_matches_patterns = lambda patterns: True
+    monkeypatch.setitem(sys.modules, "needs_testrun", fake_needs_testrun)
+
+    tests_gen = tmp_path / "tests-gen.yml"
+    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tests_gen)
+
+    gen_gitlab_config_mod.gen_pre_checks()
+
+    out = tests_gen.read_text()
+    assert "scripts/lint prepare" in out
+    assert "scripts/run-parallel-prechecks.py - <<'EOF'" in out
+    for name, command in (
+        ("Style", "scripts/lint style"),
+        ("Typing", "scripts/lint typing"),
+        ("Spelling", "scripts/lint spelling"),
+        ("Security", "scripts/lint security"),
+    ):
+        expected = json.dumps({"name": name, "command": command})
+        assert f"      {expected}\n" in out
+    # Checks must not be emitted as sequential script steps anymore.
+    assert "section_0" not in out
+
+
+def test_run_parallel_prechecks_reports_each_result(tmp_path):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(
+        json.dumps({"name": "Passing", "command": "echo ok"})
+        + "\n"
+        + json.dumps({"name": "Failing", "command": "echo oops >&2; exit 3"})
+        + "\n"
+    )
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 1
+    assert "Passing: PASS" in proc.stdout
+    assert "Failing: FAIL" in proc.stdout
+    assert "oops" in proc.stdout
+    assert proc.stdout.index("Passing: PASS") < proc.stdout.index("Failing: FAIL")
+    # Both checks must appear in the summary table.
+    assert "  FAIL" in proc.stdout
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "not json",
+        '"just a string"',
+        '{"name": "Missing command"}',
+        '{"name": "", "command": "true"}',
+        '{"name": "Extra key", "command": "true", "timeout": 60}',
+    ],
+)
+def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path, line):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(line + "\n")
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 2
+    assert "malformed check line" in proc.stderr
+
+
+def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
+    """Two checks that wait for each other's sentinel file can only pass in parallel."""
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    wait_for = 'touch "{d}/{name}"; for _ in $(seq 50); do [ -e "{d}/{other}" ] && exit 0; sleep 0.1; done; exit 1'
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(
+        json.dumps({"name": "First", "command": wait_for.format(d=tmp_path, name="a", other="b")})
+        + "\n"
+        + json.dumps({"name": "Second", "command": wait_for.format(d=tmp_path, name="b", other="a")})
+        + "\n"
+    )
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 0
+    assert "First: PASS" in proc.stdout
+    assert "Second: PASS" in proc.stdout
