@@ -30,6 +30,7 @@ from ddtrace.llmobs._telemetry import LLMObsTelemetryMetrics
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_cost_tags
+from ddtrace.llmobs._utils import get_llmobs_decision_context
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
@@ -834,6 +835,59 @@ def test_annotate_cost_tags_empty_list_is_ignored(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"team": "ml"}, cost_tags=[])
         assert get_llmobs_cost_tags(span) is None
+
+
+def test_annotate_decision_context(llmobs):
+    with llmobs.llm(model_name="jev-1.13.0", name="decide", model_provider="typesafe") as span:
+        llmobs.annotate(
+            span=span,
+            decision_context={"decision_point": "pr_matching", "question_ids": {"belongs_12": "belongs"}},
+        )
+        assert get_llmobs_decision_context(span) == {
+            "decision_point": "pr_matching",
+            "question_ids": {"belongs_12": "belongs"},
+        }
+
+
+def test_annotate_decision_context_merges_across_annotations(llmobs):
+    with llmobs.llm(model_name="jev-1.13.0", name="decide", model_provider="typesafe") as span:
+        llmobs.annotate(span=span, decision_context={"decision_point": "a", "question_ids": {"belongs_12": "belongs"}})
+        llmobs.annotate(span=span, decision_context={"decision_point": "b", "question_ids": {"priority": "priority"}})
+        assert get_llmobs_decision_context(span) == {
+            "decision_point": "b",
+            "question_ids": {"belongs_12": "belongs", "priority": "priority"},
+        }
+
+
+def test_annotate_decision_context_skips_invalid_values(llmobs, mock_llmobs_logs):
+    with llmobs.llm(model_name="jev-1.13.0", name="decide", model_provider="typesafe") as span:
+        llmobs.annotate(
+            span=span,
+            decision_context={"decision_point": 1, "question_ids": {"belongs_12": "belongs", "priority": 2}},
+        )
+        assert get_llmobs_decision_context(span) == {"question_ids": {"belongs_12": "belongs"}}
+
+    mock_llmobs_logs.warning.assert_has_calls(
+        [
+            mock.call("decision_context decision_point must be a non-empty string. Ignoring value."),
+            mock.call("decision_context question_ids entry %r: %r is invalid. Skipping entry.", "priority", 2),
+        ]
+    )
+
+
+def test_annotate_decision_context_wrong_type_is_ignored(llmobs, mock_llmobs_logs):
+    with llmobs.llm(model_name="jev-1.13.0", name="decide", model_provider="typesafe") as span:
+        llmobs.annotate(span=span, decision_context="pr_matching")
+        assert get_llmobs_decision_context(span) is None
+
+    mock_llmobs_logs.warning.assert_any_call("decision_context must be a dictionary. Ignoring value.")
+
+
+def test_annotate_decision_context_survives_metadata_annotation(llmobs):
+    with llmobs.llm(model_name="jev-1.13.0", name="decide", model_provider="typesafe") as span:
+        llmobs.annotate(span=span, decision_context={"decision_point": "pr_matching"})
+        llmobs.annotate(span=span, metadata={"temperature": 0})
+        assert get_llmobs_decision_context(span) == {"decision_point": "pr_matching"}
 
 
 def test_annotate_tag_wrong_type(llmobs):
@@ -1969,6 +2023,18 @@ def test_annotation_context_cost_tags_are_not_retained_for_tags_added_later(llmo
             llmobs.annotate(span=span, tags={"feature": "chatbot"})
             assert {"feature": "chatbot"}.items() <= get_llmobs_tags(span).items()
             assert get_llmobs_cost_tags(span) is None
+
+
+def test_annotation_context_modifies_decision_context(llmobs):
+    with llmobs.annotation_context(decision_context={"decision_point": "pr_matching"}):
+        with llmobs.annotation_context(decision_context={"question_ids": {"belongs_12": "belongs"}}):
+            with llmobs.llm(model_name="jev-1.13.0", name="decide", model_provider="typesafe") as span:
+                assert get_llmobs_decision_context(span) == {
+                    "decision_point": "pr_matching",
+                    "question_ids": {"belongs_12": "belongs"},
+                }
+        with llmobs.llm(model_name="jev-1.13.0", name="decide", model_provider="typesafe") as span:
+            assert get_llmobs_decision_context(span) == {"decision_point": "pr_matching"}
 
 
 def test_annotation_context_modifies_prompt(llmobs):

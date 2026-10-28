@@ -2091,6 +2091,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         cost_tags: Optional[list[str]] = None,
         agent: Optional[Union[dict, Agent]] = None,
+        decision_context: Optional[dict[str, Any]] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
@@ -2125,6 +2126,12 @@ class LLMObs(Service):
                       ``agent_version`` tag on every agent span in the block and its child spans,
                       and the rest as the agent's manifest on every agent span in the block. All
                       keys are optional; unreportable values are dropped, not raised.
+        :param decision_context: A dictionary identifying the decision made by a decision model call, in the form
+                                 `{"decision_point": "...", "question_ids": {"<question key>": "<question id>"}}`.
+                                 ``decision_point`` names the step of the application making the call.
+                                 ``question_ids`` maps each question key sent to the model to a stable question
+                                 id, so questions whose keys vary per item (e.g. ``belongs_12``) group together.
+                                 Both keys are optional and merged with annotations from enclosing contexts.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2162,6 +2169,7 @@ class LLMObs(Service):
                             "cost_tags": cost_tags,
                             "prompt": prompt,
                             "agent": agent,
+                            "decision_context": decision_context,
                             "_name": name,
                             "_linked_spans": _linked_spans,
                             "_telemetry_source": "annotation_context",
@@ -3180,6 +3188,7 @@ class LLMObs(Service):
         tool_definitions: Optional[list[dict[str, Any]]] = None,
         cost_tags: Optional[list[str]] = None,
         agent: Optional[Union[dict, Agent]] = None,
+        decision_context: Optional[dict[str, Any]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
@@ -3258,6 +3267,12 @@ class LLMObs(Service):
                       manifest, on agent spans only. All keys are optional; unreportable values are
                       dropped, not raised, and an unset value leaves what an earlier annotation
                       declared in place.
+        :param decision_context: A dictionary identifying the decision made by a decision model call, in the form
+                                 `{"decision_point": "...", "question_ids": {"<question key>": "<question id>"}}`.
+                                 ``decision_point`` names the step of the application making the call.
+                                 ``question_ids`` maps each question key sent to the model to a stable question
+                                 id, so questions whose keys vary per item (e.g. ``belongs_12``) group together.
+                                 Both keys are optional and merged across annotations.
         """
         error = None
         try:
@@ -3315,6 +3330,10 @@ class LLMObs(Service):
                             stashed = {}
                             span._set_ctx_item(AGENT_MANIFEST, stashed)
                         stashed.update(declared)
+            if decision_context is not None:
+                validated_decision_context = cls._validate_decision_context(decision_context)
+                if validated_decision_context:
+                    _annotate_llmobs_span_data(span, decision_context=validated_decision_context)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
@@ -3450,6 +3469,35 @@ class LLMObs(Service):
                 telemetry.record_cost_tags_submitted(
                     span, count=len(validated_cost_tags), source=source, state="success"
                 )
+
+    @staticmethod
+    def _validate_decision_context(decision_context: Any) -> Optional[dict[str, Any]]:
+        if not isinstance(decision_context, dict):
+            log.warning("decision_context must be a dictionary. Ignoring value.")
+            return None
+        validated: dict[str, Any] = {}
+        decision_point = decision_context.get("decision_point")
+        if decision_point is not None:
+            if isinstance(decision_point, str) and decision_point:
+                validated["decision_point"] = decision_point
+            else:
+                log.warning("decision_context decision_point must be a non-empty string. Ignoring value.")
+        question_ids = decision_context.get("question_ids")
+        if question_ids is not None:
+            if not isinstance(question_ids, dict):
+                log.warning("decision_context question_ids must be a dictionary. Ignoring value.")
+            else:
+                valid_question_ids = {}
+                for key, question_id in question_ids.items():
+                    if isinstance(key, str) and isinstance(question_id, str) and question_id:
+                        valid_question_ids[key] = question_id
+                    else:
+                        log.warning(
+                            "decision_context question_ids entry %r: %r is invalid. Skipping entry.", key, question_id
+                        )
+                if valid_question_ids:
+                    validated["question_ids"] = valid_question_ids
+        return validated or None
 
     @classmethod
     def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> tuple[Optional[str], Optional[str]]:

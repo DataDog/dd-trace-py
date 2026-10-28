@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Adds a ``decision_context`` argument to ``LLMObs.annotate()`` and ``LLMObs.annotation_context()``
+    to identify decision model calls. ``decision_point`` names the step of the application making the call, and
+    ``question_ids`` maps each question key sent to the model to a stable question id, so questions whose keys vary
+    per item group together in LLM Observability.

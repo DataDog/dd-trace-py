@@ -665,6 +665,14 @@ def get_llmobs_cost_tags(span: _LLMObsSpan) -> Optional[list[str]]:
     return metadata_dd.get(LLMOBS_STRUCT.COST_TAGS)
 
 
+def get_llmobs_decision_context(span: _LLMObsSpan) -> Optional[dict[str, Any]]:
+    metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
+    metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD, {})
+    if not isinstance(metadata_dd, dict):
+        return None
+    return metadata_dd.get(LLMOBS_STRUCT.DECISION_CONTEXT)
+
+
 def get_llmobs_metrics(span: _LLMObsSpan) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
@@ -785,6 +793,7 @@ def _annotate_llmobs_span_data(
     session_id: Optional[str] = None,
     span_links: Optional[list[_SpanLink]] = None,
     agent_manifest: Optional[dict[str, Any]] = None,
+    decision_context: Optional[dict[str, Any]] = None,
     config: Optional[dict[str, Any]] = None,
     expected_output: Optional[Any] = None,
     experiment_input: Optional[str] = None,
@@ -843,11 +852,21 @@ def _annotate_llmobs_span_data(
             # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
             # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
-        if agent_manifest is not None or cost_tags is not None:
+        if agent_manifest is not None or cost_tags is not None or decision_context is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
             if agent_manifest is not None:
                 metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if decision_context is not None:
+                existing_decision_context = metadata_dd.setdefault(LLMOBS_STRUCT.DECISION_CONTEXT, {})
+                if LLMOBS_STRUCT.DECISION_POINT in decision_context:
+                    existing_decision_context[LLMOBS_STRUCT.DECISION_POINT] = decision_context[
+                        LLMOBS_STRUCT.DECISION_POINT
+                    ]
+                if LLMOBS_STRUCT.QUESTION_IDS in decision_context:
+                    existing_decision_context.setdefault(LLMOBS_STRUCT.QUESTION_IDS, {}).update(
+                        decision_context[LLMOBS_STRUCT.QUESTION_IDS]
+                    )
             if cost_tags is not None:
                 existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
                 for cost_tag in cost_tags:
