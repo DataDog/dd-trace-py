@@ -36,22 +36,26 @@ BASE_PLATFORMS = [
     "win32",
     "win_amd64",
 ]
-# "build linux" and "build linux serverless" in .gitlab/package.yml are the only jobs whose
-# matrix carries cp315-cp315, and they cover manylinux2014 + musllinux on amd64 + arm64.
-# macOS and Windows stop at 3.14.
-CP315_PLATFORMS = [
+# Linux cp315 from "build linux" / "build linux serverless"; macOS cp315 from
+# "build macos". Windows still stops at 3.14. All of these are pruned from PyPI
+# until requires-python allows 3.15.
+CP315_LINUX_PLATFORMS = [
     "manylinux2014_aarch64.manylinux_2_17_aarch64",
     "manylinux2014_x86_64.manylinux_2_17_x86_64",
     "musllinux_1_2_aarch64",
     "musllinux_1_2_x86_64",
 ]
+CP315_MACOS_PLATFORMS = [
+    "macosx_14_0_arm64",
+    "macosx_14_0_x86_64",
+]
 
 SUPPORTED_WHEELS = [
     f"ddtrace-{VERSION}-{tag}-{tag}-{platform}.whl" for tag in SUPPORTED_TAGS for platform in BASE_PLATFORMS
 ] + [f"ddtrace-{VERSION}-{tag}-{tag}-win_arm64.whl" for tag in WIN_ARM64_TAGS]
-CP315_WHEELS = [f"ddtrace-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_PLATFORMS] + [
-    f"ddtrace_serverless-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_PLATFORMS
-]
+CP315_WHEELS = [
+    f"ddtrace-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_LINUX_PLATFORMS + CP315_MACOS_PLATFORMS
+] + [f"ddtrace_serverless-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_LINUX_PLATFORMS]
 SDIST = f"ddtrace-{VERSION}.tar.gz"
 
 PYPI_ADMS_COMMANDS: tuple[str, ...] = ("twine upload", "adms first-party python upload")

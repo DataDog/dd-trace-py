@@ -1,4 +1,8 @@
 [run]
+# Named explicitly: newer coverage.py does not measure recognized third-party
+# locations (the test environments' site-packages) inside a directory passed as
+# source, and CI imports ddtrace from the installed wheel, not the checkout.
+source_pkgs = ddtrace
 omit = ddtrace/vendor/*
 parallel = true
 

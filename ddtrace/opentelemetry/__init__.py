@@ -64,6 +64,9 @@ semantic conventions:
   ``_OTHER``), and the original value is kept in ``http.request.method_original``.
 - Client and server spans record URL, address, port, and status attributes. URL credentials are
   redacted, captured query values are obfuscated, and ports and status codes stay numeric.
+- Server spans record ``url.scheme``, ``url.path``, and ``url.query`` instead of a full URL. When
+  client IP collection is enabled (``DD_TRACE_CLIENT_IP_ENABLED`` or AppSec), the caller is reported
+  in ``client.address`` and ``network.peer.address``.
 - Client spans treat status codes of 400 and above as errors unless
   ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` is set; server spans treat 500 and above as errors unless
   ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` is set.
