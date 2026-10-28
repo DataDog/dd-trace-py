@@ -3,8 +3,8 @@
 from typing import Optional
 
 from ddtrace import config
-from ddtrace.contrib._events.llm import LlmEvents
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib._events.span_cycle import SpanCycleEvents
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
@@ -34,7 +34,7 @@ def unregister(component: str) -> None:
 
 class LLMObsSpanStartingSubscriber(Subscriber):
     auto_register = False
-    event_names = (LlmEvents.SPAN_STARTING.value,)
+    event_names = (f"{SpanCycleEvents.SPAN_STARTING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
@@ -54,7 +54,7 @@ class LLMObsSpanStartingSubscriber(Subscriber):
 
 class LLMObsSpanStartedSubscriber(Subscriber):
     auto_register = False
-    event_names = (LlmEvents.SPAN_STARTED.value,)
+    event_names = (f"{SpanCycleEvents.SPAN_STARTED.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
@@ -80,7 +80,7 @@ class LLMObsSpanStartedSubscriber(Subscriber):
 
 class LLMObsSpanFinishingSubscriber(Subscriber):
     auto_register = False
-    event_names = (LlmEvents.SPAN_FINISHING.value,)
+    event_names = (f"{SpanCycleEvents.SPAN_FINISHING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:

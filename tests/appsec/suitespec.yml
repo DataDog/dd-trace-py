@@ -184,6 +184,9 @@ suites:
       variants:
         - name: appsec_integrations_pygoat
           dependencies: [requests, 'pyyaml==6.0.1', 'pip<25']
+        - name: appsec_integrations_pygoat
+          python: ['3.15']
+          dependencies: [requests, 'PyYAML==6.0.3', 'pip==26.2.1']
   appsec_integrations_packages:
     venvs_per_job: 3
     env:
@@ -255,6 +258,9 @@ suites:
         - name: appsec_integrations_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.3', 'langchain-community~=0.3', 'langchain-experimental~=0.3']
+        - name: appsec_integrations_langchain
+          python: ['3.14', '3.15']
+          dependencies: [pytest-asyncio, pytest-randomly, 'langchain>=1,<2', 'langchain-classic>=1,<2', 'langchain-community~=0.4', 'langchain-experimental~=0.4', 'pydantic>=2.14']
   appsec_integrations_flask:
     pattern: appsec_integrations_flask$
     paths:
