@@ -82,8 +82,8 @@ def _create_event(
     """
     resource = model if (model and not operation) else instance.__class__.__name__
     provider = get_model_provider(instance)
-    # Non-LLM operations (query, retrieval, agent) have no model or provider; leave the
-    # tags off entirely rather than tagging them with a null value.
+    # Operations without a model omit the model tag. Provider detection always
+    # returns a string, falling back to "unknown" when no provider is found.
     tags = {}
     if model is not None:
         tags[TAG_MODEL] = model
