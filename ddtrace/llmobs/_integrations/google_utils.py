@@ -380,6 +380,17 @@ def get_system_instructions_vertexai(model_instance):
     return system_instructions
 
 
+_ADK_PART_KINDS = (
+    "text",
+    "function_call",
+    "function_response",
+    "executable_code",
+    "code_execution_result",
+    "inline_data",
+    "file_data",
+)
+
+
 def extract_messages_from_adk_events(events) -> list[Message]:
     """
     Extract messages from Google ADK Event objects.
@@ -396,20 +407,22 @@ def extract_messages_from_adk_events(events) -> list[Message]:
     if not isinstance(events, list):
         events = [events]
 
-    # Streaming yields partial text chunks followed by a non-partial event carrying the assembled text,
-    # so skip a partial only when the next non-partial event has assembled text. Partials followed by
-    # anything else (run_live turns, a tool call, or a response cut off mid-stream) are kept.
+    # Streaming yields partial chunks followed by a non-partial event carrying the assembled response,
+    # so skip a partial only when the next non-partial event with content has the same kinds of parts
+    # (text, tool call, ...). Partials followed by anything else (run_live turns, or a response cut off
+    # mid-stream) are kept.
     skipped = set()
-    assembled_text_after = False
+    kinds_after: set[str] = set()
     for i in reversed(range(len(events))):
-        if _get_attr(events[i], "partial", False):
-            if assembled_text_after:
-                skipped.add(i)
-            continue
         parts = _get_attr(_get_attr(events[i], "content", None), "parts", None) or []
         if not isinstance(parts, list):
             parts = [parts]
-        assembled_text_after = any(_get_attr(part, "text", None) for part in parts)
+        kinds = {kind for part in parts for kind in _ADK_PART_KINDS if _get_attr(part, kind, None)}
+        if _get_attr(events[i], "partial", False):
+            if kinds and kinds <= kinds_after:
+                skipped.add(i)
+        elif parts:
+            kinds_after = kinds
 
     for i, event in enumerate(events):
         if i in skipped:

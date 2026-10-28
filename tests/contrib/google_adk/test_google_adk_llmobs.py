@@ -1,6 +1,8 @@
 from unittest import mock
 
+from google.adk.events import Event
 from google.adk.tools.function_tool import FunctionTool
+from google.genai import types
 import pytest
 
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -46,120 +48,63 @@ AGENT_MANIFEST_METADATA = {
 }
 
 
-def _adk_text_event(text, partial=None):
-    from google.adk.events import Event
-    from google.genai import types
-
-    return Event(
-        author="model",
-        content=types.Content(role="model", parts=[types.Part(text=text)]),
-        partial=partial,
-    )
+def _event(*parts, partial=None):
+    content = types.Content(role="model", parts=list(parts)) if parts else None
+    return Event(author="model", content=content, partial=partial)
 
 
-def test_extract_messages_drops_streaming_partials():
-    """Streaming runs yield each partial chunk plus a final assembled event; only the
-    assembled message should be recorded, not every chunk followed by the full text again."""
-    events = [
-        _adk_text_event("Hello ", partial=True),
-        _adk_text_event("from ", partial=True),
-        _adk_text_event("ADK.", partial=True),
-        _adk_text_event("Hello from ADK."),
-    ]
-    assert extract_messages_from_adk_events(events) == [{"role": "assistant", "content": "Hello from ADK."}]
+_CALL = types.Part(function_call=types.FunctionCall(name="lookup"))
 
 
-def test_extract_messages_keeps_partials_without_assembled_event():
-    """run_live yields only partial events, so those must not be dropped."""
-    events = [
-        _adk_text_event("Hello ", partial=True),
-        _adk_text_event("live.", partial=True),
-    ]
-    assert extract_messages_from_adk_events(events) == [
-        {"role": "assistant", "content": "Hello "},
-        {"role": "assistant", "content": "live."},
-    ]
-
-
-def test_extract_messages_keeps_partials_with_contentless_control_events():
-    """run_live control events (e.g. turn_complete) are non-partial but carry no content;
-    they must not cause the partial text to be dropped."""
-    from google.adk.events import Event
-
-    events = [
-        _adk_text_event("Hello ", partial=True),
-        _adk_text_event("live.", partial=True),
-        Event(author="model", turn_complete=True),
-    ]
-    assert extract_messages_from_adk_events(events) == [
-        {"role": "assistant", "content": "Hello "},
-        {"role": "assistant", "content": "live."},
-    ]
-
-
-def test_extract_messages_keeps_partials_when_only_tool_call_is_assembled():
-    """A live turn can mix partial text with a non-partial function-call event; the partial
-    chunks are the only record of the text, so a non-partial event without an assembled text
-    part must not suppress them."""
-    from google.adk.events import Event
-    from google.genai import types
-
-    tool_call_event = Event(
-        author="model",
-        content=types.Content(
-            role="model",
-            parts=[types.Part(function_call=types.FunctionCall(name="lookup", args={"q": "x"}))],
+@pytest.mark.parametrize(
+    "events,expected",
+    [
+        pytest.param(
+            [
+                _event(types.Part(text="Hel"), partial=True),
+                _event(types.Part(text="lo"), partial=True),
+                _event(types.Part(text="Hello")),
+            ],
+            ["Hello"],
+            id="streamed text",
         ),
-    )
-    events = [
-        _adk_text_event("Hello ", partial=True),
-        _adk_text_event("live.", partial=True),
-        tool_call_event,
-    ]
+        pytest.param(
+            [_event(_CALL, partial=True), _event(), _event(_CALL)],
+            ["lookup"],
+            id="streamed tool call, contentless event before the assembled one",
+        ),
+        pytest.param(
+            [_event(types.Part(text="Hel"), partial=True), _event(types.Part(text="lo"), partial=True), _event()],
+            ["Hel", "lo"],
+            id="run_live: nothing assembled",
+        ),
+        pytest.param(
+            [
+                _event(types.Part(text="Checking."), partial=True),
+                _event(_CALL),
+                _event(types.Part(text="Done."), partial=True),
+                _event(types.Part(text="Done.")),
+            ],
+            ["Checking.", "lookup", "Done."],
+            id="partial text before an assembled tool call only",
+        ),
+        pytest.param(
+            [
+                _event(types.Part(text="Let me"), partial=True),
+                _event(types.Part(text="Let me")),
+                _event(types.Part(text="It is"), partial=True),
+            ],
+            ["Let me", "It is"],
+            id="response cut off mid-stream",
+        ),
+        pytest.param(
+            [_event(types.Part(text="Hi."), types.Part(thought_signature=b"sig"))], ["Hi."], id="signature-only part"
+        ),
+    ],
+)
+def test_extract_messages_from_streamed_adk_events(events, expected):
     messages = extract_messages_from_adk_events(events)
-    assert [m.get("content") for m in messages[:2]] == ["Hello ", "live."]
-    assert messages[2]["tool_calls"][0]["name"] == "lookup"
-
-
-def test_extract_messages_keeps_partials_of_a_cut_off_response():
-    events = [
-        _adk_text_event("Let me ", partial=True),
-        _adk_text_event("Let me check."),
-        _adk_text_event("It is ", partial=True),
-    ]
-    assert extract_messages_from_adk_events(events) == [
-        {"role": "assistant", "content": "Let me check."},
-        {"role": "assistant", "content": "It is "},
-    ]
-
-
-def test_extract_messages_keeps_partials_before_a_tool_call_in_a_later_answered_run():
-    from google.adk.events import Event
-    from google.genai import types
-
-    tool_call_event = Event(
-        author="model",
-        content=types.Content(role="model", parts=[types.Part(function_call=types.FunctionCall(name="lookup"))]),
-    )
-    events = [
-        _adk_text_event("Checking.", partial=True),
-        tool_call_event,
-        _adk_text_event("Done.", partial=True),
-        _adk_text_event("Done."),
-    ]
-    messages = extract_messages_from_adk_events(events)
-    assert [m.get("content") for m in messages] == ["Checking.", None, "Done."]
-
-
-def test_extract_messages_skips_empty_parts():
-    from google.adk.events import Event
-    from google.genai import types
-
-    event = Event(
-        author="model",
-        content=types.Content(role="model", parts=[types.Part(text="Hi."), types.Part(thought_signature=b"sig")]),
-    )
-    assert extract_messages_from_adk_events([event]) == [{"role": "assistant", "content": "Hi."}]
+    assert [m.get("content") or m["tool_calls"][0]["name"] for m in messages] == expected
 
 
 class TestLLMObsGoogleADK:
