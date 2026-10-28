@@ -715,9 +715,10 @@ def test_create_agent_edited_tool_call_is_reevaluated(mock_execute_request, lang
 
 
 @requires_create_agent
+@pytest.mark.parametrize("broken_agent_import", [None, "langchain.agents", "langchain_classic.agents"], indirect=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_create_agent_tool_call_evaluated_when_response_evaluation_fails(
-    mock_execute_request, langchain_openai, openai_url
+    mock_execute_request, langchain_openai, openai_url, broken_agent_import
 ):
     """A response evaluation that fails open leaves the tool call to be evaluated before it runs."""
     from langchain.agents import create_agent
@@ -731,9 +732,11 @@ def test_create_agent_tool_call_evaluated_when_response_evaluation_fails(
     llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
     agent = create_agent(model=llm, tools=[add])
 
+    tracker = ToolTrackingHandler()
     with pytest.raises(AIGuardAbortError):
-        agent.invoke({"messages": [HumanMessage(content=TOOL_PROMPT)]})
+        agent.invoke({"messages": [HumanMessage(content=TOOL_PROMPT)]}, config={"callbacks": [tracker]})
 
+    assert tracker.tool_calls == []
     assert mock_execute_request.call_count == 3
     assert _evaluated_messages(mock_execute_request, 2)[-1]["tool_calls"][0]["function"]["name"] == "add"
 

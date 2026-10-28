@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.wrappers import iswrapped
 
 
 def langchain_listen():
@@ -82,16 +83,14 @@ def _on_langchain_patch():
 
 
 def _on_langchain_unpatch():
-    if asm_config._iast_enabled:
-        return
     try:
         import langchain_core
     except ImportError:
         return
-    unwrap(langchain_core.prompts.prompt.PromptTemplate, "format")
-    unwrap(langchain_core.prompts.prompt.PromptTemplate, "aformat")
-    unwrap(langchain_core.prompts.chat.ChatPromptTemplate, "format")
-    unwrap(langchain_core.prompts.chat.ChatPromptTemplate, "aformat")
+    for template in (langchain_core.prompts.prompt.PromptTemplate, langchain_core.prompts.chat.ChatPromptTemplate):
+        for method in ("format", "aformat"):
+            if iswrapped(template, method):
+                unwrap(template, method)
 
 
 def _langchain_llm_generate_after(prompts, completions):

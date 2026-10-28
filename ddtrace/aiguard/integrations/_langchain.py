@@ -49,7 +49,7 @@ def _action_agent_modules() -> Iterator[ModuleType]:
     for module_name in ("langchain.agents", "langchain_classic.agents"):
         try:
             yield importlib.import_module(module_name)
-        except ImportError:
+        except Exception:
             logger.debug("Agent module %s is unavailable", module_name, exc_info=True)
 
 
