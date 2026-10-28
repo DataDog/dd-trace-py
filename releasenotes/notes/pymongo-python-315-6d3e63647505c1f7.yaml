@@ -1,3 +1,3 @@
 features:
   - |
-    pymongo: Adds Python 3.15 support for tracing applications using current PyMongo releases.
+    pymongo: Adds Python 3.15 test coverage for current PyMongo releases.
