@@ -1,5 +1,7 @@
 import typing as t
 
+import pytest
+
 from ddtrace import config
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
@@ -88,3 +90,27 @@ def test_updated_record_takes_precedence_on_ties():
     chained_config = callback._process_payloads([_record("a", {"tracing_sampling_rate": 0.9})])
 
     assert chained_config["tracing_sampling_rate"] == 0.9
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        ["not", "a", "mapping"],
+        {"service_target": "not-a-mapping", "lib_config": {"tracing_sampling_rate": 0.1}},
+        {"service_target": {"service": "*", "env": "*"}, "lib_config": ["not", "a", "mapping"]},
+    ],
+)
+def test_malformed_update_keeps_previous_record(content):
+    callback = APMTracingCallback()
+
+    callback._process_payloads(
+        [_record("a", {"tracing_sampling_rate": 0.5}), _record("b", {"dynamic_instrumentation_enabled": True})]
+    )
+    malformed = _record("a", {})
+    malformed = Payload(malformed.metadata, malformed.path, content)
+    chained_config = callback._process_payloads([malformed])
+
+    assert dict(chained_config) == {"tracing_sampling_rate": 0.5, "dynamic_instrumentation_enabled": True}
+    # A later, unrelated update still merges the retained record.
+    chained_config = callback._process_payloads([_record("b", {"dynamic_instrumentation_enabled": False})])
+    assert dict(chained_config) == {"tracing_sampling_rate": 0.5, "dynamic_instrumentation_enabled": False}

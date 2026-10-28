@@ -37,6 +37,16 @@ def config_key(payload: Payload) -> int:
     )
 
 
+def is_well_formed(content: t.Any) -> bool:
+    """Whether the record has the shape that config_key and the merge rely on."""
+    if not isinstance(content, dict):
+        return False
+    service_target = content.get("service_target")
+    if service_target is not None and not isinstance(service_target, dict):
+        return False
+    return "lib_config" not in content or isinstance(content["lib_config"], dict)
+
+
 class APMTracingCallback(RCCallback):
     """Remote config callback for APM tracing configuration."""
 
@@ -70,6 +80,12 @@ class APMTracingCallback(RCCallback):
                 continue
 
             log.debug("Received APM tracing config payload: %s", payload)
+
+            # A malformed update keeps the previous version of the record, which
+            # is retained and would otherwise break every later merge.
+            if payload.content is not None and not is_well_formed(payload.content):
+                log.debug("ignoring malformed APM Tracing remote config payload, path: %s", payload.path)
+                continue
 
             # Drop any previous version of the record so that an update is
             # re-inserted as the newest entry, and a record that is deleted or
