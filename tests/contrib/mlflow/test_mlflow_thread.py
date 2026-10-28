@@ -149,13 +149,14 @@ def test_mlflow_multithreaded_steps_specifying_new_run(
 
     def _worker(worker_id):
         if not _has_thread_local_active_run_stack():
-            # when the run are not thread local, any run can be the active one
+            # Serialize complete run lifetimes: end_run() pops the process-global stack.
+            assert ordering_events[worker_id * 2].wait(timeout=5), "timed out waiting for worker scheduling"
             with mlflow.start_run(run_name=f"worker-{worker_id}", nested=True) as run:
                 for step in range(2):
                     step_order = worker_id * 2 + step
-                    _wait_for_ordered_step(ordering_events, step_order)
                     # We have to specify run_id here
                     mlflow.log_metric("loss_%d" % worker_id, worker_id + step, run_id=run.info.run_id, step=step_order)
+            ordering_events[(worker_id + 1) * 2].set()
         else:
             with mlflow.start_run(run_name=f"worker-{worker_id}"):
                 for step in range(2):
