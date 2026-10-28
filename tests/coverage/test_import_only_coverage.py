@@ -580,3 +580,135 @@ def test_import_only_late_module_metadata_invalidates_shared_closures():
     assert mode.expand_context_files({alias_root}, {}) == {alias_root}
     collector._register_import_time_name("late_alias", dependency)
     assert mode.expand_context_files({alias_root}, {}) == {alias_root, dependency}
+
+
+@pytest.mark.subprocess()
+def test_import_only_excluded_paths_are_classified_once():
+    from collections import Counter
+    import os
+    import sys
+    from types import ModuleType
+    from types import SimpleNamespace
+
+    from ddtrace.internal.coverage.import_hook_instrumentation import _ImportHook
+
+    module = ModuleType("io_excluded_cached")
+    module.__file__ = "/vendor/io_excluded_cached.py"
+    sys.modules[module.__name__] = module
+    caller = {"__file__": "/vendor/caller.py"}
+    checks = Counter()
+    events = []
+
+    def should_track(path):
+        checks[path] += 1
+        return False
+
+    sink = SimpleNamespace(record_import_file=events.append, record_import_edge=lambda *args: events.append(args))
+    hook = _ImportHook(sink, should_track)
+    try:
+        for _ in range(10):
+            assert hook.import_name(module.__name__, caller) is module
+        assert events == []
+        assert checks == {os.path.realpath(caller["__file__"]): 1, os.path.realpath(module.__file__): 1}
+
+        # Exclusions belong to an installation; a new include configuration must
+        # reconsider the same raw path instead of inheriting a negative result.
+        new_hook = _ImportHook(sink, lambda path: path == os.path.realpath(module.__file__))
+        new_hook.import_name(module.__name__, caller)
+        assert events == [os.path.realpath(module.__file__)]
+    finally:
+        sys.modules.pop(module.__name__)
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_external_loader_records_first_and_cached_workspace_imports():
+    import importlib
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        workspace = root / "workspace"
+        vendor = root / "site-packages"
+        workspace.mkdir()
+        vendor.mkdir()
+        (workspace / "io_external_leaf.py").write_text("value = 42\n")
+        (workspace / "io_mixed_leaf.py").write_text("value = 43\n")
+        package = vendor / "io_mixed_package"
+        package.mkdir()
+        (package / "__init__.py").write_text(f"__path__.append({str(workspace)!r})\n")
+        (vendor / "io_external_loader.py").write_text(
+            "import importlib\n"
+            "def statement():\n    import io_external_leaf\n    return io_external_leaf.value\n"
+            "def fromlist():\n    from io_external_leaf import value\n    return value\n"
+            "def dynamic():\n    return importlib.import_module('io_external_leaf').value\n"
+            "def mixed_statement():\n"
+            "    import io_mixed_package.io_mixed_leaf\n"
+            "    return io_mixed_package.io_mixed_leaf.value\n"
+            "def mixed_fromlist():\n"
+            "    from io_mixed_package import io_mixed_leaf\n"
+            "    return io_mixed_leaf.value\n"
+        )
+        sys.path[:0] = [str(workspace), str(vendor)]
+        loader = importlib.import_module("io_external_loader")
+        ModuleCodeCollector.install(include_paths=[root])
+        try:
+            for load in (loader.statement, loader.fromlist, loader.dynamic):
+                for _ in range(2):
+                    with ModuleCodeCollector.CollectInContext() as context:
+                        assert load() == 42
+                    assert context.get_covered_file_paths() == {str(workspace / "io_external_leaf.py")}
+            for load in (loader.mixed_statement, loader.mixed_fromlist):
+                for _ in range(2):
+                    with ModuleCodeCollector.CollectInContext() as context:
+                        assert load() == 43
+                    assert context.get_covered_file_paths() == {str(workspace / "io_mixed_leaf.py")}
+        finally:
+            ModuleCodeCollector.uninstall()
+
+
+@pytest.mark.subprocess()
+def test_import_only_excluded_targets_are_rechecked_after_module_changes():
+    import importlib
+    import sys
+    from types import ModuleType
+    from types import SimpleNamespace
+
+    from ddtrace.internal.coverage.import_hook_instrumentation import install_import_hook
+    from ddtrace.internal.coverage.import_hook_instrumentation import uninstall_import_hook
+
+    package = ModuleType("io_mixed_cached")
+    package.__file__ = "/vendor/io_mixed_cached/__init__.py"
+    package.__path__ = []
+    leaf = ModuleType("io_mixed_cached.leaf")
+    leaf.__file__ = "/vendor/leaf.py"
+    package.leaf = leaf
+    sys.modules[package.__name__] = package
+    sys.modules[leaf.__name__] = leaf
+    paths = set()
+    sink = SimpleNamespace(record_import_file=paths.add, record_import_edge=lambda *args: None)
+    install_import_hook(sink, lambda path: path.startswith("/workspace/"))
+    try:
+        importlib.import_module(leaf.__name__)
+        assert paths == set()
+
+        # The leaf remains excluded, but a workspace parent is still covered.
+        package.__file__ = "/workspace/package/__init__.py"
+        importlib.import_module(leaf.__name__)
+        assert paths == {package.__file__}
+
+        package.__file__ = "/vendor/io_mixed_cached/__init__.py"
+        replacement = ModuleType(leaf.__name__)
+        replacement.__file__ = "/workspace/replacement.py"
+        sys.modules[leaf.__name__] = replacement
+        package.leaf = replacement
+        paths.clear()
+        importlib.import_module(leaf.__name__)
+        assert paths == {replacement.__file__}
+    finally:
+        uninstall_import_hook()
+        sys.modules.pop(leaf.__name__)
+        sys.modules.pop(package.__name__)

@@ -41,17 +41,24 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-# realpath canonicalization cache: on Python < 3.10 module __file__ is not
-# symlink-resolved, so paths must be canonicalized once (macOS /var vs /private/var)
-# for events, anchors and backfill to share one key space.
-_realpath_cache: dict[str, str] = {}
 
+class _TrackedPaths(dict[str, t.Optional[str]]):
+    """One lookup returns a canonical included path, or None for an exclusion.
 
-def _realpath(path: str) -> str:
-    cached = _realpath_cache.get(path)
-    if cached is None:
-        cached = _realpath_cache[path] = os.path.realpath(path)
-    return cached
+    On Python < 3.10 module __file__ is not symlink-resolved. Canonicalization
+    keeps events, anchors and backfill in the same key space (e.g. /var versus
+    /private/var on macOS). Include/exclude paths are fixed for each installation.
+    """
+
+    def __init__(self, should_track: t.Callable[[str], bool]) -> None:
+        super().__init__()
+        self.should_track = should_track
+
+    def __missing__(self, path: str) -> t.Optional[str]:
+        resolved = os.path.realpath(path)
+        tracked = resolved if self.should_track(resolved) else None
+        self[path] = tracked
+        return tracked
 
 
 _installed_hook: t.Optional["_ImportHook"] = None
@@ -88,7 +95,7 @@ def _module_name_prefixes(abs_name: str) -> tuple[str, ...]:
 
 def _record(
     collector: CoverageMode,
-    should_track: t.Callable[[str], bool],
+    tracked_paths: _TrackedPaths,
     abs_name: str,
     fromlist: t.Any,
     glb: t.Optional[t.Mapping[str, t.Any]],
@@ -101,30 +108,36 @@ def _record(
             caller = sys._getframe(2).f_code.co_filename
         except Exception:
             return
-    caller = _realpath(caller)
+    caller = tracked_paths[caller]
+
+    # A simple import has exactly one candidate. Excluded callers can finish
+    # here without prefix expansion or caller/edge bookkeeping, but a framework
+    # importing a workspace module must still record that target.
+    if caller is None and not fromlist and "." not in abs_name:
+        file = getattr(sys.modules.get(abs_name), "__file__", None)
+        if file and (tracked := tracked_paths[file]) is not None:
+            collector.record_import_file(tracked)
+        return
 
     # Files the import materialized: the module, any parent packages that were loaded,
     # and fromlist submodules (`from pkg import mod` can pull in both pkg/__init__.py
     # and pkg/mod.py).
-    candidate_files = []
     for module_name in _module_name_prefixes(abs_name):
         module = sys.modules.get(module_name)
         file = getattr(module, "__file__", None)
-        if file:
-            candidate_files.append(_realpath(file))
+        if file and (tracked := tracked_paths[file]) is not None:
+            collector.record_import_file(tracked)
     if fromlist:
         for sub in fromlist:
             if isinstance(sub, str) and sub:
                 module = sys.modules.get(f"{abs_name}.{sub}")
                 file = getattr(module, "__file__", None)
-                if file:
-                    candidate_files.append(_realpath(file))
+                if file and (tracked := tracked_paths[file]) is not None:
+                    collector.record_import_file(tracked)
 
-    for file in candidate_files:
-        if should_track(file):
-            collector.record_import_file(file)
-
-    if not should_track(caller):
+    # An excluded caller may import workspace code, including cached modules.
+    # Read target files live before returning, but skip all caller/edge recording.
+    if caller is None:
         return
 
     # The importing file executed an import statement: it is covered.
@@ -165,7 +178,7 @@ class _ImportHook:
 
     def __init__(self, collector: CoverageMode, should_track: t.Callable[[str], bool]) -> None:
         self.collector: t.Optional[CoverageMode] = collector
-        self.should_track = should_track
+        self.tracked_paths = _TrackedPaths(should_track)
         self.original_import = builtins.__import__
         self.original_import_module = importlib.import_module
 
@@ -184,7 +197,7 @@ class _ImportHook:
             try:
                 abs_name = _resolve_absolute_name(name, globals, level)
                 if abs_name:
-                    _record(collector, self.should_track, abs_name, fromlist, globals)
+                    _record(collector, self.tracked_paths, abs_name, fromlist, globals)
             except Exception:
                 # Recording must never break an import.
                 log.debug("Import hook recording failed for %r", name, exc_info=True)
@@ -197,7 +210,7 @@ class _ImportHook:
             try:
                 abs_name = _resolve_import_module_absolute_name(name, package)
                 if abs_name:
-                    _record(collector, self.should_track, abs_name, (), sys._getframe(1).f_globals)
+                    _record(collector, self.tracked_paths, abs_name, (), sys._getframe(1).f_globals)
             except Exception:
                 # Recording must never break an import.
                 log.debug("importlib.import_module hook recording failed for %r", name, exc_info=True)
@@ -222,13 +235,13 @@ def uninstall_import_hook() -> None:
         return
     hook.collector = None
     # Release the bound should_track method too: it retains the collector.
-    hook.should_track = lambda path: False
+    hook.tracked_paths.should_track = lambda path: False
+    hook.tracked_paths.clear()
     if builtins.__import__ == hook.import_name:
         builtins.__import__ = hook.original_import
     if importlib.import_module == hook.import_module:
         importlib.import_module = hook.original_import_module
     _installed_hook = None
-    _realpath_cache.clear()
     _module_name_prefixes.cache_clear()
 
 
