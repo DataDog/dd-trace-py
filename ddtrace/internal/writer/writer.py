@@ -815,6 +815,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         otlp_metrics_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
         agentless_stats_endpoint: Optional[str] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -850,6 +851,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super().__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
+        # Keep a copy so in-place tracer tag updates remain detectable.
+        self._resource_attributes = resource_attributes.copy() if resource_attributes is not None else {}
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._api_key = api_key
         self._agentless_stats_endpoint = agentless_stats_endpoint
@@ -972,10 +975,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
         exporter = builder.build(get_native_runtime())
+        if self._otlp_endpoint is not None:
+            exporter.set_otlp_resource_attributes(self._resource_attributes)
         if shared_worker is not None:
             exporter.set_telemetry_handle(shared_worker)
             telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
         return exporter
+
+    def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
+        with self._exporter_lock:
+            if attributes == self._resource_attributes:
+                return
+            if self._otlp_endpoint is not None:
+                self._exporter.set_otlp_resource_attributes(attributes)
+            self._resource_attributes = attributes.copy()
 
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
@@ -1007,9 +1020,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         Set the test session token and recreate the exporter with the new configuration.
         :param token: The test session token to use for authentication.
         """
-        self._test_session_token = token
-        old_exporter = self._exporter
-        self._exporter = self._create_exporter()
+        with self._exporter_lock:
+            self._test_session_token = token
+            old_exporter = self._exporter
+            self._exporter = self._create_exporter()
         self._shutdown_exporter(old_exporter)
 
     def shutdown_exporter(self) -> None:
@@ -1050,14 +1064,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
             api_key=self._api_key,
             agentless_stats_endpoint=self._agentless_stats_endpoint,
+            resource_attributes=self._resource_attributes,
         )
 
     def _downgrade(self, status, client):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
-            old_exporter = self._exporter
-            self._exporter = self._create_exporter()
+            with self._exporter_lock:
+                old_exporter = self._exporter
+                self._exporter = self._create_exporter()
             self._shutdown_exporter(old_exporter)
 
             # Since we have to change the encoding in this case, the payload
@@ -1119,7 +1135,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
             with self._exporter_lock:
-                response_body = self._exporter.send(payload)
+                exporter = self._exporter
+                response_body = exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -1357,6 +1374,7 @@ def _resolve_agentless_stats_endpoint() -> Optional[str]:
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
+    resource_attributes: Optional[dict[str, str]] = None,
 ) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
@@ -1397,6 +1415,7 @@ def create_trace_writer(
             # combined with agentless. OTLP trace metrics are permitted, and go to the intake.
             otlp_metrics_endpoint=otlp_metrics_endpoint,
             agentless_stats_endpoint=agentless_stats_endpoint,
+            resource_attributes=resource_attributes,
         )
 
     verify_url(agent_config.trace_agent_url)
@@ -1411,5 +1430,6 @@ def create_trace_writer(
         response_callback=response_callback,
         stats_opt_out=standalone_config.apm_opt_out,
         otlp_endpoint=otlp_endpoint,
+        resource_attributes=resource_attributes,
         otlp_metrics_endpoint=otlp_metrics_endpoint,
     )

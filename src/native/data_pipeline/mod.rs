@@ -5,6 +5,7 @@ use libdd_data_pipeline::trace_exporter::{
 };
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use std::collections::BTreeMap;
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
@@ -328,6 +329,20 @@ pub struct TraceExporterPy {
 
 #[pymethods]
 impl TraceExporterPy {
+    /// Replace resource attributes before sending an OTLP trace payload.
+    fn set_otlp_resource_attributes(
+        &mut self,
+        attributes: BTreeMap<String, String>,
+    ) -> PyResult<()> {
+        self.inner
+            .as_mut()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .set_otlp_resource_attributes(attributes);
+        Ok(())
+    }
+
     /// Send a msgpack encoded trace payload.
     ///
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while

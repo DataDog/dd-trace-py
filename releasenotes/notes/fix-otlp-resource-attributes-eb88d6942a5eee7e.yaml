@@ -1,0 +1,6 @@
+fixes:
+  - |
+    tracing: Fixes missing global tags on OTLP trace resources. Each export uses
+    the current tracer tags, including remote configuration updates, and omits
+    matching string attributes from spans. Differing and numeric span attributes
+    are preserved. Sampling, span tag accessors, and Datadog payloads are unchanged.

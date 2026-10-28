@@ -9,6 +9,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.writer import NativeWriter
 
 
 log = get_logger(__name__)
@@ -179,6 +180,9 @@ def _apply_config_change(config_name, config_value, dd_config):
         )
     elif config_name == "tags":
         tracer._tags = (config_value or {}).copy()
+        writer = tracer._span_aggregator.writer
+        if isinstance(writer, NativeWriter):
+            writer._set_resource_attributes(tracer._tags)
         log.debug("Updated tracer tags via remote_config: %s", tracer._tags)
     elif config_name == "_tracing_enabled":
         if tracer.enabled and config_value is False:

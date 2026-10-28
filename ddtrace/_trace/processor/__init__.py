@@ -31,6 +31,7 @@ from ddtrace.internal.telemetry.metrics import get_metric_recorder
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -337,6 +338,7 @@ class SpanAggregator(SpanProcessor):
         partial_flush_min_spans: int,
         dd_processors: Optional[list[TraceProcessor]] = None,
         user_processors: Optional[list[TraceProcessor]] = None,
+        tracer_tags: Optional[dict[str, str]] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -353,6 +355,7 @@ class SpanAggregator(SpanProcessor):
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
+            resource_attributes=tracer_tags,
         )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
@@ -539,7 +542,11 @@ class SpanAggregator(SpanProcessor):
 
         old_writer = self.writer
         try:
-            self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=enable)
+            self.writer = create_trace_writer(
+                response_callback=self._agent_response_callback,
+                agentless=enable,
+                resource_attributes=old_writer._resource_attributes if isinstance(old_writer, NativeWriter) else None,
+            )
         except Exception:
             log.error(
                 "Failed to create %s APM trace writer; writer swap aborted.",
