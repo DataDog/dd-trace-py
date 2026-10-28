@@ -1,0 +1,5 @@
+static:
+  targeting: false
+
+targeting:
+  targeting: true

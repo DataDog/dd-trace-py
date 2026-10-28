@@ -1,0 +1,6 @@
+features:
+  - |
+    feature flags: Adds prerequisite flag evaluation for server applications using
+    agentless or Agent Remote Configuration delivery. Prerequisites follow the
+    authored rule order, and exposure events include only flags that contribute
+    to the returned assignment.
