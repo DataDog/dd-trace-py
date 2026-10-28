@@ -9,8 +9,6 @@ if TYPE_CHECKING:
     from mcp.types import InitializeRequest
     from mcp.types import ListToolsResult
 
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
@@ -236,11 +234,6 @@ class MCPIntegration(BaseLLMIntegration):
             override_tags["mcp_tool"] = tool_name
             override_tags["mcp_tool_kind"] = "server"
 
-        is_error = _get_attr(response, "isError", False) if response else False
-        if is_error:
-            span.error = 1
-            span.set_tag(ERROR_TYPE, "ToolError")
-            span.set_tag(ERROR_MSG, get_tool_error_message(response) or DEFAULT_TOOL_ERROR_MESSAGE)
         _annotate_llmobs_span_data(span, name=tool_name, kind="tool", tags=override_tags)
 
     def process_telemetry_argument(self, span: Span, request: "CallToolRequest") -> None:
