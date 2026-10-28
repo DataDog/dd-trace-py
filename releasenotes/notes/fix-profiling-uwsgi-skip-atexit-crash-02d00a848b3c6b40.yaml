@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash on shutdown of the first uWSGI worker when uWSGI runs with
+    ``--skip-atexit`` and without ``--master``. The profiler now stops before the
+    worker exits, without sending a final profile.
