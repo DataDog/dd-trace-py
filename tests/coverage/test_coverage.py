@@ -18,8 +18,10 @@ def test_tls_fallback_skips_completed_inherited_collectors(monkeypatch, mismatch
     from contextvars import copy_context
 
     import ddtrace.internal.coverage.code as coverage_code
+    import ddtrace.internal.coverage.context_state as coverage_context_state
 
     monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    monkeypatch.setattr(coverage_context_state, "_PY_GE_314", True)
     snapshot = Context()
     collector = object.__new__(coverage_code.ModuleCodeCollector)
     collector._coverage_enabled = False
@@ -57,9 +59,11 @@ def test_expired_copied_context_does_not_borrow_the_thread_collector(monkeypatch
     from contextvars import copy_context
 
     import ddtrace.internal.coverage.code as coverage_code
+    import ddtrace.internal.coverage.context_state as coverage_context_state
 
     monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
-    monkeypatch.setattr(coverage_code._tls_coverage, "stack", (), raising=False)
+    monkeypatch.setattr(coverage_context_state, "_PY_GE_314", True)
+    monkeypatch.setattr(coverage_context_state._tls_coverage, "stack", (), raising=False)
     collector = object.__new__(coverage_code.ModuleCodeCollector)
     collector._coverage_enabled = False
 
@@ -105,8 +109,10 @@ def test_returning_from_a_copied_context_restores_the_tls_fallback(monkeypatch):
     from contextvars import copy_context
 
     import ddtrace.internal.coverage.code as coverage_code
+    import ddtrace.internal.coverage.context_state as coverage_context_state
 
     monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    monkeypatch.setattr(coverage_context_state, "_PY_GE_314", True)
     collector = object.__new__(coverage_code.ModuleCodeCollector)
     collector._coverage_enabled = False
     with coverage_code.ModuleCodeCollector.CollectInContext() as outer:
@@ -245,6 +251,9 @@ def test_mismatched_exit_resyncs_tls_fallback(monkeypatch):
     from ddtrace.internal.coverage.code import ModuleCodeCollector
 
     monkeypatch.setattr(coverage_code, "_PY_GE_314", True)
+    import ddtrace.internal.coverage.context_state as coverage_context_state
+
+    monkeypatch.setattr(coverage_context_state, "_PY_GE_314", True)
     snapshot = Context()
     with ModuleCodeCollector.CollectInContext() as parent:
         child_context = copy_context()

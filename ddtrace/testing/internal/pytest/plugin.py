@@ -282,9 +282,28 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
             return 0, 0
 
 
+@lru_cache(maxsize=8192)
+def _conftest_path(directory: str) -> t.Optional[Path]:
+    conftest = Path(directory) / "conftest.py"
+    return conftest if conftest.is_file() else None
+
+
+def _coverage_anchor_paths(item: pytest.Item) -> list[Path]:
+    """Coverage closure roots for a test: its own file plus every conftest whose
+    hooks execute for it. Import-only mode has no execution events to cover these
+    with, so they are anchored explicitly (instrumented modes cover them already).
+    """
+    anchors = [item.path]
+    for parent in item.path.parents:
+        conftest = _conftest_path(str(parent))
+        if conftest is not None:
+            anchors.append(conftest)
+    return anchors
+
+
 @contextlib.contextmanager
 def _maybe_collect_coverage(
-    coverage_enabled: bool, anchor_path: t.Optional[Path] = None
+    coverage_enabled: bool, anchor_paths: t.Optional[list[Path]] = None
 ) -> t.Generator[CoverageData, None, None]:
     """Yield a per-test coverage collector, or a no-op when coverage is disabled.
 
@@ -307,7 +326,7 @@ def _maybe_collect_coverage(
     """
     if coverage_enabled:
         TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-        with coverage_collection(anchor_path=anchor_path) as coverage_data:
+        with coverage_collection(anchor_paths=anchor_paths) as coverage_data:
             yield coverage_data
         TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
     else:
@@ -812,7 +831,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             with _maybe_collect_coverage(
-                self.manager.settings.coverage_enabled, anchor_path=item.path
+                self.manager.settings.coverage_enabled, anchor_paths=_coverage_anchor_paths(item)
             ) as coverage_data:
                 yield
 
@@ -1441,7 +1460,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
             with _maybe_collect_coverage(
-                self.manager.settings.coverage_enabled, anchor_path=item.path
+                self.manager.settings.coverage_enabled, anchor_paths=_coverage_anchor_paths(item)
             ) as coverage_data:
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)

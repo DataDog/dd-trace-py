@@ -30,6 +30,7 @@ harness files, e.g. conftest).
 """
 
 import builtins
+import importlib
 import sys
 import typing as t
 
@@ -41,6 +42,7 @@ ImportName = tuple[str, tuple[str, ...]]
 log = get_logger(__name__)
 
 _original_import: t.Optional[t.Callable[..., t.Any]] = None
+_original_import_module: t.Optional[t.Callable[..., t.Any]] = None
 _collector: t.Optional[t.Any] = None
 _should_track: t.Optional[t.Callable[[str], bool]] = None
 
@@ -74,9 +76,14 @@ def _record(
     fromlist: t.Any,
     glb: t.Optional[t.Mapping[str, t.Any]],
 ) -> None:
-    # _record is called from _ddtrace_import_hook, so the import statement's frame is two
-    # levels up.
-    caller = sys._getframe(2).f_code.co_filename
+    # The caller file is normally available as __file__ in the import statement's
+    # globals — a dict lookup, much cheaper than the frame inspection fallback.
+    caller = glb.get("__file__") if glb is not None else None
+    if not caller:
+        try:
+            caller = sys._getframe(2).f_code.co_filename
+        except Exception:
+            return
 
     # Files the import materialized: the module, any parent packages that were loaded,
     # and fromlist submodules (`from pkg import mod` can pull in both pkg/__init__.py
@@ -140,29 +147,69 @@ def _ddtrace_import_hook(
     return module
 
 
+def _resolve_import_module_absolute_name(name: str, package: t.Optional[str]) -> t.Optional[str]:
+    """Resolve an importlib.import_module name the way importlib does."""
+    if not name.startswith("."):
+        return name
+    if not package:
+        return None
+    base = package.split(".")
+    level = len(name) - len(name.lstrip("."))
+    if level > 1:
+        cut = level - 1
+        if cut >= len(base):
+            return None
+        base = base[: len(base) - cut]
+    rest = name.lstrip(".")
+    return ".".join(base + ([rest] if rest else []))
+
+
+def _ddtrace_import_module_hook(name: str, package: t.Optional[str] = None) -> t.Any:
+    module = _original_import_module(name, package)  # type: ignore[misc]
+    # importlib.import_module bypasses builtins.__import__: record the same import
+    # event data the __import__ wrapper would have seen (e.g. dialect loading driven
+    # by test parametrization through importlib.import_module).
+    try:
+        abs_name = _resolve_import_module_absolute_name(name, package)
+        if abs_name and _collector is not None and _should_track is not None:
+            caller_frame = sys._getframe(1)
+            _record(_collector, _should_track, abs_name, (), caller_frame.f_globals)
+    except Exception:
+        # Recording must never break an import.
+        log.debug("importlib.import_module hook recording failed for %r", name, exc_info=True)
+    return module
+
+
 def install_import_hook(collector: t.Any, should_track: t.Callable[[str], bool]) -> None:
     """Wrap builtins.__import__ so import statements record coverage.
 
     collector must provide hook_import_file(path) and hook_import(path, import_name).
     should_track(path) decides whether a file is inside the instrumented paths.
     """
-    global _original_import, _collector, _should_track
+    global _original_import, _original_import_module, _collector, _should_track
     if _collector is not None:
         return
     _original_import = builtins.__import__
+    _original_import_module = importlib.import_module
     _collector = collector
     _should_track = should_track
     builtins.__import__ = _ddtrace_import_hook
+    importlib.import_module = _ddtrace_import_module_hook
 
 
 def uninstall_import_hook() -> None:
-    """Restore builtins.__import__, unless someone wrapped it on top of us."""
-    global _original_import, _collector, _should_track
+    """Restore builtins.__import__ and importlib.import_module, unless someone wrapped
+    them on top of us.
+    """
+    global _original_import, _original_import_module, _collector, _should_track
     if _collector is None:
         return
     if builtins.__import__ is _ddtrace_import_hook:
         builtins.__import__ = t.cast(t.Any, _original_import)
+    if importlib.import_module is _ddtrace_import_module_hook:
+        importlib.import_module = t.cast(t.Any, _original_import_module)
     _original_import = None
+    _original_import_module = None
     _collector = None
     _should_track = None
 
