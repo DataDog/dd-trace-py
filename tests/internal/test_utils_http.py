@@ -5,6 +5,7 @@ import pytest
 from ddtrace.internal.http import HTTPResponse
 from ddtrace.internal.http import NativeHTTPConnection
 from ddtrace.internal.utils.http import connector
+from ddtrace.internal.utils.http import inspectable_charset
 from ddtrace.internal.utils.http import parse_form_multipart
 
 
@@ -47,3 +48,42 @@ def test_parse_form_multipart_handles_charset_suffix() -> None:
     # not collapsed to empty strings.
     assert parsed["meta"] == {"id": 42}
     assert parsed["raw"] == {"id": 99}
+
+
+@pytest.mark.parametrize(
+    ("charset", "size", "expected"),
+    [
+        ("Latin-1", 0, "iso8859-1"),
+        ("UTF-7", 0, "utf-7"),
+        (None, 0, "utf-8"),
+        ("", 0, "utf-8"),
+        ("unknown-charset", 0, "utf-8"),
+        ("\udcff", 0, "utf-8"),
+        (("utf-8", "", "utf-8"), 0, "utf-8"),
+        ("hex", 0, "utf-8"),
+        ("zlib", 0, "utf-8"),
+        ("utf.16be", 0, "utf-16-be"),
+        ("ebcdic.cp.us", 0, "cp037"),
+        ("ebcdic\u00e9cp\u00e9us", 0, "cp037"),
+        ("ebcdic\u212acp\u212aus", 0, "cp037"),
+        ("utf\u013016\u0130be", 0, "utf-16-be"),
+        ("cp037" + "-" * 60, 0, "cp037"),
+        ("cp875", 0, "cp875"),
+        ("unicode_escape", 0, "unicode-escape"),
+        ("punycode", 100, "punycode"),
+        ("punycode", 100_000, "utf-8"),
+    ],
+)
+def test_inspectable_charset(charset, size, expected) -> None:
+    assert inspectable_charset(charset, size) == expected
+
+
+def test_inspectable_charset_does_not_cache_unknown_names() -> None:
+    import encodings
+
+    before = len(encodings._cache)
+    for i in range(100):
+        assert inspectable_charset(f"x-unknown-charset-{i}") == "utf-8"
+        inspectable_charset("utf" + "\u00e9" * (i + 1) + "8")
+        inspectable_charset("utf." * (i + 1) + "8")
+    assert len(encodings._cache) == before
