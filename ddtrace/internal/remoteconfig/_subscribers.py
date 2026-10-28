@@ -2,6 +2,7 @@ from collections.abc import Sequence
 import os
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
@@ -23,7 +24,7 @@ class RemoteConfigSubscriber(PeriodicService):
     def __init__(
         self,
         reader: Any,
-        dispatch: Callable[[Sequence[Any], Sequence[str]], None],
+        dispatch: Callable[[Optional[Sequence[Any]], Sequence[str]], None],
         name: str,
         enabled_products: Callable[[], list[str]],
     ) -> None:

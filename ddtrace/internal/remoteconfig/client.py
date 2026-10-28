@@ -259,14 +259,17 @@ class RemoteConfigClient:
             grouped.setdefault(change.product, []).append(Payload(metadata, change.path, content))
         return grouped
 
-    def _reconcile(self, grouped: dict[Any, list[Payload]], enabled: Collection[str]) -> dict[Any, list[Payload]]:
-        """Track the applied configs, adding removals for those a full snapshot did not confirm.
+    def _reconcile(self, changes: Sequence[Any], enabled: Collection[str]) -> dict[Any, list[Payload]]:
+        """Build the payloads of changes, adding removals for the applied configs a full snapshot did not confirm.
 
         enabled holds the names of the products the changes were fetched for. It
         must not be read again here, as a product enabled in between would have
         its configs missing from the changes and wrongly removed.
         """
-        delivered = {payload.path for payloads in grouped.values() for payload in payloads}
+        grouped = self._build_payloads(changes)
+        # A record with invalid content still confirms its path, as the last
+        # valid config is kept, like it is on any other update.
+        delivered = {change.path for change in changes}
 
         removals: dict[Any, list[Payload]] = {}
         pending: set[str] = set()
@@ -372,16 +375,22 @@ class RemoteConfigClient:
         self.run_periodic()
         self._dispatch_payloads(grouped)
 
-    def dispatch_native_changes(self, records: Sequence[Any], enabled_products: Optional[Sequence[str]] = None) -> None:
+    def dispatch_native_changes(
+        self, records: Optional[Sequence[Any]], enabled_products: Optional[Sequence[str]] = None
+    ) -> None:
         """Build payloads from native change records and dispatch them.
 
         Used by the child-process subscriber: a bare poll tick (``records`` is
         empty) still fires every callback's ``periodic()`` via an empty dispatch.
-        enabled_products are the product names the records were read for, and
-        default to the currently enabled ones.
+        records is None when the reader could not read a consistent snapshot, so
+        nothing is reconciled until it can. enabled_products are the product
+        names the records were read for, and default to the currently enabled ones.
         """
+        if records is None:
+            self._dispatch_to_products({})
+            return
         enabled = set(self.enabled_product_names() if enabled_products is None else enabled_products)
-        self._dispatch_to_products(self._reconcile(self._build_payloads(records) if records else {}, enabled))
+        self._dispatch_to_products(self._reconcile(records, enabled))
 
     def request(self) -> bool:
         try:
@@ -391,7 +400,7 @@ class RemoteConfigClient:
             # Deliver payloads only; product periodic() housekeeping is driven
             # once per cycle by the poller (RemoteConfigPoller.periodic), so it
             # keeps running even when a fetch fails.
-            self._dispatch_payloads(self._reconcile(self._build_payloads(changes), {str(p) for p in products}))
+            self._dispatch_payloads(self._reconcile(changes, {str(p) for p in products}))
             return True
         except Exception:
             log.debug("remote configuration client request failed", exc_info=True)

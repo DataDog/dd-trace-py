@@ -1552,8 +1552,11 @@ class RemoteConfigReader:
         polls.
         """
         ...
-    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+    def read(self, enabled_products: list[str]) -> Optional[list[RemoteConfigChange]]:
         """Return the changes since the last read (removals first).
+
+        ``None`` means no consistent snapshot could be read (e.g. the origin was
+        compacting the shared memory); the next read retries from the same state.
 
         ``enabled_products`` are the wire names the caller currently subscribes
         to; configs for other products are withheld so they are re-emitted once

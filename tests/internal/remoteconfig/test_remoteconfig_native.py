@@ -169,6 +169,23 @@ def test_new_native_client_removes_configs_missing_from_its_first_poll():
     assert len(sink.batches) == 2
 
 
+def test_new_native_client_keeps_configs_with_malformed_content():
+    # A config that a rebuilt client reports with invalid content is still
+    # there, so the last valid one is kept, like on any other update.
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client, sink = _client(agent.url)
+        assert client.request() is True
+    assert [p.path for p in sink.last] == [BASE_PATH]
+
+    with _MockAgent([_malformed_response()]) as agent:
+        client._native = None
+        client.agent_url = agent.url
+        assert client.request() is True
+
+    assert all(p.path != BASE_PATH for batch in sink.batches[1:] for p in batch)
+    assert BASE_PATH in client._applied
+
+
 def test_enabled_products_reported_to_agent():
     with _MockAgent([RESPONSES[1]]) as agent:
         client, _ = _client(agent.url)
@@ -587,6 +604,23 @@ def test_reader_changes_reconciled_against_products_they_were_read_for():
     assert all(p.content is not None for batch in sink.batches for p in batch)
 
     names = client.enabled_product_names()
+    client.dispatch_native_changes(reader.read(names), names)
+    assert sorted((p.path, p.content is None) for p in sink.last) == [(BASE_PATH, False), (SECOND_PATH, False)]
+
+
+def test_failed_reader_read_is_not_reconciled():
+    # A reader that cannot read a consistent snapshot (e.g. during a compaction)
+    # returns None, which must not pass for a snapshot without any config.
+    with _MockAgent([RESPONSES[4]]) as agent:
+        client, sink = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+    reader = client.make_reader()
+    names = client.enabled_product_names()
+    client.dispatch_native_changes(None, names)
+    assert all(p.content is not None for batch in sink.batches for p in batch)
+
     client.dispatch_native_changes(reader.read(names), names)
     assert sorted((p.path, p.content is None) for p in sink.last) == [(BASE_PATH, False), (SECOND_PATH, False)]
 

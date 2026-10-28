@@ -429,13 +429,19 @@ impl RemoteConfigReader {
 
     /// Read the latest published state and return the changes since the last read
     /// (removals first, then adds/updates). An empty list means nothing changed (a
-    /// bare poll tick → the caller runs periodic work only).
+    /// bare poll tick → the caller runs periodic work only). `None` means no
+    /// consistent snapshot could be read (e.g. a compaction was in progress); the
+    /// next read diffs against the same state.
     ///
     /// `enabled_products` is the set of product names the caller currently
     /// subscribes to; configs for other products are withheld from the active set
     /// so they are (re-)emitted once their product is enabled.
     #[pyo3(signature = (enabled_products))]
-    fn read(&self, py: Python<'_>, enabled_products: Vec<String>) -> PyResult<Vec<ChangeRecord>> {
+    fn read(
+        &self,
+        py: Python<'_>,
+        enabled_products: Vec<String>,
+    ) -> PyResult<Option<Vec<ChangeRecord>>> {
         let enabled: HashSet<String> = enabled_products.into_iter().collect();
         let changes = py.detach(move || {
             let mut reader = self.reader.lock().unwrap_or_else(|e| e.into_inner());
