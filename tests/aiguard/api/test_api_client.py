@@ -102,6 +102,9 @@ def assert_telemetry(mocked, metric, tags, source=AI_GUARD.SOURCE_SDK, integrati
     default here to a direct SDK call; extra carries the tags the error metric appends after them.
     """
     metrics = [(args[0].value,) + args[1:] for args, kwargs in mocked.call_args_list]
+    if metric == "requests":
+        # Every evaluation that was not skipped by a middleware reports skipped=false.
+        tags = tuple(tags) + (("skipped", "false"),)
     expected_tags = tuple(tags) + (("source", source), ("integration", integration)) + tuple(extra)
     assert ("ai_guard", metric, 1, expected_tags) in metrics
 

@@ -24,7 +24,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
-from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import exception
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
@@ -325,16 +324,23 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
+            def start_asyncio_collector(collector_name: str) -> None:
+                # The asyncio collector module imports asyncio, which must not be loaded before the application
+                # imports it.
+                from ddtrace.profiling.collector import asyncio
+
+                start_collector(getattr(asyncio, collector_name))
+
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioLockCollector")),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioSemaphoreCollector")),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioBoundedSemaphoreCollector")),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioConditionCollector")),
             ]
 
         if self._pytorch_collector_enabled:

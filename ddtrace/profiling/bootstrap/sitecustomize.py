@@ -1,9 +1,9 @@
 """Bootstrapping code that is run when using `ddtrace.profiling.auto`."""
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.profiling import lifecycle
 from ddtrace.internal.settings.profiling import _is_platform_supported
 import ddtrace.profiling as profiling
-from ddtrace.profiling import bootstrap
 
 
 LOG = get_logger(__name__)
@@ -20,13 +20,13 @@ def start_profiler() -> None:
 
     from ddtrace.profiling import profiler
 
-    if hasattr(bootstrap, "profiler"):
-        bootstrap.profiler.stop()  # pyright: ignore[reportAttributeAccessIssue, reportCallIssue]
+    with lifecycle.lock:
+        lifecycle.stop_profiler()
 
-    # Export the profiler so we can introspect it if needed
-    profiler_instance = profiler.Profiler()
-    bootstrap.profiler = profiler_instance  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
-    bootstrap.profiler.start()  # type: ignore[attr-defined]  # pyright: ignore[reportCallIssue]
+        # Export the profiler so we can introspect it if needed
+        new_profiler = profiler.Profiler()
+        lifecycle.set_profiler(new_profiler)
+        new_profiler.start()
 
 
 _platform_unsupported_msg, _platform_is_supported = _is_platform_supported()
