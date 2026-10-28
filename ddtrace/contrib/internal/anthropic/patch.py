@@ -44,6 +44,17 @@ def _is_wrapped_response(resp: Any) -> bool:
     return resp is not None and hasattr(resp, "parse") and hasattr(resp, "http_response")
 
 
+def _close_wrapped_response(resp: Any) -> Any:
+    # with_streaming_response reads the body inside the SDK's __enter__/__aenter__, so when the
+    # read raises, the caller's __exit__ never runs and nothing else closes the response.
+    # AsyncAPIResponse.close() is a coroutine, which the async caller awaits.
+    try:
+        return resp.close()
+    except Exception:
+        log.debug("Failed to close anthropic response wrapper", exc_info=True)
+        return None
+
+
 def _parse_wrapped_response(resp: Any) -> Any:
     """Return the parsed Message behind a raw or streaming response wrapper.
 
@@ -56,7 +67,11 @@ def _parse_wrapped_response(resp: Any) -> Any:
     if not _is_wrapped_response(resp):
         return resp
     if hasattr(resp, "read"):
-        resp.read()
+        try:
+            resp.read()
+        except BaseException:
+            _close_wrapped_response(resp)
+            raise
     try:
         return resp.parse()
     except Exception:
@@ -73,9 +88,15 @@ async def _async_parse_wrapped_response(resp: Any) -> Any:
     if not _is_wrapped_response(resp):
         return resp
     if hasattr(resp, "read"):
-        body = resp.read()
-        if inspect.isawaitable(body):
-            await body
+        try:
+            body = resp.read()
+            if inspect.isawaitable(body):
+                await body
+        except BaseException:
+            closed = _close_wrapped_response(resp)
+            if inspect.isawaitable(closed):
+                await closed
+            raise
     try:
         parsed = resp.parse()
         if inspect.isawaitable(parsed):
