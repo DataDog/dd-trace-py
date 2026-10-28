@@ -26,7 +26,6 @@ class LiteLLMUsageMetrics(bm.Scenario):
         token_breakdown = "trajectory.gen_ai.client.token_breakdown@0.1.0"  # nosec B105: a profile id
         gateway_request = "trajectory.gen_ai.gateway.request@0.1.0"
 
-        writer = UsageMetricsWriter("otlp", interval=60)
         attempt = {
             "operation_name": "chat",
             "provider_name": "openai",
@@ -67,6 +66,8 @@ class LiteLLMUsageMetrics(bm.Scenario):
         )
 
         def _(loops):
+            # A new writer for each run: histogram samples accumulate until a flush, so runs must not share them.
+            writer = UsageMetricsWriter("otlp", interval=60)
             # What one proxied call records: its provider attempt, its token breakdown and its gateway request.
             for _ in range(loops):
                 writer.record(provider_attempt, attempt, attributes)
