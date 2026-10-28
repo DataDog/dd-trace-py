@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from contextlib import nullcontext
 import os
 import typing as t
 from unittest.mock import Mock
@@ -21,6 +22,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestSession
 from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import mock_api_client_settings
+from tests.testing.mocks import mock_test_environment
 from tests.testing.mocks import session_manager_mock
 from tests.testing.mocks import setup_standard_mocks
 
@@ -1603,3 +1605,31 @@ def test_build_real_with_mocks_restores_the_agentless_config() -> None:
 
     assert agentless_config.__dict__ is expected_state
     assert agentless_config.__dict__ == expected_values
+
+
+@pytest.mark.parametrize("raise_error", [False, True])
+def test_mock_test_environment_resolves_and_restores_agentless_config(monkeypatch, raise_error) -> None:
+    from ddtrace.internal.settings._agentless import config as agentless_config
+    from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
+    from ddtrace.testing.internal.http import BackendConnectorSetup
+
+    # Simulate settings cached before the test's agentless environment was applied.
+    monkeypatch.setattr(agentless_config, "ci_visibility", False)
+    expected_state = agentless_config.__dict__
+    expected_values = dict(expected_state)
+    expected_env = dict(os.environ)
+
+    with pytest.raises(RuntimeError, match="test error") if raise_error else nullcontext():
+        with mock_test_environment(MockDefaults.test_environment()):
+            assert os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] == "true"
+            assert agentless_config.ci_visibility is True
+            with patch(
+                "ddtrace.testing.internal.http.BackendConnector", side_effect=AssertionError("unexpected network")
+            ):
+                assert isinstance(BackendConnectorSetup.detect_setup(), BackendConnectorAgentlessSetup)
+            if raise_error:
+                raise RuntimeError("test error")
+
+    assert agentless_config.__dict__ is expected_state
+    assert agentless_config.__dict__ == expected_values
+    assert dict(os.environ) == expected_env
