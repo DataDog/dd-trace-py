@@ -265,10 +265,11 @@ def _add_resource_path(scope: dict[str, Any], instance: Any) -> None:
         # request again, e.g. connexion runs one Router with the same Mount per middleware.
         # It replaces the earlier Mount instead of adding its path a second time. Nested
         # Mount("") levels don't change root_path either, so an empty Mount only counts as
-        # routing again once a route was handled after the earlier one.
+        # routing again once a route was handled after the earlier one. The most recent
+        # match is the one being replayed, outer empty mounts are routing levels of their own.
         mount = (instance.path, scope.get("root_path"))
         if mount in mounts:
-            index = mounts.index(mount)
+            index = len(mounts) - 1 - mounts[::-1].index(mount)
             if instance.path or None in mounts[index:]:
                 del resource_paths[index:]
                 del mounts[index:]
