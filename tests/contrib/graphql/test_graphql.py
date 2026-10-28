@@ -1,3 +1,4 @@
+import inspect
 import os
 
 import graphql
@@ -196,6 +197,92 @@ def test_graphql_execute_sync_with_middlware_manager(
         res2 = graphql.execution.execute_sync(test_schema, ast, middleware=middleware_manager)
         assert res1.data == {"hello": "friend"}
         assert res2.data == {"hello": "friend"}
+
+
+@pytest.mark.parametrize("entry_point", ["execute", "execute_sync"])
+@pytest.mark.parametrize("positional", [False, True])
+@pytest.mark.parametrize("use_manager", [False, True])
+@pytest.mark.parametrize("resolver_error", [False, True])
+def test_execute_argument_forwarding(
+    entry_point, positional, use_manager, resolver_error, enable_graphql_resolvers, test_spans
+):
+    calls = []
+    root = {"hello": "friend"}
+    context = object()
+    error = ValueError("resolver failed")
+
+    def resolve(root_value, info, name):
+        assert root_value is root
+        assert info.context is context
+        assert name == "world"
+        calls.append("resolver")
+        if resolver_error:
+            raise error
+        return root_value["hello"] + " " + name
+
+    def first(next_resolver, root_value, info, **kwargs):
+        calls.append("first")
+        return next_resolver(root_value, info, **kwargs)
+
+    def second(next_resolver, root_value, info, **kwargs):
+        calls.append("second")
+        return next_resolver(root_value, info, **kwargs)
+
+    schema = graphql.GraphQLSchema(
+        query=graphql.GraphQLObjectType(
+            "Query",
+            {"hello": graphql.GraphQLField(graphql.GraphQLString, {"name": graphql.GraphQLString}, resolve=resolve)},
+        )
+    )
+    document = graphql.parse("query Hello($name: String!) { hello(name: $name) }")
+    middlewares = [first, second]
+    middleware = graphql.MiddlewareManager(*middlewares) if use_manager else middlewares
+    execute = getattr(graphql, entry_point)
+    arguments = dict(
+        schema=schema,
+        document=document,
+        root_value=root,
+        context_value=context,
+        variable_values={"name": "world"},
+        operation_name="Hello",
+        middleware=middleware,
+    )
+    if positional:
+        bound = inspect.signature(execute).bind_partial(**arguments)
+        bound.apply_defaults()
+        result = execute(*bound.args, **bound.kwargs)
+    else:
+        result = execute(**arguments)
+
+    assert calls == ["second", "first", "resolver"]
+    assert middlewares == [first, second]
+    if use_manager:
+        assert middleware.middlewares == (first, second)
+    if resolver_error:
+        assert result.data == {"hello": None}
+        assert result.errors[0].original_error is error
+    else:
+        assert result.data == {"hello": "friend world"}
+        assert result.errors is None
+
+    execution_spans = list(test_spans.filter_spans(name="graphql.execute"))
+    resolver_spans = list(test_spans.filter_spans(name="graphql.resolve"))
+    assert len(execution_spans) == 1
+    assert len(resolver_spans) == 1
+    assert resolver_spans[0].parent_id == execution_spans[0].span_id
+    assert execution_spans[0].error == int(resolver_error)
+
+
+def test_execute_sync_patch_lifecycle(test_schema, test_source_str, enable_graphql_resolvers, test_spans):
+    document = graphql.parse(test_source_str)
+    test_spans.pop()
+    for operation, expected_spans in [(patch, 1), (patch, 1), (unpatch, 0), (unpatch, 0), (patch, 1)]:
+        operation()
+        result = graphql.execute_sync(test_schema, document)
+        assert result.data == {"hello": "friend"}
+        assert len(list(test_spans.filter_spans(name="graphql.execute"))) == expected_spans
+        assert len(list(test_spans.filter_spans(name="graphql.resolve"))) == expected_spans
+        test_spans.pop()
 
 
 @snapshot(ignores=["meta.error.stack", "meta.events"])

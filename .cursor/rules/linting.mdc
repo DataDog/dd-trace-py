@@ -6,5 +6,5 @@ alwaysApply: false
 
 # lint
 
-Read `.claude/skills/lint/SKILL.md` from the repository root and follow that workflow.
+Read `.agents/skills/lint/SKILL.md` from the repository root and follow that workflow.
 If this client supports skill invocation, use `lint` directly.

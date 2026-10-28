@@ -4,7 +4,6 @@ import os
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
-import uuid
 
 import ddtrace
 from ddtrace.internal import gitmetadata
@@ -12,6 +11,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
@@ -97,7 +97,7 @@ class RemoteConfigClient:
     """Adapter over the native (libdatadog) Remote Configuration client."""
 
     def __init__(self) -> None:
-        self.id = str(uuid.uuid4())
+        self.id = uuid4()
         self.agentless = agentless_config.any_enabled
         self.agent_url = agent_config.trace_agent_url
 
@@ -156,7 +156,7 @@ class RemoteConfigClient:
         self._reader = None
 
     def renew_id(self) -> None:
-        self.id = str(uuid.uuid4())
+        self.id = uuid4()
 
     def refresh_interval(self) -> Optional[float]:
         """Seconds the backend wants us to wait before polling again.

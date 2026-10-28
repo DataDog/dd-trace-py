@@ -7,10 +7,10 @@ import sys
 import time
 from typing import Any
 from typing import Optional
-import uuid
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.native._native import Context
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._context import LLMObsContextProvider
@@ -209,7 +209,7 @@ class SonicState:
         self.context_provider = context_provider
         self.llmobs_context = llmobs_context
         self.routing_context = routing_context
-        self.session_id = str(uuid.uuid4())
+        self.session_id = uuid4()
         self.audio = InputAudio()
         self.pending = Turn()
         self.current: Optional[Turn] = None
