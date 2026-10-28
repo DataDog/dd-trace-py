@@ -254,18 +254,19 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
     return False
 
 
-def _add_resource_path(scope: dict, instance: Any) -> None:
-    resource_paths = scope["datadog"].setdefault("resource_paths", [])
+def _add_resource_path(scope: dict[str, Any], instance: Any) -> None:
+    resource_paths: list[str] = scope["datadog"].setdefault("resource_paths", [])
     # (path, root_path) of each Mount in resource_paths, None for routes
-    mounts = scope["datadog"].setdefault("_dd_resource_path_mounts", [])
+    mounts: list[Optional[tuple[str, Optional[str]]]] = scope["datadog"].setdefault("_dd_resource_path_mounts", [])
     mount = None
     if isinstance(instance, starlette.routing.Mount):
         # Mount.matches() sets root_path to everything matched so far. A Mount handled with
         # the same path and root_path as an earlier one is not nested in it but routes the
         # request again, e.g. connexion runs one Router with the same Mount per middleware.
-        # It replaces the earlier Mount instead of adding its path a second time.
+        # It replaces the earlier Mount instead of adding its path a second time. Nested
+        # Mount("") levels don't change root_path, so they are always kept.
         mount = (instance.path, scope.get("root_path"))
-        if mount in mounts:
+        if instance.path and mount in mounts:
             index = mounts.index(mount)
             del resource_paths[index:]
             del mounts[index:]
