@@ -2,7 +2,7 @@
 
 This is the default mode: sys.monitoring on 3.12+, bytecode injection on
 3.10/3.11, legacy settrace on 3.9 (see engine.py for the ladder). It delegates to
-ModuleCodeCollector's instrumented-mode machinery, which predates the mode
+CollectorContract's instrumented-mode machinery, which predates the mode
 protocol — the methods here are a thin routing layer, not a reimplementation.
 
 Deleting this file (to keep only import-only) means also deleting the engine
@@ -17,21 +17,19 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.engine import CoverageCollector
 from ddtrace.internal.coverage.engine import CoverageEngine
 from ddtrace.internal.coverage.engine import create_engine
+from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import ImportName
-
-
-if t.TYPE_CHECKING:
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
 
 
 class InstrumentedCoverage:
     """Engine-backed instrumentation mode."""
 
-    def __init__(self, collector: "ModuleCodeCollector") -> None:
+    def __init__(self, collector: "CollectorContract") -> None:
         self._collector = collector
-        self._engine: CoverageEngine = create_engine(collector)
+        self._engine: CoverageEngine = create_engine(t.cast(CoverageCollector, collector))
         self._seen: set[tuple[CodeType, str]] = set()
 
     # ------------------------------------------------------------------
@@ -87,12 +85,12 @@ class InstrumentedCoverage:
     def expand_context_lines(
         self, covered_lines: dict[str, CoverageLines], ctx_import_names: dict[str, set[ImportName]]
     ) -> None:
-        self._collector._add_import_time_lines(covered_lines)  # type: ignore[no-untyped-call]
+        self._collector._add_import_time_lines(covered_lines)
 
     def expand_context_files(
         self, covered_files: set[str], ctx_import_names: dict[str, set[ImportName]]
     ) -> t.AbstractSet[str]:
-        return self._collector._get_covered_file_paths_with_imports(covered_files)
+        return t.cast(t.AbstractSet[str], self._collector._get_covered_file_paths_with_imports(covered_files))
 
     # ------------------------------------------------------------------
     # Import-event recording (no wrapper in this mode; never called)

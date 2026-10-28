@@ -34,21 +34,18 @@ import typing as t
 from ddtrace.internal.coverage.context_state import _PY_GE_314
 from ddtrace.internal.coverage.context_state import _tls_coverage
 from ddtrace.internal.coverage.context_state import ctx_collectors
+from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import ImportName
 
 
-if t.TYPE_CHECKING:
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-
-
 class ImportOnlyCoverage:
-    """Import-only mode helper, owned by ModuleCodeCollector.
+    """Import-only mode helper, owned by CollectorContract.
 
     The collector is referenced as `self._collector` (duck-typed) so this module
     does not import code.py.
     """
 
-    def __init__(self, collector: "ModuleCodeCollector") -> None:
+    def __init__(self, collector: "CollectorContract") -> None:
         self._collector = collector
         # caller path -> import names, recorded while a module body was executing
         # (module-level import edges, shared by every context covering the caller).

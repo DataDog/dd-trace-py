@@ -20,6 +20,7 @@ from ddtrace.internal.coverage.context_state import ctx_is_import_coverage  # no
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.import_only import ImportOnlyCoverage
 from ddtrace.internal.coverage.instrumented_mode import InstrumentedCoverage
+from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -69,7 +70,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         # The mode is decided once, at construction, and the collector delegates
         # every mode-specific decision to it (see mode.py for the contract).
         self._mode: CoverageMode = (
-            ImportOnlyCoverage(self) if is_import_only_coverage_enabled() else InstrumentedCoverage(self)
+            ImportOnlyCoverage(t.cast("CollectorContract", self))
+            if is_import_only_coverage_enabled()
+            else InstrumentedCoverage(t.cast("CollectorContract", self))
         )
 
         # Data structures for coverage data

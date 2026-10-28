@@ -5,15 +5,21 @@ context stack, dependency closures) and delegates every mode-specific decision t
 exactly one CoverageMode implementation. The collector has no if/else for mode
 selection: it calls `self._mode.X()` and the implementation decides.
 
+This module also defines the CollectorContract protocol: the structural interface
+of the collector as seen by its modes. Modes reference the collector through this
+protocol (not through `code.ModuleCodeCollector`) so there is no import cycle:
+code.py imports the mode implementations, and the mode implementations import
+this protocol module only.
+
 Removing a mode means deleting its implementation file and the one registration
-line in ModuleCodeCollector.__init__. The other mode is unaffected because the
-collector only sees this interface.
+line in ModuleCodeCollector.__init__. The other mode is unaffected.
 
 Implementations:
     InstrumentedCoverage (instrumented_mode.py) - engine-backed code instrumentation
     ImportOnlyCoverage (import_only.py) - import-event-only coverage
 """
 
+from pathlib import Path
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -22,6 +28,43 @@ from ddtrace.internal.coverage.coverage_lines import CoverageLines
 
 
 ImportName = tuple[str, tuple[str, ...]]
+
+
+class CollectorContract(t.Protocol):
+    """The collector's structural interface, as used by its modes.
+
+    Implemented by ModuleCodeCollector; modes hold a reference typed as this
+    protocol so they never need to import code.py (avoiding a cycle).
+    """
+
+    # Shared data stores (readable and writable by modes through the methods below)
+    lines: dict[str, CoverageLines]
+    _import_time_covered: dict[str, CoverageLines]
+
+    # Methods called by modes
+    def hook_import(self, path: str, import_name: ImportName) -> None:
+        """Record an import edge in the global edge map."""
+
+    def _record_file_covered(self, path: str) -> None:
+        """Record a file as covered in the global coverage window."""
+
+    def _record_import_time_sentinel(self, module_file: str) -> None:
+        """Mark a module file as covered at import time (line-0 sentinel)."""
+
+    def _register_import_time_name(self, name: str, module_file: str) -> None:
+        """Register a module name to file mapping for dependency resolution."""
+
+    def _is_instrumentable_path(self, code_path: Path) -> bool:
+        """Whether a file is inside the include paths and outside the exclude paths."""
+
+    def _get_dependency_paths_for_import_name(self, import_name: ImportName) -> frozenset[str]:
+        """Resolve one (package, names) dependency tuple to file paths."""
+
+    def _add_import_time_lines(self, covered_lines: dict[str, CoverageLines]) -> None:
+        """Expand covered lines with import-time dependencies (global edge map)."""
+
+    def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> t.AbstractSet[str]:
+        """File-level variant of _add_import_time_lines (global edge map)."""
 
 
 class CoverageMode(t.Protocol):
