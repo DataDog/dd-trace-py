@@ -8,7 +8,9 @@ from ddtrace.contrib.internal.typesafe.patch import get_version
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_tags
 from tests.contrib.typesafe.utils import ERROR_STATE
 from tests.contrib.typesafe.utils import EXPECTED_QUESTIONS
 from tests.contrib.typesafe.utils import MODEL
@@ -17,7 +19,12 @@ from tests.contrib.typesafe.utils import build_questions
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
-COMMON_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.typesafe", "integration": "typesafe"}
+COMMON_TAGS = {
+    "ml_app": "<ml-app-name>",
+    "service": "tests.contrib.typesafe",
+    "integration": "typesafe",
+    "decision_provider": "system_one",
+}
 
 
 # Full response bodies recorded in tests/cassettes/typesafe; only the urgency score differs between them
@@ -194,10 +201,13 @@ def _sent_json_body(request):
     raise AssertionError("no request part in the multipart body")
 
 
-def _call_with_recording_transport(typesafe_sdk, test_spans, attach=(), **kwargs):
+def _call_with_recording_transport(typesafe_sdk, test_spans, attach=(), client_kwargs=None, **kwargs):
     transport = _RecordingTransport()
     with typesafe_sdk.TypeSafeClient(
-        api_key="not-a-real-key", transport=transport, retry=typesafe_sdk.RetryPolicy(max_retries=0)
+        api_key="not-a-real-key",
+        transport=transport,
+        retry=typesafe_sdk.RetryPolicy(max_retries=0),
+        **(client_kwargs or {}),
     ) as client:
         if attach:
             with client.attach_assets(list(attach)):
@@ -301,3 +311,15 @@ def test_system_one_attached_image_referenced_in_text(typesafe_sdk, typesafe_llm
         str(photo): {"type": "image", "part": "asset-0"},
         str(placed): {"type": "image", "part": "asset-1"},
     }
+
+
+def test_system_one_openrouter_decision_provider(typesafe_sdk, typesafe_llmobs, test_spans):
+    span, _, _, _ = _call_with_recording_transport(
+        typesafe_sdk,
+        test_spans,
+        client_kwargs={"base_url": "https://openrouter.ai/api/v1"},
+        state=STATE,
+        questions=build_questions(typesafe_sdk),
+    )
+    assert get_llmobs_model_provider(span) == "openrouter"
+    assert get_llmobs_tags(span)["decision_provider"] == "system_one"
