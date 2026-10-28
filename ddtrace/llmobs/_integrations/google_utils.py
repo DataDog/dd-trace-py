@@ -396,22 +396,24 @@ def extract_messages_from_adk_events(events) -> list[Message]:
     if not isinstance(events, list):
         events = [events]
 
-    # Streaming yields partial text chunks plus a non-partial event carrying the assembled text, so
-    # skip partials only when assembled text exists. Runs without it (e.g. run_live turns, whose
-    # non-partial events are contentless control events or tool calls) keep all events as before.
-    has_assembled_text = False
-    for event in events:
-        if _get_attr(event, "partial", False):
+    # Streaming yields partial text chunks followed by a non-partial event carrying the assembled text,
+    # so skip a partial only when assembled text comes after it. Partials with nothing assembled after
+    # them (run_live turns, or a response cut off mid-stream) are kept.
+    skipped = set()
+    assembled_text_after = False
+    for i in reversed(range(len(events))):
+        if _get_attr(events[i], "partial", False):
+            if assembled_text_after:
+                skipped.add(i)
             continue
-        parts = _get_attr(_get_attr(event, "content", None), "parts", None) or []
+        parts = _get_attr(_get_attr(events[i], "content", None), "parts", None) or []
         if not isinstance(parts, list):
             parts = [parts]
         if any(_get_attr(part, "text", None) for part in parts):
-            has_assembled_text = True
-            break
+            assembled_text_after = True
 
-    for event in events:
-        if has_assembled_text and _get_attr(event, "partial", False):
+    for i, event in enumerate(events):
+        if i in skipped:
             continue
         content = _get_attr(event, "content", None)
         if not content:

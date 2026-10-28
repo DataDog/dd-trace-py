@@ -121,6 +121,18 @@ def test_extract_messages_keeps_partials_when_only_tool_call_is_assembled():
     assert messages[2]["tool_calls"][0]["name"] == "lookup"
 
 
+def test_extract_messages_keeps_partials_of_a_cut_off_response():
+    events = [
+        _adk_text_event("Let me ", partial=True),
+        _adk_text_event("Let me check."),
+        _adk_text_event("It is ", partial=True),
+    ]
+    assert extract_messages_from_adk_events(events) == [
+        {"role": "assistant", "content": "Let me check."},
+        {"role": "assistant", "content": "It is "},
+    ]
+
+
 def test_extract_messages_skips_empty_parts():
     from google.adk.events import Event
     from google.genai import types
