@@ -1611,12 +1611,19 @@ class RemoteConfigClient:
     ) -> None:
         """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
         ...
-    def poll(
+    def fetch(
         self, products: list[RemoteConfigProduct], extra_services: list[str]
     ) -> Optional[list[RemoteConfigChange]]:
         """Perform a single fetch against the agent and return the per-poll changes.
 
         None means the agent replied that nothing changed.
+        """
+        ...
+    def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
+        """Like fetch, but returns no changes rather than None when nothing changed.
+
+        Kept for the callers that expect a list, such as test harnesses outside
+        this repository.
         """
         ...
     def set_config_state(self, path: str, error: Optional[str] = None) -> None:

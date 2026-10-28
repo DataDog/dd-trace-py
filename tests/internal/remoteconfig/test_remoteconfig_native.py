@@ -206,6 +206,25 @@ def test_new_native_client_keeps_configs_with_malformed_content():
     assert BASE_PATH in client._applied
 
 
+def test_native_poll_returns_a_list_when_nothing_changed():
+    # Test harnesses outside this repository drive the native client directly
+    # and iterate over what poll() returns, so it must stay a list even when
+    # the agent replies that nothing changed. fetch() is the one returning None.
+    with _MockAgent([{}, RESPONSES[1], {}]) as agent:
+        client, sink = _client(agent.url)
+        native = client.ensure_native()
+        products = list(client._enabled_products)
+
+        assert native.poll(products, []) == []
+
+        changes = native.poll(products, [])
+        client._dispatch_to_products(client._build_payloads(changes))
+        assert [change.path for change in changes] == [BASE_PATH]
+        assert [p.path for p in sink.last] == [BASE_PATH]
+
+        assert native.fetch(products, []) is None
+
+
 def test_enabled_products_reported_to_agent():
     with _MockAgent([RESPONSES[1]]) as agent:
         client, _ = _client(agent.url)

@@ -288,6 +288,21 @@ impl RemoteConfigClient {
         );
     }
 
+    /// Like [`fetch`](Self::fetch), but returns no changes, rather than `None`,
+    /// when the agent replied that nothing changed. Kept for the callers that
+    /// expect a list, such as test harnesses outside this repository.
+    #[pyo3(signature = (products, extra_services))]
+    fn poll(
+        &self,
+        py: Python<'_>,
+        products: Vec<RemoteConfigProduct>,
+        extra_services: Vec<String>,
+    ) -> PyResult<Vec<ChangeRecord>> {
+        Ok(self
+            .fetch(py, products, extra_services)?
+            .unwrap_or_default())
+    }
+
     /// Perform a single fetch against the agent and return the per-poll changes.
     ///
     /// Returns `None` when the agent replied that nothing changed. This tells
@@ -299,7 +314,7 @@ impl RemoteConfigClient {
     /// before fetching. When broadcast is enabled, the fetch updates the SHM
     /// storage in place (store/update/remove) and wakes waiting readers.
     #[pyo3(signature = (products, extra_services))]
-    fn poll(
+    fn fetch(
         &self,
         py: Python<'_>,
         products: Vec<RemoteConfigProduct>,

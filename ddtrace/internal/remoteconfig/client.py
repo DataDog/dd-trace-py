@@ -396,7 +396,7 @@ class RemoteConfigClient:
         try:
             native = self.ensure_native()
             products = list(self._enabled_products)
-            changes = native.poll(products, list(ddtrace.config._get_extra_services()))
+            changes = native.fetch(products, list(ddtrace.config._get_extra_services()))
             # Nothing changed: there is nothing to deliver, nor to reconcile.
             if changes is None:
                 return True
