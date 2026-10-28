@@ -149,7 +149,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
     # spans; fallback matching cannot traverse FastAPI's included routers.
     effective_path = _get_fastapi_effective_path(scope)
     if effective_path:
-        if not span.get_tag(http.ROUTE):
+        if not span._get_attribute(http.ROUTE):
             _set_route_resource(span, scope.get("method"), effective_path)
             span._set_attribute(http.ROUTE, effective_path)
         return
