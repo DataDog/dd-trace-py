@@ -7,7 +7,7 @@ upgrade:
     * CI Visibility
     * django / django_hosts / djangorestframework / django:celery
     * kafka - confluent-kafka does not yet support Python 3.15
-    * sqlite3 - pysqlite3-binary does not yet support Python 3.15
+    * pysqlite3-binary - does not yet support Python 3.15 (stdlib ``sqlite3`` tracing is unaffected)
     * grpc_aio
     * azure_functions / azure_durable_functions / azure_eventhubs
     * openai
@@ -44,4 +44,3 @@ upgrade:
     * yaaredis - untested since Python 3.10
     * rediscluster - untested since Python 3.11
     * asynctest - untested since Python 3.9
-    * pynamodb - tests aren't compatible with Python >= 3.12
