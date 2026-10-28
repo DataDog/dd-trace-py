@@ -1,4 +1,3 @@
----
 components:
   bootstrap:
     - ddtrace/bootstrap/*
@@ -58,6 +57,7 @@ components:
     - ddtrace/ext/test_visibility/*
   appsec_iast:
     - ddtrace/appsec/iast/*
+    - ddtrace/appsec/_iast/*
     - ddtrace/internal/settings/asm.py
     - ddtrace/internal/security/*
     - ddtrace/appsec/_iast_context.py
