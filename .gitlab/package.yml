@@ -235,8 +235,8 @@ variables:
 # sdist are deliberately left out: the prerelease index exists to hand a custom build to a
 # customer or an internal service, and those all run manylinux or macOS.
 .patch_wheel_versions_base:
-  # DEV: the testrunner image is used for the adms binary it ships.
-  image: ${TESTRUNNER_IMAGE}
+  # DEV: the ci-utils image is used for the adms binary it ships.
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
   script:
@@ -437,7 +437,7 @@ variables:
 # Runs automatically on releases/RCs, available as manual trigger for other pipelines.
 "upload debug symbols to backend":
   stage: release
-  extends: .testrunner
+  extends: .ci_utils
   needs:
     - job: "build linux"
       artifacts: true
