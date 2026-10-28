@@ -270,6 +270,7 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
     proc = uwsgi("--enable-threads", "--py-call-uwsgi-fork-hooks", "--processes", "2")
 
+    worker_pids: list[int] = []
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
         assert len(worker_pids) == 2, "expected 2 workers, saw %r (uwsgi returncode=%r)" % (
@@ -281,6 +282,14 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
     finally:
         proc.terminate()
         exit_code = proc.wait()
+        # Without --master, nothing forwards SIGTERM to the other worker, so it would keep
+        # running (and profiling) for the rest of the test session. Kill it explicitly.
+        for pid in worker_pids:
+            if pid != proc.pid:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     # Without --master, SIGTERM terminates a worker via uWSGI's end_me() handler.
     assert exit_code == UWSGI_END_CODE
@@ -697,3 +706,16 @@ def test_uwsgi_require_skip_atexit_when_lazy_without_master(
 
     for pid in worker_pids:
         os.kill(pid, signal.SIGTERM)
+
+    # In this configuration (uwsgi<2.0.30 without --skip-atexit) a worker can hang while exiting,
+    # spinning at 100% CPU for the rest of the test session. Give the workers time to exit, then
+    # kill whatever is left.
+    try:
+        proc.wait(timeout=5)
+    except TimeoutExpired:
+        pass
+    for pid in worker_pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
