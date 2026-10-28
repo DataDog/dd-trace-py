@@ -15,6 +15,7 @@
 
 #include <echion/cache.h>
 #include <echion/config.h>
+#include <echion/cpython/asyncio_debug.h>
 #include <echion/frame.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
@@ -55,6 +56,8 @@ class EchionSampler
     // Asyncio state. init_asyncio runs on Python threads, usually after the sampling thread has started.
     std::atomic<PyObject*> asyncio_scheduled_tasks_{ nullptr };
     std::atomic<PyObject*> asyncio_eager_tasks_{ nullptr };
+    std::atomic<size_t> asyncio_interpreter_tasks_head_offset_{ 0 };
+    std::atomic<size_t> asyncio_thread_tasks_head_offset_{ 0 };
 
     // Task unwinding state
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
@@ -137,6 +140,25 @@ class EchionSampler
 
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_.load(std::memory_order_relaxed); }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_.load(std::memory_order_relaxed); }
+
+    // TODO: When these offsets come from CPython's runtime AsyncioDebug table, also check that table's task layout
+    // (size, task_name, task_awaited_by, task_is_task, task_awaited_by_is_set, task_coro, task_node) against Echion's
+    // compile-time TaskObj mirror.
+    void set_asyncio_offsets(const AsyncioOffsets& offsets)
+    {
+        asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
+        asyncio_thread_tasks_head_offset_.store(offsets.thread_tasks_head, std::memory_order_relaxed);
+    }
+
+    size_t asyncio_interpreter_tasks_head_offset() const
+    {
+        return asyncio_interpreter_tasks_head_offset_.load(std::memory_order_relaxed);
+    }
+
+    size_t asyncio_thread_tasks_head_offset() const
+    {
+        return asyncio_thread_tasks_head_offset_.load(std::memory_order_relaxed);
+    }
 
     void init_asyncio(PyObject* scheduled_tasks, PyObject* eager_tasks)
     {
