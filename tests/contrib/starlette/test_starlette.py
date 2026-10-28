@@ -790,48 +790,75 @@ def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
     )
 
 
+class _Forward:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        await self.app(scope["original_scope"], receive, send)
+
+
+class _RoutingMiddleware:
+    """Routes the request with its own Router, then passes the original scope on, like connexion."""
+
+    def __init__(self, app, mount_path):
+        from starlette.routing import Mount
+        from starlette.routing import Router
+
+        forward = _Forward(app)
+        self.router = Router(routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=forward)])])
+
+    async def __call__(self, scope, receive, send):
+        scope["original_scope"] = dict(scope)
+        await self.router(scope, receive, send)
+
+
+def _items_app(mount_path, routing_middleware):
+    from starlette.middleware import Middleware
+    from starlette.routing import Mount
+
+    async def item(request):
+        return PlainTextResponse("ok")
+
+    return Starlette(
+        routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=item)])],
+        middleware=[Middleware(_RoutingMiddleware, mount_path=mount_path)] if routing_middleware else [],
+    )
+
+
 @pytest.mark.parametrize("mount_path", ["/api", ""])
 def test_resource_with_same_mount_in_each_router(tracer, test_spans, mount_path):
     """A request that is routed again by another Router with the same Mount, as connexion does
     with one Router per middleware, must have the mount path in its resource only once.
     """
-    from starlette.middleware import Middleware
-    from starlette.routing import Mount
-    from starlette.routing import Router
-
-    async def item(request):
-        return PlainTextResponse("ok")
-
-    class Forward:
-        def __init__(self, app):
-            self.app = app
-
-        async def __call__(self, scope, receive, send):
-            await self.app(scope["original_scope"], receive, send)
-
-    class RoutingMiddleware:
-        """Routes the request with its own Router, then passes the original scope on."""
-
-        def __init__(self, app):
-            forward = Forward(app)
-            self.router = Router(routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=forward)])])
-
-        async def __call__(self, scope, receive, send):
-            scope["original_scope"] = dict(scope)
-            await self.router(scope, receive, send)
-
-    app = Starlette(
-        routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=item)])],
-        middleware=[Middleware(RoutingMiddleware)],
-    )
-
-    with TestClient(app) as client:
+    with TestClient(_items_app(mount_path, routing_middleware=True)) as client:
         r = client.get(mount_path + "/items/1")
 
     assert r.status_code == 200
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.resource == "GET " + mount_path + "/items/{item_id:int}"
     assert request_span.get_tag("http.route") == mount_path + "/items/{item_id:int}"
+
+
+@pytest.mark.parametrize("outer_paths", [[""], ["/v1", ""], ["", ""]])
+def test_resource_with_router_per_middleware_in_sub_app(tracer, test_spans, outer_paths):
+    """Routing again inside a sub-application reached through other mounts gives the same
+    resources as routing once.
+    """
+    from starlette.routing import Mount
+
+    resources = []
+    for routing_middleware in (False, True):
+        app = _items_app("", routing_middleware)
+        for path in reversed(outer_paths):
+            app = Starlette(routes=[Mount(path, app)])
+        with TestClient(app) as client:
+            assert client.get("".join(outer_paths) + "/items/1").status_code == 200
+        resources.append([s.resource for s in test_spans.filter_spans(name="starlette.request")])
+        test_spans.reset()
+
+    assert resources[0][0] == "GET " + "".join(outer_paths) + "/items/{item_id:int}"
+    assert resources[1] == resources[0]
 
 
 def test_resource_with_nested_empty_mounts(tracer, test_spans):
