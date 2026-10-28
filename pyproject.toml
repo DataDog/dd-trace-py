@@ -87,6 +87,7 @@ llama_index = "ddtrace.llmobs._contrib.llama_index"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
+"profiler" = "ddtrace.internal.profiling.product"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "error-tracking" = "ddtrace.errortracking.product"
 "openfeature" = "ddtrace.internal.openfeature.product"
@@ -119,7 +120,7 @@ lint = [
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",
     "types-setuptools==65.6.0.0",
-    "ddapm-test-agent==1.43.0",
+    "ddapm-test-agent==1.69.0",
     # The newer Datadog-repackaged grpcio release lacks CPython 3.10 wheels.
     "grpcio==1.80.0; python_version<='3.10'",
     "grpcio==1.82.1; python_version>='3.11'",

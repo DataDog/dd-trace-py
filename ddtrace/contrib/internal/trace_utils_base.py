@@ -3,6 +3,12 @@ import re
 from typing import Any
 from typing import Optional
 
+# Re-exported because products such as AppSec and AI Guard reach the tracing helpers through the contrib
+# layer instead of importing ddtrace._trace directly.
+from ddtrace._trace.http_tags import http_block_metadata  # noqa: F401
+from ddtrace._trace.http_tags import name_blocked_request_span  # noqa: F401
+from ddtrace._trace.http_tags import set_client_address_tags  # noqa: F401
+from ddtrace._trace.http_tags import set_url_tags_server  # noqa: F401
 from ddtrace._trace.otel.http.tags import _sanitized_url
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
