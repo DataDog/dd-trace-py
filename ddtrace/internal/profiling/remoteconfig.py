@@ -140,6 +140,8 @@ def _apply_collectors(wanted: dict[str, bool]) -> None:
     The profiler_config tag and the settings uploaded with each profile read the collectors from profiling_config, so
     they describe the profiler remote config started instead of the configuration from the environment.
     """
+    # TODO: DD_PROFILING_HEAP_ENABLED=false sets heap.sample_size to 0, and nothing here changes it, so a memory
+    # collector started for heapSize collects no heap profile. heapSize and allocations share that sample size.
     for argument, enabled in wanted.items():
         setattr(*_setting_owner(_COLLECTOR_ARGUMENTS[argument]), enabled)
 
