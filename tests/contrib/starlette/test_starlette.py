@@ -790,7 +790,8 @@ def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
     )
 
 
-def test_resource_with_same_mount_in_each_router(tracer, test_spans):
+@pytest.mark.parametrize("mount_path", ["/api", ""])
+def test_resource_with_same_mount_in_each_router(tracer, test_spans, mount_path):
     """A request that is routed again by another Router with the same Mount, as connexion does
     with one Router per middleware, must have the mount path in its resource only once.
     """
@@ -813,24 +814,24 @@ def test_resource_with_same_mount_in_each_router(tracer, test_spans):
 
         def __init__(self, app):
             forward = Forward(app)
-            self.router = Router(routes=[Mount("/api", routes=[Route("/items/{item_id:int}", endpoint=forward)])])
+            self.router = Router(routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=forward)])])
 
         async def __call__(self, scope, receive, send):
             scope["original_scope"] = dict(scope)
             await self.router(scope, receive, send)
 
     app = Starlette(
-        routes=[Mount("/api", routes=[Route("/items/{item_id:int}", endpoint=item)])],
+        routes=[Mount(mount_path, routes=[Route("/items/{item_id:int}", endpoint=item)])],
         middleware=[Middleware(RoutingMiddleware)],
     )
 
     with TestClient(app) as client:
-        r = client.get("/api/items/1")
+        r = client.get(mount_path + "/items/1")
 
     assert r.status_code == 200
     request_span = next(test_spans.filter_spans(name="starlette.request"))
-    assert request_span.resource == "GET /api/items/{item_id:int}"
-    assert request_span.get_tag("http.route") == "/api/items/{item_id:int}"
+    assert request_span.resource == "GET " + mount_path + "/items/{item_id:int}"
+    assert request_span.get_tag("http.route") == mount_path + "/items/{item_id:int}"
 
 
 def test_resource_with_nested_empty_mounts(tracer, test_spans):
