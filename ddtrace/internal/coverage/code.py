@@ -14,10 +14,13 @@ from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.engine import CoverageEngine
 from ddtrace.internal.coverage.engine import create_engine
+from ddtrace.internal.coverage.import_hook_instrumentation import install_import_hook
+from ddtrace.internal.coverage.import_hook_instrumentation import uninstall_import_hook
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
+from ddtrace.internal.coverage.util import is_import_only_coverage_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import platlib_path
@@ -146,6 +149,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         self._coverage_enabled: bool = False
         self._file_level_coverage: bool = False
+        # Import-only mode: coverage is collected exclusively from import events (see
+        # import_hook_instrumentation.py); no code object is instrumented.
+        self._import_only_coverage: bool = False
         # Version-specific instrumentation (sys.monitoring vs bytecode traps, probes,
         # event re-arming, empty-module handling) is encapsulated behind the engine API —
         # see ddtrace.internal.coverage.engine.
@@ -162,6 +168,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._import_time_contexts: dict[str, ModuleCodeCollector.CollectInContext] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
+        # Import-only mode: edges recorded while a module body was executing (its import-time
+        # context innermost). These are the module-level import edges context closures expand
+        # from; edges recorded during a test window live in that context's own _import_names
+        # so concurrent tests sharing a module do not pollute each other.
+        self._import_time_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
         # Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
         # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
         self._direct_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
@@ -201,17 +212,52 @@ class ModuleCodeCollector(ModuleWatchdog):
             is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
         )
 
-        if collect_import_time_coverage:
+        if is_import_only_coverage_enabled():
+            # Import-only mode is file-level by construction (paths only, no lines), and the
+            # import-time dependency graph is the attribution mechanism for module-level
+            # imports, so both are forced on. The __import__ wrapper replaces all code
+            # instrumentation.
+            cls._instance._import_only_coverage = True
+            cls._instance._file_level_coverage = True
+            cls._instance._collect_import_coverage = True
+            install_import_hook(cls._instance, cls._instance._should_track_path)
+
+        if cls._instance._collect_import_coverage:
             ModuleCodeCollector.register_import_exception_hook(
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
     def hook_import(self, path: str, import_name: tuple[str, tuple[str, ...]]) -> None:
-        if self._collect_import_coverage and import_name not in self._import_names_by_path[path]:
+        if not self._collect_import_coverage:
+            return
+        if import_name not in self._import_names_by_path[path]:
             self._import_names_by_path[path].add(import_name)
             self._direct_import_time_dependency_paths_cache.pop(path, None)
             self._import_time_dependency_paths_cache.clear()
             self._file_level_covered_paths_cache.clear()
+
+        if not self._import_only_coverage:
+            return
+
+        # Import-only mode: also record the edge where it belongs for context closures.
+        # The innermost open collector decides: an import-time context means the edge was
+        # executed by a module body (a module-level import, shared by every context that
+        # covers the module); otherwise the edge belongs to the innermost test context,
+        # so tests sharing a module do not pollute each other's dependency closures.
+        if ctx_coverage_enabled.get():
+            stack = ctx_collectors.get()
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            stack = getattr(_tls_coverage, "stack", ())
+        else:
+            return
+        for collector in reversed(stack):
+            if collector.closed:
+                continue
+            if collector.is_import_coverage:
+                self._import_time_names_by_path[path].add(import_name)
+            else:
+                collector._import_names[path].add(import_name)
+            return
 
     def hook_file(self, path: str) -> None:
         if self._coverage_enabled and path not in self._covered_files:
@@ -251,10 +297,12 @@ class ModuleCodeCollector(ModuleWatchdog):
         """Re-arm instrumentation events for a new coverage context.
 
         The engine decides what this means per Python version: sys.monitoring
-        ``restart_events()`` on 3.12+, bytecode-probe flag resets on 3.10/3.11, a no-op on
-        3.9. ``import_context`` marks per-module-import contexts, which engines with
-        self-disabling events may skip re-arming for.
+        `restart_events()` on 3.12+, bytecode-probe flag resets on 3.10/3.11, a no-op on
+        3.9. `import_context` marks per-module-import contexts, which engines with
+        self-disabling events may skip re-arming for. Import-only mode arms nothing.
         """
+        if self._import_only_coverage:
+            return
         self._engine.arm(import_context=import_context)
 
     def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
@@ -333,13 +381,17 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         return covered_lines
 
-    def _get_direct_import_time_dependency_paths(self, path: str) -> frozenset[str]:
-        cached_dependency_paths = self._direct_import_time_dependency_paths_cache.get(path)
-        if cached_dependency_paths is not None:
-            return cached_dependency_paths
+    def _get_direct_import_time_dependency_paths(
+        self, path: str, import_names: t.Optional[dict[str, set[tuple[str, tuple[str, ...]]]]] = None
+    ) -> frozenset[str]:
+        names_by_path = self._import_names_by_path if import_names is None else import_names
+        if import_names is None:
+            cached_dependency_paths = self._direct_import_time_dependency_paths_cache.get(path)
+            if cached_dependency_paths is not None:
+                return cached_dependency_paths
 
         dependency_paths = set()
-        for dependencies in self._import_names_by_path.get(path, set()):
+        for dependencies in names_by_path.get(path, set()):
             package, modules = dependencies
             for module in modules:
                 dep_fqdn = f"{package}.{module}" if package else module
@@ -360,13 +412,17 @@ class ModuleCodeCollector(ModuleWatchdog):
                     parent_package = parent_package[:-1]
 
         cached_dependency_paths = frozenset(dependency_paths)
-        self._direct_import_time_dependency_paths_cache[path] = cached_dependency_paths
+        if import_names is None:
+            self._direct_import_time_dependency_paths_cache[path] = cached_dependency_paths
         return cached_dependency_paths
 
-    def _get_import_time_dependency_paths(self, root_path: str) -> frozenset[str]:
-        cached_dependency_paths = self._import_time_dependency_paths_cache.get(root_path)
-        if cached_dependency_paths is not None:
-            return cached_dependency_paths
+    def _get_import_time_dependency_paths(
+        self, root_path: str, import_names: t.Optional[dict[str, set[tuple[str, tuple[str, ...]]]]] = None
+    ) -> frozenset[str]:
+        if import_names is None:
+            cached_dependency_paths = self._import_time_dependency_paths_cache.get(root_path)
+            if cached_dependency_paths is not None:
+                return cached_dependency_paths
 
         dependency_paths = set()
         visited_paths = set()
@@ -384,18 +440,23 @@ class ModuleCodeCollector(ModuleWatchdog):
                 continue
 
             dependency_paths.add(path)
-            to_visit_paths.update(self._get_direct_import_time_dependency_paths(path) - visited_paths)
+            to_visit_paths.update(self._get_direct_import_time_dependency_paths(path, import_names) - visited_paths)
 
         cached_dependency_paths = frozenset(dependency_paths)
-        self._import_time_dependency_paths_cache[root_path] = cached_dependency_paths
+        if import_names is None:
+            self._import_time_dependency_paths_cache[root_path] = cached_dependency_paths
         return cached_dependency_paths
 
-    def _add_import_time_lines(self, covered_lines):
+    def _add_import_time_lines(
+        self,
+        covered_lines,
+        import_names: t.Optional[dict[str, set[tuple[str, tuple[str, ...]]]]] = None,
+    ):
         """Modify given covered_lines in place and add lines that were covered at import time"""
         processed_paths = set()
         if self._file_level_coverage:
             for root_path in tuple(covered_lines.keys()):
-                for dependency_path in self._get_import_time_dependency_paths(root_path):
+                for dependency_path in self._get_import_time_dependency_paths(root_path, import_names):
                     if dependency_path not in processed_paths:
                         processed_paths.add(dependency_path)
                         covered_lines[dependency_path].add(0)
@@ -408,33 +469,59 @@ class ModuleCodeCollector(ModuleWatchdog):
                     imported_module_lines = self._import_time_covered[path]
                     covered_lines[path].update(imported_module_lines)
 
-    def _get_covered_file_paths_with_imports(self, covered_file_paths: set[str]) -> t.AbstractSet[str]:
+    def _get_covered_file_paths_with_imports(
+        self,
+        covered_file_paths: set[str],
+        import_names: t.Optional[dict[str, set[tuple[str, tuple[str, ...]]]]] = None,
+    ) -> t.AbstractSet[str]:
         """Return file-level covered paths with import-time dependencies added.
 
         This is the file-level equivalent of _add_import_time_lines(), but avoids
         allocating and mutating one CoverageLines object per covered file for every
         test. File-level coverage only needs path membership because every covered
-        file emits the same line-0 sentinel bitmap.
+        file emits the same line-0 sentinel bitmap. `import_names` overrides the
+        edge map used for the closure expansion (import-only per-context closures);
+        the shared result cache is only used for the default map.
         """
         if not covered_file_paths:
             return covered_file_paths
 
-        cache_key = frozenset(covered_file_paths)
-        cached_paths = self._file_level_covered_paths_cache.get(cache_key)
-        if cached_paths is not None:
-            self._file_level_covered_paths_cache.move_to_end(cache_key)
-            return cached_paths
+        cacheable = import_names is None
+        if cacheable:
+            cache_key = frozenset(covered_file_paths)
+            cached_paths = self._file_level_covered_paths_cache.get(cache_key)
+            if cached_paths is not None:
+                self._file_level_covered_paths_cache.move_to_end(cache_key)
+                return cached_paths
 
         paths = set(covered_file_paths)
         import_time_covered = self._import_time_covered
-        for root_path in cache_key:
+        for root_path in covered_file_paths:
             if root_path in import_time_covered:
-                paths.update(self._get_import_time_dependency_paths(root_path))
+                paths.update(self._get_import_time_dependency_paths(root_path, import_names))
 
-        self._file_level_covered_paths_cache[cache_key] = frozenset(paths)
-        if len(self._file_level_covered_paths_cache) > _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE:
-            self._file_level_covered_paths_cache.popitem(last=False)
+        if cacheable:
+            self._file_level_covered_paths_cache[cache_key] = frozenset(paths)
+            if len(self._file_level_covered_paths_cache) > _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE:
+                self._file_level_covered_paths_cache.popitem(last=False)
         return paths
+
+    def _merged_context_import_names(
+        self, context_import_names: dict[str, set[tuple[str, tuple[str, ...]]]]
+    ) -> dict[str, set[tuple[str, tuple[str, ...]]]]:
+        """Merge a context's own import edges with the module-level (import-time) edges.
+
+        Import-only mode splits import edges by scope: module bodies record their edges
+        in _import_time_names_by_path (every context covering the module should see its
+        module-level dependencies), while edges executed inside a test window belong to
+        that context only. This merge is the closure view for one context.
+        """
+        merged: dict[str, set[tuple[str, tuple[str, ...]]]] = {
+            path: set(names) for path, names in self._import_time_names_by_path.items()
+        }
+        for path, names in context_import_names.items():
+            merged.setdefault(path, set()).update(names)
+        return merged
 
     class CollectInContext:
         """Own coverage data for one collection scope.
@@ -452,6 +539,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             # distinguish different collectors even when their coverage data is empty.
             self._covered_lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
             self._covered_files: set[str] = set()
+            # Import-only mode: import edges executed within this scope (see hook_import).
+            self._import_names: defaultdict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
             # TODO: reopening a reused collector also reactivates contexts copied during its previous
             # scope, see the xfail test test_reused_collector_does_not_reactivate_contexts_from_its_previous_scope.
             self.closed = False
@@ -493,7 +582,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = self._covered_lines
             if global_instance := ModuleCodeCollector._instance:
-                global_instance._add_import_time_lines(covered_lines)
+                if global_instance._import_only_coverage:
+                    merged = global_instance._merged_context_import_names(self._import_names)
+                    global_instance._add_import_time_lines(covered_lines, merged)
+                else:
+                    global_instance._add_import_time_lines(covered_lines)
             return covered_lines
 
         def get_covered_file_paths(self) -> t.AbstractSet[str]:
@@ -503,6 +596,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             covered_file_paths = set(self._covered_files)
             covered_file_paths.update(self._covered_lines)
             if global_instance := ModuleCodeCollector._instance:
+                if global_instance._import_only_coverage:
+                    merged = global_instance._merged_context_import_names(self._import_names)
+                    return global_instance._get_covered_file_paths_with_imports(covered_file_paths, merged)
                 return global_instance._get_covered_file_paths_with_imports(covered_file_paths)
             return covered_file_paths
 
@@ -584,22 +680,71 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         return files
 
+    def _is_instrumentable_path(self, code_path: Path) -> bool:
+        if _is_site_packages_path(code_path):
+            return False
+        if not any(is_contained(code_path, include_path) for include_path in self._include_paths):
+            return False
+        if any(is_contained(code_path, exclude_path) for exclude_path in self._exclude_paths):
+            return False
+        return True
+
+    def _should_track_path(self, path: str) -> bool:
+        """Whether an import-event file should be recorded (same paths transform instruments)."""
+        try:
+            return self._is_instrumentable_path(Path(path))
+        except Exception:
+            return False
+
+    def hook_import_file(self, path: str) -> None:
+        """Record a file seen through an import event (import-only mode).
+
+        Unlike hook_file, context recording targets the innermost NON-import collector so
+        that an import statement executed during a test window attributes to that test's
+        context even when the imported module's own import-time context is on the stack
+        (first-time imports). Import-time contexts themselves are skipped: their data is
+        only used for the importing module's own file.
+        """
+        if self._coverage_enabled and path not in self._covered_files:
+            self._covered_files.add(path)
+            self.covered[path].add(0)
+
+        if ctx_coverage_enabled.get():
+            stack = ctx_collectors.get()
+        elif _PY_GE_314 and bool(getattr(_tls_coverage, "stack", ())):
+            stack = getattr(_tls_coverage, "stack", ())
+        else:
+            return
+        for collector in reversed(stack):
+            if collector.closed or collector.is_import_coverage:
+                continue
+            if path not in collector._covered_files:
+                collector._covered_files.add(path)
+                collector._covered_lines[path].add(0)
+            return
+
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         if _module is None:
             return code
 
         code_path = resolved_code_origin(code)
 
-        if _is_site_packages_path(code_path):
-            # Do not instrument dependencies vendored or installed under the workspace.
+        if not self._is_instrumentable_path(code_path):
             return code
 
-        if not any(is_contained(code_path, include_path) for include_path in self._include_paths):
-            # Not a code object we want to instrument
-            return code
-
-        if any(is_contained(code_path, exclude_path) for exclude_path in self._exclude_paths):
-            # Don't instrument code from standard library/site packages/etc.
+        if self._import_only_coverage:
+            # No code instrumentation: the line-0 sentinel stands in for executable lines,
+            # and the import-time context is still entered so the module participates in
+            # the import-time dependency graph (after_import records the sentinel).
+            self.lines[code.co_filename].add(0)
+            if self._collect_import_coverage:
+                self._import_time_name_to_path[_module.__name__] = code.co_filename
+                self._direct_import_time_dependency_paths_cache.clear()
+                self._import_time_dependency_paths_cache.clear()
+                self._file_level_covered_paths_cache.clear()
+                module_context = self.CollectInContext(is_import_coverage=True)
+                module_context.__enter__()
+                self._import_time_contexts[code.co_filename] = module_context
             return code
 
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
@@ -629,6 +774,8 @@ class ModuleCodeCollector(ModuleWatchdog):
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
                 self._import_time_dependency_paths_cache.clear()
                 self._file_level_covered_paths_cache.clear()
+            elif self._import_only_coverage:
+                self._record_import_only_module(_module)
 
             del self._import_time_contexts[_module.__file__]
 
@@ -644,8 +791,28 @@ class ModuleCodeCollector(ModuleWatchdog):
                 self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
                 self._import_time_dependency_paths_cache.clear()
                 self._file_level_covered_paths_cache.clear()
+            elif self._import_only_coverage:
+                self._record_import_only_module(_module)
 
             del self._import_time_contexts[_module.__file__]
+
+    def _record_import_only_module(self, _module: ModuleType) -> None:
+        """Finish import-time bookkeeping for a module imported in import-only mode.
+
+        No instrumentation runs during the module body, so the import context carries no
+        line data. Record the line-0 sentinel so the file participates in the import-time
+        closure graph, and mark the file covered when a coverage window is open (import
+        events may miss the module itself: importlib.import_module bypasses the wrapper).
+        """
+        module_file = _module.__file__
+        if module_file is None:
+            return
+        self._import_time_covered[module_file].add(0)
+        self._import_time_dependency_paths_cache.clear()
+        self._file_level_covered_paths_cache.clear()
+        if self._coverage_enabled and module_file not in self._covered_files:
+            self._covered_files.add(module_file)
+            self.covered[module_file].add(0)
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
         if is_obfuscated_code(code):
@@ -691,5 +858,8 @@ class ModuleCodeCollector(ModuleWatchdog):
             par.exec = _original_exec
         except ImportError:
             pass
+
+        # Restore the original __import__ (import-only mode)
+        uninstall_import_hook()
 
         return super().uninstall()
