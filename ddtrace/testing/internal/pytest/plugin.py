@@ -293,8 +293,11 @@ def _coverage_anchor_paths(item: pytest.Item) -> list[Path]:
     hooks execute for it. Import-only mode has no execution events to cover these
     with, so they are anchored explicitly (instrumented modes cover them already).
     """
-    anchors = [item.path]
-    for parent in item.path.parents:
+    # item.path is a pathlib.Path on pytest 7.0+; older versions expose item.fspath
+    # as a py.path.local. Both convert to Path for the conftest walk below.
+    item_path = Path(item.path) if hasattr(item, "path") else Path(item.fspath)
+    anchors = [item_path]
+    for parent in item_path.parents:
         conftest = _conftest_path(str(parent))
         if conftest is not None:
             anchors.append(conftest)
