@@ -29,6 +29,8 @@ def _on_langchain_patch():
 
     wrap("langchain_core", "prompts.prompt.PromptTemplate.format", _wrapper_prompt_template_format)
     wrap("langchain_core", "prompts.prompt.PromptTemplate.aformat", _wrapper_prompt_template_aformat)
+    wrap("langchain_core", "prompts.chat.ChatPromptTemplate.format", _wrapper_prompt_template_format)
+    wrap("langchain_core", "prompts.chat.ChatPromptTemplate.aformat", _wrapper_prompt_template_aformat)
 
     agent_output_parser_classes = (
         "agents.chat.output_parser.ChatOutputParser",
@@ -88,6 +90,8 @@ def _on_langchain_unpatch():
         return
     unwrap(langchain_core.prompts.prompt.PromptTemplate, "format")
     unwrap(langchain_core.prompts.prompt.PromptTemplate, "aformat")
+    unwrap(langchain_core.prompts.chat.ChatPromptTemplate, "format")
+    unwrap(langchain_core.prompts.chat.ChatPromptTemplate, "aformat")
 
 
 def _langchain_llm_generate_after(prompts, completions):

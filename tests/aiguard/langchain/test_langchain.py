@@ -378,6 +378,50 @@ def test_agent_action_evaluated_once(mock_execute_request, mock_openai_request, 
     assert final_answer == {"role": "assistant", "content": result["output"]}
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_mode", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("rewritten", [False, True], ids=["failed-response", "rewritten-action"])
+@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_agent_action_is_checked_before_tool_execution(
+    mock_execute_request, mock_generate, mock_agenerate, langchain_openai, openai_url, async_mode, rewritten
+):
+    mock_execute_request.side_effect = [
+        mock_evaluate_response("ALLOW"),
+        mock_evaluate_response("ALLOW") if rewritten else ConnectionError("AI Guard unreachable"),
+        mock_evaluate_response("DENY"),
+    ]
+    response = _mock_openai_tool_response("add", {"a": 1, "b": 1})
+    mock_generate.return_value = response
+    mock_agenerate.return_value = response
+    prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    agent = create_openai_functions_agent(llm, [add], prompt)
+    if rewritten:
+
+        def rewrite_action(action):
+            action.tool_input = {"a": 1, "b": 99}
+            return action
+
+        agent = agent | rewrite_action
+    executor = AgentExecutor(agent=agent, tools=[add])
+    executor.agent.stream_runnable = False
+    tracker = ToolTrackingHandler()
+    with pytest.raises(AIGuardAbortError):
+        if async_mode:
+            await executor.ainvoke({"input": "1 + 1"}, config={"callbacks": [tracker]})
+        else:
+            executor.invoke({"input": "1 + 1"}, config={"callbacks": [tracker]})
+
+    assert tracker.tool_calls == []
+    assert mock_execute_request.call_count == 3
+    assert _tool_call_evaluations(mock_execute_request)[-1] == {
+        "name": "add",
+        "arguments": '{"a": 1, "b": 99}' if rewritten else '{"a": 1, "b": 1}',
+    }
+
+
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
