@@ -10,6 +10,9 @@ import llama_index.core as llama_core
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.llama_index._constants import COMPONENT
+from ddtrace.contrib.internal.llama_index._constants import TAG_MODEL
+from ddtrace.contrib.internal.llama_index._constants import TAG_PROVIDER
 from ddtrace.contrib.internal.llama_index._streaming import handle_streamed_response
 from ddtrace.contrib.internal.llama_index._utils import build_agent_call_tool_request_kwargs
 from ddtrace.contrib.internal.llama_index._utils import build_agent_run_request_kwargs
@@ -37,14 +40,6 @@ def _supported_versions() -> dict[str, str]:
 
 
 config._add("llama_index", {})
-
-# LLMObs subscribes to LlmEvents for this component; see ddtrace/llmobs/_contrib/llama_index.
-COMPONENT = "llama_index"
-
-# APM tags owned by this integration. ddtrace.llmobs._integrations.llama_index reads them
-# back off the span (its MODEL/PROVIDER constants) to fill in the LLMObs model fields.
-MODEL_TAG = "llama_index.request.model"
-PROVIDER_TAG = "llama_index.request.provider"
 
 _originals: dict[tuple[type, str], Any] = {}
 _wrapped_classes: set[type] = set()
@@ -91,9 +86,9 @@ def _create_event(
     # tags off entirely rather than tagging them with a null value.
     tags = {}
     if model is not None:
-        tags[MODEL_TAG] = model
+        tags[TAG_MODEL] = model
     if provider is not None:
-        tags[PROVIDER_TAG] = provider
+        tags[TAG_PROVIDER] = provider
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.llama_index,

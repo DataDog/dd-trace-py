@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.contrib.internal.llama_index._constants import TAG_MODEL
+from ddtrace.contrib.internal.llama_index._constants import TAG_PROVIDER
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -14,13 +16,6 @@ from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
-
-
-# Set on the span by the contrib (ddtrace.contrib.internal.llama_index.patch's
-# MODEL_TAG/PROVIDER_TAG) and read back here. Duplicated rather than imported so this
-# module does not import the contrib, which imports the llama_index library.
-MODEL = "llama_index.request.model"
-PROVIDER = "llama_index.request.provider"
 
 
 class LlamaIndexIntegration(BaseLLMIntegration):
@@ -153,8 +148,8 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="embedding",
-            model_name=span.get_tag(MODEL) or "",
-            model_provider=span.get_tag(PROVIDER) or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
             input_documents=input_documents,
             output_value=output_value,
         )
@@ -228,8 +223,8 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             kind="llm",
-            model_name=span.get_tag(MODEL) or "",
-            model_provider=span.get_tag(PROVIDER) or "",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
             input_messages=input_messages,
             metadata=metadata,
             output_messages=output_messages,
@@ -254,8 +249,8 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             span,
             metrics,
             span_kind,
-            model_name=span.get_tag(MODEL),
-            model_provider=span.get_tag(PROVIDER),
+            model_name=span.get_tag(TAG_MODEL),
+            model_provider=span.get_tag(TAG_PROVIDER),
         )
 
     def _extract_input_messages(self, kwargs: dict[str, Any], is_chat: bool) -> list[Message]:
