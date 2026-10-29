@@ -1516,7 +1516,7 @@ def test_otlp_metric_tags_configured():
     from unittest import mock
 
     from ddtrace.internal import native
-    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+    from ddtrace.internal.writer.writer import _build_exporter_builder
 
     mock_builder = mock.Mock()
     for method_name in [
@@ -1533,7 +1533,16 @@ def test_otlp_metric_tags_configured():
         getattr(mock_builder, method_name).return_value = mock_builder
 
     with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
-        _build_base_exporter_builder("http://localhost:8126", None, False, False, True)
+        _build_exporter_builder(
+            intake_url="http://localhost:8126",
+            api_version=None,
+            test_session_token=None,
+            compute_stats_enabled=False,
+            stats_opt_out=False,
+            client_side_stats_obfuscation=False,
+            otlp_endpoint=None,
+            otlp_metrics_endpoint="http://localhost:4318/v1/metrics",
+        )
 
     mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
     mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
@@ -1550,7 +1559,7 @@ def test_stats_cardinality_limits_configured():
     from unittest import mock
 
     from ddtrace.internal import native
-    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+    from ddtrace.internal.writer.writer import _build_exporter_builder
 
     mock_builder = mock.Mock()
     # The builder is used as a chain, so every setter has to hand back the same mock.
@@ -1567,7 +1576,16 @@ def test_stats_cardinality_limits_configured():
         getattr(mock_builder, method_name).return_value = mock_builder
 
     with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
-        _build_base_exporter_builder("http://localhost:8126", None, True, False)
+        _build_exporter_builder(
+            intake_url="http://localhost:8126",
+            api_version=None,
+            test_session_token=None,
+            compute_stats_enabled=True,
+            stats_opt_out=False,
+            client_side_stats_obfuscation=False,
+            otlp_endpoint=None,
+            otlp_metrics_endpoint=None,
+        )
 
     mock_builder.set_stats_cardinality_limit.assert_called_once_with(
         whole_key_limit=100,
@@ -1800,13 +1818,16 @@ def test_agentless_exporter_uses_the_configured_timeout():
     with override_global_config(dict(_trace_compute_stats=False)):
         with mock.patch.object(writer_module.agent_config, "trace_agent_timeout_seconds", 3.5):
             with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
-                writer_module._build_base_exporter_builder(
-                    "https://public-trace-http-intake.logs.datadoghq.com/v1/input",
-                    None,
-                    False,
-                    False,
-                    False,
-                    "an-api-key",
+                writer_module._build_exporter_builder(
+                    intake_url="https://public-trace-http-intake.logs.datadoghq.com/v1/input",
+                    api_version=None,
+                    test_session_token=None,
+                    compute_stats_enabled=False,
+                    stats_opt_out=False,
+                    client_side_stats_obfuscation=False,
+                    otlp_endpoint=None,
+                    otlp_metrics_endpoint=None,
+                    api_key="an-api-key",
                 )
 
     assert ("set_agentless_timeout", (3500,)) in calls
@@ -1828,7 +1849,17 @@ def test_agent_exporter_sets_the_agent_url_not_the_intake():
             return record
 
     with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
-        writer_module._build_base_exporter_builder("http://localhost:8126", None, False, False, False, None)
+        writer_module._build_exporter_builder(
+            intake_url="http://localhost:8126",
+            api_version=None,
+            test_session_token=None,
+            compute_stats_enabled=False,
+            stats_opt_out=False,
+            client_side_stats_obfuscation=False,
+            otlp_endpoint=None,
+            otlp_metrics_endpoint=None,
+            api_key=None,
+        )
 
     assert ("set_url", ("http://localhost:8126",)) in calls
     assert not [c for c in calls if "agentless" in c[0]]
@@ -2096,6 +2127,35 @@ def test_agent_mode_sends_stats_through_the_agent():
     writer = tracer._span_aggregator.writer
     assert writer.agentless is False
     assert writer._agentless_stats_endpoint is None
+
+
+@mock.patch("ddtrace.internal.native.TraceExporterBuilder")
+def test_native_writer_hands_the_agentless_stats_endpoint_to_the_exporter(mock_builder_class):
+    # libdatadog learns the stats intake only from this builder call. Without it, agentless stats go
+    # nowhere and nothing reports the loss.
+    mock_builder = mock.Mock()
+    mock_builder_class.return_value = mock_builder
+    for method_name in [
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_runtime_id",
+        "set_client_computed_top_level",
+        "set_input_format",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    stats_endpoint = "https://trace.agent.datadoghq.com/api/v0.2/stats"
+    NativeWriter(
+        "https://trace.agent.datadoghq.com",
+        api_key="foobarkey",
+        compute_stats_enabled=True,
+        agentless_stats_endpoint=stats_endpoint,
+    )
+
+    mock_builder.set_agentless_stats_endpoint.assert_called_once_with(stats_endpoint)
 
 
 @pytest.mark.subprocess(

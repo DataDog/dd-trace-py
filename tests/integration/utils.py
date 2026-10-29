@@ -57,6 +57,18 @@ def skip_if_testagent(f):
     )(f)
 
 
+def skip_if_native_buffer(reason):
+    """Skip when _DD_TRACE_NATIVE_BUFFER_ENABLED is opted in via the venv's env, not just the default.
+
+    Use for tests whose mechanism (encoder/client swapping, dogstatsd wiring) has no NativeTraceBuffer
+    equivalent yet, rather than duplicating assertions that would otherwise need per-writer branches.
+    """
+    return pytest.mark.skipif(
+        os.environ.get("_DD_TRACE_NATIVE_BUFFER_ENABLED", "").lower() in ("1", "true", "yes"),
+        reason=reason,
+    )
+
+
 def import_ddtrace_in_subprocess(env):
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],
@@ -66,3 +78,29 @@ def import_ddtrace_in_subprocess(env):
     )
     p.communicate()
     return p
+
+
+def log_native_errors_to_a_file():
+    """Send native error logs to a new file, and return its path.
+
+    libdatadog logs through the native logger only, which ddtrace leaves off unless debug logging is
+    on.
+    """
+    import tempfile
+
+    from ddtrace.internal.native._native import logger
+
+    path = os.path.join(tempfile.mkdtemp(), "native.log")
+    logger.configure(output="file", path=path)
+    logger.set_log_level("error")
+    return path
+
+
+def read_native_log(path):
+    # The logger rotates files, so a message can sit in a rotated sibling of path.
+    directory = os.path.dirname(path)
+    contents = []
+    for name in sorted(os.listdir(directory)):
+        with open(os.path.join(directory, name)) as f:
+            contents.append(f.read())
+    return "".join(contents)
