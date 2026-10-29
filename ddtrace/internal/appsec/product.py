@@ -1,7 +1,17 @@
+from typing import Protocol
+
 from ddtrace.internal.settings.asm import config
 
 
+class _Subscriber(Protocol):
+    def register(self) -> None: ...
+
+    def unregister(self) -> None: ...
+
+
 requires = ["remote-configuration"]
+
+_exploit_prevention_registered = False
 
 
 def post_preload() -> None:
@@ -37,11 +47,22 @@ def start() -> None:
 
 
 def register_subscribers() -> None:
-    pass
+    # Remote configuration activates AppSec outside of start(), so load_appsec() calls this too.
+    global _exploit_prevention_registered
+    if _exploit_prevention_registered or not (config._asm_enabled and config._ep_enabled):
+        return
+    for subscriber in _exploit_prevention_subscribers():
+        subscriber.register()
+    _exploit_prevention_registered = True
 
 
 def unregister_subscribers() -> None:
-    pass
+    global _exploit_prevention_registered
+    if not _exploit_prevention_registered:
+        return
+    for subscriber in _exploit_prevention_subscribers():
+        subscriber.unregister()
+    _exploit_prevention_registered = False
 
 
 def restart(join: bool = False) -> None:
@@ -50,6 +71,20 @@ def restart(join: bool = False) -> None:
 
 def stop(join: bool = False) -> None:
     pass
+
+
+def _exploit_prevention_subscribers() -> tuple[_Subscriber, ...]:
+    from ddtrace.appsec._contrib.dbapi.subscribers import AppSecDbApiSubscriber
+    from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxRequestContextSubscriber
+    from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxSingleRequestContextSubscriber
+    from ddtrace.appsec._contrib.subprocess.subscribers import AppSecSubprocessCommandSubscriber
+
+    return (
+        AppSecDbApiSubscriber,
+        AppSecHttpxRequestContextSubscriber,
+        AppSecHttpxSingleRequestContextSubscriber,
+        AppSecSubprocessCommandSubscriber,
+    )
 
 
 def _disable_asm() -> None:
