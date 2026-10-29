@@ -3556,13 +3556,6 @@
         "default": "datadoghq.com"
       }
     ],
-    "DD_SNAPSHOT_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": null
-      }
-    ],
     "DD_SNOWFLAKE_SERVICE": [
       {
         "implementation": "A",
