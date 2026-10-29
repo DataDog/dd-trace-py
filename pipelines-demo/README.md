@@ -86,13 +86,13 @@ All commands run from the **worktree root** (the repo checkout), unless noted.
    ```
 
 5. **Ingest the tapped payloads** with the dd-source harness (from the
-   `dsm-auto-pipelines` worktree, see its own README/harness docs — it reads
-   every file in `pipelines-demo/tap/` as a raw agent payload, extracts
-   `DdPipelinesReportV1`, and runs the same ingest path as the Kafka
+   `dsm-auto-pipelines` worktree, see its own README/harness docs — pass each
+   tapped file explicitly via `-payloads`; the harness extracts
+   `DdPipelinesReportV1` and runs the same ingest path as the Kafka
    consumer):
 
    ```bash
-   <dsm-auto-pipelines worktree>/harness ... --dir pipelines-demo/tap/
+   <dsm-auto-pipelines worktree>/harness -org 1 -payloads "$(ls pipelines-demo/tap/*.bin | paste -sd, -)"
    ```
 
 6. **Query the local dsm-api**:
