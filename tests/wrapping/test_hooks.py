@@ -477,3 +477,89 @@ def test_repeated_reloads_do_not_accumulate_superseded_contexts():
     # Only the immediately previous function is still referenced, by the registry entry we just
     # replaced; the earlier ones were collected and pruned.
     assert len(_SUPERSEDED_CONTEXTS[key]) <= 2, _SUPERSEDED_CONTEXTS[key]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="Entry monitoring requires Python 3.15")
+class TestEntryHooks:
+    def test_original_code_remains_discoverable(self):
+        from ddtrace.internal.utils.inspection import functions_for_code
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        def target():
+            return 42
+
+        original = target.__code__
+        inject_entry_hook(target, lambda _: None, None)
+        assert target in list(functions_for_code(original))
+        assert target() == 42
+
+    def test_existing_line_hook_follows_entry_hook(self):
+        from ddtrace.internal.bytecode_injection import inject_hook
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        def target():
+            return 42
+
+        calls = []
+        inject_hook(target, calls.append, target.__code__.co_firstlineno + 1, "line")
+        inject_entry_hook(target, calls.append, "entry")
+        assert target() == 42
+        assert calls == ["entry", "line"]
+
+    def test_failed_install_restores_line_hook(self, monkeypatch):
+        from ddtrace.internal.bytecode_injection import inject_hook
+        from ddtrace.internal.wrapping import context
+
+        def target():
+            return 42
+
+        calls = []
+        original = target.__code__
+        inject_hook(target, calls.append, original.co_firstlineno + 1, "line")
+
+        def fail(*args):
+            raise RuntimeError("code assignment denied")
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(context, "set_function_code", fail)
+            with pytest.raises(RuntimeError, match="code assignment denied"):
+                context.inject_entry_hook(target, calls.append, "entry")
+        assert target.__code__ is original
+        assert target() == 42
+        assert calls == ["line"]
+
+    def test_copied_instrumented_code_gets_independent_hooks(self):
+        from types import FunctionType
+
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        def target():
+            return 42
+
+        calls = []
+        inject_entry_hook(target, calls.append, "first")
+        copied = FunctionType(target.__code__, target.__globals__)
+        inject_entry_hook(copied, calls.append, "second")
+        assert target() == 42
+        assert copied() == 42
+        assert calls == ["first", "second"]
+
+    def test_collected_owner_does_not_report_calls_to_copied_code(self):
+        from types import FunctionType
+        import weakref
+
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        def target():
+            return 42
+
+        calls = []
+        inject_entry_hook(target, calls.append, "entry")
+        copied_code = target.__code__
+        reference = weakref.ref(target)
+        del target
+        gc.collect()
+        assert reference() is None
+        copied = FunctionType(copied_code, globals())
+        assert copied() == 42
+        assert calls == []

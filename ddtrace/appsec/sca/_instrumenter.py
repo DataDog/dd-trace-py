@@ -1,6 +1,6 @@
 """Function-entry instrumentation for SCA detection.
 
-Python 3.15+ uses monitoring-based wrapping; older versions use bytecode injection.
+Python 3.15+ uses entry monitoring; older versions use bytecode injection.
 """
 
 from __future__ import annotations
@@ -10,7 +10,6 @@ import types
 from types import FunctionType
 from typing import TYPE_CHECKING
 from typing import Optional
-from typing import cast
 
 from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.appsec.sca._resolver import SymbolResolver
@@ -22,7 +21,6 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.security._patch_utils import get_caller_frame_info
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils.inspection import linenos
 
 
 if TYPE_CHECKING:
@@ -78,19 +76,6 @@ elif sys.version_info < (3, 15):
         return code.co_firstlineno
 
 
-else:
-
-    def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first body line on Python 3.15+, since sys.monitoring never reports the def line."""
-        import dis
-
-        valid_lines = linenos(code)
-        for instr in dis.get_instructions(code):
-            if instr.line_number in valid_lines:
-                return instr.line_number
-        return code.co_firstlineno
-
-
 def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
     A symbol is the function or Class.method name of the caller
@@ -117,8 +102,6 @@ def _reset_after_fork() -> None:
     _lazy_module_hooks = {}
     _lazy_module_targets = {}
     _lazy_hooks_lock = Lock()
-    if sys.version_info >= (3, 15):
-        _SCAWrappingContext.registration_lock = Lock()
 
 
 def set_registry(registry: InstrumentationRegistry) -> None:
@@ -186,22 +169,7 @@ def sca_detection_hook(qualified_name: str) -> None:
 
 
 if sys.version_info >= (3, 15):
-    from ddtrace.internal.wrapping.context import WrappingContext
-
-    class _SCAWrappingContext(WrappingContext):
-        """Report function entry independently of executable source lines."""
-
-        registration_lock = Lock()
-
-        def __init__(self, func: FunctionType):
-            super().__init__(func)
-            self.targets: tuple[str, ...] = ()
-
-        def __enter__(self) -> _SCAWrappingContext:
-            super().__enter__()
-            for qualified_name in self.targets:
-                sca_detection_hook(qualified_name)
-            return self
+    from ddtrace.internal.wrapping.context import inject_entry_hook
 
 
 class Instrumenter:
@@ -236,10 +204,7 @@ class Instrumenter:
 
                 original_code = func.__code__
                 if sys.version_info >= (3, 15):
-                    with _SCAWrappingContext.registration_lock:
-                        context = cast(_SCAWrappingContext, _SCAWrappingContext.wrapped(func))
-                        if qualified_name not in context.targets:
-                            context.targets += (qualified_name,)
+                    inject_entry_hook(func, sca_detection_hook, qualified_name)
                 else:
                     # On Python <3.11 the first instruction belongs to the body;
                     # on 3.11-3.14 the bytecode hook can use the RESUME line.
@@ -267,8 +232,8 @@ def apply_instrumentation_updates(targets: list[CveTarget], after_fork: bool = F
 
     Args:
         targets: CVE entries containing dependency names and qualified targets.
-        after_fork: If True, skip bytecode injection for already-imported
-            targets since they inherit injected hooks from the parent
+        after_fork: If True, skip instrumentation for already-imported
+            targets since they inherit installed hooks from the parent
             process.  Only populate the registry so existing hooks work.
     """
     try:
@@ -289,10 +254,9 @@ def _process_additions(
     """Process target additions: resolve and instrument, or defer via ModuleWatchdog.
 
     Args:
-        after_fork: When True, skip bytecode injection for targets whose
-            modules are already imported — their code objects already
-            carry the hook from the parent process.  We only populate
-            the registry so the existing hooks can look up CVE info.
+        after_fork: When True, skip instrumentation for targets whose
+            modules are already imported. Their hooks survive the fork, so only
+            repopulate the registry with the CVE info used by those hooks.
     """
     from ddtrace.appsec.sca._resolver import SymbolResolver
 
