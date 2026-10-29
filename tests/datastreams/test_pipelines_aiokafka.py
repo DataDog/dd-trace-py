@@ -235,8 +235,10 @@ def test_disabled_reporter_makes_handlers_noop(monkeypatch):
 
 def test_pipelines_disabled_returns_no_reporter(monkeypatch):
     """DD_DATA_STREAMS_PIPELINES_ENABLED=false disables the reporter (T-5)."""
-    monkeypatch.setenv("DD_DATA_STREAMS_PIPELINES_ENABLED", "false")
+    # Settings are resolved at import, so disable via the resolved attribute
+    # (the env var form is covered by the core suite's subprocess tests).
     monkeypatch.setattr(pipelines_module, "_reporter", None)
+    monkeypatch.setattr(pipelines_module.config, "_data_streams_pipelines_enabled", False)
     assert pipelines_module.get_pipelines_reporter() is None
 
 
