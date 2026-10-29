@@ -161,8 +161,46 @@ with tracer.trace("test.logging") as span:
 
 
 @pytest.mark.subprocess(
+    ddtrace_run=True, env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False", DD_LOGS_INJECTION="1")
+)
+def test_log_trace():
+    """
+    Check logging patched and formatter including trace info when 64bit trace ids are generated.
+    """
+
+    import json
+
+    from loguru import logger
+
+    from ddtrace import config
+    from ddtrace.trace import tracer
+
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
+
+    captured_logs = []
+    logger.remove()
+    logger.add(captured_logs.append, serialize=True)
+
+    span = tracer.trace("test.logging")
+    logger.debug("Hello!")
+    span.finish()
+
+    assert "Hello" in json.loads(captured_logs[0])["text"]
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.span_id"] == str(span.span_id)
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.env"] == "global.env"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.service"] == "logging"
+    assert json.loads(captured_logs[0])["record"]["extra"]["dd.version"] == "global.version"
+
+
+@pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(DD_LOGS_INJECTION="1"),
+    env=dict(
+        DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True",
+        DD_LOGS_INJECTION="1",
+    ),
 )
 def test_log_trace_128bit_trace_ids():
     """

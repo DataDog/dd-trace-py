@@ -14,6 +14,7 @@ from ddtrace.internal.span_bus import span_from_context
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.settings._config import Config
     from ddtrace.trace import Span
+    from ddtrace.trace import Tracer
 
 from urllib.parse import quote
 from urllib.parse import unquote_to_bytes
@@ -31,6 +32,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -60,16 +63,25 @@ class _DDWSGIMiddlewareBase:
     """Base WSGI middleware class.
 
     :param application: The WSGI application to apply the middleware to.
+    :param tracer: [Deprecated] Global tracer will be used instead.
     :param int_config: Integration specific configuration object.
     :param app_is_iterator: Boolean indicating whether the wrapped app is a Python iterator
     """
 
     def __init__(
         self,
-        application: Iterable,
+        application: Iterable[Any],
+        tracer: Optional[Tracer],
         int_config: Config,
         app_is_iterator: bool = False,
     ) -> None:
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         self.app = application
         self._config = int_config
         self.app_is_iterator = app_is_iterator
@@ -351,6 +363,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     """WSGI middleware providing tracing around an application.
 
     :param application: The WSGI application to apply the middleware to.
+    :param tracer: [Deprecated] Global tracer will be used.
     :param span_modifier: "Span" modifier that can add tags to the root span.
                             Defaults to using the request method and url in the resource.
     :param app_is_iterator: Boolean indicating whether the wrapped WSGI app is a Python iterator
@@ -362,11 +375,12 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def __init__(
         self,
-        application: Iterable,
+        application: Iterable[Any],
+        tracer: Optional[Tracer] = None,
         span_modifier: Callable[[Span, dict[str, str]], None] = default_wsgi_span_modifier,
         app_is_iterator: bool = False,
     ) -> None:
-        super().__init__(application, config.wsgi, app_is_iterator=app_is_iterator)
+        super().__init__(application, tracer, config.wsgi, app_is_iterator=app_is_iterator)
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):

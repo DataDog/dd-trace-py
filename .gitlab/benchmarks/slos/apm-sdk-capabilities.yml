@@ -275,13 +275,19 @@ experiments:
               - execution_time < 22.00 ms
           - name: span-start
             thresholds:
-              - execution_time < 22.50 ms
+              - execution_time < 20.50 ms
           - name: span-start-finish
             thresholds:
-              - execution_time < 62.00 ms
+              - execution_time < 60 ms
           - name: span-start-finish-telemetry
             thresholds:
               - execution_time < 60.00 ms
+          - name: span-start-finish-traceid128
+            thresholds:
+              - execution_time < 62.00 ms
+          - name: span-start-traceid128
+            thresholds:
+              - execution_time < 22.50 ms
           - name: span-update-name
             thresholds:
               - execution_time < 22.00 ms

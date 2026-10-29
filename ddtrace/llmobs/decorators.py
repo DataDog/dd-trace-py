@@ -69,6 +69,7 @@ def _model_decorator(operation_kind):
         model_provider: Optional[str] = None,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
     ):
         def inner(func):
@@ -86,6 +87,7 @@ def _model_decorator(operation_kind):
                         model_provider=model_provider,
                         name=span_name,
                         session_id=session_id,
+                        ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
                     )
@@ -103,6 +105,7 @@ def _model_decorator(operation_kind):
                         model_provider=model_provider,
                         name=span_name,
                         session_id=session_id,
+                        ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
                     ) as span:
@@ -138,6 +141,7 @@ def _model_decorator(operation_kind):
                             model_provider=model_provider,
                             name=span_name,
                             session_id=session_id,
+                            ml_app=ml_app,
                             agent_service=agent_service,
                             _decorator=True,
                         )
@@ -163,6 +167,7 @@ def _model_decorator(operation_kind):
                         model_provider=model_provider,
                         name=span_name,
                         session_id=session_id,
+                        ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
                     ) as span:
@@ -197,6 +202,7 @@ def _llmobs_decorator(operation_kind):
         original_func: Optional[Callable] = None,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
         version: Optional[str] = None,
         _automatic_io_annotation: bool = True,
@@ -221,6 +227,7 @@ def _llmobs_decorator(operation_kind):
                     span = traced_operation(
                         name=span_name,
                         session_id=session_id,
+                        ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
                         **version_kwargs,
@@ -241,6 +248,7 @@ def _llmobs_decorator(operation_kind):
                     with traced_operation(
                         name=span_name,
                         session_id=session_id,
+                        ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
                         **version_kwargs,
@@ -268,6 +276,7 @@ def _llmobs_decorator(operation_kind):
                         span = traced_operation(
                             name=span_name,
                             session_id=session_id,
+                            ml_app=ml_app,
                             agent_service=agent_service,
                             _decorator=True,
                             **version_kwargs,
@@ -297,6 +306,7 @@ def _llmobs_decorator(operation_kind):
                     with traced_operation(
                         name=span_name,
                         session_id=session_id,
+                        ml_app=ml_app,
                         agent_service=agent_service,
                         _decorator=True,
                         **version_kwargs,

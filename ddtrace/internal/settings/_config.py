@@ -41,6 +41,8 @@ from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 
@@ -137,6 +139,7 @@ INTEGRATION_CONFIGS = frozenset(
         "protobuf",
         "aiohttp_jinja2",
         "pymongo",
+        "vertica",
         "rq_worker",
         "elasticsearch",
         "sqlalchemy",
@@ -322,11 +325,9 @@ class _ConfigItem:
         envs: list[str],
         modifier: Callable[[str], Any],
         otel_env: Optional[str] = None,
-        name: Optional[str] = None,
     ) -> None:
-        # _ConfigItem._name is only used in __repr__ and instrumentation telemetry.
-        # Items with no environment variable (only settable from code or remote config) pass an explicit name.
-        self._name = name or envs[0]
+        # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
+        self._name = envs[0]
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
         self._rc_value: _JSONType = None
@@ -336,10 +337,9 @@ class _ConfigItem:
             self._default_value = default
         self._envs = envs
 
-        if envs:
-            val = _get_config(envs, self._default_value, modifier, otel_env)
-            if val is not self._default_value:
-                self._env_value = val
+        val = _get_config(envs, self._default_value, modifier, otel_env)
+        if val is not self._default_value:
+            self._env_value = val
 
     def set_value(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
@@ -412,9 +412,8 @@ def _default_config() -> dict[str, _ConfigItem]:
         ),
         "_llmobs_ml_app": _ConfigItem(
             default=None,
-            envs=[],
+            envs=["DD_LLMOBS_ML_APP"],
             modifier=lambda x: x,
-            name="llmobs_ml_app",
         ),
         "_llmobs_sample_rate": _ConfigItem(
             default=1.0,
@@ -620,6 +619,18 @@ class Config:
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
         )
 
+        # Emit deprecation warning if env var is set (still functional, removal in 5.0.0)
+        if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env:
+            deprecate(
+                "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated",
+                message="128-bit trace ID generation will become mandatory in version 5.0.0.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+        _native_config.set_128_bit_trace_id_enabled(
+            _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+        )
+
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = _get_config("DD_SPAN_SAMPLING_RULES_FILE")
@@ -792,17 +803,32 @@ class Config:
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
         )
         self._llmobs_event_size_limit = _get_config("DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int)
+        if "DD_LLMOBS_ML_APP" in env:
+            deprecate(
+                "DD_LLMOBS_ML_APP is deprecated",
+                message="Use DD_SERVICE instead to identify your agentic service.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
+        if "DD_TRACE_INFERRED_SPANS_ENABLED" in env:
+            deprecate(
+                "DD_TRACE_INFERRED_SPANS_ENABLED is deprecated",
+                message="Please use DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED instead.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
         self._otel_thread_context_enabled = _get_config("DD_TRACE_OTEL_CTX_ENABLED", True, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
+        # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
         self._trace_wrap_span_name_include_class = _get_config(
-            "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", default=True, modifier=asbool
+            "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", default=False, modifier=asbool
         )
 
         # Resource renaming
@@ -841,6 +867,14 @@ class Config:
     @_raise.setter
     def _raise(self, value: bool) -> None:
         _native_config.set_raise(bool(value))
+
+    @property
+    def _128_bit_trace_id_enabled(self) -> bool:
+        return _native_config.get_128_bit_trace_id_enabled()
+
+    @_128_bit_trace_id_enabled.setter
+    def _128_bit_trace_id_enabled(self, value: bool) -> None:
+        _native_config.set_128_bit_trace_id_enabled(bool(value))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

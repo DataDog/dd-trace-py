@@ -10,6 +10,8 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -17,7 +19,14 @@ class TracePlugin:
     name = "trace"
     api = 2
 
-    def __init__(self, service="bottle", distributed_tracing=None):
+    def __init__(self, service="bottle", tracer=None, distributed_tracing=None):
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         self.service = config._get_service(default=service)
         if distributed_tracing is not None:
             config.bottle.distributed_tracing = distributed_tracing

@@ -1,6 +1,8 @@
+---
 components:
   appsec:
     - ddtrace/appsec/*
+    - '!ddtrace/appsec/ai_guard/*'
     - '!ddtrace/appsec/iast/*'
     - '!ddtrace/appsec/_iast/*'
     - '!ddtrace/appsec/sca/*'
@@ -101,7 +103,9 @@ suites:
     retry: 2
     matrix:
       command: >-
-        cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking && make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests && ddtrace/appsec/_iast/_taint_tracking/tests/native_tests
+        cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking
+        -B ddtrace/appsec/_iast/_taint_tracking && make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile
+        native_tests && ddtrace/appsec/_iast/_taint_tracking/tests/native_tests
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
@@ -294,7 +298,8 @@ suites:
     timeout: 15m
     matrix:
       command: >-
-        pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/test_iast_flask.py tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
+        pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/test_iast_flask.py
+        tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
@@ -327,7 +332,8 @@ suites:
     timeout: 40m
     matrix:
       command: >-
-        pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/ --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
+        pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/ --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py
+        --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
@@ -676,7 +682,8 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI_RC {cmdargs}
+      command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI_RC
+        {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -777,7 +784,8 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask_RC {cmdargs}
+      command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask_RC
+        {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -811,7 +819,7 @@ suites:
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
         - name: appsec_threats_aiohttp_no_iast
-          python: ['3.9', '3.11']
+          python: ['3.11']
           dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'aiohttp~=3.8.0', 'yarl<1.10']
         - name: appsec_threats_aiohttp_no_iast
           python: ['3.10', '3.14']
@@ -827,7 +835,8 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_aiohttp.py::Test_Aiohttp_RC {cmdargs}
+      command: pytest tests/appsec/contrib_appsec/test_aiohttp.py::Test_Aiohttp_RC
+        {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -936,7 +945,8 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado_RC {cmdargs}
+      command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado_RC
+        {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'

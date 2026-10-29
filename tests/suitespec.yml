@@ -1,3 +1,4 @@
+---
 components:
   $harness:
     - docker/*
@@ -354,6 +355,8 @@ suites:
       - tests/wrapping/*
     matrix:
       command: pytest -v -n auto --dist=worksteal {cmdargs} tests/wrapping/
+      env:
+        DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS: 'true'
       variants:
         - name: wrapping
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
@@ -392,7 +395,6 @@ suites:
       command: pytest {cmdargs} tests/runtime/
       variants:
         - name: runtime
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [msgpack, pytest-randomly]
   openfeature:
     paths:
@@ -517,7 +519,7 @@ suites:
       python: ['3.10']
       variants:
         - name: wait
-          dependencies: [azure-data-tables, azure-storage-blob, azure-storage-queue, cassandra-driver, psycopg2-binary, 'mysql-connector-python!=8.0.18', 'kombu>=5.0,<6.0', pymssql, pytest-randomly, redis, requests]
+          dependencies: [azure-data-tables, azure-storage-blob, azure-storage-queue, cassandra-driver, psycopg2-binary, 'mysql-connector-python!=8.0.18', 'vertica-python>=0.6.0,<0.7.0', 'kombu>=5.0,<6.0', pymssql, pytest-randomly, redis, requests]
   vendor:
     paths:
       - '@vendor'

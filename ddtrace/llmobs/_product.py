@@ -61,8 +61,7 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
 
     Expected lib_config shape:
       llmobs.enabled      (bool) — enable or disable LLMObs at runtime.
-      llmobs.ml_app_name  (str)  — agent service name; applied alongside enablement and takes
-                                   precedence over the agent_service passed to LLMObs.enable().
+      llmobs.ml_app_name  (str)  — ML application name; applied alongside enablement.
 
     Config values are written via the standard remote_config source so they
     participate in the normal config precedence chain.
@@ -79,7 +78,7 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
 
     if enabled_config.value() and not LLMObs.enabled:
         log.debug("Enabling LLMObs via Remote Config (ml_app=%r)", ml_app_config.value())
-        LLMObs.enable(agent_service=ml_app_config.value(), _auto=True)
+        LLMObs.enable(ml_app=ml_app_config.value(), _auto=True)
     elif not enabled_config.value() and LLMObs.enabled:
         log.debug("Disabling LLMObs via Remote Config: %r", llmobs_config)
         LLMObs.disable(_auto=True)

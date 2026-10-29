@@ -500,7 +500,9 @@ def test_sampling_rule_matches(span, rule, span_expected_to_match_rule):
     assert rule.matches(span) is span_expected_to_match_rule, f"{rule} -> {span} -> {span_expected_to_match_rule}"
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
+)
 def test_sampling_rule_sample():
     from ddtrace._trace.sampling_rule import SamplingRule
     from ddtrace.trace import Span

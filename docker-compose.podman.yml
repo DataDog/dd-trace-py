@@ -50,6 +50,8 @@ services:
         # test-agent endpoint so existing tests that use localhost:9126 work.
         command: ["ddapm-test-agent", "--port=9126"]
         network_mode: host
+    vertica:
+        network_mode: host
     azurecosmosemulator:
         environment:
             BLOB_SERVER: 127.0.0.1

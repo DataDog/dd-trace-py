@@ -187,6 +187,7 @@ def override_global_config(values: dict[str, Any]):
         "_propagation_style_inject",
         "_propagation_behavior_extract",
         "_x_datadog_tags_max_length",
+        "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
         "_startup_logs_enabled",
         "env",

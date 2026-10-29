@@ -121,8 +121,9 @@ AI Guard package
 ^^^^^^^^^^^^^^^^
 
 The AI Guard public SDK has moved from ``ddtrace.appsec.ai_guard`` to the top-level
-``ddtrace.aiguard`` package. The deprecated ``ddtrace.appsec.ai_guard`` import path has been
-removed in 5.0.0. Update your imports accordingly::
+``ddtrace.aiguard`` package. Importing from ``ddtrace.appsec.ai_guard`` is deprecated,
+emits a ``ddtrace.DDTraceDeprecationWarning``, and will be removed in 5.0.0. Update your
+imports accordingly::
 
     git grep -e "ddtrace.appsec.ai_guard"
 
@@ -138,17 +139,3 @@ package and must be imported from the ``ddtrace.aiguard.integrations.strands`` s
     from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin, AIGuardStrandsHookProvider
     # with
     from ddtrace.aiguard.integrations.strands import AIGuardStrandsPlugin, AIGuardStrandsHookProvider
-
-LLM Observability ``ml_app`` argument
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The deprecated ``ml_app`` argument has been removed from ``LLMObs.enable()``, the span
-constructors and decorators, ``LLMObs.submit_evaluation()``, ``LLMObs.submit_feedback()``,
-``LLMObs.get_spans()``, and ``LLMObs.publish_evaluator()``. Use ``agent_service`` instead::
-
-    git grep -e "ml_app="
-
-    # for example, replace
-    LLMObs.enable(ml_app="my-app")
-    # with
-    LLMObs.enable(agent_service="my-app")

@@ -1,5 +1,6 @@
 variables:
   TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v146133718-fc07212-testrunner@sha256:89e0c0087aacecd42805ad9547434bf115d1ab019aab8fe007b86609e8d64f20
+
 .testrunner:
   extends: .retry_on_infrastructure_failure
   image:
@@ -7,7 +8,7 @@ variables:
     docker:
       user: bits
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
-  tags: ["arch:amd64"]
+  tags: [ "arch:amd64" ]
   timeout: 20m
   before_script:
     - ulimit -c unlimited
@@ -29,11 +30,12 @@ variables:
     reports:
       junit: test-results/junit*.xml
     expire_in: 1 week
+
 .testrunner_gpu:
   extends: .testrunner
   image:
     name: ${TESTRUNNER_IMAGE}
-  tags: ["gpu:a10-amd64"]
+  tags: [ "gpu:a10-amd64" ]
   timeout: 40m
   before_script:
     - !reference [.testrunner, before_script]

@@ -2,6 +2,7 @@
 description: AI Guard - LLM/agentic workflow safety evaluation - how it works and development guidelines
 globs:
   - "**/aiguard/**"
+  - "**/appsec/ai_guard/**"
   - "**/tests/aiguard/**"
 ---
 
@@ -78,7 +79,9 @@ ddtrace/aiguard/
     └── _langchain.py       # LangChain agent/chatmodel/llm listeners
 ```
 
-The old import path `ddtrace.appsec.ai_guard` was removed in 5.0.0.
+The old import path `ddtrace.appsec.ai_guard` remains as a deprecated re-export
+shim (`ddtrace/appsec/ai_guard/__init__.py`) that emits
+`DDTraceDeprecationWarning` and will be removed in 5.0.0.
 
 **Rule of thumb:**
 - `ddtrace/aiguard/` top level + `__init__.py` = **public**, stable contract. Don't break it.

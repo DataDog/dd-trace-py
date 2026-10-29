@@ -395,7 +395,7 @@ def patched_wsgi_app(wrapped, instance, args, kwargs):
     _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
-    middleware = _FlaskWSGIMiddleware(wrapped, config.flask)
+    middleware = _FlaskWSGIMiddleware(wrapped, None, config.flask)
     return middleware(environ, start_response)
 
 

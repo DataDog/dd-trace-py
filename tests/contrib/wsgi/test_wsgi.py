@@ -107,7 +107,7 @@ class WsgiCustomMiddleware(_DDWSGIMiddlewareBase):
     ],
 )
 def test_wsgi_dispatches_web_request_starting(tracer, method, path, script_name):
-    app = TestApp(DDWSGIMiddleware(application))
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
     request_starting_calls = []
 
     def record_request_starting(request_method, request_path):
@@ -126,7 +126,8 @@ def test_wsgi_dispatches_web_request_starting(tracer, method, path, script_name)
 def test_wsgi_dispatches_web_request_starting_once_for_nested_middleware(tracer):
     app = TestApp(
         DDWSGIMiddleware(
-            DDWSGIMiddleware(application),
+            DDWSGIMiddleware(application, tracer=tracer),
+            tracer=tracer,
         )
     )
 
@@ -196,7 +197,7 @@ def test_web_request_starting_dispatch_precedes_span_creation(tracer):
         events.append("span")
         return original_context_with_data(*args, **kwargs)
 
-    app = TestApp(DDWSGIMiddleware(application))
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
     core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
     try:
         with mock.patch.object(
@@ -216,7 +217,7 @@ def test_microvm_run_hook_refreshes_identity(tracer):
     from ddtrace.internal import runtime
 
     event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
-    app = TestApp(DDWSGIMiddleware(application))
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
     _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
     core.reset_listeners(event_name, runtime.maybe_refresh_identity)
 
@@ -241,7 +242,7 @@ def test_microvm_run_hook_refreshes_identity(tracer):
 
 
 def test_middleware(tracer, test_spans):
-    app = TestApp(DDWSGIMiddleware(application))
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/")
     assert resp.status == "200 OK"
     assert resp.status_int == 200
@@ -257,7 +258,7 @@ def test_middleware(tracer, test_spans):
 
 
 def test_distributed_tracing(tracer, test_spans):
-    app = TestApp(DDWSGIMiddleware(application))
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
 
     assert config.wsgi.distributed_tracing is True
@@ -272,7 +273,7 @@ def test_distributed_tracing(tracer, test_spans):
     assert root.parent_id == 1234
 
     with override_config("wsgi", dict(distributed_tracing=False)):
-        app = TestApp(DDWSGIMiddleware(application))
+        app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
         assert config.wsgi.distributed_tracing is False
         assert resp.status == "200 OK"
@@ -288,7 +289,7 @@ def test_distributed_tracing(tracer, test_spans):
 
 def test_query_string_tracing(tracer, test_spans):
     with override_http_config("wsgi", dict(trace_query_string=True)):
-        app = TestApp(DDWSGIMiddleware(application))
+        app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         response = app.get("/?foo=bar&x=y")
 
         assert response.status_int == 200
@@ -320,7 +321,7 @@ def test_query_string_tracing(tracer, test_spans):
 def test_http_request_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-header"])
     try:
-        app = TestApp(DDWSGIMiddleware(application))
+        app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         resp = app.get("/", headers={"my-header": "test_value"})
 
         assert resp.status == "200 OK"
@@ -334,7 +335,7 @@ def test_http_request_header_tracing(tracer, test_spans):
 def test_http_response_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-response-header"])
     try:
-        app = TestApp(DDWSGIMiddleware(application))
+        app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         resp = app.get("/", headers={"my-header": "test_value"})
 
         assert resp.status == "200 OK"
@@ -348,7 +349,7 @@ def test_http_response_header_tracing(tracer, test_spans):
 
 def test_service_name_can_be_overriden(tracer, test_spans):
     with override_config("wsgi", dict(service_name="test-override-service")):
-        app = TestApp(DDWSGIMiddleware(application))
+        app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         response = app.get("/")
         assert response.status_code == 200
 
@@ -360,7 +361,7 @@ def test_service_name_can_be_overriden(tracer, test_spans):
 
 def test_generator_exit_ignored(tracer, test_spans):
     with pytest.raises(GeneratorExit):
-        app = TestApp(DDWSGIMiddleware(application))
+        app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         app.get("/generatorError")
 
     spans = test_spans.pop()
@@ -378,7 +379,7 @@ def test_generator_exit_ignored_snapshot():
 
 
 def test_chunked_response(tracer, test_spans):
-    app = TestApp(DDWSGIMiddleware(application))
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/chunked")
     assert resp.status == "200 OK"
     assert resp.status_int == 200
@@ -392,7 +393,7 @@ def test_chunked_response(tracer, test_spans):
 
 
 def test_chunked_response_custom_middleware(tracer, test_spans):
-    app = TestApp(WsgiCustomMiddleware(application, config.wsgi, None))
+    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
     resp = app.get("/chunked")
     assert resp.status == "200 OK"
     assert resp.status_int == 200
@@ -459,7 +460,7 @@ def test_stop_iteration_in_wsgi_app_py3():
     wait_for_num_traces=1,
 )
 def test_wsgi_base_middleware(tracer):
-    app = TestApp(WsgiCustomMiddleware(application, config.wsgi, None))
+    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
     resp = app.get("/")
     assert resp.status == "200 OK"
     assert resp.status_int == 200
@@ -472,7 +473,7 @@ def test_wsgi_base_middleware(tracer):
 )
 def test_wsgi_base_middleware_500(tracer):
     # Note - span modifiers are not called
-    app = TestApp(WsgiCustomMiddleware(application, config.wsgi, None))
+    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
     with pytest.raises(Exception, match="Oops!"):
         app.get("/error")
 

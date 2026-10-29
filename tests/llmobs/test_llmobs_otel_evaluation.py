@@ -17,7 +17,7 @@ def test_submit_evaluation_adds_source_otel_when_otel_enabled(llmobs, mock_llmob
             label="quality",
             metric_type="score",
             value=0.9,
-            agent_service="test-app",
+            ml_app="test-app",
         )
 
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once()
@@ -35,7 +35,7 @@ def test_submit_evaluation_no_source_otel_when_otel_disabled(llmobs, mock_llmobs
             label="quality",
             metric_type="score",
             value=0.9,
-            agent_service="test-app",
+            ml_app="test-app",
         )
 
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once()

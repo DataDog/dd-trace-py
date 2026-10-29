@@ -12,6 +12,7 @@ class Span(Scenario):
     ltags: int
     nmetrics: int
     finishspan: bool
+    traceid128: bool
     telemetry: bool
     add_event: bool
     add_link: bool
@@ -36,6 +37,7 @@ class Span(Scenario):
         # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
         # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
+        config._128_bit_trace_id_enabled = self.traceid128
         config._telemetry_enabled = config._telemetry_metrics_enabled = self.telemetry
         add_event = self.add_event
         add_link = self.add_link

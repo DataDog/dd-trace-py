@@ -125,7 +125,52 @@ def test_log_no_trace():
     _test_logging(output, None, config.env, config.service, config.version)
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False"))
+def test_log_trace():
+    """
+    Check logging patched and formatter including trace info when 64bit trace ids are generated.
+    """
+
+    import json
+
+    import structlog
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
+
+    config.service = "logging"
+    config.env = "global.env"
+    config.version = "global.version"
+
+    patch()
+
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        processors=[structlog.processors.JSONRenderer()],
+        logger_factory=cf,
+    )
+    logger = structlog.getLogger()
+
+    span = tracer.trace("test.logging")
+    logger.info("Hello!")
+    span.finish()
+
+    output = cf.logger.calls
+
+    assert json.loads(output[0].args[0])["event"] == "Hello!"
+    assert json.loads(output[0].args[0])["dd.trace_id"] == str(span.trace_id)
+    assert json.loads(output[0].args[0])["dd.span_id"] == str(span.span_id)
+    assert json.loads(output[0].args[0])["dd.env"] == "global.env"
+    assert json.loads(output[0].args[0])["dd.service"] == "logging"
+    assert json.loads(output[0].args[0])["dd.version"] == "global.version"
+
+    cf.logger.calls.clear()
+    unpatch()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
 def test_log_trace_128bit_trace_ids():
     """
     Check if 128bit trace ids are logged in hex

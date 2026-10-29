@@ -111,7 +111,7 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from tests.llmobs._utils import DummyEvaluator
 
-LLMObs.enable(api_key="dummy-api-key", agent_service="unnamed-ml-app", agentless_enabled=True)
+LLMObs.enable(api_key="dummy-api-key", ml_app="unnamed-ml-app", agentless_enabled=True)
 
 LLMObs._instance._llmobs_eval_metric_writer._override_url = "http://localhost:9126/vcr/datadog/"
 LLMObs._instance._llmobs_eval_metric_writer._intake = "http://localhost:9126/vcr/datadog/"

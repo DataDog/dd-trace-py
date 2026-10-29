@@ -2,6 +2,8 @@ from typing import Optional
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.attrdict import AttrDict
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 
 from .http import HttpConfig
 
@@ -46,6 +48,7 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, "global_config", global_config)
         object.__setattr__(self, "integration_name", name)
         object.__setattr__(self, "http", HttpConfig())
+        object.__setattr__(self, "hooks", Hooks())
 
         # Trace Analytics was removed in v3.0.0
         # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate
@@ -115,3 +118,42 @@ class IntegrationConfig(AttrDict):
         new_instance = self.__class__(self.global_config, self.integration_name)
         new_instance.update(self)
         return new_instance
+
+
+class Hooks:
+    """Deprecated no-op Hooks class for backwards compatibility."""
+
+    def register(self, hook, func=None):
+        deprecate(
+            "Hooks.register() is deprecated and is currently a no-op.",
+            message="To interact with spans, use get_current_span() or get_current_root_span().",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        if not func:
+            # Return a no-op decorator
+            def wrapper(func):
+                return func
+
+            return wrapper
+        return None
+
+    def on(self, hook, func=None):
+        return self.register(hook, func)
+
+    def deregister(self, hook, func):
+        deprecate(
+            "Hooks.deregister() is deprecated and is currently a no-op.",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        pass
+
+    def emit(self, hook, *args, **kwargs):
+        deprecate(
+            "Hooks.emit() is deprecated",
+            message="Use tracer.current_span() or TraceFilters to retrieve and/or modify spans",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        pass

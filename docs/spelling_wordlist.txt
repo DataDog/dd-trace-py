@@ -381,6 +381,7 @@ vendored
 vendoring
 versioned
 vertexai
+vertica
 vLLM
 w3c
 Webbrowser

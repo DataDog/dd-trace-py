@@ -84,6 +84,7 @@ def test_service_enable_agent_service_precedence(tracer):
         llmobs_service.enable(
             _tracer=tracer,
             agentless_enabled=False,
+            ml_app="<legacy-ml-app>",
             agent_service="<agent-service>",
         )
         assert ddtrace.config._llmobs_ml_app == "<agent-service>"
@@ -94,12 +95,13 @@ def test_service_enable_agent_service_precedence(tracer):
 
 
 def test_service_enable_agent_service_precedence_over_service(tracer):
-    """agent_service takes precedence over service when enabling."""
+    """agent_service takes precedence over both ml_app and service when enabling."""
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
         llmobs_service.enable(
             _tracer=tracer,
             agentless_enabled=False,
             service="<service>",
+            ml_app="<legacy-ml-app>",
             agent_service="<agent-service>",
         )
         with llmobs_service.workflow() as span:
@@ -109,7 +111,7 @@ def test_service_enable_agent_service_precedence_over_service(tracer):
 
 
 def test_service_enable_service_used_as_ml_app_fallback(tracer):
-    """When agent_service is not set, service is used as the ml app."""
+    """When neither agent_service nor ml_app is set, service is used as the ml app."""
     # Guard against leaked enabled=True from a prior failed test
     llmobs_service.disable()
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app=None)):
@@ -123,7 +125,7 @@ def test_service_enable_service_used_as_ml_app_fallback(tracer):
 
 
 @pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "DD_SERVICE": "<ml-app-name>"},
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_ML_APP": "<ml-app-name>"},
 )
 def test_enable_agentless():
     import ddtrace
@@ -211,7 +213,7 @@ def test_enable_without_api_key_does_not_swap_apm_writer():
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     },
     err=None,
 )
@@ -246,7 +248,7 @@ def test_annotate_tag_values_are_stringified(llmobs):
 @pytest.mark.subprocess(
     env={
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     },
     err=None,
 )
@@ -263,7 +265,7 @@ def test_export_mode_apm_agent_when_agentless_disabled():
     env={
         "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
         "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
@@ -281,7 +283,7 @@ def test_export_mode_llmobs_agentless_when_apm_tracing_disabled_and_agentless_en
     env={
         "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     },
     err=None,
 )
@@ -298,7 +300,7 @@ def test_export_mode_llmobs_agent_proxy_when_apm_tracing_disabled_and_agentless_
     env={
         "DD_LLMOBS_OVERRIDE_ORIGIN": "http://localhost:1234",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
         "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
@@ -316,7 +318,7 @@ def test_export_mode_llmobs_agentless_when_override_origin_set_and_agentless_ena
     env={
         "DD_LLMOBS_OVERRIDE_ORIGIN": "http://localhost:1234",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     },
     err=None,
 )
@@ -343,7 +345,7 @@ def test_service_disable(tracer):
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     }
 )
 def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
@@ -364,7 +366,7 @@ def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     }
 )
 def test_disable_does_not_revert_agentless_writer_when_already_agentless():
@@ -495,14 +497,14 @@ def test_start_span_without_ml_app_does_noop():
 def test_ml_app_local_precedence(llmobs, tracer):
     with tracer.trace("apm") as apm_span:
         apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
-        with llmobs.workflow(agent_service="local-ml-app") as span:
+        with llmobs.workflow(ml_app="local-ml-app") as span:
             assert get_llmobs_ml_app(span) == "local-ml-app"
 
 
 def test_ml_app_parent_precedence(llmobs, tracer):
     with tracer.trace("apm") as apm_span:
         apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
-        with llmobs.workflow(agent_service="local-ml-app"):
+        with llmobs.workflow(ml_app="local-ml-app"):
             with llmobs.workflow() as child_workflow_span:
                 assert get_llmobs_ml_app(child_workflow_span) == "local-ml-app"
 
@@ -520,7 +522,7 @@ def test_ml_app_uses_global_as_default(llmobs):
 
 
 def test_start_span_writes_ml_app_to_ctx_item(llmobs):
-    with llmobs.workflow(agent_service="my-app") as span:
+    with llmobs.workflow(ml_app="my-app") as span:
         assert span._get_ctx_item(ML_APP) == "my-app"
 
 
@@ -530,7 +532,7 @@ def test_start_span_writes_session_id_to_ctx_item(llmobs):
 
 
 def test_child_span_inherits_ml_app_from_parent_ctx_item(llmobs):
-    with llmobs.workflow(agent_service="my-app"):
+    with llmobs.workflow(ml_app="my-app"):
         with llmobs.task() as child:
             assert get_llmobs_ml_app(child) == "my-app"
             assert child._get_ctx_item(ML_APP) == "my-app"
@@ -1345,7 +1347,7 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     },
     err=None,
 )
@@ -1366,7 +1368,7 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
 @pytest.mark.subprocess(
     env={
         "DD_APM_TRACING_ENABLED": "false",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
         "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
@@ -1386,7 +1388,7 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
 @pytest.mark.subprocess(
     env={
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
     },
     err=None,
 )
@@ -1403,8 +1405,44 @@ def test_tag_dot_keys_preserved_on_apm_agent_path():
     llmobs_service.disable()
 
 
+def test_ml_app_override(llmobs):
+    with llmobs.task(name="test_task", ml_app="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"})
+    with llmobs.tool(name="test_tool", ml_app="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", tags={"ml_app": "test_app"})
+    with llmobs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
+        pass
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
+    )
+    with llmobs.embedding(model_name="model_name", name="test_embedding", ml_app="test_app") as span:
+        pass
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="embedding",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
+    )
+    with llmobs.workflow(name="test_workflow", ml_app="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="workflow", tags={"ml_app": "test_app"})
+    with llmobs.agent(name="test_agent", ml_app="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="agent", tags={"ml_app": "test_app"})
+    with llmobs.retrieval(name="test_retrieval", ml_app="test_app") as span:
+        pass
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
+
+
 def test_agent_service_override(llmobs):
-    with llmobs.task(name="test_task", agent_service="test_app") as span:
+    with llmobs.task(name="test_task", ml_app="legacy_app", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"})
     with llmobs.tool(name="test_tool", agent_service="test_app") as span:
@@ -1446,8 +1484,8 @@ def test_agent_service_tag_mirrors_ml_app(llmobs):
         pass
     tags = get_llmobs_tags(span)
     assert tags["agent_service"] == tags["ml_app"]
-    # Explicit agent_service overrides both tags (no stale agent_service value).
-    with llmobs.task(name="override", agent_service="test_app") as span:
+    # Explicit agent_service overrides a legacy ml_app on both tags (no stale agent_service value).
+    with llmobs.task(name="override", ml_app="legacy_app", agent_service="test_app") as span:
         pass
     tags = get_llmobs_tags(span)
     assert tags["ml_app"] == "test_app"
@@ -1642,7 +1680,7 @@ import sys
 import time
 from ddtrace.llmobs import LLMObs
 
-LLMObs.enable(agent_service="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
+LLMObs.enable(ml_app="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
 assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad0g.com/api/v2/llmobs"
 """,
         env=env,
@@ -1661,7 +1699,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-        llmobs_service.enable(_tracer=ddtrace.tracer, agent_service="test_app", agentless_enabled=False)
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app", agentless_enabled=False)
         original_span_writer = llmobs_service._instance._llmobs_span_writer
         pid = os.fork()
         if pid:  # parent
@@ -1691,7 +1729,7 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
         llmobs_service.enable(
-            _tracer=ddtrace.tracer, agent_service="test_app", agentless_enabled=True, api_key="<not-a-real-key>"
+            _tracer=ddtrace.tracer, ml_app="test_app", agentless_enabled=True, api_key="<not-a-real-key>"
         )
         original_span_writer = llmobs_service._instance._llmobs_span_writer
         pid = os.fork()
@@ -1721,7 +1759,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
-        llmobs_service.enable(_tracer=ddtrace.tracer, agent_service="test_app")
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app")
         original_eval_metric_writer = llmobs_service._instance._llmobs_eval_metric_writer
         pid = os.fork()
         if pid:  # parent
@@ -1758,7 +1796,7 @@ def test_llmobs_fork_create_span():
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
-        llmobs_service.enable(_tracer=ddtrace.tracer, agent_service="test_app")
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app")
         pid = os.fork()
         if pid:  # parent
             with llmobs_service.task():
@@ -1797,7 +1835,7 @@ def test_llmobs_fork_evaluator_runner_run():
     os.environ["DD_LLMOBS_EVALUATORS"] = "ragas_faithfulness"
     os.environ.setdefault("OPENAI_API_KEY", "<not-a-real-key>")
     with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
-        llmobs_service.enable(_tracer=ddtrace.tracer, agent_service="test_app", api_key="test_api_key")
+        llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
         if pid:  # parent
             llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"}, None)
@@ -2731,7 +2769,7 @@ def test_submit_evaluation_invalid_timestamp_raises_error(llmobs, mock_llmobs_lo
             label="",
             metric_type="categorical",
             value="high",
-            agent_service="dummy",
+            ml_app="dummy",
             timestamp_ms="invalid",
         )
 
@@ -2810,7 +2848,7 @@ def test_submit_evaluation_non_string_tags_raises(llmobs):  # TODO(sabrenner): c
             metric_type="categorical",
             value="high",
             tags={1: 2, "foo": "bar"},
-            agent_service="dummy",
+            ml_app="dummy",
         )
     assert str(excinfo.value) == "Failed to parse tags. Tags for evaluation metrics must be strings."
 
@@ -2826,7 +2864,7 @@ def test_submit_evaluation_metric_tags(llmobs, mock_llmobs_eval_metric_writer):
         metric_type="categorical",
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        agent_service="ml_app_override",
+        ml_app="ml_app_override",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -2848,6 +2886,7 @@ def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_wr
         metric_type="categorical",
         value="high",
         tags={"foo": "bar"},
+        ml_app="legacy_ml_app",
         agent_service="agent_service",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
@@ -2871,7 +2910,7 @@ def test_submit_evaluation_span_with_tag_value_enqueues_writer_with_categorical_
         label="toxicity",
         metric_type="categorical",
         value="high",
-        agent_service="dummy",
+        ml_app="dummy",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -2891,7 +2930,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
         label="toxicity",
         metric_type="categorical",
         value="high",
-        agent_service="dummy",
+        ml_app="dummy",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -2910,7 +2949,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
             label="toxicity",
             metric_type="categorical",
             value="high",
-            agent_service="dummy",
+            ml_app="dummy",
         )
         mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
             _expected_llmobs_eval_metric_event(
@@ -2930,7 +2969,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
         label="sentiment",
         metric_type="score",
         value=0.9,
-        agent_service="dummy",
+        ml_app="dummy",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -2940,7 +2979,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
     mock_llmobs_eval_metric_writer.reset_mock()
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.submit_evaluation(
-            span=llmobs.export_span(span), label="sentiment", metric_type="score", value=0.9, agent_service="dummy"
+            span=llmobs.export_span(span), label="sentiment", metric_type="score", value=0.9, ml_app="dummy"
         )
         mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
             _expected_llmobs_eval_metric_event(
@@ -2961,7 +3000,7 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
         metric_type="categorical",
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        agent_service="ml_app_override",
+        ml_app="ml_app_override",
         metadata={"foo": ["bar", "baz"]},
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
@@ -2997,7 +3036,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
         metric_type="categorical",
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        agent_service="ml_app_override",
+        ml_app="ml_app_override",
         metadata={"foo": ["bar", "baz"]},
         assessment="fail",
     )
@@ -3021,7 +3060,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
         metric_type="categorical",
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        agent_service="ml_app_override",
+        ml_app="ml_app_override",
         metadata={"foo": ["bar", "baz"]},
         assessment="fail",
     )
@@ -3059,7 +3098,7 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
         metric_type="categorical",
         value="high",
         tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        agent_service="ml_app_override",
+        ml_app="ml_app_override",
         metadata={"foo": ["bar", "baz"]},
         reasoning="the content of the message involved profanity",
     )
@@ -3084,7 +3123,7 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
             metric_type="categorical",
             value="low",
             tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-            agent_service="ml_app_override",
+            ml_app="ml_app_override",
             metadata="invalid",
             reasoning="the content of the message did not involve profanity or hate speech or negativity",
         )
@@ -3151,7 +3190,7 @@ def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmo
         label="is_toxic",
         metric_type="boolean",
         value=True,
-        agent_service="dummy",
+        ml_app="dummy",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -3165,7 +3204,7 @@ def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmo
             label="is_toxic",
             metric_type="boolean",
             value=False,
-            agent_service="dummy",
+            ml_app="dummy",
         )
         mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
             _expected_llmobs_eval_metric_event(
@@ -3217,7 +3256,7 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
         label="quality",
         metric_type="score",
         value=0.9,
-        agent_service="test_app",
+        ml_app="test_app",
         eval_scope="trace",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
@@ -3271,7 +3310,7 @@ def test_submit_feedback_enqueues_exact_target_payload(
             metric_type="categorical",
             value="helpful",
             submitter={"id": "user-1", "type": "reviewer", "ignored": "not-serialized"},
-            agent_service="feedback-app",
+            ml_app="feedback-app",
             **target_kwargs,
         )
 
@@ -3300,7 +3339,7 @@ def test_submit_feedback_with_exported_span_only_emits_span_id(llmobs, mock_llmo
             metric_type="text",
             value="This answer was useful.",
             submitter={"id": "user-1"},
-            agent_service="feedback-app",
+            ml_app="feedback-app",
         )
 
     expected_event = _expected_llmobs_feedback_event(
@@ -3459,7 +3498,7 @@ def test_submit_feedback_supports_all_metric_value_pairs(
         metric_type=metric_type,
         value=value,
         submitter={"id": "user-1"},
-        agent_service="feedback-app",
+        ml_app="feedback-app",
     )
 
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
@@ -3573,6 +3612,7 @@ def test_submit_feedback_optional_fields_and_agent_service_precedence(llmobs, mo
         value=0.9,
         submitter={"id": "agent-1", "type": "quality-review-bot"},
         tags={"team": "support", "channel": "chat"},
+        ml_app="legacy-app",
         agent_service="feedback-service",
         timestamp_ms=1756910127022,
         assessment="pass",
@@ -3776,7 +3816,7 @@ def test_get_spans_agent_service_uses_ml_app_filter(mock_get_connection, llmobs)
     _set_get_spans_app_key(llmobs)
     page = {"data": [], "meta": {"page": {}}}
     mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
-    llmobs.get_spans(agent_service="agent_service")
+    llmobs.get_spans(ml_app="legacy_ml_app", agent_service="agent_service")
 
     path = mock_conn.request.call_args.args[1]
     query = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)
@@ -3895,7 +3935,7 @@ class TestExperimentScope:
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_SITE": "datad0g.com",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
         "DD_AGENTLESS_ENABLED": None,
         "DD_LLMOBS_AGENTLESS_ENABLED": None,
     },
@@ -3917,7 +3957,7 @@ def test_agentless_via_keyword_argument_repoints_remote_configuration():
 @pytest.mark.subprocess(
     env={
         "DD_SITE": "datad0g.com",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
         "DD_API_KEY": None,
         "DD_AGENTLESS_ENABLED": None,
         "DD_LLMOBS_AGENTLESS_ENABLED": None,
@@ -3951,7 +3991,7 @@ def test_an_api_key_passed_in_code_repoints_remote_configuration():
 @pytest.mark.subprocess(
     env={
         "DD_API_KEY": "<not-a-real-key>",
-        "DD_SERVICE": "test-ml-app",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
         "DD_AGENTLESS_ENABLED": None,
         "DD_LLMOBS_AGENTLESS_ENABLED": None,
     },

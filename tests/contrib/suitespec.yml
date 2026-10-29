@@ -222,6 +222,8 @@ components:
     - ddtrace/contrib/internal/valkey_utils.py
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
+  vertica:
+    - ddtrace/contrib/internal/vertica/*
   wsgi:
     - ddtrace/contrib/wsgi.py
     - ddtrace/contrib/internal/wsgi/*
@@ -633,9 +635,9 @@ suites:
     snapshot: true
     services:
       - azurite
-      # the azure_functions suites don't work in the arm64 testrunner container
-      # (the one that runs from scripts/ddtest on Mac OS)
-      # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
+  # the azure_functions suites don't work in the arm64 testrunner container
+  # (the one that runs from scripts/ddtest on Mac OS)
+  # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
@@ -811,7 +813,8 @@ suites:
     snapshot: true
     matrix:
       runs:
-        - command: python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/
+        - command: python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py'
+            tests/contrib/bottle/
         - command: python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
           env:
             DD_SERVICE: bottle-app
@@ -963,7 +966,9 @@ suites:
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
           command: >-
-            pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py -k 'not test_user_name_included and not test_user_name_excluded and not test_cached_view' tests/contrib/django
+            pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
+            -k 'not test_user_name_included and not test_user_name_excluded and not
+            test_cached_view' tests/contrib/django
         - name: django
           python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: ['django-redis>=4.5,<4.6', 'django-pylibmc>=0.6,<0.7', daphne, requests, 'redis>=2.10,<2.11', 'psycopg2-binary>=2.8.6', 'pytest-django[testing]==3.10.0', pytest-asyncio, 'setuptools<80', pylibmc, python-memcached, pytest-randomly, spyne, zeep, 'bcrypt==4.2.1', 'django~=6.1', psycopg, channels, django-q2]
@@ -973,9 +978,12 @@ suites:
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
           runs:
             - command: >-
-                pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py -k 'not test_user_name_included and not test_user_name_excluded' tests/contrib/django
+                pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py
+                -k 'not test_user_name_included and not test_user_name_excluded' tests/contrib/django
             - command: >-
-                pytest {cmdargs} tests/contrib/django/test_django_dbm.py::test_django_postgres_dbm_propagation_enabled tests/contrib/django/test_django_snapshots.py::test_psycopg3_query_default
+                pytest {cmdargs}
+                tests/contrib/django/test_django_dbm.py::test_django_postgres_dbm_propagation_enabled
+                tests/contrib/django/test_django_snapshots.py::test_psycopg3_query_default
         - name: django:celery
           python: ['3.12']
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, sqlalchemy, django]
@@ -1190,7 +1198,8 @@ suites:
       - opensearch
     snapshot: true
     matrix:
-      command: pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'
+      command: pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k
+        'not ElasticsearchPatchTest'
       variants:
         - name: elasticsearch:opensearch
           dependencies: ['opensearch-py[requests]~=1.1.0', pytest-randomly]
@@ -2597,6 +2606,24 @@ suites:
         - name: urllib3
           python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
+  vertica:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@vertica'
+      - tests/contrib/vertica/*
+    skip: true # Vertica tests are flaky
+    matrix:
+      command: pytest {cmdargs} tests/contrib/vertica/
+      variants:
+        - name: vertica
+          python: ['3.10']
+          dependencies: ['vertica-python>=0.6.0,<0.7.0', pytest-randomly]
+        - name: vertica
+          python: ['3.10']
+          dependencies: ['vertica-python>=0.7.0,<0.8.0', pytest-randomly]
   wsgi:
     paths:
       - '@bootstrap'

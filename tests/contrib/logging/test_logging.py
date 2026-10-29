@@ -139,7 +139,25 @@ class LoggingTestCase(TracerTestCase):
             output, _ = capture_function_log(func, fmt="%(message)s")
             assert output == "Hello!"
 
-    @TracerTestCase.run_in_subprocess()
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False",
+        )
+    )
+    def test_log_trace(self):
+        """
+        Check logging patched and formatter including trace info when 64bit trace ids are generated.
+        """
+
+        def create_span():
+            return self.tracer.trace("test.logging")
+
+        self._test_logging(create_span=create_span, service="")
+
+        with self.override_global_config(dict(version="global.version", env="global.env")):
+            self._test_logging(create_span=create_span, version="global.version", env="global.env", service="")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
     def test_log_trace_128bit_trace_ids(self):
         """
         Check if 128bit trace ids are logged using hex

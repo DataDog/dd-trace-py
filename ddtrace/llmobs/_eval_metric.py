@@ -3,6 +3,7 @@ from dataclasses import field
 import json
 import time
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import TypedDict
 
@@ -49,8 +50,8 @@ class _SubmissionTelemetryContext:
     target_type: str = "other"
 
 
-# LLMObsSubmitEvaluationError intentionally remains owned by _llmobs. Callers inject it here to
-# preserve its existing import path without a cycle.
+# _resolve_agent_service and LLMObsSubmitEvaluationError intentionally remain owned by
+# _llmobs. Callers inject them here to preserve their existing state and import paths without a cycle.
 def _build_evaluation_metric_event(
     *,
     label: str,
@@ -59,6 +60,7 @@ def _build_evaluation_metric_event(
     span: Any,
     span_with_tag_value: Any,
     tags: Any,
+    ml_app: Optional[str],
     timestamp_ms: Any,
     metadata: Any,
     assessment: Any,
@@ -66,6 +68,7 @@ def _build_evaluation_metric_event(
     eval_scope: str,
     agent_service: Optional[str],
     otel_trace_enabled: bool,
+    resolve_agent_service: Callable[[Optional[str], Optional[str]], Optional[str]],
     submission_error_cls: type[Exception],
     telemetry_context: _SubmissionTelemetryContext,
 ) -> LLMObsEvaluationMetricEvent:
@@ -145,7 +148,7 @@ def _build_evaluation_metric_event(
     if tags is not None and not isinstance(tags, dict):
         raise submission_error_cls("tags must be a dictionary of string key-value pairs.")
 
-    ml_app = resolve_ml_app(agent_service)
+    ml_app = resolve_ml_app(resolve_agent_service(agent_service, ml_app))
 
     evaluation_tags = {
         "ddtrace.version": __version__,
@@ -216,10 +219,12 @@ def _build_feedback_metric_event(
     session_id: Any,
     feedback_join_key: Any,
     tags: Any,
+    ml_app: Optional[str],
     timestamp_ms: Any,
     assessment: Any,
     reasoning: Any,
     agent_service: Optional[str],
+    resolve_agent_service: Callable[[Optional[str], Optional[str]], Optional[str]],
     submission_error_cls: type[Exception],
     telemetry_context: _SubmissionTelemetryContext,
 ) -> LLMObsEvaluationMetricEvent:
@@ -319,7 +324,7 @@ def _build_feedback_metric_event(
         telemetry_context.error = "invalid_tags"
         raise submission_error_cls("tags must be a dictionary of string key-value pairs.")
 
-    ml_app = resolve_ml_app(agent_service)
+    ml_app = resolve_ml_app(resolve_agent_service(agent_service, ml_app))
     feedback_tags = {
         "ddtrace.version": __version__,
         "ml_app": ml_app,

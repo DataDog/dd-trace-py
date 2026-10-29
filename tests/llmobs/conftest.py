@@ -171,6 +171,7 @@ def mock_ragas_answer_relevancy_calculate_similarity():
 def llmobs_env():
     return {
         "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
+        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
         "DD_LLMOBS_PROJECT_NAME": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean"),
     }
 
@@ -273,6 +274,7 @@ def llmobs(
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
     global_config = default_global_config()
+    global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP")))
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):

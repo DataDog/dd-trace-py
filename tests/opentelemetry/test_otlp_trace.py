@@ -5,6 +5,7 @@ import pytest
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
+        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
         "DD_TRACE_SAMPLE_RATE": "1",
     }
 )
@@ -179,6 +180,7 @@ def test_otlp_trace_metrics_exported_via_http():
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
+        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
         "DD_TRACE_SAMPLE_RATE": "1",
     }
 )

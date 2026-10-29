@@ -204,22 +204,31 @@ class TracerTestCases(TracerTestCase):
         )
 
     def test_tracer_wrap_class(self):
-        """By default the class scope is included in the span name."""
+        """By default (DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=false) class scope is NOT included."""
+        import warnings
 
-        class Foo:
-            @staticmethod
-            @self.tracer.wrap()
-            def s():
-                return 1
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
-            @classmethod
-            @self.tracer.wrap()
-            def c(cls):
-                return 2
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
 
-            @self.tracer.wrap()
-            def i(cls):
-                return 3
+            class Foo:
+                @staticmethod
+                @self.tracer.wrap()
+                def s():
+                    return 1
+
+                @classmethod
+                @self.tracer.wrap()
+                def c(cls):
+                    return 2
+
+                @self.tracer.wrap()
+                def i(cls):
+                    return 3
+
+        deprecation_warnings = [x for x in w if issubclass(x.category, DDTraceDeprecationWarning)]
+        assert len(deprecation_warnings) == 3, "Expected one deprecation warning per method"
 
         f = Foo()
         self.assertEqual(f.s(), 1)
@@ -227,13 +236,13 @@ class TracerTestCases(TracerTestCase):
         self.assertEqual(f.i(), 3)
 
         self.assert_span_count(3)
-        self.spans[0].assert_matches(name="tests.tracer.test_tracer.Foo.s")
-        self.spans[1].assert_matches(name="tests.tracer.test_tracer.Foo.c")
-        self.spans[2].assert_matches(name="tests.tracer.test_tracer.Foo.i")
+        self.spans[0].assert_matches(name="tests.tracer.test_tracer.s")
+        self.spans[1].assert_matches(name="tests.tracer.test_tracer.c")
+        self.spans[2].assert_matches(name="tests.tracer.test_tracer.i")
 
-    def test_tracer_wrap_class_exclude_class_scope(self):
-        """With DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=false the class name is not included in the span name."""
-        with self.override_global_config({"_trace_wrap_span_name_include_class": False}):
+    def test_tracer_wrap_class_include_class_scope(self):
+        """With DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true the class name is included in the span name."""
+        with self.override_global_config({"_trace_wrap_span_name_include_class": True}):
 
             class Foo:
                 @staticmethod
@@ -256,9 +265,9 @@ class TracerTestCases(TracerTestCase):
             self.assertEqual(f.i(), 3)
 
         self.assert_span_count(3)
-        self.spans[0].assert_matches(name="tests.tracer.test_tracer.s")
-        self.spans[1].assert_matches(name="tests.tracer.test_tracer.c")
-        self.spans[2].assert_matches(name="tests.tracer.test_tracer.i")
+        self.spans[0].assert_matches(name="tests.tracer.test_tracer.Foo.s")
+        self.spans[1].assert_matches(name="tests.tracer.test_tracer.Foo.c")
+        self.spans[2].assert_matches(name="tests.tracer.test_tracer.Foo.i")
 
     def test_tracer_wrap_local_function_no_locals_in_name(self):
         @self.tracer.wrap()

@@ -273,7 +273,7 @@ class TestLLMJudgePublish:
         )
 
         with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
-            result = llmobs.publish_evaluator(judge, agent_service="test-app")
+            result = llmobs.publish_evaluator(judge, ml_app="test-app")
 
         assert result["ui_url"] == (
             "https://app.datadoghq.com/llm/evaluations/custom?evalName=quality_eval&applicationName=test-app"
@@ -323,7 +323,7 @@ class TestLLMJudgePublish:
         )
 
         with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
-            result = llmobs.publish_evaluator(judge, agent_service="test-agent-service")
+            result = llmobs.publish_evaluator(judge, ml_app="legacy-ml-app", agent_service="test-agent-service")
 
         assert result["ui_url"] == (
             "https://app.datadoghq.com/llm/evaluations/custom?evalName=quality_eval&applicationName=test-agent-service"
@@ -348,7 +348,7 @@ class TestLLMJudgePublish:
             name="score_eval_publish",
         )
 
-        llmobs.publish_evaluator(judge, agent_service="test-app")
+        llmobs.publish_evaluator(judge, ml_app="test-app")
         payload = mock_publish.call_args.args[0]
         byop_config = payload["applications"][0]["byop_config"]
 
@@ -372,7 +372,7 @@ class TestLLMJudgePublish:
             name="categorical_eval_publish",
         )
 
-        llmobs.publish_evaluator(judge, agent_service="test-app")
+        llmobs.publish_evaluator(judge, ml_app="test-app")
         payload = mock_publish.call_args.args[0]
         byop_config = payload["applications"][0]["byop_config"]
 
@@ -399,7 +399,7 @@ class TestLLMJudgePublish:
             name="model_eval",
         )
 
-        llmobs.publish_evaluator(judge, agent_service="my-app")
+        llmobs.publish_evaluator(judge, ml_app="my-app")
         app_payload = mock_publish.call_args.args[0]["applications"][0]
 
         assert app_payload["model_provider"] == app_payload["integration_provider"]
@@ -425,7 +425,7 @@ class TestLLMJudgePublish:
 
         llmobs.publish_evaluator(
             judge,
-            agent_service="test-app",
+            ml_app="test-app",
             variable_mapping={"input_data": "span_input", "output_data": "span_output"},
         )
 
@@ -450,7 +450,7 @@ class TestLLMJudgePublish:
 
         llmobs.publish_evaluator(
             judge,
-            agent_service="test-app",
+            ml_app="test-app",
             variable_mapping={"input_data": "output_data", "output_data": "span_output"},
         )
 
@@ -481,7 +481,7 @@ class TestLLMJudgePublish:
         )
 
         with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
-            result = llmobs.publish_evaluator(judge, agent_service="my app")
+            result = llmobs.publish_evaluator(judge, ml_app="my app")
 
         assert result["ui_url"] == (
             "https://app.datadoghq.com/llm/evaluations/custom?evalName=json_eval&applicationName=my+app"
@@ -502,7 +502,7 @@ class TestLLMJudgePublish:
             structured_output=BooleanStructuredOutput("Correctness"),
         )
         with pytest.raises(ValueError, match="agent_service"):
-            llmobs.publish_evaluator(judge, agent_service="   ")
+            llmobs.publish_evaluator(judge, ml_app="   ")
 
     def test_publish_requires_explicit_agent_service_or_ml_app(self, llmobs):
         judge = LLMJudge(
@@ -522,7 +522,7 @@ class TestLLMJudgePublish:
             structured_output=None,
         )
         with pytest.raises(ValueError, match="structured_output"):
-            llmobs.publish_evaluator(judge, agent_service="my-app")
+            llmobs.publish_evaluator(judge, ml_app="my-app")
 
     def test_publish_requires_llmobs_enabled(self, monkeypatch, llmobs):
         monkeypatch.setattr(llmobs, "enabled", False)
@@ -533,7 +533,7 @@ class TestLLMJudgePublish:
             structured_output=BooleanStructuredOutput("Correctness"),
         )
         with pytest.raises(ValueError, match="LLMObs is not enabled"):
-            llmobs.publish_evaluator(judge, agent_service="my-app")
+            llmobs.publish_evaluator(judge, ml_app="my-app")
 
     def test_publish_validates_eval_name_format(self, monkeypatch, llmobs):
         self._mock_publish_backend(monkeypatch, llmobs)
@@ -545,7 +545,7 @@ class TestLLMJudgePublish:
             name="valid_name",
         )
         with pytest.raises(ValueError, match="Evaluator name .* is invalid"):
-            llmobs.publish_evaluator(judge, agent_service="my-app", eval_name="invalid name!")
+            llmobs.publish_evaluator(judge, ml_app="my-app", eval_name="invalid name!")
 
     def test_publish_accepts_hyphenated_eval_name(self, monkeypatch, llmobs):
         mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
@@ -556,7 +556,7 @@ class TestLLMJudgePublish:
             structured_output=BooleanStructuredOutput("Correctness"),
             name="fallback",
         )
-        llmobs.publish_evaluator(judge, agent_service="my-app", eval_name="hyphen-name")
+        llmobs.publish_evaluator(judge, ml_app="my-app", eval_name="hyphen-name")
         payload = mock_publish.call_args.args[0]
         assert payload["eval_name"] == "hyphen-name"
 
@@ -568,10 +568,10 @@ class TestLLMJudgePublish:
             structured_output=BooleanStructuredOutput("Correctness"),
         )
         with pytest.raises(ValueError, match="variable_mapping keys"):
-            llmobs.publish_evaluator(judge, agent_service="my-app", variable_mapping={"": "span_output"})
+            llmobs.publish_evaluator(judge, ml_app="my-app", variable_mapping={"": "span_output"})
 
         with pytest.raises(ValueError, match="variable_mapping values"):
-            llmobs.publish_evaluator(judge, agent_service="my-app", variable_mapping={"output_data": "   "})
+            llmobs.publish_evaluator(judge, ml_app="my-app", variable_mapping={"output_data": "   "})
 
 
 AZURE_OPENAI_CLIENT_OPTIONS = {

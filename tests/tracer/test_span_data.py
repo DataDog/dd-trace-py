@@ -999,15 +999,44 @@ def test_trace_id_64bits_property():
     assert span._trace_id_64bits == 0x1234567890ABCDEF
 
 
-def test_trace_id_auto_generation_128bit():
+@pytest.fixture()
+def native_128bit_config():
+    """Save and restore the native 128-bit trace ID config around a test."""
+    from ddtrace.internal.native._native import config as native_config
+
+    original = native_config.get_128_bit_trace_id_enabled()
+    yield native_config
+    native_config.set_128_bit_trace_id_enabled(original)
+
+
+def test_trace_id_auto_generation_128bit_enabled(native_128bit_config):
+    """With 128-bit mode enabled, auto-generated trace IDs exceed u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
     span = SpanData(name="test")
     assert span.trace_id > (2**64) - 1
 
 
-def test_trace_id_explicit_64bit_preserved():
+def test_trace_id_auto_generation_64bit_disabled(native_128bit_config):
+    """With 128-bit mode disabled, auto-generated trace IDs fit within u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    span = SpanData(name="test")
+    assert span.trace_id <= (2**64) - 1
+
+
+def test_trace_id_explicit_64bit_preserved_in_128bit_mode(native_128bit_config):
+    """Explicit 64-bit trace IDs are stored as-is even when 128-bit mode is enabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
     trace_id_64 = 0x1234567890ABCDEF
     span = SpanData(name="test", trace_id=trace_id_64)
     assert span.trace_id == trace_id_64
+
+
+def test_trace_id_explicit_128bit_preserved_in_64bit_mode(native_128bit_config):
+    """Explicit 128-bit trace IDs are stored as-is even when 128-bit mode is disabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+    span = SpanData(name="test", trace_id=trace_id_128)
+    assert span.trace_id == trace_id_128
 
 
 # =============================================================================

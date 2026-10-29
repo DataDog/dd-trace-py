@@ -23,6 +23,7 @@
     "ddtrace.internal.iast": "product:iast",
 
     "ddtrace.aiguard": "product:aiguard",
+    "ddtrace.appsec.ai_guard": "product:aiguard",
     "ddtrace.internal.aiguard": "product:aiguard",
 
     "ddtrace.llmobs": "product:llmobs",

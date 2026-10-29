@@ -28,6 +28,8 @@ from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
@@ -154,11 +156,19 @@ class TraceMiddleware:
     def __init__(
         self,
         app,
+        tracer=None,
         integration_config=config.asgi,
         handle_exception_span=_default_handle_exception_span,
         span_modifier=None,
     ):
         self.app = guarantee_single_callable(app)
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         self.integration_config = integration_config
         self.handle_exception_span = handle_exception_span
         self.span_modifier = span_modifier
