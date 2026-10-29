@@ -5,6 +5,7 @@ import pytest
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
+from ddtrace.internal.products import ProductManager
 from ddtrace.llmobs import _integrations
 from ddtrace.llmobs import _product
 from ddtrace.llmobs import _subscribers
@@ -106,3 +107,20 @@ def test_patching_a_subscriber_integration_registers_the_subscriber(subscriber):
 
     _product.on_integration_patched("llama_index")
     assert core.has_listeners("span.finishing.llm.request")
+
+
+@pytest.mark.parametrize("shutdown_method", ["stop_products", "exit_products"])
+def test_product_manager_shutdown_unregisters_subscriber_while_llmobs_is_disabled(
+    shutdown_method, monkeypatch, subscriber
+):
+    monkeypatch.setattr(config, "_llmobs_enabled", False)
+    _product.on_integration_patched("llama_index")
+    assert core.has_listeners("span.finishing.llm.request")
+
+    manager = ProductManager()
+    manager.__products__ = {"llmobs": _product}
+    manager._products = [("llmobs", _product)]
+
+    getattr(manager, shutdown_method)()
+
+    assert not core.has_listeners("span.finishing.llm.request")
