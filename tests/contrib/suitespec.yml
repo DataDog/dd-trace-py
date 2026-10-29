@@ -807,6 +807,8 @@ suites:
       - '@bootstrap'
       - '@contrib'
       - '@bottle'
+      - ddtrace/appsec/_contrib/web_framework/*
+      - ddtrace/appsec/_listeners.py
       - tests/contrib/bottle/*
     snapshot: true
     matrix:

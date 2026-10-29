@@ -7,7 +7,7 @@ from typing import TypeVar
 from typing import cast
 
 from ddtrace.appsec import _metrics
-from ddtrace.appsec._trace_utils import block_request  # noqa: F401
+from ddtrace.appsec._trace_utils import block_request as block_request
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked  # noqa: F401
 from ddtrace.appsec._trace_utils import should_block_user  # noqa: F401
 from ddtrace.appsec._trace_utils import track_custom_event
