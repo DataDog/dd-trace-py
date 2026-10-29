@@ -42,7 +42,7 @@ if is_at_least_py(3, 15):
     import dis
 
     from ddtrace.internal import monitoring as _monitoring
-    from ddtrace.internal.threads import Lock
+    from ddtrace.internal.forksafe import Lock
 
     def _effective_line(code: CodeType, line: int) -> "int | None":
         """Find the line to register a hook on for the given requested line.

@@ -566,6 +566,135 @@ class TestForkCallbackOrdering:
 
 @pytest.mark.skipif(sys.version_info < (3, 15), reason="Monitoring entry hooks require Python 3.15")
 class TestFunctionEntry:
+    def test_registration_survives_concurrent_peer_unwrap(self, monkeypatch):
+        import threading
+
+        from ddtrace.internal.wrapping import context
+
+        class PeerContext(context.WrappingContext):
+            pass
+
+        target = _make_target_function()
+        peer = PeerContext(target)
+        peer.wrap()
+        paused, resume, removing = (threading.Event() for _ in range(3))
+        register = context._UniversalWrappingContext.register
+        lock = getattr(context, "_wrapping_lock", threading.RLock())
+
+        class ObservedLock:
+            def __enter__(self):
+                if threading.current_thread().name == "peer-removal":
+                    removing.set()
+                return lock.__enter__()
+
+            def __exit__(self, *args):
+                return lock.__exit__(*args)
+
+        monkeypatch.setattr(context, "_wrapping_lock", ObservedLock(), raising=False)
+
+        def pause_registration(universal, wrapping):
+            if isinstance(wrapping, _instrumenter_mod._SCAWrappingContext):
+                paused.set()
+                assert resume.wait(5)
+            return register(universal, wrapping)
+
+        monkeypatch.setattr(context._UniversalWrappingContext, "register", pause_registration)
+        registry = InstrumentationRegistry()
+        results = []
+        installer = threading.Thread(
+            target=lambda: results.append(Instrumenter(registry).instrument("test:target", target))
+        )
+
+        def remove_peer():
+            peer.unwrap()
+            removing.set()
+
+        remover = threading.Thread(target=remove_peer, name="peer-removal")
+        installer.start()
+        try:
+            assert paused.wait(5)
+            remover.start()
+            assert removing.wait(5)
+        finally:
+            resume.set()
+            installer.join(5)
+            if remover.ident is not None:
+                remover.join(5)
+        assert not installer.is_alive() and not remover.is_alive()
+        assert results == [True]
+        assert target(1) == 2
+        assert registry._targets["test:target"].hit_count == 1
+
+    @pytest.mark.subprocess
+    @pytest.mark.skipif(not hasattr(os, "fork"), reason="Requires fork")
+    def test_inherited_monitoring_locks_do_not_block_new_targets(self):
+        import os
+        import threading
+        import warnings
+
+        from ddtrace.appsec.sca import _instrumenter as instrumenter_mod
+        from ddtrace.appsec.sca._instrumenter import Instrumenter
+        from ddtrace.appsec.sca._registry import InstrumentationRegistry
+        from ddtrace.internal import bytecode_injection
+        from ddtrace.internal import monitoring
+        from ddtrace.internal import wrapping
+        from ddtrace.internal.wrapping import context
+
+        def inherited(x):
+            return x + 1
+
+        def target(x):
+            return x + 1
+
+        registry = InstrumentationRegistry()
+        instrumenter = Instrumenter(registry)
+        assert instrumenter.instrument("test:inherited", inherited)
+        locks = [
+            context._wrapping_lock,
+            context._ctx_registry_lock,
+            context._storage_var_pools_lock,
+            wrapping._wrapped_lock,
+            bytecode_injection._line_hook_lock,
+            monitoring._registry_lock,
+            monitoring._tool_lock,
+        ]
+        ready, release = threading.Event(), threading.Event()
+
+        def hold_locks():
+            for lock in locks:
+                lock.acquire()
+            ready.set()
+            release.wait(10)
+            for lock in reversed(locks):
+                lock.release()
+
+        holder = threading.Thread(target=hold_locks)
+        holder.start()
+        try:
+            assert ready.wait(5)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message=".*multi-threaded.*", category=DeprecationWarning)
+                pid = os.fork()
+            if pid == 0:
+                for lock in locks:
+                    if not lock.acquire(timeout=0.25):
+                        os._exit(2)
+                    lock.release()
+                instrumenter_mod._reset_after_fork()
+                registry = InstrumentationRegistry()
+                registry.add_target("test:inherited")
+                instrumenter = Instrumenter(registry)
+                assert instrumenter.instrument("test:new", target)
+                assert inherited(1) == target(1) == 2
+                assert registry._targets["test:inherited"].hit_count == 1
+                assert registry._targets["test:new"].hit_count == 1
+                os._exit(0)
+        finally:
+            release.set()
+            holder.join(5)
+        _, status = os.waitpid(pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+
     @pytest.mark.parametrize(
         "source, expected, hits",
         [
