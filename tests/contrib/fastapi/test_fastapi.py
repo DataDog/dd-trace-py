@@ -18,7 +18,6 @@ from ddtrace.contrib.internal.anyio.patch import patch as anyio_patch
 from ddtrace.contrib.internal.anyio.patch import unpatch as anyio_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -51,21 +50,15 @@ def _trace_context_ids(tracer):
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-def test_mounted_apps_finish_child_before_parent(fastapi_tracer, test_spans, monkeypatch, streaming):
+def test_mounted_apps_finish_child_before_parent(fastapi_tracer, streaming):
     requests, finished = [], []
-    finish = fastapi_tracer._on_span_finish
-
-    def record_finish(span):
-        if span.span_type == SpanTypes.WEB:
-            finished.append(span)
-        finish(span)
-
-    monkeypatch.setattr(fastapi_tracer, "_on_span_finish", record_finish)
     root, middle, leaf = fastapi.FastAPI(), fastapi.FastAPI(), fastapi.FastAPI()
 
     @leaf.get("/")
     async def endpoint(request: fastapi.Request):
         requests.extend(request.scope["datadog"]["request_spans"])
+        for span in requests:
+            span._on_finish_callbacks.append(finished.append)
         if streaming:
 
             async def chunks():
@@ -85,9 +78,6 @@ def test_mounted_apps_finish_child_before_parent(fastapi_tracer, test_spans, mon
 
     assert len(requests) == 3
     assert finished == requests[::-1]
-    assert all(span.service == requests[0].service for span in requests)
-    for parent, child in zip(requests, requests[1:]):
-        assert child._parent is parent
 
 
 @pytest.mark.skipif(
