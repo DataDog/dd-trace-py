@@ -200,7 +200,7 @@ class AttemptToFixHandler(RetryHandler):
         return "Attempt to Fix"
 
     def should_apply(self, test: Test) -> bool:
-        return test.should_attempt_to_fix()
+        return test.is_attempt_to_fix()
 
     def should_retry(self, test: Test) -> bool:
         if test.has_failed():

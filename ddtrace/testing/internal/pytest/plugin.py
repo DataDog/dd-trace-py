@@ -39,7 +39,6 @@ from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
-from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
@@ -1434,40 +1433,33 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         "skipped" (xfail), which prevents ATR from seeing a FAIL status and retrying. Instead, quarantine masking is
         applied after all retries in _apply_quarantine_masking.
         """
-        if test.no_auto_retry and any(item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS):
-            return super()._apply_test_management_markers(item, test)
         if not self.manager.settings.test_management.enabled:
             return
         if test.should_disable() and not test.should_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.should_attempt_to_fix():
-            return
-        elif test.should_quarantine():
-            # Quarantine masking is deferred to _apply_quarantine_masking so ATR can see real FAIL status.
-            return
 
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> t.Optional[bool]:
-        # Older pluggy inspects the concrete signature and cannot inject arguments through the exception wrapper.
-        return self._run_test_protocol(item, nextitem)
+        # Catch errors here so older pluggy can inspect the hook's concrete argument names.
+        try:
+            # Let explicitly configured retry plugins drive excluded tests through the ordinary wrapper.
+            if item.get_closest_marker("dd_no_auto_retry") is not None and any(
+                item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS
+            ):
+                return None
+            # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
+            # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
+            # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
+            # If not, we perform the full setup+run+teardown lifecycle here.
+            if item.nodeid not in self.tests_by_nodeid:
+                return self._protocol_with_setup(item, nextitem)
 
-    @catch_and_log_exceptions()
-    def _run_test_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> t.Optional[bool]:
-        # Let explicitly configured retry plugins drive excluded tests through the ordinary wrapper.
-        if item.get_closest_marker("dd_no_auto_retry") is not None and any(
-            item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS
-        ):
+            item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+            self._do_test_runs(item, nextitem)
+            item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+            return True  # Do not run other pytest_runtest_protocol hooks after this one.
+        except Exception:
+            log.exception("Error while calling pytest_runtest_protocol")
             return None
-        # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
-        # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
-        # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
-        # If not, we perform the full setup+run+teardown lifecycle here.
-        if item.nodeid not in self.tests_by_nodeid:
-            return self._protocol_with_setup(item, nextitem)
-
-        item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
-        self._do_test_runs(item, nextitem)
-        item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-        return True  # Do not run other pytest_runtest_protocol hooks after this one.
 
     def _protocol_with_setup(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
         """Full test protocol including lifecycle setup and teardown.
