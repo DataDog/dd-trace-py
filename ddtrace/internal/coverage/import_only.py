@@ -13,7 +13,6 @@ from collections import defaultdict
 from functools import lru_cache
 import importlib
 from importlib.util import resolve_name
-import os
 from pathlib import Path
 import sys
 from types import CodeType
@@ -27,6 +26,7 @@ from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
+from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.logger import get_logger
 
 
@@ -58,7 +58,7 @@ class _TrackedPaths(dict[str, t.Optional[str]]):
         self.should_track = should_track
 
     def __missing__(self, path: str) -> t.Optional[str]:
-        resolved = os.path.realpath(path)
+        resolved = resolved_path(path)
         tracked = resolved if self.should_track(resolved) else None
         self[path] = tracked
         return tracked
@@ -310,7 +310,7 @@ class ImportOnlyCoverage(CoverageMode):
         # importlib aliases captured before installation bypass the wrapper, but
         # the watchdog still sees first loads. Make them traversable and covered.
         if module.__file__ is not None:
-            module_file = os.path.realpath(module.__file__)
+            module_file = resolved_path(module.__file__)
             self._collector._record_import_time_sentinel(module_file)
             self.record_import_file(module_file)
             if self._conservative and self.should_track(module_file):
@@ -324,7 +324,7 @@ class ImportOnlyCoverage(CoverageMode):
             module_file = getattr(module, "__file__", None)
             if not module_file or not module_file.endswith(".py"):
                 continue
-            module_file = os.path.realpath(module_file)
+            module_file = resolved_path(module_file)
             if not self.should_track(module_file):
                 continue
             if module_file not in collector._import_time_covered:
