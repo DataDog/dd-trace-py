@@ -772,6 +772,7 @@ def test_start_profiler_after_remote_config_disabled_all_collectors(
         created_profilers.clear()
 
     monkeypatch.setattr(profiling_config.pytorch, "enabled", False)
+    monkeypatch.setattr(profiling_config.native_heap, "enabled", False)
     # The remote config payload arrives before post_preload imports ddtrace.profiling.auto.
     with lifecycle.lock:
         remoteconfig._restart_profiler(_collectors(), remoteconfig._settings_from_env())
@@ -780,6 +781,33 @@ def test_start_profiler_after_remote_config_disabled_all_collectors(
 
     assert created_profilers == []
     assert lifecycle.current_profiler() is None
+
+
+def test_start_profiler_with_only_native_heap_enabled(
+    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]]
+) -> None:
+    # Importing sitecustomize starts a profiler, so it is imported once Profiler is replaced.
+    from ddtrace.profiling.bootstrap import sitecustomize
+
+    with lifecycle.lock:
+        lifecycle.stop_profiler()
+        created_profilers.clear()
+
+    for setting in (
+        profiling_config.stack,
+        profiling_config.memory,
+        profiling_config.lock,
+        profiling_config.exception,
+        profiling_config.pytorch,
+    ):
+        monkeypatch.setattr(setting, "enabled", False)
+    # Native heap profiling has no collector, but the Profiler arms it when it starts.
+    monkeypatch.setattr(profiling_config.native_heap, "enabled", True)
+
+    sitecustomize.start_profiler()
+
+    assert created_profilers == [{}]
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
 
 
 def test_product_activated_when_profiling_enabled(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -384,6 +384,8 @@ def _restart_profiler(wanted: dict[str, bool], settings: dict[str, t.Any]) -> No
 
     # This will ignore the PyTorch profiler being enabled locally on its own. It's an edge case
     # that I'm OK with for the time being.
+    # Note: this does not check for Native Heap, but Native Heap is never uninstalled/stopped,
+    #   so it does not need to be checked here.
     if not any(wanted.values()):
         return
 
