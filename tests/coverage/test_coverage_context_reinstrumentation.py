@@ -18,9 +18,10 @@ import sys
 
 import pytest
 
+from tests.coverage.utils import FILE_LEVEL_PARAMS
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_sequential_contexts_with_no_overlap():
     """
     This is a regression test for the re-instrumentation mechanism. Without proper
@@ -103,8 +104,7 @@ def test_sequential_contexts_with_no_overlap():
         )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_context_with_repeated_execution_reinstruments_correctly():
     """
     Test that repeatedly executed code properly re-instruments between contexts.
@@ -152,8 +152,7 @@ def test_context_with_repeated_execution_reinstruments_correctly():
     assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_nested_contexts_maintain_independence():
     """
     Test that nested coverage contexts maintain independence and proper re-instrumentation.
@@ -165,6 +164,7 @@ def test_nested_contexts_maintain_independence():
     """
     import os
     from pathlib import Path
+    import sys
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
@@ -198,18 +198,30 @@ def test_nested_contexts_maintain_independence():
         "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
-    expected_outer = {
-        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
-        "tests/coverage/included_path/lib.py": {1, 2, 5},
-    }
+    # Python 3.12+ line-level mode self-disables events after first fire (until the next
+    # context entry), so the post-inner execution is not tracked by the outer context;
+    # file-level mode implements the same first-fire-per-context semantics on every version
+    # through its probes. Line-level bytecode traps on Python 3.10/3.11 cannot self-disable
+    # and always fire, so the overlapping execution is also recorded by the outer context
+    # (pre-existing behaviour below 3.12).
+    if file_level_mode or sys.version_info >= (3, 12):
+        expected_outer = {
+            "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+            "tests/coverage/included_path/lib.py": {1, 2, 5},
+        }
+    else:
+        expected_outer = {
+            "tests/coverage/included_path/callee.py": {2, 3, 5, 6, 10, 11, 13, 14},
+            "tests/coverage/included_path/lib.py": {1, 2, 5},
+            "tests/coverage/included_path/in_context_lib.py": {2},
+        }
 
     # Use utility function to assert based on coverage mode
     assert_coverage_matches(inner_covered, expected_inner, file_level_mode, "Inner context")
     assert_coverage_matches(outer_covered, expected_outer, file_level_mode, "Outer context")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_many_sequential_contexts_no_degradation():
     """
     Test that coverage quality doesn't degrade over many sequential contexts.
@@ -275,8 +287,7 @@ def test_many_sequential_contexts_no_degradation():
         ), f"Coverage degraded: first had {first_callee}, last had {last_callee}"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_context_after_session_coverage():
     """
     Test that context-based coverage works correctly after session-level coverage.
@@ -372,7 +383,7 @@ def test_context_after_session_coverage():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_sequential_contexts_with_other_monitoring_tool():
     """
     Test that coverage from one context does not spill into the next when another
@@ -455,7 +466,7 @@ def test_sequential_contexts_with_other_monitoring_tool():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_repeated_execution_with_other_monitoring_tool():
     """
     Test that repeatedly executed code properly isolates coverage between contexts
@@ -508,8 +519,7 @@ def test_repeated_execution_with_other_monitoring_tool():
     assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_comprehensive_reinstrumentation_with_simple_module():
     """
     Comprehensive test using a simple controlled module to verify re-instrumentation.
@@ -577,7 +587,7 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_events_rearmed_when_other_tool_registers_after_early_execution():
     """
     Regression test: lines executed BEFORE another sys.monitoring tool registers must still
@@ -630,3 +640,73 @@ def test_events_rearmed_when_other_tool_registers_after_early_execution():
     # lib.py line 2 (function body) must be in the per-test bitmap
     expected = {"tests/coverage/included_path/lib.py": {2}}
     assert_coverage_matches(covered, expected, file_level_mode, "Context after early-window DISABLE")
+
+
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
+def test_consecutive_tests_isolation_and_tracking():
+    """
+    Consecutive coverage contexts (tests) must be fully isolated and fully tracked:
+
+    - nothing recorded by one test leaks into the next one;
+    - every file a later test executes is still attributed to it, even when the
+      same file was already covered by a previous test (no under-collection from
+      self-disabled events/probes staying dead across contexts).
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+
+    install(include_paths=[include_path])
+
+    from tests.coverage.included_path.callee import called_in_context_main
+    from tests.coverage.included_path.callee import called_in_session_main
+
+    # Test 1: only the session function (callee.py + lib.py)
+    with ModuleCodeCollector.CollectInContext() as context1:
+        called_in_session_main(1, 2)
+        context1_covered = _get_relpath_dict(cwd_path, context1.get_covered_lines())
+
+    # Test 2: both functions — must re-detect the files from test 1 (callee.py,
+    # lib.py are already covered) AND add the context function's files.
+    with ModuleCodeCollector.CollectInContext() as context2:
+        called_in_session_main(3, 4)
+        called_in_context_main(5, 6)
+        context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
+
+    # Test 3: only the context function — must see exactly its own files, with
+    # nothing from tests 1/2 leaking in.
+    with ModuleCodeCollector.CollectInContext() as context3:
+        called_in_context_main(7, 8)
+        context3_covered = _get_relpath_dict(cwd_path, context3.get_covered_lines())
+
+    expected_1 = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+    }
+    # lib.py was already imported inside test 1, so test 2 only re-executes its body line;
+    # in_context_lib.py is imported for the first time inside test 2 (all its lines).
+    expected_2 = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6, 10, 11, 13, 14},
+        "tests/coverage/included_path/lib.py": {2},
+        "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+    }
+    expected_3 = {
+        "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+        "tests/coverage/included_path/in_context_lib.py": {2},
+    }
+
+    assert_coverage_matches(context1_covered, expected_1, file_level_mode, "Test 1")
+    assert_coverage_matches(context2_covered, expected_2, file_level_mode, "Test 2")
+    assert_coverage_matches(context3_covered, expected_3, file_level_mode, "Test 3")
+
+    # Test 1's captured data must not have mutated after tests 2/3 ran (leak check
+    # on the captured dicts, not just on the assertions above).
+    assert context1_covered == _get_relpath_dict(cwd_path, context1.get_covered_lines())

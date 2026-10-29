@@ -23,7 +23,6 @@ def test_coverage_context_thread_value_based_context_restore():
     import contextvars
     import os
     from pathlib import Path
-    import sys
     import threading
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
@@ -94,7 +93,7 @@ def test_coverage_context_thread_value_based_context_restore():
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
 
-    if ModuleCodeCollector.file_level_coverage_enabled() and sys.version_info >= (3, 12):
+    if ModuleCodeCollector.file_level_coverage_enabled():
         expected_lines = {path: {0} for path in expected_lines}
 
     assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
@@ -104,7 +103,6 @@ def test_coverage_context_thread_value_based_context_restore():
 def test_coverage_context_thread_async_to_sync():
     import os
     from pathlib import Path
-    import sys
 
     from asgiref.sync import async_to_sync
     from asgiref.sync import sync_to_async
@@ -146,7 +144,7 @@ def test_coverage_context_thread_async_to_sync():
         "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
 
-    if ModuleCodeCollector.file_level_coverage_enabled() and sys.version_info >= (3, 12):
+    if ModuleCodeCollector.file_level_coverage_enabled():
         expected_lines = {path: {0} for path in expected_lines}
 
     assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
