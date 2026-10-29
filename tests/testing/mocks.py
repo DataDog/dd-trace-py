@@ -343,6 +343,7 @@ class PytestItemMockBuilder:
         mock_item = Mock()
         mock_item.nodeid = self._nodeid
         mock_item.add_marker = Mock()
+        mock_item.get_closest_marker.return_value = None
         mock_item.reportinfo.return_value = self._location
         mock_item.path = self._path
         mock_item.path.absolute.return_value.parent = Path(self._location[0]).parent

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    remote_config: Fixes an issue where forked worker processes, or processes that enable LLM
+    Observability in agentless mode, keep applying a remote configuration that was removed while
+    they were starting.

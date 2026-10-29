@@ -39,14 +39,15 @@ from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
-from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
+from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_READY_WORKER_INPUT
 from ddtrace.testing.internal.pytest._xdist import _CRASH_RETRY_STATE_WORKER_INPUT
 from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
+from ddtrace.testing.internal.pytest._xdist import no_auto_retry_path
 from ddtrace.testing.internal.pytest._xdist import read_atr_crash_retry_state
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
@@ -399,6 +400,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         self.session = self.manager.session
         self.xdist_manifest: t.Optional[XdistManifest] = None
         self.xdist_atr_crash_state_path: t.Optional[Path] = None
+        self.xdist_atr_collection_ready_path: t.Optional[Path] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -419,6 +421,8 @@ class TestOptPlugin(TestOptPluginProtocol):
                 self._coverage_upload_delegated = bool(xdist_worker_input.get("dd_coverage_upload_delegated"))
             if crash_state_path := xdist_worker_input.get(_CRASH_RETRY_STATE_WORKER_INPUT):
                 self.xdist_atr_crash_state_path = Path(crash_state_path)
+            if ready_path := xdist_worker_input.get(_CRASH_RETRY_READY_WORKER_INPUT):
+                self.xdist_atr_collection_ready_path = Path(ready_path)
         else:
             self.session.itr_suite_reporting_enabled = True
 
@@ -643,15 +647,29 @@ class TestOptPlugin(TestOptPluginProtocol):
         NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
+        exclusions_published = True
         for item in session.items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
+            if self.xdist_atr_crash_state_path is not None and item.get_closest_marker("dd_no_auto_retry") is not None:
+                try:
+                    no_auto_retry_path(self.xdist_atr_crash_state_path, item.nodeid).touch()
+                except OSError:
+                    exclusions_published = False
+                    # Remote xdist workers may not share the controller's temporary directory.
+                    log.debug("Unable to publish test retry exclusion to the controller", exc_info=True)
             if (
                 self.manager.itr_skipping_level == ITRSkippingLevel.SUITE
                 and self.manager.is_skippable_test(test_ref)
                 and _is_test_unskippable(item)
             ):
                 self._itr_unskippable_suites.add(test_ref.suite)
+
+        if exclusions_published and self.xdist_atr_collection_ready_path is not None:
+            try:
+                self.xdist_atr_collection_ready_path.touch()
+            except OSError:
+                log.debug("Unable to acknowledge test retry exclusions to the controller", exc_info=True)
 
         async_flush_events = _get_async_flush_events(len(session.items))
         self.manager.writer.set_async_flush_events(async_flush_events)
@@ -759,6 +777,15 @@ class TestOptPlugin(TestOptPluginProtocol):
             if custom_tags := _get_test_custom_tags(item):
                 test.set_tags(custom_tags)
 
+            # Resolve pytest markers on the item, including inherited and per-parameter markers.
+            # Reporting tags alone do not change execution policy.
+            test.prevent_failure_suppression = item.get_closest_marker("dd_prevent_failure_suppression") is not None
+            test.no_auto_retry = item.get_closest_marker("dd_no_auto_retry") is not None
+            if test.prevent_failure_suppression:
+                test.tags[TestTag.PREVENT_FAILURE_SUPPRESSION] = TAG_TRUE
+            if test.no_auto_retry:
+                test.tags[TestTag.NO_AUTO_RETRY] = TAG_TRUE
+
         return self.manager.discover_test(
             test_ref,
             on_new_module=_on_new_module,
@@ -777,12 +804,16 @@ class TestOptPlugin(TestOptPluginProtocol):
         """
         if not self.manager.settings.test_management.enabled:
             return
-        if test.is_disabled() and not test.is_attempt_to_fix():
+        if test.should_disable() and not test.should_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_attempt_to_fix():
+        elif test.should_attempt_to_fix():
             return
-        elif test.is_quarantined():
-            # Use xfail so failures don't break the pipeline. Works regardless of who drives test execution.
+        elif test.should_quarantine():
+            if test.no_auto_retry and any(
+                item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS
+            ):
+                # Let native plugins decide retries from real failures, then mask their final logged report.
+                return
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
 
     def pytest_runtest_protocol_wrapper(
@@ -1045,7 +1076,7 @@ class TestOptPlugin(TestOptPluginProtocol):
 
     def _apply_quarantine_masking_to_report(self, test: Test, report: pytest.TestReport) -> None:
         """Apply quarantine masking to a single report (e.g. the final retry report)."""
-        if not test.is_quarantined() or test.is_attempt_to_fix():
+        if not test.should_quarantine() or test.should_attempt_to_fix():
             return
 
         if report.outcome == "failed":
@@ -1078,6 +1109,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
+        if test.no_auto_retry:
+            return None
         for handler in self.manager.retry_handlers:
             if handler.should_apply(test):
                 return handler
@@ -1097,7 +1130,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         are tests owned by another retry policy (Early Flake Detection, attempt-to-fix), which is why the handler must
         be ATR. (ATR being the applicable handler already implies the test is not new/EFD-eligible.)
         """
-        if (test.get_status() != TestStatus.FAIL) or test.is_quarantined() or test.is_disabled():
+        if (test.get_status() != TestStatus.FAIL) or test.should_quarantine() or test.should_disable():
             return False
         if not isinstance(retry_handler, AutoTestRetriesHandler):
             return False
@@ -1230,6 +1263,13 @@ class TestOptPlugin(TestOptPluginProtocol):
             if benchmark_data := get_benchmark_tags_and_metrics(item):
                 self.benchmark_data_by_nodeid[item.nodeid] = benchmark_data
 
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
+        if (test := self.tests_by_nodeid.get(report.nodeid)) is not None and test.no_auto_retry:
+            # Native rerun plugins change intermediate failures to "rerun" before publishing them here.
+            # Mask only final failures, after their retry decision and our raw outcome bookkeeping.
+            self._apply_quarantine_masking_to_report(test, report)
+
     def pytest_report_teststatus(self, report: pytest.TestReport) -> t.Optional[_ReportTestStatus]:
         if retry_outcome := _get_user_property(report, "dd_retry_outcome"):
             retry_reason = _get_user_property(report, "dd_retry_reason")
@@ -1262,6 +1302,15 @@ class TestOptPlugin(TestOptPluginProtocol):
             return
 
         if report.failed:
+            status = TestStatus.FAIL
+            tags.update(_get_exception_tags(excinfo))
+        elif (
+            report.skipped
+            and getattr(report, "wasxfail", None) == "dd_quarantined"
+            and (test := self.tests_by_nodeid.get(nodeid)) is not None
+            and test.no_auto_retry
+        ):
+            # External retry plugins see quarantine as xfail, but the executed callback still failed.
             status = TestStatus.FAIL
             tags.update(_get_exception_tags(excinfo))
         elif report.skipped:
@@ -1307,7 +1356,7 @@ class TestOptPlugin(TestOptPluginProtocol):
             test.mark_forced_run()
             return
 
-        if test.is_attempt_to_fix():
+        if test.should_attempt_to_fix():
             return
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
@@ -1386,27 +1435,31 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         """
         if not self.manager.settings.test_management.enabled:
             return
-        if test.is_disabled() and not test.is_attempt_to_fix():
+        if test.should_disable() and not test.should_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_attempt_to_fix():
-            return
-        elif test.is_quarantined():
-            # Quarantine masking is deferred to _apply_quarantine_masking so ATR can see real FAIL status.
-            return
 
-    @catch_and_log_exceptions()
-    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
-        # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
-        # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
-        # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
-        # If not, we perform the full setup+run+teardown lifecycle here.
-        if item.nodeid not in self.tests_by_nodeid:
-            return self._protocol_with_setup(item, nextitem)
+    def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> t.Optional[bool]:
+        # Catch errors here so older pluggy can inspect the hook's concrete argument names.
+        try:
+            # Let explicitly configured retry plugins drive excluded tests through the ordinary wrapper.
+            if item.get_closest_marker("dd_no_auto_retry") is not None and any(
+                item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS
+            ):
+                return None
+            # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
+            # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
+            # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
+            # If not, we perform the full setup+run+teardown lifecycle here.
+            if item.nodeid not in self.tests_by_nodeid:
+                return self._protocol_with_setup(item, nextitem)
 
-        item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
-        self._do_test_runs(item, nextitem)
-        item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-        return True  # Do not run other pytest_runtest_protocol hooks after this one.
+            item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+            self._do_test_runs(item, nextitem)
+            item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+            return True  # Do not run other pytest_runtest_protocol hooks after this one.
+        except Exception:
+            log.exception("Error while calling pytest_runtest_protocol")
+            return None
 
     def _protocol_with_setup(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
         """Full test protocol including lifecycle setup and teardown.
@@ -1461,6 +1514,23 @@ class TestOptPluginWithProtocol(TestOptPlugin):
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
         return True
+
+
+class _ExcludedTestProtocolWrapper:
+    """Retain lifecycle tracing when older pluggy versions delegate excluded tests to retry plugins."""
+
+    def __init__(self, plugin: TestOptPlugin) -> None:
+        self.plugin = plugin
+
+    @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+    def pytest_runtest_protocol(
+        self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
+    ) -> t.Generator[None, None, None]:
+        if item.get_closest_marker("dd_no_auto_retry") is not None:
+            protocol = getattr(TestOptPlugin, "pytest_runtest_protocol")
+            yield from protocol(self.plugin, item, nextitem)
+        else:
+            yield
 
 
 class RetryReports:
@@ -1568,7 +1638,7 @@ class RetryReports:
         one returned by this function), even if the test failed multiple times. This is to avoid spamming the test
         output with multiple copies of the same error.
         """
-        suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
+        suppress_errors = (test.should_quarantine() or test.should_disable()) and not test.should_attempt_to_fix()
         if suppress_errors:
             return None
 
@@ -1773,6 +1843,12 @@ def pytest_configure(config: pytest.Config) -> None:
     # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
     # options.
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+    config.addinivalue_line(
+        "markers", "dd_no_auto_retry: exclude this test from Datadog automatic retries (ATR, EFD, and Attempt to Fix)"
+    )
+    config.addinivalue_line(
+        "markers", "dd_prevent_failure_suppression: override Datadog quarantine and disabling for this test"
+    )
 
     if _is_test_optimization_disabled_by_kill_switch():
         return
@@ -1833,6 +1909,8 @@ def pytest_configure(config: pytest.Config) -> None:
         return
 
     config.pluginmanager.register(plugin)
+    if not _HOOKIMPL_SUPPORTS_SPECNAME and detected_rerun_plugins and dd_retries_enabled:
+        config.pluginmanager.register(_ExcludedTestProtocolWrapper(plugin))
     config.pluginmanager.add_hookspecs(TestOptHooks)
 
     if config.pluginmanager.hasplugin("xdist"):

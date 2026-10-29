@@ -1,3 +1,4 @@
+import builtins
 import sys
 
 from hypothesis import given
@@ -67,7 +68,12 @@ def test_small_objects(obj, res):
         (CaseInsensitiveDict({"SomeHeader": "SomeValue"}), {"SomeHeader": "SomeValue"}),
         (range(1, 4), [1, 2, 3]),
         ((1, 2, 3), [1, 2, 3]),
-    ],
+    ]
+    + (
+        [pytest.param(builtins.frozendict({"test": "truc"}), {"test": "truc"}, id="frozendict")]
+        if hasattr(builtins, "frozendict")
+        else []
+    ),
 )
 def test_mappings_and_sequences(obj, res):
     dd_obj = ddwaf_object(obj)
