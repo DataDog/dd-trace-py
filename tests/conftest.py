@@ -706,7 +706,8 @@ class SyncRemoteConfigPoller(RemoteConfigPoller):
 
     def poll(self) -> None:
         """Force client subscriber to poll new data for testing."""
-        self._client.dispatch_native_changes([])
+        # A bare tick, which must not pass for an empty snapshot.
+        self._client.dispatch_native_changes(None)
 
 
 @pytest.fixture
