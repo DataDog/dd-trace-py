@@ -165,6 +165,7 @@ class TestDumpSettings:
             "stack.max_threads",
             "exception.enabled",
             "exception.sampling_interval",
+            "malloc_trim_enabled",
         ):
             assert key in settings, f"missing {key!r} in dumped settings"
 
@@ -311,6 +312,30 @@ class TestNativeHeapConfig:
 
         monkeypatch.delenv("DD_PROFILING_NATIVE_HEAP_ENABLED", raising=False)
         assert "nativeheap" not in config_str(ProfilingConfig())
+
+
+class TestMallocTrimConfig:
+    def test_default_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_MALLOC_TRIM_ENABLED", raising=False)
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.malloc_trim_enabled is False
+
+    def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_MALLOC_TRIM_ENABLED", "true")
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.malloc_trim_enabled is True
+
+    def test_config_str_includes_tag_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.setenv("DD_PROFILING_MALLOC_TRIM_ENABLED", "true")
+        assert "malloctrim" in config_str(ProfilingConfig())
+
+    def test_config_str_omits_tag_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.delenv("DD_PROFILING_MALLOC_TRIM_ENABLED", raising=False)
+        assert "malloctrim" not in config_str(ProfilingConfig())
 
 
 class TestNativeHeapActivator:

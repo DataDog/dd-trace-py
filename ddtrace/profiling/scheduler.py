@@ -1,7 +1,10 @@
+import ctypes
 import time
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Union
+from typing import cast
 
 import ddtrace
 from ddtrace.internal import periodic
@@ -13,6 +16,44 @@ from ddtrace.internal.settings.profiling import config
 
 
 LOG = get_logger(__name__)
+
+_UNSET: object = object()
+# Unset until first lookup; then a libc malloc_trim, or None if missing.
+_malloc_trim_fn: Union[Callable[[int], int], None, object] = _UNSET
+
+
+def _load_malloc_trim() -> Optional[Callable[[int], int]]:
+    """Resolve glibc malloc_trim, or None when the symbol is missing."""
+    try:
+        libc: ctypes.CDLL = ctypes.CDLL(None)
+        malloc_trim: Any = libc.malloc_trim
+    except (AttributeError, OSError):
+        return None
+    malloc_trim.argtypes = [ctypes.c_size_t]
+    malloc_trim.restype = ctypes.c_int
+    return cast(Callable[[int], int], malloc_trim)
+
+
+def _get_malloc_trim() -> Optional[Callable[[int], int]]:
+    global _malloc_trim_fn
+    if _malloc_trim_fn is _UNSET:
+        _malloc_trim_fn = _load_malloc_trim()
+    if _malloc_trim_fn is None:
+        return None
+    return _malloc_trim_fn  # type: ignore[return-value]
+
+
+def _maybe_malloc_trim() -> None:
+    """Return unused glibc heap pages after a profile upload (scheduler thread)."""
+    if not config.malloc_trim_enabled:
+        return
+    malloc_trim: Optional[Callable[[int], int]] = _get_malloc_trim()
+    if malloc_trim is None:
+        return
+    try:
+        malloc_trim(0)
+    except Exception:
+        LOG.debug("[profiling] malloc_trim failed", exc_info=True)
 
 
 class Scheduler(periodic.PeriodicService):
@@ -59,6 +100,10 @@ class Scheduler(periodic.PeriodicService):
             LOG.error("[profiling] Failed to upload profile", exc_info=True)
         finally:
             self._last_export = time.time_ns()
+            # After the upload, not during the request: encoding a profile
+            # leaves freed pages in glibc arenas. protobuf used to return
+            # those as a side effect; we only do it when the flag is on.
+            _maybe_malloc_trim()
 
     def periodic(self) -> None:
         start_time = time.monotonic()

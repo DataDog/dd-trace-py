@@ -350,6 +350,18 @@ class ProfilingConfig(DDConfig):
         ),
     )
 
+    malloc_trim_enabled = DDConfig.v(
+        bool,
+        "malloc_trim_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "After each profile upload, call glibc ``malloc_trim(0)`` on the profiler "
+            "scheduler thread so unused heap pages are returned to the OS. Linux/glibc "
+            "only. Off by default. This does not cap a single-request RSS burst."
+        ),
+    )
+
 
 class ProfilingConfigStack(DDConfig):
     __item__ = __prefix__ = "stack"
@@ -825,6 +837,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("pytorch")
     if config.exception.enabled:
         configured_features.append("exception")
+    if config.malloc_trim_enabled:
+        configured_features.append("malloctrim")
     configured_features.append("exp_dd")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))

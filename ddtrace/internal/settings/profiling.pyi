@@ -28,6 +28,7 @@ class ProfilingConfig(DDConfig):
     tags: dict[str, str]
     enable_asserts: bool
     sample_pool_capacity: int
+    malloc_trim_enabled: bool
     stack: ProfilingConfigStack
     lock: ProfilingConfigLock
     memory: ProfilingConfigMemory
