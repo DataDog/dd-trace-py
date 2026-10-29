@@ -1,0 +1,1083 @@
+"""Tests for import-only coverage mode (`_DD_COVERAGE_IMPORT_ONLY`).
+
+Import-only mode collects file-level coverage exclusively from import events:
+wrappers around `builtins.__import__` and `importlib.import_module` replace all
+code instrumentation (no sys.monitoring events, no bytecode rewriting). These tests
+encode the semantics validated by the import-only POC:
+
+- the motivating concern example: a module-level import attributed to both contexts,
+  a shared function-local import attributed to both (including the sys.modules cache
+  hit on the second execution), and per-function imports isolated to their context
+- import-time dependency closure expansion from the covered importing file
+- runtime-false guarded imports do not create dependency edges
+- site-packages paths are never recorded
+- modules imported via importlib.import_module (which bypasses builtins.__import__)
+  are still recorded when a coverage window is open
+"""
+
+import sys
+
+import pytest
+
+
+def test_import_only_anchor_discovery_is_cached_per_installation(tmp_path, mocker):
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from ddtrace.internal.coverage.import_only import ImportOnlyCoverage
+
+    package = tmp_path / "package"
+    package.mkdir()
+    test_file = package / "test_example.py"
+    test_file.touch()
+    (package / "__init__.py").touch()
+    (tmp_path / "conftest.py").touch()
+    mode = ImportOnlyCoverage(mocker.Mock())
+    first, second = [], []
+    mode.anchor_test_file(test_file, first.append)
+    assert {str(test_file), str(package / "__init__.py"), str(tmp_path / "conftest.py")} <= set(first)
+    with patch.object(Path, "is_file", side_effect=AssertionError("repeated filesystem check")):
+        with patch.object(Path, "resolve", side_effect=AssertionError("repeated path resolution")):
+            mode.anchor_test_file(test_file, second.append)
+    assert first == second
+
+    # A new installation must reconsider the filesystem, not inherit the cache.
+    (package / "conftest.py").touch()
+    fresh = []
+    ImportOnlyCoverage(mocker.Mock()).anchor_test_file(test_file, fresh.append)
+    assert str(package / "conftest.py") in fresh
+
+
+def test_import_only_ignores_invalid_test_files(tmp_path, mocker):
+    from ddtrace.internal.coverage.import_only import ImportOnlyCoverage
+
+    mode = ImportOnlyCoverage(mocker.Mock())
+    anchors = []
+    for path in (None, mocker.Mock(), tmp_path, tmp_path / "missing.py", "bad\0path"):
+        mode.anchor_test_file(path, anchors.append)
+    assert anchors == []
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_concern_example():
+    """The motivating concern example, with per-context attribution."""
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.io_test_module import io_test_x
+    from tests.coverage.included_path.io_test_module import io_test_z
+
+    with ModuleCodeCollector.CollectInContext() as context_z:
+        io_test_z()
+        covered_z = _get_relpath_dict(cwd_path, context_z.get_covered_lines())
+
+    with ModuleCodeCollector.CollectInContext() as context_x:
+        io_test_x()
+        covered_x = _get_relpath_dict(cwd_path, context_x.get_covered_lines())
+
+    expected_common = {
+        "tests/coverage/included_path/io_test_module.py",
+        "tests/coverage/included_path/io_mod_abc.py",
+        "tests/coverage/included_path/io_mod_xyz.py",
+    }
+    # Module-level import (io_mod_abc) and the shared function-local import
+    # (io_mod_xyz, a cache hit on the second execution) are attributed to both.
+    assert expected_common <= set(covered_z), "test_z missing expected files: %s" % (expected_common - set(covered_z))
+    assert expected_common <= set(covered_x), "test_x missing expected files: %s" % (expected_common - set(covered_x))
+    # Per-function imports are isolated to their own context.
+    assert "tests/coverage/included_path/io_mod_edf.py" in covered_z
+    assert "tests/coverage/included_path/io_mod_edf.py" not in covered_x
+    assert "tests/coverage/included_path/io_mod_hjk.py" in covered_x
+    assert "tests/coverage/included_path/io_mod_hjk.py" not in covered_z
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_global_window_and_importlib():
+    """Modules imported during a coverage window are covered, even via importlib."""
+    import importlib
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    ModuleCodeCollector.start_coverage()
+    importlib.import_module("tests.coverage.included_path.io_mod_hjk")
+    from tests.coverage.included_path.io_test_module import io_test_z  # noqa: F401
+
+    io_test_z()
+    ModuleCodeCollector.stop_coverage()
+
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True))
+
+    # importlib.import_module has a separate wrapper because it bypasses __import__.
+    assert "tests/coverage/included_path/io_mod_hjk.py" in covered
+    # The import statement in io_test_z's body records the caller (executable-lines
+    # sentinel, closure root) and the imported files.
+    assert "tests/coverage/included_path/io_test_module.py" in covered
+    assert "tests/coverage/included_path/io_mod_abc.py" in covered
+    assert "tests/coverage/included_path/io_mod_edf.py" in covered
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_false_guarded_import_not_tracked():
+    """Runtime-false import statements do not create dependency edges.
+
+    Note: io_guarded_caller() executes no import statement, so the context attributes
+    nothing to it — that is the import-only semantic (execution without an import
+    statement is not observable). The guarded-import guarantee is checked on the
+    dependency graph itself.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.io_guarded_import import io_guarded_caller
+
+    # No import statement executes in this window: nothing is attributed.
+    with ModuleCodeCollector.CollectInContext() as context:
+        io_guarded_caller()
+        covered = _get_relpath_dict(cwd_path, context.get_covered_lines())
+
+    assert covered == {}, "a context whose code executes no import statement records nothing"
+
+    collector = ModuleCodeCollector._instance
+    guarded_path = str(Path(cwd_path + "/tests/coverage/included_path/io_guarded_import.py"))
+
+    # The runtime-false guarded import did not create a dependency edge.
+    guarded_names = {
+        name for _package, modules in collector._import_names_by_path.get(guarded_path, set()) for name in modules
+    }
+    assert any("io_mod_xyz" in name for name in guarded_names), "the unguarded import edge must be recorded"
+    assert not any("io_mod_edf" in name for name in guarded_names), "the guarded import edge must not exist"
+
+    # And the import-time closure of the guarded module reflects the same.
+    closure = collector._get_import_time_dependency_paths(guarded_path)
+    assert guarded_path in closure
+    assert any("io_mod_xyz" in path for path in closure)
+    assert not any("io_mod_edf" in path for path in closure)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1", "PACKAGES_DIRNAME": "site-packages"})
+def test_import_only_site_packages_paths_are_not_recorded():
+    """Files under site-packages/dist-packages inside the workspace are never recorded."""
+    import importlib
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+    import uuid
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    module_suffix = uuid.uuid4().hex
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Resolve the tmpdir: on macOS the import machinery realpaths module
+        # co_filenames (/var/folders -> /private/var/...), so an unresolved include
+        # path never matches and nothing is recorded.
+        workspace_path = Path(tmpdir).resolve()
+        packages_dirname = os.environ["PACKAGES_DIRNAME"]
+        app_module_name = f"app_module_{module_suffix}"
+        vendor_module_name = f"vendor_module_{module_suffix}"
+        app_module_path = workspace_path / f"{app_module_name}.py"
+        packages_path = workspace_path / "nested" / packages_dirname
+        vendor_module_path = packages_path / f"{vendor_module_name}.py"
+
+        app_module_path.write_text("from %s import value\nvalue = value + 1\n" % vendor_module_name)
+        packages_path.mkdir(parents=True)
+        vendor_module_path.write_text("value = 1\n")
+
+        sys.path.insert(0, str(packages_path))
+        sys.path.insert(0, str(workspace_path))
+        try:
+            install(include_paths=[workspace_path], collect_import_time_coverage=True)
+
+            ModuleCodeCollector.start_coverage()
+            importlib.import_module(app_module_name)
+            ModuleCodeCollector.stop_coverage()
+        finally:
+            sys.path.remove(str(workspace_path))
+            sys.path.remove(str(packages_path))
+
+        app_module_path_str = os.path.realpath(app_module_path)
+        vendor_module_path_str = os.path.realpath(vendor_module_path)
+        collector = ModuleCodeCollector._instance
+        assert collector is not None
+
+        assert app_module_path_str in collector.lines
+        assert app_module_path_str in collector._get_covered_lines(include_imported=True)
+        assert vendor_module_path_str not in collector.lines
+        assert vendor_module_path_str not in collector._get_covered_lines(include_imported=True)
+        assert vendor_module_path_str not in collector._import_time_name_to_path.values()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_anchor_attributes_test_file_closure():
+    """Anchoring a test file attributes it plus its import-time closure, with no
+    import statement executing inside the coverage window.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.installer import install
+    from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.io_test_module import io_test_z  # noqa: F401
+
+    anchor = Path(cwd_path + "/tests/coverage/included_path/io_test_module.py")
+    with coverage_collection(test_file=anchor) as coverage_data:
+        # Execute nothing: the anchor alone must attribute the file and its closure.
+        pass
+
+    covered = {
+        str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths if str(p).startswith(cwd_path)
+    }
+    assert "tests/coverage/included_path/io_test_module.py" in covered
+    assert "tests/coverage/included_path/io_mod_abc.py" in covered, "module-level import closure"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_session_level_import_edges_expand_from_anchor():
+    """Import statements executed outside any coverage window (session-level lazy
+    imports) still become import-time edges, so anchored closures expand them.
+    """
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.installer import install
+    from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+
+    from tests.coverage.included_path.io_session_import import io_session_importer
+
+    # Session-level import: executes the lazy import OUTSIDE any coverage window.
+    assert io_session_importer() == 10
+
+    anchor = Path(cwd_path + "/tests/coverage/included_path/io_session_import.py")
+    with coverage_collection(test_file=anchor) as coverage_data:
+        pass
+
+    covered = {
+        str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths if str(p).startswith(cwd_path)
+    }
+    assert "tests/coverage/included_path/io_session_import.py" in covered
+    assert "tests/coverage/included_path/io_mod_hjk.py" in covered, (
+        "the out-of-window lazy import edge must expand from the anchor"
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Test requires Python 3.9+")
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_uninstall_restores_import():
+    """Uninstalling the collector restores builtins.__import__."""
+    import builtins
+    import os
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+
+    original_import = builtins.__import__
+    install(include_paths=[include_path], collect_import_time_coverage=True)
+    assert builtins.__import__ is not original_import
+
+    ModuleCodeCollector.uninstall()
+    assert builtins.__import__ is original_import
+
+    # Imports still work after uninstall.
+    import json  # noqa: F401
+
+
+@pytest.mark.subprocess()
+def test_import_only_hooks_survive_other_wrappers_and_reinstallation():
+    import builtins
+    import importlib
+    from types import SimpleNamespace
+
+    from ddtrace.internal.coverage.import_only import install_import_hook
+    from ddtrace.internal.coverage.import_only import uninstall_import_hook
+
+    original_import = builtins.__import__
+    original_import_module = importlib.import_module
+    events = []
+    collector = SimpleNamespace(record_import_file=events.append, record_import_edge=lambda *args: None)
+    install_import_hook(collector, lambda path: True)
+    captured_import = builtins.__import__
+    captured_import_module = importlib.import_module
+
+    def outer_import(*args, **kwargs):
+        return captured_import(*args, **kwargs)
+
+    def outer_import_module(*args, **kwargs):
+        return captured_import_module(*args, **kwargs)
+
+    builtins.__import__ = outer_import
+    importlib.import_module = outer_import_module
+    try:
+        uninstall_import_hook()
+        events.clear()
+        assert builtins.__import__("json") is importlib.import_module("json")
+        assert events == [], "uninstalled hooks retained by another wrapper must be inert"
+
+        install_import_hook(collector, lambda path: True)
+        assert builtins.__import__("json") is importlib.import_module("json")
+        assert events, "the new installation must record imports without recursing into itself"
+        uninstall_import_hook()
+        assert builtins.__import__ is outer_import
+        assert importlib.import_module is outer_import_module
+        events.clear()
+        assert builtins.__import__("json") is importlib.import_module("json")
+        assert events == []
+    finally:
+        builtins.__import__ = original_import
+        importlib.import_module = original_import_module
+        uninstall_import_hook()
+
+
+@pytest.mark.subprocess()
+def test_import_only_cached_names_read_current_modules_and_paths():
+    import importlib
+    import sys
+    from types import ModuleType
+    from types import SimpleNamespace
+
+    from ddtrace.internal.coverage.import_only import _module_name_prefixes
+    from ddtrace.internal.coverage.import_only import install_import_hook
+    from ddtrace.internal.coverage.import_only import uninstall_import_hook
+
+    package = ModuleType("io_cached_package")
+    package.__file__ = "/workspace/io_cached_package/__init__.py"
+    package.__path__ = []
+    original = ModuleType("io_cached_package.leaf")
+    original.__file__ = "/workspace/original.py"
+    replacement = ModuleType("io_cached_package.leaf")
+    replacement.__file__ = "/workspace/replacement.py"
+    sys.modules[package.__name__] = package
+    sys.modules[original.__name__] = original
+    package.leaf = original
+    paths = set()
+    collector = SimpleNamespace(record_import_file=paths.add, record_import_edge=lambda *args: None)
+    install_import_hook(collector, lambda path: path.startswith("/workspace/"))
+    try:
+        assert importlib.import_module(original.__name__) is original
+        assert paths == {package.__file__, original.__file__}
+
+        sys.modules[original.__name__] = replacement
+        package.leaf = replacement
+        paths.clear()
+        assert importlib.import_module(original.__name__) is replacement
+        assert paths == {package.__file__, replacement.__file__}
+
+        # A retained module can also acquire a new file, as with a custom loader.
+        replacement.__file__ = "/workspace/relocated.py"
+        paths.clear()
+        assert importlib.import_module(original.__name__) is replacement
+        assert paths == {package.__file__, replacement.__file__}
+        assert _module_name_prefixes.cache_info().hits >= 2
+    finally:
+        uninstall_import_hook()
+        sys.modules.pop(original.__name__)
+        sys.modules.pop(package.__name__)
+    assert _module_name_prefixes.cache_info().currsize == 0
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_preloaded_package_relative_imports():
+    import importlib
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        package = root / "io_preloaded"
+        package.mkdir()
+        # Reading bytes lets ast.parse honor the same source encoding as Python.
+        (package / "__init__.py").write_bytes(b"# coding: latin-1\nfrom . import module_\xe9\n")
+        (package / "module_\u00e9.py").write_text("from . import leaf\n")
+        (package / "leaf.py").write_text("value = 1\n")
+        sys.path.insert(0, str(root))
+        importlib.import_module("io_preloaded")
+        ModuleCodeCollector.install(include_paths=[root])
+        with ModuleCodeCollector.CollectInContext() as context:
+            context.anchor_file(str(package / "__init__.py"))
+        assert set(context.get_covered_file_paths()) == {
+            str(package / "__init__.py"),
+            str(package / "module_\u00e9.py"),
+            str(package / "leaf.py"),
+        }
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_absolute_import_does_not_resolve_package_shadow():
+    import importlib
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        package = root / "io_outer"
+        target = root / "io_target"
+        package.mkdir()
+        target.mkdir()
+        (package / "__init__.py").write_text("")
+        (package / "io_target.py").write_text("value = 'shadow'\n")
+        (package / "caller.py").write_text("import io_target.leaf\n")
+        (target / "__init__.py").write_text("from . import dependency\n")
+        (target / "leaf.py").write_text("value = 1\n")
+        (target / "dependency.py").write_text("value = 2\n")
+        sys.path.insert(0, str(root))
+        ModuleCodeCollector.install(include_paths=[root])
+        importlib.import_module("io_outer.io_target")
+        importlib.import_module("io_outer.caller")
+        with ModuleCodeCollector.CollectInContext() as context:
+            context.anchor_file(str(package / "caller.py"))
+        covered = context.get_covered_file_paths()
+        assert str(package / "io_target.py") not in covered
+        assert {str(target / filename) for filename in ("__init__.py", "leaf.py", "dependency.py")} <= covered
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_expired_context_does_not_publish_session_edges():
+    from contextvars import copy_context
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    root = Path.cwd() / "tests/coverage/included_path"
+    ModuleCodeCollector.install(include_paths=[root])
+    from tests.coverage.included_path.io_session_import import io_session_importer
+
+    with ModuleCodeCollector.CollectInContext():
+        expired = copy_context()
+    expired.run(io_session_importer)
+    with ModuleCodeCollector.CollectInContext() as context:
+        context.anchor_file(str(root / "io_session_import.py"))
+    assert str(root / "io_mod_hjk.py") not in context.get_covered_file_paths()
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_captured_importlib_first_load_is_covered():
+    from importlib import import_module
+    from pathlib import Path
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    root = Path.cwd() / "tests/coverage/included_path"
+    ModuleCodeCollector.install(include_paths=[root])
+    with ModuleCodeCollector.CollectInContext() as context:
+        import_module("tests.coverage.included_path.io_mod_hjk")
+    assert str(root / "io_mod_hjk.py") in context.get_covered_file_paths()
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_overlapping_roots_expand_context_edges_and_cycles():
+    import importlib
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        (root / "io_root.py").write_text("import io_shared\n")
+        (root / "io_shared.py").write_text("def load():\n    import io_dynamic\n")
+        (root / "io_dynamic.py").write_text("import io_root\nimport io_leaf\n")
+        (root / "io_leaf.py").write_text("value = 1\n")
+        sys.path.insert(0, str(root))
+        ModuleCodeCollector.install(include_paths=[root])
+        module = importlib.import_module("io_root")
+        with ModuleCodeCollector.CollectInContext() as context:
+            context.anchor_file(str(root / "io_root.py"))
+            context.anchor_file(str(root / "io_shared.py"))
+            module.io_shared.load()
+        expected = {str(root / f"{name}.py") for name in ("io_root", "io_shared", "io_dynamic", "io_leaf")}
+        assert context.get_covered_file_paths() == expected
+        assert set(context.get_covered_lines()) == expected
+        with ModuleCodeCollector.CollectInContext() as unrelated:
+            unrelated.anchor_file(str(root / "io_root.py"))
+        assert unrelated.get_covered_file_paths() == {str(root / "io_root.py"), str(root / "io_shared.py")}
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_new_module_alias_invalidates_cached_resolution():
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    collector = ModuleCodeCollector()
+    module_path = "/workspace/already_loaded.py"
+    collector._record_import_time_sentinel(module_path)
+    collector._register_import_time_name("already_loaded", module_path)
+    dependency = ("", ("new_alias",))
+    assert collector._get_dependency_paths_for_import_name(dependency) == frozenset()
+    # Backfill can discover an alias without adding a new file or import edge.
+    collector._register_import_time_name("new_alias", module_path)
+    assert collector._get_dependency_paths_for_import_name(dependency) == frozenset({module_path})
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_runtime_edges_preserve_shared_caches():
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    collector = ModuleCodeCollector()
+    collector._collect_import_coverage = True
+    mode = collector._mode
+    root, shared, dynamic = (f"/workspace/{name}.py" for name in ("root", "shared", "dynamic"))
+    for name, path in (("root", root), ("shared", shared), ("dynamic", dynamic)):
+        collector._record_import_time_sentinel(path)
+        collector._register_import_time_name(name, path)
+    shared_edge = ("", ("shared",))
+    dynamic_edge = ("", ("dynamic",))
+    mode.record_import_edge(root, shared_edge)
+    static_paths = mode.static_dependency_paths(root)
+    resolved_paths = collector._get_dependency_paths_for_import_name(shared_edge)
+    assert collector._get_covered_file_paths_with_imports({root}) == {root, shared}
+
+    with ModuleCodeCollector.CollectInContext() as context:
+        mode.record_import_edge(root, dynamic_edge)
+        assert mode.expand_context_files({root}, context._import_names) == {root, shared, dynamic}
+    assert mode.expand_context_files({root}, {}) == {root, shared}
+    # Global reporting must see new edges, without evicting the shared graph or
+    # repeating name resolution for every distinct test-local import.
+    assert collector._get_covered_file_paths_with_imports({root}) == {root, shared, dynamic}
+    assert mode.static_dependency_paths(root) is static_paths
+    assert collector._get_dependency_paths_for_import_name(shared_edge) is resolved_paths
+
+    # The same edge can later become shared. It is already in the global graph,
+    # but the shared closure still needs invalidating.
+    mode.record_import_edge(root, dynamic_edge)
+    assert mode.expand_context_files({root}, {}) == {root, shared, dynamic}
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_late_module_metadata_invalidates_shared_closures():
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    collector = ModuleCodeCollector()
+    collector._collect_import_coverage = True
+    mode = collector._mode
+    root, dependency = "/workspace/root.py", "/workspace/dependency.py"
+    collector._record_import_time_sentinel(root)
+    mode.record_import_edge(root, ("", ("dependency",)))
+    assert mode.expand_context_files({root}, {}) == {root}
+
+    # Registering a name before its module finishes must not cache an incomplete
+    # closure beyond the point where the file becomes traversable.
+    collector._register_import_time_name("dependency", dependency)
+    assert mode.expand_context_files({root}, {}) == {root}
+    collector._record_import_time_sentinel(dependency)
+    assert mode.expand_context_files({root}, {}) == {root, dependency}
+
+    alias_root = "/workspace/alias_root.py"
+    collector._record_import_time_sentinel(alias_root)
+    mode.record_import_edge(alias_root, ("", ("late_alias",)))
+    assert mode.expand_context_files({alias_root}, {}) == {alias_root}
+    collector._register_import_time_name("late_alias", dependency)
+    assert mode.expand_context_files({alias_root}, {}) == {alias_root, dependency}
+
+
+@pytest.mark.subprocess()
+def test_import_only_excluded_paths_are_classified_once():
+    from collections import Counter
+    import os
+    import sys
+    from types import ModuleType
+    from types import SimpleNamespace
+
+    from ddtrace.internal.coverage.import_only import _ImportHook
+
+    module = ModuleType("io_excluded_cached")
+    module.__file__ = "/vendor/io_excluded_cached.py"
+    sys.modules[module.__name__] = module
+    caller = {"__file__": "/vendor/caller.py"}
+    checks = Counter()
+    events = []
+
+    def should_track(path):
+        checks[path] += 1
+        return False
+
+    sink = SimpleNamespace(record_import_file=events.append, record_import_edge=lambda *args: events.append(args))
+    hook = _ImportHook(sink, should_track)
+    try:
+        for _ in range(10):
+            assert hook.import_name(module.__name__, caller) is module
+        assert events == []
+        assert checks == {os.path.realpath(caller["__file__"]): 1, os.path.realpath(module.__file__): 1}
+
+        # Exclusions belong to an installation; a new include configuration must
+        # reconsider the same raw path instead of inheriting a negative result.
+        new_hook = _ImportHook(sink, lambda path: path == os.path.realpath(module.__file__))
+        new_hook.import_name(module.__name__, caller)
+        assert events == [os.path.realpath(module.__file__)]
+    finally:
+        sys.modules.pop(module.__name__)
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_import_only_external_loader_records_first_and_cached_workspace_imports():
+    import importlib
+    from pathlib import Path
+    import sys
+    from tempfile import TemporaryDirectory
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        workspace = root / "workspace"
+        vendor = root / "site-packages"
+        workspace.mkdir()
+        vendor.mkdir()
+        (workspace / "io_external_leaf.py").write_text("value = 42\n")
+        (workspace / "io_mixed_leaf.py").write_text("value = 43\n")
+        package = vendor / "io_mixed_package"
+        package.mkdir()
+        (package / "__init__.py").write_text(f"__path__.append({str(workspace)!r})\n")
+        (vendor / "io_external_loader.py").write_text(
+            "import importlib\n"
+            "def statement():\n    import io_external_leaf\n    return io_external_leaf.value\n"
+            "def fromlist():\n    from io_external_leaf import value\n    return value\n"
+            "def dynamic():\n    return importlib.import_module('io_external_leaf').value\n"
+            "def mixed_statement():\n"
+            "    import io_mixed_package.io_mixed_leaf\n"
+            "    return io_mixed_package.io_mixed_leaf.value\n"
+            "def mixed_fromlist():\n"
+            "    from io_mixed_package import io_mixed_leaf\n"
+            "    return io_mixed_leaf.value\n"
+        )
+        sys.path[:0] = [str(workspace), str(vendor)]
+        loader = importlib.import_module("io_external_loader")
+        ModuleCodeCollector.install(include_paths=[root])
+        try:
+            for load in (loader.statement, loader.fromlist, loader.dynamic):
+                for _ in range(2):
+                    with ModuleCodeCollector.CollectInContext() as context:
+                        assert load() == 42
+                    assert context.get_covered_file_paths() == {str(workspace / "io_external_leaf.py")}
+            for load in (loader.mixed_statement, loader.mixed_fromlist):
+                for _ in range(2):
+                    with ModuleCodeCollector.CollectInContext() as context:
+                        assert load() == 43
+                    assert context.get_covered_file_paths() == {str(workspace / "io_mixed_leaf.py")}
+        finally:
+            ModuleCodeCollector.uninstall()
+
+
+@pytest.mark.subprocess()
+def test_import_only_excluded_targets_are_rechecked_after_module_changes():
+    import importlib
+    import sys
+    from types import ModuleType
+    from types import SimpleNamespace
+
+    from ddtrace.internal.coverage.import_only import install_import_hook
+    from ddtrace.internal.coverage.import_only import uninstall_import_hook
+
+    package = ModuleType("io_mixed_cached")
+    package.__file__ = "/vendor/io_mixed_cached/__init__.py"
+    package.__path__ = []
+    leaf = ModuleType("io_mixed_cached.leaf")
+    leaf.__file__ = "/vendor/leaf.py"
+    package.leaf = leaf
+    sys.modules[package.__name__] = package
+    sys.modules[leaf.__name__] = leaf
+    paths = set()
+    sink = SimpleNamespace(record_import_file=paths.add, record_import_edge=lambda *args: None)
+    install_import_hook(sink, lambda path: path.startswith("/workspace/"))
+    try:
+        importlib.import_module(leaf.__name__)
+        assert paths == set()
+
+        # The leaf remains excluded, but a workspace parent is still covered.
+        package.__file__ = "/workspace/package/__init__.py"
+        importlib.import_module(leaf.__name__)
+        assert paths == {package.__file__}
+
+        package.__file__ = "/vendor/io_mixed_cached/__init__.py"
+        replacement = ModuleType(leaf.__name__)
+        replacement.__file__ = "/workspace/replacement.py"
+        sys.modules[leaf.__name__] = replacement
+        package.leaf = replacement
+        paths.clear()
+        importlib.import_module(leaf.__name__)
+        assert paths == {replacement.__file__}
+    finally:
+        uninstall_import_hook()
+        sys.modules.pop(leaf.__name__)
+        sys.modules.pop(package.__name__)
+
+
+# ---------------------------------------------------------------------------
+# Blind-spot regression tests: each test demonstrates a known scenario where
+# import-only mode misses a workspace file that instrumented coverage would
+# report. If a blind spot is fixed, the corresponding test will need updating.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1", "_DD_COVERAGE_IMPORT_ONLY_CONSERVATIVE": "1"})
+def test_blindspot_callback_execution_without_import():
+    """BLIND SPOT 1: code executed through a registry/callback, not an import.
+
+    A function from workspace file B is registered in a registry by file A during
+    collection. File B is imported by A, but A is not the test file or its conftest.
+    During the test, the function from B is called through the registry without any
+    import statement executing in the test window. File B's code runs but B never
+    appears in the test's import-only coverage — the module is already in sys.modules
+    (imported during collection), the call goes through the registry, and the test's
+    import-time closure (test file + package __init__ + conftest) doesn't include B.
+
+    Instrumented coverage would report B because its code object starts (PY_START).
+    Import-only mode cannot see it because no import statement fires.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # registry.py: holds callbacks
+        (ws / "bs_registry.py").write_text("handlers = {}\n")
+        # bs_handler.py: defines a function and registers it
+        (ws / "bs_handler.py").write_text(
+            "import bs_registry\n\n"
+            "def compute(value):\n"
+            "    return value * 2\n\n"
+            "bs_registry.handlers['compute'] = compute\n"
+        )
+        # bs_loader.py: imports bs_handler during collection (not from the test file)
+        # This simulates another test module or a plugin importing the handler.
+        (ws / "bs_loader.py").write_text("import bs_handler\n")
+        # The test file: calls the handler through the registry, never imports bs_handler
+        (ws / "bs_test_runner.py").write_text(
+            "import bs_registry\n\ndef run():\n    handler = bs_registry.handlers['compute']\n    return handler(21)\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            # Install collector, then import bs_loader (simulating collection of
+            # another module that imports the handler). The handler gets registered.
+            install(include_paths=[ws], collect_import_time_coverage=True)
+            import bs_loader  # noqa: F401  (registers the handler)
+
+            # Enter a test context and call through the registry. No import of
+            # bs_handler fires — the call goes through the stored function object.
+            import bs_test_runner
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                result = bs_test_runner.run()
+                assert result == 42
+                covered = ctx.get_covered_file_paths()
+
+            # bs_handler.py IS in the test's coverage: the workspace-roots mechanism
+            # adds all pre-imported workspace modules as closure roots for every test.
+            # This is more conservative than PY_START (the handler's code may not have
+            # actually executed in this specific test), but it guarantees the file is
+            # never missed when a callback/registry pattern calls it.
+            handler_path = os.path.realpath(str(ws / "bs_handler.py"))
+            assert handler_path in covered, (
+                "FIXED: workspace roots attribute pre-imported modules to all tests; "
+                "handler should be covered even though no import fired in the test window"
+            )
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_pre_installation_importlib_alias():
+    """BLIND SPOT 2: importlib.import_module alias captured before installation.
+
+    A reference to importlib.import_module is saved BEFORE the collector installs.
+    Calls through this alias bypass the wrapper (the wrapper replaces the module
+    attribute, but the saved reference points to the original function). The module
+    IS loaded (the watchdog sees the first load, so it becomes a traversable node),
+    but no caller edge is recorded — the test's import-time closure doesn't include
+    the dynamically imported module.
+
+    Instrumented coverage would see the module's code executing (PY_START). The
+    watchdog records the module file in _import_time_covered, but without a caller
+    edge the module is unreachable from the test's closure.
+    """
+    import importlib
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    # Capture the alias BEFORE the collector installs the wrapper.
+    _saved_import_module = importlib.import_module
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        (ws / "bs_alias_target.py").write_text("value = 99\n\n\ndef get():\n    return value\n")
+        # The test runner uses the SAVED alias (not the wrapper)
+        (ws / "bs_alias_runner.py").write_text(
+            "def run(import_module_fn):\n    mod = import_module_fn('bs_alias_target')\n    return mod.get()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            import bs_alias_runner
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                result = bs_alias_runner.run(_saved_import_module)
+                assert result == 99
+                covered = ctx.get_covered_file_paths()
+
+            # The module file IS covered: the watchdog's after_import fires during
+            # the test window and record_import_file attributes it to the test
+            # context. The blind spot is the missing caller EDGE (no import-time
+            # dependency recorded), which means the module's own dependencies
+            # are unreachable from the test's closure. The file itself is safe.
+            target_path = os.path.realpath(str(ws / "bs_alias_target.py"))
+            assert target_path in covered, (
+                "NOT a blind spot for the module file: the watchdog's after_import "
+                "covers it during the test window even when the alias bypasses the "
+                "wrapper. The caller edge is still missing (import-time deps of the "
+                "module are unreachable), but the module file itself is attributed."
+            )
+            # However, the import-time dependency graph doesn't have an edge from
+            # the test runner to this module, so modules that bs_alias_target imports
+            # at module level would NOT be in the test's closure expansion. This is
+            # a second-order blind spot (the first-order file is covered).
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_conditional_import_in_backfill():
+    """BLIND SPOT 3: conditional import in a pre-installed module not backfilled.
+
+    A module is imported BEFORE the collector installs. It contains an `if/else`
+    import (e.g., platform-dependent). Backfill only reads unconditional top-level
+    imports; the conditional branch is skipped. During the test, the conditionally
+    imported module's function is called (through the already-imported module's
+    namespace). The conditionally imported file's code executes but never appears
+    in the test's coverage.
+
+    Instrumented coverage would see the function's code object start (PY_START).
+    Import-only mode misses it because the edge was in a conditional statement that
+    backfill deliberately skips (recording all AST imports would over-attribute
+    branches that never ran).
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    # This module has a conditional import; it will be imported BEFORE install
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # bs_conditional_host.py: conditionally imports bs_conditional_dep
+        (ws / "bs_conditional_host.py").write_text(
+            "if True:\n    from bs_conditional_dep import helper_fn\nelse:\n    helper_fn = None\n"
+        )
+        # bs_conditional_dep.py: the file that gets missed
+        (ws / "bs_conditional_dep.py").write_text("def helper_fn():\n    return 123\n")
+        # Test runner calls the conditionally imported function
+        (ws / "bs_conditional_runner.py").write_text(
+            "import bs_conditional_host\n\ndef run():\n    return bs_conditional_host.helper_fn()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            # Import the host BEFORE installing the collector
+            import bs_conditional_host  # noqa: F401
+
+            from ddtrace.internal.coverage.installer import install
+            from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            import bs_conditional_runner
+
+            with coverage_collection(test_file=ws / "bs_conditional_runner.py") as cov:
+                result = bs_conditional_runner.run()
+                assert result == 123
+            covered = cov._covered_file_paths
+
+            # The conditional import IS backfilled: the full AST is parsed (including
+            # the `if` block), and bs_conditional_dep is in sys.modules (the branch
+            # was taken at import time), so the edge is confirmed and recorded.
+            dep_path = os.path.realpath(str(ws / "bs_conditional_dep.py"))
+            assert dep_path in covered, (
+                "FIXED: conditionally imported dep should be backfilled (AST walk + sys.modules verification)"
+            )
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_exec_loaded_module():
+    """BLIND SPOT 4 (variant of 2): module loaded through exec(), not import machinery.
+
+    Code loaded through exec() with custom globals never passes through the import
+    machinery. The module watchdog doesn't see it (no exec/compile audit hook fires
+    for this path), the import wrappers don't see it (no import statement executes),
+    and backfill doesn't see it (not in sys.modules). The file's code executes during
+    the test but is completely invisible to import-only mode.
+
+    Instrumented coverage would see it only if the code object is instrumented
+    (via the exec audit hook), which fires for code objects loaded through exec.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # bs_exec_code.py: source that will be exec'd (never imported)
+        (ws / "bs_exec_code.py").write_text("def exec_computed():\n    return 777\n")
+        # Test runner execs the source and calls the function
+        (ws / "bs_exec_runner.py").write_text(
+            "def run(source_path):\n"
+            "    source = open(source_path).read()\n"
+            "    namespace = {}\n"
+            "    exec(source, namespace)\n"
+            "    return namespace['exec_computed']()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            import bs_exec_runner
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                result = bs_exec_runner.run(str(ws / "bs_exec_code.py"))
+                assert result == 777
+                covered = ctx.get_covered_file_paths()
+
+            # bs_exec_code.py is missing: exec() doesn't go through import machinery,
+            # so neither the wrapper nor the watchdog sees the file. The function
+            # runs inside the test context but the file is completely invisible.
+            exec_path = os.path.realpath(str(ws / "bs_exec_code.py"))
+            assert exec_path not in covered, (
+                "BLIND SPOT: module loaded via exec(); expected it to be MISSING from import-only coverage"
+            )
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_fixture_lazy_import_from_unanchored_conftest():
+    """BLIND SPOT 5: lazy import inside a conftest fixture function body.
+
+    A conftest fixture lazily imports a workspace module inside the fixture function
+    (not at module level). The import DOES fire during the test window (the wrapper
+    sees it), but the caller is the conftest, and the test's import-time closure
+    includes the conftest — so this case should actually be COVERED.
+
+    This test verifies the POSITIVE case: the fixture's lazy import IS attributed
+    because the conftest is anchored and the import fires during the test window
+    (caller = conftest, which is in the anchor's closure, so the edge routes to
+    the test context via the conftest file being anchored).
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.installer import install
+    from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # A helper module that the fixture lazily imports
+        (ws / "bs_fixture_helper.py").write_text("value = 'from_helper'\n\n\ndef get():\n    return value\n")
+        # Test file that uses the helper (imported inside the test function body)
+        test_file = ws / "bs_fixture_test.py"
+        test_file.write_text("def test_lazy(bs_fixture_helper):\n    assert bs_fixture_helper.get() == 'from_helper'\n")
+        # Conftest with a fixture that lazily imports the helper
+        (ws / "conftest.py").write_text(
+            "import pytest\n\n\n"
+            "@pytest.fixture\n"
+            "def bs_fixture_helper():\n"
+            "    from bs_fixture_helper import get\n"
+            "    return type('M', (), {'get': staticmethod(get)})()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            # The conftest's lazy import fires during the test (fixture invocation).
+            # The caller is conftest.py; the conftest is in the anchor chain.
+            # The wrapper should record the caller edge AND the target file.
+            with coverage_collection(test_file=test_file) as cov:
+                import bs_fixture_helper
+
+                bs_fixture_helper.get()
+
+            # _covered_file_paths is set when coverage_collection exits
+            covered = cov._covered_file_paths
+            helper_path = os.path.realpath(str(ws / "bs_fixture_helper.py"))
+            # This should PASS (not a blind spot — the import fires during the
+            # test window and the caller (conftest) is in the anchor chain):
+            assert helper_path in covered, (
+                "EXPECTED COVERAGE: lazy import in fixture during test window "
+                "with conftest in anchor chain; file should be covered"
+            )
+        finally:
+            sys.path.remove(str(ws))
