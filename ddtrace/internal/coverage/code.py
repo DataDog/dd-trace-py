@@ -18,6 +18,7 @@ from ddtrace.internal.coverage.context_state import ctx_collectors
 from ddtrace.internal.coverage.context_state import ctx_coverage_enabled
 from ddtrace.internal.coverage.context_state import ctx_is_import_coverage  # noqa: F401
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.import_only import ImportOnlyCoverage
 from ddtrace.internal.coverage.instrumented_mode import InstrumentedCoverage
 from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
@@ -25,6 +26,7 @@ from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
+from ddtrace.internal.coverage.util import is_import_only_coverage_enabled
 from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -68,7 +70,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._file_level_coverage: bool = False
         # The mode is decided once, at construction, and the collector delegates
         # every mode-specific decision to it (see mode.py for the contract).
-        self._mode: CoverageMode = InstrumentedCoverage(t.cast("CollectorContract", self))
+        self._mode: CoverageMode = (
+            ImportOnlyCoverage(t.cast("CollectorContract", self))
+            if is_import_only_coverage_enabled()
+            else InstrumentedCoverage(t.cast("CollectorContract", self))
+        )
 
         # Data structures for coverage data
         self.lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
@@ -126,6 +132,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             is_file_level_coverage_enabled() if file_level_coverage is None else file_level_coverage
         )
 
+        if cls._instance._mode.is_import_only:
+            cls._instance._file_level_coverage = True
+            cls._instance._collect_import_coverage = True
         cls._instance._mode.install()
 
         if cls._instance._collect_import_coverage:
@@ -489,6 +498,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             if global_instance := ModuleCodeCollector._instance:
                 return global_instance._mode.expand_context_files(covered_file_paths, self._import_names)
             return covered_file_paths
+
+    @classmethod
+    def import_only_enabled(cls):
+        return cls._instance is not None and cls._instance._mode.is_import_only
 
     @classmethod
     def file_level_coverage_enabled(cls):
