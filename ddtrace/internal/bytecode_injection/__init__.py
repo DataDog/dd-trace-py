@@ -156,20 +156,37 @@ if is_at_least_py(3, 15):
 
         return failed
 
-    def migrate_line_hooks(src: CodeType, dst: CodeType) -> None:
+    def migrate_line_hooks(src: CodeType, dst: CodeType, *, copy: bool = False) -> None:
         """Move line-hook registration from *src* to *dst*.
 
         Wrapping on 3.15 clones the function's code object; line probes installed
-        on the pre-wrap code must follow the clone or they stop firing.
+        on the pre-wrap code must follow the clone or they stop firing. Preserve
+        existing destination probes when restoring shared code. With copy=True,
+        keep independent registrations on both codes for copied functions.
         """
         with _line_hook_lock:
             handler: _LineHookHandler | None = _line_hook_registry.get(src)
             if handler is None:
                 return
-            del _line_hook_registry[src]
-            _monitoring.unregister(src, handler)
-            _line_hook_registry[dst] = handler
-            _monitoring.register(dst, handler)
+            existing = _line_hook_registry.get(dst)
+            if copy or existing is not None:
+                merged = _LineHookHandler()
+                for source in (existing, handler):
+                    if source is not None:
+                        for line, hooks in source._hooks.items():
+                            for hook, arg in hooks:
+                                if (hook, arg) not in merged._hooks.get(line, ()):
+                                    merged.add(line, hook, arg)
+                target = merged
+            else:
+                target = handler
+            _monitoring.register(dst, target)
+            if existing is not None:
+                _monitoring.unregister(dst, existing)
+            _line_hook_registry[dst] = target
+            if not copy:
+                del _line_hook_registry[src]
+                _monitoring.unregister(src, handler)
 
     def eject_all_hooks(f: FunctionType) -> None:
         """Remove every line hook registered for *f*."""

@@ -743,6 +743,12 @@ if is_at_least_py(3, 15):
 
     _entry_hook_registry: IdentityWeakKeyDictionary[CodeType, _EntryHookHandler] = IdentityWeakKeyDictionary()
 
+    def _migrate_entry_hook(src: CodeType, dst: CodeType, handler: _EntryHookHandler) -> None:
+        _monitoring.register(dst, handler)
+        _entry_hook_registry[dst] = handler
+        del _entry_hook_registry[src]
+        _monitoring.unregister(src, handler)
+
     def inject_entry_hook(f: FunctionType, hook: t.Callable[[t.Any], t.Any], arg: t.Any) -> None:
         """Call hook(arg) when execution starts, without retaining the execution frame.
 
@@ -772,11 +778,13 @@ if is_at_least_py(3, 15):
                 if not isolated:
                     if not copied_code:
                         link_function_to_code(code, f)
-                        migrate_line_hooks(code, monitor_code)
-                        moved_lines = True
+                    migrate_line_hooks(code, monitor_code, copy=copied_code)
+                    moved_lines = True
                     set_function_code(f, monitor_code)
                 _entry_hook_registry[monitor_code] = handler
             except Exception:
+                if get_function_code(f) is monitor_code and monitor_code is not code:
+                    set_function_code(f, code)
                 if moved_lines:
                     migrate_line_hooks(monitor_code, code)
                 _monitoring.unregister(monitor_code, handler)
@@ -947,8 +955,8 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
     if is_at_least_py(3, 15):
         # Exceptions here are deliberately left uncaught (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
-        # with-statement semantics -- safe because this is the only handler
-        # ddtrace registers for these events on a given code object.
+        # with-statement semantics. Entry-only hooks run after this handler;
+        # if context entry prevents the function from running, they are skipped.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
         # PY_RETURN. After a failing PY_START it exits the contexts that already
@@ -1025,29 +1033,38 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 entry = _entry_hook_registry.get(original_code)
                 owns_entry = entry is not None and entry.owner() is f
                 copied_entry = entry is not None and not owns_entry
-                # Entry hooks already isolate this function. Reuse that code so
-                # probe churn does not create and retain another clone each time.
-                monitor_code = original_code if owns_entry else original_code.replace()
+                # A library may have copied even an entry-isolated code object.
+                # Give contexts their own clone and restore the entry code on
+                # unwrap, without retaining the temporary clone in discovery.
+                monitor_code = original_code.replace()
                 moved_lines = False
+                moved_entry = False
                 try:
                     _monitoring.register(monitor_code, self)
-                    if monitor_code is not original_code:
-                        if not copied_entry:
-                            link_function_to_code(original_code, f)
-                            migrate_line_hooks(original_code, monitor_code)
-                            moved_lines = True
-                        set_function_code(f, monitor_code)
+                    if owns_entry:
+                        assert entry is not None  # nosec
+                        _migrate_entry_hook(original_code, monitor_code, entry)
+                        moved_entry = True
+                    if not copied_entry and not owns_entry:
+                        link_function_to_code(original_code, f)
+                    migrate_line_hooks(original_code, monitor_code, copy=copied_entry)
+                    moved_lines = True
+                    set_function_code(f, monitor_code)
                     with _ctx_registry_lock:
                         _ctx_registry[monitor_code] = self
                         _fn_registry[f] = self
                     self._finalize = weakref.finalize(f, _finalize_monitoring_wrap, weakref.ref(self), monitor_code)
                     self._finalize.atexit = False
                     self._original_code = original_code
+                    self._restore_entry_code = owns_entry
                 except Exception:
                     if get_function_code(f) is monitor_code and monitor_code is not original_code:
                         set_function_code(f, original_code)
                     if moved_lines:
                         migrate_line_hooks(monitor_code, original_code)
+                    if moved_entry:
+                        assert entry is not None  # nosec
+                        _migrate_entry_hook(monitor_code, original_code, entry)
                     with _ctx_registry_lock:
                         if _ctx_registry.get(monitor_code) is self:
                             del _ctx_registry[monitor_code]
@@ -1072,8 +1089,14 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 _monitoring.unregister(code, self)
                 original_code: t.Optional[CodeType] = getattr(self, "_original_code", None)
                 entry = _entry_hook_registry.get(code)
-                # Keep the isolated code while an entry hook still owns it.
-                if original_code is not None and not (entry is not None and entry.owner() is f):
+                owns_entry = entry is not None and entry.owner() is f
+                restore_entry = getattr(self, "_restore_entry_code", False)
+                if owns_entry and restore_entry and original_code is not None:
+                    assert entry is not None  # nosec
+                    _migrate_entry_hook(code, original_code, entry)
+                # Entry hooks installed during wrapping still need isolation;
+                # otherwise restore the pre-wrap code and its migrated hooks.
+                if original_code is not None and (not owns_entry or restore_entry):
                     if code is not original_code:
                         migrate_line_hooks(code, original_code)
                         set_function_code(f, original_code)

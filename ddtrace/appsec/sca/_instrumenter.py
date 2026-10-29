@@ -286,7 +286,7 @@ def _process_additions(
                 if result:
                     _, func = result
                     if after_fork:
-                        # Bytecode already has hooks from the parent process.
+                        # Instrumentation is inherited from the parent process.
                         # Just mark as instrumented so the registry is populated
                         # for the existing hooks and we don't re-inject.
                         registry.mark_instrumented(target_name, func.__code__)

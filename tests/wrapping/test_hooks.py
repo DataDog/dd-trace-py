@@ -481,6 +481,89 @@ def test_repeated_reloads_do_not_accumulate_superseded_contexts():
 
 @pytest.mark.skipif(sys.version_info < (3, 15), reason="Entry monitoring requires Python 3.15")
 class TestEntryHooks:
+    def test_wrapping_owner_does_not_wrap_an_existing_copy(self):
+        from types import FunctionType
+
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        calls = []
+
+        class PeerContext(WrappingContext):
+            def __enter__(self):
+                calls.append("context")
+                return super().__enter__()
+
+        def target():
+            return 42
+
+        inject_entry_hook(target, lambda _: None, None)
+        copied = FunctionType(target.__code__, target.__globals__)
+        peer = PeerContext(target)
+        peer.wrap()
+        try:
+            assert target() == copied() == 42
+            assert calls == ["context"]
+            other = PeerContext(copied)
+            other.wrap()
+            other.unwrap()
+        finally:
+            peer.unwrap()
+
+    @pytest.mark.parametrize("consumer", ["entry", "context"])
+    def test_copy_keeps_line_hooks_when_isolated(self, consumer):
+        from types import FunctionType
+
+        from ddtrace.internal.bytecode_injection import eject_hook
+        from ddtrace.internal.bytecode_injection import inject_hook
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        class PeerContext(WrappingContext):
+            pass
+
+        def target():
+            return 42
+
+        calls = []
+        inject_entry_hook(target, lambda _: None, None)
+        copied = FunctionType(target.__code__, target.__globals__)
+        line = copied.__code__.co_firstlineno + 1
+        inject_hook(copied, calls.append, line, "line")
+        peer = PeerContext(copied)
+        if consumer == "entry":
+            inject_entry_hook(copied, lambda _: None, None)
+        else:
+            peer.wrap()
+        assert copied() == 42
+        assert calls == ["line"]
+        eject_hook(copied, calls.append, line, "line")
+        if consumer == "context":
+            inject_hook(copied, calls.append, line, "new line")
+            peer.unwrap()
+            calls.clear()
+            assert target() == 42
+            assert calls == ["line", "new line"]
+
+    def test_failed_registry_publication_restores_code_and_line_hook(self, monkeypatch):
+        from ddtrace.internal.bytecode_injection import inject_hook
+        from ddtrace.internal.wrapping import context
+
+        class FailingRegistry(dict):
+            def __setitem__(self, key, value):
+                raise MemoryError("registry publication denied")
+
+        def target():
+            return 42
+
+        calls = []
+        original = target.__code__
+        inject_hook(target, calls.append, original.co_firstlineno + 1, "line")
+        monkeypatch.setattr(context, "_entry_hook_registry", FailingRegistry())
+        with pytest.raises(MemoryError, match="registry publication denied"):
+            context.inject_entry_hook(target, calls.append, "entry")
+        assert target.__code__ is original
+        assert target() == 42
+        assert calls == ["line"]
+
     def test_original_code_remains_discoverable(self):
         from ddtrace.internal.utils.inspection import functions_for_code
         from ddtrace.internal.wrapping.context import inject_entry_hook
