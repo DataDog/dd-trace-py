@@ -34,6 +34,8 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
+from .pipelines import REPORT_PAYLOAD_KEY
+from .pipelines import get_pipelines_reporter
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
 
@@ -286,7 +288,7 @@ class DataStreamsProcessor(PeriodicService):
         if not serialized_stats:
             log.debug("No data streams reported. Skipping flushing.")
             return
-        raw_payload: dict[str, Union[list[dict], str, list[str]]] = {
+        raw_payload: dict[str, Union[list[dict], str, list[str], bytes]] = {
             "Service": self._service,
             "TracerVersion": self._version,
             "Lang": "python",
@@ -299,6 +301,12 @@ class DataStreamsProcessor(PeriodicService):
             raw_payload["Version"] = compat.ensure_text(config.version)
         if p_tags := process_tags.process_tags_list:
             raw_payload["ProcessTags"] = p_tags
+        # DSM2-531: append the pipelines report as the LAST key of the classic
+        # payload when a report window is due; the classic payload is otherwise
+        # byte-identical.
+        pipelines_report = _due_pipelines_report(self._service)
+        if pipelines_report is not None:
+            raw_payload[REPORT_PAYLOAD_KEY] = pipelines_report
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -529,6 +537,21 @@ class DsmPathwayCodec:
         if not ctx:
             return data_streams_processor.new_pathway()
         return ctx
+
+
+def _due_pipelines_report(service: str) -> Optional[bytes]:
+    """The window's DdPipelinesReportV1 bytes, or None when no report is due (DSM2-531)."""
+    try:
+        reporter = get_pipelines_reporter()
+        if reporter is None:
+            return None
+        report = reporter.take_due_report(service, compat.ensure_text(config.env or ""))
+        if report is None:
+            return None
+        return packb(report)
+    except Exception:  # noqa: BLE001 - never break the DSM flush
+        log.debug("failed to collect the pipelines report", exc_info=True)
+        return None
 
 
 def _atexit(obj=None) -> None:

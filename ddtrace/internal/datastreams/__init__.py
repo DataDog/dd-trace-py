@@ -22,7 +22,10 @@ required_module_to_integration = {
 }
 _processor: Optional[DataStreamsProcessor] = None
 
-if config._data_streams_enabled:
+if config._data_streams_enabled or config._data_streams_pipelines_enabled:
+    # DSM2-531: with pipelines reporting enabled the per-system modules must be
+    # imported even when data streams monitoring is off, so their hooks are
+    # registered; the classic DSM-only behavior is unchanged when only DSM is on.
     with require_modules(list(required_module_to_integration.keys())) as missing_modules:
         path_f = "ddtrace.internal.datastreams.%s"
         for integrated_library, integration_module in required_module_to_integration.items():
