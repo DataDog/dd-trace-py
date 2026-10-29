@@ -177,8 +177,6 @@ class Tracer:
 
         if standalone_config.apm_opt_out:
             self.enabled = False
-            # Disable compute stats (neither agent or tracer should compute them)
-            config._trace_compute_stats = False
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
@@ -371,8 +369,6 @@ class Tracer:
 
         if standalone_config.apm_opt_out:
             config._tracing_enabled = self.enabled = False
-            # Disable compute stats (neither agent or tracer should compute them)
-            config._trace_compute_stats = False
             log.debug("Standalone mode is enabled, traces will be rate limited at 1 trace per minute")
         elif standalone_config.apm_tracing_enabled:
             config._tracing_enabled = self.enabled = True
