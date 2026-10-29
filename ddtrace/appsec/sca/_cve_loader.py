@@ -15,7 +15,6 @@ from typing import cast
 from ddtrace.appsec.sca._types import CveDataEntry
 from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.appsec_telemetry import config
 from ddtrace.vendor.packaging.version import InvalidVersion
 from ddtrace.vendor.packaging.version import Version
 
@@ -125,19 +124,16 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[CveTarget]:
     Returns:
         List of CVE target entries that apply to the installed packages.
     """
-    data_path = config.SCA_DATA_FILE or _CVE_DATA_PATH
     try:
-        with open(data_path) as f:
+        with open(_CVE_DATA_PATH) as f:
             data = cast(_CveData, json.load(f))
     except (OSError, json.JSONDecodeError) as e:
-        log.debug("Failed to load CVE data from %s: %s", data_path, e)
+        log.debug("Failed to load CVE data from %s: %s", _CVE_DATA_PATH, e)
         return []
 
     applicable_targets: list[CveTarget] = []
 
     for entry in data["targets"]:
-        if entry.get("lang", "python") != "python":
-            continue
         dep_name = entry["dependency_name"]
         installed_ver = installed_packages.get(dep_name)
         if installed_ver is None:
