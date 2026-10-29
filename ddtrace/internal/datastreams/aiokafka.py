@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from __future__ import annotations
+
 import time
 from types import TracebackType
 from typing import TYPE_CHECKING
@@ -8,6 +10,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.datastreams.pipelines import get_pipelines_reporter
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
@@ -173,9 +176,99 @@ def dsm_aiokafka_message_commit(instance: GroupCoordinator, args: Any, kwargs: A
             )
 
 
+# Automatic DSM pipelines (DSM2-531): topic side and in-process link recording,
+# independent of classic DSM. These handlers are subscribed unconditionally and
+# are a no-op unless get_pipelines_reporter() returns a reporter. The produce
+# side is recorded on "aiokafka.send.start" (where the topic and the producer's
+# bootstrap_servers are available and the current-consume context is still the
+# one the send happens in); "aiokafka.send.completed" only carries offset
+# metadata for classic DSM stats, which pipelines do not record.
+#
+# NOTE: the reporter's current-consume context is thread-local. All asyncio
+# tasks running on one event loop share a thread, so a produce issued from a
+# different task than the one that consumed the message still links to that
+# message, while a produce on another thread (for example a second event loop)
+# does not link and is recorded as a source. The demo topologies consume and
+# produce in the same task, so links are recorded as intended.
+
+
+def _pipelines_cluster(bootstrap_servers: Any) -> str:
+    # Normalize a client's bootstrap_servers (a "host:port" string, or a list of
+    # them) to the cluster string used in pipelines reports. The common string
+    # case returns as-is, keeping the per-message hot path allocation-free.
+    if not bootstrap_servers:
+        return ""
+    if isinstance(bootstrap_servers, str):
+        return bootstrap_servers
+    try:
+        return ",".join(str(server) for server in bootstrap_servers)
+    except Exception:
+        return str(bootstrap_servers)
+
+
+def pipelines_aiokafka_send_start(
+    topic: str,
+    _value: Optional[bytes],
+    _key: Optional[bytes],
+    _headers: list[tuple[str, bytes]],
+    span_ctx: core.ExecutionContext,
+    _partition: Any,
+) -> None:
+    reporter = get_pipelines_reporter()
+    if reporter is None:
+        return
+    try:
+        event = getattr(span_ctx, "event", None)
+        cluster = _pipelines_cluster(getattr(event, "bootstrap_servers", None))
+        reporter.on_produce("kafka", cluster, topic)
+    except Exception:  # noqa: BLE001 - T-13: never raise into the application
+        log.debug("aiokafka pipelines: failed to record produce side", exc_info=True)
+
+
+def pipelines_aiokafka_message_consume(
+    instance: AIOKafkaConsumer,
+    _span_ctx: core.ExecutionContext,
+    _start_ns: Optional[int],
+    message: Optional[ConsumerRecord],
+    _error: Optional[BaseException],
+) -> None:
+    reporter = get_pipelines_reporter()
+    if reporter is None:
+        return
+    if message is None:
+        return
+    try:
+        group = instance._group_id
+        bootstrap_servers = instance._client._bootstrap_servers
+        # The message is processed after getone()/getmany() returns, so the
+        # consume context is set as the thread's current one until the next
+        # consume on this thread replaces it.
+        reporter.set_current_consume("kafka", _pipelines_cluster(bootstrap_servers), message.topic, group or "")
+    except Exception:  # noqa: BLE001 - T-13: never raise into the application
+        log.debug("aiokafka pipelines: failed to record consume side", exc_info=True)
+
+
+def pipelines_aiokafka_many_messages_consume(
+    instance: AIOKafkaConsumer,
+    ctx: core.ExecutionContext,
+    messages: Optional[dict[TopicPartition, list[ConsumerRecord]]],
+) -> None:
+    if messages is not None:
+        for records in messages.values():
+            for record in records:
+                pipelines_aiokafka_message_consume(instance, ctx, None, record, None)
+
+
 if config._data_streams_enabled:
     core.on("aiokafka.send.start", dsm_aiokafka_send_start)
     core.on("aiokafka.send.completed", dsm_aiokafka_send_completed)
     core.on("aiokafka.getone.message", dsm_aiokafka_message_consume)
     core.on("aiokafka.getmany.message", dsm_aiokafka_many_messages_consume)
     core.on("aiokafka.commit.end", dsm_aiokafka_message_commit)
+
+# Automatic pipelines handlers are subscribed unconditionally (DSM2-531): each
+# no-ops when get_pipelines_reporter() is None, i.e. when pipelines reporting or
+# APM tracing is disabled.
+core.on("aiokafka.send.start", pipelines_aiokafka_send_start)
+core.on("aiokafka.getone.message", pipelines_aiokafka_message_consume)
+core.on("aiokafka.getmany.message", pipelines_aiokafka_many_messages_consume)
