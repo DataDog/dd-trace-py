@@ -21,5 +21,8 @@
 # GitLab retries when either `when` or `exit_codes` matches, up to the inherited max of 2.
 .retry_on_infrastructure_or_service_failure:
   extends: .retry_on_infrastructure_failure
+  variables:
+    # Preserve the readiness command's status; the legacy Bash evaluator turns it into 1.
+    FF_USE_NEW_BASH_EVAL_STRATEGY: "true"
   retry:
     exit_codes: [75]
