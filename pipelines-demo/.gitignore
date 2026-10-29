@@ -1,0 +1,3 @@
+# Tapped agent payloads (one .bin per /v0.1/pipeline_stats POST).
+tap/
+__pycache__/

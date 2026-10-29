@@ -1,0 +1,43 @@
+# Local brokers for the DSM pipelines-from-APM demo (DSM2-531).
+# Everything the demo apps talk to; the agent is replaced by tap.py on :8126.
+name: dsm-pipelines-demo
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: sqs,sns,kinesis,events
+    ports:
+      - "4566:4566"
+
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk-emulators:latest
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
+
+  rabbitmq:
+    image: rabbitmq:3
+    ports:
+      - "5672:5672"
