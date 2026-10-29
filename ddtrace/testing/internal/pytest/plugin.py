@@ -652,10 +652,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         for item in session.items:
             test_ref = item_to_test_ref(item)
             self.manager.collected_tests.add(test_ref)
-            if (
-                self.xdist_atr_crash_state_path is not None
-                and getattr(getattr(item, "obj", None), "_dd_no_auto_retry", False) is True
-            ):
+            if self.xdist_atr_crash_state_path is not None and item.get_closest_marker("dd_no_auto_retry") is not None:
                 try:
                     no_auto_retry_path(self.xdist_atr_crash_state_path, item.nodeid).touch()
                 except OSError:
@@ -781,10 +778,10 @@ class TestOptPlugin(TestOptPluginProtocol):
             if custom_tags := _get_test_custom_tags(item):
                 test.set_tags(custom_tags)
 
-            # Read the declaration rather than reporting tags: tags alone do not change execution policy.
-            callback = getattr(item, "obj", None)
-            test.prevent_failure_suppression = getattr(callback, "_dd_prevent_failure_suppression", False) is True
-            test.no_auto_retry = getattr(callback, "_dd_no_auto_retry", False) is True
+            # Resolve pytest markers on the item, including inherited and per-parameter markers.
+            # Reporting tags alone do not change execution policy.
+            test.prevent_failure_suppression = item.get_closest_marker("dd_prevent_failure_suppression") is not None
+            test.no_auto_retry = item.get_closest_marker("dd_no_auto_retry") is not None
             if test.prevent_failure_suppression:
                 test.tags[TestTag.PREVENT_FAILURE_SUPPRESSION] = TAG_TRUE
             if test.no_auto_retry:
@@ -1456,7 +1453,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
     @catch_and_log_exceptions()
     def _run_test_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> t.Optional[bool]:
         # Let explicitly configured retry plugins drive excluded tests through the ordinary wrapper.
-        if getattr(getattr(item, "obj", None), "_dd_no_auto_retry", False) is True and any(
+        if item.get_closest_marker("dd_no_auto_retry") is not None and any(
             item.config.pluginmanager.hasplugin(name) for name in _EXTERNAL_RERUN_PLUGINS
         ):
             return None
@@ -1537,7 +1534,7 @@ class _ExcludedTestProtocolWrapper:
     def pytest_runtest_protocol(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
     ) -> t.Generator[None, None, None]:
-        if getattr(getattr(item, "obj", None), "_dd_no_auto_retry", False) is True:
+        if item.get_closest_marker("dd_no_auto_retry") is not None:
             protocol = getattr(TestOptPlugin, "pytest_runtest_protocol")
             yield from protocol(self.plugin, item, nextitem)
         else:
@@ -1854,6 +1851,12 @@ def pytest_configure(config: pytest.Config) -> None:
     # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
     # options.
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+    config.addinivalue_line(
+        "markers", "dd_no_auto_retry: exclude this test from Datadog automatic retries (ATR, EFD, and Attempt to Fix)"
+    )
+    config.addinivalue_line(
+        "markers", "dd_prevent_failure_suppression: override Datadog quarantine and disabling for this test"
+    )
 
     if _is_test_optimization_disabled_by_kill_switch():
         return

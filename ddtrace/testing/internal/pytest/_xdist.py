@@ -72,7 +72,7 @@ class XdistTestOptPlugin:
         self._published_crash_retry_budgets: dict[str, CrashRetryBudget] = {}
         self._crash_retry_state_dir: t.Optional[tempfile.TemporaryDirectory[str]] = None
         self._crash_retry_state_path: t.Optional[Path] = None
-        self._crash_retry_ready_paths: list[Path] = []
+        self._crash_retry_ready_paths: dict[t.Any, Path] = {}
 
         manager = main_plugin.manager
         settings = manager.settings
@@ -115,7 +115,7 @@ class XdistTestOptPlugin:
             ready_path = self._crash_retry_state_path.with_name(
                 f"collection-ready-{len(self._crash_retry_ready_paths)}"
             )
-            self._crash_retry_ready_paths.append(ready_path)
+            self._crash_retry_ready_paths[node] = ready_path
             node.workerinput[_CRASH_RETRY_READY_WORKER_INPUT] = str(ready_path)
         # Workers may only delegate their coverage report upload when the
         # controller will actually be able to report their data: either
@@ -190,10 +190,12 @@ class XdistTestOptPlugin:
         if not self._enabled:
             return
 
-        # A missing acknowledgement means a worker could not publish its exclusions, or has not finished
-        # collection. Leave crashes final rather than guessing whether the crashed test permits ATR.
+        # xdist attaches the crashed worker to the report. Require that worker's acknowledgement:
+        # a replacement still collecting must not block retries on workers that already published their exclusions.
+        # Unknown workers or inaccessible storage leave crashes final rather than guessing whether ATR is safe.
+        ready_path = self._crash_retry_ready_paths.get(getattr(report, "node", None))
         try:
-            exclusions_published = all(path.is_file() for path in self._crash_retry_ready_paths)
+            exclusions_published = ready_path is not None and ready_path.is_file()
         except OSError:
             exclusions_published = False
         if not exclusions_published:
