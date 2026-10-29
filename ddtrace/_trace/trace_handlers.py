@@ -70,7 +70,6 @@ from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
-from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace.internal.constants import MESSAGING_BATCH_COUNT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
