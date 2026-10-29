@@ -65,7 +65,6 @@ gets extended to add support for additional features.
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
-| `post_start() -> None` | Called after the product's `start()` succeeds and the manager finishes the complete start pass; use for work that requires all enabled products to register first |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
 | `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
@@ -172,14 +171,6 @@ dispatched by the RC subscriber, as well as periodic calls.  If this is the
 first callback being registered, the RC poller is started automatically (if
 `DD_REMOTE_CONFIGURATION_ENABLED` is set).
 
-During automatic instrumentation bootstrap, the remote-configuration product
-temporarily defers that automatic start. The product manager releases the
-barrier through the product's optional `post_start()` hook, after all enabled
-products have started. This lets dependent products register and enable their
-RC subscriptions before the poller's immediate first request, including when
-products start after a uWSGI fork. Outside product bootstrap, first-callback
-registration continues to start the poller immediately.
-
 Registering a callback **does not** enable the product: the product name will
 **not** appear in client payloads until `enable_product()` is called.
 
@@ -211,6 +202,18 @@ Adds the product name to the `products` field of client payloads sent to the
 agent, signalling that this client wants to receive configurations for it.
 `register_callback()` must be called first so that the agent's responses can be
 dispatched to a handler.
+
+The poller sends no requests while no product is enabled. Enabling a new product
+wakes the poller up, which then waits until no new product has been enabled for
+`RemoteConfigPoller._PRODUCT_COLLECTION_WINDOW` before sending a request. Each
+enablement restarts that wait, so products enabled in quick succession, like
+those the product manager starts on boot, are batched into a single request.
+
+The window is a debounce, not a barrier: it does not guarantee that the first
+request includes every product the product manager starts. A product enabled
+after the window has expired, including while a request is in flight, wakes the
+poller up again and opens a new window. Once that window expires, the poller
+sends another request without waiting for the regular poll interval.
 
 ```python
 remoteconfig_poller.enable_product("MY_PRODUCT")

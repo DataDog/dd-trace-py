@@ -1,0 +1,63 @@
+---
+upgrade:
+  - |
+    dd-trace-py 4.17 adds support for **Python 3.15**. Most of the library is
+    tested and ready on 3.15. The products and integrations below are **not**
+    supported on Python 3.15 yet — they stay off until each owner lands a
+    follow-up (tracked under
+    `#17809 <https://github.com/DataDog/dd-trace-py/issues/17809>`_).
+
+    **LLM Observability and AI Guard**
+
+    These are mostly waiting on upstream packages (for example tiktoken,
+    torch/onnxruntime, or ragas) to publish Python 3.15 builds:
+
+    * OpenAI
+    * LangChain
+    * LangGraph
+    * LiteLLM
+    * CrewAI
+    * Vertex AI
+    * Anthropic (LLM Observability)
+    * MCP
+    * Pydantic AI
+    * vLLM
+    * LLM Observability core (ragas test path)
+    * AI Guard LiteLLM guardrail
+
+    **Web frameworks and data stores**
+
+    * django-hosts, Django REST framework, and Django+Celery
+    * gRPC aio
+    * ``pysqlite3-binary`` (no 3.15 build yet; stdlib ``sqlite3`` tracing is unaffected)
+    * Redis
+    * Gevent
+    * Graphene
+    * Flask cache
+    * MySQL-python
+    * MLflow
+    * PyTorch
+
+    **Messaging, serverless, and cloud**
+
+    * Kafka (confluent-kafka has no 3.15 build yet)
+    * Ray / Ray Serve (Ray has no 3.15 build yet)
+    * Azure Functions, Azure Durable Functions, and Azure Event Hubs
+
+    **CI Visibility, tooling, and packaging**
+
+    * CI Visibility
+    * Selenium
+    * uWSGI profile and tracer jobs
+    * lib-injection (OCI/SSI packaging for 3.15 is not in this change)
+    * Windows wheels (Windows packaging matrix still ends at 3.14)
+
+    **Long-standing non-goals (unchanged by 3.15)**
+
+    These were already capped below current Python before 3.15 and are not part
+    of the 3.15 migration:
+
+    * Vertica (unsupported since Python 3.9; deprecated)
+    * aredis (untested since Python 3.9)
+    * rediscluster (untested since Python 3.11)
+    * asynctest (untested since Python 3.9)

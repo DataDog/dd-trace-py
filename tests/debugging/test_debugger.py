@@ -1467,6 +1467,9 @@ def test_debugger_condition_eval_error_get_reported_once(stuff):
         assert "foo == 42" == evaluationErrors[0]["expr"]
         assert "No such local variable: 'foo'" == evaluationErrors[0]["message"]
 
+        # The probe never captured, but the schema still requires stack to be a list
+        assert snapshot["debugger"]["snapshot"]["stack"] == []
+
 
 def test_debugger_function_probe_eval_on_entry(stuff):
     with debugger() as d:

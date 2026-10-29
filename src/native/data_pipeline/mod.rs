@@ -270,8 +270,8 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    /// Select the OTLP export protocol: `http/json` or `http/protobuf`. Any other value raises
-    /// `ValueError`.
+    /// Select the OTLP export protocol: `grpc`, `http/json`, or `http/protobuf`. Any other value
+    /// raises `ValueError`.
     fn set_otlp_protocol(mut slf: PyRefMut<'_, Self>, protocol: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_protocol(
             protocol
