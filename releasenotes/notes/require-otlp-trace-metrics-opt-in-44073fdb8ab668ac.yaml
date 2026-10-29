@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: In OpenTelemetry setups using OTLP trace export, trace statistics
+    computation defaults to the collector or intake.

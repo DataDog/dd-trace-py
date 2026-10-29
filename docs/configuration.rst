@@ -602,6 +602,9 @@ Trace Context propagation
 Metrics
 -------
 
+In OpenTelemetry setups using OTLP trace export, trace statistics computation
+defaults to the collector or intake.
+
 .. ddtrace-configuration-options::
 
    DD_RUNTIME_METRICS_ENABLED:
