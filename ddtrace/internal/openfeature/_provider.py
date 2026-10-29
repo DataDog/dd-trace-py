@@ -44,6 +44,8 @@ from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOI
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
@@ -553,6 +555,11 @@ class DataDogProvider(AbstractProvider):
                     flag_metadata=flag_metadata,
                 )
 
+            # Native memoization records each reached prerequisite once. Record
+            # evaluations even when the root fails; only the selected successful
+            # path can contribute exposures.
+            self._record_dependency_evaluations(details, evaluation_context, flag_metadata)
+
             # Handle errors from native evaluation
             if details.error_code is not None:
                 # Map native error code to OpenFeature error code
@@ -644,6 +651,62 @@ class DataDogProvider(AbstractProvider):
                 error_message=f"Unexpected error during flag evaluation: {str(e)}",
                 flag_metadata=flag_metadata,
             )
+
+    def _record_dependency_evaluations(
+        self,
+        details: ffe.ResolutionDetails,
+        evaluation_context: typing.Optional[EvaluationContext],
+        flag_metadata: dict[str, typing.Any],
+    ) -> None:
+        for dependency in details.dependency_evaluations:
+            error_code = (
+                self._map_error_code_to_openfeature(dependency.error_code)
+                if dependency.error_code is not None
+                else None
+            )
+            if self._flag_eval_evp_writer is not None:
+                try:
+                    consent = flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+                    code = error_code.value if error_code is not None else ""
+                    self._flag_eval_evp_writer.enqueue(
+                        _EvalEvent(
+                            flag_key=dependency.flag_key,
+                            variant=dependency.variant or "",
+                            allocation_key=dependency.allocation_key or "",
+                            targeting_key=evaluation_context.targeting_key if evaluation_context is not None else None,
+                            # Protected mode must not inspect context attributes.
+                            attrs=(evaluation_context.attributes or {})
+                            if consent and evaluation_context is not None
+                            else {},
+                            runtime_default=not dependency.variant,
+                            error_message=_protected_error_message(code),
+                            eval_time_ms=flag_metadata[EVAL_TIMESTAMP_METADATA_KEY],
+                            observe_full_evaluation_data=consent,
+                            error_code=code,
+                        )
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to enqueue prerequisite evaluation")
+            if self._flag_eval_metrics is not None:
+                try:
+                    reason = self._map_reason_to_openfeature(dependency.reason)
+                    self._flag_eval_metrics.record(
+                        flag_key=dependency.flag_key,
+                        variant=dependency.variant,
+                        reason=reason.value,
+                        error_code=error_code,
+                        allocation_key=dependency.allocation_key,
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to record prerequisite evaluation metric")
+            if dependency.exposure_eligible and dependency.do_log and error_code is None:
+                self._report_exposure(
+                    flag_key=dependency.flag_key,
+                    variant_key=dependency.variant,
+                    allocation_key=dependency.allocation_key,
+                    evaluation_context=evaluation_context,
+                    serial_id=dependency.serial_id,
+                )
 
     def _report_exposure(
         self,

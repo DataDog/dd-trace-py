@@ -255,11 +255,9 @@ def test_missing_native_capability_reporter_omits_header(harness, monkeypatch):
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
 
 
-def test_linked_evaluator_does_not_advertise_dependent_flags():
-    # The native dependency does not implement prerequisite evaluation yet.
-    # Enabling its token requires updating the evaluator and its integration tests.
-    assert native_mod.ffe.get_evaluator_capabilities() == []
-    assert "dependent-flag-variant-key-v1" not in native_mod.get_evaluator_capabilities()
+def test_linked_evaluator_advertises_dependent_flags():
+    assert native_mod.ffe.get_evaluator_capabilities() == ["dependent-flag-variant-key-v1"]
+    assert "dependent-flag-variant-key-v1" in native_mod.get_evaluator_capabilities()
 
 
 def test_client_library_headers_and_gzip_accept(harness):
