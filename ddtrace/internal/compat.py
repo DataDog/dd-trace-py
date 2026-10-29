@@ -129,11 +129,9 @@ def ip_is_global(ip: str) -> bool:
 # This fix was implemented in 3.9.8
 # https://github.com/python/cpython/issues/83860
 def _singledispatchmethod_register(self: Any, cls: Any, method: Any = None) -> Any:
-    # Match CPython >= 3.9.8: only classmethod/staticmethod *instances* need
-    # annotations copied from the wrapped function. hasattr(cls, "__func__") is
-    # true for the classmethod/staticmethod *types* themselves (member_descriptor),
-    # and reading __annotations__ from that descriptor raises AttributeError —
-    # which broke Symbol Database on Python < 3.9.8 (@_get_from.register(classmethod)).
+    # Like CPython >= 3.9.8: only classmethod/staticmethod instances get
+    # annotations from __func__. hasattr catches the types too (member_descriptor)
+    # and blew up Symbol Database's @register(classmethod) on Python < 3.9.8.
     if isinstance(cls, (staticmethod, classmethod)):
         cls.__annotations__ = getattr(cls.__func__, "__annotations__", {})
     return self.dispatcher.register(cls, func=method)
