@@ -10,19 +10,16 @@ upgrade:
     **LLM Observability and AI Guard**
 
     These are mostly waiting on upstream packages (for example tiktoken,
-    torch/onnxruntime, or ragas) to publish Python 3.15 builds:
+    torch, chromadb, or deepeval) to publish Python 3.15 builds:
 
     * OpenAI
     * LangChain
-    * LangGraph
-    * LiteLLM
     * CrewAI
     * Vertex AI
     * Anthropic (LLM Observability)
     * MCP
-    * Pydantic AI
     * vLLM
-    * LLM Observability core (ragas test path)
+    * LLM Observability core
     * AI Guard LiteLLM guardrail
 
     **Web frameworks and data stores**
@@ -30,9 +27,6 @@ upgrade:
     * django-hosts, Django REST framework, and Django+Celery
     * gRPC aio
     * ``pysqlite3-binary`` (no 3.15 build yet; stdlib ``sqlite3`` tracing is unaffected)
-    * Redis
-    * Gevent
-    * Graphene
     * Flask cache
     * MySQL-python
     * MLflow
@@ -42,14 +36,13 @@ upgrade:
 
     * Kafka (confluent-kafka has no 3.15 build yet)
     * Ray / Ray Serve (Ray has no 3.15 build yet)
-    * Azure Functions, Azure Durable Functions, and Azure Event Hubs
+    * Azure Functions (including Cosmos DB, Event Hubs, and Service Bus triggers)
+      and Azure Durable Functions
 
-    **CI Visibility, tooling, and packaging**
+    **Tooling and packaging**
 
-    * CI Visibility
-    * Selenium
-    * uWSGI profile and tracer jobs
-    * lib-injection (OCI/SSI packaging for 3.15 is not in this change)
+    * Profiling under uWSGI (uWSGI 2.0.29 does not build on 3.15)
+    * lib-injection / Single Step Instrumentation (not tested on 3.15 yet)
     * Windows wheels (Windows packaging matrix still ends at 3.14)
 
     **Long-standing non-goals (unchanged by 3.15)**

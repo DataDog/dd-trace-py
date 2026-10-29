@@ -439,6 +439,9 @@ suites:
         - name: anyio
           dependencies: [pytest-randomly, anyio, trio]
   aredis:
+    # TODO(py-315): aredis is unmaintained and its suite fails at setup on Python
+    # 3.15 (no failing tests, the session errors out). Re-add 3.15 only if aredis
+    # ever supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -503,6 +506,9 @@ suites:
           python: ['3.11']
           dependencies: ['pytest-asyncio~=0.21.1', pytest-randomly, 'asyncpg~=0.27']
   asynctest:
+    # TODO(py-315): asynctest 0.13.0 is unmaintained and its suite fails at
+    # collection on 3.15 (module 'ast' has no attribute 'Str'). Re-add 3.15 only
+    # if asynctest ever supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -613,12 +619,15 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['azure.eventhub~=5.12.0', 'pytest-asyncio==0.23.7']
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [azure.eventhub, 'pytest-asyncio==0.23.7']
   azure_durable_functions:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the durable
+    # task worker support it.
     venvs_per_job: 6
     paths:
       - '@bootstrap'
@@ -641,6 +650,9 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure-functions-durable]
   azure_functions:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     venvs_per_job: 4
     paths:
       - '@bootstrap'
@@ -662,6 +674,9 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -690,6 +705,9 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -711,6 +729,9 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [azure.functions, azure.eventhub, azure.storage.blob]
   azure_functions:servicebus:
+    # TODO(py-315): the azure functions worker stack does not support Python 3.15;
+    # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
+    # host worker support it.
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -996,6 +1017,9 @@ suites:
           dependencies: [celery, gevent, requests, typing-extensions, pytest-randomly, sqlalchemy, django]
           command: pytest {cmdargs} tests/contrib/django_celery
   django_hosts:
+    # TODO(py-315): the pinned django/pytest-django stack imports cgi (removed
+    # in Python 3.13), so every variant fails at collection on 3.15. Re-add
+    # 3.15 with dependency rows that support it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1018,6 +1042,8 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-django[testing]==3.10.0', pytest-randomly, setuptools, django_hosts, 'django~=4.0']
   django:djangorestframework:
+    # TODO(py-315): the newest djangorestframework/django row still fails on
+    # 3.15 (Django template context internals). Re-add 3.15 once supported.
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -1369,7 +1395,7 @@ suites:
           python: ['3.10']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=21.12.0']
         - name: gevent
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, gevent]
         - name: gevent
           python: ['3.11']
@@ -1411,10 +1437,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/graphene
       variants:
         - name: graphql:graphene
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [graphql-relay, pytest-randomly, 'graphene~=3.0.0', 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
           python: ['3.14', '3.15']
@@ -1586,6 +1612,9 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, httpx2]
   integration_registry:
+    # TODO(py-315): the PyPI availability check fails on 3.15 because torch
+    # and ray have no cp315 distributions yet. Re-add 3.15 once they publish
+    # cp315 wheels.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1617,6 +1646,9 @@ suites:
         - name: jinja2
           dependencies: [pytest-randomly, jinja2]
   kafka:
+    # TODO(py-315): confluent-kafka publishes no cp315 wheels and its sdist build
+    # needs librdkafka headers, so the suite cannot build on 3.15. Re-add 3.15
+    # once confluent-kafka ships cp315 wheels.
     venvs_per_job: 4
     retry: 2
     env:
@@ -1737,6 +1769,8 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mariadb~=1.1.2']
   mlflow:
+    # TODO(py-315): mlflow pulls pyarrow, which has no cp315 wheels and whose
+    # sdist build fails on 3.15. Re-add 3.15 once pyarrow supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -2050,6 +2084,9 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
+    # TODO(py-315): torch has no cp315 wheels yet (2.14.1 ships cp310–cp314t
+    # only), so this suite cannot run on Python 3.15. Add 3.15 to the python
+    # lists once torch publishes 3.15 wheels.
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -2143,6 +2180,8 @@ suites:
           python: ['3.13', '3.14', '3.15']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid, legacy-cgi]
   ray:
+    # TODO(py-315): ray has no cp315 wheels yet, so this suite cannot run on
+    # Python 3.15. Add 3.15 to the python lists once ray publishes 3.15 wheels.
     venvs_per_job: 3
     paths:
       - '@contrib'
@@ -2166,6 +2205,8 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['ray[default]~=2.54.1']
   ray_serve:
+    # TODO(py-315): ray has no cp315 wheels yet, so this suite cannot run on
+    # Python 3.15. Add 3.15 to the python lists once ray publishes 3.15 wheels.
     paths:
       - '@contrib'
       - '@ray'
@@ -2205,21 +2246,23 @@ suites:
       command: pytest {cmdargs} tests/contrib/redis
       variants:
         - name: redis
-          python: ['3.9', '3.10']
+          python: ['3.9', '3.10', '3.15']
           dependencies: [pytest-randomly, 'redis~=4.1', 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [pytest-randomly, 'redis~=4.3', 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.15']
           dependencies: [pytest-randomly, 'redis==5.0.1', 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.15']
           dependencies: [pytest-randomly, redis, 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
+    # TODO(py-315): redis-py-cluster does not work on Python 3.15; both variants'
+    # sessions fail at setup. Re-add 3.15 once the dependency supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
