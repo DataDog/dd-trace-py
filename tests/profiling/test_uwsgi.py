@@ -594,39 +594,14 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
 
     assert res_pid == parent_pid
 
-    # Note on the exit status check:
-    # This test uses --skip-atexit precisely because uwsgi<2.0.30 has a known bug
-    # where Py_Finalize crashes in --lazy-apps mode (unbit/uwsgi#2726). --skip-atexit
-    # makes non-master workers hard-exit via _exit(), but the *first* worker also
-    # acts as the master (getpid() == masterpid), so end_me() still calls exit() ->
-    # atexit handlers -> uwsgi_python_atexit() -> Py_Finalize() for that worker. That
-    # exit() path runs on the master-acting worker regardless of the uwsgi version,
-    # so uwsgi#2726 (fixed in 2.0.30) does not cover it. Native profiler threads
-    # (stack sampler in _stack.so, tokio blocking pool in the shared runtime) are
-    # still running while Py_Finalize's GC tears modules down, which can race and
-    # either segfault (SIGSEGV) or abort (SIGABRT). This race is pre-existing and
-    # orthogonal to what this test verifies (per-worker profile samples), so we
-    # tolerate ONLY those two signals on the master-acting worker, on any uwsgi
-    # version. Any other signaled exit (SIGKILL, SIGBUS, etc.) still fails the
-    # test -- see #19405.
-    _uwsgi_ver = tuple(int(x) for x in version("uwsgi").split("."))
-    _tolerated_signals = {signal.SIGSEGV, signal.SIGABRT}
-    if os.WIFSIGNALED(res_status):
-        term_sig = os.WTERMSIG(res_status)
-        if term_sig in _tolerated_signals:
-            print(
-                "WARNING: uWSGI worker %d exited via signal %d (raw wait status %d, "
-                "uwsgi=%s). This is a known race between native profiler shutdown and "
-                "Py_Finalize on the master-acting worker's exit() path; profile "
-                "samples should still be on disk from the last flush interval."
-                % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
-            )
-        else:
-            raise AssertionError(
-                "uWSGI worker %d crashed with signal %d (raw wait status %d, "
-                "uwsgi=%s). Only SIGSEGV/SIGABRT is a known race."
-                % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
-            )
+    # --skip-atexit makes non-master workers hard-exit via _exit(), but the *first* worker also
+    # acts as the master (getpid() == masterpid), so end_me() still calls exit() for that worker.
+    # exit() runs the C++ static destructors of the profiler's native extensions while the
+    # sampling thread is still running. The state it reads must survive them, otherwise the
+    # worker crashes, for example with SIGSEGV.
+    assert os.WIFEXITED(res_status) and os.WEXITSTATUS(res_status) == UWSGI_END_CODE, (
+        "uWSGI worker %d did not exit cleanly (raw wait status %d)" % (parent_pid, res_status)
+    )
 
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
