@@ -28,8 +28,23 @@ Building blocks (`bump-rc`, `ensure-branch`, `draft-release`) are also available
 2. Report the gate plainly to the human. Do not invent workarounds past tag rulesets, reviews, or auth.
 3. Prefer `--dry-run` first when inspecting live GitHub state without creating remotes/PRs/drafts.
 4. Never publish a GitHub release. Never push release branches or tags unless the human explicitly asks in that message. The script stops at a **draft**.
-5. Never post to Slack as the user; print the review text and stop.
+5. Never post to Slack as the user unless they explicitly ask in that message. Default public ping is `#guild-dd-trace-py` via `--slack` (needs `DD_RELEASE_SLACK_WEBHOOK_URL_GUILD` or SSM `ci.dd-trace-py.slack-release-webhook-guild`). `--test-dm` DMs the runner only. Prefer printing the review text and stopping when unsure.
 6. `dogfood` and `experiment` are **not implemented** yet — print the checklist the script emits and stop.
+
+## Slack announce (when the human asks)
+
+```bash
+# DM-only dry path (Vlad webhook; no guild post)
+DD_RELEASE_SLACK_DM_URL=… \
+  scripts/gh/create_gh_release.py draft-release --target X.Y --version … \
+  --test-dm --no-slack-precheck
+
+# Public review ping → #guild-dd-trace-py
+DD_RELEASE_SLACK_WEBHOOK_URL_GUILD=… \
+  scripts/gh/create_gh_release.py rc --slack
+# or: … patch N --branch X.Y --slack
+# or: … draft-release … --slack   # --slack-channel defaults to guild
+```
 
 ## Human gates (typical)
 

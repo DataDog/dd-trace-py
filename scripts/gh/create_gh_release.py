@@ -28,11 +28,13 @@ Usage:
   scripts/gh/create_gh_release.py ensure-branch X.Y [--from A.B] [--dry-run]
   scripts/gh/create_gh_release.py draft-release [--target main] [--version 4.9.0rc3]
                                    [--allow-version-mismatch] [--allow-ci-failure]
-                                   [--slack] [--slack-channel test|prod|auto]
+                                   [--slack] [--slack-channel guild|test|prod|auto]
                                    [--no-slack-precheck] [--test-dm]
                                    [--dry-run] [--verbose]
 
 Slack env vars (set whichever you'll use):
+  DD_RELEASE_SLACK_WEBHOOK_URL_GUILD webhook bound to #guild-dd-trace-py
+                                     (default --slack target for review pings)
   DD_RELEASE_SLACK_WEBHOOK_URL_PROD  webhook bound to #apm-python-release
   DD_RELEASE_SLACK_WEBHOOK_URL_TEST  webhook bound to your test channel
   DD_RELEASE_SLACK_WEBHOOK_URL       legacy single-channel fallback
@@ -41,14 +43,20 @@ Slack env vars (set whichever you'll use):
   DD_SLACK_USER_BRETT/EMMETT         optional overrides for reviewer @-mentions;
                                      defaults are hardcoded member IDs
 
-If the channel env var is unset and you pass --slack-channel=test|prod, the
-script falls back to AWS SSM Parameter Store at:
+If the channel env var is unset and you pass --slack-channel=guild|test|prod,
+the script falls back to AWS SSM Parameter Store at:
+  ci.dd-trace-py.slack-release-webhook-guild
   ci.dd-trace-py.slack-release-webhook-prod
   ci.dd-trace-py.slack-release-webhook-test
 This matches the ``ci.dd-trace-py.<key>`` convention used elsewhere in this
 repo for release secrets (see .gitlab/release.yml). Requires AWS credentials
 to be available (e.g. via aws-vault or your usual SSO flow). The DM webhook
 is env-only (do not commit it); channel webhooks stay env-or-SSM.
+
+Guild webhook setup (if unset): create a Slack Workflow Builder webhook that
+posts to #guild-dd-trace-py with a ``text`` variable (same pattern as the DM
+webhook), export it as DD_RELEASE_SLACK_WEBHOOK_URL_GUILD, and optionally
+store it at the SSM path above.
 
 Failure recovery:
   Push succeeded but `gh pr create` failed (bump-rc):
@@ -105,11 +113,11 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 PYPROJECT: Path = REPO_ROOT / "pyproject.toml"
 assert PYPROJECT.is_file(), f"REPO_ROOT misconfigured: {PYPROJECT} does not exist"  # nosec B101 — startup invariant; OK to drop under -O
 
-# Slack webhook env vars. The script supports two channel webhooks (test +
-# prod) and one optional DM webhook. ``--slack-channel`` selects which channel
-# webhook is used; ``DD_RELEASE_SLACK_WEBHOOK_URL`` is the legacy fallback that
-# is read when neither TEST nor PROD is set, so existing setups keep working.
+# Slack webhook env vars. Channel webhooks: guild (#guild-dd-trace-py, default
+# review ping), prod (#apm-python-release), test, plus legacy single-channel.
+# ``--slack-channel`` selects which; ``--test-dm`` uses the DM webhook only.
 SLACK_CHANNEL_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL"
+SLACK_CHANNEL_GUILD_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL_GUILD"
 SLACK_CHANNEL_TEST_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL_TEST"
 SLACK_CHANNEL_PROD_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL_PROD"
 SLACK_DM_ENV: str = "DD_RELEASE_SLACK_DM_URL"
@@ -120,6 +128,9 @@ SLACK_USER_EMMETT_ENV: str = "DD_SLACK_USER_EMMETT"
 # (brettlangdon → UD1N1U7JQ; emmett.butler@datadoghq.com → U04HER8LNAZ).
 SLACK_USER_BRETT_ID: str = "UD1N1U7JQ"
 SLACK_USER_EMMETT_ID: str = "U04HER8LNAZ"
+# #guild-dd-trace-py — Slack workspace lookup 2026-10-29 (not a secret).
+SLACK_CHANNEL_GUILD_ID: str = "C02E4BKJQBT"
+SLACK_CHANNEL_GUILD_NAME: str = "guild-dd-trace-py"
 
 # AWS SSM Parameter Store paths. Canonical storage for shared release secrets
 # in this repo — see .gitlab/release.yml and scripts/upload-debug-symbols-to-
@@ -127,8 +138,10 @@ SLACK_USER_EMMETT_ID: str = "U04HER8LNAZ"
 # back to SSM when the corresponding env var is unset, so a freshly-set-up
 # release engineer with AWS creds (and no other config) can run the script
 # without manually exporting webhook URLs. DM webhook has no SSM path yet
-# (env-only; do not commit the secret URL).
+# (env-only; do not commit the secret URL). Guild SSM may need to be created
+# once a Workflow Builder webhook for #guild-dd-trace-py exists.
 SSM_REGION: str = "us-east-1"
+SSM_SLACK_WEBHOOK_GUILD: str = "ci.dd-trace-py.slack-release-webhook-guild"
 SSM_SLACK_WEBHOOK_PROD: str = "ci.dd-trace-py.slack-release-webhook-prod"
 SSM_SLACK_WEBHOOK_TEST: str = "ci.dd-trace-py.slack-release-webhook-test"
 
@@ -1139,7 +1152,7 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
             target_sha=short_sha,
             draft_url=existing_draft_url,
             test_dm=bool(args.test_dm),
-            channel=str(getattr(args, "slack_channel", "auto")),
+            channel=str(getattr(args, "slack_channel", "guild")),
             precheck=bool(getattr(args, "slack_precheck", True)),
         )
         return 0
@@ -1188,7 +1201,7 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
             target_sha=short_sha,
             draft_url=url,
             test_dm=bool(args.test_dm),
-            channel=str(getattr(args, "slack_channel", "auto")),
+            channel=str(getattr(args, "slack_channel", "guild")),
             precheck=bool(getattr(args, "slack_precheck", True)),
         )
     return 0
@@ -1806,7 +1819,7 @@ def cmd_rc(args: argparse.Namespace) -> int:
                     target_sha=candidate[:12],
                     draft_url=url,
                     test_dm=bool(args.test_dm),
-                    channel=str(getattr(args, "slack_channel", "auto")),
+                    channel=str(getattr(args, "slack_channel", "guild")),
                     precheck=bool(getattr(args, "slack_precheck", True)),
                 )
             raise WaitingOn(f"existing draft for v{version}: {url} — announced; waiting on publish")
@@ -2063,10 +2076,28 @@ def _slack_flag_values(args: argparse.Namespace) -> dict[str, Any]:
     """Slack-related Namespace fields for draft_release / notify_slack callers."""
     return {
         "slack": bool(getattr(args, "slack", False)),
-        "slack_channel": str(getattr(args, "slack_channel", "auto")),
+        "slack_channel": str(getattr(args, "slack_channel", "guild")),
         "slack_precheck": bool(getattr(args, "slack_precheck", True)),
         "test_dm": bool(getattr(args, "test_dm", False)),
     }
+
+
+def format_slack_announce(version: str, target_sha: str, draft_url: str) -> str:
+    """Build the Slack mrkdwn body for a draft-ready review ping."""
+    ver: str = normalize_version_str(version)
+    kind: str = draft_kind_phrase(ver)
+    brett: str = slack_mention(SLACK_USER_BRETT_ENV, SLACK_USER_BRETT_ID)
+    emmett: str = slack_mention(SLACK_USER_EMMETT_ENV, SLACK_USER_EMMETT_ID)
+    return (
+        f":package: *Draft {kind}* `{ver}` is ready for review\n"
+        f"\n"
+        f"<{draft_url}|Open draft release / notes>  ·  target `{target_sha}`\n"
+        f"\n"
+        f"{brett} {emmett} — can I get a :lgtm:? Please review and "
+        f"*Publish release* when ready (needs repo-owner perms; the tag is created at publish).\n"
+        f"\n"
+        f"{AUTO_CREATED_FOOTER}"
+    )
 
 
 def post_webhook(url: str, text: str) -> None:
@@ -2098,14 +2129,32 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
       1. The corresponding env var, if set (allows override and offline use).
       2. AWS SSM Parameter Store at the canonical path for that channel.
 
-    ``channel`` is one of "test", "prod", or "auto". "auto" only consults the
-    env vars (any of TEST/PROD/legacy) and refuses to silently default to a
-    specific SSM channel — picking prod-vs-test should be explicit.
+    ``channel`` is one of "guild", "test", "prod", or "auto". "auto" only
+    consults env vars (guild → prod → test → legacy) and refuses to silently
+    hit SSM — picking a specific channel for SSM should be explicit.
     """
+    guild_url: str = os.environ.get(SLACK_CHANNEL_GUILD_ENV, "").strip()
     test_url: str = os.environ.get(SLACK_CHANNEL_TEST_ENV, "").strip()
     prod_url: str = os.environ.get(SLACK_CHANNEL_PROD_ENV, "").strip()
     legacy_url: str = os.environ.get(SLACK_CHANNEL_ENV, "").strip()
 
+    if channel == "guild":
+        if guild_url:
+            return guild_url, f"{SLACK_CHANNEL_GUILD_ENV} env var"
+        try:
+            return (
+                fetch_ssm_parameter(SSM_SLACK_WEBHOOK_GUILD),
+                f"AWS SSM ({SSM_SLACK_WEBHOOK_GUILD})",
+            )
+        except SystemExit as exc:
+            raise SystemExit(
+                f"--slack-channel=guild needs {SLACK_CHANNEL_GUILD_ENV} or SSM "
+                f"{SSM_SLACK_WEBHOOK_GUILD} (webhook posting to "
+                f"#{SLACK_CHANNEL_GUILD_NAME} / <#{SLACK_CHANNEL_GUILD_ID}>). "
+                "Create a Workflow Builder webhook with a `text` variable bound "
+                f"to #{SLACK_CHANNEL_GUILD_NAME}, then export the URL or store it "
+                f"in SSM. Underlying error: {exc}"
+            ) from exc
     if channel == "test":
         if test_url:
             return test_url, f"{SLACK_CHANNEL_TEST_ENV} env var"
@@ -2115,6 +2164,8 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
             return prod_url, f"{SLACK_CHANNEL_PROD_ENV} env var"
         return fetch_ssm_parameter(SSM_SLACK_WEBHOOK_PROD), f"AWS SSM ({SSM_SLACK_WEBHOOK_PROD})"
     # auto: env vars only; require explicit --slack-channel for SSM.
+    if guild_url:
+        return guild_url, f"{SLACK_CHANNEL_GUILD_ENV} env var"
     if prod_url:
         return prod_url, f"{SLACK_CHANNEL_PROD_ENV} env var"
     if test_url:
@@ -2123,26 +2174,17 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
         return legacy_url, f"{SLACK_CHANNEL_ENV} env var"
     raise SystemExit(
         "--slack with --slack-channel=auto requires one of "
-        f"{SLACK_CHANNEL_PROD_ENV}, {SLACK_CHANNEL_TEST_ENV}, or {SLACK_CHANNEL_ENV} "
-        "to be set. Pass --slack-channel=test|prod to fetch from AWS SSM instead."
+        f"{SLACK_CHANNEL_GUILD_ENV}, {SLACK_CHANNEL_PROD_ENV}, "
+        f"{SLACK_CHANNEL_TEST_ENV}, or {SLACK_CHANNEL_ENV} to be set. "
+        "Pass --slack-channel=guild|test|prod to fetch from AWS SSM instead "
+        f"(guild default for review pings → #{SLACK_CHANNEL_GUILD_NAME})."
     )
 
 
 def notify_slack(
     version: str, target_sha: str, draft_url: str, test_dm: bool, channel: str, precheck: bool = True
 ) -> None:
-    brett: str = slack_mention(SLACK_USER_BRETT_ENV, SLACK_USER_BRETT_ID)
-    emmett: str = slack_mention(SLACK_USER_EMMETT_ENV, SLACK_USER_EMMETT_ID)
-    kind: str = draft_kind_phrase(version)
-    text: str = (
-        f":package: Draft {kind} ready for review: {draft_url}\n"
-        f"Version: `{version}` (target: `{target_sha}`)\n"
-        f"Reviewers: {brett} {emmett} — please review and *click Publish release*. "
-        f"Publishing requires repo-owner perms (the tag is created at publish time, "
-        f"and tag creation is gated by branch protection).\n"
-        f"{AUTO_CREATED_FOOTER}"
-    )
-
+    text: str = format_slack_announce(version, target_sha, draft_url)
     dm_url: str = os.environ.get(SLACK_DM_ENV, "").strip()
 
     if test_dm:
@@ -2186,15 +2228,24 @@ def _add_common_flags(sp: argparse.ArgumentParser) -> None:
 
 
 def _add_slack_flags(sp: argparse.ArgumentParser) -> None:
-    sp.add_argument("--slack", action="store_true", help="post to release channel selected by --slack-channel")
+    sp.add_argument(
+        "--slack",
+        action="store_true",
+        help=(
+            f"post a review ping to the channel selected by --slack-channel "
+            f"(default: guild → #{SLACK_CHANNEL_GUILD_NAME})"
+        ),
+    )
     sp.add_argument(
         "--slack-channel",
-        choices=["test", "prod", "auto"],
-        default="auto",
+        choices=["guild", "test", "prod", "auto"],
+        default="guild",
         help=(
-            "which channel webhook to use: test reads "
-            f"{SLACK_CHANNEL_TEST_ENV}, prod reads {SLACK_CHANNEL_PROD_ENV}, "
-            f"auto prefers prod then test then the legacy {SLACK_CHANNEL_ENV} (default: auto)"
+            "which channel webhook to use: guild reads "
+            f"{SLACK_CHANNEL_GUILD_ENV} (#{SLACK_CHANNEL_GUILD_NAME}), "
+            f"test reads {SLACK_CHANNEL_TEST_ENV}, prod reads {SLACK_CHANNEL_PROD_ENV} "
+            f"(#apm-python-release), auto prefers guild then prod then test then "
+            f"the legacy {SLACK_CHANNEL_ENV} (default: guild)"
         ),
     )
     sp.add_argument(
