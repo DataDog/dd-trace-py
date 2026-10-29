@@ -1,4 +1,3 @@
 fixes:
   - |
-    tracing: In OpenTelemetry setups using OTLP trace export, APM RED Metrics
-    computation defaults to the collector or intake.
+    tracing: Defers APM RED Metrics computation to the collector or intake when OTLP trace export is enabled
