@@ -13,6 +13,7 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.appsec._iast_context import is_iast_request_enabled
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.security._constants import STACK_TRACE
 from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
@@ -156,6 +157,16 @@ class IastSpanReporter(NotNoneDictable):
     stacktrace_id: int = 0
     sources: list[Source] = dataclasses.field(default_factory=list)
     vulnerabilities: set[Vulnerability] = dataclasses.field(default_factory=set)
+    stack_traces: Optional[dict[str, Any]] = dataclasses.field(default=None, repr=False, compare=False)
+
+    def attach_stacks(self, span: SpanData) -> None:
+        """Publish captured stacks and bind findings to the final reporting span."""
+        for vulnerability in self.vulnerabilities:
+            vulnerability.location.spanId = span.span_id
+        if self.stack_traces:
+            stacks = span._get_struct_tag(STACK_TRACE.TAG) or {}
+            stacks.update(self.stack_traces)
+            span._set_struct_tag(STACK_TRACE.TAG, stacks)
 
     def __hash__(self) -> int:
         """
@@ -189,8 +200,11 @@ class IastSpanReporter(NotNoneDictable):
         """
         self.stacktrace_id += 1
 
-        str_id = str(self.stacktrace_id)
-        if not report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
+        if not report_stack(
+            stack_traces=self.stack_traces,
+            stack_id=str(self.stacktrace_id),
+            namespace=STACK_TRACE.IAST,
+        ):
             vulnerability.location.stackId = None
         else:
             vulnerability.location.stackId = self.stacktrace_id
@@ -250,12 +264,7 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        if not is_iast_request_enabled():
-            log.debug(
-                "iast::propagation::context::build_and_scrub_value_parts. "
-                "No request quota or this vulnerability is outside the context"
-            )
-            return {}
+        # Evidence was captured during analysis; publishing it needs no live taint map.
         for vuln in self.vulnerabilities:
             scrubbing_result = sensitive_handler.scrub_evidence(
                 vuln.type, vuln.evidence, vuln.evidence._ranges, self.sources

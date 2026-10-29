@@ -1,11 +1,14 @@
+from typing import Optional
+
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._metrics import _metric_key_as_snake_case
 from ddtrace.internal.native._native import SpanData
 
 
-def _set_span_tag_iast_executed_sink(span: SpanData) -> None:
-    data = get_iast_span_metrics()
+def _set_span_tag_iast_executed_sink(span: SpanData, environment: Optional[IASTEnvironment] = None) -> None:
+    data = environment.iast_span_metrics if environment is not None else get_iast_span_metrics()
 
     if data is not None:
         for key, value in data.items():
@@ -16,7 +19,7 @@ def _set_span_tag_iast_executed_sink(span: SpanData) -> None:
             ):
                 span._set_attribute(key, value)
 
-    reset_iast_span_metrics()
+    data.clear()
 
 
 def get_iast_span_metrics() -> dict[str, int]:

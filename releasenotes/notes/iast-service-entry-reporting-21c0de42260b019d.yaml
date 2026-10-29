@@ -1,0 +1,4 @@
+fixes:
+  - |
+    App and API Protection: Fixes missing IAST finding details and stack traces
+    when request instrumentation is nested or a request has a custom parent span.

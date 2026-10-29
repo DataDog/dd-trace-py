@@ -37,7 +37,7 @@ def metric_verbosity(lvl):
                 return f
             except Exception:
                 log.warning("iast::metrics::error::metric_verbosity", exc_info=True)
-        return lambda: None  # noqa: E731
+        return lambda *args, **kwargs: None  # noqa: E731
 
     return wrapper
 
@@ -103,8 +103,9 @@ def _set_metric_iast_executed_sink(vulnerability_type):
 
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
-def _set_metric_iast_request_tainted():
-    total_objects_tainted = _num_objects_tainted_in_request()
+def _set_metric_iast_request_tainted(total_objects_tainted=None):
+    if total_objects_tainted is None:
+        total_objects_tainted = _num_objects_tainted_in_request()
     if total_objects_tainted > 0:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "request.tainted", total_objects_tainted)
 

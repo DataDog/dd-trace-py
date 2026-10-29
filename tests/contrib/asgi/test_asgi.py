@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable
+from contextlib import nullcontext
 from functools import partial
 import logging
 import os
@@ -17,6 +18,7 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib._events.web_request import WebRequestCompleting
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
@@ -294,6 +296,40 @@ async def test_microvm_run_hook_refreshes_identity(scope):
         core.reset_listeners(event_name, runtime.maybe_refresh_identity)
         core.reset_listeners(event_name, record_request_starting)
         _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+
+
+@pytest.mark.parametrize("interrupt_completion", [False, True])
+@pytest.mark.parametrize("scope", [{}], indirect=True)
+@pytest.mark.asyncio
+async def test_request_lifecycle_without_ready_subscriber(interrupt_completion, scope):
+    notifications = []
+    finalized = []
+
+    def finalize(event):
+        assert not event.span.finished
+        finalized.append(event)
+
+    def observe(event):
+        notifications.append(event)
+        if interrupt_completion and len(notifications) == 1:
+            raise asyncio.CancelledError
+
+    core.on(WebRequestCompleting.event_name, finalize)
+    core.on(WebRequestCompleting.event_name, observe)
+    try:
+        instance = ApplicationCommunicator(TraceMiddleware(basic_app), scope)
+        await instance.send_input({"type": "http.request", "body": b""})
+        with pytest.raises(asyncio.CancelledError) if interrupt_completion else nullcontext():
+            await asyncio.wait_for(instance.future, timeout=1)
+        assert instance.future.cancelled() is interrupt_completion
+    finally:
+        core.reset_listeners(WebRequestCompleting.event_name, finalize)
+        core.reset_listeners(WebRequestCompleting.event_name, observe)
+    assert len(notifications) == len(finalized) == 1
+    event = notifications[-1]
+    assert event.ctx.identifier == "asgi.request"
+    assert event.span.name == "asgi.request"
+    assert event.span.finished
 
 
 @pytest.mark.asyncio

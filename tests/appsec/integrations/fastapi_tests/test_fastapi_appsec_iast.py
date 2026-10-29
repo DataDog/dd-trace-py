@@ -1,10 +1,13 @@
 import asyncio
 from contextlib import closing
+from contextlib import nullcontext
 import io
 import json
 import logging
 import sys
 import typing
+from unittest import mock
+from wsgiref.util import setup_testing_defaults
 
 from fastapi import Cookie
 from fastapi import FastAPI
@@ -21,14 +24,17 @@ from starlette.background import BackgroundTask
 from starlette.responses import PlainTextResponse
 from starlette.responses import StreamingResponse
 
+from ddtrace import config
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
+from ddtrace.appsec._iast._taint_tracking._context import get_tainted_object_map_by_ctx_id
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -39,12 +45,20 @@ from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
+from ddtrace.appsec._iast_context import IAST_CONTEXT
+from ddtrace.contrib._events.web_request import WebRequestCompleting
+from ddtrace.contrib._events.web_request import WebRequestReady
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import find_exception
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
+from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -1292,8 +1306,14 @@ def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted,
         assert len(findings) == 1
         span, report = findings[0]
         assert span.span_id == owners[0].span_id
+        assert span is owners[0]._service_entry_span
+        assert span.get_metric(IAST.ENABLED) == 1.0
         assert span.get_tag("component") == "fastapi"
         assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+        assert report["vulnerabilities"][0]["location"]["spanId"] == span.span_id
+        assert report["vulnerabilities"][0]["location"]["stackId"] in {
+            str(stack["id"]) for stack in span._get_struct_tag("_dd.stack")["vulnerability"]
+        }
         assert debug_context_array_free_slots_number() == baseline
 
 
@@ -1332,33 +1352,342 @@ def test_streaming_background_work_cannot_taint_a_later_request(tracer):
                 assert get_tainted_ranges(own_value)
                 return PlainTextResponse("ok")
 
-            async def invoke(path):
-                async def receive():
-                    await asyncio.Event().wait()
-
-                async def send(message):
-                    pass
-
-                scope = dict(
-                    type="http",
-                    asgi=dict(version="3.0", spec_version="2.3"),
-                    http_version="1.1",
-                    method="GET",
-                    scheme="http",
-                    path=path,
-                    root_path="",
-                    query_string=b"value=own-request",
-                    headers=[],
-                    server=("localhost", 80),
-                    client=("127.0.0.1", 1234),
-                )
-                await application(scope, receive, send)
-
-            first_task = asyncio.create_task(invoke("/first"))
+            first_task = asyncio.create_task(_invoke_asgi(application, "/first", b"value=own-request", "2.3"))
             await late_work_started.wait()
             # This task inherits the clean caller context, not the first request's.
-            second_task = asyncio.create_task(invoke("/replacement"))
+            second_task = asyncio.create_task(_invoke_asgi(application, "/replacement", b"value=own-request", "2.3"))
             await asyncio.gather(first_task, second_task)
 
         asyncio.run(asyncio.wait_for(run(), timeout=10))
         assert debug_context_array_free_slots_number() == baseline
+
+
+@pytest.fixture
+def iast_fastapi(tracer):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100)
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        baseline = debug_context_array_free_slots_number()
+        yield FastAPI()
+        assert debug_context_array_free_slots_number() == baseline
+
+
+async def _invoke_asgi(application, path, query_string=b"", spec="2.4", headers=None):
+    async def receive():
+        await asyncio.Event().wait()
+
+    async def send(_message):
+        pass
+
+    scope = dict(
+        type="http",
+        asgi=dict(version="3.0", spec_version=spec),
+        http_version="1.1",
+        method="GET",
+        scheme="http",
+        path=path,
+        root_path="",
+        query_string=query_string,
+        headers=headers or [],
+        server=("localhost", 80),
+        client=("127.0.0.1", 1234),
+    )
+    await application(scope, receive, send)
+
+
+@pytest.mark.parametrize("sampled", [False, True])
+@pytest.mark.parametrize(
+    "layout",
+    [
+        "request",
+        "parent",
+        "parent_finishes_before",
+        "parent_finishes_after",
+        "other_service",
+        "proxy",
+        "nested_service",
+    ],
+)
+def test_fastapi_reporting_service_entry(iast_fastapi, tracer, test_spans, monkeypatch, layout, sampled):
+    import sqlite3
+
+    application = iast_fastapi
+    requests = []
+
+    def ready(event):
+        requests.append(event.span)
+
+    @application.get("/report")
+    async def endpoint(request: Request):
+        entry = tracer.current_span()._service_entry_span
+        if layout == "parent_finishes_before":
+            entry.finish()
+        value = request.query_params["value"]
+        assert bool(get_tainted_ranges(value)) is sampled
+        with closing(sqlite3.connect(":memory:")) as connection:
+            connection.execute(add_aspect("SELECT 1 FROM ", value))
+        if layout == "parent_finishes_after":
+            entry.finish()
+        return PlainTextResponse("ok")
+
+    headers = (
+        [
+            (b"x-dd-proxy", b"aws-apigateway"),
+            (b"x-dd-proxy-request-time-ms", b"1736973768000"),
+            (b"x-dd-proxy-domain-name", b"gateway.example"),
+        ]
+        if layout == "proxy"
+        else []
+    )
+    core.on(WebRequestReady.event_name, ready)
+    try:
+        with (
+            override_global_config(
+                dict(_iast_request_sampling=100 if sampled else 0, _inferred_proxy_services_enabled=layout == "proxy")
+            ),
+            override_config("asgi", dict(service_name="outer-service")),
+        ):
+            oce.reconfigure()
+            monkeypatch.setattr(tracer._span_aggregator, "partial_flush_enabled", True)
+            monkeypatch.setattr(tracer._span_aggregator, "partial_flush_min_spans", 1)
+            parent = (
+                tracer.trace("custom.parent", service="fastapi" if layout.startswith("parent") else "other-service")
+                if layout.startswith("parent") or layout == "other_service"
+                else nullcontext()
+            )
+            with parent:
+                if layout == "nested_service":
+                    application = TraceMiddleware(application)
+                asyncio.run(_invoke_asgi(application, "/report", b"value=sqlite_master", headers=headers))
+                request_span = next(span for span in requests if span.name == "fastapi.request")
+                entry = request_span._service_entry_span
+                if layout.startswith("parent_finishes"):
+                    assert entry.finished
+                    assert entry.get_metric(IAST.ENABLED) is None
+                    entry = request_span
+                assert entry.get_metric(IAST.ENABLED) == float(sampled)
+                report = load_iast_report(entry)
+                assert bool(report) is sampled
+                if sampled:
+                    assert entry.service == "fastapi"
+                    assert entry.get_tag("http.method") == "GET"
+                    assert entry.get_tag("http.route") == "/report"
+                    assert entry.get_tag("http.status_code") == "200"
+                    assert entry.get_tag("http.url").startswith("http://localhost/report")
+                    stacks = entry._get_struct_tag("_dd.stack")["vulnerability"]
+                    assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+                    assert {v["location"]["spanId"] for v in report["vulnerabilities"]} == {entry.span_id}
+                    assert {v["location"]["stackId"] for v in report["vulnerabilities"]} <= {
+                        str(stack["id"]) for stack in stacks
+                    }
+    finally:
+        core.reset_listeners(WebRequestReady.event_name, ready)
+        oce.reconfigure()
+    reports = [span for trace in test_spans.pop_traces() for span in trace if load_iast_report(span)]
+    assert reports == ([entry] if sampled else [])
+
+
+@pytest.mark.parametrize("protocol", ["asgi", "mounted_asgi", "rejected_asgi", "wsgi", "span"])
+def test_new_request_inside_background_task(iast_fastapi, tracer, test_spans, protocol):
+    import sqlite3
+
+    outer = iast_fastapi
+    inner = FastAPI()
+    inner_spans = []
+    sampled = protocol != "rejected_asgi"
+
+    @inner.get("/second")
+    async def second(request: Request):
+        inner_spans.append(tracer.current_span())
+        assert (IAST_CONTEXT.get() is not None) is sampled
+        value = request.query_params["value"]
+        assert bool(get_tainted_ranges(value)) is sampled
+        if protocol == "mounted_asgi":
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(add_aspect("SELECT 1 FROM ", value))
+        return PlainTextResponse("second")
+
+    async def invoke_asgi():
+        application, path = inner, "/second"
+        if protocol == "mounted_asgi":
+            application = FastAPI()
+            application.mount("/mounted", inner)
+            path = "/mounted/second"
+        try:
+            with override_global_config(dict(_iast_request_sampling=100 if sampled else 0)):
+                oce.reconfigure()
+                await _invoke_asgi(application, path, b"value=sqlite_master")
+        finally:
+            oce.reconfigure()
+
+    def wsgi_app(environ, start_response):
+        context_id = IAST_CONTEXT.get()
+        assert context_id is not None and get_tainted_object_map_by_ctx_id(context_id)
+        with closing(sqlite3.connect(":memory:")) as connection:
+            connection.execute(taint_pyobject("SELECT 1", "query", "unsafe"))
+        start_response("200 OK", [])
+        return [b"second"]
+
+    def invoke_wsgi():
+        environ = {}
+        setup_testing_defaults(environ)
+        with closing(DDWSGIMiddleware(wsgi_app)(environ, mock.Mock())) as response:
+            assert list(response) == [b"second"]
+
+    def invoke_span():
+        with tracer.trace("background.request", span_type="web"), closing(sqlite3.connect(":memory:")) as connection:
+            context_id = IAST_CONTEXT.get()
+            assert context_id is not None and get_tainted_object_map_by_ctx_id(context_id)
+            connection.execute(taint_pyobject("SELECT 1", "query", "unsafe"))
+
+    @outer.get("/first")
+    async def first():
+        if protocol.endswith("asgi"):
+            background = BackgroundTask(invoke_asgi)
+        else:
+            background = BackgroundTask(invoke_wsgi if protocol == "wsgi" else invoke_span)
+        return PlainTextResponse("first", background=background)
+
+    asyncio.run(_invoke_asgi(outer, "/first"))
+    if protocol == "mounted_asgi":
+        findings = [span for trace in test_spans.pop_traces() for span in trace if load_iast_report(span)]
+        assert len(findings) == 1
+        assert findings[0] is not inner_spans[0]
+    elif protocol.endswith("asgi"):
+        assert inner_spans[0].get_metric(IAST.ENABLED) == float(sampled)
+    else:
+        reports = [
+            load_iast_report(span)
+            for trace in test_spans.pop_traces()
+            for span in trace
+            if (span.get_tag("component") == "wsgi" if protocol == "wsgi" else span.name == "background.request")
+        ]
+        assert [v["type"] for report in reports if report for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+
+
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+def test_fastapi_analysis_with_manual_spans_and_nested_legacy_request(
+    tracer, iast_fastapi, monkeypatch, tracing_enabled
+):
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
+    application = iast_fastapi
+
+    async def legacy_app(_scope, _receive, send):
+        await send(dict(type="http.response.start", status=200, headers=[]))
+        await send(dict(type="http.response.body", body=b"legacy"))
+
+    @application.get("/nested")
+    async def endpoint(request: Request):
+        value = request.query_params["value"]
+        context_id = IAST_CONTEXT.get()
+        assert (context_id is not None) is tracing_enabled
+        for span_type in ("web", None):
+            with tracer.trace("nested.manual", span_type=span_type) as nested:
+                nested.span_type = "web"
+
+        async def send(_message):
+            pass
+
+        scope = {key: value for key, value in request.scope.items() if key != "datadog"}
+        await TraceMiddleware(legacy_app)(scope, request.receive, send)
+        assert IAST_CONTEXT.get() == context_id
+        assert bool(get_tainted_ranges(value)) is tracing_enabled
+        return PlainTextResponse("ok")
+
+    asyncio.run(_invoke_asgi(application, "/nested", b"value=unsafe"))
+
+
+@pytest.mark.parametrize(
+    "mode,spec",
+    [
+        ("stream", "2.3"),
+        ("stream", "2.4"),
+        ("error", "2.3"),
+        ("error", "2.4"),
+        ("cancel", "2.3"),
+        ("setup_error", "2.3"),
+        ("early_finish", "2.4"),
+    ],
+)
+def test_fastapi_request_lifecycle(iast_fastapi, tracer, spec, mode):
+    import sqlite3
+
+    notifications = []
+
+    def observe(event):
+        if event.ctx.get_item("integration_config").integration_name != "fastapi":
+            return
+        assert not event.span.finished or mode == "early_finish"
+        if isinstance(event, WebRequestReady):
+            assert IAST_CONTEXT.get() is not None
+        else:
+            assert bool(load_iast_report(event.span)) == (mode != "setup_error")
+            assert event.span.get_metric(IAST.ENABLED) == 1.0
+        notifications.append((event, asyncio.current_task()))
+
+    application = iast_fastapi
+
+    @application.get("/lifecycle")
+    async def endpoint(request: Request):
+        table = request.query_params["table"]
+        assert get_tainted_ranges(table)
+
+        def query():
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(add_aspect("SELECT 1 FROM ", table))
+
+        if mode == "cancel":
+            query()
+            raise asyncio.CancelledError
+        if mode == "early_finish":
+            tracer.current_span().finish()
+            query()
+            return PlainTextResponse("ok")
+
+        async def chunks():
+            query()
+            if mode == "error":
+                raise RuntimeError("lifecycle fixture")
+            yield b"ok"
+
+        return StreamingResponse(chunks())
+
+    if mode == "setup_error":
+
+        def fail_setup(_span, _scope):
+            raise RuntimeError("lifecycle fixture")
+
+        application = TraceMiddleware(application, integration_config=config.fastapi, span_modifier=fail_setup)
+
+    async def run():
+        # A later request in this task must replace an inherited expired id.
+        for _ in range(2):
+            if mode == "cancel":
+                with pytest.raises(asyncio.CancelledError):
+                    await _invoke_asgi(application, "/lifecycle", b"table=sqlite_master", spec)
+            elif mode in ("error", "setup_error"):
+                with pytest.raises(BaseException) as error:
+                    await _invoke_asgi(application, "/lifecycle", b"table=sqlite_master", spec)
+                assert str(find_exception(error.value, RuntimeError)) == "lifecycle fixture"
+            else:
+                await _invoke_asgi(application, "/lifecycle", b"table=sqlite_master", spec)
+            # A child may finish analysis without clearing this task's copied id.
+            context_id = IAST_CONTEXT.get()
+            assert context_id is None or not get_tainted_object_map_by_ctx_id(context_id)
+
+    event_types = [WebRequestReady, WebRequestCompleting]
+    for event_type in event_types:
+        core.on(event_type.event_name, observe)
+    try:
+        asyncio.run(run())
+    finally:
+        for event_type in event_types:
+            core.reset_listeners(event_type.event_name, observe)
+
+    assert [type(event) for event, _task in notifications] == event_types * 2
+    assert notifications[0][0].span is not notifications[2][0].span
+    for (ready, ready_task), (complete, complete_task) in zip(notifications[::2], notifications[1::2]):
+        assert ready.ctx is complete.ctx and ready.span is complete.span
+        if mode == "stream" and spec == "2.3":
+            assert complete_task is not ready_task

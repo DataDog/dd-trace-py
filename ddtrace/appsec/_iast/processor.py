@@ -4,12 +4,15 @@ from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 
 from ._iast_request_context import _iast_end_request
 from ._iast_request_context_base import _iast_start_request
+from ._request_lifecycle import _SPAN_ROUTES
+from ._request_lifecycle import uses_request_events
 
 
 log = get_logger(__name__)
@@ -41,17 +44,15 @@ class AppSecIastSpanProcessor(SpanProcessor):
     def on_span_start(self, span: SpanData) -> None:
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
-
+        if uses_request_events(core.current, span):
+            _SPAN_ROUTES[span] = True
+            return
         _iast_start_request(span)
 
     def on_span_finish(self, span: SpanData) -> None:
-        """Report reported vulnerabilities.
-
-        Span Tags:
-            - `_dd.iast.json`: Only when one or more vulnerabilities have been detected will we include the custom tag.
-            - `_dd.iast.enabled`: Set to 1 when IAST is enabled in a request. If a request is disabled
-              (e.g. by sampling), then it is not set.
-        """
+        """Report requests that have not migrated to lifecycle events."""
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
+            return
+        if _SPAN_ROUTES and span in _SPAN_ROUTES:
             return
         _iast_end_request(span)

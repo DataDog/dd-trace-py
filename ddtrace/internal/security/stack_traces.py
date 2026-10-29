@@ -22,11 +22,10 @@ def report_stack(
     crop_stack: Optional[str] = None,
     stack_id: Optional[str] = None,
     namespace: str = STACK_TRACE.RASP,
+    stack_traces: Optional[dict[str, Any]] = None,
 ) -> bool:
     """
-    Report a stack trace to the current span.
-    This is used to report stack traces for exploit prevention.
-    Return the stack id for the reported stack trace to link it in triggers.
+    Capture a stack on a span or in a supplied buffer for later publication.
     """
     if not asm_config._ep_stack_trace_enabled:
         # stack trace report disabled
@@ -38,12 +37,16 @@ def report_stack(
         # iast stack trace with iast disabled
         return False
 
-    if span is None:
-        span = get_entry_span()
-
-    if span is None or stack_id is None:
+    if stack_id is None:
         return False
-    appsec_traces = span._get_struct_tag(STACK_TRACE.TAG) or {}
+    if stack_traces is None:
+        if span is None:
+            span = get_entry_span()
+        if span is None:
+            return False
+        appsec_traces = span._get_struct_tag(STACK_TRACE.TAG) or {}
+    else:
+        appsec_traces = stack_traces
     current_list = appsec_traces.get(namespace, [])
     total_length = len(current_list)
 
@@ -92,5 +95,6 @@ def report_stack(
     res["frames"] = frames
     current_list.append(res)
     appsec_traces[namespace] = current_list
-    span._set_struct_tag(STACK_TRACE.TAG, appsec_traces)
+    if span is not None and stack_traces is None:
+        span._set_struct_tag(STACK_TRACE.TAG, appsec_traces)
     return True
