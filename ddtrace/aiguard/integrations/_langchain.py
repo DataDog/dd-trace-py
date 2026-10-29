@@ -187,6 +187,22 @@ def _get_message_text(msg: Any) -> str:
     return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
 
 
+def _convert_invalid_tool_calls(message: Any) -> list[ToolCall]:
+    """Convert the tool calls langchain could not parse, keeping their raw arguments.
+
+    They are never dispatched, but the raw text still reaches the application and
+    some providers serialize it back into the next request, so it must be evaluated.
+    """
+    return [
+        ToolCall(
+            id=call.get("id") or "",
+            function=Function(name=call.get("name") or "", arguments=call.get("args") or ""),
+        )
+        for call in getattr(message, "invalid_tool_calls", None) or ()
+        if isinstance(call, dict)
+    ]
+
+
 def _convert_messages(messages: list[Any]) -> list[Message]:
     from langchain_core.messages import ChatMessage
     from langchain_core.messages import HumanMessage
@@ -205,16 +221,15 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
             elif isinstance(message, ChatMessage):
                 result.append(Message(role=message.role, content=_get_message_text(message)))
             elif isinstance(message, AIMessage):
-                if len(message.tool_calls) > 0:
-                    tool_calls = [
-                        ToolCall(
-                            id=call.get("id", ""),
-                            function=Function(
-                                name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))
-                            ),
-                        )
-                        for call in message.tool_calls
-                    ]
+                tool_calls = [
+                    ToolCall(
+                        id=call.get("id", ""),
+                        function=Function(name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))),
+                    )
+                    for call in message.tool_calls
+                ]
+                tool_calls.extend(_convert_invalid_tool_calls(message))
+                if tool_calls:
                     result.append(Message(role="assistant", tool_calls=tool_calls))
                 if "function_call" in message.additional_kwargs:
                     function_call = message.additional_kwargs["function_call"]
@@ -348,6 +363,7 @@ def _convert_response_message(message: Any) -> list[Message]:
         for call in message.tool_calls or ()
         if isinstance(call, dict)
     ]
+    tool_calls.extend(_convert_invalid_tool_calls(message))
     function_call = message.additional_kwargs.get("function_call")
     if isinstance(function_call, dict):
         tool_calls.append(
