@@ -70,10 +70,13 @@ def test_markers_preserve_hypothesis_examples_and_settings(pytester: Pytester, m
             assert len(seen) == 3
         """
     )
-    with setup_standard_mocks():
-        result = pytester.inline_run("--no-ddtrace", "--strict-markers", "-q")
+    with setup_standard_mocks(), EventCapture.capture() as capture:
+        result = pytester.inline_run("--ddtrace", "--strict-markers", "-q")
     result.assertoutcome(failed=1, passed=1)
     assert "assert 1 == 0" in str(result.matchreport("test_explicit_failure", when="call").longrepr)
+    [event] = capture.events_by_test_name("test_explicit_failure")
+    assert event["content"]["meta"]["test.status"] == "fail"
+    assert event["content"]["meta"][PREFIX + marker.removeprefix("dd_")] == "true"
 
 
 @pytest.mark.parametrize("scope", ["module", "class", "parameter"])
