@@ -79,8 +79,10 @@ class CoverageData:
 
 
 @contextlib.contextmanager
-def coverage_collection() -> t.Generator[CoverageData, None, None]:
-    with ModuleCodeCollector.CollectInContext() as coverage_collector:
+def coverage_collection(
+    test_file: t.Optional[Path] = None,
+) -> t.Generator[CoverageData, None, None]:
+    with ModuleCodeCollector.CollectInContext(test_file=test_file) as coverage_collector:
         coverage_data = CoverageData()
         yield coverage_data
         if ModuleCodeCollector.file_level_coverage_enabled():

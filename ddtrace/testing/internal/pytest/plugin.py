@@ -282,8 +282,20 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
             return 0, 0
 
 
+@lru_cache(maxsize=4096)
+def _test_file(item: pytest.Item) -> t.Optional[Path]:
+    """The test's own file path, or None for mocked/abstract items."""
+    try:
+        path = Path(item.path) if hasattr(item, "path") else Path(item.fspath)
+        return path if path.is_file() else None
+    except (TypeError, ValueError, OSError):
+        return None
+
+
 @contextlib.contextmanager
-def _maybe_collect_coverage(coverage_enabled: bool) -> t.Generator[CoverageData, None, None]:
+def _maybe_collect_coverage(
+    coverage_enabled: bool, test_file: t.Optional[Path] = None
+) -> t.Generator[CoverageData, None, None]:
     """Yield a per-test coverage collector, or a no-op when coverage is disabled.
 
     Entering coverage_collection() is only meaningful when the ModuleCodeCollector is
@@ -305,7 +317,7 @@ def _maybe_collect_coverage(coverage_enabled: bool) -> t.Generator[CoverageData,
     """
     if coverage_enabled:
         TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-        with coverage_collection() as coverage_data:
+        with coverage_collection(test_file=test_file) as coverage_data:
             yield coverage_data
         TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
     else:
@@ -809,7 +821,9 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
+            with _maybe_collect_coverage(
+                self.manager.settings.coverage_enabled, test_file=_test_file(item)
+            ) as coverage_data:
                 yield
 
         if not test.test_runs:
@@ -1436,7 +1450,9 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
-            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
+            with _maybe_collect_coverage(
+                self.manager.settings.coverage_enabled, test_file=_test_file(item)
+            ) as coverage_data:
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
