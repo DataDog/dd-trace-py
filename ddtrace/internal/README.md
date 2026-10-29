@@ -115,6 +115,18 @@ hook deliberately retains the shared listeners, matching the existing tracing li
 and allowing active contexts to finish after an explicit product stop. Other subscriber
 families keep their existing lifecycle until migrated.
 
+AppSec declares its web-framework bundle in `ddtrace.appsec._registration`. Its
+registration hook checks active enablement; `load_appsec()` also registers the bundle
+for remote activation. AppSec retains completion and cleanup listeners across stop
+and remote disablement so active contexts can finish, with runtime enablement checks
+controlling inspection.
+
+Bottle emits typed web events and adapts blocked responses, including direct
+`TracePlugin` installation. Its integration code does not import either product's declaration.
+Additional frameworks emitting the same events reuse the same bundle. An LLMObs product
+could declare an `llm` bundle alongside its own lazy extraction-class registry; extraction
+and export policy remain product-owned.
+
 
 ## Remote Configuration Callbacks
 

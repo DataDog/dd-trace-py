@@ -1,5 +1,7 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
@@ -7,9 +9,11 @@ from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import WEB_REQUEST_STARTING_EVENT
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.utils import Block_config
 
 
 class WebFrameworkEvents(str, Enum):
@@ -53,3 +57,31 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.INBOUND
         )
+
+
+@dataclass
+class WebFrameworkRequestInspectEvent(Event):
+    """Request data available before invoking the route callback; the body is not consumed."""
+
+    event_name = "web.request.inspect"
+    request_event: WebFrameworkRequestEvent
+    peer_ip: Optional[str]
+    cookies: Mapping[str, str]
+    path_params: Mapping[str, Any]
+
+
+@dataclass
+class WebFrameworkResponseInspectEvent(Event):
+    """Response metadata populated before inspecting or replacing the callback outcome."""
+
+    event_name = "web.response.inspect"
+    request_event: WebFrameworkRequestEvent
+
+
+@dataclass
+class WebFrameworkBlockResponseEvent(Event):
+    """Subscribers may supply a status, headers, and body before dispatch returns."""
+
+    event_name = "web.response.block"
+    block: Block_config
+    response: Optional[tuple[int, Mapping[str, str], bytes]] = None

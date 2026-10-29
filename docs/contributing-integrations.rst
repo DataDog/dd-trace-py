@@ -118,6 +118,26 @@ so an adapter holds no per-request state and can be built once at import time. T
 adapter must not invoke the application more than once or manage context or span
 completion. Without an adapter, the runner calls ``invoke()`` directly.
 
+``blocking_execute_adapter`` builds an adapter that implements the shared blocking
+protocol: it dispatches the request and response inspection events, catches
+``BlockingException`` including blocks nested in exception groups, closes the discarded
+outcome, resolves the blocked response, and completes the replacement metadata. An
+integration parameterizes it with four framework callbacks and supplies no blocking
+logic of its own:
+
+``request_details(kwargs)``
+    Returns a ``RequestInspectionDetails`` of peer IP, cookies, and path parameters.
+``is_response_object(outcome)``
+    Reports whether a returned or raised object is the framework's response type.
+``extract_body(outcome)``
+    Returns the body of such a response object, without iterating it.
+``build_response(status, headers, body)``
+    Builds the framework's response object for a block.
+
+When no subscriber supplies a blocked response, the adapter falls back to a default
+JSON 403. Integrations that need a different inspection or replacement sequence can
+still pass their own ``execute``.
+
 Request hooks and context events run regardless of tracing enablement. An ordinary
 preparation error bypasses the context and adapter and invokes the application once.
 An ordinary completion error preserves the application's result or exception.
@@ -132,12 +152,57 @@ and deferred completion require a different lifecycle runner.
 Bottle request adapter
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Bottle supplies the prepare and complete hooks and selects the ``bottle.request``
-context route. The tracing product's shared ``WebFrameworkRequestSubscriber`` listens
-to that route through its ``web_framework`` subscriber bundle. Bottle continues to
-manage plugin ordering, skip settings, installation, and callback-cache resets.
-Completion interprets returned and raised ``HTTPResponse`` objects before span
-completion, including the status-based OpenTelemetry error semantics.
+Bottle's plugin supplies ``prepare`` and ``complete`` hooks to the shared runner,
+using ``context_name_override="bottle.request"``, and builds its execution adapter
+once from ``blocking_execute_adapter``. Bottle continues to manage plugin ordering,
+skip settings, installation, and callback-cache resets. Its four callbacks are the
+only Bottle-specific part of blocking: they read the peer IP, cookies, and path
+parameters from Bottle's request proxy, recognize ``HTTPResponse``, read its ``body``,
+and construct the replacement ``HTTPResponse``. Completion sets
+``response_from_exception`` for raised HTTP responses, allowing the tracing
+subscriber to apply OpenTelemetry status-based error semantics while preserving
+the exception for Bottle. Replacement responses clear the flag.
+
+The shared inspection events are defined in
+``ddtrace.contrib._events.web_framework``. AppSec declares their subscriber bundle in
+``ddtrace.appsec._registration`` and registers it through its product hook and
+``load_appsec()`` for remote activation. Tracing declares
+its corresponding bundle in ``ddtrace._trace._registration``. Both use the shared
+``SubscriberBundle`` API and product lifecycle hooks documented in
+``ddtrace/internal/README.md``. Bundles register through their existing product lifecycle;
+adding a framework that emits the same events does not require new per-product wiring.
+Request inspection carries explicit
+peer IP, cookies, and path parameters alongside the request event; subscribers
+do not receive framework request objects. Another synchronous adapter can reuse
+these events and subscribers. The shared ``WebFrameworkRequestContextSubscriber`` handles cleanup for both
+``web.request`` and ``bottle.request``. Additional context routes with the same
+cleanup behavior can join its event names; distinct behavior requires a specialized
+subscriber.
+
+The shared adapter dispatches ``WebFrameworkRequestInspectEvent`` before invoking the
+route callback and ``WebFrameworkResponseInspectEvent`` after metadata completion, while
+the response can still be replaced. These notifications use ``core.dispatch_event``.
+AppSec subscribers own request evaluation, blocking configuration, and registration of
+the public ``block_request()`` capability. They inspect request headers, URI, query
+parameters, cookies, path parameters, and callback response status and headers without
+consuming request or response bodies. Request evaluation runs inside the blocking
+handler rather than at context entry, because raising during context entry skips
+context exit.
+
+The shared adapter catches ``BlockingException`` inside the request context, including
+blocks raised before the callback and blocks nested in exception groups. A
+``WebFrameworkBlockResponseEvent`` subscriber supplies the selected status, headers, and
+body on the event; the adapter then calls ``build_response`` and completes the
+replacement metadata before returning to the shared runner. Discarded response iterables
+are closed without iteration. A pending block is checked again at response inspection,
+including when application code catches the blocking exception. AppSec cleanup uses
+the shared context subscriber, preserving the ``bottle.request`` lifecycle hooks.
+
+These notifications run independently of APM tracing enablement. AppSec subscribers
+check their own enablement. Blocking is limited to callbacks covered by the plugin;
+unmatched routes, skipped routes, earlier framework hooks, later response hooks,
+and streaming after callback return remain outside this boundary.
+
 
 
 Are there norms for integrating with database libraries?

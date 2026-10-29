@@ -1,3 +1,4 @@
+from ddtrace.appsec._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.internal.settings.asm import config
 
 
@@ -37,10 +38,12 @@ def start() -> None:
 
 
 def register_subscribers() -> None:
-    pass
+    if config._asm_enabled:
+        WEB_FRAMEWORK_SUBSCRIBERS.register()
 
 
 def unregister_subscribers() -> None:
+    # Retain completion and cleanup listeners for contexts that can outlive product stop.
     pass
 
 

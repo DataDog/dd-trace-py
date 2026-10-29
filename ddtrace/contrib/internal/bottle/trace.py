@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from collections.abc import Mapping
 from collections.abc import MutableMapping
 from functools import partial
 from typing import Any
@@ -12,6 +13,8 @@ from bottle import response
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.web_framework import CompleteCallback
+from ddtrace.contrib.internal.web_framework import RequestInspectionDetails
+from ddtrace.contrib.internal.web_framework import blocking_execute_adapter
 from ddtrace.contrib.internal.web_framework import run_web_framework_request
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -66,7 +69,40 @@ def _run_request(
         prepare=prepare,
         complete=complete,
         context_name_override="bottle.request",
+        execute=_execute_request,
     )
+
+
+def _request_details(path_params: Mapping[str, Any]) -> RequestInspectionDetails:
+    """Collect the request data subscribers receive in place of Bottle's request object."""
+    return RequestInspectionDetails(
+        peer_ip=request.environ.get("REMOTE_ADDR"),
+        cookies=dict(request.cookies),
+        path_params=path_params,
+    )
+
+
+def _is_http_response(outcome: Any) -> bool:
+    return isinstance(outcome, HTTPResponse)
+
+
+def _response_body(outcome: HTTPResponse) -> Any:
+    return outcome.body
+
+
+def _build_blocked_response(status: int, headers: Mapping[str, str], body: bytes) -> HTTPResponse:
+    blocked = HTTPResponse(body=body, status=status, headers=headers)
+    # Completion hooks must see the replacement headers, without the application's headers or cookies.
+    blocked.apply(response)
+    return blocked
+
+
+_execute_request = blocking_execute_adapter(
+    request_details=_request_details,
+    is_response_object=_is_http_response,
+    extract_body=_response_body,
+    build_response=_build_blocked_response,
+)
 
 
 def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEvent:

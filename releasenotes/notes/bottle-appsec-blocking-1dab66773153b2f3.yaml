@@ -1,0 +1,7 @@
+features:
+  - |
+    bottle: Adds request blocking during instrumented route callbacks when
+    ``DD_APPSEC_ENABLED=true``, including with ``DD_APM_TRACING_ENABLED=false``.
+    Protection covers request metadata, callback response status and headers, and
+    explicit application blocking; body inspection and streaming after callback
+    return are not covered.

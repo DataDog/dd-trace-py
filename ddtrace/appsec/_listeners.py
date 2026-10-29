@@ -121,6 +121,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
     from ddtrace.appsec._contrib.tornado import listen as tornado_listen
     from ddtrace.appsec._handlers import listen
+    from ddtrace.appsec._registration import WEB_FRAMEWORK_SUBSCRIBERS
     # from ddtrace.appsec._contrib.grpc import listen as grpc_listen
 
     global _APPSEC_TO_BE_LOADED
@@ -135,6 +136,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         stripe_listen()
         tornado_listen()
         aiohttp_listen()
+        WEB_FRAMEWORK_SUBSCRIBERS.register()
 
         # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
         # grpc_listen()
