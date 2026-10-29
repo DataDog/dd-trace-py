@@ -3,6 +3,7 @@
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.profiling import lifecycle
 from ddtrace.internal.settings.profiling import _is_platform_supported
+from ddtrace.internal.settings.profiling import config as profiling_config
 import ddtrace.profiling as profiling
 
 
@@ -22,6 +23,23 @@ def start_profiler() -> None:
 
     with lifecycle.lock:
         lifecycle.stop_profiler()
+
+        # The Profiler can be enabled but all Collectors disabled.
+        # A profiler without collectors would still upload empty profiles.
+        if not any(
+            (
+                profiling_config.stack.enabled,
+                profiling_config.memory.enabled,
+                profiling_config.lock.enabled,
+                profiling_config.exception.enabled,
+                profiling_config.pytorch.enabled,
+                # Native heap does not use a collector, but is also started by the
+                # Profiler object, so for the time being we include it here.
+                profiling_config.native_heap.enabled,
+            )
+        ):
+            LOG.debug("[profiling] No collector is enabled, not starting the profiler")
+            return
 
         # Export the profiler so we can introspect it if needed
         new_profiler = profiler.Profiler()
