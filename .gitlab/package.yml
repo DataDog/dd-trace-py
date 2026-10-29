@@ -361,15 +361,18 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
+    # Enable sccache for Rust/C/C++ compilation caching
+    DD_USE_SCCACHE: "1"
+    # S3-backed sccache, same settings as "build linux"
+    SCCACHE_BUCKET: "dd-trace-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
+    SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
   needs:
     - job: "build sdist"
       artifacts: true
   script:
-    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
-    - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
-    - twine check ${SDIST_FILE}
-    - pip install ${SDIST_FILE}
-    - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+    - .gitlab/scripts/test-sdist.sh
 
 "build windows":
   stage: package
