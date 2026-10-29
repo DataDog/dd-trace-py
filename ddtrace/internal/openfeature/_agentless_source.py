@@ -30,6 +30,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
+from ddtrace.internal.openfeature._native import DEPENDENT_FLAG_VARIANT_KEY_V1
+from ddtrace.internal.openfeature._native import get_evaluator_capabilities
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.http import get_connection
@@ -315,6 +317,8 @@ class AgentlessConfigurationSource(PeriodicService):
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
+        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
+            headers["X-DD-FEATURE-FLAGS-CAPABILITIES"] = DEPENDENT_FLAG_VARIANT_KEY_V1
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
         if self._etag:
