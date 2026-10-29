@@ -22,5 +22,5 @@ Configuration
    This option can also be set with the ``DD_AIOPG_SERVICE`` environment
    variable.
 
-   Default: ``DD_SERVICE`` when set, otherwise ``"postgres"`` (schema v0).
+   Default: ``"postgres"``
 """

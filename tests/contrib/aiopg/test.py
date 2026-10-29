@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.aiopg.patch import patch
 from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib import shared_tests_async
@@ -322,12 +323,16 @@ class AiopgTestCase(AsyncioTestCase):
     async def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
-            The aiopg integration uses it.
+            The aiopg integration uses its default database service.
         """
         # Ensure that the service name was configured
         from ddtrace import config
 
         assert config.service == "mysvc"
+
+        with self.tracer.trace("checkout", service="mysvc") as span:
+            assert span.get_tag(_SERVICE_SOURCE) == "m"
+        self.pop_spans()
 
         conn = await self._get_conn()
         await (await conn.cursor()).execute("select 'blah'")
@@ -336,7 +341,7 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert spans, spans
         assert len(spans) == 1
-        assert spans[0].service == "mysvc"
+        assert spans[0].service == "postgres"
 
     @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -438,7 +443,7 @@ class AiopgTestCase(AsyncioTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "mysvc"
+        assert span.service == "postgres"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))

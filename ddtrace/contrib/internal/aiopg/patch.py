@@ -19,7 +19,7 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 config._add(
     "aiopg",
     dict(
-        _default_service=schematize_service_name(config._get_service("postgres")),
+        _default_service=schematize_service_name("postgres"),
     ),
 )
 
