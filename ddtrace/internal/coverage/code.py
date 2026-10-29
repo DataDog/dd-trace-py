@@ -238,8 +238,13 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         # Convert CoverageLines to sets: the report helpers use set operations that
         # the bitmap-backed CoverageLines does not implement. Debug-only path.
+        # covered must keep defaultdict semantics (missing keys read as empty): a
+        # file can have executable lines but no execution events (e.g. imported
+        # while coverage is stopped), and the helpers index covered[ephemeral path].
         executable_lines = {path: set(lines.to_sorted_list()) for path, lines in instance.lines.items()}
-        covered_lines = {path: set(lines.to_sorted_list()) for path, lines in instance._get_covered_lines().items()}
+        covered_lines = defaultdict(
+            set, {path: set(lines.to_sorted_list()) for path, lines in instance._get_covered_lines().items()}
+        )
 
         # Resolve the workspace: instrumentation records under realpath(co_filename),
         # so a symlinked workspace must be resolved or the report regresses to absolute
@@ -256,7 +261,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         # Convert CoverageLines to sets for the same reason as report() above.
         executable_lines = {path: set(lines.to_sorted_list()) for path, lines in instance.lines.items()}
-        covered_lines = {path: set(lines.to_sorted_list()) for path, lines in instance._get_covered_lines().items()}
+        covered_lines = defaultdict(
+            set, {path: set(lines.to_sorted_list()) for path, lines in instance._get_covered_lines().items()}
+        )
 
         # Resolve the workspace for the same reason as report() above.
         with open(filename, "w") as f:

@@ -692,7 +692,79 @@ def test_bitmaps_resolve_symlinked_workspace():
             sys.path.remove(str(alias_ws))
 
 
-def test_report_and_json_report_resolve_symlinked_workspace(tmp_path, capsys):
+@pytest.mark.subprocess()
+def test_reports_include_executable_but_uncovered_files():
+    """Files with executable lines but no execution events must not raise KeyError.
+
+    A module imported while the collector is installed but coverage is stopped
+    gets an entry in instance.lines but none in the covered data. The report
+    entry points previously relied on defaultdict auto-vivification for that
+    case; the set conversion must preserve it.
+    """
+    import contextlib
+    import io
+    import json
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir) / "ws"
+        ws.mkdir()
+        (ws / "unc_mod.py").write_text("a = 1\nb = 2\n")
+
+        sys.path.insert(0, str(ws))
+        try:
+            install(include_paths=[ws], collect_import_time_coverage=True)
+            # Coverage is stopped: instrumentation records executable lines, but
+            # no execution events are collected.
+            import unc_mod  # noqa: F401
+
+            # The console report must not raise on the executable-but-uncovered
+            # entry (it skips 0%-covered files from its rows by design; the JSON
+            # report below asserts the entry itself).
+            with contextlib.redirect_stdout(io.StringIO()):
+                ModuleCodeCollector.report(ws)
+
+            report_file = Path(tmpdir) / "report.json"
+            ModuleCodeCollector.write_json_report_to_file(str(report_file), ws)
+            files = json.loads(report_file.read_text())["files"]
+            entry = files["/unc_mod.py"] if "/unc_mod.py" in files else files["unc_mod.py"]
+            assert entry["executed_lines"] == [], "uncovered module must report no executed lines"
+            assert entry["missing_lines"], "uncovered module must report missing lines"
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess()
+def test_join_thread_created_before_install():
+    """Threads created before install() must survive the patched join.
+
+    _patch_threading patches Thread.join at the class level, so a thread whose
+    __init__ predates installation reaches join() without coverage state; the
+    CI traceback AttributeError: 'Thread' object has no attribute '_should_cover'
+    on join must not recur.
+    """
+    import threading
+
+    from ddtrace.internal.coverage.installer import install
+
+    t = threading.Thread(target=lambda: None)
+    t.start()
+    t.join()  # unpatched join: the thread exits before installation
+
+    install(include_paths=None, collect_import_time_coverage=True)
+
+    # Second join on the terminated thread goes through the patched method
+    # without _should_cover; it must be a no-op, not an AttributeError.
+    t.join()
+
+
+@pytest.mark.subprocess()
+def test_report_and_json_report_resolve_symlinked_workspace():
     """Console and JSON reports must relativize against a symlinked workspace.
 
     Same scenario as test_bitmaps_resolve_symlinked_workspace: instrumentation
@@ -700,42 +772,47 @@ def test_report_and_json_report_resolve_symlinked_workspace(tmp_path, capsys):
     workspace alias. report() and write_json_report_to_file() must resolve it, or
     the reports regress to absolute filenames.
     """
+    import contextlib
+    import io
     import json
+    from pathlib import Path
     import sys
+    import tempfile
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
 
-    real_ws = tmp_path / "real"
-    real_ws.mkdir()
-    (real_ws / "rep_mod.py").write_text("value = 1\n")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        real_ws = Path(tmpdir) / "real"
+        real_ws.mkdir()
+        (real_ws / "rep_mod.py").write_text("value = 1\n")
 
-    alias_ws = tmp_path / "alias"
-    alias_ws.symlink_to(real_ws)
+        alias_ws = Path(tmpdir) / "alias"
+        alias_ws.symlink_to(real_ws)
 
-    sys.path.insert(0, str(alias_ws))
-    try:
-        install(include_paths=[alias_ws], collect_import_time_coverage=True)
+        sys.path.insert(0, str(alias_ws))
+        try:
+            install(include_paths=[alias_ws], collect_import_time_coverage=True)
 
-        ModuleCodeCollector.start_coverage()
-        import rep_mod  # noqa: F401
+            ModuleCodeCollector.start_coverage()
+            import rep_mod  # noqa: F401
 
-        ModuleCodeCollector.stop_coverage()
+            ModuleCodeCollector.stop_coverage()
 
-        # JSON report: filenames must be workspace-relative despite the alias.
-        report_file = tmp_path / "report.json"
-        ModuleCodeCollector.write_json_report_to_file(str(report_file), alias_ws)
-        files = json.loads(report_file.read_text())["files"]
-        assert any(key in ("rep_mod.py", "/rep_mod.py") for key in files), (
-            "JSON report regressed to absolute filenames; workspace alias not resolved: %s" % alias_ws
-        )
-        assert all(not key.startswith(str(alias_ws)) for key in files)
+            # JSON report: filenames must be workspace-relative despite the alias.
+            report_file = Path(tmpdir) / "report.json"
+            ModuleCodeCollector.write_json_report_to_file(str(report_file), alias_ws)
+            files = json.loads(report_file.read_text())["files"]
+            assert any(key in ("rep_mod.py", "/rep_mod.py") for key in files), (
+                "JSON report regressed to absolute filenames; workspace alias not resolved: %s" % alias_ws
+            )
+            assert all(not key.startswith(str(alias_ws)) for key in files)
 
-        # Console report: same requirement.
-        ModuleCodeCollector.report(alias_ws)
-        out = capsys.readouterr().out
-        assert "rep_mod.py" in out and str(alias_ws) not in out, (
-            "console report regressed to absolute filenames; workspace alias not resolved"
-        )
-    finally:
-        sys.path.remove(str(alias_ws))
+            # Console report: must relativize against the alias too.
+            with contextlib.redirect_stdout(io.StringIO()) as buf:
+                ModuleCodeCollector.report(alias_ws)
+            out = buf.getvalue()
+            assert "rep_mod.py" in out, "console report lost the covered module row"
+            assert str(alias_ws) not in out, "console report regressed to absolute filenames"
+        finally:
+            sys.path.remove(str(alias_ws))
