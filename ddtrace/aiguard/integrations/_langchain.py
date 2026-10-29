@@ -2,6 +2,7 @@ import contextvars
 from functools import partial
 import importlib
 from types import ModuleType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Iterator
@@ -24,6 +25,11 @@ from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils import get_argument_value
+
+
+if TYPE_CHECKING:
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import BaseMessage
 
 
 logger = ddlogger.get_logger(__name__)
@@ -175,7 +181,7 @@ async def _langchain_toolnode_arun_one(
     return await func(*args, **kwargs)
 
 
-def _get_message_text(msg: Any) -> str:
+def _get_message_text(msg: "BaseMessage") -> str:
     if isinstance(msg.content, str):
         return msg.content
 
@@ -187,7 +193,7 @@ def _get_message_text(msg: Any) -> str:
     return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
 
 
-def _convert_invalid_tool_calls(message: Any) -> list[ToolCall]:
+def _convert_invalid_tool_calls(message: "AIMessage") -> list[ToolCall]:
     """Convert the tool calls langchain could not parse, keeping their raw arguments.
 
     They are never dispatched, but the raw text still reaches the application and
@@ -203,7 +209,7 @@ def _convert_invalid_tool_calls(message: Any) -> list[ToolCall]:
     ]
 
 
-def _convert_messages(messages: list[Any]) -> list[Message]:
+def _convert_messages(messages: Sequence["BaseMessage"]) -> list[Message]:
     from langchain_core.messages import ChatMessage
     from langchain_core.messages import HumanMessage
     from langchain_core.messages import SystemMessage
@@ -341,7 +347,7 @@ def _message_has_tool_calls(message: Any) -> bool:
     return bool(_message_tool_call_fingerprints(message))
 
 
-def _convert_response_message(message: Any) -> list[Message]:
+def _convert_response_message(message: "BaseMessage") -> list[Message]:
     """Convert a model's own reply, keeping its text and tool calls in one turn.
 
     AIGuardClient.evaluate reads the span's target and tool_name off the trailing
