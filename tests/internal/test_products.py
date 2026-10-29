@@ -372,18 +372,58 @@ def test_product_manager_registers_subscribers_after_start():
     assert calls == ["start", "register_subscribers", "unregister_subscribers", "stop"]
 
 
-def test_product_manager_skips_subscribers_of_disabled_products():
+@pytest.mark.parametrize("shutdown_method", ["stop_products", "exit_products"])
+def test_product_manager_unregisters_subscribers_of_disabled_products(shutdown_method):
     class Disabled(RecordingProduct):
         def enabled(self) -> bool:
             return False
 
     calls: list[str] = []
-    manager = ProductManagerTest({"disabled": Disabled(calls)})
+    product = Disabled(calls)
+    manager = ProductManagerTest({"disabled": product})
+
+    # Model a subscriber registered by an integration patch hook while the product is disabled.
+    product.register_subscribers()
 
     manager.start_products()
-    manager.stop_products()
+    getattr(manager, shutdown_method)()
+
+    assert calls == ["register_subscribers", "unregister_subscribers"]
+
+
+def test_product_manager_unregisters_subscribers_before_stopping_on_exit():
+    calls: list[str] = []
+    manager = ProductManagerTest({"a": RecordingProduct(calls)})
+
+    manager.exit_products()
+
+    assert calls == ["unregister_subscribers", "stop"]
+
+
+def test_product_manager_skips_cleanup_on_exit_for_skip_exit_products():
+    class SkipExit(RecordingProduct):
+        def skip_exit(self) -> bool:
+            return True
+
+    calls: list[str] = []
+    manager = ProductManagerTest({"a": SkipExit(calls)})
+
+    manager.exit_products()
 
     assert calls == []
+
+
+def test_product_manager_subscriber_failure_does_not_prevent_exit_stop():
+    class Broken(RecordingProduct):
+        def unregister_subscribers(self) -> None:
+            raise RuntimeError()
+
+    calls: list[str] = []
+    manager = ProductManagerTest({"a": Broken(calls)})
+
+    manager.exit_products()
+
+    assert calls == ["stop"]
 
 
 def test_product_manager_subscriber_failures_do_not_fail_product():
