@@ -569,14 +569,6 @@ def pytest_collection_modifyitems(session, config, items):
 
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
-        snapshot_options = getattr(getattr(item, "obj", None), "_snapshot_options", None)
-        if (
-            snapshot_options is not None
-            and item.get_closest_marker("subprocess") is not None
-            and item.get_closest_marker("snapshot") is None
-        ):
-            # Subprocess extraction bypasses decorators; capture must be owned by the parent fixture.
-            item.add_marker(pytest.mark.snapshot(**snapshot_options))
         if skip_benchmark is not None and "benchmark" in getattr(item, "fixturenames", ()):
             item.add_marker(skip_benchmark)
         if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):

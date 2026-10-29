@@ -192,7 +192,6 @@ suites:
           dependencies: [requests, 'PyYAML==6.0.3', 'pip==26.2.1']
   appsec_integrations_packages:
     venvs_per_job: 3
-    snapshot: true
     env:
       TEST_POSTGRES_HOST: postgres
       TEST_MYSQL_HOST: mysql

@@ -50,7 +50,6 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
-from tests.utils import snapshot
 
 
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
@@ -3084,10 +3083,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == DEFAULT_SPAN_SERVICE_NAME
             assert span.name == "aws.secretsmanager.request"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3131,10 +3127,7 @@ class BotocoreTest(TracerTestCase):
             trace_in_message = "MessageAttributes" in response["Messages"][0]
             assert trace_in_message is False
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs_invalid_config(self):
         # Recreate setUp operations to ensure spans are captured by snapshot test
@@ -3169,10 +3162,7 @@ class BotocoreTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns(self):
@@ -3217,10 +3207,7 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns_valid_config(self):
@@ -3273,10 +3260,7 @@ class BotocoreTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
@@ -3304,10 +3288,7 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     @pytest.mark.skip(reason="Flaky test")
     def test_aws_payload_tagging_s3_invalid_config(self):
@@ -3325,10 +3306,7 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_dynamodb
     def test_dynamodb_payload_tagging(self):
         with self.override_config(
@@ -3373,10 +3351,7 @@ class BotocoreTest(TracerTestCase):
             assert not span._get_links()
 
     @pytest.mark.skip(reason="broken during period of skipping on main branch")
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
     def test_aws_payload_tagging_s3_valid_config(self):
         with self.override_config(
@@ -3392,10 +3367,7 @@ class BotocoreTest(TracerTestCase):
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_events
     @mock_sqs
     def test_aws_payload_tagging_eventbridge(self):
@@ -3437,10 +3409,7 @@ class BotocoreTest(TracerTestCase):
 
             bridge.delete_event_bus(Name="a-test-bus")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_URLLIB3_ENABLED="false", DD_SERVICE="tests.contrib.botocore")
-    )
-    @snapshot(ignores=snapshot_ignores)
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_kinesis
     def test_aws_payload_tagging_kinesis(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):

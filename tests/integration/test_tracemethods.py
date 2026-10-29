@@ -146,7 +146,9 @@ def test_ddtrace_run_trace_methods_async_nested(ddtrace_run_python_code_in_subpr
 
     env = os.environ.copy()
     env["DD_TRACE_METHODS"] = (
-        "tests.integration.test_tracemethods:_Class._nested_async_test_method,_async_test_method,_async_test_method2"
+        "tests.integration.test_tracemethods:_Class._nested_async_test_method,"
+        "tests.integration.test_tracemethods:_async_test_method,"
+        "tests.integration.test_tracemethods:_async_test_method2"
     )
 
     tests_dir = os.path.dirname(os.path.dirname(__file__))
