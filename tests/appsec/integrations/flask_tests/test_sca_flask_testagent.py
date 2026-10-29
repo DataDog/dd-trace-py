@@ -128,21 +128,18 @@ _SCA_ENV = {
 class TestSCAFlaskTelemetry:
     """SCA telemetry e2e tests using Flask + test agent."""
 
-    @pytest.fixture(autouse=True, params=[None, "sca-test-function"], ids=["regular", "lambda"])
-    def lambda_environment(self, request, monkeypatch):
-        if request.param is None:
-            monkeypatch.delenv("AWS_LAMBDA_FUNCTION_NAME", raising=False)
-        else:
-            monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", request.param)
+    @pytest.fixture(params=[None, "sca-test-function"], ids=["regular", "lambda"])
+    def lambda_environment(self, request):
+        return {} if request.param is None else {"AWS_LAMBDA_FUNCTION_NAME": request.param}
 
-    def test_sca_enabled_dependencies_have_metadata_key(self, iast_test_token, free_port):
+    def test_sca_enabled_dependencies_have_metadata_key(self, iast_test_token, free_port, lambda_environment):
         """When DD_APPSEC_SCA_ENABLED=true, dependency events include metadata key."""
         with flask_server(
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
             port=free_port,
-            env=_SCA_ENV,
+            env={**_SCA_ENV, **lambda_environment},
         ) as context:
             _, flask_client, pid = context
             response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
@@ -162,7 +159,7 @@ class TestSCAFlaskTelemetry:
             f"Sample: {all_deps[:3]}"
         )
 
-    def test_sca_disabled_dependencies_have_no_metadata_key(self, iast_test_token, free_port):
+    def test_sca_disabled_dependencies_have_no_metadata_key(self, iast_test_token, free_port, lambda_environment):
         """When DD_APPSEC_SCA_ENABLED is not set, no metadata key on dependencies."""
         with flask_server(
             appsec_enabled="false",
@@ -171,6 +168,7 @@ class TestSCAFlaskTelemetry:
             port=free_port,
             env={
                 "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
+                **lambda_environment,
             },
         ) as context:
             _, flask_client, pid = context
@@ -189,7 +187,7 @@ class TestSCAFlaskTelemetry:
             f"Sample: {deps_with_metadata_key[:3]}"
         )
 
-    def test_sca_reports_cve_metadata_after_vulnerable_call(self, iast_test_token, free_port):
+    def test_sca_reports_cve_metadata_after_vulnerable_call(self, iast_test_token, free_port, lambda_environment):
         """When a vulnerable function is called, its CVE metadata is reported.
 
         This test:
@@ -203,7 +201,7 @@ class TestSCAFlaskTelemetry:
             iast_enabled="false",
             token=iast_test_token,
             port=free_port,
-            env=_SCA_ENV,
+            env={**_SCA_ENV, **lambda_environment},
         ) as context:
             _, flask_client, pid = context
 
@@ -243,7 +241,7 @@ class TestSCAFlaskTelemetry:
         )
         assert hit.get("line", 0) > 0, "Expected a non-zero caller line number"
 
-    def test_sca_same_cve_first_hit_wins(self, iast_test_token, free_port):
+    def test_sca_same_cve_first_hit_wins(self, iast_test_token, free_port, lambda_environment):
         """Same CVE triggered from two different functions — first hit wins (max reached=1).
 
         /sca-test-requests and /sca-test-requests-alt both call
@@ -255,7 +253,7 @@ class TestSCAFlaskTelemetry:
             iast_enabled="false",
             token=iast_test_token,
             port=free_port,
-            env=_SCA_ENV,
+            env={**_SCA_ENV, **lambda_environment},
         ) as context:
             _, flask_client, pid = context
 
@@ -289,7 +287,7 @@ class TestSCAFlaskTelemetry:
                 f"got {len(entry['reached'])}: {entry['reached']}"
             )
 
-    def test_sca_deduplication_repeated_calls(self, iast_test_token, free_port):
+    def test_sca_deduplication_repeated_calls(self, iast_test_token, free_port, lambda_environment):
         """Calling the same vulnerable function multiple times from the same call site
         produces only ONE reached entry per CVE.
 
@@ -302,7 +300,7 @@ class TestSCAFlaskTelemetry:
             iast_enabled="false",
             token=iast_test_token,
             port=free_port,
-            env=_SCA_ENV,
+            env={**_SCA_ENV, **lambda_environment},
         ) as context:
             _, flask_client, pid = context
 
@@ -330,7 +328,7 @@ class TestSCAFlaskTelemetry:
                 f"Expected at most 1 reached entry per CVE, got {len(entry['reached'])}"
             )
 
-    def test_sca_cve_registered_at_load_time(self, iast_test_token, free_port):
+    def test_sca_cve_registered_at_load_time(self, iast_test_token, free_port, lambda_environment):
         """CVEs appear with reached=[] in telemetry without triggering any vulnerable endpoint.
 
         When SCA loads CVE data at startup, it registers all applicable CVEs
@@ -342,7 +340,7 @@ class TestSCAFlaskTelemetry:
             iast_enabled="false",
             token=iast_test_token,
             port=free_port,
-            env=_SCA_ENV,
+            env={**_SCA_ENV, **lambda_environment},
         ) as context:
             _, flask_client, pid = context
 
