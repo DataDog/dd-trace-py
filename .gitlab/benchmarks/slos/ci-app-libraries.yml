@@ -30,6 +30,14 @@ experiments:
             thresholds:
               - execution_time < 700 ms
 
+          # importonly
+          - name: importonly-cached_import
+            thresholds:
+              - execution_time < 0.0012 ms
+          - name: importonly-context_expansion
+            thresholds:
+              - execution_time < 0.0055 ms
+
           # pytestplugin
           - name: pytestplugin-baseline
             thresholds:
@@ -40,3 +48,6 @@ experiments:
           - name: pytestplugin-ddtrace_coverage
             thresholds:
               - execution_time < 5550 ms
+          - name: pytestplugin-ddtrace_import_only
+            thresholds:
+              - execution_time < 5000 ms

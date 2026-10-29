@@ -27,6 +27,7 @@ class PytestPlugin(bm.Scenario):  # type: ignore[misc]
     nmodules: int
     ddtrace: bool
     coverage: bool
+    import_only: bool
 
     # Subprocess benchmark: cProfile of the harness process would not attribute the
     # child's work, so disable the cProfile pstats generation.
@@ -63,6 +64,7 @@ class PytestPlugin(bm.Scenario):  # type: ignore[misc]
                 # response. File-level mode exercises PY_START on Python 3.12+.
                 "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "true" if self.coverage else "false",
                 "_DD_COVERAGE_FILE_LEVEL": "true" if self.coverage else "false",
+                "_DD_COVERAGE_IMPORT_ONLY": "true" if self.import_only else "false",
             }
         )
 

@@ -1,0 +1,7 @@
+cached_import:
+  operation: imports
+  nmodules: 32
+
+context_expansion:
+  operation: contexts
+  nmodules: 32

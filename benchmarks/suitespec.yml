@@ -437,6 +437,14 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  import_only:
+    # Focused warm-import and context-expansion costs.
+    paths:
+      - ddtrace/internal/coverage/*
+      - benchmarks/import_only/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   pytest_plugin:
     # Whole-session overhead of the ddtrace pytest plugin on a trivial-test corpus.
     # Subprocess-based (like `startup`); cProfile is disabled for this scenario.
