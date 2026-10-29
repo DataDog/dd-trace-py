@@ -222,11 +222,13 @@ def test_import_only_anchor_attributes_test_file_closure():
     from tests.coverage.included_path.io_test_module import io_test_z  # noqa: F401
 
     anchor = Path(cwd_path + "/tests/coverage/included_path/io_test_module.py")
-    with coverage_collection(anchor_paths=[anchor]) as coverage_data:
+    with coverage_collection(test_file=anchor) as coverage_data:
         # Execute nothing: the anchor alone must attribute the file and its closure.
         pass
 
-    covered = {str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths}
+    covered = {
+        str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths if str(p).startswith(cwd_path)
+    }
     assert "tests/coverage/included_path/io_test_module.py" in covered
     assert "tests/coverage/included_path/io_mod_abc.py" in covered, "module-level import closure"
 
@@ -254,10 +256,12 @@ def test_import_only_session_level_import_edges_expand_from_anchor():
     assert io_session_importer() == 10
 
     anchor = Path(cwd_path + "/tests/coverage/included_path/io_session_import.py")
-    with coverage_collection(anchor_paths=[anchor]) as coverage_data:
+    with coverage_collection(test_file=anchor) as coverage_data:
         pass
 
-    covered = {str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths}
+    covered = {
+        str(Path(p).relative_to(cwd_path)) for p in coverage_data._covered_file_paths if str(p).startswith(cwd_path)
+    }
     assert "tests/coverage/included_path/io_session_import.py" in covered
     assert "tests/coverage/included_path/io_mod_hjk.py" in covered, (
         "the out-of-window lazy import edge must expand from the anchor"

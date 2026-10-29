@@ -44,6 +44,29 @@ class ImportOnlyCoverage(CoverageMode):
     def uninstall(self) -> None:
         uninstall_import_hook()
 
+    def anchor_test_file(self, test_file: Path, ctx: t.Any) -> None:
+        """Anchor the test file, its package __init__ chain, and its conftest chain.
+
+        Import-only mode has no execution events to cover the test's own file with,
+        so the framework integration provides the test file path and this method
+        resolves everything that "importing and running this test" would have
+        touched: the file itself, ancestor package __init__.py files (imported by
+        pytest through importlib machinery that bypasses builtins.__import__), and
+        conftest.py files (executed by pytest for every test in their subtree).
+        """
+        resolved = test_file.resolve()
+        ctx.anchor_file(str(resolved))
+        for parent in resolved.parents:
+            init = parent / "__init__.py"
+            if init.is_file():
+                ctx.anchor_file(str(init))
+            else:
+                break
+        for parent in resolved.parents:
+            conftest = parent / "conftest.py"
+            if conftest.is_file():
+                ctx.anchor_file(str(conftest))
+
     def record_import_file(self, path: str) -> None:
         self._collector._record_file_covered(path)
         # First loads nest an import context inside the test context. Attribute

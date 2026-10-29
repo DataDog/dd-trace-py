@@ -39,6 +39,19 @@ threads/copied contexts, and third-party import wrappers. Check both missing
 files (unsafe skips) and extra files (lost skipping opportunities); a lower
 coverage collection time alone does not establish a safe replacement.
 
+## Implementation boundary
+
+`import_only.py` and `instrumented_mode.py` own their respective instrumentation,
+context expansion, and lifecycle behavior. Neither imports the other or the
+collector. `mode.py` contains the narrow collector contract and shared optional
+lifecycle defaults; the collector only selects and delegates to a mode. Removing
+either implementation requires removing its import and selection in `code.py`,
+not moving its behavior into the remaining implementation.
+
+The `pytest_plugin` benchmark includes `ddtrace_import_only` alongside the
+instrumented coverage and no-coverage controls. Compare against the branch's
+pre-refactor revision, not a published release, when measuring simplifications.
+
 ## Cache boundaries and performance
 
 Name resolution and shared dependency closures are reused across test contexts.

@@ -56,6 +56,9 @@ class CoverageMode:
     def on_import_metadata_changed(self) -> None:
         """Invalidate mode-owned caches when module names or coverage change."""
 
+    def anchor_test_file(self, test_file: Path, ctx: t.Any) -> None:
+        """Anchor a test's file as a coverage closure root (import-only overrides)."""
+
     def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
         raise NotImplementedError
 

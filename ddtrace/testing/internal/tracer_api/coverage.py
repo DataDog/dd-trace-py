@@ -78,41 +78,18 @@ class CoverageData:
                 yield path_str, covered_lines.to_bytes()
 
 
-@functools.lru_cache(maxsize=4096)
-def _anchor_files(anchor_path: Path) -> tuple[str, ...]:
-    """The anchor file plus every ancestor package __init__.py, mirroring what
-    `import pkg.sub.test_module` would have touched. Memoized: every test in the
-    same file re-derives the same chain.
-    """
-    resolved = anchor_path.resolve()
-    files = [str(resolved)]
-    for parent in resolved.parents:
-        init = parent / "__init__.py"
-        if init.is_file():
-            files.append(str(init))
-        else:
-            break
-    return tuple(files)
-
-
 @contextlib.contextmanager
 def coverage_collection(
-    anchor_paths: t.Optional[t.Iterable[Path]] = None,
+    test_file: t.Optional[Path] = None,
 ) -> t.Generator[CoverageData, None, None]:
     with ModuleCodeCollector.CollectInContext() as coverage_collector:
         coverage_data = CoverageData()
-        # Import-only mode has no execution events to cover the test's own file with,
-        # so the framework integration anchors it (plus its ancestor package __init__
-        # files, which pytest imports through importlib machinery that bypasses
-        # builtins.__import__, and the conftest files whose hooks execute for every
-        # test). Anchored files are the roots the import-time closure expands
-        # module-level dependencies from. Instrumented modes already cover the
-        # test file (its code executes), so the anchor stays off there to keep their
-        # payloads unchanged.
-        if anchor_paths and ModuleCodeCollector.import_only_enabled():
-            for anchor_path in anchor_paths:
-                for anchor in _anchor_files(anchor_path):
-                    coverage_collector.anchor_file(anchor)
+        # The test file is the only framework-specific input; the mode decides what
+        # to do with it (import-only anchors it, instrumented modes ignore it).
+        if test_file is not None:
+            instance = ModuleCodeCollector._instance
+            if instance is not None:
+                instance._mode.anchor_test_file(test_file, coverage_collector)
         yield coverage_data
         if ModuleCodeCollector.file_level_coverage_enabled():
             coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()
