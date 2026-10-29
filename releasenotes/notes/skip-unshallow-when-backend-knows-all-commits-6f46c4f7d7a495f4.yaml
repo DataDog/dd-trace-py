@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where ``git fetch --shallow-since`` was run on every session
+    on shallow clones, even when the backend reported that no commits were missing. The unshallow
+    fetch is now skipped when the backend already knows all local commits and the pull request
+    merge-base could be resolved from the available local history, matching the behavior of the
+    other CI Visibility tracers. The fetch still runs when there are commits to upload, or when
+    the merge-base cannot be computed without extending the local history.

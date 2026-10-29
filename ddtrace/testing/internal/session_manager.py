@@ -694,8 +694,9 @@ class SessionManager:
     def _update_pr_merge_base(self, git: Git) -> None:
         """Compute PULL_REQUEST_BASE_BRANCH_SHA via git merge-base if not already set.
 
-        Called from upload_git_data() after any unshallowing so the commits are
-        guaranteed to be present in the local history.
+        Called from upload_git_data() before and after any unshallowing: the first
+        attempt uses the local history only, and the post-unshallow retry succeeds
+        on shallow clones once the required commits have been fetched.
         """
         if self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA):
             return
@@ -704,6 +705,12 @@ class SessionManager:
         if base_sha and head_sha:
             if merge_base := git.get_merge_base(base_sha, head_sha):
                 self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = merge_base
+
+    def _pr_merge_base_missing(self) -> bool:
+        """Return True when the PR merge-base is computable (both SHAs set) but not yet resolved."""
+        return not self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) and all(
+            self.env_tags.get(tag) for tag in (GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA, GitTag.COMMIT_HEAD_SHA)
+        )
 
     def upload_git_data(self) -> None:
         # NOTE: In manifest mode (Bazel sandbox), git commands are unavailable
@@ -765,31 +772,41 @@ class SessionManager:
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
-            log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-            unshallow_successful = git.try_all_unshallow_repository_methods()
-            if unshallow_successful:
-                if len(commits_not_in_backend) > 0:
-                    log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
-                    latest_commits = git.get_latest_commits()
-                    backend_commits = self.api_client.get_known_commits(latest_commits)
-                    if backend_commits is None:
-                        log.warning("search_commits failed after unshallow, aborting git metadata upload")
-                        TelemetryAPI.get().record_git_pack_data(0, 0)
-                        return
-
-                    commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
-            elif len(commits_not_in_backend) > 0:
-                log.warning("Failed to unshallow repository, continuing to send pack data")
-
-        # Compute the true PR merge-base now that the repo has been unshallowed (if needed).
-        # This is done here rather than at env_tags collection time because on shallow clones the
-        # required commits are only available after the fetch above completes.
-        # Must run before the early-return below so sessions where all commits are already
-        # known to the backend still populate git.pull_request.base_branch_sha.
+        # Compute the PR merge-base from the local history first. On shallow clones
+        # where the required commits are not available locally this attempt fails;
+        # it is retried after the unshallow below.
         self._update_pr_merge_base(git)
 
-        if len(commits_not_in_backend) == 0:
+        # Only unshallow when there is work that needs the extra history: commits
+        # missing from the backend, or a PR merge-base that could not be determined
+        # locally. When the backend already knows every commit and the merge-base is
+        # resolved (or not applicable), the fetch is skipped entirely, matching the
+        # behavior of the other CI Visibility tracers.
+        if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
+            if commits_not_in_backend or self._pr_merge_base_missing():
+                log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+                unshallow_successful = git.try_all_unshallow_repository_methods()
+                if unshallow_successful:
+                    if commits_not_in_backend:
+                        log.debug(
+                            "Unshallow successful, getting latest commits from backend based on unshallowed commits"
+                        )
+                        latest_commits = git.get_latest_commits()
+                        backend_commits = self.api_client.get_known_commits(latest_commits)
+                        if backend_commits is None:
+                            log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                            TelemetryAPI.get().record_git_pack_data(0, 0)
+                            return
+
+                        commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+
+                    # Retry the merge-base now that the extended history is available
+                    # (no-op if the first attempt already resolved it).
+                    self._update_pr_merge_base(git)
+                elif commits_not_in_backend:
+                    log.warning("Failed to unshallow repository, continuing to send pack data")
+
+        if not commits_not_in_backend:
             log.debug("All latest commits found in backend, skipping metadata upload")
             self._mark_upload_done()
             return
