@@ -741,7 +741,7 @@ Application & API Security
    DD_APPSEC_SCA_ENABLED:
      type: Boolean
      default: None
-     description: Whether to enable/disable SCA (Software Composition Analysis).
+     description: Whether to enable/disable SCA (Software Composition Analysis), including runtime vulnerability reachability in AWS Lambda.
 
    DD_APPSEC_MAX_STACK_TRACES:
      type: Integer

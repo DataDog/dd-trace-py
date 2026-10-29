@@ -1,0 +1,4 @@
+features:
+  - |
+    App and API Protection: Enables runtime vulnerability reachability detection in
+    AWS Lambda when ``DD_APPSEC_SCA_ENABLED=true``.

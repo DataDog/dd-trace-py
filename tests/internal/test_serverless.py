@@ -141,6 +141,8 @@ import {package}
         ("ddtrace.internal", "core"),
         ("ddtrace.internal._exceptions", "BlockingException"),
         ("ddtrace.internal.appsec.product", "start"),
+        ("ddtrace.internal.sca.product", "start"),
+        ("ddtrace.internal.sca.product", "post_preload"),
         ("ddtrace.internal.telemetry", "telemetry_writer"),
         ("ddtrace.internal.utils", "get_blocked"),
         ("ddtrace.internal.utils", "http"),

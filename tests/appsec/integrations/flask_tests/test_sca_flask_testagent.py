@@ -15,6 +15,8 @@ import base64
 import json
 import time
 
+import pytest
+
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.integrations.utils_testagent import _get_agent_client
 
@@ -125,6 +127,13 @@ _SCA_ENV = {
 
 class TestSCAFlaskTelemetry:
     """SCA telemetry e2e tests using Flask + test agent."""
+
+    @pytest.fixture(autouse=True, params=[None, "sca-test-function"], ids=["regular", "lambda"])
+    def lambda_environment(self, request, monkeypatch):
+        if request.param is None:
+            monkeypatch.delenv("AWS_LAMBDA_FUNCTION_NAME", raising=False)
+        else:
+            monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", request.param)
 
     def test_sca_enabled_dependencies_have_metadata_key(self, iast_test_token, free_port):
         """When DD_APPSEC_SCA_ENABLED=true, dependency events include metadata key."""
