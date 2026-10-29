@@ -23,7 +23,7 @@ COMMON_TAGS = {
     "ml_app": "<ml-app-name>",
     "service": "tests.contrib.typesafe",
     "integration": "typesafe",
-    "decision_provider": "system_one",
+    "decision_provider": "typesafe",
 }
 
 
@@ -322,4 +322,4 @@ def test_system_one_openrouter_decision_provider(typesafe_sdk, typesafe_llmobs, 
         questions=build_questions(typesafe_sdk),
     )
     assert get_llmobs_model_provider(span) == "openrouter"
-    assert get_llmobs_tags(span)["decision_provider"] == "system_one"
+    assert get_llmobs_tags(span)["decision_provider"] == "typesafe"
