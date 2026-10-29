@@ -365,8 +365,7 @@ producers in the ``X-Datadog-Test-Session-Token`` header. Child processes must i
 Other test traffic gets a background token to keep it out of active snapshots.
 
 Finish spans and join background producers before leaving the context. Comparison
-runs once after successful execution. Unmatched traces retain their existing
-``xfail`` behavior; other snapshot differences fail the test. Concurrent
+runs once after successful execution, and mismatches fail the test. Concurrent
 contexts sharing a global writer remain unsupported; the agent also retains its
 legacy timing-based handling of untagged requests.
 
