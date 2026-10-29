@@ -529,6 +529,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         files = []
         covered = cls._instance._get_covered_lines(include_imported=include_imported)
 
+        # Resolve the workspace to its canonical path: instrumented coverage records under
+        # realpath(co_filename), so a symlinked workspace must be resolved to match (same
+        # fix as CoverageData.get_coverage_bitmaps in tracer_api).
+        workspace_path = Path(workspace_path).resolve()
+
         for abs_path_str, lines in covered.items():
             abs_path = Path(abs_path_str)
             relative = relative_path(abs_path, workspace_path)

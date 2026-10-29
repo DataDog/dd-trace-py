@@ -821,8 +821,9 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
+            coverage_enabled = self.manager.settings.coverage_enabled
             with _maybe_collect_coverage(
-                self.manager.settings.coverage_enabled, test_file=_test_file(item)
+                coverage_enabled, test_file=_test_file(item) if coverage_enabled else None
             ) as coverage_data:
                 yield
 
