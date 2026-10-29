@@ -32,6 +32,7 @@ from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -145,15 +146,14 @@ def _finish_request_span(scope: Mapping[str, Any], span: Span) -> None:
         span.finish()
         return
 
-    # Outer send wrappers return first. Queue their completion until the inner
-    # wrapper is ready, then finish inside out before background work starts.
+    # Outer send wrappers return first. Preserve their response completion time
+    # while waiting to finish them after the inner wrapper.
     # If a child waits for scope exit, its queued parents wait there too.
-    pending = scope["datadog"].setdefault("request_spans_to_finish", set())
-    pending.add(span)
+    pending = scope["datadog"].setdefault("request_spans_to_finish", {})
+    pending.setdefault(span, Time.time())
     for request_span in reversed(request_spans):
         if request_span in pending:
-            pending.remove(request_span)
-            request_span.finish()
+            request_span.finish(finish_time=pending.pop(request_span))
         elif not request_span.finished:
             break
 
@@ -541,6 +541,7 @@ class TraceMiddleware:
                 if exc := find_exception(exception, BlockingException):
                     set_blocked(exc.args[0])
                     return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                span.set_exc_info(*sys.exc_info())
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
@@ -554,8 +555,11 @@ class TraceMiddleware:
                 if request_spans and span in request_spans:
                     request_spans.remove(span)
                 pending = scope.get("datadog", {}).get("request_spans_to_finish")
-                if pending:
-                    pending.discard(span)
+                if pending and span in pending:
+                    try:
+                        span.finish(finish_time=pending.pop(span))
+                    except Exception:
+                        log.exception("error closing ASGI request span")
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:

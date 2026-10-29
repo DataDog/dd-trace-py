@@ -88,7 +88,6 @@ def test_mounted_apps_finish_child_before_parent(fastapi_tracer, test_spans, mon
     assert all(span.service == requests[0].service for span in requests)
     for parent, child in zip(requests, requests[1:]):
         assert child._parent is parent
-        assert parent.start_ns + parent.duration_ns >= child.start_ns + child.duration_ns
 
 
 @pytest.mark.skipif(

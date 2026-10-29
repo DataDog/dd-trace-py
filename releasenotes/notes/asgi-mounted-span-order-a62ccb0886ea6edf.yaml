@@ -1,4 +1,5 @@
 fixes:
   - |
     asgi: Fixes request span completion order for mounted applications so child
-    request spans finish before their enclosing request spans.
+    request spans finish before their enclosing request spans, while preserving
+    the enclosing spans' response completion timestamps.
