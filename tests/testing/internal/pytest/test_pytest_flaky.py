@@ -236,10 +236,10 @@ def test_explicit_flaky_retries_preserved(pytester: Pytester) -> None:
     pytester.makepyfile(
         test_foo="""
         from flaky import flaky
-        from ddtrace.testing import no_auto_retry
+        import pytest
         count = 0
         @flaky(max_runs=2)
-        @no_auto_retry
+        @pytest.mark.dd_no_auto_retry
         def test_retry():
             global count
             count += 1
@@ -267,10 +267,10 @@ def test_excluded_quarantined_failure_retains_outcome(pytester: Pytester) -> Non
         test_foo="""
         from flaky import flaky
         from pathlib import Path
-        from ddtrace.testing import no_auto_retry
+        import pytest
         count = 0
         @flaky(max_runs=2)
-        @no_auto_retry
+        @pytest.mark.dd_no_auto_retry
         def test_quarantined():
             global count
             count += 1

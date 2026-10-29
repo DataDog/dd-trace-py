@@ -1,5 +1,6 @@
 features:
   - |
-    CI visibility: Adds ``ddtrace.testing.prevent_failure_suppression`` and
-    ``ddtrace.testing.no_auto_retry`` decorators for pytest tests to override
-    Datadog quarantine and disabling or exclude Datadog automatic retries.
+    CI visibility: Adds ``pytest.mark.dd_prevent_failure_suppression`` to override
+    Datadog quarantine and disabling, and ``pytest.mark.dd_no_auto_retry`` to exclude
+    Datadog automatic retries. Both markers support test functions, classes, modules,
+    and individual parameter cases while preserving explicit pytest plugin retries.

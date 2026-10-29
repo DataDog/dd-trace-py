@@ -23,10 +23,9 @@ def test_excluded_quarantined_native_retries(pytester: Pytester, use_cli: bool, 
         test_foo=f"""
         from pathlib import Path
         import pytest
-        from ddtrace.testing import no_auto_retry
         count = 0
         {marker}
-        @no_auto_retry
+        @pytest.mark.dd_no_auto_retry
         def test_quarantined():
             global count
             count += 1

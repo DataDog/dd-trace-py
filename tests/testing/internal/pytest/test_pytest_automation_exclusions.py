@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import asyncio
-from functools import partial
-import inspect
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing import no_auto_retry
-from ddtrace.testing import prevent_failure_suppression
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -26,87 +21,125 @@ def _ref(name: str) -> TestRef:
     return TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), name)
 
 
-@pytest.mark.parametrize("use_partial", [False, True])
-def test_decorators_preserve_callback(use_partial: bool) -> None:
-    async def callback(value: int = 42) -> int:
-        return value
-
-    source = partial(callback) if use_partial else callback
-    annotated = no_auto_retry(prevent_failure_suppression(source))
-    assert annotated is not callback
-    assert inspect.iscoroutinefunction(annotated)
-    assert inspect.signature(annotated) == inspect.signature(callback)
-    assert asyncio.run(annotated()) == 42
-    assert not hasattr(callback, "_dd_no_auto_retry")
-    assert not hasattr(callback, "_dd_prevent_failure_suppression")
-
-
-def test_decorators_preserve_method_binding_and_generator() -> None:
-    class Example:
-        @no_auto_retry
-        @prevent_failure_suppression
-        def callback(self, *, value: int = 42):
-            yield self, value
-
-    instance = Example()
-    assert inspect.isgeneratorfunction(instance.callback)
-    assert list(instance.callback()) == [(instance, 42)]
-
-
-@pytest.mark.parametrize("protected", [False, True])
-def test_shared_callback_annotations_are_isolated(pytester: Pytester, protected: bool) -> None:
-    decorator = "prevent_failure_suppression" if protected else "no_auto_retry"
+@pytest.mark.parametrize("kill_switch", [False, True])
+def test_markers_registered_without_test_optimization(pytester: Pytester, kill_switch: bool) -> None:
     pytester.makepyfile(
-        test_foo=f"""
-        from pathlib import Path
-        from ddtrace.testing import {decorator}
-        def callback():
-            with Path("attempts").open("a") as attempts:
-                attempts.write("attempt\\n")
-            assert False
-        test_control = callback
-        test_annotated = {decorator}(callback)
+        test_foo="""
+        import pytest
+
+        @pytest.mark.dd_no_auto_retry
+        @pytest.mark.dd_prevent_failure_suppression
+        def test_marked():
+            pass
         """
     )
-    refs = {_ref("test_control"), _ref("test_annotated")}
+    with (
+        patch(
+            "ddtrace.testing.internal.pytest.plugin._is_test_optimization_disabled_by_kill_switch",
+            return_value=kill_switch,
+        ),
+        setup_standard_mocks(),
+    ):
+        result = pytester.inline_run("--strict-markers", "--no-ddtrace", "-q")
+    assert result.ret == 0
+
+
+@pytest.mark.parametrize("marker", ["dd_no_auto_retry", "dd_prevent_failure_suppression"])
+def test_markers_preserve_hypothesis_examples_and_settings(pytester: Pytester, marker: str) -> None:
+    pytester.makepyfile(
+        test_foo=f"""
+        import pytest
+        from hypothesis import example, given, settings, strategies as st
+
+        @example(1)
+        @pytest.mark.{marker}
+        @given(st.just(0))
+        def test_explicit_failure(value):
+            assert value == 0
+
+        seen = []
+
+        @settings(max_examples=3, database=None, derandomize=True)
+        @pytest.mark.{marker}
+        @given(st.integers())
+        def check_settings(value):
+            seen.append(value)
+
+        def test_settings():
+            check_settings()
+            assert len(seen) == 3
+        """
+    )
+    with setup_standard_mocks():
+        result = pytester.inline_run("--no-ddtrace", "--strict-markers", "-q")
+    result.assertoutcome(failed=1, passed=1)
+    assert "assert 1 == 0" in str(result.matchreport("test_explicit_failure", when="call").longrepr)
+
+
+@pytest.mark.parametrize("scope", ["module", "class", "parameter"])
+def test_marker_scopes_control_policy_and_tags(pytester: Pytester, scope: str) -> None:
+    markers = "[pytest.mark.dd_no_auto_retry, pytest.mark.dd_prevent_failure_suppression]"
+    if scope == "parameter":
+        pytester.makepyfile(
+            test_foo=f"""
+            import pytest
+            @pytest.mark.parametrize("value", [
+                pytest.param(0, marks={markers}, id="excluded"),
+                pytest.param(1, id="control"),
+            ])
+            def test_policy(value):
+                assert False
+            """
+        )
+        excluded_ref, control_ref = _ref("test_policy[excluded]"), _ref("test_policy[control]")
+    else:
+        if scope == "module":
+            declaration = f"pytestmark = {markers}\ndef test_excluded():\n    assert False\n"
+            excluded_ref = _ref("test_excluded")
+        else:
+            declaration = (
+                "@pytest.mark.dd_no_auto_retry\n@pytest.mark.dd_prevent_failure_suppression\n"
+                "class TestPolicy:\n    def test_excluded(self):\n        assert False\n"
+            )
+            excluded_ref = _ref("TestPolicy::test_excluded")
+        pytester.makepyfile(
+            test_foo="import pytest\n" + declaration, test_control="def test_control():\n    assert False"
+        )
+        control_ref = TestRef(SuiteRef(ModuleRef(""), "test_control.py"), "test_control")
+
+    refs = {excluded_ref, control_ref}
     with (
         patch(
             "ddtrace.testing.internal.session_manager.APIClient",
             return_value=mock_api_client_settings(
-                auto_retries_enabled=not protected,
-                test_management_enabled=protected,
+                auto_retries_enabled=True,
+                test_management_enabled=True,
                 known_tests_enabled=True,
                 known_tests=refs,
-                test_management_properties={ref: TestProperties(disabled=True) for ref in refs} if protected else {},
+                test_management_properties={ref: TestProperties(disabled=True, quarantined=True) for ref in refs},
             ),
         ),
         setup_standard_mocks(),
         EventCapture.capture() as capture,
     ):
-        result = pytester.inline_run("--ddtrace", "-q")
+        result = pytester.inline_run("--ddtrace", "--strict-markers", "-q")
     assert result.ret == 1
-    assert len((pytester.path / "attempts").read_text().splitlines()) == (1 if protected else 7)
-    control = list(capture.events_by_test_name("test_control"))
-    annotated = list(capture.events_by_test_name("test_annotated"))
-    assert len(control) == (1 if protected else 6)
-    assert len(annotated) == 1
-    assert control[0]["content"]["meta"]["test.status"] == ("skip" if protected else "fail")
-    for event in control:
-        assert PREFIX + decorator not in event["content"]["meta"]
-    assert annotated[0]["content"]["meta"][PREFIX + decorator] == "true"
+    [excluded] = capture.events_by_test_name(excluded_ref.name)
+    [control] = capture.events_by_test_name(control_ref.name)
+    assert excluded["content"]["meta"]["test.status"] == "fail"
+    assert control["content"]["meta"]["test.status"] == "skip"
+    for annotation in ("no_auto_retry", "prevent_failure_suppression"):
+        assert excluded["content"]["meta"][PREFIX + annotation] == "true"
+        assert PREFIX + annotation not in control["content"]["meta"]
 
 
 @pytest.mark.parametrize("passing", [False, True])
 @pytest.mark.parametrize("protected,excluded", [(True, False), (False, True), (True, True), (False, False)])
 def test_management_exclusions(pytester: Pytester, protected: bool, excluded: bool, passing: bool) -> None:
-    decorators = ("@prevent_failure_suppression\n" if protected else "") + ("@no_auto_retry\n" if excluded else "")
-    pytester.makepyfile(
-        test_foo=(
-            "from ddtrace.testing import prevent_failure_suppression, no_auto_retry\n"
-            + decorators
-            + f"def test_policy():\n    assert {passing}\n"
-        )
+    decorators = ("@pytest.mark.dd_prevent_failure_suppression\n" if protected else "") + (
+        "@pytest.mark.dd_no_auto_retry\n" if excluded else ""
     )
+    pytester.makepyfile(test_foo=("import pytest\n" + decorators + f"def test_policy():\n    assert {passing}\n"))
     props = TestProperties(disabled=True, quarantined=True, attempt_to_fix=True)
     with (
         patch(
@@ -147,8 +180,8 @@ def test_management_exclusions(pytester: Pytester, protected: bool, excluded: bo
 def test_no_auto_retry_keeps_discovery_and_control_retries(pytester: Pytester, efd: bool) -> None:
     pytester.makepyfile(
         test_foo=f"""
-        from ddtrace.testing import no_auto_retry
-        @no_auto_retry
+        import pytest
+        @pytest.mark.dd_no_auto_retry
         def test_excluded():
             assert {efd}
         def test_control():
@@ -186,15 +219,14 @@ def test_parameterized_and_skipped_annotations(pytester: Pytester) -> None:
     pytester.makepyfile(
         test_foo="""
         import pytest
-        from ddtrace.testing import no_auto_retry, prevent_failure_suppression
         @pytest.mark.parametrize("value", [1, 2])
-        @no_auto_retry
-        @prevent_failure_suppression
+        @pytest.mark.dd_no_auto_retry
+        @pytest.mark.dd_prevent_failure_suppression
         def test_cases(value):
             assert False
         @pytest.mark.skip(reason="developer skip")
-        @no_auto_retry
-        @prevent_failure_suppression
+        @pytest.mark.dd_no_auto_retry
+        @pytest.mark.dd_prevent_failure_suppression
         def test_skip():
             assert False
     """
@@ -222,14 +254,8 @@ def test_parameterized_and_skipped_annotations(pytester: Pytester) -> None:
 @pytest.mark.parametrize("quarantined,disabled", [(True, False), (False, True)])
 @pytest.mark.parametrize("protected", [True, False])
 def test_failure_suppression_policy(pytester: Pytester, quarantined: bool, disabled: bool, protected: bool) -> None:
-    decorator = "@prevent_failure_suppression\n" if protected else ""
-    pytester.makepyfile(
-        test_foo=(
-            "from ddtrace.testing import prevent_failure_suppression\n"
-            + decorator
-            + "def test_policy():\n    assert False\n"
-        )
-    )
+    decorator = "@pytest.mark.dd_prevent_failure_suppression\n" if protected else ""
+    pytester.makepyfile(test_foo=("import pytest\n" + decorator + "def test_policy():\n    assert False\n"))
     with (
         patch(
             "ddtrace.testing.internal.session_manager.APIClient",
@@ -256,9 +282,9 @@ def test_failure_suppression_policy(pytester: Pytester, quarantined: bool, disab
 def test_protection_permits_atr_recovery(pytester: Pytester) -> None:
     pytester.makepyfile(
         test_foo="""
-        from ddtrace.testing import prevent_failure_suppression
+        import pytest
         count = 0
-        @prevent_failure_suppression
+        @pytest.mark.dd_prevent_failure_suppression
         def test_recovery():
             global count
             count += 1
@@ -293,8 +319,8 @@ def test_protection_permits_atr_recovery(pytester: Pytester) -> None:
 def test_excluded_attempt_to_fix_keeps_quarantine(pytester: Pytester) -> None:
     pytester.makepyfile(
         test_foo="""
-        from ddtrace.testing import no_auto_retry
-        @no_auto_retry
+        import pytest
+        @pytest.mark.dd_no_auto_retry
         def test_quarantined():
             assert False
     """
@@ -329,9 +355,9 @@ def test_excluded_attempt_to_fix_keeps_quarantine(pytester: Pytester) -> None:
 def test_exclusions_preserve_tia_selection(pytester: Pytester) -> None:
     pytester.makepyfile(
         test_foo="""
-        from ddtrace.testing import no_auto_retry, prevent_failure_suppression
-        @no_auto_retry
-        @prevent_failure_suppression
+        import pytest
+        @pytest.mark.dd_no_auto_retry
+        @pytest.mark.dd_prevent_failure_suppression
         def test_skipped():
             assert False
     """
@@ -356,14 +382,8 @@ def test_exclusions_preserve_tia_selection(pytester: Pytester) -> None:
 
 def test_removing_annotations_restores_policy(pytester: Pytester) -> None:
     for annotated in (True, False):
-        decorators = "@no_auto_retry\n@prevent_failure_suppression\n" if annotated else ""
-        pytester.makepyfile(
-            test_foo=(
-                "from ddtrace.testing import no_auto_retry, prevent_failure_suppression\n"
-                + decorators
-                + "def test_policy():\n    assert False\n"
-            )
-        )
+        decorators = "@pytest.mark.dd_no_auto_retry\n@pytest.mark.dd_prevent_failure_suppression\n" if annotated else ""
+        pytester.makepyfile(test_foo=("import pytest\n" + decorators + "def test_policy():\n    assert False\n"))
         with (
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
@@ -391,8 +411,8 @@ def test_removing_annotations_restores_policy(pytester: Pytester) -> None:
 def test_excluded_attempt_to_fix_passing_test_runs_once(pytester: Pytester) -> None:
     pytester.makepyfile(
         test_foo="""
-        from ddtrace.testing import no_auto_retry
-        @no_auto_retry
+        import pytest
+        @pytest.mark.dd_no_auto_retry
         def test_excluded():
             pass
         def test_control():
