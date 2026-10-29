@@ -967,6 +967,59 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
+    def _assert_stream_tokens_multiple_choices(self, chunks, test_spans):
+        contents = {0: "", 1: ""}
+        for chunk in chunks:
+            # The usage chunk was requested by the integration, so the user must not see it
+            assert chunk.choices
+            for choice in chunk.choices:
+                contents[choice.index] += choice.delta.content or ""
+        # Choice 0 finishes before choice 1 has streamed " there friend"
+        assert contents == {0: "Hello friend", 1: "Hello there friend"}
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name="gpt-4o-mini-2024-07-18",
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "Say hello"}],
+            output_messages=[
+                {"content": "Hello friend", "role": "assistant"},
+                {"content": "Hello there friend", "role": "assistant"},
+            ],
+            metadata={"n": 2, "stream": True, "stream_options": {"include_usage": True}},
+            metrics={"input_tokens": 9, "output_tokens": 5, "total_tokens": 14},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
+    )
+    def test_chat_completion_stream_tokens_multiple_choices(self, openai, openai_llmobs, test_spans):
+        """Assert that token chunk extraction waits for every choice to finish when n > 1."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens_n2.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini", messages=[{"role": "user", "content": "Say hello"}], n=2, stream=True
+            )
+            chunks = list(resp)
+        self._assert_stream_tokens_multiple_choices(chunks, test_spans)
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
+    )
+    async def test_chat_completion_stream_tokens_multiple_choices_async(self, openai, openai_llmobs, test_spans):
+        """Async mirror of test_chat_completion_stream_tokens_multiple_choices."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens_n2.yaml"):
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model="gpt-4o-mini", messages=[{"role": "user", "content": "Say hello"}], n=2, stream=True
+            )
+            chunks = [chunk async for chunk in resp]
+        self._assert_stream_tokens_multiple_choices(chunks, test_spans)
+
     def test_chat_completion_function_call(self, openai, openai_llmobs, test_spans):
         """Test that function call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_function_call.yaml"):
