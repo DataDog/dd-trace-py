@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,7 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 
 _CRASH_RETRY_REASON = "xdist_worker_crash"
 _CRASH_RETRY_STATE_WORKER_INPUT = "dd_atr_crash_retry_state"
+_CRASH_RETRY_READY_WORKER_INPUT = "dd_atr_crash_collection_ready"
 _DD_COVERAGE_UPLOAD_DELEGATED_WORKER_INPUT = "dd_coverage_upload_delegated"
 
 
@@ -49,6 +51,12 @@ def read_atr_crash_retry_state(path: Path) -> dict[str, CrashRetryBudget]:
     return state
 
 
+def no_auto_retry_path(crash_state_path: Path, nodeid: str) -> Path:
+    """Share discovered exclusions with the controller using its session-scoped crash ledger directory."""
+    digest = hashlib.sha256(nodeid.encode()).hexdigest()
+    return crash_state_path.with_name(digest + ".no_auto_retry")
+
+
 class XdistTestOptPlugin:
     """Handle controller-side xdist coordination."""
 
@@ -64,6 +72,7 @@ class XdistTestOptPlugin:
         self._published_crash_retry_budgets: dict[str, CrashRetryBudget] = {}
         self._crash_retry_state_dir: t.Optional[tempfile.TemporaryDirectory[str]] = None
         self._crash_retry_state_path: t.Optional[Path] = None
+        self._crash_retry_ready_paths: dict[t.Any, Path] = {}
 
         manager = main_plugin.manager
         settings = manager.settings
@@ -103,6 +112,11 @@ class XdistTestOptPlugin:
         node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
         if self._crash_retry_state_path is not None:
             node.workerinput[_CRASH_RETRY_STATE_WORKER_INPUT] = str(self._crash_retry_state_path)
+            ready_path = self._crash_retry_state_path.with_name(
+                f"collection-ready-{len(self._crash_retry_ready_paths)}"
+            )
+            self._crash_retry_ready_paths[node] = ready_path
+            node.workerinput[_CRASH_RETRY_READY_WORKER_INPUT] = str(ready_path)
         # Workers may only delegate their coverage report upload when the
         # controller will actually be able to report their data: either
         # pytest-cov merges the workers' data itself, or the controller owns a
@@ -174,6 +188,25 @@ class XdistTestOptPlugin:
         # ATR applies uniformly and its last result is authoritative. Only consumed ATR counts and limits cross the
         # process boundary through the crash retry ledger; test identity and event lifecycle remain worker-owned.
         if not self._enabled:
+            return
+
+        # xdist attaches the crashed worker to the report. Require that worker's acknowledgement:
+        # a replacement still collecting must not block retries on workers that already published their exclusions.
+        # Unknown workers or inaccessible storage leave crashes final rather than guessing whether ATR is safe.
+        ready_path = self._crash_retry_ready_paths.get(getattr(report, "node", None))
+        try:
+            exclusions_published = ready_path is not None and ready_path.is_file()
+        except OSError:
+            exclusions_published = False
+        if not exclusions_published:
+            self._clear_test_state(crashitem)
+            return
+
+        if (
+            self._crash_retry_state_path is not None
+            and no_auto_retry_path(self._crash_retry_state_path, crashitem).exists()
+        ):
+            self._clear_test_state(crashitem)
             return
 
         # A worker can emit some ATR attempt reports and then die on a later attempt. Requeueing would restart the
@@ -257,3 +290,4 @@ class XdistTestOptPlugin:
             self._crash_retry_state_dir.cleanup()
             self._crash_retry_state_dir = None
         self._crash_retry_state_path = None
+        self._crash_retry_ready_paths.clear()
