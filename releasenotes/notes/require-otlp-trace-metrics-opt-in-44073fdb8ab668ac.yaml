@@ -1,3 +1,4 @@
 fixes:
   - |
-    tracing: Defers APM RED Metrics computation to the collector or intake when OTLP trace export is enabled
+    tracing: When exporting traces over OTLP, the tracing library delegates APM RED metrics
+    computation to the OpenTelemetry Collector or Datadog intake by default.

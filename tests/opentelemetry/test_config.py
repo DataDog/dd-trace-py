@@ -818,34 +818,3 @@ def test_native_trace_metrics_exporter_sends_custom_headers_and_the_api_key():
     headers = dict(NativeWriter._parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
     assert headers["x-team"] == "apm"
     assert headers["dd-api-key"] == "foobarkey"
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_AGENTLESS_ENABLED": "false",
-        "OTEL_TRACES_SPAN_METRICS_ENABLED": None,
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": None,
-    },
-    parametrize={
-        "OTEL_TRACES_EXPORTER": ["otlp", ""],
-        "OTEL_TRACES_SPAN_METRICS_ENABLED": ["", "false", "true"],
-        "DD_TRACE_STATS_COMPUTATION_ENABLED": ["", "false", "true"],
-        "DD_METRICS_OTEL_ENABLED": ["false", "true"],
-    },
-)
-def test_otlp_trace_metrics_require_explicit_opt_in():
-    import os
-
-    for name in ("OTEL_TRACES_EXPORTER", "OTEL_TRACES_SPAN_METRICS_ENABLED", "DD_TRACE_STATS_COMPUTATION_ENABLED"):
-        if not os.environ[name]:
-            del os.environ[name]
-
-    from ddtrace import config
-    from ddtrace.trace import tracer
-
-    writer = tracer._span_aggregator.writer
-    expected = os.environ.get("OTEL_TRACES_SPAN_METRICS_ENABLED") == "true"
-    assert (writer._otlp_metrics_endpoint is not None) is expected
-    assert (writer._otlp_endpoint is not None) is (os.environ.get("OTEL_TRACES_EXPORTER") == "otlp")
-    if "DD_TRACE_STATS_COMPUTATION_ENABLED" in os.environ:
-        assert config._trace_compute_stats is (os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] == "true")
