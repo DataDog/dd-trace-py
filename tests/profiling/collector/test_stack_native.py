@@ -62,6 +62,27 @@ def test_start_native_monitoring_success() -> None:
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+def test_start_skipped_in_uwsgi_worker_without_fork_hooks(caplog: pytest.LogCaptureFixture) -> None:
+    """start() does not enable sys.monitoring in a uWSGI worker forked without the Python fork hooks."""
+    import logging
+
+    from ddtrace.internal.datadog.profiling import native_call_monitor
+
+    native_call_monitor._started = False
+
+    with (
+        mock.patch("ddtrace.internal.uwsgi.forked_without_fork_hooks", return_value=True),
+        mock.patch("ddtrace.internal.datadog.profiling.stack._stack.start_native_monitoring") as start_monitoring,
+        caplog.at_level(logging.WARNING, logger="ddtrace.internal.datadog.profiling.native_call_monitor"),
+    ):
+        native_call_monitor.start()
+
+    start_monitoring.assert_not_called()
+    assert native_call_monitor._started is False
+    assert "Native frame attribution is disabled in this uWSGI worker" in caplog.text
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
 @pytest.mark.subprocess()
 def test_native_call_registry_is_bounded_for_dynamic_code() -> None:
     import json

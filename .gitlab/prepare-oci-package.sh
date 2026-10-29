@@ -31,16 +31,32 @@ BUILD_DIR=sources
 
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
-echo "Cleaning up binaries for ${ARCH}"
-if [ "${ARCH}" == "arm64" ]; then
-  echo "Removing x86_64 binaries"
-  find ../pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
-elif [ "${ARCH}" == "amd64" ]; then
-  echo "Removing aarch64 binaries"
-  find ../pywheels-dep/ -type f -name '*aarch64*' -exec rm -f {} \;
-else
-  echo "No ARCH set, not removing any binaries"
-fi
+case "${ARCH}" in
+  amd64) WHEEL_ARCH=x86_64 ;;
+  arm64) WHEEL_ARCH=aarch64 ;;
+  *) echo "Unsupported ARCH: ${ARCH}" >&2; exit 1 ;;
+esac
+
+# pip download selects wheels by --python-version and --abi, so one interpreter
+# fetches the dependencies for every Python version that the package supports.
+mkdir -p ../pywheels-dep
+(
+  cd ../pywheels
+  PYTHONUNBUFFERED=TRUE python3 ../lib-injection/dl_wheels.py \
+    --python-version=3.10 \
+    --python-version=3.11 \
+    --python-version=3.12 \
+    --python-version=3.13 \
+    --python-version=3.14 \
+    --python-version=3.15 \
+    --ddtrace-flavor="${DDTRACE_FLAVOR:-}" \
+    --local-ddtrace \
+    --arch "${WHEEL_ARCH}" \
+    --platform musllinux_1_2 \
+    --platform manylinux2014 \
+    --output-dir ../pywheels-dep \
+    --verbose
+)
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
 cp ../lib-injection/sources/* sources/
@@ -62,10 +78,4 @@ echo "Deduplicating package files"
 cd ./sources
 rdfind -makesymlinks true -makeresultsfile true -checksum sha256 -deterministic true -outputname deduped.txt .
 echo "Converting symlinks to relative symlinks"
-find . -type l | while read -r l; do
-  target="$(realpath "$l")"
-  rel_target="$(realpath --relative-to="$(dirname "$(realpath -s "$l")")" "$target")"
-  dest_base="$(basename "$l")"
-  dest_dir="$(dirname "$l")"
-  (cd "${dest_dir}" && ln -sf "${rel_target}" "${dest_base}")
-done
+python3 ../../.gitlab/scripts/make-symlinks-relative.py .

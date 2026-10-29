@@ -1,12 +1,13 @@
 import atexit
 from collections import defaultdict
 from collections import deque
-from importlib.metadata import entry_points
 from itertools import chain
 import typing as t
 from typing import Protocol
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.entry_points import get_entry_points
+from ddtrace.internal.entry_points import is_trusted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
@@ -19,18 +20,9 @@ from ddtrace.internal.uwsgi import uWSGIMasterProcess
 
 log = get_logger(__name__)
 
-# The ddtrace.products entry-point group is currently internal-only. We reject
-# plugins from any distribution other than "ddtrace" to prevent supply-chain
-# attacks where a malicious third-party package registers a plugin that would be
-# automatically loaded into every instrumented process.
-# Distribution names are matched exactly (case-insensitively); module paths are
-# matched as prefixes so all ddtrace.* submodules are covered.
-_TRUSTED_PRODUCT_DISTRIBUTIONS = frozenset({"ddtrace"})
-_TRUSTED_PRODUCT_MODULE_PREFIXES = frozenset({"ddtrace."})
-
 
 def get_product_entry_points() -> list[t.Any]:
-    return list(entry_points(group="ddtrace.products"))
+    return get_entry_points("ddtrace.products")
 
 
 class Product(Protocol):
@@ -59,35 +51,7 @@ class ProductManager:
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
 
-            # Check both the distribution name and the entry point module path. The
-            # distribution name check is a fast first filter, but it is self-declared
-            # and can be spoofed. The module path check is the stronger guard: a
-            # plugin whose code does not live under the ddtrace namespace cannot be
-            # part of the trusted ddtrace package.
-            module_path, _, _ = product_plugin.value.partition(":")
-            # dist may be absent on Python < 3.10 with the legacy entry_points() API;
-            # in that case skip the dist check and rely solely on the module path. A
-            # dist name that is explicitly None (malformed metadata) is treated as
-            # untrusted.
-            dist = getattr(product_plugin, "dist", None)
-            # Three cases:
-            #  - dist attribute absent (Python < 3.10): no dist info, skip dist check
-            #  - dist is None: no dist info available, skip dist check
-            #  - dist present and not None: check Name; None Name means malformed metadata → reject
-            dist_name: t.Optional[str] = None
-            if not hasattr(product_plugin, "dist") or dist is None:
-                trusted_dist = True
-            else:
-                dist_name = dist.metadata["Name"]
-                trusted_dist = dist_name is not None and dist_name.lower() in _TRUSTED_PRODUCT_DISTRIBUTIONS
-            trusted_module = any(module_path.startswith(p) for p in _TRUSTED_PRODUCT_MODULE_PREFIXES)
-            if not (trusted_dist and trusted_module):
-                log.warning(
-                    "Refusing to load product plugin '%s' from untrusted distribution '%s' (module: %s)",
-                    name,
-                    dist_name,
-                    module_path,
-                )
+            if not is_trusted(product_plugin):
                 continue
 
             # Load the product protocol object
@@ -149,7 +113,6 @@ class ProductManager:
 
     def start_products(self) -> None:
         failed: set[str] = set()
-        started: list[tuple[str, Product]] = []
 
         for name, product in self.products:
             # Check that no required products have failed
@@ -167,7 +130,6 @@ class ProductManager:
                     continue
                 product.start()
                 log.debug("Started product '%s'", name)
-                started.append((name, product))
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
@@ -180,18 +142,6 @@ class ProductManager:
                 telemetry_writer.product_activated(name.replace("-", "_"), bool(activated()) if activated else True)
             except Exception:
                 log.debug("Failed to report activation state for product '%s'", name, exc_info=True)
-
-        # NOTE: Keep post_start hooks after the full start loop. RC uses
-        # this barrier to collect dependent products before its first poll, and
-        # start_products() may run only after a uWSGI fork.
-        for name, product in started:
-            try:
-                if (hook := getattr(product, "post_start", None)) is None:
-                    continue
-                hook()
-                log.debug("Post-start product '%s' done", name)
-            except Exception:
-                log.exception("Failed to post-start product '%s'", name)
 
     def before_fork(self) -> None:
         for name, product in self.products:

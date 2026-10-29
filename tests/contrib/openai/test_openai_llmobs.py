@@ -5,11 +5,11 @@ from unittest import mock
 import openai as openai_module
 import pytest
 
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._integrations.utils import _inline_image_budget
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metadata
@@ -2730,18 +2730,20 @@ MUL: "*"
     def test_responses_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
         """Test that cache write token metrics are captured for the responses API.
 
-        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
-        ``usage.input_tokens_details`` for the responses API.
+        Newer OpenAI models (GPT-5.6+) report cache_write_tokens on usage.input_tokens_details for the
+        responses API, split by cache TTL in cache_write_tokens_details. The openai SDK does not type
+        prompt_cache_options yet, so it is sent through extra_body.
         """
         client = openai.OpenAI()
         model = "gpt-5.6-sol"
         base_instructions = "You are an expert software engineer " * 200
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write_ttl.yaml"):
             resp = client.responses.create(
                 model=model,
                 instructions=base_instructions,
                 input="What are the best practices for API design?",
                 max_output_tokens=100,
+                extra_body={"prompt_cache_options": {"ttl": "12h"}},
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -2758,7 +2760,9 @@ MUL: "*"
                 "total_tokens": 1320,
                 "cache_read_input_tokens": 0,
                 "cache_write_input_tokens": 1217,
-                "reasoning_output_tokens": 54,
+                "ephemeral_30m_input_tokens": 0,
+                "ephemeral_12h_input_tokens": 1217,
+                "reasoning_output_tokens": 62,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )

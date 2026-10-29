@@ -213,13 +213,18 @@ get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
         return std::make_pair(result, true);
     }
 
-    const auto it = tx_map->find(get_unique_id(string_input));
-    if (it == tx_map->end()) {
+    const auto obj_id = get_unique_id(string_input);
+    if (tx_map->find(obj_id) == tx_map->end()) {
         return std::make_pair(result, false);
     }
 
     // No hash means a reused address or an unhashable object: either way, not this object's taint.
     const auto hash = get_internal_hash(string_input);
+    // Hashing can call Python and re-enter the taint map, invalidating any prior iterator.
+    const auto it = tx_map->find(obj_id);
+    if (it == tx_map->end()) {
+        return std::make_pair(result, false);
+    }
     if (not hash or *hash != it->second.first) {
         tx_map->erase(it);
         return std::make_pair(result, false);
@@ -391,8 +396,8 @@ get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
         return nullptr;
     }
 
-    const auto it = tx_map->find(get_unique_id(str));
-    if (it == tx_map->end()) {
+    const auto obj_id = get_unique_id(str);
+    if (tx_map->find(obj_id) == tx_map->end()) {
         return nullptr;
     }
 
@@ -402,11 +407,16 @@ get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
     // an unhashable object such as a dict subclass cannot survive. Checked after the lookup to
     // leave the common miss path untouched.
     if (not is_tainteable(str)) {
-        tx_map->erase(it);
+        tx_map->erase(obj_id);
         return nullptr;
     }
 
     const auto hash = get_internal_hash(str);
+    // Hashing can call Python and re-enter the taint map, invalidating any prior iterator.
+    const auto it = tx_map->find(obj_id);
+    if (it == tx_map->end()) {
+        return nullptr;
+    }
     if (not hash or *hash != it->second.first) {
         tx_map->erase(it);
         return nullptr;

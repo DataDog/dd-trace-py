@@ -535,6 +535,16 @@
         ]
       }
     ],
+    "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_AWS_TAG_NO_PARAMS": [
       {
         "implementation": "A",
@@ -1583,6 +1593,16 @@
         "default": "elasticsearch",
         "aliases": [
           "DD_ELASTICSEARCH_SERVICE_NAME"
+        ]
+      }
+    ],
+    "DD_ELEVENLABS_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_ELEVENLABS_SERVICE_NAME"
         ]
       }
     ],
@@ -3519,13 +3539,6 @@
         "default": "datadoghq.com"
       }
     ],
-    "DD_SNAPSHOT_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": null
-      }
-    ],
     "DD_SNOWFLAKE_SERVICE": [
       {
         "implementation": "A",
@@ -4001,6 +4014,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AZURE_COSMOS_ENABLED": [
       {
         "implementation": "A",
@@ -4205,6 +4225,13 @@
       }
     ],
     "DD_TRACE_ELASTICSEARCH_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_ELEVENLABS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5173,6 +5200,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_TYPESAFE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_UNITTEST_ENABLED": [
       {
         "implementation": "A",
@@ -5290,6 +5324,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_TYPESAFE_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_TYPESAFE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_UNITTEST_OPERATION_NAME": [
@@ -6126,6 +6170,14 @@
         "implementation": "A",
         "type": "string",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],

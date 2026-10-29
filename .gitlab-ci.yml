@@ -24,7 +24,7 @@ variables:
   SYSTEM_TESTS_REF: "930d080d1ec2685dc3844dd9715ac0dbbf409b2d"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
@@ -36,7 +36,8 @@ variables:
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
-  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+  # 110M/109M with 3.15 dep wheels; keep a little headroom above that.
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
 
 default:
@@ -69,6 +70,9 @@ workflow:
     - when: always
 
 include:
+  - project: 'ddoghq/llm-validation-platform'
+    ref: 68250345c9e358d4345545516f4c180e0370eb76  # v0.1.5
+    file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/retry-policies.yml"
   # Included after the base policies so main pipelines override them without
@@ -375,19 +379,6 @@ check_ci_dependencies:
   script:
     - scripts/check-ci-dependencies
 
-# Fails when the docs' offline Python intersphinx inventory falls behind docs.python.org.
-# An unreachable docs.python.org passes; the next nightly run checks again.
-check_intersphinx_inventory:
-  stage: tests
-  needs: []
-  extends: .testrunner
-  allow_failure: true
-  rules:
-    - if: $NIGHTLY_BUILD == "true"
-    - when: manual
-  script:
-    - python3 scripts/update-intersphinx-inventory.py --check
-
 codeowners:
   stage: tests
   needs: []
@@ -644,6 +635,28 @@ test_resolve_base_branch:
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
 
+# Fails when test jobs stop collecting core dumps and backtraces on crash.
+# Runs the collector in script, since after_script failures don't fail the job.
+coredump_smoke:
+  extends: .testrunner
+  stage: tests
+  needs: []
+  timeout: 5m
+  script:
+    - bash .gitlab/scripts/coredump-smoke.sh
+  after_script: []
+
+# Runs in the image of package-oci, so that the tests use the same python3 and
+# GNU realpath as prepare-oci-package.sh.
+test_oci_package_scripts:
+  stage: tests
+  needs: []
+  image: $PACKAGING_IMAGE
+  tags: [ "arch:amd64" ]
+  timeout: 5m
+  script:
+    - python3 .gitlab/scripts/test_make_symlinks_relative.py -v
+
 
 "summarize failures":
   stage: .post
@@ -805,6 +818,10 @@ lib_injection_tests:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - export PYENV_VERSION=${PYTHON_VERSION}
+    # Native test binaries link libpython without an RPATH into the pyenv lib
+    # dir. The image's ld.so.conf can point at older patch dirs than pyenv
+    # actually installed, so put the selected interpreter's lib on the path.
+    - export LD_LIBRARY_PATH="$(pyenv prefix)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   script:
     - python --version
     # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
@@ -859,13 +876,13 @@ profiling_native:
         - pyproject.toml
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
         SANITIZER: ["safety", "thread", ""]
       # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
       # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,
       # which is worth checking on a few versions without the slowdown on all runs.
       # If needed, please add more versions to the list.
-      - PYTHON_VERSION: ["3.12", "3.14"]
+      - PYTHON_VERSION: ["3.12", "3.15"]
         SANITIZER: ["valgrind"]
 
 test-dd-sts:
@@ -889,12 +906,12 @@ package-oci:
       artifacts: true
     - job: "build linux"
       artifacts: true
-    - job: "download_dependency_wheels"
-      artifacts: true
-      # 3.15 cell is when: never until the python image is mirrored
-      optional: true
 
 configure_system_tests:
+  # The job only renders the child pipeline from environment variables and the
+  # system-tests checkout in its image. It reads no artifacts, so it does not
+  # wait for the image publish jobs. The system_tests trigger keeps those needs.
+  needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
 
@@ -913,3 +930,10 @@ publishing-gate:
   needs: null
   # The gate only echoes; without this, stage ordering downloads every prior job's artifacts.
   dependencies: []
+
+"llm validation":
+  variables:
+    LLMVAL_PLATFORM_PROJECT: "ddoghq/llm-validation-platform"  # canonical mirror; the DataDog/ mirror is stale (frozen ~v0.1.1)
+    LLMVAL_BASE_REF: "main"
+    LLMVAL_PLATFORM_REF: "68250345c9e358d4345545516f4c180e0370eb76"  # v0.1.5 (keep identical to the include ref above)
+

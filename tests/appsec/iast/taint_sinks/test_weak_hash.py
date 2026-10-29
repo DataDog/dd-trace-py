@@ -42,7 +42,7 @@ def iast_context_only_sha1():
 @pytest.fixture
 def iast_context_contextmanager_deduplication_enabled():
     def iast_aux(deduplication_enabled=True, time_lapse=3600.0):
-        from ddtrace.appsec._deduplications import deduplication
+        from ddtrace.internal.security._deduplications import deduplication
 
         try:
             old_value = deduplication._time_lapse
