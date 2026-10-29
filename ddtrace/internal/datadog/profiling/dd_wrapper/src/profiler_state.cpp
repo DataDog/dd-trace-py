@@ -126,8 +126,8 @@ ProfilerState::start()
                        []() { ProfilerState::get().postfork_parent(); },
                        []() { ProfilerState::get().postfork_child(); });
 
-        // Register cleanup function to free resources on exit
-        std::atexit([]() { ProfilerState::get().cleanup(); });
+        // No std::atexit cleanup: exit() can run while the stack sampler is still using the profile and the
+        // profiles dictionary. The OS reclaims them.
 
         // Set the global initialization flag
         initialized_.store(true, std::memory_order_release);
