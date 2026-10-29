@@ -1,5 +1,11 @@
 from pathlib import Path
+import sys
 import typing as t
+
+
+# _DD_COVERAGE_FILE_LEVEL=true is forced off on Python 3.9 (no file-level implementation), so
+# the "true" parametrization would silently run in line-level mode there.
+FILE_LEVEL_PARAMS = ["true", "false"] if sys.version_info >= (3, 10) else ["false"]
 
 
 def _get_relpath_str(rootpath: Path, path: Path):

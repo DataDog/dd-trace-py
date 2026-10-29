@@ -5,7 +5,6 @@ from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from importlib.util import spec_from_loader
 from pathlib import Path
-import runpy
 import sys
 from types import CodeType
 from types import ModuleType
@@ -65,6 +64,8 @@ def _patch_run_code() -> None:
     global _run_code
 
     if _run_code is None:
+        import runpy
+
         _run_code = runpy._run_code  # type: ignore[attr-defined]
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
 

@@ -13,13 +13,12 @@ The fixture modules are in tests/coverage/included_path/:
 - layer3_toplevel.py, layer3_dynamic.py (imported by layer2)
 """
 
-import sys
-
 import pytest
 
+from tests.coverage.utils import FILE_LEVEL_PARAMS
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_nested_imports_mixed_path_reinstrumentation():
     """
     Test re-instrumentation with nested imports using both top-level and dynamic paths.
@@ -77,8 +76,7 @@ def test_nested_imports_mixed_path_reinstrumentation():
     assert_coverage_matches(context2_covered, expected_context2, file_level_mode, "Context 2")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
-@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": FILE_LEVEL_PARAMS})
 def test_nested_imports_interleaved_execution():
     """
     Test re-instrumentation with interleaved execution of different import paths.
