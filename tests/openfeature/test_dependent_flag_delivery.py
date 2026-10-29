@@ -306,6 +306,22 @@ def test_expanded_rules_memoize_prerequisite_and_expose_only_successful_path(del
     assert sorted(_exposed(writer)) == ["child", "parent"]
 
 
+def test_memoized_exposures_replay_successful_path_order_not_completion_order(delivery, provider):
+    instance, writer = provider
+    config = _configuration()
+    config["flags"]["sibling"] = create_boolean_flag("sibling", default_value=False)
+    config["flags"]["child"]["allocations"][0]["rules"] = [
+        {"conditions": [_prerequisite(), _attribute("different-plan")]},
+        {"conditions": [_prerequisite("sibling"), _prerequisite(), _attribute()]},
+    ]
+    delivery.publish(config)
+    delivery.poll()
+
+    assert instance.resolve_boolean_details("child", False, _CONTEXT).value is True
+    assert _evaluated(instance) == ["parent", "sibling"]
+    assert _exposed(writer) == ["sibling", "parent", "child"]
+
+
 @pytest.mark.parametrize(
     "operator,values,matched",
     [("ONE_OF", ["false"], True), ("NOT_ONE_OF", ["true"], True), ("NOT_ONE_OF", ["false"], False)],

@@ -118,6 +118,25 @@ def test_expanded_rules_memoize_prerequisite_but_keep_its_successful_exposure(ev
     assert root_exposure["serial_id"] == 42
 
 
+def test_memoized_exposures_replay_successful_path_order_not_completion_order(evaluated):
+    _, client, evaluations, exposures, _ = evaluated
+    root = dependent_flag(
+        rules=[
+            [prerequisite("parent"), attribute("free")],
+            [prerequisite("sibling"), prerequisite("parent"), attribute("pro")],
+        ]
+    )
+    assert process_ffe_configuration(create_config(create_boolean_flag("parent"), create_boolean_flag("sibling"), root))
+
+    assert (
+        client.get_boolean_value("root", False, EvaluationContext(targeting_key="subject", attributes={"plan": "pro"}))
+        is True
+    )
+
+    assert event_keys(evaluations) == ["parent", "sibling", "root"]
+    assert exposure_keys(exposures) == ["sibling", "parent", "root"]
+
+
 def test_rejected_nested_path_never_exposes_its_prerequisite(evaluated):
     _, client, evaluations, exposures, _ = evaluated
     child = create_boolean_flag("child")
@@ -131,8 +150,18 @@ def test_rejected_nested_path_never_exposes_its_prerequisite(evaluated):
     assert exposure_keys(exposures) == ["parent", "root"]
 
 
-@pytest.mark.parametrize("failure", ["missing", "disabled", "malformed", "unassigned", "cycle", "depth"])
-def test_reached_dependency_failure_aborts_root_without_exposures(evaluated, failure):
+@pytest.mark.parametrize(
+    ("failure", "expected_error"),
+    [
+        ("missing", ErrorCode.FLAG_NOT_FOUND),
+        ("disabled", ErrorCode.GENERAL),
+        ("malformed", ErrorCode.PARSE_ERROR),
+        ("unassigned", ErrorCode.GENERAL),
+        ("cycle", ErrorCode.GENERAL),
+        ("depth", ErrorCode.GENERAL),
+    ],
+)
+def test_reached_dependency_failure_aborts_root_without_exposures(evaluated, failure, expected_error):
     _, client, evaluations, exposures, _ = evaluated
     parent = create_boolean_flag("parent")
     root = dependent_flag()
@@ -157,7 +186,7 @@ def test_reached_dependency_failure_aborts_root_without_exposures(evaluated, fai
 
     assert details.value is True  # The runtime default, not the root's false fallback.
     assert details.reason == Reason.ERROR
-    assert details.error_code == ErrorCode.GENERAL
+    assert details.error_code == expected_error
     assert "parent" in event_keys(evaluations)
     assert event_keys(evaluations)[-1] == "root"
     assert exposures.call_count == 0

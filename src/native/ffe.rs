@@ -16,7 +16,7 @@ pub mod ffe {
     };
 
     /// UFC extensions supported by both the linked evaluator and this binding,
-    /// including dependency error propagation and exposure eligibility.
+    /// including dependency error propagation and ordered exposure replay.
     #[pyfunction]
     fn get_evaluator_capabilities() -> Vec<&'static str> {
         vec!["dependent-flag-variant-key-v1"]
@@ -39,8 +39,6 @@ pub mod ffe {
         reason: Option<Reason>,
         #[pyo3(get)]
         do_log: bool,
-        #[pyo3(get)]
-        exposure_eligible: bool,
     }
 
     #[pyclass(frozen)]
@@ -85,6 +83,8 @@ pub mod ffe {
         serial_id: Option<i64>,
         #[pyo3(get)]
         dependency_evaluations: Vec<DependencyEvaluation>,
+        #[pyo3(get)]
+        exposure_trace: Vec<Str>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,10 +196,10 @@ pub mod ffe {
                         error_code: details.error_code,
                         reason: details.reason,
                         do_log: details.do_log,
-                        exposure_eligible: record.exposure_eligible,
                     }
                 })
                 .collect();
+            result.exposure_trace = evaluation.exposure_trace;
 
             Ok(result)
         }
@@ -220,6 +220,7 @@ pub mod ffe {
                 do_log: assignment.do_log,
                 serial_id: assignment.serial_id.map(i64::from),
                 dependency_evaluations: Vec::new(),
+                exposure_trace: Vec::new(),
             }
         }
 
@@ -235,6 +236,7 @@ pub mod ffe {
                 do_log: false,
                 serial_id: None,
                 dependency_evaluations: Vec::new(),
+                exposure_trace: Vec::new(),
             }
         }
 
@@ -250,6 +252,7 @@ pub mod ffe {
                 do_log: false,
                 serial_id: None,
                 dependency_evaluations: Vec::new(),
+                exposure_trace: Vec::new(),
             }
         }
     }
@@ -257,6 +260,22 @@ pub mod ffe {
     impl From<EvaluationError> for ResolutionDetails {
         fn from(value: EvaluationError) -> ResolutionDetails {
             match value {
+                EvaluationError::DependencyEvaluationFailed { source, .. } => match *source {
+                    EvaluationError::FlagDisabled | EvaluationError::DefaultAllocationNull => {
+                        ResolutionDetails::error(
+                            ErrorCode::General,
+                            "prerequisite has no assignment",
+                        )
+                    }
+                    source => {
+                        let mut details = ResolutionDetails::from(source);
+                        details.reason = Some(Reason::Error);
+                        if details.error_code.is_none() {
+                            details.error_code = Some(ErrorCode::General);
+                        }
+                        details
+                    }
+                },
                 EvaluationError::TypeMismatch { expected, found } => ResolutionDetails::error(
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),

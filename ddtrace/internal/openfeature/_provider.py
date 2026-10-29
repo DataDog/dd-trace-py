@@ -596,6 +596,12 @@ class DataDogProvider(AbstractProvider):
             # Map native ffe.Reason to OpenFeature Reason
             reason = self._map_reason_to_openfeature(details.reason)
 
+            # Dependency exposures are transactional with the root assignment.
+            # The native trace is ordered for successful-path replay and is
+            # deliberately separate from completion-ordered evaluation records.
+            if details.variant:
+                self._report_dependency_exposures(details, evaluation_context)
+
             # Report exposure event only if do_log flag is True
             if details.do_log:
                 self._report_exposure(
@@ -699,7 +705,19 @@ class DataDogProvider(AbstractProvider):
                     )
                 except Exception:
                     logger.debug("Feature Flags: failed to record prerequisite evaluation metric")
-            if dependency.exposure_eligible and dependency.do_log and error_code is None:
+
+    def _report_dependency_exposures(
+        self,
+        details: ffe.ResolutionDetails,
+        evaluation_context: typing.Optional[EvaluationContext],
+    ) -> None:
+        dependencies = {dependency.flag_key: dependency for dependency in details.dependency_evaluations}
+        for flag_key in details.exposure_trace:
+            dependency = dependencies.get(flag_key)
+            if dependency is None:
+                logger.debug("Feature Flags: exposure trace references missing prerequisite %s", flag_key)
+                continue
+            if dependency.do_log and dependency.error_code is None:
                 self._report_exposure(
                     flag_key=dependency.flag_key,
                     variant_key=dependency.variant,
