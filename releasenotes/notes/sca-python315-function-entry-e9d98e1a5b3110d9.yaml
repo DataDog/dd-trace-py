@@ -1,4 +1,0 @@
-fixes:
-  - |
-    SCA: Fixes missing reachability reports for one-line functions on Python 3.15
-    and repeated reports when a function starts with a loop.
