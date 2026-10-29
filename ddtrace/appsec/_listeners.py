@@ -1,6 +1,7 @@
 import sys
 
 from ddtrace.internal import core
+from ddtrace.internal.appsec import product as appsec_product
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -66,7 +67,7 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
         return
 
     AppSecSpanProcessor.disable()
-    _unregister_exploit_prevention_listeners()
+    appsec_product.unregister_subscribers()
 
     if asm_config._api_security_active:
         from ddtrace.appsec._api_security.api_manager import APIManager
@@ -79,28 +80,6 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
 
     _report_asm_enabled()
     return
-
-
-def _register_exploit_prevention_listeners() -> None:
-    """Register listeners for operations monitored by Exploit Prevention."""
-    from ddtrace.appsec._contrib.dbapi import listen as dbapi_listen
-    from ddtrace.appsec._contrib.httpx import listen as httpx_listen
-    from ddtrace.appsec._contrib.subprocess import listen as subprocess_listen
-
-    dbapi_listen()
-    httpx_listen()
-    subprocess_listen()
-
-
-def _unregister_exploit_prevention_listeners() -> None:
-    """Unregister AppSec subscribers that gate shared integration event dispatch."""
-    from ddtrace.appsec._contrib.dbapi import unlisten as dbapi_unlisten
-    from ddtrace.appsec._contrib.httpx import unlisten as httpx_unlisten
-    from ddtrace.appsec._contrib.subprocess import unlisten as subprocess_unlisten
-
-    dbapi_unlisten()
-    httpx_unlisten()
-    subprocess_unlisten()
 
 
 def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
@@ -142,9 +121,6 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         core.on("asm.switch_state", _asm_switch_state)
         _APPSEC_TO_BE_LOADED = False
 
-    if asm_config._ep_enabled:
-        _register_exploit_prevention_listeners()
-
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
     AppSecSpanProcessor.enable()
@@ -154,6 +130,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         APIManager.enable()
 
     asm_config._asm_enabled = True
+    appsec_product.register_subscribers()
     if reconfigure_tracer:
         if origin:
             asm_config._asm_enabled_origin = origin  # type: ignore[assignment]
