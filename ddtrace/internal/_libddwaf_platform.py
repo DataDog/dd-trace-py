@@ -30,7 +30,7 @@ ABI_MAJOR = 2
 # libddwaf.so.<major> in its runtime package and keeps libddwaf.so for -devel.
 # The versioned name therefore comes first, and ddwaf_get_version() is checked
 # after the load, because an unversioned SONAME guarantees no ABI.
-_SONAMES = ("libddwaf.so.%d" % ABI_MAJOR, "libddwaf.so")
+_SONAMES = (f"libddwaf.so.{ABI_MAJOR}", "libddwaf.so")
 SYSTEM_LIBRARY_NAMES = {"Linux": _SONAMES, "FreeBSD": _SONAMES}
 
 

@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    AAP: Fixes an issue where importing ``ddtrace`` failed with ``KeyError: 'FreeBSD'`` on FreeBSD. The ``build_py``
-    option ``--no-bundle-libddwaf`` is now also supported on FreeBSD, where AppSec loads the system libddwaf
-    (``libddwaf.so.2``, then ``libddwaf.so``).

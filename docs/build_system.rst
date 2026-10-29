@@ -352,7 +352,7 @@ If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disabl
 unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
 
 Linux and FreeBSD only: elsewhere the runtime has no system library to fall back to, so the build fails rather than
-produce a package whose AppSec cannot load.
+produce a package that AppSec cannot load.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
