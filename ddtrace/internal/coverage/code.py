@@ -236,10 +236,17 @@ class ModuleCodeCollector(ModuleWatchdog):
             return
         instance: ModuleCodeCollector = cls._instance
 
-        executable_lines = instance.lines
-        covered_lines = instance._get_covered_lines()
+        # Convert CoverageLines to sets: the report helpers use set operations that
+        # the bitmap-backed CoverageLines does not implement. Debug-only path.
+        executable_lines = {path: set(lines.to_sorted_list()) for path, lines in instance.lines.items()}
+        covered_lines = {path: set(lines.to_sorted_list()) for path, lines in instance._get_covered_lines().items()}
 
-        print_coverage_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover)
+        # Resolve the workspace: instrumentation records under realpath(co_filename),
+        # so a symlinked workspace must be resolved or the report regresses to absolute
+        # filenames (same fix as report_seen_lines below).
+        print_coverage_report(
+            executable_lines, covered_lines, Path(resolved_path(str(workspace_path))), ignore_nocover=ignore_nocover
+        )
 
     @classmethod
     def write_json_report_to_file(cls, filename: str, workspace_path: Path, ignore_nocover: bool = False):
@@ -247,11 +254,20 @@ class ModuleCodeCollector(ModuleWatchdog):
             return
         instance: ModuleCodeCollector = cls._instance
 
-        executable_lines = instance.lines
-        covered_lines = instance._get_covered_lines()
+        # Convert CoverageLines to sets for the same reason as report() above.
+        executable_lines = {path: set(lines.to_sorted_list()) for path, lines in instance.lines.items()}
+        covered_lines = {path: set(lines.to_sorted_list()) for path, lines in instance._get_covered_lines().items()}
 
+        # Resolve the workspace for the same reason as report() above.
         with open(filename, "w") as f:
-            f.write(gen_json_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover))
+            f.write(
+                gen_json_report(
+                    executable_lines,
+                    covered_lines,
+                    Path(resolved_path(str(workspace_path))),
+                    ignore_nocover=ignore_nocover,
+                )
+            )
 
     def _get_covered_lines(self, include_imported: bool = False) -> dict[str, CoverageLines]:
         # Covered lines should always be a copy to make sure the original cannot be altered

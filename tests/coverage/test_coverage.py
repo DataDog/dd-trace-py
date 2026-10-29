@@ -690,3 +690,52 @@ def test_bitmaps_resolve_symlinked_workspace():
             )
         finally:
             sys.path.remove(str(alias_ws))
+
+
+def test_report_and_json_report_resolve_symlinked_workspace(tmp_path, capsys):
+    """Console and JSON reports must relativize against a symlinked workspace.
+
+    Same scenario as test_bitmaps_resolve_symlinked_workspace: instrumentation
+    records under realpath(co_filename), and the report entry points receive the
+    workspace alias. report() and write_json_report_to_file() must resolve it, or
+    the reports regress to absolute filenames.
+    """
+    import json
+    import sys
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    real_ws = tmp_path / "real"
+    real_ws.mkdir()
+    (real_ws / "rep_mod.py").write_text("value = 1\n")
+
+    alias_ws = tmp_path / "alias"
+    alias_ws.symlink_to(real_ws)
+
+    sys.path.insert(0, str(alias_ws))
+    try:
+        install(include_paths=[alias_ws], collect_import_time_coverage=True)
+
+        ModuleCodeCollector.start_coverage()
+        import rep_mod  # noqa: F401
+
+        ModuleCodeCollector.stop_coverage()
+
+        # JSON report: filenames must be workspace-relative despite the alias.
+        report_file = tmp_path / "report.json"
+        ModuleCodeCollector.write_json_report_to_file(str(report_file), alias_ws)
+        files = json.loads(report_file.read_text())["files"]
+        assert any(key in ("rep_mod.py", "/rep_mod.py") for key in files), (
+            "JSON report regressed to absolute filenames; workspace alias not resolved: %s" % alias_ws
+        )
+        assert all(not key.startswith(str(alias_ws)) for key in files)
+
+        # Console report: same requirement.
+        ModuleCodeCollector.report(alias_ws)
+        out = capsys.readouterr().out
+        assert "rep_mod.py" in out and str(alias_ws) not in out, (
+            "console report regressed to absolute filenames; workspace alias not resolved"
+        )
+    finally:
+        sys.path.remove(str(alias_ws))
