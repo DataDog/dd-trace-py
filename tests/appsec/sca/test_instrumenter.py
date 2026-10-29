@@ -5,6 +5,8 @@ Reproduces the system test bug where `reached` stays empty after calling
 a vulnerable function through ddtrace's wrapt-patched wrappers.
 """
 
+import asyncio
+import sys
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -161,8 +163,9 @@ class TestSCADetectionHookIntegration:
         def user_calls_this():
             return target_func(42)
 
-        def target_func(x):
-            return x * 2
+        namespace = {}
+        exec("def target_func(x): return x * 2", namespace)
+        target_func = namespace["target_func"]
 
         registry.add_target(
             "test_module:target_func",
@@ -555,3 +558,115 @@ class TestForkCallbackOrdering:
         # restart() must pass after_fork=True to skip re-injecting hooks
         # on functions whose bytecode already carries the hook from the parent.
         mock_load.assert_called_once_with(after_fork=True)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="Monitoring entry hooks require Python 3.15")
+class TestFunctionEntry:
+    @pytest.mark.parametrize(
+        "source, expected, hits",
+        [
+            ("def target(x): return x + 1", 4, 1),
+            ("target = lambda x: x + 1", 4, 1),
+            ("def target(x):\n    while x:\n        x -= 1\n    return x", 0, 1),
+            ("def target(x):\n    return target(x - 1) if x else 0", 0, 4),
+        ],
+        ids=["one-line", "lambda", "loop", "recursion"],
+    )
+    def test_reports_once_per_invocation(self, source, expected, hits):
+        namespace = {}
+        exec(source, namespace)
+        target = namespace["target"]
+        registry = InstrumentationRegistry()
+        instrumenter = Instrumenter(registry)
+        assert instrumenter.instrument("test:target", target)
+        assert target(3) == expected
+        assert registry._targets["test:target"].hit_count == hits
+
+    @pytest.mark.parametrize("order", ["before", "after"])
+    def test_coexists_with_wrapping_context(self, order):
+        from ddtrace.internal.wrapping.context import WrappingContext
+
+        class PeerContext(WrappingContext):
+            pass
+
+        target = _make_target_function()
+        wrapper = PeerContext(target)
+        registry = InstrumentationRegistry()
+        instrumenter = Instrumenter(registry)
+        if order == "before":
+            wrapper.wrap()
+        assert instrumenter.instrument("test:target", target)
+        if order == "after":
+            wrapper.wrap()
+        assert target(1) == 2
+        wrapper.unwrap()
+        assert target(2) == 3
+        assert registry._targets["test:target"].hit_count == 2
+
+    def test_generator_reports_start_not_resume(self):
+        def target():
+            yield 1
+            yield 2
+
+        registry = InstrumentationRegistry()
+        assert Instrumenter(registry).instrument("test:target", target)
+        iterator = target()
+        assert registry._targets["test:target"].hit_count == 0
+        assert next(iterator) == 1
+        assert next(iterator) == 2
+        with pytest.raises(StopIteration):
+            next(iterator)
+        assert registry._targets["test:target"].hit_count == 1
+
+    def test_coroutine_reports_start_not_resume(self):
+        async def target():
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            return 42
+
+        registry = InstrumentationRegistry()
+        assert Instrumenter(registry).instrument("test:target", target)
+        assert asyncio.run(target()) == 42
+        assert registry._targets["test:target"].hit_count == 1
+
+    def test_hook_failure_does_not_change_customer_result(self):
+        target = _make_target_function()
+        registry = InstrumentationRegistry()
+        assert Instrumenter(registry).instrument("test:target", target)
+        with patch.object(registry, "record_hit", side_effect=RuntimeError("telemetry failure")):
+            assert target(1) == 2
+
+    def test_aliases_and_repeated_registration(self):
+        target = _make_target_function()
+        registry = InstrumentationRegistry()
+        instrumenter = Instrumenter(registry)
+        for name in ("test:first", "test:second", "test:first"):
+            assert instrumenter.instrument(name, target)
+        assert target(1) == 2
+        assert registry._targets["test:first"].hit_count == 1
+        assert registry._targets["test:second"].hit_count == 1
+
+    def test_shared_code_does_not_instrument_sibling(self):
+        target = _make_target_function()
+        sibling = _make_target_function()
+        assert target.__code__ is sibling.__code__
+        registry = InstrumentationRegistry()
+        assert Instrumenter(registry).instrument("test:target", target)
+        assert sibling(1) == 2
+        assert registry._targets["test:target"].hit_count == 0
+        assert target(1) == 2
+        assert registry._targets["test:target"].hit_count == 1
+
+    def test_inherited_hook_uses_reinitialized_registry(self):
+        target = _make_target_function()
+        original_registry = InstrumentationRegistry()
+        assert Instrumenter(original_registry).instrument("test:target", target)
+        original_lock = _instrumenter_mod._SCAWrappingContext.registration_lock
+        _instrumenter_mod._reset_after_fork()
+        assert _instrumenter_mod._SCAWrappingContext.registration_lock is not original_lock
+        registry = InstrumentationRegistry()
+        registry.add_target("test:target")
+        _instrumenter_mod.set_registry(registry)
+        assert target(1) == 2
+        assert registry._targets["test:target"].hit_count == 1
+        assert original_registry._targets["test:target"].hit_count == 0

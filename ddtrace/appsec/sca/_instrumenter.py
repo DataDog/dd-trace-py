@@ -1,7 +1,6 @@
-"""Bytecode instrumentation for SCA detection.
+"""Function-entry instrumentation for SCA detection.
 
-Provides functionality to instrument Python functions at runtime using
-bytecode injection via dd-trace-py's bytecode_injection infrastructure.
+Python 3.15+ uses monitoring-based wrapping; older versions use bytecode injection.
 """
 
 from __future__ import annotations
@@ -11,6 +10,7 @@ import types
 from types import FunctionType
 from typing import TYPE_CHECKING
 from typing import Optional
+from typing import cast
 
 from ddtrace.appsec.sca._registry import get_global_registry
 from ddtrace.appsec.sca._resolver import SymbolResolver
@@ -117,6 +117,8 @@ def _reset_after_fork() -> None:
     _lazy_module_hooks = {}
     _lazy_module_targets = {}
     _lazy_hooks_lock = Lock()
+    if sys.version_info >= (3, 15):
+        _SCAWrappingContext.registration_lock = Lock()
 
 
 def set_registry(registry: InstrumentationRegistry) -> None:
@@ -183,8 +185,27 @@ def sca_detection_hook(qualified_name: str) -> None:
         log.debug("SCA detection hook error for %s", qualified_name, exc_info=True)
 
 
+if sys.version_info >= (3, 15):
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    class _SCAWrappingContext(WrappingContext):
+        """Report function entry independently of executable source lines."""
+
+        registration_lock = Lock()
+
+        def __init__(self, func: FunctionType):
+            super().__init__(func)
+            self.targets: tuple[str, ...] = ()
+
+        def __enter__(self) -> _SCAWrappingContext:
+            super().__enter__()
+            for qualified_name in self.targets:
+                sca_detection_hook(qualified_name)
+            return self
+
+
 class Instrumenter:
-    """Manages bytecode instrumentation of target functions."""
+    """Manages function-entry instrumentation of target functions."""
 
     def __init__(self, registry: InstrumentationRegistry) -> None:
         self.registry = registry
@@ -214,17 +235,20 @@ class Instrumenter:
                     self.registry.add_target(qualified_name, pending=False)
 
                 original_code = func.__code__
-                # co_firstlineno is the `def` line, but on
-                # Python <3.11 the bytecode instructions start on the first
-                # body line (the line after `def`), and on 3.15+ the def line
-                # cannot be hooked. Use the first hookable instruction line.
-                first_line = _first_instr_line(original_code)
-
-                inject_hook(func, sca_detection_hook, first_line, qualified_name)
+                if sys.version_info >= (3, 15):
+                    with _SCAWrappingContext.registration_lock:
+                        context = cast(_SCAWrappingContext, _SCAWrappingContext.wrapped(func))
+                        if qualified_name not in context.targets:
+                            context.targets += (qualified_name,)
+                else:
+                    # On Python <3.11 the first instruction belongs to the body;
+                    # on 3.11-3.14 the bytecode hook can use the RESUME line.
+                    first_line = _first_instr_line(original_code)
+                    inject_hook(func, sca_detection_hook, first_line, qualified_name)
 
                 self.registry.mark_instrumented(qualified_name, original_code)
 
-                log.debug("Instrumented: %s at line %d", qualified_name, first_line)
+                log.debug("Instrumented: %s", qualified_name)
                 return True
 
             except Exception:
