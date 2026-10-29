@@ -1,4 +1,5 @@
 from contextlib import ExitStack
+import sys
 from unittest import mock
 
 import pytest
@@ -9,6 +10,7 @@ from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxRequestContextS
 from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxSingleRequestContextSubscriber
 from ddtrace.appsec._contrib.subprocess.subscribers import AppSecSubprocessCommandSubscriber
 from ddtrace.internal.appsec import product
+from ddtrace.internal.appsec import product_subscribers
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -70,6 +72,20 @@ def test_remote_activation_without_exploit_prevention_registers_no_subscribers(s
         unregister.assert_not_called()
 
 
+def test_direct_appsec_activation_registers_listeners_and_subscribers(subscribers, monkeypatch):
+    monkeypatch.setattr(product_subscribers, "_listeners_registered", False)
+    with (
+        mock.patch.object(asm_config, "_ep_enabled", True),
+        mock.patch.object(product_subscribers, "_register_listeners") as register_listeners,
+    ):
+        _listeners.load_appsec()
+        register_listeners.assert_called_once_with(_listeners._asm_switch_state)
+
+    for register, unregister in subscribers.values():
+        register.assert_called_once_with()
+        unregister.assert_not_called()
+
+
 def test_inactive_appsec_registers_no_subscribers(subscribers):
     with mock.patch.object(asm_config, "_ep_enabled", True):
         product.register_subscribers()
@@ -79,14 +95,42 @@ def test_inactive_appsec_registers_no_subscribers(subscribers):
 
 
 def test_appsec_activation_registers_listeners_once(subscribers, monkeypatch):
-    monkeypatch.setattr(product, "_listeners_registered", False)
-    with mock.patch.object(product, "_register_listeners") as register_listeners:
-        product.register_subscribers()
-        register_listeners.assert_not_called()
+    monkeypatch.setattr(product_subscribers, "_listeners_registered", False)
+    with mock.patch.object(product_subscribers, "_register_listeners") as register_listeners:
+        with mock.patch.object(asm_config, "_asm_enabled", False):
+            product.register_subscribers()
+            register_listeners.assert_not_called()
 
-        product._enable_asm()
-        product.register_subscribers()
-        product._disable_asm()
-        product._enable_asm()
+        with mock.patch.object(asm_config, "_asm_enabled", True):
+            product.register_subscribers()
+            product.register_subscribers()
 
-    register_listeners.assert_called_once_with()
+        register_listeners.assert_called_once_with(_listeners._asm_switch_state)
+
+
+def test_asm_switch_state_registers_and_unregisters_subscribers(subscribers, monkeypatch):
+    monkeypatch.setattr(product_subscribers, "_listeners_registered", False)
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", True),
+        mock.patch.object(asm_config, "_ep_enabled", True),
+        mock.patch.object(_listeners, "load_appsec", side_effect=product.register_subscribers) as load_appsec,
+        mock.patch.object(product_subscribers, "_register_listeners") as register_listeners,
+    ):
+        _listeners._asm_switch_state()
+        load_appsec.assert_called_once_with()
+        register_listeners.assert_called_once_with(_listeners._asm_switch_state)
+
+    for register, unregister in subscribers.values():
+        register.assert_called_once_with()
+        unregister.assert_not_called()
+
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", False),
+        mock.patch.object(_listeners, "disable_appsec"),
+        mock.patch.dict(sys.modules, {"ddtrace.appsec._processor": object()}),
+    ):
+        _listeners._asm_switch_state()
+
+    for register, unregister in subscribers.values():
+        register.assert_called_once_with()
+        unregister.assert_called_once_with()

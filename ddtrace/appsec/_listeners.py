@@ -1,6 +1,7 @@
 import sys
 
 from ddtrace.internal import core
+from ddtrace.internal.appsec import product_subscribers as appsec_product_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -94,6 +95,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         APIManager.enable()
 
     asm_config._asm_enabled = True
+    appsec_product_subscribers.register(_asm_switch_state)
     if reconfigure_tracer:
         if origin:
             asm_config._asm_enabled_origin = origin  # type: ignore[assignment]
@@ -119,11 +121,8 @@ core.on("test.config.override", load_common_appsec_modules)
 
 
 def _asm_switch_state() -> None:
-    from ddtrace.internal.appsec import product
-
     if asm_config._asm_enabled:
         load_appsec()
-        product.register_subscribers()
     elif "ddtrace.appsec._processor" in sys.modules:
         disable_appsec()
-        product.unregister_subscribers()
+        appsec_product_subscribers.unregister()
