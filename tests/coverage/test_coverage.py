@@ -578,3 +578,64 @@ def test_obfuscated_code_logs_warning():
     for line in source.split("\n"):
         if "is_obfuscated_code" in line:
             assert "or" not in line, "obfuscated code must not be combined with the dedup check: %r" % line
+
+
+@pytest.mark.subprocess()
+def test_nested_imports_through_symlink_alias_keep_distinct_contexts():
+    """Nested imports through a symlink alias must not overwrite each other's contexts.
+
+    When pkg.mod imports alias.mod (where alias is a symlink to pkg), both modules
+    share the same real file. _enter_module_context was keyed by the canonical path,
+    so the inner import overwrote the outer context and finishing the inner import
+    removed the entry — the outer context leaked open, misattributing subsequent
+    coverage. Keying by the raw co_filename (always distinct) keeps both lifecycles
+    intact.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(os.path.realpath(tmpdir))
+        # pkg/ (the real package)
+        pkg = tmpdir / "bs_pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "bs_mod.py").write_text("value = 1\n")
+        # bs_alias is a symlink to bs_pkg — both names resolve to the same real modules
+        os.symlink(pkg, tmpdir / "bs_alias")
+
+        sys.path.insert(0, str(tmpdir))
+        try:
+            install(include_paths=[tmpdir], collect_import_time_coverage=True)
+
+            # Import the same module through both names — each gets its own context
+            import bs_alias.bs_mod  # noqa: F401
+            import bs_pkg.bs_mod  # noqa: F401
+
+            # Both contexts should have been entered and finished (no leak)
+            collector = ModuleCodeCollector._instance
+            assert collector is not None
+            assert len(collector._import_time_contexts) == 0, "import-time contexts leaked: %s" % list(
+                collector._import_time_contexts.keys()
+            )
+
+            # The canonical file should be in _import_time_covered (both imports share it)
+            canonical_mod = os.path.realpath(str(pkg / "bs_mod.py"))
+            assert canonical_mod in collector._import_time_covered, (
+                "import-time coverage missing for %s" % canonical_mod
+            )
+
+            # A test context after the nested imports should not be polluted
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                # Nothing from the import contexts should leak into this test context
+                covered = ctx.get_covered_file_paths()
+                assert canonical_mod not in covered, (
+                    "leaked import context attributed %s to the test context" % canonical_mod
+                )
+        finally:
+            sys.path.remove(str(tmpdir))

@@ -623,7 +623,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._invalidate_import_metadata()
         module_context = self.CollectInContext(is_import_coverage=True)
         module_context.__enter__()
-        self._import_time_contexts[module_file] = module_context
+        self._import_time_contexts[code.co_filename] = module_context
 
     def _exit_context_on_exception_hook(self, _, _module: ModuleType) -> None:
         self._finish_module_context(_module)
