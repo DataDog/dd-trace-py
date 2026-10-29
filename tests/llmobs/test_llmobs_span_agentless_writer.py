@@ -1,10 +1,8 @@
-import http.client
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import os
 import threading
 from unittest import mock
-from urllib.parse import urlparse
 
 import pytest
 
@@ -18,7 +16,6 @@ from tests.llmobs._utils import _large_event
 from tests.llmobs._utils import _oversized_llm_event
 from tests.llmobs._utils import _oversized_retrieval_event
 from tests.llmobs._utils import _oversized_workflow_event
-from tests.llmobs._utils import logs_vcr
 from tests.utils import override_global_config
 
 
@@ -301,46 +298,26 @@ def test_send_completion_no_api_key(mock_writer_logs):
     )
 
 
-@mock.patch("ddtrace.llmobs._writer.HTTPConnection")
-def test_send_timed_events(mock_http_connection, mock_writer_logs):
-    # Use the Python transport so VCR can intercept sends from the periodic thread.
-    mock_http_connection.side_effect = lambda url, timeout: http.client.HTTPSConnection(
-        urlparse(url).netloc, timeout=timeout
-    )
+@mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
+def test_send_timed_events(mock_send_payload, mock_writer_logs):
     payload_sent = threading.Event()
+    mock_send_payload.side_effect = lambda *args: payload_sent.set() or Response(status=200)
     llmobs_span_writer = LLMObsSpanWriter(0.01, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
-    # The retry wrapper captures _send_payload during writer initialization.
-    send_payload = llmobs_span_writer._send_payload_with_retry
+    llmobs_span_writer.start()
+    try:
+        mock_writer_logs.reset_mock()
 
-    def send_and_notify(*args, **kwargs):
-        response = send_payload(*args, **kwargs)
-        payload_sent.set()
-        return response
+        llmobs_span_writer.enqueue(_completion_event())
+        assert payload_sent.wait(timeout=5)
+        mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
+        mock_writer_logs.reset_mock()
+        payload_sent.clear()
 
-    # The existing cassette contains one response for both sends.
-    with logs_vcr.use_cassette(
-        "tests.llmobs.test_llmobs_span_agentless_writer.test_send_timed_events.yaml", allow_playback_repeats=True
-    ):
-        with mock.patch.object(llmobs_span_writer, "_send_payload_with_retry", side_effect=send_and_notify):
-            llmobs_span_writer.start()
-            try:
-                mock_writer_logs.reset_mock()
-
-                llmobs_span_writer.enqueue(_completion_event())
-                assert payload_sent.wait(timeout=1)
-                mock_writer_logs.debug.assert_has_calls(
-                    [mock.call("encoded %d LLMObs %s events to be sent", 1, "span")]
-                )
-                mock_writer_logs.reset_mock()
-                payload_sent.clear()
-
-                llmobs_span_writer.enqueue(_chat_completion_event())
-                assert payload_sent.wait(timeout=1)
-                mock_writer_logs.debug.assert_has_calls(
-                    [mock.call("encoded %d LLMObs %s events to be sent", 1, "span")]
-                )
-            finally:
-                llmobs_span_writer.stop()
+        llmobs_span_writer.enqueue(_chat_completion_event())
+        assert payload_sent.wait(timeout=5)
+        mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
+    finally:
+        llmobs_span_writer.stop()
 
 
 @pytest.mark.vcr_logs

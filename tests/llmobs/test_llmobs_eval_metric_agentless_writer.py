@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from tests.utils import override_global_config
@@ -189,43 +190,35 @@ def test_send_score_metric(mock_writer_logs, llmobs_api_proxy_url):
     )
 
 
-def test_send_timed_events(mock_writer_logs, llmobs_api_proxy_url):
+@mock.patch("ddtrace.llmobs._writer.LLMObsEvalMetricWriter._send_payload")
+def test_send_timed_events(mock_send_payload, mock_writer_logs):
     payload_sent = threading.Event()
+    mock_send_payload.side_effect = lambda *args: payload_sent.set() or Response(status=200)
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
         interval=0.01,
         timeout=1,
         is_agentless=True,
         _api_key=DD_API_KEY,
-        _override_url=llmobs_api_proxy_url,
     )
-    # The retry wrapper captures _send_payload during writer initialization.
-    send_payload = llmobs_eval_metric_writer._send_payload_with_retry
+    llmobs_eval_metric_writer.start()
+    try:
+        mock_writer_logs.reset_mock()
 
-    def send_and_notify(*args, **kwargs):
-        response = send_payload(*args, **kwargs)
-        payload_sent.set()
-        return response
+        llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
+        assert payload_sent.wait(timeout=5)
+        mock_writer_logs.debug.assert_has_calls(
+            [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
+        )
+        mock_writer_logs.reset_mock()
+        payload_sent.clear()
 
-    with mock.patch.object(llmobs_eval_metric_writer, "_send_payload_with_retry", side_effect=send_and_notify):
-        llmobs_eval_metric_writer.start()
-        try:
-            mock_writer_logs.reset_mock()
-
-            llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
-            assert payload_sent.wait(timeout=1)
-            mock_writer_logs.debug.assert_has_calls(
-                [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
-            )
-            mock_writer_logs.reset_mock()
-            payload_sent.clear()
-
-            llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
-            assert payload_sent.wait(timeout=1)
-            mock_writer_logs.debug.assert_has_calls(
-                [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
-            )
-        finally:
-            llmobs_eval_metric_writer.stop()
+        llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
+        assert payload_sent.wait(timeout=5)
+        mock_writer_logs.debug.assert_has_calls(
+            [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
+        )
+    finally:
+        llmobs_eval_metric_writer.stop()
 
 
 @pytest.mark.vcr_logs

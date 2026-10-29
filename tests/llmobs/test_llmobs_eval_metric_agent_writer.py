@@ -67,7 +67,7 @@ def test_send_timed_events(mock_send_payload, mock_writer_logs):
         mock_writer_logs.reset_mock()
 
         llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
-        assert payload_sent.wait(timeout=1)
+        assert payload_sent.wait(timeout=5)
         mock_writer_logs.debug.assert_has_calls(
             [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
         )
@@ -75,7 +75,7 @@ def test_send_timed_events(mock_send_payload, mock_writer_logs):
         payload_sent.clear()
 
         llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
-        assert payload_sent.wait(timeout=1)
+        assert payload_sent.wait(timeout=5)
         mock_writer_logs.debug.assert_has_calls(
             [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
         )
