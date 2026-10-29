@@ -254,6 +254,29 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
     return False
 
 
+def _add_resource_path(scope: dict[str, Any], instance: Any) -> None:
+    resource_paths: list[str] = scope["datadog"].setdefault("resource_paths", [])
+    # (path, root_path, request span count) of each Mount in resource_paths, None for routes
+    mounts: list[Optional[tuple[str, Optional[str], int]]] = scope["datadog"].setdefault("_dd_resource_path_mounts", [])
+    mount = None
+    if isinstance(instance, starlette.routing.Mount):
+        # Mount.matches() sets root_path to everything matched so far. A Mount handled in the
+        # same application (same number of request spans) with the same path and root_path as
+        # an earlier one is not nested in it but routes the request again, e.g. connexion runs
+        # one Router with the same Mount per middleware. Routing again starts at the first such
+        # Mount and replaces everything from there instead of adding the paths a second time.
+        # Nested Mount("") levels don't change root_path either, so an empty Mount only counts
+        # as routing again once a route was handled after the earlier one.
+        mount = (instance.path, scope.get("root_path"), len(scope["datadog"].get("request_spans", ())))
+        if mount in mounts:
+            index = mounts.index(mount)
+            if instance.path or None in mounts[index:]:
+                del resource_paths[index:]
+                del mounts[index:]
+    resource_paths.append(instance.path)
+    mounts.append(mount)
+
+
 def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
     effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
     if effective_route_context is None:
@@ -296,10 +319,7 @@ def traced_handler(wrapped, instance, args, kwargs):
     # the composed path is read directly from effective_route_context and resource_paths
     # is never consumed.
     if full_path is None:
-        if "resource_paths" not in scope["datadog"]:
-            scope["datadog"]["resource_paths"] = [instance.path]
-        else:
-            scope["datadog"]["resource_paths"].append(instance.path)
+        _add_resource_path(scope, instance)
 
     resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
