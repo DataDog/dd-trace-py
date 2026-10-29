@@ -16,3 +16,10 @@
       - stuck_or_timeout_failure
       - scheduler_failure
       - api_failure
+
+# A health-check failure in tests/wait-for-services.py exits with 75 (EX_TEMPFAIL).
+# GitLab retries when either `when` or `exit_codes` matches, up to the inherited max of 2.
+.retry_on_infrastructure_or_service_failure:
+  extends: .retry_on_infrastructure_failure
+  retry:
+    exit_codes: [75]

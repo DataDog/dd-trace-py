@@ -10,6 +10,7 @@ import types
 from unittest import mock
 
 import pytest
+import yaml
 
 
 _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gitlab_config.py"
@@ -101,7 +102,8 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
         )
 
 
-def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
+@pytest.mark.parametrize("retry_policy", [None, ".retry_on_infrastructure_or_service_failure"])
+def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod, retry_policy):
     output = io.StringIO()
     ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
     metadata = {
@@ -118,7 +120,7 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
         suite="tracer",
         stage="core",
         clean_name="tracer",
-        config={"env": {}},
+        config={"env": {}, "retry_policy": retry_policy},
         environments=[("env123", "3.12")],
         k=1,
         metadata=metadata,
@@ -126,10 +128,39 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     )
 
     content = output.getvalue()
-    assert "extends: .ddtest_plan" in content
-    assert "extends: .ddtest_run" in content
+    for base in (".ddtest_plan", ".ddtest_run"):
+        extends = f"[{base}, {retry_policy}]" if retry_policy else base
+        assert f"extends: {extends}" in content
     assert "DDTEST_COMMAND_env123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
     assert "DDTEST_ENV_env123: PYTHONOPTIMIZE=1" in content
+
+
+@pytest.mark.parametrize("main", [False, True])
+def test_azure_suites_retry_infrastructure_or_service_failures(gen_gitlab_config_mod, main):
+    root = _SCRIPT_PATH.parents[1]
+    policies = yaml.safe_load((root / ".gitlab/retry-policies.yml").read_text())
+    if main:
+        policies.update(yaml.safe_load((root / ".gitlab/retry-policies-main.yml").read_text()))
+    assert "exit_codes" not in policies[".retry_on_infrastructure_failure"]["retry"]
+
+    suites = yaml.safe_load((root / "tests/contrib/suitespec.yml").read_text())["suites"]
+    azure_suites = {name: config for name, config in suites.items() if name.startswith("azure_")}
+    assert len(azure_suites) == 8
+    for name, suite in azure_suites.items():
+        suite.pop("matrix")
+        with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="wait.txt"):
+            config = str(gen_gitlab_config_mod.JobSpec(name=name, stage="contrib", **suite))
+        assert "  extends: [.test_base_snapshot, .retry_on_infrastructure_or_service_failure]" in config
+        assert "  retry:" not in config
+        policy = policies[suite["retry_policy"]]
+        assert policy["extends"] == ".retry_on_infrastructure_failure"
+        retry = {**policies[policy["extends"]]["retry"], **policy["retry"]}
+        assert retry == {
+            **policies[".retry_on_infrastructure_failure"]["retry"],
+            "max": 2,
+            "exit_codes": [75],
+        }
+        assert "script_failure" not in retry["when"]
 
 
 def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):

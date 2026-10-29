@@ -567,6 +567,7 @@ suites:
           dependencies: [aws-durable-execution-sdk-python, aws-durable-execution-sdk-python-testing]
   azure_cosmos:
     venvs_per_job: 7
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -586,6 +587,7 @@ suites:
           dependencies: [azure.cosmos, 'pytest-asyncio==0.23.7', aiohttp, six]
   azure_eventhubs:
     venvs_per_job: 3
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -620,6 +622,7 @@ suites:
           dependencies: [azure.eventhub, 'pytest-asyncio==0.23.7']
   azure_durable_functions:
     venvs_per_job: 6
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -642,6 +645,7 @@ suites:
           dependencies: [azure-functions-durable]
   azure_functions:
     venvs_per_job: 4
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -662,6 +666,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -690,6 +695,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -712,6 +718,7 @@ suites:
           dependencies: [azure.functions, azure.eventhub, azure.storage.blob]
   azure_functions:servicebus:
     venvs_per_job: 3
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -735,6 +742,7 @@ suites:
           dependencies: [azure.functions, azure.servicebus]
   azure_servicebus:
     venvs_per_job: 3
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
