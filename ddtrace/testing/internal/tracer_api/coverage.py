@@ -79,9 +79,17 @@ class CoverageData:
 
 
 @contextlib.contextmanager
-def coverage_collection() -> t.Generator[CoverageData, None, None]:
+def coverage_collection(
+    test_file: t.Optional[Path] = None,
+) -> t.Generator[CoverageData, None, None]:
     with ModuleCodeCollector.CollectInContext() as coverage_collector:
         coverage_data = CoverageData()
+        # The test file is the only framework-specific input; the mode decides what
+        # to do with it (import-only anchors it, instrumented modes ignore it).
+        if test_file is not None:
+            instance = ModuleCodeCollector._instance
+            if instance is not None:
+                instance._mode.anchor_test_file(test_file, coverage_collector)
         yield coverage_data
         if ModuleCodeCollector.file_level_coverage_enabled():
             coverage_data._covered_file_paths = coverage_collector.get_covered_file_paths()

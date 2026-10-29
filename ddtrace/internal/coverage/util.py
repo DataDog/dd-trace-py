@@ -15,6 +15,15 @@ def is_file_level_coverage_enabled() -> bool:
     return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
 
 
+def is_import_only_coverage_enabled() -> bool:
+    # Import-only coverage collects file-level coverage exclusively from import events (a
+    # builtins.__import__ wrapper, see import_hook_instrumentation.py): no code object is
+    # instrumented at all. It implies file-level semantics, and it needs the import-time
+    # dependency graph (the closure expansion is the attribution mechanism for module-level
+    # imports), so both are forced on at install time.
+    return asbool(env.get("_DD_COVERAGE_IMPORT_ONLY", "false"))
+
+
 def collapse_ranges(numbers: list[int]) -> list[tuple[int, int]]:
     # This function turns an ordered list of numbers into a list of ranges.
     # For example, [1, 2, 3, 5, 6, 7, 9] becomes [(1, 3), (5, 7), (9, 9)]
