@@ -36,7 +36,8 @@ variables:
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
-  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+  # 110M/109M with 3.15 dep wheels; keep a little headroom above that.
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
 
 default:
