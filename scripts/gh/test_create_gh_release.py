@@ -24,19 +24,25 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from create_gh_release import _GH_RELEASE_REQUIRED_FLAGS  # noqa: E402
+from create_gh_release import AUTO_CREATED_FOOTER  # noqa: E402
+from create_gh_release import SLACK_USER_BRETT_ID  # noqa: E402
+from create_gh_release import SLACK_USER_EMMETT_ID  # noqa: E402
 from create_gh_release import ReleaseState  # noqa: E402
 from create_gh_release import WaitingOn  # noqa: E402
 from create_gh_release import build_gh_release_args  # noqa: E402
+from create_gh_release import build_parser  # noqa: E402
 from create_gh_release import compose_release_body  # noqa: E402
 from create_gh_release import compute_final_version  # noqa: E402
 from create_gh_release import compute_next_minor_rc1  # noqa: E402
 from create_gh_release import compute_next_patch  # noqa: E402
 from create_gh_release import compute_next_rc  # noqa: E402
+from create_gh_release import draft_kind_phrase  # noqa: E402
 from create_gh_release import format_notes_for_version  # noqa: E402
 from create_gh_release import is_rc_version  # noqa: E402
 from create_gh_release import is_stable_version  # noqa: E402
 from create_gh_release import review_text  # noqa: E402
 from create_gh_release import should_mark_latest  # noqa: E402
+from create_gh_release import slack_mention  # noqa: E402
 from create_gh_release import write_pyproject_version  # noqa: E402
 from create_gh_release import xy_branch_for_version  # noqa: E402
 
@@ -184,6 +190,71 @@ class EolComposeTests(unittest.TestCase):
         self.assertIn("4.16.2", text)
         self.assertIn(":lgtm:", text)
         self.assertIn("https://example/draft", text)
+        self.assertIn(AUTO_CREATED_FOOTER, text)
+
+    def test_draft_kind_phrase(self) -> None:
+        self.assertEqual(draft_kind_phrase("4.17.0rc2"), "RC release")
+        self.assertEqual(draft_kind_phrase("4.16.2"), "patch release")
+        self.assertEqual(draft_kind_phrase("4.17.0"), "release")
+
+
+class SlackDefaultsTests(unittest.TestCase):
+    def test_hardcoded_approver_ids_are_real_looking(self) -> None:
+        self.assertTrue(SLACK_USER_BRETT_ID.startswith("U"))
+        self.assertTrue(SLACK_USER_EMMETT_ID.startswith("U"))
+        self.assertNotEqual(SLACK_USER_BRETT_ID, SLACK_USER_EMMETT_ID)
+
+    def test_slack_mention_uses_hardcoded_default(self) -> None:
+        with mock.patch.dict("os.environ", {}, clear=True):
+            brett: str = slack_mention("DD_SLACK_USER_BRETT", SLACK_USER_BRETT_ID)
+            emmett: str = slack_mention("DD_SLACK_USER_EMMETT", SLACK_USER_EMMETT_ID)
+        self.assertEqual(brett, f"<@{SLACK_USER_BRETT_ID}>")
+        self.assertEqual(emmett, f"<@{SLACK_USER_EMMETT_ID}>")
+
+    def test_slack_mention_env_override(self) -> None:
+        with mock.patch.dict("os.environ", {"DD_SLACK_USER_BRETT": "UOVERRIDE"}, clear=True):
+            mention: str = slack_mention("DD_SLACK_USER_BRETT", SLACK_USER_BRETT_ID)
+        self.assertEqual(mention, "<@UOVERRIDE>")
+
+    def test_intent_commands_accept_slack_flags(self) -> None:
+        parser = build_parser()
+        for argv in (
+            ["patch", "1", "--branch", "4.16", "--test-dm", "--no-slack-precheck"],
+            ["rc", "--slack", "--slack-channel", "test"],
+            ["final", "4.17", "--slack", "--test-dm"],
+            ["draft-release", "--test-dm"],
+        ):
+            ns = parser.parse_args(argv)
+            self.assertTrue(hasattr(ns, "slack"))
+            self.assertTrue(hasattr(ns, "test_dm"))
+            self.assertTrue(hasattr(ns, "slack_channel"))
+            self.assertTrue(hasattr(ns, "slack_precheck"))
+
+    def test_notify_slack_kind_and_footer(self) -> None:
+        import create_gh_release as mod
+
+        posted: list[str] = []
+
+        def fake_post(url: str, text: str) -> None:
+            posted.append(text)
+
+        with mock.patch.dict("os.environ", {"DD_RELEASE_SLACK_DM_URL": "https://example.test/hooks"}, clear=False):
+            with mock.patch.object(mod, "post_webhook", fake_post):
+                mod.notify_slack(
+                    version="4.16.2",
+                    target_sha="deadbeef",
+                    draft_url="https://example/draft",
+                    test_dm=True,
+                    channel="auto",
+                    precheck=False,
+                )
+        self.assertEqual(len(posted), 1)
+        body: str = posted[0]
+        self.assertIn("Draft patch release", body)
+        self.assertIn(f"<@{SLACK_USER_BRETT_ID}>", body)
+        self.assertIn(f"<@{SLACK_USER_EMMETT_ID}>", body)
+        self.assertIn(AUTO_CREATED_FOOTER, body)
+        self.assertNotIn("Draft RC release", body)
 
 
 class WritePyprojectVersionTests(unittest.TestCase):

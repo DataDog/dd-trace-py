@@ -20,9 +20,9 @@ See docs/contributing-release.rst and .agents/skills/release/SKILL.md.
 The script never publishes a GitHub release; --draft is non-negotiable.
 
 Usage:
-  scripts/gh/create_gh_release.py patch 21379 --branch 4.16 [--dry-run]
-  scripts/gh/create_gh_release.py rc [--candidate SHA] [--dry-run]
-  scripts/gh/create_gh_release.py final 4.17 [--dry-run]
+  scripts/gh/create_gh_release.py patch 21379 --branch 4.16 [--dry-run] [--slack|--test-dm]
+  scripts/gh/create_gh_release.py rc [--candidate SHA] [--dry-run] [--slack|--test-dm]
+  scripts/gh/create_gh_release.py final 4.17 [--dry-run] [--slack|--test-dm]
   scripts/gh/create_gh_release.py post-release v4.16.2 [--dry-run]
   scripts/gh/create_gh_release.py bump-rc [--base-branch main] [--dry-run]
   scripts/gh/create_gh_release.py ensure-branch X.Y [--from A.B] [--dry-run]
@@ -36,8 +36,10 @@ Slack env vars (set whichever you'll use):
   DD_RELEASE_SLACK_WEBHOOK_URL_PROD  webhook bound to #apm-python-release
   DD_RELEASE_SLACK_WEBHOOK_URL_TEST  webhook bound to your test channel
   DD_RELEASE_SLACK_WEBHOOK_URL       legacy single-channel fallback
-  DD_RELEASE_SLACK_DM_URL            optional, used by --test-dm
-  DD_SLACK_USER_BRETT/EMMETT         Slack member IDs for real @-mentions
+  DD_RELEASE_SLACK_DM_URL            required for --test-dm (secret webhook URL;
+                                     not committed; no SSM path for DM yet)
+  DD_SLACK_USER_BRETT/EMMETT         optional overrides for reviewer @-mentions;
+                                     defaults are hardcoded member IDs
 
 If the channel env var is unset and you pass --slack-channel=test|prod, the
 script falls back to AWS SSM Parameter Store at:
@@ -45,15 +47,17 @@ script falls back to AWS SSM Parameter Store at:
   ci.dd-trace-py.slack-release-webhook-test
 This matches the ``ci.dd-trace-py.<key>`` convention used elsewhere in this
 repo for release secrets (see .gitlab/release.yml). Requires AWS credentials
-to be available (e.g. via aws-vault or your usual SSO flow).
+to be available (e.g. via aws-vault or your usual SSO flow). The DM webhook
+is env-only (do not commit it); channel webhooks stay env-or-SSM.
 
 Failure recovery:
   Push succeeded but `gh pr create` failed (bump-rc):
       git push origin --delete bump-version/<version>   # then re-run bump-rc
 
   Draft release created but Slack post failed (draft-release):
-      The draft is still on GitHub; just re-run with --slack to retry the
-      announcement, or post manually.
+      The draft is still on GitHub; re-run with --slack / --test-dm to
+      announce the existing draft URL (no second draft is created), or
+      post manually.
 
   ensure-branch checked out a local branch but `git push` failed:
       git checkout main && git branch -D <X.Y>   # then re-run ensure-branch
@@ -63,9 +67,9 @@ Gotchas:
     succeeds at the HTTP layer but the message body comes through empty
     or templated. The --slack-precheck handshake (default: on) catches
     most cases by sending a sentinel first.
-  - DD_SLACK_USER_BRETT/EMMETT with rotated/stale IDs render as broken
-    mentions like `<@U_OLD>` with no error. Refresh from Slack profile
-    when reviewers change.
+  - Hardcoded Brett/Emmett member IDs (or DD_SLACK_USER_* overrides) that
+    go stale render as broken mentions like `<@U_OLD>` with no error.
+    Refresh the constants from Slack profile when reviewers change.
   - Requires `gh` CLI 2.x for `--jq` support and `aws` CLI for SSM lookup.
 """
 
@@ -111,13 +115,19 @@ SLACK_CHANNEL_PROD_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL_PROD"
 SLACK_DM_ENV: str = "DD_RELEASE_SLACK_DM_URL"
 SLACK_USER_BRETT_ENV: str = "DD_SLACK_USER_BRETT"
 SLACK_USER_EMMETT_ENV: str = "DD_SLACK_USER_EMMETT"
+# Hardcoded approver Slack member IDs (not secrets). Env vars above remain
+# optional overrides. Source: Slack workspace lookup 2026-10-29
+# (brettlangdon → UD1N1U7JQ; emmett.butler@datadoghq.com → U04HER8LNAZ).
+SLACK_USER_BRETT_ID: str = "UD1N1U7JQ"
+SLACK_USER_EMMETT_ID: str = "U04HER8LNAZ"
 
 # AWS SSM Parameter Store paths. Canonical storage for shared release secrets
 # in this repo — see .gitlab/release.yml and scripts/upload-debug-symbols-to-
 # backend.sh for the same `ci.dd-trace-py.<key>` convention. The script falls
 # back to SSM when the corresponding env var is unset, so a freshly-set-up
 # release engineer with AWS creds (and no other config) can run the script
-# without manually exporting webhook URLs.
+# without manually exporting webhook URLs. DM webhook has no SSM path yet
+# (env-only; do not commit the secret URL).
 SSM_REGION: str = "us-east-1"
 SSM_SLACK_WEBHOOK_PROD: str = "ci.dd-trace-py.slack-release-webhook-prod"
 SSM_SLACK_WEBHOOK_TEST: str = "ci.dd-trace-py.slack-release-webhook-test"
@@ -130,6 +140,10 @@ GH_REPO: str = "DataDog/dd-trace-py"
 BACKPORT_LABEL_RE: re.Pattern[str] = re.compile(r"^backport\s+(\d+\.\d+)$")
 SYSTEM_TESTS_PIN_MAX_AGE_DAYS: int = 14
 REVIEW_TEXT_TEMPLATE: str = ":headsup: The draft release for {version} is ready for review. Can I get a :lgtm:? {url}"
+# Light “small print” footer for Slack / review paste — italic via Slack `_..._`.
+AUTO_CREATED_FOOTER: str = (
+    "_Created automatically by `scripts/gh/create_gh_release.py` — try `patch` / `rc` / `final`._"
+)
 
 # When True, ``run_external_with_stderr`` echoes stderr from reno/pandoc/etc.
 # to the user's terminal. Set by ``main`` from ``--verbose``.
@@ -327,8 +341,22 @@ def build_gh_release_args(
     return args
 
 
+def draft_kind_phrase(version: str) -> str:
+    """Human label for Slack: ``RC release``, ``patch release``, or ``release``."""
+    ver: str = normalize_version_str(version)
+    if is_rc_version(ver):
+        return "RC release"
+    if is_stable_version(ver):
+        v: Version = Version(ver)
+        if v.micro > 0:
+            return "patch release"
+        return "release"
+    return "release"
+
+
 def review_text(version: str, url: str) -> str:
-    return REVIEW_TEXT_TEMPLATE.format(version=normalize_version_str(version), url=url)
+    head: str = REVIEW_TEXT_TEMPLATE.format(version=normalize_version_str(version), url=url)
+    return f"{head}\n{AUTO_CREATED_FOOTER}"
 
 
 def load_format_release_notes() -> Any:
@@ -910,55 +938,71 @@ def generate_release_notes(
     )
 
 
-def check_existing_release(version: str, dry_run: bool = False) -> None:
-    """Refuse to draft if a release with this tag is already published.
-
-    GitHub allows multiple drafts to share a (future) tag, but disallows two
-    *published* releases sharing one. If a draft already exists, warn so the
-    runner notices instead of silently piling up phantom drafts.
-    """
+def existing_releases_for_version(version: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return ``(published, drafts)`` for tag ``v{version}`` via the releases API."""
+    ver: str = normalize_version_str(version)
     out: str = run_out(
         [
             "gh",
             "api",
-            "repos/DataDog/dd-trace-py/releases",
+            f"repos/{GH_REPO}/releases",
             "--paginate",
             "--jq",
-            f'.[] | select(.tag_name == "v{version}") | {{id, draft, html_url}}',
+            f'.[] | select(.tag_name == "v{ver}") | {{id, draft, html_url}}',
         ],
         cwd=REPO_ROOT,
     )
-    if not out.strip():
-        return
-    # The query may return multiple JSON objects (one per matching release);
-    # iterate over each line.
     published: list[dict[str, Any]] = []
     drafts: list[dict[str, Any]] = []
+    if not out.strip():
+        return published, drafts
+    # The query may return multiple JSON objects (one per matching release);
+    # iterate over each line.
     for line in out.splitlines():
-        line = line.strip()
-        if not line:
+        stripped: str = line.strip()
+        if not stripped:
             continue
         try:
-            r: dict[str, Any] = json.loads(line)
+            r: dict[str, Any] = json.loads(stripped)
         except ValueError:
             continue
         (drafts if r.get("draft") else published).append(r)
+    return published, drafts
+
+
+def check_existing_release(version: str, dry_run: bool = False, *, reuse_drafts: bool = False) -> Optional[str]:
+    """Refuse if published; optionally reuse or warn about existing drafts.
+
+    When ``reuse_drafts`` is True and a draft already exists, return its
+    ``html_url`` so the caller can re-announce without creating a duplicate.
+    Otherwise warn (and sleep) before allowing another draft create.
+    """
+    published: list[dict[str, Any]]
+    drafts: list[dict[str, Any]]
+    published, drafts = existing_releases_for_version(version)
     if published:
         urls: str = ", ".join(r["html_url"] for r in published)
         raise SystemExit(
-            f"a release tagged v{version} is already PUBLISHED ({urls}). "
+            f"a release tagged v{normalize_version_str(version)} is already PUBLISHED ({urls}). "
             "Refusing to create another draft for the same tag."
         )
+    if drafts and reuse_drafts:
+        existing_url: str = str(drafts[0].get("html_url") or "")
+        if not existing_url:
+            raise SystemExit(f"draft(s) exist for v{normalize_version_str(version)} but html_url is missing")
+        return existing_url
     if drafts and not dry_run:
         draft_urls: str = "\n  ".join(r["html_url"] for r in drafts)
         print(
-            f"WARN: {len(drafts)} draft(s) already exist for v{version}:\n  {draft_urls}\n"
+            f"WARN: {len(drafts)} draft(s) already exist for v{normalize_version_str(version)}:\n"
+            f"  {draft_urls}\n"
             "Creating another draft will leave duplicates. Continuing in 3s "
             "(Ctrl-C to abort)..."
         )
         import time
 
         time.sleep(3)
+    return None
 
 
 def list_published_release_tags(limit: int = 200) -> list[dict[str, Any]]:
@@ -1081,7 +1125,25 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
             "doc-prescribed flow) or pass --allow-version-mismatch to override."
         )
 
-    check_existing_release(version, dry_run=dry_run)
+    announce: bool = bool(getattr(args, "slack", False) or getattr(args, "test_dm", False))
+    existing_draft_url: Optional[str] = check_existing_release(version, dry_run=dry_run, reuse_drafts=announce)
+    if existing_draft_url is not None:
+        print(f"\nExisting draft release: {existing_draft_url}")
+        print("(reusing existing draft; not creating a duplicate)")
+        print(review_text(version, existing_draft_url))
+        if dry_run:
+            print("(dry-run) would notify Slack about existing draft")
+            return 0
+        notify_slack(
+            version=version,
+            target_sha=short_sha,
+            draft_url=existing_draft_url,
+            test_dm=bool(args.test_dm),
+            channel=str(getattr(args, "slack_channel", "auto")),
+            precheck=bool(getattr(args, "slack_precheck", True)),
+        )
+        return 0
+
     ensure_ci_green(target_sha, allow_failure=args.allow_ci_failure)
 
     collapse: bool = bool(getattr(args, "collapse_rcs", False))
@@ -1120,14 +1182,14 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
     print(f"\nDraft release: {url}")
     print(review_text(version, url))
 
-    if args.slack or args.test_dm:
+    if announce:
         notify_slack(
             version=version,
             target_sha=short_sha,
             draft_url=url,
-            test_dm=args.test_dm,
-            channel=args.slack_channel,
-            precheck=args.slack_precheck,
+            test_dm=bool(args.test_dm),
+            channel=str(getattr(args, "slack_channel", "auto")),
+            precheck=bool(getattr(args, "slack_precheck", True)),
         )
     return 0
 
@@ -1703,12 +1765,9 @@ def cmd_patch(args: argparse.Namespace) -> int:
         allow_version_mismatch=False,
         allow_ci_failure=args.allow_ci_failure,
         dry_run=dry_run,
-        slack=False,
-        slack_channel="auto",
-        slack_precheck=True,
-        test_dm=False,
         collapse_rcs=False,
         earliest_version=f"v{release_version}",
+        **_slack_flag_values(args),
     )
     rc: int = cmd_draft_release(draft_ns)
     state.did.append(f"drafted v{release_version}" if not dry_run else f"(dry-run) drafted v{release_version}")
@@ -1734,14 +1793,24 @@ def cmd_rc(args: argparse.Namespace) -> int:
     check_slo_breaches_on_sha(candidate)
     ensure_ci_green(candidate, allow_failure=args.allow_ci_failure)
 
-    drafts: list[str] = []
     exists, is_draft, url = release_exists_for_tag(version)
     if exists and not is_draft:
         raise SystemExit(f"v{version} is already published ({url})")
+    announce: bool = bool(getattr(args, "slack", False) or getattr(args, "test_dm", False))
     if exists and is_draft and url:
-        drafts.append(url)
-    if drafts:
-        raise WaitingOn(f"existing draft for v{version}: {drafts[0]} — review/publish or delete before re-drafting")
+        if announce:
+            print(review_text(version, url))
+            if not dry_run:
+                notify_slack(
+                    version=version,
+                    target_sha=candidate[:12],
+                    draft_url=url,
+                    test_dm=bool(args.test_dm),
+                    channel=str(getattr(args, "slack_channel", "auto")),
+                    precheck=bool(getattr(args, "slack_precheck", True)),
+                )
+            raise WaitingOn(f"existing draft for v{version}: {url} — announced; waiting on publish")
+        raise WaitingOn(f"existing draft for v{version}: {url} — review/publish or delete before re-drafting")
 
     xy: str = xy_branch_for_version(version)
     # ensure-branch + empty-diff check
@@ -1771,12 +1840,9 @@ def cmd_rc(args: argparse.Namespace) -> int:
         allow_version_mismatch=False,
         allow_ci_failure=args.allow_ci_failure,
         dry_run=dry_run,
-        slack=False,
-        slack_channel="auto",
-        slack_precheck=True,
-        test_dm=False,
         collapse_rcs=False,
         earliest_version=f"v{version}",
+        **_slack_flag_values(args),
     )
     # Prefer the release branch as target once it exists.
     if remote_branch_exists(xy) or not dry_run:
@@ -1870,12 +1936,9 @@ def cmd_final(args: argparse.Namespace) -> int:
         allow_version_mismatch=False,
         allow_ci_failure=args.allow_ci_failure,
         dry_run=dry_run,
-        slack=False,
-        slack_channel="auto",
-        slack_precheck=True,
-        test_dm=False,
         collapse_rcs=True,
         earliest_version=f"v{earliest}",
+        **_slack_flag_values(args),
     )
     rc: int = cmd_draft_release(draft_ns)
     print(f"waiting on: maintainer publish of v{final_ver}; then post-release")
@@ -1989,9 +2052,21 @@ def cmd_post_release(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 
-def slack_mention(env_var: str, fallback: str) -> str:
-    user_id: str = os.environ.get(env_var, "").strip()
-    return f"<@{user_id}>" if user_id else fallback
+def slack_mention(env_var: str, default_user_id: str) -> str:
+    """Build a Slack ``<@ID>`` mention; env override wins over hardcoded default."""
+    override: str = os.environ.get(env_var, "").strip()
+    user_id: str = override or default_user_id
+    return f"<@{user_id}>"
+
+
+def _slack_flag_values(args: argparse.Namespace) -> dict[str, Any]:
+    """Slack-related Namespace fields for draft_release / notify_slack callers."""
+    return {
+        "slack": bool(getattr(args, "slack", False)),
+        "slack_channel": str(getattr(args, "slack_channel", "auto")),
+        "slack_precheck": bool(getattr(args, "slack_precheck", True)),
+        "test_dm": bool(getattr(args, "test_dm", False)),
+    }
 
 
 def post_webhook(url: str, text: str) -> None:
@@ -2056,21 +2131,26 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
 def notify_slack(
     version: str, target_sha: str, draft_url: str, test_dm: bool, channel: str, precheck: bool = True
 ) -> None:
-    brett: str = slack_mention(SLACK_USER_BRETT_ENV, "@brettlangdon")
-    emmett: str = slack_mention(SLACK_USER_EMMETT_ENV, "@emmettbutler")
+    brett: str = slack_mention(SLACK_USER_BRETT_ENV, SLACK_USER_BRETT_ID)
+    emmett: str = slack_mention(SLACK_USER_EMMETT_ENV, SLACK_USER_EMMETT_ID)
+    kind: str = draft_kind_phrase(version)
     text: str = (
-        f":package: Draft RC release ready for review: {draft_url}\n"
+        f":package: Draft {kind} ready for review: {draft_url}\n"
         f"Version: `{version}` (target: `{target_sha}`)\n"
         f"Reviewers: {brett} {emmett} — please review and *click Publish release*. "
         f"Publishing requires repo-owner perms (the tag is created at publish time, "
-        f"and tag creation is gated by branch protection)."
+        f"and tag creation is gated by branch protection).\n"
+        f"{AUTO_CREATED_FOOTER}"
     )
 
     dm_url: str = os.environ.get(SLACK_DM_ENV, "").strip()
 
     if test_dm:
         if not dm_url:
-            raise SystemExit(f"--test-dm requires {SLACK_DM_ENV} to be set")
+            raise SystemExit(
+                f"--test-dm requires {SLACK_DM_ENV} to be set (secret DM webhook; "
+                "not committed — export it locally or add an SSM path later)"
+            )
         if precheck:
             post_webhook(dm_url, "[ping] release-script connectivity check (DM)")
         post_webhook(dm_url, f"[TEST] {text}")
@@ -2105,6 +2185,31 @@ def _add_common_flags(sp: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_slack_flags(sp: argparse.ArgumentParser) -> None:
+    sp.add_argument("--slack", action="store_true", help="post to release channel selected by --slack-channel")
+    sp.add_argument(
+        "--slack-channel",
+        choices=["test", "prod", "auto"],
+        default="auto",
+        help=(
+            "which channel webhook to use: test reads "
+            f"{SLACK_CHANNEL_TEST_ENV}, prod reads {SLACK_CHANNEL_PROD_ENV}, "
+            f"auto prefers prod then test then the legacy {SLACK_CHANNEL_ENV} (default: auto)"
+        ),
+    )
+    sp.add_argument(
+        "--no-slack-precheck",
+        dest="slack_precheck",
+        action="store_false",
+        default=True,
+        help=(
+            "skip the connectivity-check ping that's sent to Slack before the "
+            "real announcement (default: precheck enabled)"
+        ),
+    )
+    sp.add_argument("--test-dm", action="store_true", help="DM the runner only (no channel post)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="create_gh_release.py", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -2118,6 +2223,7 @@ def build_parser() -> argparse.ArgumentParser:
     patch_p.add_argument("--branch", help="release branch X.Y (default: sole backport X.Y label on the PR)")
     patch_p.add_argument("--allow-ci-failure", action="store_true")
     patch_p.add_argument("--dry-run", action="store_true")
+    _add_slack_flags(patch_p)
     _add_common_flags(patch_p)
     patch_p.set_defaults(func=cmd_patch)
 
@@ -2125,6 +2231,7 @@ def build_parser() -> argparse.ArgumentParser:
     rc_p.add_argument("--candidate", help="SHA to release (default: origin/main HEAD)")
     rc_p.add_argument("--allow-ci-failure", action="store_true")
     rc_p.add_argument("--dry-run", action="store_true")
+    _add_slack_flags(rc_p)
     _add_common_flags(rc_p)
     rc_p.set_defaults(func=cmd_rc)
 
@@ -2132,6 +2239,7 @@ def build_parser() -> argparse.ArgumentParser:
     final_p.add_argument("xy", help="release line like 4.17")
     final_p.add_argument("--allow-ci-failure", action="store_true")
     final_p.add_argument("--dry-run", action="store_true")
+    _add_slack_flags(final_p)
     _add_common_flags(final_p)
     final_p.set_defaults(func=cmd_final)
 
@@ -2193,28 +2301,7 @@ def build_parser() -> argparse.ArgumentParser:
             "default behavior refuses to draft on a commit with red or pending CI."
         ),
     )
-    dr.add_argument("--slack", action="store_true", help="post to release channel selected by --slack-channel")
-    dr.add_argument(
-        "--slack-channel",
-        choices=["test", "prod", "auto"],
-        default="auto",
-        help=(
-            "which channel webhook to use: test reads "
-            f"{SLACK_CHANNEL_TEST_ENV}, prod reads {SLACK_CHANNEL_PROD_ENV}, "
-            f"auto prefers prod then test then the legacy {SLACK_CHANNEL_ENV} (default: auto)"
-        ),
-    )
-    dr.add_argument(
-        "--no-slack-precheck",
-        dest="slack_precheck",
-        action="store_false",
-        default=True,
-        help=(
-            "skip the connectivity-check ping that's sent to Slack before the "
-            "real announcement (default: precheck enabled)"
-        ),
-    )
-    dr.add_argument("--test-dm", action="store_true", help="DM the runner only (no channel post)")
+    _add_slack_flags(dr)
     dr.add_argument("--dry-run", action="store_true")
     _add_common_flags(dr)
     dr.set_defaults(func=cmd_draft_release)
