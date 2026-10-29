@@ -823,24 +823,24 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
+        Set the OTLP endpoint for trace export.
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
-        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        :param url: The full URL of the OTLP endpoint.
         """
         ...
     def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
         """
-        Select the OTLP export protocol: "http/json" or "http/protobuf".
-        Any other value raises ValueError.
-        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
+        Select the OTLP export protocol: "grpc", "http/json", or "http/protobuf".
+        Any other value raises ValueError. gRPC supports plaintext endpoints only.
+        :param protocol: The OTLP protocol.
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
-        Set additional HTTP headers for OTLP trace export requests.
-        :param headers: A list of (key, value) header pairs.
+        Set additional metadata for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs. gRPC metadata keys must be lowercase.
         """
         ...
     def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
