@@ -1,0 +1,1528 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "_dd.sdk.otlp_export",
+            "value": {
+              "stringValue": "true"
+            }
+          },
+          {
+            "key": "datadog.sdk.semantics",
+            "value": {
+              "stringValue": "otel"
+            }
+          },
+          {
+            "key": "runtime-id",
+            "value": {
+              "stringValue": "380d823c8b484e1a9cc44189d67de61a"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "otel-http-server-snapshots"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "datadog"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "4.16.0rc1"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000001",
+              "traceState": "dd=p:cecb8c7cd9964c30;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "name": "GET /checkuser/<user_id>",
+              "kind": 2,
+              "startTimeUnixNano": "1792161065942774387",
+              "endTimeUnixNano": "1792161065943568726",
+              "attributes": [
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2352900000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "203.0.113.10"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "flask.endpoint",
+                  "value": {
+                    "stringValue": "checkuser"
+                  }
+                },
+                {
+                  "key": "flask.url_rule",
+                  "value": {
+                    "stringValue": "/checkuser/<user_id>"
+                  }
+                },
+                {
+                  "key": "flask.version",
+                  "value": {
+                    "stringValue": "2.3.3"
+                  }
+                },
+                {
+                  "key": "flask.view_args.user_id",
+                  "value": {
+                    "stringValue": "42"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/checkuser/<user_id>"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "127.0.0.1"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "29"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "380d823c8b484e1a9cc44189d67de61a"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8000"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:cecb8c7cd9964c30;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/checkuser/42"
+                  }
+                },
+                {
+                  "key": "url.query",
+                  "value": {
+                    "stringValue": "<redacted>&page=2"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "test-agent"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000002",
+              "traceState": "dd=p:6283621db574677b;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000001",
+              "name": "GET /checkuser/<user_id>",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065942999067",
+              "endTimeUnixNano": "1792161065943463303",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "flask.endpoint",
+                  "value": {
+                    "stringValue": "checkuser"
+                  }
+                },
+                {
+                  "key": "flask.url_rule",
+                  "value": {
+                    "stringValue": "/checkuser/<user_id>"
+                  }
+                },
+                {
+                  "key": "flask.view_args.user_id",
+                  "value": {
+                    "stringValue": "42"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:6283621db574677b;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000003",
+              "traceState": "dd=p:4f27bb0fb2c0d1c4;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000001",
+              "name": "flask.response",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065943468720",
+              "endTimeUnixNano": "1792161065943562184",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:4f27bb0fb2c0d1c4;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000004",
+              "traceState": "dd=p:d085b499802423a4;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000002",
+              "name": "flask.preprocess_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065943167327",
+              "endTimeUnixNano": "1792161065943181203",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:d085b499802423a4;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000005",
+              "traceState": "dd=p:ad65f5e560d10f96;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000002",
+              "name": "flask.dispatch_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065943212871",
+              "endTimeUnixNano": "1792161065943305419",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:ad65f5e560d10f96;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000006",
+              "traceState": "dd=p:0171b01b708a7520;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000002",
+              "name": "flask.process_response",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065943335754",
+              "endTimeUnixNano": "1792161065943347463",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:0171b01b708a7520;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000007",
+              "traceState": "dd=p:d027db0d270b5e60;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000002",
+              "name": "flask.do_teardown_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065943416050",
+              "endTimeUnixNano": "1792161065943427301",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:d027db0d270b5e60;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000008",
+              "traceState": "dd=p:61e906b4d937c711;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000002",
+              "name": "flask.do_teardown_appcontext",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065943445344",
+              "endTimeUnixNano": "1792161065943453969",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:61e906b4d937c711;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000001",
+              "spanId": "0000000000000009",
+              "traceState": "dd=p:3c616682bfa17155;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0",
+              "parentSpanId": "0000000000000005",
+              "name": "/checkuser/<user_id>",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065943236790",
+              "endTimeUnixNano": "1792161065943298418",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:3c616682bfa17155;s:1;t.dm:-0,ot=rv:f7ea23e1b144cc;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "000000000000000a",
+              "traceState": "dd=p:8c3ec4aea0c04c26;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "name": "GET",
+              "kind": 2,
+              "startTimeUnixNano": "1792161065944535658",
+              "endTimeUnixNano": "1792161065945133776",
+              "attributes": [
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2352900000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "127.0.0.1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "flask.version",
+                  "value": {
+                    "stringValue": "2.3.3"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "404"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "127.0.0.1"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "29"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "380d823c8b484e1a9cc44189d67de61a"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8000"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:8c3ec4aea0c04c26;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/no/such/path"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "test-agent"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "000000000000000b",
+              "traceState": "dd=p:08c573f0d4769675;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000a",
+              "name": "flask.application",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065944637622",
+              "endTimeUnixNano": "1792161065945023937",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:08c573f0d4769675;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "000000000000000c",
+              "traceState": "dd=p:6c7ffb7d51df7e73;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000a",
+              "name": "flask.response",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065945028895",
+              "endTimeUnixNano": "1792161065945126193",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:6c7ffb7d51df7e73;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "000000000000000d",
+              "traceState": "dd=p:d7e949a09dd21fa1;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000b",
+              "name": "flask.preprocess_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065944718002",
+              "endTimeUnixNano": "1792161065944735211",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:d7e949a09dd21fa1;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "000000000000000e",
+              "traceState": "dd=p:94c050af851a5e4a;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000b",
+              "name": "flask.dispatch_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065944757212",
+              "endTimeUnixNano": "1792161065944769213",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:94c050af851a5e4a;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "000000000000000f",
+              "traceState": "dd=p:b039e6ff5b99630d;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000b",
+              "name": "flask.handle_user_exception",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065944784214",
+              "endTimeUnixNano": "1792161065944817258",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:b039e6ff5b99630d;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "0000000000000010",
+              "traceState": "dd=p:0df79fbca3d5db79;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000b",
+              "name": "flask.process_response",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065944897096",
+              "endTimeUnixNano": "1792161065944915805",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:0df79fbca3d5db79;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "0000000000000011",
+              "traceState": "dd=p:54c1b67b88df1e31;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000b",
+              "name": "flask.do_teardown_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065944978392",
+              "endTimeUnixNano": "1792161065944993101",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:54c1b67b88df1e31;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "0000000000000012",
+              "traceState": "dd=p:c9c4ef5b3a64f9a6;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000b",
+              "name": "flask.do_teardown_appcontext",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065945008311",
+              "endTimeUnixNano": "1792161065945016394",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:c9c4ef5b3a64f9a6;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000002",
+              "spanId": "0000000000000013",
+              "traceState": "dd=p:8105aca077c7f5ee;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0",
+              "parentSpanId": "000000000000000f",
+              "name": "flask.handle_http_exception",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065944800965",
+              "endTimeUnixNano": "1792161065944812549",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:8105aca077c7f5ee;s:1;t.dm:-0,ot=rv:30aa06f4ea841b;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "0000000000000014",
+              "traceState": "dd=p:f502e89c67d36d36;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "name": "HTTP /items",
+              "kind": 2,
+              "startTimeUnixNano": "1792161065945980035",
+              "endTimeUnixNano": "1792161065946457604",
+              "attributes": [
+                {
+                  "key": "_dd.measured",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.p.dm",
+                  "value": {
+                    "stringValue": "-0"
+                  }
+                },
+                {
+                  "key": "_dd.p.tid",
+                  "value": {
+                    "stringValue": "6ad2352900000000"
+                  }
+                },
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_dd.tags.process",
+                  "value": {
+                    "stringValue": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.user:true"
+                  }
+                },
+                {
+                  "key": "_dd.top_level",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_dd.tracer_kr",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "client.address",
+                  "value": {
+                    "stringValue": "127.0.0.1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "flask.endpoint",
+                  "value": {
+                    "stringValue": "items"
+                  }
+                },
+                {
+                  "key": "flask.url_rule",
+                  "value": {
+                    "stringValue": "/items"
+                  }
+                },
+                {
+                  "key": "flask.version",
+                  "value": {
+                    "stringValue": "2.3.3"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "_OTHER"
+                  }
+                },
+                {
+                  "key": "http.request.method_original",
+                  "value": {
+                    "stringValue": "PROPFIND"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/items"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "127.0.0.1"
+                  }
+                },
+                {
+                  "key": "process_id",
+                  "value": {
+                    "intValue": "29"
+                  }
+                },
+                {
+                  "key": "runtime-id",
+                  "value": {
+                    "stringValue": "380d823c8b484e1a9cc44189d67de61a"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "0.0.0.0"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "intValue": "8000"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:f502e89c67d36d36;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/items"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "http"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "test-agent"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "0000000000000015",
+              "traceState": "dd=p:fa2579af0c6b2275;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000014",
+              "name": "PROPFIND /items",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946071415",
+              "endTimeUnixNano": "1792161065946358432",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "flask.endpoint",
+                  "value": {
+                    "stringValue": "items"
+                  }
+                },
+                {
+                  "key": "flask.url_rule",
+                  "value": {
+                    "stringValue": "/items"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:fa2579af0c6b2275;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "0000000000000016",
+              "traceState": "dd=p:88cc63886d8b41b9;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000014",
+              "name": "flask.response",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946363140",
+              "endTimeUnixNano": "1792161065946451812",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:88cc63886d8b41b9;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "0000000000000017",
+              "traceState": "dd=p:672da0ceeb58ee65;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000015",
+              "name": "flask.preprocess_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946162587",
+              "endTimeUnixNano": "1792161065946174504",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:672da0ceeb58ee65;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "0000000000000018",
+              "traceState": "dd=p:25c160f673aaf210;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000015",
+              "name": "flask.dispatch_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946195464",
+              "endTimeUnixNano": "1792161065946228883",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:25c160f673aaf210;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "0000000000000019",
+              "traceState": "dd=p:c55cfd7097ee6b75;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000015",
+              "name": "flask.process_response",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946253759",
+              "endTimeUnixNano": "1792161065946263593",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:c55cfd7097ee6b75;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "000000000000001a",
+              "traceState": "dd=p:501b77a861073e09;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000015",
+              "name": "flask.do_teardown_request",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946315596",
+              "endTimeUnixNano": "1792161065946327263",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:501b77a861073e09;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "000000000000001b",
+              "traceState": "dd=p:11ce45451f504e3c;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000015",
+              "name": "flask.do_teardown_appcontext",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946342556",
+              "endTimeUnixNano": "1792161065946350223",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:11ce45451f504e3c;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            },
+            {
+              "traceId": "00000000000000000000000000000003",
+              "spanId": "000000000000001c",
+              "traceState": "dd=p:da1791897848f094;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0",
+              "parentSpanId": "0000000000000018",
+              "name": "/items",
+              "kind": 1,
+              "startTimeUnixNano": "1792161065946216257",
+              "endTimeUnixNano": "1792161065946224216",
+              "attributes": [
+                {
+                  "key": "_dd.svc_src",
+                  "value": {
+                    "stringValue": "m"
+                  }
+                },
+                {
+                  "key": "_sampling_priority_v1",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "component",
+                  "value": {
+                    "stringValue": "flask"
+                  }
+                },
+                {
+                  "key": "tracestate",
+                  "value": {
+                    "stringValue": "dd=p:da1791897848f094;s:1;t.dm:-0,ot=rv:76981a0dce88d5;th:0"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

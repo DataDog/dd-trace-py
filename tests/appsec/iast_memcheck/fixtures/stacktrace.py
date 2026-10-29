@@ -1,6 +1,6 @@
 import os
 
-from ddtrace.appsec._shared._stacktrace import get_info_frame
+from ddtrace.internal.security._stacktrace import get_info_frame
 
 
 CWD = os.path.abspath(os.getcwd())

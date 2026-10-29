@@ -33,6 +33,8 @@ serde = "1.0"
 serde_json = "1.0"
 smallvec = "1"
 tokio = "1"
+# Random bytes come from our own RNG (see rand.rs), so no getrandom feature.
+uuid = { version = "1", default-features = false }
 libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.0", optional = true, features = ["pyo3"] }
 # TODO: replace with the first libdatadog release that ships libdd-ai-usage (pinned to its merge commit on main until then).
 libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "83c9c89232efa93fd369d3cafd94961cd4acda89", optional = true, features = ["otlp"] }
