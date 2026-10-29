@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 import starlette
+from starlette.background import BackgroundTask
 
 import ddtrace
 from ddtrace.constants import USER_KEEP
@@ -17,6 +18,7 @@ from ddtrace.contrib.internal.anyio.patch import patch as anyio_patch
 from ddtrace.contrib.internal.anyio.patch import unpatch as anyio_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -46,6 +48,47 @@ def _trace_context_ids(tracer):
     if context is None:
         return None
     return context.trace_id, context.span_id
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_mounted_apps_finish_child_before_parent(fastapi_tracer, test_spans, monkeypatch, streaming):
+    requests, finished = [], []
+    finish = fastapi_tracer._on_span_finish
+
+    def record_finish(span):
+        if span.span_type == SpanTypes.WEB:
+            finished.append(span)
+        finish(span)
+
+    monkeypatch.setattr(fastapi_tracer, "_on_span_finish", record_finish)
+    root, middle, leaf = fastapi.FastAPI(), fastapi.FastAPI(), fastapi.FastAPI()
+
+    @leaf.get("/")
+    async def endpoint(request: fastapi.Request):
+        requests.extend(request.scope["datadog"]["request_spans"])
+        if streaming:
+
+            async def chunks():
+                yield b"ok"
+
+            return starlette.responses.StreamingResponse(chunks())
+
+        async def background():
+            assert all(span.finished for span in requests)
+
+        return starlette.responses.PlainTextResponse("ok", background=BackgroundTask(background))
+
+    middle.mount("/leaf", leaf)
+    root.mount("/middle", middle)
+    with TestClient(root) as client:
+        assert client.get("/middle/leaf/").text == "ok"
+
+    assert len(requests) == 3
+    assert finished == requests[::-1]
+    assert all(span.service == requests[0].service for span in requests)
+    for parent, child in zip(requests, requests[1:]):
+        assert child._parent is parent
+        assert parent.start_ns + parent.duration_ns >= child.start_ns + child.duration_ns
 
 
 @pytest.mark.skipif(

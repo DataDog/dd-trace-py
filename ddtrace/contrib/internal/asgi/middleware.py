@@ -139,6 +139,25 @@ def _call_route_resource_resolver(scope: Mapping[str, Any], span: Span) -> None:
         log.debug("failed to resolve route pattern for span resource", exc_info=True)
 
 
+def _finish_request_span(scope: Mapping[str, Any], span: Span) -> None:
+    request_spans = scope.get("datadog", {}).get("request_spans")
+    if not request_spans or len(request_spans) == 1:
+        span.finish()
+        return
+
+    # Outer send wrappers return first. Queue their completion until the inner
+    # wrapper is ready, then finish inside out before background work starts.
+    # If a child waits for scope exit, its queued parents wait there too.
+    pending = scope["datadog"].setdefault("request_spans_to_finish", set())
+    pending.add(span)
+    for request_span in reversed(request_spans):
+        if request_span in pending:
+            pending.remove(request_span)
+            request_span.finish()
+        elif not request_span.finished:
+            break
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces HTTP and websocket requests.
@@ -474,7 +493,7 @@ class TraceMiddleware:
                             _call_route_resource_resolver(scope, span)
                         # If the span has an error status code delay finishing the span until the
                         # traceback and exception message is available
-                        span.finish()
+                        _finish_request_span(scope, span)
 
             async def wrapped_blocked_send(message: Mapping[str, Any]):
                 result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -501,7 +520,7 @@ class TraceMiddleware:
                         span, self.integration_config, status_code=status, response_headers=dict(headers)
                     )
                     if message.get("type") == "http.response.body" and span.error == 0:
-                        span.finish()
+                        _finish_request_span(scope, span)
 
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
@@ -534,6 +553,9 @@ class TraceMiddleware:
                 request_spans = scope.get("datadog", {}).get("request_spans")
                 if request_spans and span in request_spans:
                     request_spans.remove(span)
+                pending = scope.get("datadog", {}).get("request_spans_to_finish")
+                if pending:
+                    pending.discard(span)
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:

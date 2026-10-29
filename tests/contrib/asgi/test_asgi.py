@@ -22,6 +22,7 @@ from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -1040,6 +1041,49 @@ async def _send_complete_http_response(
     if message.get("type") == "http.request":
         await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
         await send({"type": "http.response.body", "body": body})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["response", "exception", "cancel", "blocked"])
+async def test_nested_request_spans_finish_inside_out(tracer, test_spans, monkeypatch, outcome):
+    requests, finished = [], []
+    finish = tracer._on_span_finish
+
+    def record_finish(span):
+        if span.span_type == SpanTypes.WEB:
+            finished.append(span)
+        finish(span)
+
+    monkeypatch.setattr(tracer, "_on_span_finish", record_finish)
+
+    async def app(scope, receive, send):
+        requests.extend(scope["datadog"]["request_spans"])
+        if outcome == "exception":
+            raise RuntimeError("request failed")
+        if outcome == "cancel":
+            raise asyncio.CancelledError()
+        if outcome == "blocked":
+            raise BlockingException({"type": "auto", "status_code": 403})
+        await _send_complete_http_response(receive, send)
+        # Completion stays at the final body, before post-response application work.
+        assert all(span.finished for span in requests)
+
+    expected_error = {"exception": RuntimeError, "cancel": asyncio.CancelledError}.get(outcome)
+    middleware = TraceMiddleware(TraceMiddleware(TraceMiddleware(app)))
+    receive = mock.AsyncMock(return_value={"type": "http.request", "body": b""})
+    send = mock.AsyncMock()
+    if expected_error:
+        with pytest.raises(expected_error):
+            await middleware(_http_scope(), receive, send)
+    else:
+        await middleware(_http_scope(), receive, send)
+        assert send.call_args_list[0].args[0]["status"] == (403 if outcome == "blocked" else 200)
+
+    assert len(requests) == 3
+    assert finished == requests[::-1]
+    for parent, child in zip(requests, requests[1:]):
+        assert child._parent is parent
+        assert parent.start_ns + parent.duration_ns >= child.start_ns + child.duration_ns
 
 
 @pytest.mark.asyncio
