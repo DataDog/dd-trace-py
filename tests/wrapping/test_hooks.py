@@ -477,3 +477,151 @@ def test_repeated_reloads_do_not_accumulate_superseded_contexts():
     # Only the immediately previous function is still referenced, by the registry entry we just
     # replaced; the earlier ones were collected and pruned.
     assert len(_SUPERSEDED_CONTEXTS[key]) <= 2, _SUPERSEDED_CONTEXTS[key]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="Monitoring wrapping requires Python 3.15")
+class TestMonitoringContextLifecycle:
+    def test_registration_survives_concurrent_peer_unwrap(self, monkeypatch):
+        import threading
+
+        from ddtrace.internal.wrapping import context
+
+        class PeerContext(context.WrappingContext):
+            pass
+
+        calls = []
+
+        class NewContext(context.WrappingContext):
+            def __enter__(self):
+                calls.append("target")
+                return super().__enter__()
+
+        def target(value):
+            return value + 1
+
+        peer = PeerContext(target)
+        peer.wrap()
+        paused, resume, removing = (threading.Event() for _ in range(3))
+        register = context._UniversalWrappingContext.register
+        lock = getattr(context, "_wrapping_lock", threading.RLock())
+
+        class ObservedLock:
+            def __enter__(self):
+                if threading.current_thread().name == "peer-removal":
+                    removing.set()
+                return lock.__enter__()
+
+            def __exit__(self, *args):
+                return lock.__exit__(*args)
+
+        monkeypatch.setattr(context, "_wrapping_lock", ObservedLock(), raising=False)
+
+        def pause_registration(universal, wrapping):
+            if isinstance(wrapping, NewContext):
+                paused.set()
+                assert resume.wait(5)
+            return register(universal, wrapping)
+
+        monkeypatch.setattr(context._UniversalWrappingContext, "register", pause_registration)
+        wrapper = NewContext(target)
+        results = []
+
+        def install():
+            try:
+                wrapper.wrap()
+                results.append(True)
+            except Exception as error:
+                results.append(error)
+
+        installer = threading.Thread(target=install)
+
+        def remove_peer():
+            peer.unwrap()
+            removing.set()
+
+        remover = threading.Thread(target=remove_peer, name="peer-removal")
+        installer.start()
+        try:
+            assert paused.wait(5)
+            remover.start()
+            assert removing.wait(5)
+        finally:
+            resume.set()
+            installer.join(5)
+            if remover.ident is not None:
+                remover.join(5)
+        assert not installer.is_alive() and not remover.is_alive()
+        assert results == [True]
+        assert target(1) == 2
+        assert calls == ["target"]
+        wrapper.unwrap()
+
+    @pytest.mark.subprocess
+    @pytest.mark.skipif(not hasattr(os, "fork"), reason="Requires fork")
+    def test_fork_preserves_hooks_and_allows_new_wrapping(self):
+        import os
+        import threading
+        import warnings
+
+        from ddtrace.internal import bytecode_injection
+        from ddtrace.internal import monitoring
+        from ddtrace.internal import wrapping
+        from ddtrace.internal.wrapping import context
+
+        def inherited(x):
+            return x + 1
+
+        def target(x):
+            return x + 1
+
+        calls = []
+
+        class RecordingContext(context.WrappingContext):
+            def __enter__(self):
+                calls.append(self.__wrapped__.__name__)
+                return super().__enter__()
+
+        inherited_context = RecordingContext(inherited)
+        inherited_context.wrap()
+        bytecode_injection.inject_hook(inherited, calls.append, inherited.__code__.co_firstlineno + 1, "line")
+        locks = [
+            context._ctx_registry_lock,
+            context._storage_var_pools_lock,
+            wrapping._wrapped_lock,
+            bytecode_injection._line_hook_lock,
+            monitoring._registry_lock,
+            monitoring._tool_lock,
+        ]
+        if hasattr(context, "_wrapping_lock"):
+            locks.insert(0, context._wrapping_lock)
+        ready, release = threading.Event(), threading.Event()
+
+        def hold_locks():
+            for lock in locks:
+                lock.acquire()
+            ready.set()
+            release.wait(10)
+            for lock in reversed(locks):
+                lock.release()
+
+        holder = threading.Thread(target=hold_locks)
+        holder.start()
+        try:
+            assert ready.wait(5)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message=".*multi-threaded.*", category=DeprecationWarning)
+                pid = os.fork()
+            if pid == 0:
+                for lock in locks:
+                    if not lock.acquire(timeout=0.25):
+                        os._exit(2)
+                    lock.release()
+                RecordingContext(target).wrap()
+                assert inherited(1) == target(1) == 2
+                assert calls == ["inherited", "line", "target"]
+                os._exit(0)
+        finally:
+            release.set()
+            holder.join(5)
+        _, status = os.waitpid(pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
