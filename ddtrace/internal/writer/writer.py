@@ -1350,11 +1350,7 @@ def _use_sync_mode() -> bool:
 
 
 def _resolve_otlp_metrics_endpoint() -> Optional[str]:
-    if _is_otlp_trace_metrics_enabled(
-        otel_config.exporter,
-        config._otel_stats_computation_enabled,
-        config._otel_metrics_enabled,
-    ):
+    if _is_otlp_trace_metrics_enabled(config._otel_stats_computation_enabled):
         return otel_config.exporter.TRACE_METRICS_ENDPOINT
     return None
 
