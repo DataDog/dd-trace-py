@@ -27,6 +27,10 @@ class EndpointCallCounterProcessor(SpanProcessor):
     def enable(self) -> None:
         self._enabled = True
 
+    def disable(self) -> None:
+        self._enabled = False
+        self.reset()
+
     def on_span_start(self, span: Span) -> None:
         pass
 
