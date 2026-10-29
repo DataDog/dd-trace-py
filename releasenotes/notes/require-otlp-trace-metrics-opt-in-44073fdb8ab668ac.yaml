@@ -1,6 +1,0 @@
-fixes:
-  - |
-    tracing: Fixes an issue where enabling OTLP trace export and OpenTelemetry metrics
-    also enables trace metrics without explicit opt-in. When ``OTEL_TRACES_EXPORTER=otlp``,
-    set ``OTEL_TRACES_SPAN_METRICS_ENABLED=true`` to compute and export OTLP trace metrics,
-    independently of ``DD_TRACE_STATS_COMPUTATION_ENABLED`` and ``DD_METRICS_OTEL_ENABLED``.
