@@ -602,7 +602,7 @@ Trace Context propagation
 Metrics
 -------
 
-In OpenTelemetry setups using OTLP trace export, trace statistics computation
+In OpenTelemetry setups using OTLP trace export, APM RED Metrics computation
 defaults to the collector or intake.
 
 .. ddtrace-configuration-options::
