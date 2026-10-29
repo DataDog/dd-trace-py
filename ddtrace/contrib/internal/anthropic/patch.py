@@ -14,7 +14,6 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
-from ddtrace.internal import integration_hooks
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
@@ -136,7 +135,6 @@ def patch() -> None:
     # Notify AI Guard (and any other plugin) that wrapping is complete so they
     # can install their own outermost wrappers on the same targets.
     core.dispatch("anthropic.patch", tuple())
-    integration_hooks.on_patch("anthropic")
 
 
 def unpatch() -> None:
@@ -147,7 +145,6 @@ def unpatch() -> None:
     # Notify AI Guard first so it can peel its outermost wrappers before the
     # contrib's own unwrap calls restore the layer below.
     core.dispatch("anthropic.unpatch", tuple())
-    integration_hooks.on_unpatch("anthropic")
 
     unwrap(anthropic.resources.messages.Messages, "create")
     unwrap(anthropic.resources.messages.Messages, "stream")

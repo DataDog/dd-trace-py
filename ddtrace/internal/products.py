@@ -269,6 +269,22 @@ class ProductManager:
         else:
             self._do_products()
 
+    def integration_patched(self, integration_name: str) -> None:
+        """Call the optional ``on_integration_patched(integration_name)`` hook of every product."""
+        # ddtrace-run loads the products before it patches anything, and scanning the entry points again
+        # after module cloning would import threading. A manual patch() can run without the product
+        # lifecycle, so the products are loaded on its first patch.
+        if not self.__products__ and not self._failed:
+            self._load_products()
+
+        for name, product in self.__products__.items():
+            if (hook := getattr(product, "on_integration_patched", None)) is None:
+                continue
+            try:
+                hook(integration_name)
+            except Exception:
+                log.exception("Product '%s' failed to handle integration '%s' patch", name, integration_name)
+
     def is_enabled(self, product_name: str) -> bool:
         if (product := self.__products__.get(product_name)) is None:
             return False

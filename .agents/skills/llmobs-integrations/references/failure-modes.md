@@ -14,14 +14,14 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 **Causes:**
 1. `submit_to_llmobs=True` not set on `LlmRequestEvent` for event-based patch code
 2. `ctx.dispatch_ended_event()` not called, so `LlmTracingSubscriber` never calls `integration.llmobs_set_tags()`
-3. Integration not instantiated -- `module._datadog_integration` is `None`, or (for subscriber-based integrations) the `ddtrace/llmobs/_contrib/{name}` subscribers were never registered because the `ddtrace.integration_hooks` entry point for `{name}` is missing from `pyproject.toml`, the contrib's `patch()` doesn't call `integration_hooks.on_patch("{name}")`, or the dev install predates the entry point (reinstall with `scripts/run-tests -r`)
+3. Integration not instantiated -- `module._datadog_integration` is `None`, or (for subscriber-based integrations) `LLMObsLlmSubscriber` finds no integration because the contrib's component is missing from `SUBSCRIBER_INTEGRATIONS` in `ddtrace/llmobs/_integrations/__init__.py`, or the subscriber was never registered because the integration was patched through the contrib's `patch()` instead of `ddtrace.patch()`
 4. `llmobs_enabled` returns `False` -- LLMObs not configured in tracer config
 
 **Fix:**
 - Verify `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` in event-based patch wrappers, plus either registered LLMObs subscribers or `llmobs_integration=integration` for older integrations
 - Verify success and error paths call `ctx.dispatch_ended_event(...)`
 - Legacy integrations only: verify `patch()` stores integration: `module._datadog_integration = MyIntegration(integration_config=config.mylib)`
-- Subscriber-based integrations: do not store the integration on the module (that re-couples the patch layer to LLMObs). Instead verify that the component is registered by its entry point and the shared starting subscriber in `ddtrace/llmobs/_contrib/_subscribers.py` builds and stores the integration on the request context
+- Subscriber-based integrations: do not store the integration on the module (that re-couples the patch layer to LLMObs). Instead verify that `integration_for("{name}")` in `ddtrace/llmobs/_subscribers.py` returns the integration and the shared starting subscriber stores it on the request context
 - Check `DD_LLMOBS_ENABLED=1` is set
 
 ---

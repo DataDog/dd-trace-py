@@ -17,6 +17,7 @@ from ddtrace.vendor.packaging.version import Version
 
 from .internal import telemetry
 from .internal.logger import get_logger
+from .internal.products import manager as product_manager
 from .internal.utils import formats
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
@@ -321,6 +322,10 @@ def _on_import_factory(
                 (("integration_name", module), ("error_type", type(e).__name__)),
             )
         else:
+            # Products take part in an integration's spans through subscribers. Notify them here, where
+            # every patch goes through, rather than from each integration's patch().
+            product_manager.integration_patched(module)
+
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():

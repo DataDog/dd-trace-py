@@ -1,3 +1,5 @@
+import sys
+from types import ModuleType
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -415,6 +417,56 @@ def test_products_implement_the_product_protocol():
         product = entry_point.load()
         missing = [hook for hook in hooks if not callable(getattr(product, hook, None))]
         assert not missing, (entry_point.name, missing)
+
+
+def test_product_manager_notifies_products_of_patched_integrations():
+    failing, hooked = BaseProduct(), BaseProduct()
+    failing.on_integration_patched = MagicMock(side_effect=RuntimeError)
+    hooked.on_integration_patched = MagicMock()
+    manager = ProductManagerTest({"failing": failing, "plain": BaseProduct(), "hooked": hooked})
+
+    with patch("ddtrace.internal.products.get_product_entry_points") as get_product_entry_points:
+        manager.integration_patched("flask")
+        manager.integration_patched("redis")
+
+    get_product_entry_points.assert_not_called()
+    failing.on_integration_patched.assert_called_with("redis")
+    assert [c.args for c in hooked.on_integration_patched.call_args_list] == [("flask",), ("redis",)]
+
+
+def test_product_manager_loads_products_on_first_patch_without_lifecycle():
+    product = BaseProduct()
+    product.on_integration_patched = MagicMock()
+    manager = ProductManagerTest({})
+    entry_point = MagicMock(load=MagicMock(return_value=product))
+    entry_point.name = "product"
+
+    with (
+        patch("ddtrace.internal.products.get_product_entry_points", return_value=[entry_point]),
+        patch("ddtrace.internal.products.is_trusted", return_value=True),
+    ):
+        manager.integration_patched("flask")
+        manager.integration_patched("redis")
+
+    entry_point.load.assert_called_once_with()
+    assert [c.args for c in product.on_integration_patched.call_args_list] == [("flask",), ("redis",)]
+
+
+@pytest.mark.parametrize("patch_error", [None, RuntimeError("patch failed")])
+def test_patching_an_integration_notifies_products(monkeypatch, patch_error):
+    from ddtrace import _monkey
+
+    integration = ModuleType("fake_integration_patch")
+    integration.patch = MagicMock(side_effect=patch_error)
+    monkeypatch.setitem(sys.modules, "fake_integration_patch", integration)
+
+    with patch.object(_monkey.product_manager, "integration_patched") as integration_patched:
+        _monkey._on_import_factory("fake_integration", "%s_patch", raise_errors=False)(MagicMock())
+
+    if patch_error is None:
+        integration_patched.assert_called_once_with("fake_integration")
+    else:
+        integration_patched.assert_not_called()
 
 
 def _remotely_startable_products():

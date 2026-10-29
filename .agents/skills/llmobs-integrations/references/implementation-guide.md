@@ -21,7 +21,7 @@ the provider's `_integration_name`. Supply the two provider-specific behaviors:
 
 Use the actual base/reference signatures and implement or inherit the behavior needed by the
 integration. For standard request integrations, construct it lazily in the LLMObs subscriber
-with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/_subscribers.py`.
+with `integration_config=config.<name>`; see `ddtrace/llmobs/_subscribers.py`.
 Keep contrib free of LLMObs imports. When extending an integration that stores its instance on
 `module._datadog_integration`, preserve that ownership and cleanup unless migrating its lifecycle.
 
@@ -62,9 +62,10 @@ standard request integrations so contrib does not import LLMObs.
 
 ## LLMObs subscribers and registration
 
-Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration. The shared subscribers
-in `ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
-registered integration using `ctx.event.component`:
+`LLMObsLlmSubscriber` in `ddtrace/llmobs/_subscribers.py` is shared by every subscriber-based
+integration; do not create per-integration subscriber classes. It selects the integration by
+`ctx.event.component` through `SUBSCRIBER_INTEGRATIONS` in `ddtrace/llmobs/_integrations/__init__.py`,
+which maps each subscriber-based component to its integration class name.
 
 - `SpanCycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
@@ -72,29 +73,21 @@ registered integration using `ctx.event.component`:
   before children start. Preserve APM shadow tags and proxy handling from the reference.
 - `SpanCycleEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
 
-Provide `listen()` / `unlisten()` in `ddtrace/llmobs/_contrib/<name>/__init__.py`.
-Call the shared `register(component, integration_cls)` from `listen()` and
-`unregister(component)` from `unlisten()`; do not create per-integration subscriber classes.
-Shared listeners remain registered; unregistering removes only that component from the registry
-and cache. Each started request retains its integration on its execution context, so in-flight
-requests and deferred streams still finalize after unpatch or repatch. Build the integration
-lazily after its config is registered. Subscribers also set APM shadow tags, so registration
-must work with LLMObs disabled.
+A new integration needs one registration line: add its component to `SUBSCRIBER_INTEGRATIONS`. Each started request retains its integration on its execution context, so
+in-flight requests and deferred streams still finalize after unpatch or repatch.
 
-Declare the subscriber module in `pyproject.toml`, substituting the integration's name:
+Registration goes through `ProductManager` (`ddtrace/internal/products.py`):
 
-```toml
-[project.entry-points.'ddtrace.integration_hooks']
-<name> = "ddtrace.llmobs._contrib.<name>"
-```
+- `ddtrace/_monkey.py` calls `manager.integration_patched(<name>)` after every successful patch,
+  covering `ddtrace-run`, `import ddtrace.auto`, and `ddtrace.patch()`. Contrib `patch()`
+  functions never register subscribers.
+- `register_subscribers()` in `ddtrace/llmobs/_product.py` registers the subscriber. The manager
+  calls it after the product's `start()`, and `on_integration_patched()` calls it when the patched
+  integration is in `SUBSCRIBER_INTEGRATIONS`, whether or not LLMObs is enabled, so APM spans carry
+  the shadow tags. Unpatching does not unregister it.
 
-The contrib's `patch()` calls `integration_hooks.on_patch("<name>")` after wrapping;
-`unpatch()` calls `integration_hooks.on_unpatch("<name>")` before unwrapping.
-The helper in `ddtrace/internal/integration_hooks.py` loads the registered module only when
-that integration is patched. This supports `ddtrace-run`, `import ddtrace.auto`, and direct
-patch calls; do not add registration to `ddtrace.patch()` or `ddtrace/_monkey.py`.
-Rebuild the selected test environment with `scripts/run-tests -r --venv <hash>` after adding
-an entry point, since discovery uses installed package metadata.
+Tests must patch through `ddtrace.patch(<name>=True)`, not the contrib's `patch()`, so the
+subscribers are registered as in production.
 
 ## Streaming
 
