@@ -612,9 +612,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         """Register a module about to execute its body and open its import context.
 
         Shared by both modes: the name-to-path entry feeds the dependency closures, and
-        the import context attributes the module body's own lines. The path is
-        canonicalized so lookup keys match module.__file__ across Python versions
-        (__file__ is symlink-resolved only from 3.10 on).
+        the import context attributes the module body's own lines. The context is keyed
+        by the code object's co_filename (which the instrumentation hooks record under);
+        the dependency graph entries use the canonicalized path so lookup keys match
+        module.__file__ across Python versions (__file__ is symlink-resolved only from
+        3.10 on).
         """
         module_file = os.path.realpath(code.co_filename)
         self._import_time_name_to_path[_module.__name__] = module_file
@@ -641,14 +643,26 @@ class ModuleCodeCollector(ModuleWatchdog):
         """
         if not hasattr(_module, "__file__") or _module.__file__ is None:
             return
-        module_file = os.path.realpath(_module.__file__)
-        if module_file not in self._import_time_contexts:
+        raw_file = _module.__file__
+        canonical_file = os.path.realpath(raw_file)
+        # The context was keyed by the code object's co_filename, which is what the
+        # instrumentation hooks record under. On Python < 3.10, or when a workspace
+        # path traverses a symlink, __file__ may differ from co_filename; try both.
+        ctx_key = (
+            raw_file
+            if raw_file in self._import_time_contexts
+            else (canonical_file if canonical_file in self._import_time_contexts else None)
+        )
+        if ctx_key is None:
             return
-        collector = self._import_time_contexts.pop(module_file)
+        collector = self._import_time_contexts.pop(ctx_key)
         covered_lines = collector.get_covered_lines()
         collector.__exit__()
-        if covered_lines[module_file]:
-            self._import_time_covered[module_file].update(covered_lines[module_file])
+        # The module body's own lines were recorded under the co_filename key; the
+        # coverage data stores them under the canonical path for the dependency graph.
+        own_lines = covered_lines.get(raw_file) or covered_lines.get(canonical_file)
+        if own_lines:
+            self._import_time_covered[canonical_file].update(own_lines)
             self._invalidate_import_metadata()
         else:
             self._mode.on_module_body_finished(_module)

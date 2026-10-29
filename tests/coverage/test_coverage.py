@@ -520,3 +520,61 @@ def test_coverage_import_time_function():
             f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
             f"vs actual={covered_with_imports}"
         )
+
+
+@pytest.mark.subprocess()
+def test_import_time_covered_survives_symlinked_co_filename():
+    """Import-time coverage must be recorded even when co_filename differs from realpath.
+
+    _enter_module_context keys the import context by co_filename (what the hooks record
+    under), while _finish_module_context looks up module.__file__ and realpath(). A
+    symlinked workspace (or Python < 3.10 where __file__ is not resolved) must not
+    silently lose the module's own lines.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        real_dir = Path(tmpdir) / "real"
+        real_dir.mkdir()
+        (real_dir / "symmod.py").write_text("value = 1\n")
+        link_dir = Path(tmpdir) / "link"
+        os.symlink(real_dir, link_dir)
+        sys.path.insert(0, str(link_dir))
+        try:
+            install(include_paths=[Path(tmpdir)], collect_import_time_coverage=True)
+            import symmod  # noqa: F401
+
+            collector = ModuleCodeCollector._instance
+            canonical = os.path.realpath(str(real_dir / "symmod.py"))
+            assert canonical in collector._import_time_covered, (
+                "import-time coverage lost: %s not in _import_time_covered" % canonical
+            )
+        finally:
+            sys.path.remove(str(link_dir))
+
+
+@pytest.mark.subprocess()
+def test_obfuscated_code_logs_warning():
+    """Obfuscated code objects (e.g. PyArmor) must produce a warning, not silence.
+
+    The pre-refactor instrument_code logged a warning when it encountered an
+    obfuscated module; the combined condition in instrument_module must preserve it.
+    Verifies the obfuscation check is a separate branch (not combined with the
+    dedup check) and that the warning is emitted.
+    """
+    import inspect
+
+    from ddtrace.internal.coverage.instrumented_mode import InstrumentedCoverage
+
+    source = inspect.getsource(InstrumentedCoverage.instrument_module)
+    assert "is_obfuscated_code(code)" in source, "obfuscation check must be present"
+    assert "log.warning" in source, "obfuscation check must log a warning"
+    for line in source.split("\n"):
+        if "is_obfuscated_code" in line:
+            assert "or" not in line, "obfuscated code must not be combined with the dedup check: %r" % line

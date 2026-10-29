@@ -6,23 +6,26 @@ The instrumentation dispatch (instrumentation.py) and version-specific modules
 are unchanged from the previous structure.
 """
 
+import os
 from pathlib import Path
 import sys
 from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+
+
+log = get_logger(__name__)
 
 
 if t.TYPE_CHECKING:
     from ddtrace.internal.coverage.coverage_lines import CoverageLines
-
-# Import the version-specific instrumentation (same ladder as before the refactor)
-from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 
 
 _PY_GE_312 = sys.version_info >= (3, 12)
@@ -44,12 +47,22 @@ class InstrumentedCoverage(CoverageMode):
         """Nothing to undo (the shared uninstall handles hooks and exec)."""
 
     def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
-        if is_obfuscated_code(code) or (code, code.co_filename) in self._seen:
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot instrument %r for coverage: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return code
+        if (code, code.co_filename) in self._seen:
             return code
         self._seen.add((code, code.co_filename))
-        new_code, lines = instrument_all_lines(code, self._collector.hook, code.co_filename, module.__package__ or "")
+        # Canonicalize the path once at instrumentation entry: the hooks, the
+        # executable-line bookkeeping, and the import-time metadata all use the
+        # same key, so symlinked workspaces don't split the key space.
+        canonical_path = os.path.realpath(code.co_filename)
+        new_code, lines = instrument_all_lines(code, self._collector.hook, canonical_path, module.__package__ or "")
         self._seen.add((new_code, code.co_filename))
-        self._collector.lines[code.co_filename].update(lines)
+        self._collector.lines[canonical_path].update(lines)
         return new_code
 
     def after_module_context(self, code: CodeType, module: ModuleType) -> None:
@@ -58,7 +71,7 @@ class InstrumentedCoverage(CoverageMode):
         if _PY_GE_313 and code.co_code == _EMPTY_MODULE_BYTES:
             package = module.__package__ or ""
             import_info = (package, ("",)) if package else None
-            self._collector.hook((0, code.co_filename, import_info))
+            self._collector.hook((0, os.path.realpath(code.co_filename), import_info))
 
     def on_module_body_finished(self, module: ModuleType) -> None:
         """Nothing to do: instrumented modes record lines via events during the body."""
