@@ -1047,6 +1047,33 @@ Test Visibility
      version_added:
         v4.15.0:
 
+   DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        When enabled, the pytest plugin may deepen shallow clones to fetch missing git history
+        (for example running ``git fetch --deepen=1`` or ``git fetch --shallow-since="1 month ago"``).
+        When disabled, no fetch is ever issued: the git metadata upload and any head-commit
+        metadata use only the locally available history.
+
+     version_added:
+        v4.17.0:
+
+   DD_CIVISIBILITY_GIT_UPLOAD_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        When enabled, the pytest plugin uploads git metadata (commit packfiles) to Datadog.
+        When disabled, the upload is skipped entirely — useful to upload git metadata once per
+        pipeline instead (for example with ``datadog-ci git-metadata upload`` in a single setup
+        job, using the same repository URL and commit). The pull request merge-base is still
+        computed from local history when possible.
+
+     version_added:
+        v4.17.0:
+
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean
      default: True

@@ -581,7 +581,7 @@ def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
     return tags
 
 
-def get_git_head_tags_from_git_command(head_sha: str) -> dict[str, t.Optional[str]]:
+def get_git_head_tags_from_git_command(head_sha: str, allow_fetch: bool = True) -> dict[str, t.Optional[str]]:
     try:
         git = Git()
     except RuntimeError as e:
@@ -589,6 +589,13 @@ def get_git_head_tags_from_git_command(head_sha: str) -> dict[str, t.Optional[st
         return {}
 
     if not git.has_commit(head_sha):
+        if not allow_fetch:
+            # Git network access is disabled (DD_CIVISIBILITY_GIT_UPLOAD_ENABLED/
+            # DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED): without the deepen fetch the
+            # head metadata is unavailable, and querying it would only produce
+            # noisy warnings from failing git commands.
+            log.debug("Skipping metadata fetch for %s (git fetch disabled)", head_sha)
+            return {}
         git.unshallow_repository(parent_only=True, required_commit=head_sha)
 
     tags: dict[str, t.Optional[str]] = {

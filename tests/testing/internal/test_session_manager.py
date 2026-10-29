@@ -1066,6 +1066,120 @@ class TestUpdatePrMergeBase:
         sm.api_client.send_git_pack_file.assert_not_called()
 
 
+class TestGitUploadKillSwitch:
+    """Tests for DD_CIVISIBILITY_GIT_UPLOAD_ENABLED and DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED."""
+
+    def test_upload_disabled_skips_upload_entirely(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DD_CIVISIBILITY_GIT_UPLOAD_ENABLED=false skips search_commits, fetch, and pack upload."""
+        monkeypatch.setenv("DD_CIVISIBILITY_GIT_UPLOAD_ENABLED", "false")
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {}
+        sm.api_client = Mock()
+
+        mock_git = Mock()
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        sm.api_client.get_known_commits.assert_not_called()
+        sm.api_client.send_git_pack_file.assert_not_called()
+        mock_git.try_all_unshallow_repository_methods.assert_not_called()
+        mock_git.pack_objects.assert_not_called()
+        # No PR tags to resolve — not even a local merge-base is attempted.
+        mock_git.get_merge_base.assert_not_called()
+
+    def test_upload_disabled_still_computes_local_merge_base(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """With the upload disabled, the PR merge-base is still computed from local history."""
+        from ddtrace.testing.internal.git import GitTag
+
+        monkeypatch.setenv("DD_CIVISIBILITY_GIT_UPLOAD_ENABLED", "false")
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {
+            GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "base-sha",
+            GitTag.COMMIT_HEAD_SHA: "head-sha",
+        }
+        sm.api_client = Mock()
+
+        mock_git = Mock()
+        mock_git.is_shallow_repository.return_value = True
+        mock_git.get_merge_base.return_value = "merge-base-sha"
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        # Best-effort local computation on the shallow graph: quiet (no fetch will follow).
+        mock_git.get_merge_base.assert_called_once_with("base-sha", "head-sha", warn=False)
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+        # No network activity whatsoever.
+        sm.api_client.get_known_commits.assert_not_called()
+        sm.api_client.send_git_pack_file.assert_not_called()
+        mock_git.try_all_unshallow_repository_methods.assert_not_called()
+        mock_git.pack_objects.assert_not_called()
+
+    def test_unshallow_disabled_skips_fetch_but_uploads_pack_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED=false skips the fetch, not the upload."""
+        monkeypatch.setenv("DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED", "false")
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {}
+        sm.api_client = Mock()
+        # Backend knows nothing — every commit is missing, pack upload must proceed.
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = 123
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = True
+        mock_git.get_git_version.return_value = (2, 27, 0)
+        mock_git.get_filtered_revisions.return_value = ["rev-1"]
+        mock_git.pack_objects.return_value = iter(["packfile-1"])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_not_called()
+        # The upload continues from the local (shallow) history.
+        filtered_kwargs = mock_git.get_filtered_revisions.call_args.kwargs
+        assert filtered_kwargs["excluded_commits"] == []
+        assert sorted(filtered_kwargs["included_commits"]) == ["commit-1", "commit-2"]
+        mock_git.pack_objects.assert_called_once_with(["rev-1"])
+        sm.api_client.send_git_pack_file.assert_called_once_with("packfile-1")
+        mock_git.get_merge_base.assert_not_called()
+
+    def test_unshallow_disabled_skips_fetch_when_all_commits_known(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """With nothing missing and the unshallow disabled, nothing runs at all."""
+        monkeypatch.setenv("DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED", "false")
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {}
+        sm.api_client = Mock()
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = True
+        mock_git.get_git_version.return_value = (2, 27, 0)
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_not_called()
+        mock_git.pack_objects.assert_not_called()
+        sm.api_client.send_git_pack_file.assert_not_called()
+
+
 class TestUploadSentinel:
     """Tests for the upload-completion sentinel used to deduplicate work across xdist workers."""
 
