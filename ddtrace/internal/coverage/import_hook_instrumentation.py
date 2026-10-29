@@ -1,45 +1,27 @@
-"""Import-event instrumentation for import-only coverage mode.
+"""Wrap import statements and importlib.import_module, including cache hits.
 
-Import-only mode (`_DD_COVERAGE_IMPORT_ONLY`) answers the question "is tracking imports
-enough to know which files each test depends on?" with file-level coverage collected
-exclusively from import events: no code object is instrumented, no sys.monitoring events
-are armed, no bytecode is rewritten.
-
-The mechanism is a wrapper around `builtins.__import__`. Every executed import statement
-calls it — including imports that hit the `sys.modules` cache, because the IMPORT_NAME
-opcode always calls `__import__` even when the module is already imported. That is what
-makes statement-level tracking sufficient where module-load-level hooks (meta_path
-finders, the `import` audit event) are not: they only fire on cache misses.
-
-For each executed import statement, the wrapper records through the collector's hooks:
-
-- every file the import materialized (the module, its parent packages that were loaded,
-  and fromlist submodules) as covered files
-- the importing file itself, when it is inside the instrumented paths — a file that
-  executes an import statement is considered covered, and it is the root that the
-  import-time closure expansion attributes module-level dependencies from
-- import dependency edges (importing file -> imported names) in the collector's name
-  graph, mirroring what the bytecode-injected import hooks record in instrumented modes
-
-`importlib.import_module` is wrapped separately to record dynamic imports and cache
-hits. References to it captured before installation bypass the wrapper: first loads
-are still seen by the module watchdog, but cache hits and caller edges are invisible.
-Code that executes without importing anything, outside the anchored import closure,
-is not observable. See poc/itr-import-poc/README.md for the limits of this model.
+Unlike module-load hooks, these wrappers see repeated imports. They record the
+caller, imported files, and dependency names without instrumenting code. References
+captured before installation bypass the wrappers; see poc/itr-import-poc/README.md.
 """
 
 import builtins
 from functools import lru_cache
 import importlib
+from importlib.util import resolve_name
 import os
 import sys
 import typing as t
 
-from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+class ImportRecorder(t.Protocol):
+    def record_import_file(self, path: str) -> None: ...
+    def record_import_edge(self, path: str, import_name: tuple[str, tuple[str, ...]]) -> None: ...
 
 
 class _TrackedPaths(dict[str, t.Optional[str]]):
@@ -77,13 +59,7 @@ def _resolve_absolute_name(name: str, glb: t.Optional[t.Mapping[str, t.Any]], le
     pkg = glb.get("__package__")
     if not pkg:
         return name
-    base = pkg.split(".")
-    if level > 1:
-        cut = level - 1
-        if cut >= len(base):
-            return name
-        base = base[: len(base) - cut]
-    return ".".join(base + ([name] if name else []))
+    return resolve_name("." * level + name, pkg)
 
 
 @lru_cache(maxsize=4096)
@@ -94,7 +70,7 @@ def _module_name_prefixes(abs_name: str) -> tuple[str, ...]:
 
 
 def _record(
-    collector: CoverageMode,
+    collector: ImportRecorder,
     tracked_paths: _TrackedPaths,
     abs_name: str,
     fromlist: t.Any,
@@ -152,23 +128,6 @@ def _record(
     collector.record_import_edge(caller, ("", tuple(names)))
 
 
-def _resolve_import_module_absolute_name(name: str, package: t.Optional[str]) -> t.Optional[str]:
-    """Resolve an importlib.import_module name the way importlib does."""
-    if not name.startswith("."):
-        return name
-    if not package:
-        return None
-    base = package.split(".")
-    level = len(name) - len(name.lstrip("."))
-    if level > 1:
-        cut = level - 1
-        if cut >= len(base):
-            return None
-        base = base[: len(base) - cut]
-    rest = name.lstrip(".")
-    return ".".join(base + ([rest] if rest else []))
-
-
 class _ImportHook:
     """One installation, retaining its own delegates after it is deactivated.
 
@@ -176,8 +135,8 @@ class _ImportHook:
     those callers on uninstall; replacing them on reinstall creates a cycle.
     """
 
-    def __init__(self, collector: CoverageMode, should_track: t.Callable[[str], bool]) -> None:
-        self.collector: t.Optional[CoverageMode] = collector
+    def __init__(self, collector: ImportRecorder, should_track: t.Callable[[str], bool]) -> None:
+        self.collector: t.Optional[ImportRecorder] = collector
         self.tracked_paths = _TrackedPaths(should_track)
         self.original_import = builtins.__import__
         self.original_import_module = importlib.import_module
@@ -208,7 +167,7 @@ class _ImportHook:
         collector = self.collector
         if collector is not None:
             try:
-                abs_name = _resolve_import_module_absolute_name(name, package)
+                abs_name = resolve_name(name, package)
                 if abs_name:
                     _record(collector, self.tracked_paths, abs_name, (), sys._getframe(1).f_globals)
             except Exception:
@@ -217,7 +176,7 @@ class _ImportHook:
         return module
 
 
-def install_import_hook(collector: CoverageMode, should_track: t.Callable[[str], bool]) -> None:
+def install_import_hook(collector: ImportRecorder, should_track: t.Callable[[str], bool]) -> None:
     """Wrap import statements and importlib.import_module, including cache hits."""
     global _installed_hook
     if _installed_hook is not None:

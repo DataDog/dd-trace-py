@@ -1,25 +1,7 @@
-"""Import-only coverage support: state and logic for `_DD_COVERAGE_IMPORT_ONLY`.
+"""Import-only dependency tracking, without code instrumentation.
 
-Held in its own module (rather than inside the collector, code.py) so the collector
-only carries delegation points: install() creates this helper, wires the import-event
-wrapper to it, and the per-context closures call back into it. The collector is
-passed in (duck-typed) to avoid a circular import; the shared context stack lives in
-context_state.py, which both modules import.
-
-What lives here:
-
-- import-event recording: files seen through import statements (hook_import_file)
-  and dependency-edge routing by scope (hook_import): module bodies record into a
-  shared import-time edge store; edges executed inside a test window belong to that
-  test's context only; edges executed outside any window (session-level lazy
-  imports) go back to the shared store.
-- module bookkeeping (record_module): the line-0 sentinel for a module whose
-  import context carried no line data (no instrumentation ran during the body).
-- backfill of modules imported before the collector installed: they never went
-  through transform, so without the backfill they are invisible closure nodes and
-  edges recorded later (e.g. lazy dialect loads) hang off them unreachable.
-- the import-time closures: the cached closure of a root over the shared
-  (module-level) edges, and the per-context expansion on top of it.
+Module-body and session imports are shared dependencies. Imports inside a test
+stay local to its context, even when other tests cover the same caller file.
 """
 
 import ast
@@ -34,156 +16,92 @@ import typing as t
 from ddtrace.internal.coverage.context_state import _PY_GE_314
 from ddtrace.internal.coverage.context_state import _tls_coverage
 from ddtrace.internal.coverage.context_state import ctx_collectors
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.import_hook_instrumentation import install_import_hook
+from ddtrace.internal.coverage.import_hook_instrumentation import uninstall_import_hook
 from ddtrace.internal.coverage.mode import CollectorContract
+from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
 
 
-class ImportOnlyCoverage:
-    """Import-only mode helper, owned by CollectorContract.
+class ImportOnlyCoverage(CoverageMode):
+    is_import_only = True
 
-    The collector is referenced as `self._collector` (duck-typed) so this module
-    does not import code.py.
-    """
-
-    def __init__(self, collector: "CollectorContract") -> None:
-        self._collector = collector
-        # caller path -> import names, recorded while a module body was executing
-        # (module-level import edges, shared by every context covering the caller).
+    def __init__(self, collector: CollectorContract) -> None:
+        super().__init__(collector)
         self._import_time_names_by_path: dict[str, set[ImportName]] = defaultdict(set)
-        # Closure of a root over the shared (import-time) edges. Pure function of
-        # the import-time graph, so it is cached and shared by every context.
+        # Shared closures must survive test-local edges, but not new shared edges
+        # or module metadata (including aliases and previously empty resolutions).
         self._static_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
-        # Import events re-check the same file paths over and over.
-        self._should_track_path_cache: dict[str, bool] = {}
-
-    # ------------------------------------------------------------------
-    # Path gating
-    # ------------------------------------------------------------------
 
     def should_track(self, path: str) -> bool:
-        """Whether an import-event file should be recorded (same paths transform instruments)."""
-        cached = self._should_track_path_cache.get(path)
-        if cached is not None:
-            return cached
-        try:
-            result = self._collector._is_instrumentable_path(Path(path))
-        except Exception:
-            result = False
-        self._should_track_path_cache[path] = result
-        return result
+        return self._collector._is_instrumentable_path(Path(path))
 
-    # ------------------------------------------------------------------
-    # Import-event recording (called by the __import__ wrapper)
-    # ------------------------------------------------------------------
+    def install(self) -> None:
+        install_import_hook(self, self.should_track)
+        self.backfill_already_imported()
+
+    def uninstall(self) -> None:
+        uninstall_import_hook()
 
     def record_import_file(self, path: str) -> None:
-        """Record a file seen through an import event.
-
-        Context recording targets the innermost NON-import collector so that an
-        import statement executed during a test window attributes to that test's
-        context even when the imported module's own import-time context is on the
-        stack (first-time imports). Import-time contexts themselves are skipped:
-        their data is only used for the importing module's own file.
-        """
         self._collector._record_file_covered(path)
-
-        # A nested module load can disable collection while leaving an expired
-        # copied stack behind. Preserve that stack so it cannot become a session
-        # scope or borrow another context's thread-local collector.
+        # First loads nest an import context inside the test context. Attribute
+        # imported files to the innermost open TEST context, not the module body.
         stack = ctx_collectors.get()
         if not stack and _PY_GE_314:
             stack = getattr(_tls_coverage, "stack", ())
-        for collector_ctx in reversed(stack):
-            if collector_ctx.closed or collector_ctx.is_import_coverage:
-                continue
-            if path not in collector_ctx._covered_files:
-                collector_ctx._covered_files.add(path)
-                collector_ctx._covered_lines[path].add(0)
-            return
+        for context in reversed(stack):
+            if not context.closed and not context.is_import_coverage:
+                if path not in context._covered_files:
+                    context._covered_files.add(path)
+                    context._covered_lines[path].add(0)
+                return
 
     def record_import_edge(self, path: str, import_name: ImportName) -> None:
-        """Record an import dependency edge: globally, then routed by scope.
-
-        Live events update the collector's global graph and the scoped graph.
-        Expired copied contexts must not publish edges into either graph.
-
-        The innermost open collector decides the scope: an import-time context means
-        the edge was executed by a module body (a module-level import, shared by every
-        context that covers the module); otherwise the edge belongs to the innermost
-        test context, so tests sharing a module do not pollute each other's dependency
-        closures.
-        """
-        # A nested module load can disable collection while leaving an expired
-        # copied stack behind. Preserve that stack so it cannot become a session
-        # scope or borrow another context's thread-local collector.
         stack = ctx_collectors.get()
         if not stack and _PY_GE_314:
             stack = getattr(_tls_coverage, "stack", ())
-        for collector_ctx in reversed(stack):
-            if collector_ctx.closed:
+        for context in reversed(stack):
+            if context.closed:
                 continue
             self._collector.hook_import(path, import_name)
-            if collector_ctx.is_import_coverage:
+            if context.is_import_coverage:
                 self._add_import_time_name(path, import_name)
             else:
-                collector_ctx._import_names[path].add(import_name)
+                context._import_names[path].add(import_name)
             return
-        if stack:
-            # A copied context containing only completed collectors is expired,
-            # not a session scope. Its late imports must not affect other tests.
-            return
-        self._collector.hook_import(path, import_name)
-        # No open collector: the import statement executed outside any coverage
-        # window (e.g. a session-level lazy import such as engine/dialect loading).
-        # Treat it as a module-level edge so every context covering the importing
-        # file expands it.
-        self._add_import_time_name(path, import_name)
+        # A copied stack containing only completed collectors is expired, not a
+        # session scope. Never borrow TLS or publish its late imports as shared.
+        if not stack:
+            self._collector.hook_import(path, import_name)
+            self._add_import_time_name(path, import_name)
 
     def _add_import_time_name(self, path: str, import_name: ImportName) -> None:
         if import_name not in self._import_time_names_by_path[path]:
             self._import_time_names_by_path[path].add(import_name)
             self._static_import_time_dependency_paths_cache.clear()
 
-    # ------------------------------------------------------------------
-    # Module bookkeeping (called from transform / after_import)
-    # ------------------------------------------------------------------
+    def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
+        self._collector.lines[code.co_filename].add(0)
+        return code
 
-    def record_module(self, module: ModuleType) -> None:
-        """Finish import-time bookkeeping for an imported module.
-
-        No instrumentation runs during the module body, so the import context
-        carries no line data. Record the line-0 sentinel so the file participates
-        in the import-time closure graph, and mark the file covered when a coverage
-        window is open (import events may miss the module itself:
-        importlib.import_module bypasses the wrapper).
-        """
-        if module.__file__ is None:
-            return
-        module_file = os.path.realpath(module.__file__)  # canonicalize: __file__ is unresolved before 3.10
-        self._collector._record_import_time_sentinel(module_file)
-        self.record_import_file(module_file)
+    def on_module_body_finished(self, module: ModuleType) -> None:
+        # importlib aliases captured before installation bypass the wrapper, but
+        # the watchdog still sees first loads. Make them traversable and covered.
+        if module.__file__ is not None:
+            module_file = os.path.realpath(module.__file__)
+            self._collector._record_import_time_sentinel(module_file)
+            self.record_import_file(module_file)
 
     def backfill_already_imported(self) -> None:
-        """Register modules that were imported before the collector installed.
-
-        They never went through transform, so without this they have no line-0
-        sentinel and no name-to-path entry: they are invisible to the import-time
-        closure, and edges recorded later through them (e.g. a lazy dialect load
-        during collection) hang off an unreachable node. Importability of these
-        modules is a session-level dependency (raising in any of them breaks the
-        whole session), so making them traversable is also the semantically right
-        call.
-
-        Their module-level import statements also executed before the wrapper was
-        installed, so those edges are recovered statically (AST, top-level statements
-        only — a module-level import is a hard dependency of the importing module).
-        """
+        """Recover traversable nodes and unconditional imports missed at startup."""
         collector = self._collector
         for name, module in list(sys.modules.items()):
             module_file = getattr(module, "__file__", None)
             if not module_file or not module_file.endswith(".py"):
                 continue
-            module_file = os.path.realpath(module_file)  # canonicalize: __file__ is unresolved before 3.10
+            module_file = os.path.realpath(module_file)
             if not self.should_track(module_file):
                 continue
             if module_file not in collector._import_time_covered:
@@ -194,152 +112,83 @@ class ImportOnlyCoverage:
 
     @staticmethod
     def _static_module_level_import_names(module_name: str, module_file: str) -> tuple[ImportName, ...]:
-        """The module-level import statements of an already-imported module, as one
-        ("", absolute names) edge tuple suitable for the shared resolution logic.
-        """
         try:
-            source = Path(module_file).read_bytes()
-            tree = ast.parse(source, module_file)
+            # Bytes preserve Python's source-encoding handling.
+            tree = ast.parse(Path(module_file).read_bytes(), module_file)
         except Exception:
             return ()
 
-        # A package initializer resolves relative imports from the package itself,
-        # whereas an ordinary module resolves them from its parent package.
+        # Package initializers resolve relative imports from the package itself.
         pkg = module_name if Path(module_file).name == "__init__.py" else module_name.rpartition(".")[0]
         names: set[str] = set()
         for node in tree.body:
             if isinstance(node, ast.Import):
-                for alias in node.names:
-                    names.add(alias.name)
+                names.update(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom):
                 if node.level:
                     base = pkg.split(".") if pkg else []
-                    if node.level > 1:
-                        cut = node.level - 1
-                        base = base[: len(base) - cut] if cut < len(base) else []
-                    abs_prefix = ".".join(base + ([node.module] if node.module else []))
+                    base = base[: len(base) - node.level + 1] if node.level <= len(base) else []
+                    prefix = ".".join(base + ([node.module] if node.module else []))
                 else:
-                    abs_prefix = node.module or ""
-                if abs_prefix:
-                    names.add(abs_prefix)
-                for alias in node.names:
-                    if alias.name != "*":
-                        names.add(f"{abs_prefix}.{alias.name}" if abs_prefix else alias.name)
-        if not names:
-            return ()
-        return (("", tuple(sorted(names))),)
-
-    # ------------------------------------------------------------------
-    # Closures
-    # ------------------------------------------------------------------
+                    prefix = node.module or ""
+                if prefix:
+                    names.add(prefix)
+                names.update(
+                    f"{prefix}.{alias.name}" if prefix else alias.name for alias in node.names if alias.name != "*"
+                )
+        return (("", tuple(sorted(names))),) if names else ()
 
     def on_import_metadata_changed(self) -> None:
-        """Collector notification: import-time metadata changed, drop derived caches."""
         self._static_import_time_dependency_paths_cache.clear()
 
-    def install(self) -> None:
-        from ddtrace.internal.coverage.import_hook_instrumentation import install_import_hook
-
-        install_import_hook(self, self.should_track)
-        self.backfill_already_imported()
-
-    def uninstall(self) -> None:
-        from ddtrace.internal.coverage.import_hook_instrumentation import uninstall_import_hook
-
-        uninstall_import_hook()
-
-    def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
-        self._collector.lines[code.co_filename].add(0)
-        return code
-
-    def after_module_context(self, code: CodeType, module: ModuleType) -> None:
-        """No empty-module recording needed without instrumentation."""
-
-    def on_module_body_finished(self, module: ModuleType) -> None:
-        self.record_module(module)
-
-    def arm(self, import_context: bool) -> None:
-        """Nothing to re-arm: no monitoring events."""
-
-    @property
-    def is_import_only(self) -> bool:
-        return True
-
-    def _direct_dependency_paths(self, path: str, import_names: dict[str, set[ImportName]]) -> frozenset[str]:
-        dependency_paths: set[str] = set()
-        for dependencies in import_names.get(path, ()):
-            dependency_paths.update(self._collector._get_dependency_paths_for_import_name(dependencies))
-        return frozenset(dependency_paths)
-
     def static_dependency_paths(self, root_path: str) -> frozenset[str]:
-        """Closure of a root over the module-level (import-time) edges only. Cached.
-
-        These edges are shared by every context, so the closure is a pure function
-        of the import-time graph: per-context closures expand on top of it with the
-        context's own (few) edges instead of re-walking the shared graph per test.
-        """
+        """Cache the closure over shared edges, independent of any test context."""
         cached = self._static_import_time_dependency_paths_cache.get(root_path)
         if cached is not None:
             return cached
-
-        dependency_paths = set()
-        visited_paths = set()
-        to_visit_paths = {root_path}
-
-        while to_visit_paths:
-            path = to_visit_paths.pop()
-
-            if path in visited_paths:
+        dependencies: set[str] = set()
+        visited: set[str] = set()
+        pending = {root_path}
+        while pending:
+            path = pending.pop()
+            if path in visited:
                 continue
-
-            visited_paths.add(path)
-
+            visited.add(path)
             if path not in self._collector._import_time_covered:
                 continue
-
-            dependency_paths.add(path)
-            for dependencies in self._import_time_names_by_path.get(path, ()):
-                to_visit_paths.update(
-                    self._collector._get_dependency_paths_for_import_name(dependencies) - visited_paths
-                )
-
-        result = frozenset(dependency_paths)
+            dependencies.add(path)
+            for edge in self._import_time_names_by_path.get(path, ()):
+                pending.update(self._collector._get_dependency_paths_for_import_name(edge) - visited)
+        result = frozenset(dependencies)
         self._static_import_time_dependency_paths_cache[root_path] = result
         return result
+
+    def expand_context_lines(
+        self, covered_lines: dict[str, CoverageLines], import_names: dict[str, set[ImportName]]
+    ) -> None:
+        for path in self.context_dependency_paths(covered_lines, import_names):
+            covered_lines[path].add(0)
+
+    def expand_context_files(self, paths: set[str], import_names: dict[str, set[ImportName]]) -> t.AbstractSet[str]:
+        return paths | self.context_dependency_paths(paths, import_names)
 
     def context_dependency_paths(
         self, root_paths: t.Iterable[str], import_names: dict[str, set[ImportName]]
     ) -> frozenset[str]:
-        """Expand all roots together over shared and context-local edges.
-
-        A static closure already includes the static closures of its members.
-        Visiting each newly reached file once avoids repeatedly copying and
-        scanning overlapping closures for every file covered by the same test.
-        """
+        """Expand roots together, visiting overlapping shared closures only once."""
         result: set[str] = set()
-        to_visit = list(root_paths)
-        while to_visit:
-            path = to_visit.pop()
+        pending = list(root_paths)
+        while pending:
+            path = pending.pop()
             if path in result or path not in self._collector._import_time_covered:
                 continue
             static_paths = self.static_dependency_paths(path)
             new_paths = static_paths - result if result else static_paths
             result.update(new_paths)
-            # Context-local callers are usually much fewer than shared files.
-            # Intersect in C over the smaller set instead of scanning every
-            # shared dependency in Python for every test.
+            # Intersect in C over the smaller set: context-local callers are
+            # usually much fewer than the files in the shared closure.
             if import_names:
-                for new_path in import_names.keys() & new_paths:
-                    to_visit.extend(self._direct_dependency_paths(new_path, import_names))
+                for caller in import_names.keys() & new_paths:
+                    for edge in import_names[caller]:
+                        pending.extend(self._collector._get_dependency_paths_for_import_name(edge))
         return frozenset(result)
-
-    def expand_context_lines(self, covered_lines: dict[str, t.Any], import_names: dict[str, set[ImportName]]) -> None:
-        """File-level variant of the collector's _add_import_time_lines for one context."""
-        for dependency_path in self.context_dependency_paths(covered_lines, import_names):
-            covered_lines[dependency_path].add(0)
-
-    def expand_context_files(
-        self, covered_file_paths: set[str], import_names: dict[str, set[ImportName]]
-    ) -> t.AbstractSet[str]:
-        """File-level covered paths with import-time dependencies added, for one context."""
-        return covered_file_paths | self.context_dependency_paths(covered_file_paths, import_names)

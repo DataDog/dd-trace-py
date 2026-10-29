@@ -288,14 +288,24 @@ def _conftest_path(directory: str) -> t.Optional[Path]:
     return conftest if conftest.is_file() else None
 
 
-def _coverage_anchor_paths(item: pytest.Item) -> list[Path]:
+def _coverage_anchor_paths(item: pytest.Item) -> t.Optional[list[Path]]:
     """Coverage closure roots for a test: its own file plus every conftest whose
     hooks execute for it. Import-only mode has no execution events to cover these
     with, so they are anchored explicitly (instrumented modes cover them already).
+
+    Returns None when the item's path cannot be resolved (e.g. mocked items in
+    plugin tests); the caller treats None as no anchoring.
     """
-    # item.path is a pathlib.Path on pytest 7.0+; older versions expose item.fspath
-    # as a py.path.local. Both convert to Path for the conftest walk below.
-    item_path = Path(item.path) if hasattr(item, "path") else Path(item.fspath)
+    try:
+        # item.path is a pathlib.Path on pytest 7.0+; older versions expose item.fspath
+        # as a py.path.local. Both convert to Path for the conftest walk below.
+        item_path = Path(item.path) if hasattr(item, "path") else Path(item.fspath)
+        if not item_path.is_file():
+            return None
+    except (TypeError, ValueError, OSError):
+        # Mock items (plugin tests) or non-path values: no anchors.
+        return None
+
     anchors = [item_path]
     for parent in item_path.parents:
         conftest = _conftest_path(str(parent))
