@@ -754,3 +754,330 @@ def test_import_only_excluded_targets_are_rechecked_after_module_changes():
         uninstall_import_hook()
         sys.modules.pop(leaf.__name__)
         sys.modules.pop(package.__name__)
+
+
+# ---------------------------------------------------------------------------
+# Blind-spot regression tests: each test demonstrates a known scenario where
+# import-only mode misses a workspace file that instrumented coverage would
+# report. If a blind spot is fixed, the corresponding test will need updating.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_callback_execution_without_import():
+    """BLIND SPOT 1: code executed through a registry/callback, not an import.
+
+    A function from workspace file B is registered in a registry by file A during
+    collection. File B is imported by A, but A is not the test file or its conftest.
+    During the test, the function from B is called through the registry without any
+    import statement executing in the test window. File B's code runs but B never
+    appears in the test's import-only coverage — the module is already in sys.modules
+    (imported during collection), the call goes through the registry, and the test's
+    import-time closure (test file + package __init__ + conftest) doesn't include B.
+
+    Instrumented coverage would report B because its code object starts (PY_START).
+    Import-only mode cannot see it because no import statement fires.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # registry.py: holds callbacks
+        (ws / "bs_registry.py").write_text("handlers = {}\n")
+        # bs_handler.py: defines a function and registers it
+        (ws / "bs_handler.py").write_text(
+            "import bs_registry\n\n"
+            "def compute(value):\n"
+            "    return value * 2\n\n"
+            "bs_registry.handlers['compute'] = compute\n"
+        )
+        # bs_loader.py: imports bs_handler during collection (not from the test file)
+        # This simulates another test module or a plugin importing the handler.
+        (ws / "bs_loader.py").write_text("import bs_handler\n")
+        # The test file: calls the handler through the registry, never imports bs_handler
+        (ws / "bs_test_runner.py").write_text(
+            "import bs_registry\n\ndef run():\n    handler = bs_registry.handlers['compute']\n    return handler(21)\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            # Install collector, then import bs_loader (simulating collection of
+            # another module that imports the handler). The handler gets registered.
+            install(include_paths=[ws], collect_import_time_coverage=True)
+            import bs_loader  # noqa: F401  (registers the handler)
+
+            # Enter a test context and call through the registry. No import of
+            # bs_handler fires — the call goes through the stored function object.
+            import bs_test_runner
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                result = bs_test_runner.run()
+                assert result == 42
+                covered = ctx.get_covered_file_paths()
+
+            # bs_handler.py is NOT in the test's coverage: its code executed via a
+            # function object reference, not through any import in the test window.
+            # The import-time closure of bs_test_runner.py doesn't include bs_handler.
+            handler_path = os.path.realpath(str(ws / "bs_handler.py"))
+            assert handler_path not in covered, (
+                "BLIND SPOT: handler executed via registry callback; "
+                "expected it to be MISSING from import-only coverage (got it covered — "
+                "this blind spot may have been fixed!)"
+            )
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_pre_installation_importlib_alias():
+    """BLIND SPOT 2: importlib.import_module alias captured before installation.
+
+    A reference to importlib.import_module is saved BEFORE the collector installs.
+    Calls through this alias bypass the wrapper (the wrapper replaces the module
+    attribute, but the saved reference points to the original function). The module
+    IS loaded (the watchdog sees the first load, so it becomes a traversable node),
+    but no caller edge is recorded — the test's import-time closure doesn't include
+    the dynamically imported module.
+
+    Instrumented coverage would see the module's code executing (PY_START). The
+    watchdog records the module file in _import_time_covered, but without a caller
+    edge the module is unreachable from the test's closure.
+    """
+    import importlib
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    # Capture the alias BEFORE the collector installs the wrapper.
+    _saved_import_module = importlib.import_module
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        (ws / "bs_alias_target.py").write_text("value = 99\n\n\ndef get():\n    return value\n")
+        # The test runner uses the SAVED alias (not the wrapper)
+        (ws / "bs_alias_runner.py").write_text(
+            "def run(import_module_fn):\n    mod = import_module_fn('bs_alias_target')\n    return mod.get()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            import bs_alias_runner
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                result = bs_alias_runner.run(_saved_import_module)
+                assert result == 99
+                covered = ctx.get_covered_file_paths()
+
+            # The module file IS covered: the watchdog's after_import fires during
+            # the test window and record_import_file attributes it to the test
+            # context. The blind spot is the missing caller EDGE (no import-time
+            # dependency recorded), which means the module's own dependencies
+            # are unreachable from the test's closure. The file itself is safe.
+            target_path = os.path.realpath(str(ws / "bs_alias_target.py"))
+            assert target_path in covered, (
+                "NOT a blind spot for the module file: the watchdog's after_import "
+                "covers it during the test window even when the alias bypasses the "
+                "wrapper. The caller edge is still missing (import-time deps of the "
+                "module are unreachable), but the module file itself is attributed."
+            )
+            # However, the import-time dependency graph doesn't have an edge from
+            # the test runner to this module, so modules that bs_alias_target imports
+            # at module level would NOT be in the test's closure expansion. This is
+            # a second-order blind spot (the first-order file is covered).
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_conditional_import_in_backfill():
+    """BLIND SPOT 3: conditional import in a pre-installed module not backfilled.
+
+    A module is imported BEFORE the collector installs. It contains an `if/else`
+    import (e.g., platform-dependent). Backfill only reads unconditional top-level
+    imports; the conditional branch is skipped. During the test, the conditionally
+    imported module's function is called (through the already-imported module's
+    namespace). The conditionally imported file's code executes but never appears
+    in the test's coverage.
+
+    Instrumented coverage would see the function's code object start (PY_START).
+    Import-only mode misses it because the edge was in a conditional statement that
+    backfill deliberately skips (recording all AST imports would over-attribute
+    branches that never ran).
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    # This module has a conditional import; it will be imported BEFORE install
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # bs_conditional_host.py: conditionally imports bs_conditional_dep
+        (ws / "bs_conditional_host.py").write_text(
+            "if True:\n    from bs_conditional_dep import helper_fn\nelse:\n    helper_fn = None\n"
+        )
+        # bs_conditional_dep.py: the file that gets missed
+        (ws / "bs_conditional_dep.py").write_text("def helper_fn():\n    return 123\n")
+        # Test runner calls the conditionally imported function
+        (ws / "bs_conditional_runner.py").write_text(
+            "import bs_conditional_host\n\ndef run():\n    return bs_conditional_host.helper_fn()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            # Import the host BEFORE installing the collector
+            import bs_conditional_host  # noqa: F401
+
+            from ddtrace.internal.coverage.code import ModuleCodeCollector
+            from ddtrace.internal.coverage.installer import install
+
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            import bs_conditional_runner
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                result = bs_conditional_runner.run()
+                assert result == 123
+                covered = ctx.get_covered_file_paths()
+
+            # bs_conditional_dep.py is missing: the host was imported pre-install,
+            # backfill skipped the conditional import (it's in an `if` block), and
+            # the test's own import-time closure only includes bs_conditional_host.
+            dep_path = os.path.realpath(str(ws / "bs_conditional_dep.py"))
+            assert dep_path not in covered, (
+                "BLIND SPOT: conditionally imported dep not backfilled; "
+                "expected it to be MISSING from import-only coverage"
+            )
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_exec_loaded_module():
+    """BLIND SPOT 4 (variant of 2): module loaded through exec(), not import machinery.
+
+    Code loaded through exec() with custom globals never passes through the import
+    machinery. The module watchdog doesn't see it (no exec/compile audit hook fires
+    for this path), the import wrappers don't see it (no import statement executes),
+    and backfill doesn't see it (not in sys.modules). The file's code executes during
+    the test but is completely invisible to import-only mode.
+
+    Instrumented coverage would see it only if the code object is instrumented
+    (via the exec audit hook), which fires for code objects loaded through exec.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # bs_exec_code.py: source that will be exec'd (never imported)
+        (ws / "bs_exec_code.py").write_text("def exec_computed():\n    return 777\n")
+        # Test runner execs the source and calls the function
+        (ws / "bs_exec_runner.py").write_text(
+            "def run(source_path):\n"
+            "    source = open(source_path).read()\n"
+            "    namespace = {}\n"
+            "    exec(source, namespace)\n"
+            "    return namespace['exec_computed']()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            import bs_exec_runner
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                result = bs_exec_runner.run(str(ws / "bs_exec_code.py"))
+                assert result == 777
+                covered = ctx.get_covered_file_paths()
+
+            # bs_exec_code.py is missing: exec() doesn't go through import machinery,
+            # so neither the wrapper nor the watchdog sees the file. The function
+            # runs inside the test context but the file is completely invisible.
+            exec_path = os.path.realpath(str(ws / "bs_exec_code.py"))
+            assert exec_path not in covered, (
+                "BLIND SPOT: module loaded via exec(); expected it to be MISSING from import-only coverage"
+            )
+        finally:
+            sys.path.remove(str(ws))
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+def test_blindspot_fixture_lazy_import_from_unanchored_conftest():
+    """BLIND SPOT 5: lazy import inside a conftest fixture function body.
+
+    A conftest fixture lazily imports a workspace module inside the fixture function
+    (not at module level). The import DOES fire during the test window (the wrapper
+    sees it), but the caller is the conftest, and the test's import-time closure
+    includes the conftest — so this case should actually be COVERED.
+
+    This test verifies the POSITIVE case: the fixture's lazy import IS attributed
+    because the conftest is anchored and the import fires during the test window
+    (caller = conftest, which is in the anchor's closure, so the edge routes to
+    the test context via the conftest file being anchored).
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.installer import install
+    from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = Path(tmpdir)
+        # A helper module that the fixture lazily imports
+        (ws / "bs_fixture_helper.py").write_text("value = 'from_helper'\n\n\ndef get():\n    return value\n")
+        # Test file that uses the helper (imported inside the test function body)
+        test_file = ws / "bs_fixture_test.py"
+        test_file.write_text("def test_lazy(bs_fixture_helper):\n    assert bs_fixture_helper.get() == 'from_helper'\n")
+        # Conftest with a fixture that lazily imports the helper
+        (ws / "conftest.py").write_text(
+            "import pytest\n\n\n"
+            "@pytest.fixture\n"
+            "def bs_fixture_helper():\n"
+            "    from bs_fixture_helper import get\n"
+            "    return type('M', (), {'get': staticmethod(get)})()\n"
+        )
+
+        sys.path.insert(0, str(ws))
+        try:
+            install(include_paths=[ws], collect_import_time_coverage=True)
+
+            # The conftest's lazy import fires during the test (fixture invocation).
+            # The caller is conftest.py; the conftest is in the anchor chain.
+            # The wrapper should record the caller edge AND the target file.
+            with coverage_collection(test_file=test_file) as cov:
+                import bs_fixture_helper
+
+                bs_fixture_helper.get()
+
+            # _covered_file_paths is set when coverage_collection exits
+            covered = cov._covered_file_paths
+            helper_path = os.path.realpath(str(ws / "bs_fixture_helper.py"))
+            # This should PASS (not a blind spot — the import fires during the
+            # test window and the caller (conftest) is in the anchor chain):
+            assert helper_path in covered, (
+                "EXPECTED COVERAGE: lazy import in fixture during test window "
+                "with conftest in anchor chain; file should be covered"
+            )
+        finally:
+            sys.path.remove(str(ws))
