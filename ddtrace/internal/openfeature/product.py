@@ -28,6 +28,14 @@ def start():
         enable_featureflags_rc()
 
 
+def register_subscribers() -> None:
+    pass
+
+
+def unregister_subscribers() -> None:
+    pass
+
+
 def restart(join=False):
     pass
 

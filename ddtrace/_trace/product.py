@@ -49,6 +49,14 @@ def start():
         _install_trace_methods(config._trace_methods)
 
 
+def register_subscribers() -> None:
+    pass
+
+
+def unregister_subscribers() -> None:
+    pass
+
+
 def restart(join=False):
     from ddtrace.trace import tracer
 

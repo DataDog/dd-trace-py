@@ -34,6 +34,10 @@ class Product(Protocol):
 
     def start(self) -> None: ...
 
+    def register_subscribers(self) -> None: ...
+
+    def unregister_subscribers(self) -> None: ...
+
     def restart(self, join: bool = False) -> None: ...
 
     def stop(self, join: bool = False) -> None: ...
@@ -135,6 +139,13 @@ class ProductManager:
                 failed.add(name)
                 continue
 
+            # Subscribers are registered after start() so they can rely on what start() set up. A failure
+            # here does not fail the product: it is running, it only misses some of its subscribers.
+            try:
+                product.register_subscribers()
+            except Exception:
+                log.exception("Failed to register subscribers for product '%s'", name)
+
             # enabled() only says the lifecycle must run; a product can start without being active
             # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
             try:
@@ -178,6 +189,10 @@ class ProductManager:
             try:
                 if not product.enabled():
                     continue
+                try:
+                    product.unregister_subscribers()
+                except Exception:
+                    log.exception("Failed to unregister subscribers for product '%s'", name)
                 product.stop(join=join)
                 log.debug("Stopped product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), False)
