@@ -51,7 +51,7 @@ class StackChunk
 
 // ----------------------------------------------------------------------------
 
-// Never destroyed. See Sampler::get().
+// Never destroyed: the sampling thread may still use it when exit() runs static destructors.
 inline std::unique_ptr<StackChunk>& stack_chunk = *new std::unique_ptr<StackChunk>();
 
 #endif // PY_VERSION_HEX >= 0x030b0000

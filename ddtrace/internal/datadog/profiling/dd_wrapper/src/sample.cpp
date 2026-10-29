@@ -291,7 +291,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     std::string_view val_str = string_storage.insert(val);
-    // Not a std::string, so exit() has nothing to destroy. See Sampler::get().
+    // Not a std::string, so exit() has nothing to destroy while the sampling thread may still use it.
     constexpr std::string_view unit_str = "";
 
     // Otherwise, persist the val string and add the label

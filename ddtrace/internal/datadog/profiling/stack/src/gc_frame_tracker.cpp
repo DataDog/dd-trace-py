@@ -108,7 +108,7 @@ get_gc_callbacks()
 GCFrameTracker&
 GCFrameTracker::get()
 {
-    // Never destroyed. See Sampler::get().
+    // Never destroyed: the sampling thread may still use it when exit() runs static destructors.
     static GCFrameTracker* const tracker = new GCFrameTracker();
     return *tracker;
 }

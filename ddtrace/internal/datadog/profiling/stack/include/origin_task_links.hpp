@@ -38,7 +38,7 @@ class OriginTaskLinks
   public:
     static OriginTaskLinks& get_instance()
     {
-        // Never destroyed. See Sampler::get().
+        // Never destroyed: the sampling thread may still use it when exit() runs static destructors.
         static OriginTaskLinks* const instance = new OriginTaskLinks();
         return *instance;
     }

@@ -37,7 +37,7 @@ class SpanLinks
   public:
     static SpanLinks& get_instance()
     {
-        // Never destroyed. See Sampler::get().
+        // Never destroyed: the sampling thread may still use it when exit() runs static destructors.
         static SpanLinks* const instance = new SpanLinks();
         return *instance;
     }
