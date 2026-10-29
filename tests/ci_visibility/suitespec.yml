@@ -77,7 +77,9 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants:
         - name: pytest_benchmark
-          dependencies: [msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
+          # pytest-benchmark (all releases up to 5.3.0) reads Node internals that pytest 9.2
+          # removed, so pytest is pinned until a pytest-benchmark release supports 9.2+.
+          dependencies: ['pytest<9.2', msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
   pytest_bdd:
     paths:
       - '@pytest'

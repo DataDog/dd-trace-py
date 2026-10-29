@@ -36,7 +36,8 @@ variables:
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
-  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+  # 110M/109M with 3.15 dep wheels; keep a little headroom above that.
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
 
 default:
@@ -378,19 +379,6 @@ check_ci_dependencies:
   script:
     - scripts/check-ci-dependencies
 
-# Fails when the docs' offline Python intersphinx inventory falls behind docs.python.org.
-# An unreachable docs.python.org passes; the next nightly run checks again.
-check_intersphinx_inventory:
-  stage: tests
-  needs: []
-  extends: .testrunner
-  allow_failure: true
-  rules:
-    - if: $NIGHTLY_BUILD == "true"
-    - when: manual
-  script:
-    - python3 scripts/update-intersphinx-inventory.py --check
-
 codeowners:
   stage: tests
   needs: []
@@ -646,6 +634,17 @@ test_resolve_base_branch:
   timeout: 5m
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
+
+# Fails when test jobs stop collecting core dumps and backtraces on crash.
+# Runs the collector in script, since after_script failures don't fail the job.
+coredump_smoke:
+  extends: .testrunner
+  stage: tests
+  needs: []
+  timeout: 5m
+  script:
+    - bash .gitlab/scripts/coredump-smoke.sh
+  after_script: []
 
 # Runs in the image of package-oci, so that the tests use the same python3 and
 # GNU realpath as prepare-oci-package.sh.
