@@ -1003,6 +1003,21 @@ def test_endpoint_call_counter_processor_disabled():
     assert processor.reset()[0] == {}
 
 
+def test_endpoint_call_counter_processor_disable():
+    """Disabling the processor drops what it counted and stops counting"""
+    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
+    spanA._local_root = spanA
+
+    processor = EndpointCallCounterProcessor()
+    processor.enable()
+    processor.on_span_finish(spanA)
+
+    processor.disable()
+    processor.on_span_finish(spanA)
+
+    assert processor.reset() == ({}, {})
+
+
 def test_endpoint_call_counter_processor_real_tracer(tracer):
     tracer._endpoint_call_counter_span_processor.enable()
 

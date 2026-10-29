@@ -529,6 +529,17 @@ class _ProfilerInstance(service.Service):
             if col.status != service.ServiceStatus.STOPPED:
                 self._rollback_collector_start(col)
 
+        self._disable_endpoint_collection()
+
+    def _disable_endpoint_collection(self) -> None:
+        if not self.endpoint_collection_enabled:
+            return
+
+        try:
+            self.tracer._endpoint_call_counter_span_processor.disable()
+        except Exception:
+            LOG.debug("[profiling] Failed to disable endpoint collection", exc_info=True)
+
     def _start_service(self) -> None:
         """Start the profiler."""
 
@@ -583,6 +594,9 @@ class _ProfilerInstance(service.Service):
                     self._scheduler.flush()
                 except Exception:
                     LOG.error("Error while flushing the last profile", exc_info=True)
+
+        # Reset endpoint counter to prevent it from growing forever
+        self._disable_endpoint_collection()
 
         for col in reversed(self._collectors):
             try:
