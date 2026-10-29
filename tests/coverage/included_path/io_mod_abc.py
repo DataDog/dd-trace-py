@@ -1,0 +1,1 @@
+ABC_VALUE = 42
