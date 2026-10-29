@@ -21,14 +21,12 @@ __all__ = [
 
 PYTHON_VERSION_INFO = sys.version_info
 
-# Last officially supported CPython. Matches requires-python <3.15.
-# TODO(py-315): bump MAX_PY to (3, 15) after 3.15 GAs
-MAX_PY: tuple[int, int] = (3, 14)
+# Last officially supported CPython. Matches requires-python <3.16.
+MAX_PY: tuple[int, int] = (3, 15)
 
 # Next CPython: packaging exclusive ceiling and wrap-live inclusive ceiling.
-# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.16 dies.
-# TODO(py-315): bump NEXT_MAX_PY to (3, 16) after 3.15 GAs
-NEXT_MAX_PY: tuple[int, int] = (3, 15)
+# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.17 dies.
+NEXT_MAX_PY: tuple[int, int] = (3, 16)
 
 NEXT_PY_UNSUPPORTED_MSG: str = (
     f"This version of CPython is not supported yet: {sys.version_info[0]}.{sys.version_info[1]}"

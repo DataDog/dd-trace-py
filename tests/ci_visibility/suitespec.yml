@@ -22,13 +22,7 @@ suites:
   ci_visibility:
     paths:
       - '@ci_visibility'
-      - '@ci'
-      - '@core'
-      - '@coverage'
-      - '@git'
       - '@pytest'
-      - '@codeowners'
-      - '@unittest'
       - '@testing'
       - tests/ci_visibility/*
     pattern: 'ci_visibility$'
@@ -38,20 +32,14 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: ci_visibility
           dependencies: [msgpack, pytest-randomly, pytest-xdist, gevent]
   ci_visibility:snapshot:
     paths:
       - '@ci_visibility'
-      - '@ci'
-      - '@core'
-      - '@coverage'
-      - '@git'
       - '@pytest'
-      - '@codeowners'
-      - '@unittest'
       - '@testing'
       - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
@@ -62,15 +50,13 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: ci_visibility:snapshot
           dependencies: [msgpack, pytest-randomly, gevent]
   dd_coverage:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@dd_coverage'
       - tests/coverage/*
     snapshot: true
@@ -79,14 +65,8 @@ suites:
       variants: [{name: dd_coverage, dependencies: [asgiref]}]
   pytest_benchmark:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/testing/internal/pytest/test_pytest_benchmark.py
       - tests/contrib/internal/coverage/*
@@ -97,17 +77,13 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants:
         - name: pytest_benchmark
-          dependencies: [msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
+          # pytest-benchmark (all releases up to 5.3.0) reads Node internals that pytest 9.2
+          # removed, so pytest is pinned until a pytest-benchmark release supports 9.2+.
+          dependencies: ['pytest<9.2', msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
   pytest_bdd:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/testing/internal/pytest/test_pytest_bdd.py
       - tests/contrib/internal/coverage/*
@@ -124,14 +100,8 @@ suites:
           dependencies: ['pytest==7.4.4', msgpack, 'more_itertools<8.11.0', pytest-randomly, 'pytest-bdd>=6.0,<6.1']
   pytest_flaky:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/testing/internal/pytest/test_pytest_flaky.py
       - tests/contrib/internal/coverage/*
@@ -149,14 +119,8 @@ suites:
     venvs_per_job: 6
     retry: 2
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@pytest'
       - '@ci_visibility'
-      - '@coverage'
-      - '@codeowners'
       - '@testing'
       - tests/testing/*
       - tests/contrib/internal/coverage/*
@@ -198,13 +162,8 @@ suites:
       SELENIUM_GRID_URL: http://selenium-chrome:4444
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
       - '@ci_visibility'
-      - '@pytest'
       - '@unittest'
-      - '@selenium'
       - '@testing'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
@@ -218,13 +177,11 @@ suites:
       variants:
         - name: selenium-pytest
           dependencies: ['selenium~=4.0', webdriver-manager]
-          python: ['3.10', '3.12', '3.14']
+          python: ['3.10', '3.12', '3.14', '3.15']
   unittest:
     paths:
-      - '@contrib'
       - '@unittest'
       - '@ci_visibility'
-      - '@coverage'
       - '@testing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*

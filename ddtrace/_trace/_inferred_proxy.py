@@ -10,6 +10,10 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.inferred_spans import INFERRED_SPAN_NAMES as INFERRED_SPAN_NAMES
+from ddtrace.internal.inferred_spans import PROXY_SPAN_NAMES
+from ddtrace.internal.inferred_spans import PUSH_SUBSCRIPTION_SPAN_NAMES as PUSH_SUBSCRIPTION_SPAN_NAMES
+from ddtrace.internal.inferred_spans import SUPPORTED_PROXY_SPAN_NAMES as SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
 from ddtrace.trace import tracer
@@ -54,11 +58,10 @@ def _api_gateway_http_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str
 
 
 supported_proxies: dict[str, ProxyInfo] = {
-    "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
-    "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
-    "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
+    "aws-apigateway": ProxyInfo(PROXY_SPAN_NAMES["aws-apigateway"], "aws-apigateway", _api_gateway_rest_api_arn),
+    "aws-httpapi": ProxyInfo(PROXY_SPAN_NAMES["aws-httpapi"], "aws-httpapi", _api_gateway_http_api_arn),
+    "azure-apim": ProxyInfo(PROXY_SPAN_NAMES["azure-apim"], "azure-apim"),
 }
-
 
 # Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's
 # logic to extract http headers

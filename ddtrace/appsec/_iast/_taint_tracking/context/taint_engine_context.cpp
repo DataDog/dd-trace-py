@@ -187,7 +187,7 @@ TaintEngineContext::get_tainted_object_map(PyObject* obj)
     }
 
     // 3) Dictionaries: iterate over values
-    if (PyDict_Check(obj)) {
+    if (is_dict_or_frozendict(obj)) {
         PyObject *key, *value;
         Py_ssize_t pos = 0;
         while (PyDict_Next(obj, &pos, &key, &value)) { // borrowed refs
@@ -251,7 +251,7 @@ TaintEngineContext::is_object_tainted_in_map(PyObject* obj, const TaintedObjectM
     }
 
     // 3) Dictionaries: iterate over values
-    if (PyDict_Check(obj)) {
+    if (is_dict_or_frozendict(obj)) {
         PyObject *key, *value;
         Py_ssize_t pos = 0;
         while (PyDict_Next(obj, &pos, &key, &value)) { // borrowed refs

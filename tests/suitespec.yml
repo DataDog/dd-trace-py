@@ -32,7 +32,6 @@ components:
   crashtracker:
     - ddtrace/internal/core/crashtracking.py
     - ddtrace/internal/settings/crashtracker.py
-    - ddtrace/internal/native/_native.pyi
     - src/native/crashtracker.rs
     - src/native/crashtracker/*
     - tests/crashtracker/*
@@ -77,7 +76,6 @@ components:
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py
-    - ddtrace/internal/uds.py
     - ddtrace/internal/utils/*
     - ddtrace/internal/uwsgi.py
     - ddtrace/internal/wrapping/*
@@ -106,6 +104,7 @@ components:
     - ddtrace/internal/opentelemetry/*
   profiling:
     - ddtrace/profiling/*
+    - ddtrace/internal/profiling/*
     - ddtrace/internal/datadog/profiling/*
     - ddtrace/_trace/processor/endpoint_call_counter.py
     - ddtrace/internal/settings/profiling.py
@@ -170,7 +169,6 @@ suites:
       DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
       DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
-      - '@crashtracker'
       - '@core'
       - '@profiling'
     snapshot: true
@@ -251,8 +249,6 @@ suites:
       - '@tracing'
       - '@bootstrap'
       - '@core'
-      - '@contrib'
-      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
@@ -279,8 +275,6 @@ suites:
       - '@tracing'
       - '@bootstrap'
       - '@core'
-      - '@contrib'
-      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
@@ -306,10 +300,7 @@ suites:
       DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@core'
-      - '@remoteconfig'
-      - '@symbol_db'
       - '@tracing'
-      - '@vendor'
       - ddtrace/internal/*
       - scripts/check_no_new_aidev_anchors.py
       - scripts/gen_gitlab_config.py
@@ -377,7 +368,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@contrib'
       - '@lib_injection'
     pattern: ^lib_injection$
     matrix:
@@ -395,7 +385,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@runtime'
-      - '@vendor'
       - tests/runtime/*
     skip: true
     matrix:
@@ -406,7 +395,6 @@ suites:
   openfeature:
     paths:
       - '@openfeature'
-      - '@remoteconfig'
       - '@core'
     pattern: ^openfeature$
     matrix:
@@ -425,15 +413,9 @@ suites:
       DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@bootstrap'
-      - '@contrib'
       - '@core'
-      - '@telemetry'
       - '@tracing'
-      - '@settings'
-      - '@profiling'
-      - '@vendor'
       # tests/telemetry runs real django and flask apps; '@contrib' is only shared infrastructure.
-      - '@django'
       - '@flask'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
@@ -458,13 +440,8 @@ suites:
       - '@tracing'
       - '@bootstrap'
       - '@core'
-      - '@contrib'
       - '@llmobs'
-      - '@serverless'
-      - '@remoteconfig'
       - '@futures'
-      - '@ci_visibility'
-      - '@vendor'
       - '@context_watcher'
       - tests/tracer/*
       - tests/snapshots/test_*
@@ -498,7 +475,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@vendor'
       - tests/tracer/test_uwsgi_shutdown.py
       - tests/tracer/test_uwsgi_fork_hooks.py
       - tests/tracer/uwsgi-app.py

@@ -12,9 +12,11 @@
 #include <random>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <echion/cache.h>
 #include <echion/config.h>
+#include <echion/cpython/asyncio_debug.h>
 #include <echion/frame.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
@@ -55,6 +57,8 @@ class EchionSampler
     // Asyncio state. init_asyncio runs on Python threads, usually after the sampling thread has started.
     std::atomic<PyObject*> asyncio_scheduled_tasks_{ nullptr };
     std::atomic<PyObject*> asyncio_eager_tasks_{ nullptr };
+    std::atomic<size_t> asyncio_interpreter_tasks_head_offset_{ 0 };
+    std::atomic<size_t> asyncio_thread_tasks_head_offset_{ 0 };
 
     // Task unwinding state
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
@@ -91,6 +95,16 @@ class EchionSampler
     // Caches
     StringTable string_table_;
     LRUCache<uintptr_t, Frame> frame_cache_;
+#if PY_VERSION_HEX >= 0x030e0000
+    struct InterpreterCodeGeneration
+    {
+        int64_t interpreter_id = 0;
+        uint64_t generation = 0;
+    };
+
+    // Code object generation of each interpreter seen in the previous sampling cycle.
+    std::vector<InterpreterCodeGeneration> code_object_generations_;
+#endif
 
     // Stack renderer for outputting samples
     Datadog::StackRenderer renderer_;
@@ -138,6 +152,25 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_.load(std::memory_order_relaxed); }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_.load(std::memory_order_relaxed); }
 
+    // TODO: When these offsets come from CPython's runtime AsyncioDebug table, also check that table's task layout
+    // (size, task_name, task_awaited_by, task_is_task, task_awaited_by_is_set, task_coro, task_node) against Echion's
+    // compile-time TaskObj mirror.
+    void set_asyncio_offsets(const AsyncioOffsets& offsets)
+    {
+        asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
+        asyncio_thread_tasks_head_offset_.store(offsets.thread_tasks_head, std::memory_order_relaxed);
+    }
+
+    size_t asyncio_interpreter_tasks_head_offset() const
+    {
+        return asyncio_interpreter_tasks_head_offset_.load(std::memory_order_relaxed);
+    }
+
+    size_t asyncio_thread_tasks_head_offset() const
+    {
+        return asyncio_thread_tasks_head_offset_.load(std::memory_order_relaxed);
+    }
+
     void init_asyncio(PyObject* scheduled_tasks, PyObject* eager_tasks)
     {
         asyncio_scheduled_tasks_.store(scheduled_tasks, std::memory_order_relaxed);
@@ -172,6 +205,50 @@ class EchionSampler
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
+    // Clears every cache keyed by a CPython object address (code objects and their name/filename strings), since
+    // CPython 3.14 can free and reuse them together. Sampling thread only: lookups return references into the table.
+    void invalidate_frame_identity_cache()
+    {
+        frame_cache_.clear();
+        string_table_.clear();
+        renderer_.clear_string_id_cache();
+        asyncio_boundary_frame_.reset();
+        uvloop_boundary_frame_.reset();
+    }
+
+#if PY_VERSION_HEX >= 0x030e0000
+    // CPython keeps a code object generation per interpreter, but the frame identity caches are shared by all
+    // interpreters, so a generation change or removal of any one interpreter thrashes them for every interpreter.
+    // Returns false, after invalidating, when the snapshot is incomplete and the cycle must not be sampled.
+    bool validate_code_object_generations(const std::vector<InterpreterInfo>& interpreters,
+                                          bool all_interpreter_data_captured)
+    {
+        if (!all_interpreter_data_captured || interpreters.empty()) {
+            invalidate_frame_identity_cache();
+            code_object_generations_.clear();
+            return false;
+        }
+
+        // Invalidate only if a previously seen interpreter is gone or its generation changed. A newly added interpreter
+        // has nothing cached yet, so it is only recorded.
+        for (const auto& previous : code_object_generations_) {
+            const auto current = std::find_if(interpreters.begin(), interpreters.end(), [&](const auto& interpreter) {
+                return interpreter.id == previous.interpreter_id;
+            });
+            if (current == interpreters.end() || current->code_object_generation != previous.generation) {
+                invalidate_frame_identity_cache();
+                break;
+            }
+        }
+
+        code_object_generations_.clear();
+        for (const auto& interpreter : interpreters) {
+            code_object_generations_.push_back({ interpreter.id, interpreter.code_object_generation });
+        }
+        return true;
+    }
+#endif
+
     void postfork_child()
     {
         // Re-init mutexes (placement new to avoid UB)
@@ -186,6 +263,9 @@ class EchionSampler
         // because the Sampling Thread may have been modifying the cache when fork
         // took its snapshot. Traversing a corrupted list to free nodes would crash.
         frame_cache_.postfork_child();
+#if PY_VERSION_HEX >= 0x030e0000
+        new (&code_object_generations_) std::vector<InterpreterCodeGeneration>();
+#endif
 
         // Also use placement new for all containers touched by the sampling thread.
         // Using placement new means the existing containers are abandoned and

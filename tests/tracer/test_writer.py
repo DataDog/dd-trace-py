@@ -1081,6 +1081,121 @@ def test_native_writer_recreate_keeps_stats_opt_out():
     assert writer._stats_opt_out
 
 
+@pytest.fixture
+def mock_trace_exporter_builder():
+    """A mocked TraceExporterBuilder that records calls made through its call chains.
+
+    The builder is used as a call chain, so every method must return the builder itself.
+    """
+    with mock.patch("ddtrace.internal.native.TraceExporterBuilder") as mock_builder_class:
+        mock_builder = mock.Mock()
+        mock_builder_class.return_value = mock_builder
+        for method_name in [
+            "set_url",
+            "set_hostname",
+            "set_language",
+            "set_language_version",
+            "set_language_interpreter",
+            "set_tracer_version",
+            "set_git_commit_sha",
+            "set_runtime_id",
+            "set_client_computed_top_level",
+            "set_restart_after_fork",
+            "set_input_format",
+            "set_output_format",
+            "set_stats_cardinality_limit",
+            "set_client_computed_stats",
+            "enable_stats",
+            "enable_telemetry",
+        ]:
+            getattr(mock_builder, method_name).return_value = mock_builder
+        yield mock_builder
+
+
+def test_native_writer_recreate_updates_stats_settings(mock_trace_exporter_builder):
+    """Re-enabling stats on a writer created while opted out must enable stats computation."""
+    mock_builder = mock_trace_exporter_builder
+
+    writer = NativeWriter("http://dne:1234", compute_stats_enabled=False, stats_opt_out=True)
+    mock_builder.set_client_computed_stats.assert_called_once_with()
+    mock_builder.enable_stats.assert_not_called()
+    mock_builder.reset_mock()
+
+    writer = writer.recreate(compute_stats_enabled=True, stats_opt_out=False)
+    assert writer._compute_stats_enabled is True
+    assert writer._stats_opt_out is False
+    mock_builder.enable_stats.assert_called_once()
+    mock_builder.set_client_computed_stats.assert_not_called()
+
+
+def test_native_writer_recreate_stats_opt_out_disables_stats(mock_trace_exporter_builder):
+    """Opting a stats-enabled writer out of APM tracing must disable stats computation."""
+    mock_builder = mock_trace_exporter_builder
+
+    writer = NativeWriter("http://dne:1234", compute_stats_enabled=True)
+    assert writer._stats_opt_out is False
+    mock_builder.enable_stats.assert_called_once()
+    mock_builder.set_client_computed_stats.assert_not_called()
+    mock_builder.reset_mock()
+
+    writer = writer.recreate(stats_opt_out=True)
+    assert writer._compute_stats_enabled is True
+    assert writer._stats_opt_out is True
+    mock_builder.enable_stats.assert_not_called()
+    mock_builder.set_client_computed_stats.assert_called_once_with()
+
+
+def test_native_writer_recreate_recomputes_agentless_stats_endpoint():
+    """Changing the stats flags on an agentless writer must re-resolve its stats endpoint."""
+    with mock.patch(
+        "ddtrace.internal.writer.writer._resolve_agentless_stats_endpoint",
+        return_value="https://stats-intake",
+    ) as resolve_stats_url:
+        # The writer was created while opted out, so it has no agentless stats endpoint.
+        writer = NativeWriter("http://dne:1234", api_key="key", compute_stats_enabled=True, stats_opt_out=True)
+        assert writer._agentless_stats_endpoint is None
+
+        writer = writer.recreate(stats_opt_out=False)
+        assert writer._agentless_stats_endpoint == "https://stats-intake"
+
+        resolve_stats_url.return_value = None
+        writer = writer.recreate(stats_opt_out=True)
+        assert writer._agentless_stats_endpoint is None
+
+        # Non-agentless writers never resolve a stats endpoint.
+        writer = NativeWriter("http://dne:1234", compute_stats_enabled=True)
+        writer = writer.recreate(compute_stats_enabled=True, stats_opt_out=False)
+        assert writer._agentless_stats_endpoint is None
+        assert resolve_stats_url.call_count == 2
+
+
+def test_native_writer_recreate_drops_conflicting_otlp_metrics_endpoint():
+    """Re-resolving an agentless stats endpoint must drop the OTLP metrics endpoint.
+
+    libdatadog rejects an exporter configured with both, and the old writer is already
+    stopped when the replacement is built.
+    """
+    with mock.patch(
+        "ddtrace.internal.writer.writer._resolve_agentless_stats_endpoint",
+        return_value="https://stats-intake",
+    ):
+        # The writer was created while opted out, so it kept the OTLP metrics endpoint.
+        writer = NativeWriter(
+            "http://dne:1234",
+            api_key="key",
+            compute_stats_enabled=True,
+            stats_opt_out=True,
+            otlp_metrics_endpoint="http://otlp-metrics",
+        )
+        assert writer._otlp_metrics_endpoint == "http://otlp-metrics"
+
+        # Opting back in resolves the agentless stats endpoint: the OTLP metrics
+        # endpoint is dropped in its favor, like at construction.
+        writer = writer.recreate(stats_opt_out=False)
+        assert writer._agentless_stats_endpoint == "https://stats-intake"
+        assert writer._otlp_metrics_endpoint is None
+
+
 def test_writer_recreate_keeps_response_callback():
     def response_callback(response):
         pass
@@ -1333,33 +1448,12 @@ def test_trace_with_128bit_trace_ids():
         ("win32", False, False),
     ],
 )
-@mock.patch("ddtrace.internal.native.TraceExporterBuilder")
 def test_writer_telemetry_enabled_on_linux(
-    mock_builder_class, platform: str, config_value: bool, expected_enabled: bool
+    mock_trace_exporter_builder, platform: str, config_value: bool, expected_enabled: bool
 ):
     """Test that telemetry is enabled for native writer on Linux platforms."""
 
-    mock_builder = mock.Mock()
-    mock_builder_class.return_value = mock_builder
-    mock_exporter = mock.Mock()
-    mock_builder.build.return_value = mock_exporter
-
-    for method_name in [
-        "set_url",
-        "set_hostname",
-        "set_language",
-        "set_language_version",
-        "set_language_interpreter",
-        "set_tracer_version",
-        "set_git_commit_sha",
-        "set_runtime_id",
-        "set_client_computed_top_level",
-        "set_input_format",
-        "set_output_format",
-        "set_stats_cardinality_limit",
-        "enable_telemetry",
-    ]:
-        getattr(mock_builder, method_name).return_value = mock_builder
+    mock_builder = mock_trace_exporter_builder
 
     # override_global_config must enter under the real platform. Mocking sys.platform first
     # can make a cold AppSec import fail, which recreates the tracer writer and double-counts

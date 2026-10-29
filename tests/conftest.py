@@ -57,6 +57,7 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.version import parse_version
 from tests import utils
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -77,6 +78,10 @@ code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 ITR_UNSKIPPABLE_DDTRACE_MARKERS = ("subprocess", "snapshot")
+
+# Prefer the wrapper installed with the running interpreter: the first ddtrace-run found on PATH may
+# belong to another environment and import a ddtrace build that does not match sys.executable.
+DDTRACE_RUN: str = shutil.which("ddtrace-run", path=os.path.dirname(sys.executable)) or "ddtrace-run"
 
 # Stash keys for storing original test name and nodeid before Python version suffix is added
 # For pytest >= 7.1.0, use StashKey; for older versions, use attribute names
@@ -310,7 +315,7 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
         pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
-        return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
+        return call_program(DDTRACE_RUN, sys.executable, str(pyfile), **kwargs)
 
     yield _run
 
@@ -427,7 +432,7 @@ def run_function_from_file(item, params=None):
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
-        args.insert(0, "ddtrace-run")
+        args.insert(0, DDTRACE_RUN)
 
     # Add -m if running script as a module
     if run_module:
@@ -531,8 +536,25 @@ def pytest_collection_modifyitems(session, config, items):
 
     Also: add py39 - py314 suffix as parametrization in test names
     """
+    # All pytest-benchmark releases available at the time of writing (up to 5.3.0) read
+    # Node._nodeid, which pytest 9.2 removed, so tests requesting the benchmark fixture
+    # fail at fixture setup. This does not cover tests that exercise pytest-benchmark
+    # inside nested pytest sessions: those carry their own skipif markers (see
+    # tests/testing/internal/pytest/test_pytest_benchmark.py). Remove once pytest-benchmark
+    # supports pytest >= 9.2.
+    skip_benchmark = None
+    if parse_version(pytest.__version__) >= (9, 2, 0):
+        try:
+            import pytest_benchmark  # noqa: F401
+        except ImportError:
+            pass
+        else:
+            skip_benchmark = pytest.mark.skip(reason="pytest-benchmark does not support pytest 9.2 or newer yet")
+
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
+        if skip_benchmark is not None and "benchmark" in getattr(item, "fixturenames", ()):
+            item.add_marker(skip_benchmark)
         if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
             item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 

@@ -10,6 +10,7 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.internal.rate_sampler import RateSampler
 from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
@@ -17,7 +18,6 @@ from ..internal.constants import PROBABILISTIC_SAMPLING_MECHANISMS
 from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
-from ..internal.sampling import RateSampler  # noqa: F401
 from ..internal.sampling import _get_highest_precedence_rule_matching
 from ..internal.sampling import _set_sampling_tags
 from .sampling_rule import SamplingRule
@@ -161,7 +161,7 @@ class DatadogSampler:
                 agent_sampler = self._agent_based_samplers.get(self._default_key)
             if agent_sampler is not None:
                 # Agent service based sampling
-                sampled = agent_sampler.sample(span)
+                sampled = agent_sampler.sample(span._trace_id_64bits)
                 sample_rate = agent_sampler.sample_rate
 
         if matched_rule or self._rate_limit_always_on:
