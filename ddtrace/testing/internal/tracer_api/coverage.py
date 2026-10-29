@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
 import ddtrace.internal.coverage.installer
+from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.utils.paths import relative_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
@@ -63,8 +64,9 @@ class CoverageData:
         # Canonicalize the workspace: instrumentation records covered paths under
         # realpath(co_filename), so a symlinked CI workspace (e.g. Jenkins
         # WORKSPACE) must be resolved to match, or files recorded under the real
-        # path are silently dropped from uploads.
-        relative_to_str = str(Path(relative_to).resolve())
+        # path are silently dropped from uploads. Memoized because this runs per
+        # test with the same workspace.
+        relative_to_str = resolved_path(str(relative_to))
 
         if self._covered_file_paths is not None:
             for absolute_path in self._covered_file_paths:

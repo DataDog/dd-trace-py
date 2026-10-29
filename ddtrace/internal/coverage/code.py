@@ -25,6 +25,7 @@ from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
+from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.packages import platlib_path
@@ -531,8 +532,9 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         # Resolve the workspace to its canonical path: instrumented coverage records under
         # realpath(co_filename), so a symlinked workspace must be resolved to match (same
-        # fix as CoverageData.get_coverage_bitmaps in tracer_api).
-        workspace_path = Path(workspace_path).resolve()
+        # fix as CoverageData.get_coverage_bitmaps in tracer_api). Memoized because
+        # reporters are called per test with the same workspace.
+        workspace_path = Path(resolved_path(str(workspace_path)))
 
         for abs_path_str, lines in covered.items():
             abs_path = Path(abs_path_str)
@@ -623,7 +625,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         module.__file__ across Python versions (__file__ is symlink-resolved only from
         3.10 on).
         """
-        module_file = os.path.realpath(code.co_filename)
+        module_file = resolved_path(code.co_filename)
         self._import_time_name_to_path[_module.__name__] = module_file
         self._invalidate_import_metadata()
         module_context = self.CollectInContext(is_import_coverage=True)
@@ -649,7 +651,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         if not hasattr(_module, "__file__") or _module.__file__ is None:
             return
         raw_file = _module.__file__
-        canonical_file = os.path.realpath(raw_file)
+        canonical_file = resolved_path(raw_file)
         # The context was keyed by the code object's co_filename, which is what the
         # instrumentation hooks record under. On Python < 3.10, or when a workspace
         # path traverses a symlink, __file__ may differ from co_filename; try both.

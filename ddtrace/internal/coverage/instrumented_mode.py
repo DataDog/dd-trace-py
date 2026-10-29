@@ -6,7 +6,6 @@ The instrumentation dispatch (instrumentation.py) and version-specific modules
 are unchanged from the previous structure.
 """
 
-import os
 from pathlib import Path
 import sys
 from types import CodeType
@@ -17,6 +16,7 @@ from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
+from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
@@ -59,7 +59,7 @@ class InstrumentedCoverage(CoverageMode):
         # Canonicalize the path once at instrumentation entry: the hooks, the
         # executable-line bookkeeping, and the import-time metadata all use the
         # same key, so symlinked workspaces don't split the key space.
-        canonical_path = os.path.realpath(code.co_filename)
+        canonical_path = resolved_path(code.co_filename)
         new_code, lines = instrument_all_lines(code, self._collector.hook, canonical_path, module.__package__ or "")
         self._seen.add((new_code, code.co_filename))
         self._collector.lines[canonical_path].update(lines)
@@ -71,7 +71,7 @@ class InstrumentedCoverage(CoverageMode):
         if _PY_GE_313 and code.co_code == _EMPTY_MODULE_BYTES:
             package = module.__package__ or ""
             import_info = (package, ("",)) if package else None
-            self._collector.hook((0, os.path.realpath(code.co_filename), import_info))
+            self._collector.hook((0, resolved_path(code.co_filename), import_info))
 
     def on_module_body_finished(self, module: ModuleType) -> None:
         """Nothing to do: instrumented modes record lines via events during the body."""
