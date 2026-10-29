@@ -291,13 +291,24 @@ a deliberate fork-safety protocol.
 ### The `forksafe` module
 
 `ddtrace.internal.forksafe` is the single registration point for all fork
-hooks. It wraps `os.register_at_fork()` and exposes three ordered registries:
+hooks. It wraps `os.register_at_fork()` and exposes three main ordered
+registries:
 
 | Registry | When it runs | Typical use |
 |----------|-------------|-------------|
-| `_registry_before_fork` | In the parent, before `fork()` | Flush state, acquire no new locks, stop threads |
+| `_registry_before_fork` | In the parent, before `fork()` | Settle in-memory state (e.g. sampling decisions), acquire no new locks, stop threads |
 | `_registry` (`after_in_child`) | In the child, after `fork()` | Reinitialize resources that cannot be shared |
 | `_registry_after_parent` | In the parent, after `fork()` | Resume any work paused in `before_fork` |
+
+In the child, `_registry_before_child_hooks` and `_registry_after_child_hooks`
+run around `_registry`, and `forksafe.in_child_hook()` is true while they run.
+Process managers such as Celery close inherited file descriptors after the
+at-fork callbacks return, so native workers must not be rebuilt while it is
+true.
+
+The hooks of concurrent forks are serialized: the thread that runs the
+before-fork hooks holds `forksafe._fork_lock` until its after-fork hooks have
+completed. This relies on ddtrace threads never forking themselves.
 
 Use the helpers to register hooks:
 
@@ -343,16 +354,18 @@ the parent.
 
 Both the parent and the child call `_after_fork()` on every thread. In the
 child, restart is controlled by the `__autorestart__` attribute (default
-`True`): threads that leave it `True` are restarted transparently; threads that
-set it to `False` remain stopped and must arrange their own re-initialization
-(see `NativeWriter` below).
+`True`): threads that leave it `True` are restarted; threads that set it to
+`False` remain stopped and must arrange their own re-initialization (see
+`NativeWriter` below).
 
-In the parent, restarts are **asynchronous**: `_after_fork_parent` merely calls
-`ThreadRestartTimer.set()`, which schedules a deferred restart. The actual
-`_after_fork(force=True)` calls happen later, coalesced across repeated rapid
-forks. Parent-side periodic workers are therefore not immediately active after
-`fork()` returns; components that rely on parent-side metrics or flushing
-immediately after a fork should account for this delay.
+Restarts are **asynchronous** on both sides: the after-fork hooks merely call
+`ThreadRestartTimer.set()`, which schedules a deferred restart once no fork has
+happened for about 100 ms. In the parent, the `_after_fork(force=True)` calls
+are coalesced across repeated rapid forks. In the child, the delay keeps
+threads from rebuilding native resources before the process manager has closed
+inherited file descriptors. Periodic workers are therefore not immediately
+active after `fork()` returns; components that rely on metrics or flushing
+right after a fork should account for this delay.
 
 The default `__autorestart__ = True` means that for most `PeriodicService`
 subclasses **no fork-specific code is required** — the protocol handles
@@ -377,6 +390,10 @@ machinery in a well-defined order.
   path — the service will be left marked as running with no active worker.
 - Never call `flush_queue()` or perform I/O in an after-child hook; flush only
   in after-parent hooks or at clean shutdown.
+
+The full list of fork-safety and threading rules that changes must follow, and
+the review procedure that checks them, is in the `architecture-review` skill
+(`.agents/skills/architecture-review/references/fork-safety.md`).
 
 
 ## The `sys.monitoring` Multiplexer

@@ -19,9 +19,45 @@ Paths below are relative to the repository root.
 - Update documentation when changing APIs, configuration, or contributor workflows.
   When modifying integrations, review the relevant integration skills and update references that
   describe changed patterns.
-- Do not hide circular imports with function-local imports or type-checking guards.
-  Fix ownership or dependency direction. Preserve deliberate lazy imports for startup cost or
-  gevent compatibility when they are unrelated to a cycle.
+- Before committing a change that touches threads, locks, fork hooks, services, writers,
+  remote config callbacks, module layout or cross-package imports, run the
+  `architecture-review` skill on the diff and fix what it reports.
+
+## Architectural constraints
+
+These hold for all new code. The `architecture-review` skill has the full rules (`FS-*`,
+`LA-*`) with the reasons behind them; design against them from the start.
+
+Fork safety and background threads:
+
+- Register fork hooks with `ddtrace.internal.forksafe`, never `os.register_at_fork`. Hooks are
+  fast; after-in-child hooks recreate process-local state and never flush or do I/O.
+- Run background work on `periodic.PeriodicService`, `threads.Thread` or `periodic.Timer`,
+  never on `threading.Thread`, `threading.Timer` or executors. Take `Lock`, `RLock`, `Event`
+  and `SimpleQueue` from `ddtrace.internal.threads`; recreate locks in the child rather than
+  releasing inherited ones. Locks taken from weakref/finalizer callbacks are `RLock`s.
+- ddtrace threads never synchronize with each other, never fork, and bound every blocking
+  call in their targets with a timeout. Application threads never wait on a ddtrace thread;
+  `awake()` stays non-blocking.
+- Start threads from the product lifecycle, not lazily on first use from an application
+  thread. A disabled product's threads go dormant instead of stopping and restarting.
+- Code on ddtrace threads does not import `threading`, `uuid`, `subprocess`, `queue`,
+  `importlib.metadata` or similar stdlib modules inside functions (module cloning); use the
+  `ddtrace.internal.threads` re-exports and `ddtrace.internal.native.uuid4()`.
+
+Layering and imports:
+
+- Dependencies point from products to shared code: `ddtrace/internal` and `ddtrace/contrib` do
+  not import products, and products do not import each other, except as listed in
+  `scripts/import-analysis/layers.json`. Invert dependencies with a `Protocol`, callback or
+  core event registered by the product.
+- Do not hide circular imports or layering violations with function-local imports or
+  type-checking guards. Fix ownership or dependency direction. Preserve deliberate lazy imports
+  for startup cost or gevent compatibility when they are unrelated to a cycle.
+- Shared infrastructure contains no product-specific branches, names or cleanup; the consumer
+  overrides its own hook. Contrib integrations reach products only through core events.
+- Classify new top-level modules in `layers.json`. New zone exceptions need a stated
+  architectural reason for human review.
 
 ## Docstrings and Comments
 
@@ -74,6 +110,7 @@ current signatures and defaults.
 | LLMObs integration changes | `llmobs-integrations`; also `apm-integrations` when changing contrib plumbing |
 | Added/moved modules or new import cycles | `circular-import-analysis` |
 | Architectural dependency direction | `dependency-direction-analysis` |
+| Architectural review of a change or PR (fork safety, threads, layering) | `architecture-review` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Build-cache performance | `debug-build-times` |
@@ -82,7 +119,7 @@ current signatures and defaults.
 | AppSec / IAST | `.cursor/rules/appsec.mdc`; `.cursor/rules/iast.mdc` for IAST |
 | AI Guard | `.cursor/rules/ai-guard.mdc` |
 | C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc` |
-| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md` |
+| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md`; `architecture-review` |
 | Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
 | Build or installation failures | `docs/troubleshooting.rst` |
 
