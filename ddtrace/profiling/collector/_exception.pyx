@@ -5,6 +5,7 @@ import threading
 import time
 from typing import Optional
 
+from ddtrace.internal import uwsgi as _uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
@@ -186,6 +187,15 @@ class ExceptionCollector(collector.Collector):
 
         if not HAS_MONITORING:
             LOG.debug("[profiling] Exception profiling only supports Python 3.12+, skipping")
+            return
+
+        # Enabling the RAISE event walks the frames of every thread state, which can crash in such a worker.
+        if _uwsgi.forked_without_fork_hooks():
+            LOG.warning(
+                "Exception profiling is disabled in this uWSGI worker because the master forked it without "
+                "running the Python fork hooks. Enable the lazy-apps or py-call-uwsgi-fork-hooks uWSGI option "
+                "to restore this feature."
+            )
             return
 
         if _state is not None:
