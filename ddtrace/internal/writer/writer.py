@@ -138,6 +138,8 @@ class TraceWriter(metaclass=abc.ABCMeta):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "TraceWriter":
         pass
 
@@ -174,6 +176,8 @@ class LogWriter(TraceWriter):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
@@ -902,8 +906,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         headers = []
         for item in raw.split(","):
             key, sep, value = item.partition("=")
-            key = key.strip()
+            key = key.strip().lower()
             if sep and key:
+                # gRPC metadata keys must be lowercase; HTTP header names are case-insensitive.
                 headers.append((key, value.strip()))
         return headers
 
@@ -924,16 +929,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
-            # Only http/json and http/protobuf are supported; fall back to http/protobuf
-            # for anything else (e.g. grpc).
-            otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
-            if otlp_protocol not in ("http/json", "http/protobuf"):
-                log.debug(
-                    "OTLP trace protocol %r is not supported; defaulting to http/protobuf",
-                    otlp_protocol,
-                )
-                otlp_protocol = "http/protobuf"
-            builder.set_otlp_protocol(otlp_protocol)
+            builder.set_otlp_protocol(otel_config.exporter.TRACES_PROTOCOL)
             otlp_headers = self._parse_otlp_headers(otel_config.exporter.TRACES_HEADERS)
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
@@ -1020,6 +1016,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "NativeWriter":
         # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
         # the API version to v0.4.
@@ -1032,10 +1030,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.shutdown_exporter()
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
+        agentless_stats_endpoint = self._agentless_stats_endpoint
+        otlp_metrics_endpoint = self._otlp_metrics_endpoint
+        if self.agentless and (compute_stats_enabled is not None or stats_opt_out is not None):
+            # The agentless stats endpoint depends on the stats state, which these flags
+            # change: re-resolve it instead of carrying a stale value. Resolving it can
+            # also conflict with the preserved OTLP metrics endpoint, so apply the same
+            # precedence as at construction before building the replacement.
+            agentless_stats_endpoint = _resolve_agentless_stats_endpoint()
+            otlp_metrics_endpoint = _drop_conflicting_otlp_metrics_endpoint(
+                agentless_stats_endpoint, otlp_metrics_endpoint
+            )
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
-            compute_stats_enabled=self._compute_stats_enabled,
+            compute_stats_enabled=(
+                self._compute_stats_enabled if compute_stats_enabled is None else compute_stats_enabled
+            ),
             client_side_stats_obfuscation=self._client_side_stats_obfuscation,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
@@ -1045,11 +1056,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             report_metrics=self._report_metrics,
             response_callback=self._response_cb,
             test_session_token=self._test_session_token,
-            stats_opt_out=self._stats_opt_out,
+            stats_opt_out=self._stats_opt_out if stats_opt_out is None else stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
-            otlp_metrics_endpoint=self._otlp_metrics_endpoint,
+            otlp_metrics_endpoint=otlp_metrics_endpoint,
             api_key=self._api_key,
-            agentless_stats_endpoint=self._agentless_stats_endpoint,
+            agentless_stats_endpoint=agentless_stats_endpoint,
         )
 
     def _downgrade(self, status, client):
@@ -1354,6 +1365,23 @@ def _resolve_agentless_stats_endpoint() -> Optional[str]:
     return compute_agentless_stats_url(config._dd_site.lower())
 
 
+def _drop_conflicting_otlp_metrics_endpoint(
+    agentless_stats_endpoint: Optional[str], otlp_metrics_endpoint: Optional[str]
+) -> Optional[str]:
+    """Drop the OTLP metrics endpoint when both stats endpoints are set: libdatadog rejects
+    an exporter configured with both at build time, and Datadog trace stats take precedence.
+    """
+    if agentless_stats_endpoint is not None and otlp_metrics_endpoint is not None:
+        log.warning(
+            "Datadog trace stats and OTLP trace metrics cannot both be exported in agentless "
+            "mode. Sending Datadog trace stats to %s; set DD_TRACE_STATS_COMPUTATION_ENABLED=0 "
+            "to export OTLP trace metrics instead.",
+            agentless_stats_endpoint,
+        )
+        return None
+    return otlp_metrics_endpoint
+
+
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
@@ -1374,15 +1402,7 @@ def create_trace_writer(
         intake_url = compute_agentless_intake_url(config._dd_site.lower())
         verify_url(intake_url)
         agentless_stats_endpoint = _resolve_agentless_stats_endpoint()
-        if agentless_stats_endpoint is not None and otlp_metrics_endpoint is not None:
-            # libdatadog rejects both at build time, so one has to go before the exporter is built.
-            log.warning(
-                "Datadog trace stats and OTLP trace metrics cannot both be exported in agentless "
-                "mode. Sending Datadog trace stats to %s; set DD_TRACE_STATS_COMPUTATION_ENABLED=0 "
-                "to export OTLP trace metrics instead.",
-                agentless_stats_endpoint,
-            )
-            otlp_metrics_endpoint = None
+        otlp_metrics_endpoint = _drop_conflicting_otlp_metrics_endpoint(agentless_stats_endpoint, otlp_metrics_endpoint)
         return NativeWriter(
             intake_url=intake_url,
             api_key=config._dd_api_key,

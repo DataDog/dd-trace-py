@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.typesafe.ai/v1/systemone",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "User-Agent": "typesafe-sdk/0.7.4",
+      "X-TypeSafe-SDK": "typesafe-sdk/0.7.4",
+      "X-TypeSafe-Runtime": "python/3.12.8 (darwin; arm64)",
+      "Content-Type": "application/json",
+      "Content-Length": "465"
+    },
+    "body": "{\"state\":\"Please cancel my account.\",\"model\":\"jev-1.13.0\",\"questions\":{\"team\":{\"type\":\"choice\",\"instructions\":\"Which team should handle this message?\",\"criteria\":{\"billing\":\"Charges, refunds, invoices\",\"technical\":\"Bugs, outages, errors\",\"sales\":\"Pricing, plans, buying more\"}},\"refund\":{\"type\":\"noul\",\"instructions\":\"Is the customer asking for a refund?\"},\"urgency\":{\"type\":\"score\",\"instructions\":\"How urgent is this message?\",\"criteria\":[\"Low\",\"Medium\",\"High\"]}}}"
+  },
+  "response": {
+    "status": {
+      "code": 401,
+      "message": "Unauthorized"
+    },
+    "headers": {
+      "Date": "Wed, 14 Oct 2026 20:43:46 GMT",
+      "Content-Type": "application/json",
+      "Content-Length": "138",
+      "Connection": "keep-alive",
+      "x-typesafe-request-id": "req_01a13c28272e72c5bb3ba8372b8aec07",
+      "x-envoy-upstream-service-time": "2",
+      "Server": "cloudflare",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cf_bm=Tgwb8rXO3mW55L5Yb_VyEbv1uhOmeEdvLarbAHucR.g-1792010626.8406157-1.0.1.1-u7aw1T2RnMp6NxUM4P2F8x79SBGdIOphjsCXKd9xsZGGWsUkKA7REwbKgbTvAtegyCLrBFQfmqqrePSofWVm.TAojPMqlGr0O5Ko6om943MQZHb1s4mCH4x2iMc7ylEc; HttpOnly; SameSite=None; Secure; Path=/; Domain=typesafe.ai; Expires=Wed, 14 Oct 2026 21:13:46 GMT",
+      "CF-RAY": "a4a96b11bce8900b-BOS",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"detail\":{\"error_type\":\"authentication_error\",\"message\":\"Cannot authenticate with the server. Please check your API key and try again.\"}}"
+  }
+}

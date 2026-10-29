@@ -19,8 +19,13 @@ ENV LANG=C.UTF-8
 # Use root user to install system dependencies
 USER root
 
-# Create our bits user
-RUN useradd -ms /bin/bash -u 1000 bits
+# Create our bits user.
+# Also create /var/crash: the CI nodes' kernel.core_pattern writes core dumps there, and
+# the kernel silently drops a core when that directory is missing or not writable by the
+# crashing process. 1777 (sticky, world-writable) lets a process under any uid write its
+# core without letting users delete each other's files.
+RUN useradd -ms /bin/bash -u 1000 bits \
+    && install -d -m 1777 /var/crash
 
 # Install system dependencies
 RUN apt-get update \
@@ -38,7 +43,6 @@ RUN apt-get update \
       autoconf \
       automake \
       build-essential \
-      clang-format \
       gdb \
       git \
       jq \
@@ -66,9 +70,7 @@ RUN apt-get update \
       sccache \
       unixodbc-dev \
       wget \
-      xz-utils \
       zlib1g-dev \
-      awscli \
     # Install azure-functions-core-tools-4, only supported on amd64 architecture for Linux
     # https://github.com/Azure/azure-functions-core-tools/issues/3112
     # Note: Using bookworm repo as trixie is not yet available
@@ -84,39 +86,8 @@ RUN apt-get update \
       && apt-get update \
       && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.1.0-1; \
     fi \
-    # Google Chrome is needed for selenium contrib tests but is currently only available on amd64
-    && if [ "$TARGETARCH" = "amd64" ]; \
-    then \
-      curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google_key.pub \
-      && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --import /tmp/google_key.pub 2>/dev/null \
-      && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --with-colons --fingerprint 2>/dev/null \
-         | grep -qi "^fpr:.*:EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796:$" \
-      && gpg --no-default-keyring --keyring /tmp/google_keyring.gpg --export > /etc/apt/trusted.gpg.d/google.gpg \
-      && rm -f /tmp/google_key.pub /tmp/google_keyring.gpg /tmp/google_keyring.gpg~ \
-      && echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
-      && apt-get update \
-      && apt-get install -y --no-install-recommends google-chrome-stable ; \
-    fi \
-    # Use the updated OS bundle instead of awscli's older bundled roots.
-    && ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/python3/dist-packages/awscli/botocore/cacert.pem \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
-
-# Debian's Node package embeds roots that predate the October 2026 removal.
-RUN set -eu; \
-    case "${TARGETARCH}" in \
-      amd64) node_arch=x64 ;; \
-      arm64) node_arch=arm64 ;; \
-      *) echo "Unsupported Node architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    archive="node-v22.23.4-linux-${node_arch}.tar.xz"; \
-    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
-      -o "/tmp/${archive}" "https://nodejs.org/dist/v22.23.4/${archive}"; \
-    curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 2 --retry-connrefused \
-      -o /tmp/SHASUMS256.txt https://nodejs.org/dist/v22.23.4/SHASUMS256.txt; \
-    (cd /tmp && grep " ${archive}\$" SHASUMS256.txt | sha256sum -c -); \
-    tar -xJf "/tmp/${archive}" --strip-components=1 -C /usr/local; \
-    rm -f "/tmp/${archive}" /tmp/SHASUMS256.txt
 
 # Install ddtest before switching to the unprivileged user because /usr/local/bin is root-owned.
 ARG DDTEST_VERSION=1.7.0
@@ -130,26 +101,34 @@ ENV PYTHONUNBUFFERED=1
 ENV PYENV_ROOT=/home/bits/.pyenv
 ENV CARGO_ROOT=/home/bits/.cargo
 ENV PATH=/home/bits/.local/bin:${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${CARGO_ROOT}/bin:$PATH
-ENV PYTHON_CONFIGURE_OPTS=--enable-shared
-ENV NPM_CONFIG_PREFIX=/home/bits/.local/
+# --enable-shared is needed for editable ddtrace builds and pybind11. Nothing runs CPython's own
+# test suite, so skip installing its test modules and the static libpython; the default -g build
+# keeps debug symbols in libpython for gdb core backtraces.
+ENV PYTHON_CONFIGURE_OPTS="--enable-shared --disable-test-modules --without-static-libpython"
 
 # Install Rust toolchain
 # TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
+# The minimal profile plus rustfmt and clippy is the default profile without rust-docs (~900MB).
 RUN curl --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-delay 2 --retry-connrefused -o /tmp/rustup-init.sh https://sh.rustup.rs && \
-    sh /tmp/rustup-init.sh --default-toolchain stable -y && \
+    sh /tmp/rustup-init.sh --profile minimal --default-toolchain stable --component rustfmt,clippy -y && \
     rm /tmp/rustup-init.sh
 
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /home/bits/
 
-# Allow running datadog-ci in CI with npx
-RUN npm install -g @datadog/datadog-ci
+# ~/.local/bin is on PATH for pip's user-install fallback, and scripts/ddtest chowns ~/.local
+# when running as a different uid, so the directory must exist.
+RUN mkdir -p /home/bits/.local/bin
 
 # Install pyenv and necessary Python versions.
 # Pin pyenv to a release that knows CPython 3.15.0 final (python.org 2026-10-09).
 RUN git clone --depth 1 --branch "v2.8.9" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
+  # Python < 3.10 ignores --disable-test-modules and --without-static-libpython, so remove the
+  # same files from those versions after install.
+  && rm -rf "${PYENV_ROOT}"/versions/3.[89].*/lib/python3.[89]/test \
+    "${PYENV_ROOT}"/versions/3.[89].*/lib/python3.[89]/config-3.[89]*/libpython3.[89].a \
   && cd -
 
 # Upgrade every pyenv interpreter's certificate bundle, including pip's vendored copy.
