@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 requires = ["remote-configuration"]
 
+_listeners_registered = False
 _exploit_prevention_registered = False
 
 
@@ -49,15 +50,20 @@ def start() -> None:
 
 def register_subscribers() -> None:
     # Remote configuration activates AppSec outside of start(), so _enable_asm() calls this too.
-    global _exploit_prevention_registered
-    if _exploit_prevention_registered or not (config._asm_enabled and config._ep_enabled):
+    global _listeners_registered, _exploit_prevention_registered
+    if not config._asm_enabled:
         return
-    for subscriber in _exploit_prevention_subscribers():
-        subscriber.register()
-    _exploit_prevention_registered = True
+    if not _listeners_registered:
+        _register_listeners()
+        _listeners_registered = True
+    if config._ep_enabled and not _exploit_prevention_registered:
+        for subscriber in _exploit_prevention_subscribers():
+            subscriber.register()
+        _exploit_prevention_registered = True
 
 
 def unregister_subscribers() -> None:
+    # The listeners stay registered: their handlers check whether AppSec is enabled.
     global _exploit_prevention_registered
     if not _exploit_prevention_registered:
         return
@@ -72,6 +78,37 @@ def restart(join: bool = False) -> None:
 
 def stop(join: bool = False) -> None:
     pass
+
+
+def _register_listeners() -> None:
+    from ddtrace.appsec._asm_request_context import asm_listen
+    from ddtrace.appsec._contrib.aiohttp import listen as aiohttp_listen
+    from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
+    from ddtrace.appsec._contrib.django import listen as django_listen
+    from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
+    from ddtrace.appsec._contrib.flask import listen as flask_listen
+    from ddtrace.appsec._contrib.openai.handlers import listen as openai_listen
+    from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
+    from ddtrace.appsec._contrib.tornado import listen as tornado_listen
+    from ddtrace.appsec._handlers import listen
+    from ddtrace.appsec._listeners import _asm_switch_state
+    from ddtrace.internal import core
+
+    listen()
+    asm_listen()
+    aws_lambda_listen()
+    flask_listen()
+    django_listen()
+    fastapi_listen()
+    openai_listen()
+    stripe_listen()
+    tornado_listen()
+    aiohttp_listen()
+    # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
+    # from ddtrace.appsec._contrib.grpc import listen as grpc_listen
+    # grpc_listen()
+
+    core.on("asm.switch_state", _asm_switch_state)
 
 
 def _exploit_prevention_subscribers() -> tuple[Union[type["Subscriber"], type["ContextSubscriber[Any]"]], ...]:

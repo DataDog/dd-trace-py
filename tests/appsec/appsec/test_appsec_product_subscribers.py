@@ -76,3 +76,17 @@ def test_inactive_appsec_registers_no_subscribers(subscribers):
 
     for register, _ in subscribers.values():
         register.assert_not_called()
+
+
+def test_appsec_activation_registers_listeners_once(subscribers, monkeypatch):
+    monkeypatch.setattr(product, "_listeners_registered", False)
+    with mock.patch.object(product, "_register_listeners") as register_listeners:
+        product.register_subscribers()
+        register_listeners.assert_not_called()
+
+        product._enable_asm()
+        product.register_subscribers()
+        product._disable_asm()
+        product._enable_asm()
+
+    register_listeners.assert_called_once_with()

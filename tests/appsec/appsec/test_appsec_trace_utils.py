@@ -381,9 +381,11 @@ def test_user_blocking_listener_registered_without_appsec_trace_utils():
 
     from ddtrace.appsec._listeners import load_appsec
     from ddtrace.internal import core
+    from ddtrace.internal.appsec import product
 
     # Enabling AppSec must not require importing the public user-tracking modules.
     load_appsec()
+    product.register_subscribers()
 
     assert "ddtrace.appsec.trace_utils" not in sys.modules
     assert "ddtrace.appsec.track_user_sdk" not in sys.modules
