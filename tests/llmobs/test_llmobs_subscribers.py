@@ -113,9 +113,14 @@ def test_patching_a_subscriber_integration_registers_the_subscriber(subscriber):
 def test_product_manager_shutdown_unregisters_subscriber_while_llmobs_is_disabled(
     shutdown_method, monkeypatch, subscriber
 ):
+    events = (
+        "span.starting.llm.request",
+        "span.started.llm.request",
+        "span.finishing.llm.request",
+    )
     monkeypatch.setattr(config, "_llmobs_enabled", False)
     _product.on_integration_patched("llama_index")
-    assert core.has_listeners("span.finishing.llm.request")
+    assert all(core.has_listeners(event) for event in events)
 
     manager = ProductManager()
     manager.__products__ = {"llmobs": _product}
@@ -123,4 +128,4 @@ def test_product_manager_shutdown_unregisters_subscriber_while_llmobs_is_disable
 
     getattr(manager, shutdown_method)()
 
-    assert not core.has_listeners("span.finishing.llm.request")
+    assert all(not core.has_listeners(event) for event in events)
