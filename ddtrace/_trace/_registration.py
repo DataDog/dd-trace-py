@@ -1,7 +1,7 @@
 """Tracing's declarations for explicitly managed subscriber bundles."""
 
-from ddtrace.internal.product_registration import ProductRegistration
-from ddtrace.internal.product_registration import SubscriberBundle
+from ddtrace.internal.products import ProductRegistration
+from ddtrace.internal.products import SubscriberBundle
 
 
 registration = ProductRegistration(

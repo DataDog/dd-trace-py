@@ -76,7 +76,7 @@ gets extended to add support for additional features.
 ## Product subscriber registration
 
 Products declare shared subscriber bundles with `ProductRegistration` and
-`SubscriberBundle` from `ddtrace.internal.product_registration`. Each product keeps
+`SubscriberBundle` from `ddtrace.internal.products`. Each product keeps
 its declaration in its own `_registration.py` and exposes it as `registration` on its
 product protocol module. The name matches its `ddtrace.products` entry-point name.
 
