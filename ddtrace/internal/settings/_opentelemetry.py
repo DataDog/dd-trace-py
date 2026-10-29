@@ -165,11 +165,6 @@ def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
     return agent_config.trace_otlp_export_enabled
 
 
-def _is_otlp_trace_metrics_enabled(explicit_enabled: t.Optional[bool]) -> bool:
-    """Export client-computed span stats as OTLP metrics only with explicit opt-in."""
-    return explicit_enabled is True
-
-
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 

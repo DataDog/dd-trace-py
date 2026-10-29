@@ -27,7 +27,6 @@ from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import _targets_agentless_intake
 from ddtrace.internal.settings._opentelemetry import otel_config
@@ -1350,7 +1349,7 @@ def _use_sync_mode() -> bool:
 
 
 def _resolve_otlp_metrics_endpoint() -> Optional[str]:
-    if _is_otlp_trace_metrics_enabled(config._otel_stats_computation_enabled):
+    if config._otel_stats_computation_enabled is True:
         return otel_config.exporter.TRACE_METRICS_ENDPOINT
     return None
 
