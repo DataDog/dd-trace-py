@@ -206,6 +206,7 @@ ddtrace/internal/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
 ddtrace/internal/sca/               @DataDog/asm-python
+ddtrace/internal/security/          @DataDog/asm-python
 ddtrace/internal/settings/aiguard.py         @DataDog/asm-python
 ddtrace/internal/settings/appsec_telemetry.py    @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
@@ -249,6 +250,8 @@ src/native/crashtracker*                     @DataDog/profiling-python @DataDog/
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
+ddtrace/contrib/internal/aws_sdk_bedrock_runtime/              @DataDog/ml-observability
+tests/contrib/aws_sdk_bedrock_runtime/                        @DataDog/ml-observability
 ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
 ddtrace/contrib/internal/langchain                            @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock.py         @DataDog/ml-observability

@@ -34,6 +34,10 @@ class Product(Protocol):
 
     def start(self) -> None: ...
 
+    def register_subscribers(self) -> None: ...
+
+    def unregister_subscribers(self) -> None: ...
+
     def restart(self, join: bool = False) -> None: ...
 
     def stop(self, join: bool = False) -> None: ...
@@ -113,7 +117,6 @@ class ProductManager:
 
     def start_products(self) -> None:
         failed: set[str] = set()
-        started: list[tuple[str, Product]] = []
 
         for name, product in self.products:
             # Check that no required products have failed
@@ -131,11 +134,17 @@ class ProductManager:
                     continue
                 product.start()
                 log.debug("Started product '%s'", name)
-                started.append((name, product))
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
                 continue
+
+            # Subscribers are registered after start() so they can rely on what start() set up. A failure
+            # here does not fail the product: it is running, it only misses some of its subscribers.
+            try:
+                product.register_subscribers()
+            except Exception:
+                log.exception("Failed to register subscribers for product '%s'", name)
 
             # enabled() only says the lifecycle must run; a product can start without being active
             # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
@@ -144,18 +153,6 @@ class ProductManager:
                 telemetry_writer.product_activated(name.replace("-", "_"), bool(activated()) if activated else True)
             except Exception:
                 log.debug("Failed to report activation state for product '%s'", name, exc_info=True)
-
-        # NOTE: Keep post_start hooks after the full start loop. RC uses
-        # this barrier to collect dependent products before its first poll, and
-        # start_products() may run only after a uWSGI fork.
-        for name, product in started:
-            try:
-                if (hook := getattr(product, "post_start", None)) is None:
-                    continue
-                hook()
-                log.debug("Post-start product '%s' done", name)
-            except Exception:
-                log.exception("Failed to post-start product '%s'", name)
 
     def before_fork(self) -> None:
         for name, product in self.products:
@@ -192,6 +189,10 @@ class ProductManager:
             try:
                 if not product.enabled():
                     continue
+                try:
+                    product.unregister_subscribers()
+                except Exception:
+                    log.exception("Failed to unregister subscribers for product '%s'", name)
                 product.stop(join=join)
                 log.debug("Stopped product '%s'", name)
                 telemetry_writer.product_activated(name.replace("-", "_"), False)

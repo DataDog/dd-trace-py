@@ -4,10 +4,12 @@ components:
     - ddtrace/appsec/*
     - ddtrace/internal/appsec/*
     - ddtrace/internal/settings/asm.py
+    - ddtrace/internal/security/*
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/_iast/*
     - ddtrace/appsec/_iast_context.py
+    - ddtrace/internal/security/*
     - ddtrace/internal/iast/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
@@ -15,6 +17,7 @@ components:
     - ddtrace/contrib/internal/webbrowser/*
   sca:
     - ddtrace/appsec/sca/*
+    - ddtrace/internal/security/*
     - ddtrace/internal/sca/*
 suites:
   appsec:

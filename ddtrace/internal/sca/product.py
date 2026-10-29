@@ -131,6 +131,14 @@ def stop(join: bool = False) -> None:
     log.debug("SCA detection stopped")
 
 
+def register_subscribers() -> None:
+    pass
+
+
+def unregister_subscribers() -> None:
+    pass
+
+
 def restart(join: bool = False) -> None:
     """Handle fork scenarios by restarting SCA detection in child process.
 

@@ -39,16 +39,6 @@ def post_preload():
     pass
 
 
-def post_start():
-    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-    try:
-        remoteconfig_poller.start_deferred()
-    except Exception:
-        remoteconfig_poller.disable()
-        raise
-
-
 def enabled():
     return config._remote_config_enabled
 
@@ -56,17 +46,26 @@ def enabled():
 def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    # NOTE: Keep the poller behind this barrier until post_start. Product
-    # dependencies start after remote-configuration and must advertise their RC
-    # products before the no-wait polling thread sends its first request. Keep
-    # the failure cleanup too: a stale barrier would prevent later registration
-    # from starting the poller.
-    remoteconfig_poller.defer_start()
+    # NOTE: The poller can start before the product dependencies that start
+    # after remote-configuration advertise their RC products. It sends nothing
+    # while no product is enabled, and each enablement wakes it up to send a
+    # request once no other product has been enabled for a short while, so the
+    # products enabled on boot are batched instead of waiting for the next poll.
     try:
+        remoteconfig_poller.enable()
         _register_rc_products()
     except Exception:
+        # The product manager marks the product as failed without stopping it.
         remoteconfig_poller.disable()
         raise
+
+
+def register_subscribers() -> None:
+    pass
+
+
+def unregister_subscribers() -> None:
+    pass
 
 
 def restart(join=False):

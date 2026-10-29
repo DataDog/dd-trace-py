@@ -144,10 +144,24 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 | Library | Input | Output | Cache Fields |
 |---------|-------|--------|-------------|
 | Anthropic | `input_tokens` | `output_tokens` | `cache_creation_input_tokens`, `cache_read_input_tokens` |
-| OpenAI chat | `prompt_tokens` | `completion_tokens` | `prompt_tokens_details.cached_tokens` (already included in input total) |
+| OpenAI chat | `prompt_tokens` | `completion_tokens` | `prompt_tokens_details.cached_tokens` (already included in input total), `prompt_tokens_details.cache_write_tokens` |
+| OpenAI responses | `input_tokens` | `output_tokens` | `input_tokens_details.cached_tokens` (already included in input total), `input_tokens_details.cache_write_tokens`, and its TTL split `input_tokens_details.cache_write_tokens_details.ttl_30m_tokens` / `ttl_12h_tokens` |
 | Google GenAI | `prompt_token_count` | `candidates_token_count` | `cached_content_token_count` |
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
+
+When a provider splits cache writes by TTL because each TTL is billed at a different rate, report the split next to `CACHE_WRITE_INPUT_TOKENS_METRIC_KEY`: Anthropic `cache_creation.ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens` map to `ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens`, and OpenAI `ttl_30m_tokens` / `ttl_12h_tokens` map to `ephemeral_30m_input_tokens` / `ephemeral_12h_input_tokens`.
+
+For OpenAI Realtime, read the singular `input_token_details` and
+`output_token_details` fields. Preserve `audio_tokens` as `input_audio_tokens` /
+`output_audio_tokens`, `cached_tokens` as `cache_read_input_tokens`, and
+`cached_tokens_details.audio_tokens` as `cache_audio_read_tokens`. These are subsets
+of the inclusive totals. Preserve explicit zero counts and omit missing breakdowns;
+never infer zero cached audio from a missing cached-token detail object. Preserve
+`text_tokens` as `input_text_tokens` / `output_text_tokens`, input `image_tokens`
+as `input_image_tokens`, and cached text/image counts as `cache_text_read_tokens` /
+`cache_image_read_tokens`. Only emit nonnegative integer counts (not booleans);
+never infer text counts by subtracting audio from totals.
 
 ### Server-Side Tool Usage
 

@@ -12,6 +12,7 @@ from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
+from tests.utils import terminate_process_group
 from tests.webclient import Client
 
 from .utils import PyramidBase
@@ -259,23 +260,24 @@ def pyramid_client(snapshot, pyramid_app):
         stderr=subprocess.PIPE,
         close_fds=True,
         env=env,
+        start_new_session=True,
     )
 
     client = Client("http://localhost:%d" % SERVER_PORT)
 
-    # Wait for the server to start up
-    client.wait()
-
     try:
-        yield client
+        client.wait()
+        try:
+            yield client
+        finally:
+            resp = client.get_ignored("/shutdown-tracer", timeout=10)
+            assert resp.status_code == 200
     finally:
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
-        proc.terminate()
-
-        # Clean up the temp directory
-        if os.path.exists(custom_temp_dir):
-            shutil.rmtree(custom_temp_dir)
+        try:
+            terminate_process_group(proc)
+        finally:
+            if os.path.exists(custom_temp_dir):
+                shutil.rmtree(custom_temp_dir)
 
 
 # @pytest.mark.subprocess()

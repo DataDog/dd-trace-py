@@ -7,7 +7,6 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
-import threading
 import time
 import typing
 
@@ -56,6 +55,7 @@ from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.internal.threads import Event
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -130,7 +130,7 @@ class DataDogProvider(AbstractProvider):
 
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
-        self._config_received = threading.Event()
+        self._config_received = Event()
         self._initialization_timed_out = False
 
         # Read through a fresh config instance so values reflect the environment at
