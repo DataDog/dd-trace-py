@@ -563,3 +563,217 @@ class TestEntryHooks:
         copied = FunctionType(copied_code, globals())
         assert copied() == 42
         assert calls == []
+
+    @pytest.mark.parametrize("second_hook", ["line", "context"])
+    def test_concurrent_hook_installations_preserve_entry_hook(self, monkeypatch, second_hook):
+        from ddtrace.internal import bytecode_injection
+        from ddtrace.internal.wrapping import context
+
+        class PeerContext(WrappingContext):
+            pass
+
+        def target():
+            return 42
+
+        paused = threading.Event()
+        resume = threading.Event()
+        second_lock_attempt = threading.Event()
+        lock = bytecode_injection._line_hook_lock
+        original_get_code = context.get_function_code
+        calls = []
+        errors = []
+        peer = PeerContext(target)
+
+        class ObservedLock:
+            def __enter__(self):
+                if threading.current_thread().name == "second-hook":
+                    second_lock_attempt.set()
+                return lock.__enter__()
+
+            def __exit__(self, *args):
+                return lock.__exit__(*args)
+
+        def get_code(function):
+            code = original_get_code(function)
+            if threading.current_thread().name == "entry-hook" and not paused.is_set():
+                paused.set()
+                assert resume.wait(10)
+            return code
+
+        def install_entry():
+            try:
+                context.inject_entry_hook(target, calls.append, "entry")
+            except BaseException as error:
+                errors.append(error)
+
+        def install_second():
+            try:
+                if second_hook == "line":
+                    bytecode_injection.inject_hook(target, calls.append, target.__code__.co_firstlineno + 1, "line")
+                else:
+                    peer.wrap()
+            except BaseException as error:
+                errors.append(error)
+
+        observed_lock = ObservedLock()
+        monkeypatch.setattr(bytecode_injection, "_line_hook_lock", observed_lock)
+        monkeypatch.setattr(context, "_line_hook_lock", observed_lock)
+        monkeypatch.setattr(context, "get_function_code", get_code)
+        first = threading.Thread(target=install_entry, name="entry-hook", daemon=True)
+        second = threading.Thread(target=install_second, name="second-hook", daemon=True)
+        first.start()
+        try:
+            assert paused.wait(10)
+            second.start()
+            assert second_lock_attempt.wait(10)
+        finally:
+            resume.set()
+            first.join(timeout=10)
+            if second.ident is not None:
+                second.join(timeout=10)
+        assert not first.is_alive() and not second.is_alive()
+        assert not errors
+        assert target() == 42
+        assert calls == (["entry", "line"] if second_hook == "line" else ["entry"])
+        if second_hook == "context":
+            peer.unwrap()
+
+    def test_context_probe_churn_reuses_entry_code(self):
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        class PeerContext(WrappingContext):
+            pass
+
+        def target():
+            return 42
+
+        calls = []
+        inject_entry_hook(target, calls.append, "entry")
+        isolated_code = target.__code__
+        for _ in range(10):
+            peer = PeerContext(target)
+            peer.wrap()
+            assert target() == 42
+            peer.unwrap()
+            assert target.__code__ is isolated_code
+        assert calls == ["entry"] * 10
+
+    def test_wrapping_copy_does_not_steal_original_entry_hook(self):
+        from types import FunctionType
+
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        class PeerContext(WrappingContext):
+            pass
+
+        def target():
+            return 42
+
+        calls = []
+        inject_entry_hook(target, calls.append, "first")
+        copied = FunctionType(target.__code__, target.__globals__)
+        peer = PeerContext(copied)
+        peer.wrap()
+        inject_entry_hook(copied, calls.append, "second")
+        assert target() == copied() == 42
+        peer.unwrap()
+        assert target() == copied() == 42
+        assert calls == ["first", "second", "first", "second"]
+
+    def test_context_registration_failure_preserves_existing_hooks(self, monkeypatch):
+        from ddtrace.internal.bytecode_injection import inject_hook
+        from ddtrace.internal.wrapping import context
+
+        class PeerContext(WrappingContext):
+            pass
+
+        def target():
+            return 42
+
+        calls = []
+        inject_hook(target, calls.append, target.__code__.co_firstlineno + 1, "line")
+        context.inject_entry_hook(target, calls.append, "entry")
+        register = context._monitoring.register
+
+        def fail(code, handler):
+            if isinstance(handler, context._UniversalWrappingContext):
+                raise RuntimeError("context registration denied")
+            return register(code, handler)
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(context._monitoring, "register", fail)
+            with pytest.raises(RuntimeError, match="context registration denied"):
+                PeerContext(target).wrap()
+        assert target() == 42
+        assert calls == ["entry", "line"]
+
+    def test_entry_exception_unwinds_only_the_inner_call(self):
+        from ddtrace.internal.wrapping.context import inject_entry_hook
+
+        class Cancelled(BaseException):
+            pass
+
+        events = []
+
+        class PeerContext(WrappingContext):
+            def __enter__(self):
+                super().__enter__()
+                self.set("depth", self.get_local("depth"))
+                events.append(("enter", self.get("depth")))
+                return self
+
+            def __exit__(self, *args):
+                events.append(("exit", self.get("depth")))
+                super().__exit__(*args)
+
+            def __return__(self, value):
+                events.append(("return", self.get("depth")))
+                return super().__return__(value)
+
+        def target(depth):
+            if depth:
+                try:
+                    return target(depth - 1)
+                except Cancelled:
+                    assert peer.get("depth") == depth
+                    return 42
+            return 0
+
+        calls = []
+
+        def hook(_):
+            calls.append(1)
+            if len(calls) == 2:
+                raise Cancelled()
+
+        inject_entry_hook(target, hook, None)
+        peer = PeerContext(target)
+        peer.wrap()
+        assert target(1) == 42
+        assert events == [("enter", 1), ("enter", 0), ("exit", 0), ("return", 1)]
+        peer.unwrap()
+
+    def test_context_code_assignment_failure_restores_line_probe(self, monkeypatch):
+        from ddtrace.internal.bytecode_injection import inject_hook
+        from ddtrace.internal.wrapping import context
+
+        class PeerContext(WrappingContext):
+            pass
+
+        def target():
+            return 42
+
+        calls = []
+        original = target.__code__
+        inject_hook(target, calls.append, original.co_firstlineno + 1, "line")
+
+        def fail(*args):
+            raise RuntimeError("context code assignment denied")
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(context, "set_function_code", fail)
+            with pytest.raises(RuntimeError, match="context code assignment denied"):
+                PeerContext(target).wrap()
+        assert target.__code__ is original
+        assert target() == 42
+        assert calls == ["line"]

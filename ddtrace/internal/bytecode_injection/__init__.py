@@ -122,17 +122,16 @@ if is_at_least_py(3, 15):
 
         Returns the list of hooks that failed to be injected.
         """
-        code: CodeType = get_function_code(f)
-        if is_obfuscated_code(code):
-            log.warning(
-                "Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)",
-                code.co_name,
-            )
-            return list(hooks)
-
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
+            code: CodeType = get_function_code(f)
+            if is_obfuscated_code(code):
+                log.warning(
+                    "Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                    code.co_name,
+                )
+                return list(hooks)
             handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 handler = _LineHookHandler()
@@ -174,8 +173,8 @@ if is_at_least_py(3, 15):
 
     def eject_all_hooks(f: FunctionType) -> None:
         """Remove every line hook registered for *f*."""
-        code: CodeType = get_function_code(f)
         with _line_hook_lock:
+            code: CodeType = get_function_code(f)
             handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 return
@@ -190,17 +189,16 @@ if is_at_least_py(3, 15):
 
         Returns the list of hooks that failed to be ejected.
         """
-        code: CodeType = get_function_code(f)
-        if is_obfuscated_code(code):
-            log.warning(
-                "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
-                code.co_name,
-            )
-            return list(hooks)
-
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
+            code: CodeType = get_function_code(f)
+            if is_obfuscated_code(code):
+                log.warning(
+                    "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                    code.co_name,
+                )
+                return list(hooks)
             handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 return list(hooks)

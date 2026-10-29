@@ -124,6 +124,9 @@ class MonitoringEventHandler(ABC):
         handlers registered with direct=True must handle their own failures.
     """
 
+    # Lower values run first; equal values retain registration order.
+    priority: int = 0
+
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
         """Return ``sys.monitoring.DISABLE`` to request disabling future PY_START events.
 
@@ -197,11 +200,15 @@ class _CodeHandlers:
 
     def set_handler(self, handler_id: int, entry: _Entry) -> None:
         self._by_handler[handler_id] = entry
-        self.snapshot = tuple(self._by_handler.values())
+        self.snapshot = tuple(
+            sorted(self._by_handler.values(), key=lambda entry: getattr(entry.handler, "priority", 0))
+        )
 
     def pop_handler(self, handler_id: int) -> Optional[_Entry]:
         entry = self._by_handler.pop(handler_id, None)
-        self.snapshot = tuple(self._by_handler.values())
+        self.snapshot = tuple(
+            sorted(self._by_handler.values(), key=lambda entry: getattr(entry.handler, "priority", 0))
+        )
         return entry
 
 

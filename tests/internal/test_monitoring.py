@@ -1567,3 +1567,32 @@ def test_unregister_global_completes_interrupted_teardown():
     assert not (sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE)
     if not len(monitoring._registry):
         assert monitoring._tool_id is None
+
+
+def test_handler_priority_preserves_registration_order_for_equal_priorities(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    calls = []
+
+    class Handler(monitoring.MonitoringEventHandler):
+        def __init__(self, name: str, priority: int = 0):
+            self.name = name
+            self.priority = priority
+
+        def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+            calls.append(self.name)
+
+    def target():
+        return 42
+
+    late = Handler("late", 1)
+    first = Handler("first")
+    second = Handler("second")
+    for handler in (late, first, second):
+        registered(target.__code__, handler)
+    assert target() == 42
+    assert calls == ["first", "second", "late"]
+    calls.clear()
+    monitoring.unregister(target.__code__, first)
+    assert target() == 42
+    assert calls == ["second", "late"]
