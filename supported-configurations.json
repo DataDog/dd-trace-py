@@ -2980,6 +2980,13 @@
         "default": "1.0"
       }
     ],
+    "DD_PROFILING_MALLOC_TRIM_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": [
       {
         "implementation": "A",

@@ -1,0 +1,5 @@
+features:
+  - |
+    profiling: Adds opt-in ``DD_PROFILING_MALLOC_TRIM_ENABLED`` (default ``false``).
+    When true, the profiler returns unused glibc heap pages to the OS after each
+    profile upload. Linux only; it does not cap a single-request memory burst.

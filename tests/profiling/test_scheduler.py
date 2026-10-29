@@ -24,6 +24,65 @@ def test_serverless_scheduler_interval_none_uses_forced_interval() -> None:
     assert s.interval == scheduler.ServerlessScheduler.FORCED_INTERVAL
 
 
+def test_flush_skips_malloc_trim_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    trim_calls: list[int] = []
+
+    def fake_trim(pad: int) -> int:
+        trim_calls.append(pad)
+        return 1
+
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", False)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    with mock.patch.object(ddup, "upload"):
+        scheduler.Scheduler().flush()
+
+    assert trim_calls == []
+
+
+def test_flush_calls_malloc_trim_after_upload(monkeypatch: pytest.MonkeyPatch) -> None:
+    order: list[str] = []
+
+    def fake_upload(*args: t.Any, **kwargs: t.Any) -> None:
+        order.append("upload")
+
+    def fake_trim(pad: int) -> int:
+        order.append("trim")
+        assert pad == 0
+        return 1
+
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    with mock.patch.object(ddup, "upload", fake_upload):
+        scheduler.Scheduler().flush()
+
+    assert order == ["upload", "trim"]
+
+
+def test_flush_trims_after_upload_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    trim_calls: list[int] = []
+
+    def fake_trim(pad: int) -> int:
+        trim_calls.append(pad)
+        return 1
+
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    with mock.patch.object(ddup, "upload", side_effect=RuntimeError("upload failed")):
+        scheduler.Scheduler().flush()
+
+    assert trim_calls == [0]
+
+
+def test_load_malloc_trim_missing_symbol_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _NoTrimLib:
+        def __getattr__(self, name: str) -> t.Any:
+            raise AttributeError(name)
+
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", scheduler._UNSET)
+    with mock.patch("ddtrace.profiling.scheduler.ctypes.CDLL", return_value=_NoTrimLib()):
+        assert scheduler._get_malloc_trim() is None
+
+
 def test_exporter_failure(caplog: pytest.LogCaptureFixture) -> None:
     s = scheduler.Scheduler()
 
