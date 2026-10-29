@@ -42,7 +42,7 @@ if is_at_least_py(3, 15):
     import dis
 
     from ddtrace.internal import monitoring as _monitoring
-    from ddtrace.internal.threads import RLock
+    from ddtrace.internal.threads import Lock
 
     def _effective_line(code: CodeType, line: int) -> "int | None":
         """Find the line to register a hook on for the given requested line.
@@ -111,8 +111,7 @@ if is_at_least_py(3, 15):
     # compiles, or CodeType.replace() clones), so a plain WeakKeyDictionary would let
     # a hook registered for one code object be looked up under another.
     _line_hook_registry: "IdentityWeakKeyDictionary[CodeType, Any]" = IdentityWeakKeyDictionary()
-    # Context wrapping holds this lock across migrations, which take it again.
-    _line_hook_lock = RLock()
+    _line_hook_lock = Lock()
 
     def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:
         """Bulk-inject a list of hooks into a function.
@@ -122,16 +121,17 @@ if is_at_least_py(3, 15):
 
         Returns the list of hooks that failed to be injected.
         """
+        code: CodeType = get_function_code(f)
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return list(hooks)
+
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
-            code: CodeType = get_function_code(f)
-            if is_obfuscated_code(code):
-                log.warning(
-                    "Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)",
-                    code.co_name,
-                )
-                return list(hooks)
             handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 handler = _LineHookHandler()
@@ -156,42 +156,25 @@ if is_at_least_py(3, 15):
 
         return failed
 
-    def migrate_line_hooks(src: CodeType, dst: CodeType, *, copy: bool = False) -> None:
+    def migrate_line_hooks(src: CodeType, dst: CodeType) -> None:
         """Move line-hook registration from *src* to *dst*.
 
         Wrapping on 3.15 clones the function's code object; line probes installed
-        on the pre-wrap code must follow the clone or they stop firing. Preserve
-        existing destination probes when restoring shared code. With copy=True,
-        keep independent registrations on both codes for copied functions.
+        on the pre-wrap code must follow the clone or they stop firing.
         """
         with _line_hook_lock:
             handler: _LineHookHandler | None = _line_hook_registry.get(src)
             if handler is None:
                 return
-            existing = _line_hook_registry.get(dst)
-            if copy or existing is not None:
-                merged = _LineHookHandler()
-                for source in (existing, handler):
-                    if source is not None:
-                        for line, hooks in source._hooks.items():
-                            for hook, arg in hooks:
-                                if (hook, arg) not in merged._hooks.get(line, ()):
-                                    merged.add(line, hook, arg)
-                target = merged
-            else:
-                target = handler
-            _monitoring.register(dst, target)
-            if existing is not None:
-                _monitoring.unregister(dst, existing)
-            _line_hook_registry[dst] = target
-            if not copy:
-                del _line_hook_registry[src]
-                _monitoring.unregister(src, handler)
+            del _line_hook_registry[src]
+            _monitoring.unregister(src, handler)
+            _line_hook_registry[dst] = handler
+            _monitoring.register(dst, handler)
 
     def eject_all_hooks(f: FunctionType) -> None:
         """Remove every line hook registered for *f*."""
+        code: CodeType = get_function_code(f)
         with _line_hook_lock:
-            code: CodeType = get_function_code(f)
             handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 return
@@ -206,16 +189,17 @@ if is_at_least_py(3, 15):
 
         Returns the list of hooks that failed to be ejected.
         """
+        code: CodeType = get_function_code(f)
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return list(hooks)
+
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
-            code: CodeType = get_function_code(f)
-            if is_obfuscated_code(code):
-                log.warning(
-                    "Cannot eject hooks from %r: code object appears to be obfuscated (e.g. by PyArmor)",
-                    code.co_name,
-                )
-                return list(hooks)
             handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 return list(hooks)

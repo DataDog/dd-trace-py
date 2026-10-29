@@ -116,7 +116,6 @@ _CONTEXT_PLACEHOLDER = object()
 
 
 T = t.TypeVar("T")
-WC = t.TypeVar("WC", bound="BaseWrappingContext")
 
 # Hoisted out of the hot enter/exit/return paths: subscripting a generic alias
 # like dict[str, t.Any] allocates a new types.GenericAlias on every evaluation,
@@ -473,8 +472,6 @@ if is_at_least_py(3, 15):
     # Reentrant because _finalize_monitoring_wrap takes it from a weakref.finalize
     # callback: a GC pass triggered by any allocation made while the lock is held
     # (e.g. in wrap()) runs that callback on the same thread.
-    # When both registries are needed, acquire the line-hook lock first:
-    # GC finalizers can take this context lock during line-hook operations.
     _ctx_registry_lock = RLock()
 
 
@@ -557,7 +554,7 @@ class BaseWrappingContext(ABC):
         return value
 
     @classmethod
-    def wrapped(cls: type[WC], f: FunctionType) -> WC:
+    def wrapped(cls, f: FunctionType) -> "BaseWrappingContext":
         try:
             context = cls.extract(f)
             assert isinstance(context, cls)  # nosec
@@ -613,7 +610,7 @@ class WrappingContext(BaseWrappingContext):
 
     def wrap(self) -> None:
         f = t.cast(FunctionType, self.__wrapped__)
-        context = _UniversalWrappingContext.wrapped(f)
+        context = t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(f))
         context.register(self)
 
     def unwrap(self) -> None:
@@ -721,74 +718,7 @@ class ContextWrappedFunction(Protocol):
 # On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
 # it can be registered directly with the multiplexer via register(code, self).
 if is_at_least_py(3, 15):
-    from ddtrace.internal.bytecode_injection import _line_hook_lock
-    from ddtrace.internal.bytecode_injection import migrate_line_hooks
     from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
-
-    class _EntryHookHandler(_MonitoringEventHandler):
-        # Context entry must precede callbacks that may raise BaseException,
-        # so the unwind handler cleans up the current invocation, not its parent.
-        priority = 1
-
-        def __init__(self, owner: FunctionType) -> None:
-            self.owner = weakref.ref(owner)
-            self.hooks: list[tuple[t.Callable[[t.Any], t.Any], t.Any]] = []
-
-        def on_py_start(self, code: CodeType, instruction_offset: int) -> t.Optional[object]:
-            if self.owner() is None:
-                return _monitoring._DISABLE
-            for hook, arg in self.hooks:
-                hook(arg)
-            return None
-
-    _entry_hook_registry: IdentityWeakKeyDictionary[CodeType, _EntryHookHandler] = IdentityWeakKeyDictionary()
-
-    def _migrate_entry_hook(src: CodeType, dst: CodeType, handler: _EntryHookHandler) -> None:
-        _monitoring.register(dst, handler)
-        _entry_hook_registry[dst] = handler
-        del _entry_hook_registry[src]
-        _monitoring.unregister(src, handler)
-
-    def inject_entry_hook(f: FunctionType, hook: t.Callable[[t.Any], t.Any], arg: t.Any) -> None:
-        """Call hook(arg) when execution starts, without retaining the execution frame.
-
-        Hooks follow context wrapping and unwrapping. Like monitoring callbacks,
-        they must handle their own exceptions if they must not affect user code.
-        """
-        with _line_hook_lock:
-            code = get_function_code(f)
-            if is_obfuscated_code(code):
-                raise ObfuscatedCodeError(f"Cannot instrument obfuscated code {code.co_name!r}")
-            handler = _entry_hook_registry.get(code)
-            if handler is not None and handler.owner() is f:
-                if (hook, arg) not in handler.hooks:
-                    handler.hooks.append((hook, arg))
-                return
-
-            # A context already gives this function an isolated code object.
-            # Otherwise clone it so sibling closures do not receive its hooks.
-            isolated = _UniversalWrappingContext.is_wrapped(f)
-            monitor_code = code if isolated else code.replace()
-            copied_code = handler is not None
-            handler = _EntryHookHandler(f)
-            handler.hooks.append((hook, arg))
-            _monitoring.register(monitor_code, handler)
-            moved_lines = False
-            try:
-                if not isolated:
-                    if not copied_code:
-                        link_function_to_code(code, f)
-                    migrate_line_hooks(code, monitor_code, copy=copied_code)
-                    moved_lines = True
-                    set_function_code(f, monitor_code)
-                _entry_hook_registry[monitor_code] = handler
-            except Exception:
-                if get_function_code(f) is monitor_code and monitor_code is not code:
-                    set_function_code(f, code)
-                if moved_lines:
-                    migrate_line_hooks(monitor_code, code)
-                _monitoring.unregister(monitor_code, handler)
-                raise
 
     _UWC_BASES: tuple[type, ...] = (BaseWrappingContext, _MonitoringEventHandler)
 else:
@@ -955,8 +885,8 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
     if is_at_least_py(3, 15):
         # Exceptions here are deliberately left uncaught (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
-        # with-statement semantics. Entry-only hooks run after this handler;
-        # if context entry prevents the function from running, they are skipped.
+        # with-statement semantics -- safe because this is the only handler
+        # ddtrace registers for these events on a given code object.
         #
         # CPython also fires a synthetic PY_UNWIND after a failing PY_START/
         # PY_RETURN. After a failing PY_START it exits the contexts that already
@@ -1007,71 +937,49 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         def wrap(self) -> None:
             f: FunctionType = self.__wrapped__
-            with _line_hook_lock:
-                original_code = get_function_code(f)
-                if is_obfuscated_code(original_code):
-                    raise ObfuscatedCodeError(
-                        f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
-                    )
-                stale = None
-                with _ctx_registry_lock:
-                    if original_code in _ctx_registry:
-                        existing: _UniversalWrappingContext = _ctx_registry[original_code]
-                        if _fn_registry.get(f) is existing:
-                            raise ValueError("Function already wrapped")
-                        # Only replace registrations whose function has been collected.
-                        try:
-                            existing.__wrapped__
-                        except RuntimeError:
-                            _ctx_registry.pop(original_code)
-                            stale = existing
-                        else:
-                            raise ValueError("Function already wrapped")
-                if stale is not None:
-                    _monitoring.unregister(original_code, stale)
+            original_code: CodeType = get_function_code(f)
+            if is_obfuscated_code(original_code):
+                raise ObfuscatedCodeError(
+                    f"Cannot wrap {original_code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                )
+            with _ctx_registry_lock:
+                if original_code in _ctx_registry:
+                    existing: _UniversalWrappingContext = _ctx_registry[original_code]
+                    if _fn_registry.get(f) is existing:
+                        raise ValueError("Function already wrapped")
+                    # Only replace a registry entry when the prior wrapped function
+                    # has been collected. A live function sharing this code object is
+                    # still actively wrapped and must not be unregistered.
+                    try:
+                        existing.__wrapped__
+                    except RuntimeError:
+                        _ctx_registry.pop(original_code)
+                        _monitoring.unregister(original_code, existing)
+                    else:
+                        raise ValueError("Function already wrapped")
 
-                entry = _entry_hook_registry.get(original_code)
-                owns_entry = entry is not None and entry.owner() is f
-                copied_entry = entry is not None and not owns_entry
-                # A library may have copied even an entry-isolated code object.
-                # Give contexts their own clone and restore the entry code on
-                # unwrap, without retaining the temporary clone in discovery.
-                monitor_code = original_code.replace()
-                moved_lines = False
-                moved_entry = False
-                try:
-                    _monitoring.register(monitor_code, self)
-                    if owns_entry:
-                        assert entry is not None  # nosec
-                        _migrate_entry_hook(original_code, monitor_code, entry)
-                        moved_entry = True
-                    if not copied_entry and not owns_entry:
-                        link_function_to_code(original_code, f)
-                    migrate_line_hooks(original_code, monitor_code, copy=copied_entry)
-                    moved_lines = True
-                    set_function_code(f, monitor_code)
-                    with _ctx_registry_lock:
-                        _ctx_registry[monitor_code] = self
-                        _fn_registry[f] = self
-                    self._finalize = weakref.finalize(f, _finalize_monitoring_wrap, weakref.ref(self), monitor_code)
-                    self._finalize.atexit = False
-                    self._original_code = original_code
-                    self._restore_entry_code = owns_entry
-                except Exception:
-                    if get_function_code(f) is monitor_code and monitor_code is not original_code:
-                        set_function_code(f, original_code)
-                    if moved_lines:
-                        migrate_line_hooks(monitor_code, original_code)
-                    if moved_entry:
-                        assert entry is not None  # nosec
-                        _migrate_entry_hook(monitor_code, original_code, entry)
-                    with _ctx_registry_lock:
-                        if _ctx_registry.get(monitor_code) is self:
-                            del _ctx_registry[monitor_code]
-                        if _fn_registry.get(f) is self:
-                            _fn_registry.pop(f, None)
-                    _monitoring.unregister(monitor_code, self)
-                    raise
+                # sys.monitoring dispatches per code object. Clone the code so
+                # unwrapped siblings that share the same CodeType are not affected.
+                from ddtrace.internal.bytecode_injection import migrate_line_hooks
+
+                link_function_to_code(original_code, f)
+                monitor_code: CodeType = original_code.replace()
+                migrate_line_hooks(original_code, monitor_code)
+
+                _ctx_registry[monitor_code] = self
+                _fn_registry[f] = self
+                self._finalize = weakref.finalize(
+                    f,
+                    _finalize_monitoring_wrap,
+                    weakref.ref(self),
+                    monitor_code,
+                )
+                self._finalize.atexit = False
+                # Register monitoring before swapping __code__ so no thread can
+                # observe monitor_code without an active handler.
+                _monitoring.register(monitor_code, self)
+                set_function_code(f, monitor_code)
+                self._original_code = original_code
 
         def unwrap(self) -> None:
             f: FunctionType = self.__wrapped__
@@ -1079,29 +987,20 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             if finalize is not None:
                 finalize.detach()
                 del self._finalize
-            with _line_hook_lock:
-                code = get_function_code(f)
-                with _ctx_registry_lock:
-                    if code not in _ctx_registry:
-                        return
-                    del _ctx_registry[code]
-                    _fn_registry.pop(f, None)
-                _monitoring.unregister(code, self)
-                original_code: t.Optional[CodeType] = getattr(self, "_original_code", None)
-                entry = _entry_hook_registry.get(code)
-                owns_entry = entry is not None and entry.owner() is f
-                restore_entry = getattr(self, "_restore_entry_code", False)
-                if owns_entry and restore_entry and original_code is not None:
-                    assert entry is not None  # nosec
-                    _migrate_entry_hook(code, original_code, entry)
-                # Entry hooks installed during wrapping still need isolation;
-                # otherwise restore the pre-wrap code and its migrated hooks.
-                if original_code is not None and (not owns_entry or restore_entry):
-                    if code is not original_code:
-                        migrate_line_hooks(code, original_code)
-                        set_function_code(f, original_code)
-                if original_code is not None:
-                    del self._original_code
+            code: CodeType = get_function_code(f)
+            with _ctx_registry_lock:
+                if code not in _ctx_registry:
+                    return
+                del _ctx_registry[code]
+                _fn_registry.pop(f, None)
+            _monitoring.unregister(code, self)
+            original_code: t.Optional[CodeType] = getattr(self, "_original_code", None)
+            if original_code is not None:
+                from ddtrace.internal.bytecode_injection import migrate_line_hooks
+
+                migrate_line_hooks(code, original_code)
+                set_function_code(f, original_code)
+                del self._original_code
 
     else:
 

@@ -15,12 +15,12 @@ import pytest
 
 import ddtrace.appsec.sca._instrumenter as _instrumenter_mod
 from ddtrace.appsec.sca._instrumenter import Instrumenter
+from ddtrace.appsec.sca._instrumenter import _first_instr_line
 import ddtrace.appsec.sca._registry as _registry_mod
 from ddtrace.appsec.sca._registry import InstrumentationRegistry
 from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.telemetry.dependency import DependencyEntry
 from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-from ddtrace.internal.utils.inspection import linenos
 
 
 @pytest.fixture(autouse=True)
@@ -50,12 +50,6 @@ def _restore_instrumenter_globals():
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _first_hookable_line(code):
-    if sys.version_info >= (3, 15):
-        return min(linenos(code))
-    return _instrumenter_mod._first_instr_line(code)
 
 
 def _make_target_function():
@@ -94,7 +88,7 @@ class TestInjectHookFires:
             called_with.append(arg)
 
         func = _make_target_function()
-        inject_hook(func, my_hook, _first_hookable_line(func.__code__), "test:target")
+        inject_hook(func, my_hook, _first_instr_line(func.__code__), "test:target")
 
         result = func(10)
         assert result == 11
@@ -108,7 +102,7 @@ class TestInjectHookFires:
             called_with.append(arg)
 
         wrapped_func, original = _make_wrapt_wrapped_function()
-        inject_hook(original, my_hook, _first_hookable_line(original.__code__), "test:wrapped_target")
+        inject_hook(original, my_hook, _first_instr_line(original.__code__), "test:wrapped_target")
 
         # Call through the wrapper — the wrapper calls original(*args, **kwargs)
         result = wrapped_func(10)
@@ -123,7 +117,7 @@ class TestInjectHookFires:
             call_count.append(1)
 
         func = _make_target_function()
-        inject_hook(func, my_hook, _first_hookable_line(func.__code__), "test:once")
+        inject_hook(func, my_hook, _first_instr_line(func.__code__), "test:once")
 
         func(1)
         func(2)
@@ -600,7 +594,6 @@ class TestFunctionEntry:
             pass
 
         target = _make_target_function()
-        sibling = _make_target_function()
         wrapper = PeerContext(target)
         registry = InstrumentationRegistry()
         instrumenter = Instrumenter(registry)
@@ -612,7 +605,6 @@ class TestFunctionEntry:
         assert target(1) == 2
         wrapper.unwrap()
         assert target(2) == 3
-        assert sibling(10) == 11
         assert registry._targets["test:target"].hit_count == 2
 
     def test_generator_reports_start_not_resume(self):
@@ -673,91 +665,12 @@ class TestFunctionEntry:
         target = _make_target_function()
         original_registry = InstrumentationRegistry()
         assert Instrumenter(original_registry).instrument("test:target", target)
+        original_lock = _instrumenter_mod._SCAWrappingContext.registration_lock
         _instrumenter_mod._reset_after_fork()
+        assert _instrumenter_mod._SCAWrappingContext.registration_lock is not original_lock
         registry = InstrumentationRegistry()
         registry.add_target("test:target")
         _instrumenter_mod.set_registry(registry)
         assert target(1) == 2
         assert registry._targets["test:target"].hit_count == 1
         assert original_registry._targets["test:target"].hit_count == 0
-
-    def test_generator_closed_on_another_thread_releases_locals(self):
-        from concurrent.futures import ThreadPoolExecutor
-        import gc
-        import weakref
-
-        class Payload:
-            pass
-
-        def target(payload):
-            yield 1
-            yield payload
-
-        registry = InstrumentationRegistry()
-        assert Instrumenter(registry).instrument("test:target", target)
-        payload = Payload()
-        reference = weakref.ref(payload)
-        iterator = target(payload)
-        assert next(iterator) == 1
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            executor.submit(iterator.close).result(timeout=10)
-        del iterator, payload
-        gc.collect()
-        assert reference() is None
-
-    def test_recursive_target_can_be_collected(self):
-        import gc
-        import weakref
-
-        def factory():
-            def target(x):
-                return target(x - 1) if x else 0
-
-            return target
-
-        target = factory()
-        registry = InstrumentationRegistry()
-        assert Instrumenter(registry).instrument("test:target", target)
-        assert target(2) == 0
-        reference = weakref.ref(target)
-        del target
-        gc.collect()
-        assert reference() is None
-
-
-@pytest.mark.skipif(sys.version_info < (3, 15) or not hasattr(os, "fork"), reason="Requires fork and Python 3.15")
-@pytest.mark.subprocess(err=None)
-def test_entry_hook_survives_fork_and_registry_reinitialization():
-    import os
-    import sys
-    import types
-
-    import ddtrace.appsec.sca._instrumenter as instrumenter
-    import ddtrace.appsec.sca._registry as registry_module
-
-    module = types.ModuleType("sca_fork_target")
-    exec("def target(x): return x + 1", module.__dict__)
-    sys.modules[module.__name__] = module
-    registry = registry_module.InstrumentationRegistry()
-    assert instrumenter.Instrumenter(registry).instrument("sca_fork_target:target", module.target)
-    pid = os.fork()
-    if pid == 0:
-        try:
-            instrumenter._reset_after_fork()
-            registry_module._reset_global_registry_after_fork()
-            instrumenter.apply_instrumentation_updates(
-                [{"id": "CVE-TEST", "dependency_name": "testpkg", "targets": ["sca_fork_target:target"]}],
-                after_fork=True,
-            )
-            assert module.target(1) == 2
-            child_registry = registry_module.get_global_registry()
-            assert child_registry._targets["sca_fork_target:target"].hit_count == 1
-        except BaseException:
-            import traceback
-
-            traceback.print_exc()
-            os._exit(1)
-        os._exit(0)
-    _, status = os.waitpid(pid, 0)
-    assert os.waitstatus_to_exitcode(status) == 0
-    assert registry._targets["sca_fork_target:target"].hit_count == 0
