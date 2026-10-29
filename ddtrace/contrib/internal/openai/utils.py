@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Any
 from typing import AsyncGenerator
 from typing import Generator
 from typing import Optional
@@ -14,14 +15,14 @@ log = get_logger(__name__)
 
 
 class BaseOpenAIStreamHandler:
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._finished_choices = set()
+        self._finished_choices: set[int] = set()
 
     def initialize_chunk_storage(self):
         return defaultdict(list)
 
-    def _all_choices_finished(self, chunk) -> bool:
+    def _all_choices_finished(self, chunk: Any) -> bool:
         """Return whether this chunk finishes the last of the n requested choices.
 
         With n > 1 the choices finish independently, so the chunk after the first finish_reason
