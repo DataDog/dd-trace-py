@@ -90,6 +90,29 @@ pub fn generate_128bit_trace_id() -> u128 {
     (timestamp << 96) | (rand64bits() as u128)
 }
 
+/// Generate a random (version 4) UUID, in its hyphenated string form.
+///
+/// This spares the Python uuid module, which imports threading via platform and
+/// subprocess. Module cloning unloads them, and importing threading again from a
+/// ddtrace background thread hangs Python < 3.13 at exit.
+///
+/// As RFC 9562 recommends, and like uuid.uuid4 (os.urandom), the random bits
+/// come from the OS CSPRNG. from_random_bytes sets the version and variant bits.
+#[pyfunction]
+pub fn uuid4() -> String {
+    let mut bytes = [0u8; 16];
+    if OsRng.try_fill_bytes(&mut bytes).is_err() {
+        if !OS_RNG_FAILURE_LOGGED.swap(true, Ordering::Relaxed) {
+            warn!("OsRng failed generating a UUID; falling back to thread-local SmallRng");
+        }
+        RNG.with(|rng| rng.borrow_mut().rng.fill(&mut bytes));
+    }
+    uuid::Builder::from_random_bytes(bytes)
+        .into_uuid()
+        .hyphenated()
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,6 +244,20 @@ mod tests {
             lows.len()
         );
     }
+
+    #[test]
+    fn test_uuid4_is_a_random_version_4_uuid() {
+        let mut seen = HashSet::new();
+        for _ in 0..100 {
+            let value = uuid4();
+            let parsed = uuid::Uuid::try_parse(&value).unwrap();
+            assert_eq!(parsed.get_version_num(), 4, "{value}");
+            assert_eq!(parsed.get_variant(), uuid::Variant::RFC4122, "{value}");
+            assert_eq!(value, parsed.hyphenated().to_string());
+            seen.insert(value);
+        }
+        assert_eq!(seen.len(), 100);
+    }
 }
 
 /// Register the rand module functions and set up fork safety.
@@ -232,6 +269,7 @@ pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(seed, m)?)?;
     m.add_function(wrap_pyfunction!(rand64bits, m)?)?;
     m.add_function(wrap_pyfunction!(generate_128bit_trace_id, m)?)?;
+    m.add_function(wrap_pyfunction!(uuid4, m)?)?;
 
     // Register seed() with ddtrace.internal.forksafe for fork safety
     let py = m.py();

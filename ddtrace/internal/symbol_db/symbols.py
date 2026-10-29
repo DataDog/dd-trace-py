@@ -23,7 +23,6 @@ from types import CodeType
 from types import FunctionType
 from types import ModuleType
 import typing as t
-import uuid
 
 from ddtrace import config
 from ddtrace.internal import forksafe
@@ -36,6 +35,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.native import SymDBSender
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
 from ddtrace.internal.safety import _isinstance
@@ -584,7 +584,7 @@ class ScopeContext:
         # upload_id is stable for the lifetime of this process; all batches
         # uploaded by the process share it. A forked child gets a fresh
         # upload_id and batch counter via _reset_on_fork below.
-        self._upload_id: str = str(uuid.uuid4())
+        self._upload_id: str = uuid4()
         self._batch_counter: int = 0
 
         # Static portion of the event message. Dynamic fields (batchNum,
@@ -613,7 +613,7 @@ class ScopeContext:
         # Runs after fork in the child. The runtime module's own forksafe
         # hook regenerates the runtime_id first (registered earlier at
         # import time), so the calls below return the post-fork values.
-        self._upload_id = str(uuid.uuid4())
+        self._upload_id = uuid4()
         self._batch_counter = 0
         self._event_data["uploadId"] = self._upload_id
         self._event_data["runtimeId"] = get_runtime_id()

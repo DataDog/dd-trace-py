@@ -507,7 +507,7 @@ integrations:
   tested_versions_by_dependency:
     graphql-core:
       min: 3.1.7
-      max: 3.2.6
+      max: 3.3.0
 
 - integration_name: grpc
   is_external_package: true
@@ -691,7 +691,7 @@ integrations:
   tested_versions_by_dependency:
     mcp:
       min: 1.10.1
-      max: 1.28.1
+      max: 2.3.0
 
 - integration_name: mistralai
   is_external_package: true
@@ -833,7 +833,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.18.3
+      max: 4.19.0
 
 - integration_name: pymysql
   is_external_package: true
