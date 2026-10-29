@@ -25,19 +25,16 @@ outside a test context are treated as shared session dependencies.
 
 This is a dependency approximation, not equivalent to execution coverage:
 
-- **Missed dependencies can cause unsafe skips.** Calls through injected callbacks,
-  fixture/plugin objects, registries, or other references can execute a workspace
-  file outside the anchor's import closure without executing an import. Such a
-  file is invisible to this mode.
-- An `__import__` or `import_module` alias saved before installation, or custom
-  loading through `exec`, `runpy`, or loader APIs, bypasses import-event hooks. The
-  module watchdog can still see some first loads; cached calls and their caller edges
-  are not recovered. Install the collector as early as possible.
-- For modules already loaded at installation, backfill reads only unconditional
-  top-level import statements. Imports in `if`, `try`, loops, class bodies, and
-  functions, and dynamic imports, are not reconstructed. Inspecting all AST
-  imports would also attribute branches that never ran, so backfill deliberately
-  does not claim to recover their runtime history.
+- **Callback/registry execution** (stored function references) can execute a workspace
+  file outside the anchor's import closure without executing an import. Import-only
+  mode has no signal for this — no import statement fires. The opt-in conservative
+  flag (see below) addresses this by attributing all workspace modules to every test.
+- An `__import__` or `import_module` alias saved before installation bypasses the
+  wrapper, but the module watchdog still sees the first load and `on_module_body_finished`
+  attributes the module file to the current test context. The module's own import-time
+  dependencies remain unreachable (no caller edge), but the module itself is covered.
+- Custom loading through `exec`, `runpy`, or loader APIs bypasses all import machinery
+  and is completely invisible to import-only mode.
 - **Extra dependencies cause unnecessary test runs.** Every test in a file inherits
   its module-level imports, even when only another test uses them. Session-level
   lazy imports and conftest anchors are also conservative. This trades selection
@@ -46,6 +43,48 @@ This is a dependency approximation, not equivalent to execution coverage:
   environment configuration, and external services need safeguards beyond an
   import graph. An import-only result should not establish that a test is safe
   to skip by itself.
+
+### Conditional imports in backfill (fixed)
+
+Backfill walks the full AST (`ast.walk`), not just top-level statements. Imports
+in `if`, `try`, loops, class bodies, and function bodies are all discovered. Each
+name is verified against `sys.modules`: only imports that actually executed (the
+branch was taken, the function was called during the module's own load) create
+dependency edges. Dead branches are excluded — no over-attribution.
+
+Example: `if sys.platform == "darwin": from mac_helper import fn` — the edge is
+recorded only if `mac_helper` is in `sys.modules` at backfill time (i.e., we're on
+macOS and the branch ran). On Linux, `mac_helper` is not in `sys.modules`, the edge
+is not created, and the test is not falsely impacted.
+
+### Conservative mode (opt-in flag)
+
+`_DD_COVERAGE_IMPORT_ONLY_CONSERVATIVE=1` addresses the callback/registry blind spot
+by attributing every workspace module (pre-imported and dynamically loaded) and its
+transitive import-time dependencies to every test.
+
+This is **more conservative than PY_START**: PY_START only covers files whose code
+actually executed during the test. Conservative mode covers every workspace module
+regardless of whether its code ran. This means:
+
+| | PY_START (instrumented) | Import-only (default) | Import-only (conservative) |
+|---|---|---|---|
+| Files imported by the test | covered (PY_START) | covered (closure) | covered (closure) |
+| Files imported by conftest | covered (PY_START) | covered (conftest anchor) | covered (conftest anchor) |
+| Files called via stored references | covered (PY_START) | **MISSING** | covered (workspace roots) |
+| Files whose code never ran | **NOT covered** | **NOT covered** | **covered** (over-attribution) |
+| Files in sys.modules but never used | **NOT covered** | **NOT covered** | **covered** (over-attribution) |
+
+Concrete over-attribution example: if workspace modules A, B, C are all
+pre-imported at collection time, but test_1 only uses A:
+- Default: test_1 gets {A, A's deps}
+- Conservative: test_1 gets {A, A's deps, B, B's deps, C, C's deps}
+- A change to B's code marks test_1 as impacted in conservative mode (it shouldn't be)
+
+This trades skippability for safety: any workspace file change impacts all tests.
+In a workspace with many modules, conservative mode reduces skipping to near zero.
+Enable it only during pilot evaluation or when the callback/registry pattern is
+known to be common in the codebase.
 
 When evaluating, compare per-test dependencies and skip decisions against
 instrumented coverage on representative suites. Include collection-time fixtures,

@@ -33,6 +33,13 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+def _conservative_import_only_enabled() -> bool:
+    """Whether workspace modules are attributed to every test as closure roots."""
+    from ddtrace.internal.settings import env
+
+    return env.get("_DD_COVERAGE_IMPORT_ONLY_CONSERVATIVE", "").lower() in ("1", "true", "yes")
+
+
 # ---------------------------------------------------------------------------
 # Import-event wrappers
 # ---------------------------------------------------------------------------
@@ -218,6 +225,10 @@ class ImportOnlyCoverage(CoverageMode):
         # or module metadata (including aliases and previously empty resolutions).
         self._static_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
         self._test_file_anchors: dict[Path, tuple[str, ...]] = {}
+        # Workspace modules attributed to every test when the conservative flag
+        # is enabled; see expand_context_files for the rationale.
+        self._workspace_root_paths: set[str] = set()
+        self._conservative = _conservative_import_only_enabled()
 
     def should_track(self, path: str) -> bool:
         return self._collector._is_instrumentable_path(Path(path))
@@ -302,10 +313,13 @@ class ImportOnlyCoverage(CoverageMode):
             module_file = os.path.realpath(module.__file__)
             self._collector._record_import_time_sentinel(module_file)
             self.record_import_file(module_file)
+            if self._conservative and self.should_track(module_file):
+                self._workspace_root_paths.add(module_file)
 
     def backfill_already_imported(self) -> None:
-        """Recover traversable nodes and unconditional imports missed at startup."""
+        """Recover traversable nodes, imports (including conditional), and workspace roots missed at startup."""
         collector = self._collector
+        workspace_roots: set[str] = set()
         for name, module in list(sys.modules.items()):
             module_file = getattr(module, "__file__", None)
             if not module_file or not module_file.endswith(".py"):
@@ -316,8 +330,57 @@ class ImportOnlyCoverage(CoverageMode):
             if module_file not in collector._import_time_covered:
                 collector._record_import_time_sentinel(module_file)
             collector._register_import_time_name(name, module_file)
-            for edge in self._static_module_level_import_names(name, module_file):
+            workspace_roots.add(module_file)
+            for edge in self._static_import_names(name, module_file):
                 self._add_import_time_name(module_file, edge)
+        if self._conservative:
+            # Every pre-imported workspace module is a closure root for every test.
+            # More conservative than PY_START: see README for the full trade-off.
+            self._workspace_root_paths = workspace_roots
+
+    @staticmethod
+    def _static_import_names(module_name: str, module_file: str) -> tuple[ImportName, ...]:
+        """All import statements in a module, verified against sys.modules.
+
+        Walks the entire AST (not just top-level body) so imports in `if`, `try`,
+        loops, class bodies, and functions are included. Each discovered name is
+        checked against sys.modules: only modules that actually loaded (the branch
+        or function call ran) are recorded, so dead branches don't create edges.
+        A name not in sys.modules means the import never executed — the dependency
+        is hypothetical and correctly excluded.
+        """
+        try:
+            # Bytes preserve Python's source-encoding handling.
+            tree = ast.parse(Path(module_file).read_bytes(), module_file)
+        except Exception:
+            return ()
+
+        # Package initializers resolve relative imports from the package itself.
+        pkg = module_name if Path(module_file).name == "__init__.py" else module_name.rpartition(".")[0]
+        names: set[str] = set()
+        # Walk the full tree: conditional imports, try/except imports, and function
+        # bodies that were called during the module's own load are all candidates.
+        # The sys.modules check below filters out any that never actually ran.
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                if node.level:
+                    base = pkg.split(".") if pkg else []
+                    base = base[: len(base) - node.level + 1] if node.level <= len(base) else []
+                    prefix = ".".join(base + ([node.module] if node.module else []))
+                else:
+                    prefix = node.module or ""
+                if prefix:
+                    names.add(prefix)
+                names.update(
+                    f"{prefix}.{alias.name}" if prefix else alias.name for alias in node.names if alias.name != "*"
+                )
+        # Only names whose module actually loaded are real dependencies.
+        # If an import is in a dead branch or an uncalled function, sys.modules
+        # won't have the target, so it's excluded — no over-attribution.
+        confirmed = {name for name in names if name in sys.modules}
+        return (("", tuple(sorted(confirmed))),) if confirmed else ()
 
     @staticmethod
     def _static_module_level_import_names(module_name: str, module_file: str) -> tuple[ImportName, ...]:
@@ -379,7 +442,18 @@ class ImportOnlyCoverage(CoverageMode):
             covered_lines[path].add(0)
 
     def expand_context_files(self, paths: set[str], import_names: dict[str, set[ImportName]]) -> t.AbstractSet[str]:
-        return paths | self.context_dependency_paths(paths, import_names)
+        expanded = self.context_dependency_paths(paths, import_names)
+        if self._workspace_root_paths:
+            # Conservative mode: workspace modules (pre-imported and dynamically
+            # loaded) are additional closure roots, covering callback/registry
+            # patterns where a workspace function is called without an import in
+            # the test window. More conservative than PY_START: every workspace
+            # module and its transitive deps are attributed to every test, which
+            # reduces skippability but eliminates the stored-reference blind spot.
+            # Static closures per root are cached, so expansion is O(closure size).
+            for root in self._workspace_root_paths:
+                expanded |= self.static_dependency_paths(root)
+        return paths | expanded
 
     def context_dependency_paths(
         self, root_paths: t.Iterable[str], import_names: dict[str, set[ImportName]]

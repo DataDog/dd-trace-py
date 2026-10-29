@@ -763,7 +763,7 @@ def test_import_only_excluded_targets_are_rechecked_after_module_changes():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1"})
+@pytest.mark.subprocess(env={"_DD_COVERAGE_IMPORT_ONLY": "1", "_DD_COVERAGE_IMPORT_ONLY_CONSERVATIVE": "1"})
 def test_blindspot_callback_execution_without_import():
     """BLIND SPOT 1: code executed through a registry/callback, not an import.
 
@@ -821,14 +821,15 @@ def test_blindspot_callback_execution_without_import():
                 assert result == 42
                 covered = ctx.get_covered_file_paths()
 
-            # bs_handler.py is NOT in the test's coverage: its code executed via a
-            # function object reference, not through any import in the test window.
-            # The import-time closure of bs_test_runner.py doesn't include bs_handler.
+            # bs_handler.py IS in the test's coverage: the workspace-roots mechanism
+            # adds all pre-imported workspace modules as closure roots for every test.
+            # This is more conservative than PY_START (the handler's code may not have
+            # actually executed in this specific test), but it guarantees the file is
+            # never missed when a callback/registry pattern calls it.
             handler_path = os.path.realpath(str(ws / "bs_handler.py"))
-            assert handler_path not in covered, (
-                "BLIND SPOT: handler executed via registry callback; "
-                "expected it to be MISSING from import-only coverage (got it covered — "
-                "this blind spot may have been fixed!)"
+            assert handler_path in covered, (
+                "FIXED: workspace roots attribute pre-imported modules to all tests; "
+                "handler should be covered even though no import fired in the test window"
             )
         finally:
             sys.path.remove(str(ws))
@@ -940,25 +941,24 @@ def test_blindspot_conditional_import_in_backfill():
             # Import the host BEFORE installing the collector
             import bs_conditional_host  # noqa: F401
 
-            from ddtrace.internal.coverage.code import ModuleCodeCollector
             from ddtrace.internal.coverage.installer import install
+            from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 
             install(include_paths=[ws], collect_import_time_coverage=True)
 
             import bs_conditional_runner
 
-            with ModuleCodeCollector.CollectInContext() as ctx:
+            with coverage_collection(test_file=ws / "bs_conditional_runner.py") as cov:
                 result = bs_conditional_runner.run()
                 assert result == 123
-                covered = ctx.get_covered_file_paths()
+            covered = cov._covered_file_paths
 
-            # bs_conditional_dep.py is missing: the host was imported pre-install,
-            # backfill skipped the conditional import (it's in an `if` block), and
-            # the test's own import-time closure only includes bs_conditional_host.
+            # The conditional import IS backfilled: the full AST is parsed (including
+            # the `if` block), and bs_conditional_dep is in sys.modules (the branch
+            # was taken at import time), so the edge is confirmed and recorded.
             dep_path = os.path.realpath(str(ws / "bs_conditional_dep.py"))
-            assert dep_path not in covered, (
-                "BLIND SPOT: conditionally imported dep not backfilled; "
-                "expected it to be MISSING from import-only coverage"
+            assert dep_path in covered, (
+                "FIXED: conditionally imported dep should be backfilled (AST walk + sys.modules verification)"
             )
         finally:
             sys.path.remove(str(ws))
