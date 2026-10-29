@@ -652,9 +652,7 @@ Sampler::Sampler()
 Sampler&
 Sampler::get()
 {
-    // Never destroyed: the sampling thread is detached and can still be running when uWSGI
-    // calls exit() and runs C++ static destructors, before Py_Finalize() stops the profiler.
-    // Same reason as ProfilerState::get().
+    // Never destroyed: the detached sampling thread can still be running when exit() runs static destructors.
     static Sampler* const instance = new Sampler();
     return *instance;
 }

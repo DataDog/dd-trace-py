@@ -38,9 +38,7 @@ class OriginTaskLinks
   public:
     static OriginTaskLinks& get_instance()
     {
-        // Never destroyed: the sampling thread is detached and can still be running when uWSGI
-        // calls exit() and runs C++ static destructors, before Py_Finalize() stops the profiler.
-        // See Sampler::get().
+        // Never destroyed. See Sampler::get().
         static OriginTaskLinks* const instance = new OriginTaskLinks();
         return *instance;
     }

@@ -108,9 +108,7 @@ get_gc_callbacks()
 GCFrameTracker&
 GCFrameTracker::get()
 {
-    // Never destroyed: the sampling thread is detached and can still be running when uWSGI
-    // calls exit() and runs C++ static destructors, before Py_Finalize() stops the profiler.
-    // See Sampler::get().
+    // Never destroyed. See Sampler::get().
     static GCFrameTracker* const tracker = new GCFrameTracker();
     return *tracker;
 }

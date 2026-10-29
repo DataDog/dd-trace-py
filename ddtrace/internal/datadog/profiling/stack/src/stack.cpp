@@ -88,9 +88,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear SpanLinks. SpanLinks is a process-lifetime singleton
-    // that is never destroyed, so its memory is only reclaimed by the OS.
-    // This is also necessary to make sure that the state is not shared
+    // Explicitly clear SpanLinks. This is necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
     SpanLinks::get_instance().reset();
 

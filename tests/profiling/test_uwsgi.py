@@ -594,11 +594,8 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
 
     assert res_pid == parent_pid
 
-    # --skip-atexit makes non-master workers hard-exit via _exit(), but the *first* worker also
-    # acts as the master (getpid() == masterpid), so end_me() still calls exit() for that worker.
-    # exit() runs the C++ static destructors of the profiler's native extensions while the
-    # sampling thread is still running. The state it reads must survive them, otherwise the
-    # worker crashes, for example with SIGSEGV.
+    # The first worker also acts as the master, so it still calls exit() despite --skip-atexit,
+    # with the profiler running.
     assert os.WIFEXITED(res_status) and os.WEXITSTATUS(res_status) == UWSGI_END_CODE, (
         "uWSGI worker %d did not exit cleanly (raw wait status %d)" % (parent_pid, res_status)
     )
