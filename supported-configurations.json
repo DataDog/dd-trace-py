@@ -5908,6 +5908,14 @@
         "internal": true
       }
     ],
+    "_DD_APPSEC_SCA_DATA_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
+      }
+    ],
     "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": [
       {
         "implementation": "A",

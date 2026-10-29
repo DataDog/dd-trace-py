@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 
 import jsonschema
+import pytest
 
+from ddtrace.appsec.sca import _cve_loader
 from ddtrace.appsec.sca._cve_loader import _CVE_DATA_PATH
 from ddtrace.appsec.sca._cve_loader import _any_version_matches
 from ddtrace.appsec.sca._cve_loader import _compound_constraint_matches
 from ddtrace.appsec.sca._cve_loader import _version_matches
 from ddtrace.appsec.sca._cve_loader import load_cve_targets
+from ddtrace.internal.settings.appsec_telemetry import AppSecTelemetryConfig
 
 
 def test_bundled_cve_data_conforms_to_schema():
@@ -107,6 +110,33 @@ class TestAnyVersionMatches:
 
 
 class TestLoadCveTargets:
+    def test_override_file_filters_languages(self, tmp_path, monkeypatch):
+        python_entry = {
+            "id": "synthetic-python",
+            "lang": "python",
+            "dependency_name": "requests",
+            "package_versions": [">=0"],
+            "targets": ["requests.sessions:Session.send"],
+        }
+        java_entry = dict(python_entry, id="synthetic-java", lang="maven", targets=["other:method"])
+        data_path = tmp_path / "advisories.json"
+        data_path.write_text(json.dumps({"targets": [java_entry, python_entry]}))
+        monkeypatch.setenv("_DD_APPSEC_SCA_DATA_FILE", str(data_path))
+        monkeypatch.setattr(_cve_loader, "config", AppSecTelemetryConfig())
+
+        # The override replaces the bundled catalog and also covers newer dependencies.
+        assert load_cve_targets({"requests": "100.0.0"}) == [python_entry]
+
+    @pytest.mark.parametrize("content", [None, "invalid json"])
+    def test_invalid_override_does_not_fall_back_to_bundled_data(self, tmp_path, monkeypatch, content):
+        data_path = tmp_path / "advisories.json"
+        if content is not None:
+            data_path.write_text(content)
+        monkeypatch.setenv("_DD_APPSEC_SCA_DATA_FILE", str(data_path))
+        monkeypatch.setattr(_cve_loader, "config", AppSecTelemetryConfig())
+
+        assert load_cve_targets({"requests": "2.28.0"}) == []
+
     def test_loads_applicable_targets(self):
         """GHSA-652x-xj99-gmcc applies to requests < 2.32.0."""
         installed = {"requests": "2.28.0"}
