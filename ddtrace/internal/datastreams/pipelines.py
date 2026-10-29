@@ -5,9 +5,14 @@ This module is the pinned recording API (see the issue's PLAN doc):
 
 * ``get_pipelines_reporter()`` returns the process-level reporter, or ``None``
   when ``DD_DATA_STREAMS_PIPELINES_ENABLED`` is false or APM tracing is off.
+* ``PipelinesReporter.set_current_consume(queue_type, cluster, topic, group)``
+  records a consume side and makes it the current consumed-message context for
+  the thread, until replaced by the next consume on that thread. Consumer hooks
+  use this variant because message processing happens after the instrumented
+  call returns, so a context manager cannot span it.
 * ``PipelinesReporter.on_consume(queue_type, cluster, topic, group)`` returns a
-  context manager marking a consumed message as the current in-process context
-  on this thread.
+  context manager: enter = ``set_current_consume`` (replacing any previous
+  scope), exit = clear, only if it is still the current one.
 * ``PipelinesReporter.on_produce(queue_type, cluster, topic)`` records a produce
   side and links it to the thread's current consume scope, or records a source
   (``in_side = -1``) when there is none.
@@ -69,8 +74,9 @@ def _pipelines_enabled() -> bool:
 class ConsumeScope:
     """Marks a consumed message as the current in-process context on a thread.
 
-    Usable as a context manager. Nesting replaces the previous scope; exiting
-    restores it (stack discipline per thread).
+    Usable as a context manager. Enter replaces any previous scope on the
+    thread; exit clears the scope only if it is still the current one (a newer
+    scope entered in between wins and stays current).
     """
 
     __slots__ = ("_reporter", "_side_key")
@@ -80,11 +86,11 @@ class ConsumeScope:
         self._side_key = side_key
 
     def __enter__(self) -> "ConsumeScope":
-        self._reporter._push_consume_scope(self._side_key)
+        self._reporter._set_current_consume_key(self._side_key)
         return self
 
     def __exit__(self, *exc: Any) -> None:
-        self._reporter._pop_consume_scope(self._side_key)
+        self._reporter._clear_current_consume_key(self._side_key)
 
 
 class PipelinesReporter:
@@ -98,8 +104,8 @@ class PipelinesReporter:
         self._dropped_sides = 0
         self._dropped_links = 0
         self._saw_traffic = False
-        # Per-thread stack of current consume scopes (thread id -> list of side keys).
-        self._consume_scopes: Dict[int, List[SideKey]] = {}
+        # Per-thread current consume side (thread id -> side key).
+        self._current_consume: Dict[int, SideKey] = {}
 
     # -- public recording API (hot path; never raises) ---------------------
 
@@ -111,6 +117,19 @@ class PipelinesReporter:
         except Exception:  # noqa: BLE001 - T-13: never raise into the application
             log.debug("pipelines: failed to record consume side", exc_info=True)
             return ConsumeScope(self, _NULL_SIDE)
+
+    def set_current_consume(self, queue_type: str, cluster: str, topic: str, group: str) -> None:
+        """Record a consume side and make it the thread's current context until replaced.
+
+        Consumer hooks use this: message processing happens after the
+        instrumented call returns, so a context manager cannot span it.
+        """
+        try:
+            side_key = (_CONSUME, queue_type, cluster or "", topic, group or "")
+            self._record_side(side_key)
+            self._set_current_consume_key(side_key)
+        except Exception:  # noqa: BLE001 - T-13
+            log.debug("pipelines: failed to record consume side", exc_info=True)
 
     def on_produce(self, queue_type: str, cluster: str, topic: str) -> None:
         try:
@@ -141,21 +160,16 @@ class PipelinesReporter:
                 self._links[link_key] = len(self._links)
 
     def _current_consume_side(self) -> Optional[SideKey]:
-        stack = self._consume_scopes.get(threading.get_ident())
-        return stack[-1] if stack else None
+        return self._current_consume.get(threading.get_ident())
 
-    def _push_consume_scope(self, side_key: SideKey) -> None:
-        if side_key is _NULL_SIDE:
-            return
-        self._consume_scopes.setdefault(threading.get_ident(), []).append(side_key)
+    def _set_current_consume_key(self, side_key: SideKey) -> None:
+        if side_key is not _NULL_SIDE:
+            self._current_consume[threading.get_ident()] = side_key
 
-    def _pop_consume_scope(self, side_key: SideKey) -> None:
-        stack = self._consume_scopes.get(threading.get_ident())
-        if stack:
-            try:
-                stack.remove(side_key)
-            except ValueError:  # pragma: no cover - defensive
-                pass
+    def _clear_current_consume_key(self, side_key: SideKey) -> None:
+        tid = threading.get_ident()
+        if self._current_consume.get(tid) is side_key or self._current_consume.get(tid) == side_key:
+            del self._current_consume[tid]
 
     def take_report(self, service: str, env: str) -> Optional[Dict[str, Any]]:
         """Build the ``DdPipelinesReportV1`` dict and reset the window.
@@ -170,13 +184,14 @@ class PipelinesReporter:
             sides = sorted(self._sides)
             index_of = {side: i for i, side in enumerate(sides)}
             links = []
-            for (in_key, out_key), _ in sorted(self._links.items(), key=lambda kv: kv[1]):
+            for (in_key, out_key), _ in self._links.items():
                 in_idx = index_of.get(in_key) if in_key is not None else -1
                 out_idx = index_of.get(out_key)
                 if in_key is not None and in_idx is None:
                     in_idx = -1  # side dropped in an earlier window: treat as source
                 if out_idx is not None:
                     links.append([in_idx, out_idx])
+            links.sort()
             self._sides = {}
             self._links = {}
             self._saw_traffic = False
