@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    App and API Protection: Updates the default security rules to 1.19.0, expanding
+    template injection, expression injection, and security scanner detection, and
+    improving API Security schema collection.
