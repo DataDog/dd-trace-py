@@ -1,7 +1,8 @@
 """Process-wide CPython GC pause observer.
 
 One gc.callbacks subscriber. Install is refcounted via acquire/release.
-Runtime metrics drain a snapshot on each flush.
+Runtime metrics drain a snapshot on each flush. Profiling can add_listener
+for per-pause events without a second callback.
 """
 
 from __future__ import annotations
@@ -19,6 +20,9 @@ from ddtrace.internal._unpatched import threading_Lock
 
 
 GEN_COUNT: int = 3
+
+# (generation, pause_ns)
+PauseListener = Callable[[int, int], None]
 
 
 def _gc_callbacks_supported() -> bool:
@@ -86,6 +90,16 @@ class GCPauseMonitor:
         self._count: int = 0
         self._total_ns: int = 0
         self._max_ns: int = 0
+        # Tuple so _on_gc can iterate without allocating a copy.
+        self._listeners: tuple[PauseListener, ...] = ()
+
+    def add_listener(self, listener: PauseListener) -> None:
+        with self._lock:
+            self._listeners = self._listeners + (listener,)
+
+    def remove_listener(self, listener: PauseListener) -> None:
+        with self._lock:
+            self._listeners = tuple(item for item in self._listeners if item is not listener)
 
     def acquire(self) -> None:
         with self._lock:
@@ -170,6 +184,8 @@ class GCPauseMonitor:
             self._start_ns[gen] = 0
             return
 
+        pause_ns: int = 0
+        listeners: tuple[PauseListener, ...] = ()
         # DEV: CPython runs pending signal handlers when a call returns. If a handler
         # raises between acquire() and try, the lock stays held preventing us
         # from sending any further metrics, and snapshot_and_reset() and release()
@@ -195,7 +211,7 @@ class GCPauseMonitor:
                 return
 
             self._start_ns[gen] = 0
-            pause_ns: int = time.monotonic_ns() - start
+            pause_ns = time.monotonic_ns() - start
             if pause_ns < 0:
                 return
 
@@ -203,8 +219,18 @@ class GCPauseMonitor:
             self._total_ns += pause_ns
             if pause_ns > self._max_ns:
                 self._max_ns = pause_ns
+            listeners = self._listeners
         finally:
             self._lock.release()
+
+        # Call after the lock is dropped. The tuple was swapped in add/remove,
+        # so this loop does not allocate.
+        listener: PauseListener
+        for listener in listeners:
+            try:
+                listener(gen, pause_ns)
+            except Exception:  # nosec B110
+                pass
 
 
 _MONITOR: Optional[GCPauseMonitor] = None

@@ -45,7 +45,8 @@
     "ddtrace.internal.opentelemetry": "product:opentelemetry",
 
     "ddtrace.runtime": "product:runtime",
-    "ddtrace.internal.runtime": "product:runtime"
+    "ddtrace.internal.runtime": "product:runtime",
+    "ddtrace.internal.runtime.gc_monitor": "internal-core"
   },
   "foundation": {
     "//": [
