@@ -89,6 +89,57 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+Synchronous web request execution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``ddtrace.contrib.internal.web_framework.run_web_framework_request`` brackets a
+synchronous callback with metadata hooks and a typed request context. It does not
+import a web framework, inspect responses, make blocking decisions, or manage spans.
+``TracingSubscriber`` and ``WebFrameworkRequestSubscriber`` own propagation, span
+creation, HTTP tagging, error recording, and span completion.
+
+``prepare()`` returns a new ``WebFrameworkRequestEvent`` before context entry. It
+supplies request fields and integration-specific tracing inputs such as the
+operation, service, and route. ``complete(event, result, error)`` runs inside the
+context after the callback returns or raises, before HTTP tags are applied. The
+error is the original exception, or ``None`` on success; the result is ``None``
+when the callback raised. Hooks update event fields without accessing spans.
+They must not consume response bodies or retain exceptions and tracebacks.
+
+For an integration that needs response inspection or replacement, the optional
+``execute(event, invoke, kwargs, complete)`` adapter runs inside the context. Calling
+``invoke()`` executes the application callback with its original arguments and completes
+its metadata before returning or re-raising. The adapter can then inspect the metadata
+and preserve or replace the outcome. If it skips the callback or replaces its
+outcome, the adapter must update the final metadata before returning; it can use
+``complete_request_safely(complete, event, result, error)``. The runner passes the
+callback's keyword arguments and the integration's ``complete`` hook on every request,
+so an adapter holds no per-request state and can be built once at import time. The
+adapter must not invoke the application more than once or manage context or span
+completion. Without an adapter, the runner calls ``invoke()`` directly.
+
+Request hooks and context events run regardless of tracing enablement. An ordinary
+preparation error bypasses the context and adapter and invokes the application once.
+An ordinary completion error preserves the application's result or exception.
+Process-control exceptions from metadata hooks are not suppressed.
+
+The default context route is ``web.request``. An integration can provide
+``context_name_override`` when its subscribers use a specialized route; the tracing
+subscriber must also listen to that route. Completion is at the synchronous callback
+boundary. Returned iterables are passed through unchanged. Asynchronous handlers
+and deferred completion require a different lifecycle runner.
+
+Bottle request adapter
+^^^^^^^^^^^^^^^^^^^^^^
+
+Bottle supplies the prepare and complete hooks and selects the ``bottle.request``
+context route. The tracing product's shared ``WebFrameworkRequestSubscriber`` listens
+to that route through its ``web_framework`` subscriber bundle. Bottle continues to
+manage plugin ordering, skip settings, installation, and callback-cache resets.
+Completion interprets returned and raised ``HTTPResponse`` objects before span
+completion, including the status-based OpenTelemetry error semantics.
+
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 

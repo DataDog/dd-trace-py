@@ -1,16 +1,18 @@
+from collections.abc import Callable
 from collections.abc import MutableMapping
+from functools import partial
+from typing import Any
+from typing import Optional
 from typing import cast
 
-from bottle import HTTPError
 from bottle import HTTPResponse
 from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
-from ddtrace.internal import core
+from ddtrace.contrib.internal.web_framework import CompleteCallback
+from ddtrace.contrib.internal.web_framework import run_web_framework_request
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
@@ -40,72 +42,61 @@ class TracePlugin:
     def distributed_tracing(self, distributed_tracing):
         config.bottle["distributed_tracing"] = asbool(distributed_tracing)
 
-    def apply(self, callback, route):
-        def wrapped(*args, **kwargs):
-            if not is_tracing_enabled():
-                return callback(*args, **kwargs)
+    def apply(self, callback: Callable[..., Any], route: Any) -> Callable[..., Any]:
+        prepare = partial(_prepare_request, self, route)
 
-            resource = f"{request.method} {route.rule}"
-
-            method = request.method
-            url = request.url
-            full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-
-            with core.context_with_event(
-                WebFrameworkRequestEvent(
-                    http_operation="bottle.request",
-                    service=self.service,
-                    resource=resource,
-                    component=config.bottle.integration_name,
-                    request_headers=cast(MutableMapping[str, str], request.headers),
-                    request_url=url,
-                    query=request.query_string,
-                    request_route=full_route,
-                    request_method=method,
-                    integration_config=config.bottle,
-                    headers_case_sensitive=True,
-                    activate_distributed_headers=True,
-                )
-            ) as ctx:
-                code = None
-                result = None
-                deferred_http_exception = None
-                try:
-                    result = callback(*args, **kwargs)
-                    return result
-                except (HTTPError, HTTPResponse) as e:
-                    # you can interrupt flows using abort(status_code, 'message')...
-                    # we need to respect the defined status_code.
-                    # we also need to handle when response is raised as is the
-                    # case with a 4xx status
-                    code = e.status_code
-                    if is_otel_non_error_status(code):
-                        # An exception leaving the span context would mark it as failed, but with OTel
-                        # semantics this response is only an error when its status is. It is raised
-                        # again once the span has ended.
-                        deferred_http_exception = e
-                    else:
-                        raise
-                except Exception:
-                    # bottle doesn't always translate unhandled exceptions, so
-                    # we mark it here.
-                    code = 500
-                    raise
-                finally:
-                    if isinstance(result, HTTPResponse):
-                        response_code = result.status_code
-                    elif code:
-                        response_code = code
-                    else:
-                        # bottle local response has not yet been updated so this
-                        # will be default
-                        response_code = response.status_code
-
-                    event: WebFrameworkRequestEvent = ctx.event
-                    event.response_status_code = response_code
-                    event.response_headers = response.headers
-
-            if deferred_http_exception is not None:
-                raise deferred_http_exception
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            return _run_request(callback, args, kwargs, prepare=prepare, complete=_complete_request)
 
         return wrapped
+
+
+def _run_request(
+    callback: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    *,
+    prepare: Callable[[], WebFrameworkRequestEvent],
+    complete: CompleteCallback,
+) -> Any:
+    return run_web_framework_request(
+        callback,
+        args,
+        kwargs,
+        prepare=prepare,
+        complete=complete,
+        context_name_override="bottle.request",
+    )
+
+
+def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEvent:
+    method = request.method
+    full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
+    return WebFrameworkRequestEvent(
+        http_operation="bottle.request",
+        service=plugin.service,
+        resource=f"{method} {route.rule}",
+        component=config.bottle.integration_name,
+        request_headers=cast(MutableMapping[str, str], request.headers),
+        request_url=request.url,
+        query=request.query_string,
+        request_route=full_route,
+        request_method=method,
+        integration_config=config.bottle,
+        headers_case_sensitive=True,
+        activate_distributed_headers=True,
+    )
+
+
+def _complete_request(event: WebFrameworkRequestEvent, result: Any, error: Optional[BaseException]) -> None:
+    if isinstance(result, HTTPResponse):
+        response_data = result
+    elif isinstance(error, HTTPResponse):
+        response_data = error
+    else:
+        response_data = response
+    event.response_status_code = (
+        500 if isinstance(error, Exception) and not isinstance(error, HTTPResponse) else response_data.status_code
+    )
+    event.response_headers = response_data.headers
+    event.response_from_exception = isinstance(error, HTTPResponse)
