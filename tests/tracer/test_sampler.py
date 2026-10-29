@@ -641,6 +641,7 @@ def test_datadog_sampler_init():
 
 
 def test_datadog_sampler_sample_no_rules(tracer, test_spans):
+    tracer._sampler = DatadogSampler()
     tracer.trace("test").finish()
     spans = test_spans.pop()
     assert len(spans) == 1, "Span should have been written"
