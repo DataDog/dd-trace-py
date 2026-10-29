@@ -13,7 +13,6 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _hash_user_id
-from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import user
 from ddtrace.internal import core
@@ -21,6 +20,7 @@ from ddtrace.internal import span_bus
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.security._trace_utils import _asm_manual_keep as _asm_manual_keep
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -44,20 +44,6 @@ def _maybe_hash(value: Optional[_T], mode: str) -> Optional[Union[_T, str]]:
     if value is not None and mode == LOGIN_EVENTS_MODE.ANON and isinstance(value, str):
         return _hash_user_id(value)
     return value
-
-
-def _asm_manual_keep(span: SpanData) -> None:
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.constants import TraceSource
-    from ddtrace.internal.sampling import SamplingMechanism
-    from ddtrace.internal.sampling import add_trace_source
-
-    span._override_sampling_decision(USER_KEEP)
-    # set decision maker to ASM = -5
-    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
-
-    # set trace source propagation tag (_dd.p.ts) with the ASM bit
-    add_trace_source(span, TraceSource.ASM)
 
 
 def _handle_metadata(entry_span: SpanData, prefix: str, metadata: Mapping[str, object]) -> None:

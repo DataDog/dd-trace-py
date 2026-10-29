@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    graphql: Fixes an issue where traced GraphQL queries fail with
-    ``'int' object is not iterable`` when resolver tracing is enabled
-    (``DD_TRACE_GRAPHQL_RESOLVERS_ENABLED``) and graphql-core 3.2.10 or later
-    is installed.

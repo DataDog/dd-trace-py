@@ -1991,7 +1991,7 @@ suites:
         - name: pymongo
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=4.17.0']
         - name: pymongo
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [mongoengine, pytest-randomly, pymongo]
         - name: pymongo
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']

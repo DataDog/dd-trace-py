@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    pytest: Fixes deprecation warnings emitted by the Datadog pytest plugin when running
+    test sessions with pluggy 1.7 or newer (for example, pytest 9.2).
