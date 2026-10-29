@@ -3,6 +3,7 @@ import typing as t
 
 from envier import En
 
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -50,10 +51,12 @@ def start():
 
 
 def register_subscribers() -> None:
-    pass
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
 
 def unregister_subscribers() -> None:
+    # Shared tracing listeners also serve manual instrumentation. Retain completion
+    # listeners for contexts that can finish after an explicit product stop.
     pass
 
 

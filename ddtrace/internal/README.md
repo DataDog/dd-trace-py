@@ -74,6 +74,48 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Product subscriber bundles
+
+Products group related subscribers with `SubscriberBundle` from
+`ddtrace.internal.products`. The product protocol supplies the lifecycle hooks;
+there is no separate product registry or identity wrapper.
+
+```python
+from ddtrace.internal.products import SubscriberBundle
+
+WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
+    module="example_product.subscribers",
+    subscribers=("RequestSubscriber", "RequestContextSubscriber"),
+)
+
+
+def register_subscribers() -> None:
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
+```
+
+A product can declare several bundles for different event families and select them
+inside its hooks according to its activation policy. The manager calls registration
+after a successful `start()`; product eligibility does not necessarily imply activation.
+Declarations do not import subscriber modules. Calling `register()` loads the module
+and resolves every declared name before registering listeners. Classes must use
+`auto_register = False`; repeated registration uses named-listener deduplication and
+can restore listeners after a reset. Import and callback failures propagate to the
+owning lifecycle, whose hook handling isolates failures from other products.
+Registration is not a transaction across callback failures.
+
+`SubscriberBundle.unregister()` removes listeners in reverse declaration order without
+importing an unused module. The product owns its draining or listener-retention policy:
+the manager calls unregistration before `stop()` and on exit, unless `skip_exit()`
+skips cleanup. Removing completion listeners before active contexts finish is unsafe.
+
+Tracing's hooks register `WEB_FRAMEWORK_SUBSCRIBERS` from
+`ddtrace._trace._registration`. Loading tracing subscribers also registers this bundle,
+so direct/manual integration imports work when the product lifecycle has not run. Its unregistration
+hook deliberately retains the shared listeners, matching the existing tracing lifetime
+and allowing active contexts to finish after an explicit product stop. Other subscriber
+families keep their existing lifecycle until migrated.
+
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from
