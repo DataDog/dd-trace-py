@@ -17,6 +17,7 @@ import typing as t
 
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace.internal.coverage.util import resolved_path
 
 
 class CoverageCollector(t.Protocol):
@@ -124,10 +125,11 @@ class SysMonitoringEngine(CoverageEngine):
     def on_empty_module(self, code: CodeType, package: str) -> None:
         # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules. Call the
         # hook directly so coverage is recorded (the line-0 sentinel routes to file-level
-        # recording in file-level mode).
+        # recording in file-level mode). Resolve the path so the key matches the
+        # canonicalized keys used at instrumentation entry.
         if is_at_least_py(3, 13) and code.co_code == _EMPTY_MODULE_BYTES:
             import_info = (package, ("",)) if package else None
-            self._collector.hook((0, code.co_filename, import_info))
+            self._collector.hook((0, resolved_path(code.co_filename), import_info))
 
 
 class BytecodeInjectionEngine(CoverageEngine):

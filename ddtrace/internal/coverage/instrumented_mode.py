@@ -10,7 +10,12 @@ from ddtrace.internal.coverage.engine import create_engine
 from ddtrace.internal.coverage.mode import CollectorContract
 from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
+from ddtrace.internal.coverage.util import resolved_path
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
+
+
+log = get_logger(__name__)
 
 
 class InstrumentedCoverage(CoverageMode):
@@ -20,12 +25,22 @@ class InstrumentedCoverage(CoverageMode):
         self._seen: set[tuple[CodeType, str]] = set()
 
     def instrument_module(self, code: CodeType, module: ModuleType) -> CodeType:
-        if is_obfuscated_code(code) or (code, code.co_filename) in self._seen:
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot instrument %r for coverage: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return code
+        if (code, code.co_filename) in self._seen:
             return code
         self._seen.add((code, code.co_filename))
-        new_code, lines = self._engine.instrument(code, code.co_filename, module.__package__ or "")
+        # Canonicalize the path once at instrumentation entry: the hooks, the
+        # executable-line bookkeeping, and the import-time metadata all use the
+        # same key, so symlinked workspaces don't split the key space.
+        canonical_path = resolved_path(code.co_filename)
+        new_code, lines = self._engine.instrument(code, canonical_path, module.__package__ or "")
         self._seen.add((new_code, code.co_filename))
-        self._collector.lines[code.co_filename].update(lines)
+        self._collector.lines[canonical_path].update(lines)
         return new_code
 
     def after_module_context(self, code: CodeType, module: ModuleType) -> None:
