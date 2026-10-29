@@ -60,7 +60,11 @@ class CoverageData:
         self._covered_file_paths: t.Optional[t.Iterable[str]] = None
 
     def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
-        relative_to_str = str(relative_to)
+        # Canonicalize the workspace: instrumentation records covered paths under
+        # realpath(co_filename), so a symlinked CI workspace (e.g. Jenkins
+        # WORKSPACE) must be resolved to match, or files recorded under the real
+        # path are silently dropped from uploads.
+        relative_to_str = str(Path(relative_to).resolve())
 
         if self._covered_file_paths is not None:
             for absolute_path in self._covered_file_paths:

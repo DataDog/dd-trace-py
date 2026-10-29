@@ -639,3 +639,54 @@ def test_nested_imports_through_symlink_alias_keep_distinct_contexts():
                 )
         finally:
             sys.path.remove(str(tmpdir))
+
+
+@pytest.mark.subprocess()
+def test_bitmaps_resolve_symlinked_workspace():
+    """Covered paths recorded under canonical paths must match a symlinked workspace.
+
+    When CI workspaces are symlinked (e.g. Jenkins WORKSPACE), the plugin passes
+    the alias path as the reporting workspace. Instrumentation records coverage
+    under realpath(co_filename). get_coverage_bitmaps must resolve the workspace
+    to the canonical path so covered files are not silently dropped.
+    """
+    import os
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from ddtrace.testing.internal.tracer_api.coverage import CoverageData
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        real_ws = Path(os.path.realpath(tmpdir)) / "real"
+        real_ws.mkdir()
+        (real_ws / "bs_mod.py").write_text("value = 1\n")
+
+        alias_ws = Path(tmpdir) / "alias"
+        os.symlink(real_ws, alias_ws)
+
+        sys.path.insert(0, str(alias_ws))
+        try:
+            install(include_paths=[alias_ws], collect_import_time_coverage=True)
+
+            ModuleCodeCollector.start_coverage()
+            import bs_mod  # noqa: F401
+
+            ModuleCodeCollector.stop_coverage()
+
+            with ModuleCodeCollector.CollectInContext() as ctx:
+                ctx.anchor_file(os.path.realpath(str(alias_ws / "bs_mod.py")))
+
+            # Simulate the reporting path: the plugin passes the alias workspace
+            # (as it knows it), not the canonical path. The bitmaps must still
+            # include bs_mod.py.
+            data = CoverageData()
+            data._covered_file_paths = ctx.get_covered_file_paths()
+            bitmaps = dict(data.get_coverage_bitmaps(relative_to=alias_ws))
+            assert "/bs_mod.py" in bitmaps, (
+                "bs_mod.py dropped; workspace alias does not match canonical covered paths: %s" % alias_ws
+            )
+        finally:
+            sys.path.remove(str(alias_ws))
