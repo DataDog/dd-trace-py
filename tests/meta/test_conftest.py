@@ -3,9 +3,11 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+from unittest import mock
 
 import pytest
 
+from tests import utils
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import terminate_process_group
@@ -192,3 +194,24 @@ def test_session_token_survives_writer_replacement(pytester, monkeypatch, inheri
     monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(root), os.getenv("PYTHONPATH", "")]))
     result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "test_token.py", timeout=30)
     result.assert_outcomes(passed=1)
+
+
+@pytest.mark.parametrize(
+    "body, outcome",
+    [(b"Received unmatched traces", pytest.fail.Exception), (b"Different span attributes", pytest.fail.Exception)],
+)
+def test_snapshot_comparison_outcomes(monkeypatch, body, outcome):
+    session = utils.SnapshotTest("attempt", name="baseline", base_url="http://localhost:9126")
+    monkeypatch.setattr(session._client, "_request", lambda *args, **kwargs: (400, body))
+    with pytest.raises(outcome, match=body.decode()):
+        session.verify([], timeout=1)
+
+
+def test_testagent_connection_failure(monkeypatch):
+    client = utils.TestAgentClient("http://localhost:9126", token="attempt")
+    connection = mock.Mock()
+    connection.request.side_effect = ConnectionRefusedError("agent unavailable")
+    monkeypatch.setattr(client, "create_connection", lambda **kwargs: connection)
+    with pytest.raises(RuntimeError, match="Test agent request failed"):
+        client._request("GET", client._url("/test/session/requests"), retry=False)
+    connection.close.assert_called_once()

@@ -4,10 +4,12 @@ components:
     - ddtrace/appsec/*
     - ddtrace/internal/appsec/*
     - ddtrace/internal/settings/asm.py
+    - ddtrace/internal/security/*
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/_iast/*
     - ddtrace/appsec/_iast_context.py
+    - ddtrace/internal/security/*
     - ddtrace/internal/iast/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
@@ -15,6 +17,7 @@ components:
     - ddtrace/contrib/internal/webbrowser/*
   sca:
     - ddtrace/appsec/sca/*
+    - ddtrace/internal/security/*
     - ddtrace/internal/sca/*
 suites:
   appsec:
@@ -114,7 +117,7 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
         DD_IAST_ENABLED: 'true'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.,scripts.iast.
-      python: ['3.10', '3.11', '3.12']
+      python: ['3.10', '3.11', '3.12', '3.15']
       variants:
         - name: iast_aggregated_leak_testing
           dependencies: [anyio, pydantic, pydantic-settings, pytest-asyncio, requests]
@@ -134,7 +137,7 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         PYTHONDONTWRITEBYTECODE: '1'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec
-      python: ['3.11', '3.12', '3.13', '3.14']
+      python: ['3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: appsec_iast_packages
           dependencies: [requests, flask, 'pip==26.2.1', pytest-xdist, 'psutil==7.1.3']
@@ -179,10 +182,14 @@ suites:
         PYDONTWRITEBYTECODE: '1'
         PYTHONUNBUFFERED: '1'
         _DD_IAST_DEBUG: 'false'
+      # PyGoat's pinned pip and application dependencies do not support Python 3.15.
       python: ['3.10', '3.11', '3.12']
       variants:
         - name: appsec_integrations_pygoat
           dependencies: [requests, 'pyyaml==6.0.1', 'pip<25']
+        - name: appsec_integrations_pygoat
+          python: ['3.15']
+          dependencies: [requests, 'PyYAML==6.0.3', 'pip==26.2.1']
   appsec_integrations_packages:
     venvs_per_job: 3
     snapshot: true
@@ -208,7 +215,7 @@ suites:
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
         - name: appsec_integrations_packages
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [gevent, pytest-xdist, pytest-asyncio, requests, SQLAlchemy, 'psycopg2-binary~=2.9.9', psycopg, pymysql, 'mysqlclient==2.1.1', mysql-connector-python, 'MarkupSafe~=2.1.1', 'Werkzeug~=3.0.6', babel, numpy, protobuf]
   appsec_integrations_stripe:
     paths:
@@ -251,9 +258,13 @@ suites:
         - name: appsec_integrations_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.2', 'langchain-community~=0.2', 'langchain-experimental~=0.2']
+        # LangChain 0.3 fails to evaluate Chain's type annotations on Python 3.15.
         - name: appsec_integrations_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.3', 'langchain-community~=0.3', 'langchain-experimental~=0.3']
+        - name: appsec_integrations_langchain
+          python: ['3.14', '3.15']
+          dependencies: [pytest-asyncio, pytest-randomly, 'langchain>=1,<2', 'langchain-classic>=1,<2', 'langchain-community~=0.4', 'langchain-experimental~=0.4', 'pydantic>=2.14']
   appsec_integrations_flask:
     pattern: appsec_integrations_flask$
     paths:
@@ -313,10 +324,10 @@ suites:
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
         - name: appsec_integrations_flask_testagent
-          python: ['3.12', '3.14']
+          python: ['3.12', '3.14', '3.15']
           dependencies: ['requests==2.31.0', gunicorn, gevent, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'psutil==7.1.3', 'flask~=2.2']
         - name: appsec_integrations_flask_testagent
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['requests==2.31.0', gunicorn, gevent, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'psutil==7.1.3', 'flask~=3.1', 'Werkzeug~=3.1']
   appsec_integrations_django:
     venvs_per_job: 4
@@ -529,7 +540,7 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.10', '3.13', '3.14']
+      python: ['3.10', '3.13', '3.14', '3.15']
       variants:
         - name: appsec_threats_django_rc
           dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
@@ -645,7 +656,7 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.10', '3.13', '3.14']
+      python: ['3.10', '3.13', '3.14', '3.15']
       variants:
         - name: appsec_threats_fastapi_rc
           dependencies: [hypothesis, requests, 'httpx<0.28.0', 'httpx2~=2.0.0', 'fastapi~=0.114.2']
@@ -684,16 +695,16 @@ suites:
           python: ['3.9']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_no_iast
-          python: ['3.10', '3.13', '3.14']
+          python: ['3.10', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
         - name: appsec_threats_flask_no_iast
-          python: ['3.10', '3.13', '3.14']
+          python: ['3.10', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_no_iast
-          python: ['3.11', '3.13', '3.14']
+          python: ['3.11', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
         - name: appsec_threats_flask_no_iast
-          python: ['3.11', '3.13', '3.14']
+          python: ['3.11', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_iast:
     venvs_per_job: 4
@@ -731,16 +742,16 @@ suites:
           python: ['3.9']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_iast
-          python: ['3.10', '3.13', '3.14']
+          python: ['3.10', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
         - name: appsec_threats_flask_iast
-          python: ['3.10', '3.13', '3.14']
+          python: ['3.10', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_iast
-          python: ['3.11', '3.13', '3.14']
+          python: ['3.11', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
         - name: appsec_threats_flask_iast
-          python: ['3.11', '3.13', '3.14']
+          python: ['3.11', '3.13', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_rc:
     paths:
@@ -761,7 +772,7 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.11', '3.13', '3.14']
+      python: ['3.11', '3.13', '3.14', '3.15']
       variants:
         - name: appsec_threats_flask_rc
           dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
@@ -789,7 +800,7 @@ suites:
           python: ['3.9', '3.11']
           dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'aiohttp~=3.8.0', 'yarl<1.10']
         - name: appsec_threats_aiohttp_no_iast
-          python: ['3.10', '3.14']
+          python: ['3.10', '3.14', '3.15']
           dependencies: [pytest-xdist, requests, httpx, httpx2, aiohttp]
   appsec_threats_aiohttp_rc:
     paths:
@@ -810,7 +821,7 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.10', '3.14']
+      python: ['3.10', '3.14', '3.15']
       variants:
         - name: appsec_threats_aiohttp_rc
           dependencies: [requests, httpx, httpx2, aiohttp]

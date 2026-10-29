@@ -1,3 +1,4 @@
+import builtins
 import logging
 import os
 import subprocess
@@ -39,6 +40,11 @@ from tests.utils import override_global_config
 
 
 CONFIG_SERVER_PORT = "9596"
+
+
+@pytest.fixture(params=[dict] + ([builtins.frozendict] if hasattr(builtins, "frozendict") else []))
+def mapping_factory(request):
+    return request.param
 
 
 @pytest.fixture

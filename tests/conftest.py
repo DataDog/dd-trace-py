@@ -57,6 +57,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.writer import AgentWriterInterface
 from tests import utils
 from tests.utils import TracerSpanContainer
@@ -551,6 +552,21 @@ def pytest_collection_modifyitems(session, config, items):
 
     Also: add py39 - py314 suffix as parametrization in test names
     """
+    # All pytest-benchmark releases available at the time of writing (up to 5.3.0) read
+    # Node._nodeid, which pytest 9.2 removed, so tests requesting the benchmark fixture
+    # fail at fixture setup. This does not cover tests that exercise pytest-benchmark
+    # inside nested pytest sessions: those carry their own skipif markers (see
+    # tests/testing/internal/pytest/test_pytest_benchmark.py). Remove once pytest-benchmark
+    # supports pytest >= 9.2.
+    skip_benchmark = None
+    if parse_version(pytest.__version__) >= (9, 2, 0):
+        try:
+            import pytest_benchmark  # noqa: F401
+        except ImportError:
+            pass
+        else:
+            skip_benchmark = pytest.mark.skip(reason="pytest-benchmark does not support pytest 9.2 or newer yet")
+
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
         snapshot_options = getattr(getattr(item, "obj", None), "_snapshot_options", None)
@@ -561,6 +577,8 @@ def pytest_collection_modifyitems(session, config, items):
         ):
             # Subprocess extraction bypasses decorators; capture must be owned by the parent fixture.
             item.add_marker(pytest.mark.snapshot(**snapshot_options))
+        if skip_benchmark is not None and "benchmark" in getattr(item, "fixturenames", ()):
+            item.add_marker(skip_benchmark)
         if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
             item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 
