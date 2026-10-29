@@ -21,7 +21,7 @@ variables:
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: b9ebb380492b1955c1ab4d946fc0fcba08a5589b
+  BENCHMARKING_COMMIT_SHA: 13155637426e2db46ca42d61124741b8b241bfde
   # Known flaky benchmarks
   # See https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/7223313012/Flaky+Benchmarks+Monitoring for more details.
   FLAKY_BENCHMARKS_REGEX: "^packagespackageforrootmodulemapping-cache_off$"
