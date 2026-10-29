@@ -16,7 +16,7 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | generative-ai | `anthropic/patch.py` | `litellm/patch.py` | LLM/AI integrations; use `llmobs-integrations` for LLMObs lifecycle, extraction, streaming, and tests |
 | graphql | `graphql/patch.py` | -- | GraphQL resolvers and operations, shared tracing gate + `tracer.trace` |
 | http-client | `httpx/patch.py` | `requests/connection.py` | Outbound HTTP, `http.*` span tags. httpx and requests use `context_with_event` |
-| http-server | `flask/patch.py` | `django/patch.py` | Web frameworks, request/response spans, Pin + `context_with_data` |
+| http-server | `flask/patch.py` | `django/patch.py` | Flask typed request with `SpanLifecycleSubscriber` and deferred response completion; Django retains `context_with_data` |
 | logging | `logging/patch.py` | `loguru/patch.py` | Log correlation injection (trace ID, span ID) -- no spans created |
 | messaging | `kafka/patch.py`, `aiokafka/patch.py`, `kombu/patch.py` | `rq/patch.py` | Kafka, aiokafka, and Kombu use shared messaging events; RQ still uses Pin |
 | object-store | `botocore/patch.py` (S3) | -- | S3 via botocore service-specific handlers |

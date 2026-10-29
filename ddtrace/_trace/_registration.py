@@ -7,3 +7,9 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.web_framework",
     subscribers=("WebFrameworkRequestSubscriber",),
 )
+
+
+FLASK_REQUEST_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.flask",
+    subscribers=("FlaskRequestSubscriber",),
+)

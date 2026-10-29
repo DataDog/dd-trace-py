@@ -3,6 +3,7 @@ import typing as t
 
 from envier import En
 
+from ddtrace._trace._registration import FLASK_REQUEST_SUBSCRIBERS
 from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
@@ -52,6 +53,7 @@ def start():
 
 def register_subscribers() -> None:
     WEB_FRAMEWORK_SUBSCRIBERS.register()
+    FLASK_REQUEST_SUBSCRIBERS.register()
 
 
 def unregister_subscribers() -> None:
