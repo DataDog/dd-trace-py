@@ -1,5 +1,4 @@
 from abc import ABC
-from contextlib import nullcontext
 from contextvars import ContextVar
 from functools import lru_cache
 from inspect import CO_ASYNC_GENERATOR
@@ -21,9 +20,9 @@ from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.compat import is_supported_python_version
-from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -474,8 +473,6 @@ if is_at_least_py(3, 15):
     # callback: a GC pass triggered by any allocation made while the lock is held
     # (e.g. in wrap()) runs that callback on the same thread.
     _ctx_registry_lock = RLock()
-    # Keep registration atomic with removal of the last peer context.
-    _wrapping_lock = RLock()
 
 
 # This is abstract and should not be used directly
@@ -612,19 +609,17 @@ class WrappingContext(BaseWrappingContext):
             raise ValueError(msg)
 
     def wrap(self) -> None:
-        with _wrapping_lock if is_at_least_py(3, 15) else nullcontext():
-            f = t.cast(FunctionType, self.__wrapped__)
-            context = t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(f))
-            context.register(self)
+        f = t.cast(FunctionType, self.__wrapped__)
+        context = t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(f))
+        context.register(self)
 
     def unwrap(self) -> None:
-        with _wrapping_lock if is_at_least_py(3, 15) else nullcontext():
-            f = t.cast(FunctionType, self.__wrapped__)
+        f = t.cast(FunctionType, self.__wrapped__)
 
-            try:
-                _UniversalWrappingContext.extract(f).unregister(self)
-            except ValueError:
-                pass
+        try:
+            _UniversalWrappingContext.extract(f).unregister(self)
+        except ValueError:
+            pass
 
 
 if is_at_least_py(3, 15):

@@ -15,8 +15,8 @@ from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_supported_python_version
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping.asyncs import wrap_async
 from ddtrace.internal.wrapping.generators import wrap_generator

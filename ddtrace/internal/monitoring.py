@@ -22,8 +22,8 @@ from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal.compat import is_at_least_py
-from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 
 
