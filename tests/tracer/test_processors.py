@@ -689,12 +689,35 @@ def test_trace_128bit_processor(trace_id, tracer):
     ctx = Context(trace_id=trace_id, span_id=2**64 - 1)
     spans = [Span("hello", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id) for _ in range(10)]
 
-    spans = TraceTagsProcessor().process_trace(spans)
+    spans = TraceTagsProcessor(apm_opt_out=False).process_trace(spans)
 
     chunk_root = spans[0]
     assert chunk_root.trace_id == ctx.trace_id
     assert chunk_root.trace_id >= 2**64
     assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == f"{chunk_root.trace_id >> 64:016x}"
+
+
+@pytest.mark.parametrize("apm_opt_out", [False, True])
+def test_trace_tags_processor_opt_out_shadows_single_span_tagging(tracer, apm_opt_out):
+    """Standalone opt-out shadows the stats preference for single-span tag mirroring.
+
+    Single-sampled spans only outlive their dropped root when stats are actually
+    computed, so TraceTagsProcessor must not mirror the trace tags onto them while
+    opted out, and must when stats are active.
+    """
+    ctx = Context(trace_id=1, span_id=1)
+    root = Span("root", trace_id=ctx.trace_id, context=ctx)
+    single_sampled = Span("child", trace_id=ctx.trace_id, context=ctx, parent_id=ctx.span_id)
+    single_sampled._set_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+
+    with override_global_config(dict(_trace_compute_stats=True)):
+        TraceTagsProcessor(apm_opt_out=apm_opt_out).process_trace([root, single_sampled])
+
+    assert root.get_tag("language") == "python"
+    if apm_opt_out:
+        assert single_sampled.get_tag("language") is None
+    else:
+        assert single_sampled.get_tag("language") == "python"
 
 
 @pytest.mark.subprocess(
@@ -1001,6 +1024,21 @@ def test_endpoint_call_counter_processor_disabled():
     processor.on_span_finish(spanA)
 
     assert processor.reset()[0] == {}
+
+
+def test_endpoint_call_counter_processor_disable():
+    """Disabling the processor drops what it counted and stops counting"""
+    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
+    spanA._local_root = spanA
+
+    processor = EndpointCallCounterProcessor()
+    processor.enable()
+    processor.on_span_finish(spanA)
+
+    processor.disable()
+    processor.on_span_finish(spanA)
+
+    assert processor.reset() == ({}, {})
 
 
 def test_endpoint_call_counter_processor_real_tracer(tracer):
