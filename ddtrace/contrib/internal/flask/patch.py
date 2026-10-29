@@ -1,4 +1,7 @@
+from collections.abc import Callable
+from collections.abc import Iterable
 from inspect import unwrap
+from typing import Any
 import weakref
 
 import flask
@@ -46,6 +49,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
 
+from .request import run_flask_request
+from .request import update_route
 from .wrappers import _wrap_call_with_tracing_check
 from .wrappers import simple_call_wrapper
 from .wrappers import with_tracing_enabled
@@ -117,7 +122,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _application_call_name = "flask.application"
     _response_call_name = "flask.response"
 
+    def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> Iterable[bytes]:
+        return run_flask_request(self, environ, start_response)
+
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
+        update_route(ctx.event, flask.request)
         core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
         if not get_blocked():
             core.dispatch("flask.start_response", ("Flask",))
@@ -128,19 +137,19 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 ).block_requested
                 if result_content:
                     _, status, response_headers = result_content.value
-                    result = start_response(str(status), response_headers)
+                    result = start_response(str(status), response_headers, exc_info)
                 else:
                     response_headers = (
                         [] if block_config.type == "none" else [("content-type", block_config.content_type)]
                     )
-                    result = start_response(str(block_config.status_code), response_headers)
+                    result = start_response(str(block_config.status_code), response_headers, exc_info)
                 core.dispatch(
                     "flask.start_response.blocked", (ctx, config.flask, response_headers, block_config.status_code)
                 )
             else:
-                result = start_response(status_code, headers)
+                result = start_response(status_code, headers, exc_info)
         else:
-            result = start_response(status_code, headers)
+            result = start_response(status_code, headers, exc_info)
         return result
 
     def _request_call_modifier(self, ctx, parsed_headers=None):
@@ -148,6 +157,9 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
+        ctx.event.set_resource = True
+        if not config._otel_trace_semantics_enabled:
+            ctx.event.resource = f"{request.method} {request.path}"
 
         req_body = None
         result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -603,6 +615,9 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 def request_patcher(name):
     @with_tracing_enabled
     def _patched_request(wrapped, instance, args, kwargs):
+        event = core.find_item("flask_request_event")
+        if event is not None:
+            update_route(event, flask.request)
         with (
             core.context_with_data(
                 "flask._patched_request",

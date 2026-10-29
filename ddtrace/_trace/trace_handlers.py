@@ -508,12 +508,13 @@ def _on_app_exception(ctx):
     req_span.set_exc_info(*sys.exc_info())
     app_span.set_exc_info(*sys.exc_info())
     app_span.finish()
-    req_span.finish()
+    if ctx.identifier != "flask.request":
+        req_span.finish()
 
 
 def _on_request_complete(
     ctx: core.ExecutionContext, closing_iterable: Iterable[Any], app_is_iterator: bool
-) -> _TracedIterable:
+) -> Iterable[Any]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
@@ -537,6 +538,9 @@ def _on_request_complete(
     )
     modifier(resp_span, closing_iterable)
 
+    if ctx.identifier == "flask.request":
+        ctx.set_item("resp_span", resp_span)
+        return closing_iterable
     return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
 
 
