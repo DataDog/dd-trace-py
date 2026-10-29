@@ -38,7 +38,10 @@ def start() -> None:
 
 
 def register_subscribers() -> None:
-    product_subscribers.register()
+    if config._asm_enabled:
+        from ddtrace.appsec._listeners import _asm_switch_state
+
+        product_subscribers.register(_asm_switch_state)
 
 
 def unregister_subscribers() -> None:
