@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 import sys
 import sysconfig
-import threading
 from types import ModuleType
 import typing as t
 
@@ -19,6 +18,7 @@ from ddtrace.internal.native import scan_distributions
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.threads import Thread
+from ddtrace.internal.threads import local
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.paths import deepest_containing_root
 from ddtrace.internal.utils.paths import is_contained
@@ -424,13 +424,13 @@ _ENTRY_RECORDS: dict[str, tuple[t.Optional[int], list[_DistributionRecord]]] = {
 # re-entry repeats work rather than deadlocks.
 _INSTALLED_DISTRIBUTIONS_LOCK = forksafe.RLock()
 # Set while this thread asks custom finders for their distributions.
-_FINDER_QUERY = threading.local()
+_FINDER_QUERY = local()
 
 # The boot-time scan: the thread is set while it is pending, the event when it ends.
 _PREFETCH_THREAD: t.Optional[Thread] = None
 _PREFETCH_DONE = forksafe.Event()
 # Set in the prefetch thread, which must not wait for itself.
-_IN_PREFETCH = threading.local()
+_IN_PREFETCH = local()
 
 
 def _reset_installed_distributions() -> None:

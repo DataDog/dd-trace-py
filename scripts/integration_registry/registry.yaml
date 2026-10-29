@@ -205,7 +205,7 @@ integrations:
   tested_versions_by_dependency:
     azure-eventhub:
       min: 5.12.2
-      max: 5.15.0
+      max: 5.15.1
 
 - integration_name: azure_functions
   is_external_package: true
@@ -401,6 +401,16 @@ integrations:
       min: 1.1.0
       max: 3.2.0
 
+- integration_name: elevenlabs
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - elevenlabs
+  tested_versions_by_dependency:
+    elevenlabs:
+      min: 2.70.0
+      max: 2.70.0
+
 - integration_name: falcon
   is_external_package: true
   is_tested: true
@@ -467,7 +477,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 2.11.0
+      max: 2.12.0
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
@@ -497,7 +507,7 @@ integrations:
   tested_versions_by_dependency:
     graphql-core:
       min: 3.1.7
-      max: 3.2.6
+      max: 3.3.0
 
 - integration_name: grpc
   is_external_package: true
@@ -541,7 +551,7 @@ integrations:
   tested_versions_by_dependency:
     httpx2:
       min: 2.0.0
-      max: 2.13.1
+      max: 2.16.0
 
 - integration_name: jinja2
   is_external_package: true
@@ -593,13 +603,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.2.11
+      max: 1.2.17
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.2.0
+      max: 4.3.0
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.1.0
+      max: 1.1.1
 
 - integration_name: litellm
   is_external_package: true
@@ -681,7 +691,7 @@ integrations:
   tested_versions_by_dependency:
     mcp:
       min: 1.10.1
-      max: 1.28.1
+      max: 2.3.0
 
 - integration_name: mistralai
   is_external_package: true
@@ -703,13 +713,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.5
-      max: 3.17.0
+      max: 3.17.2
     mlflow-skinny:
-      min: 3.17.0
-      max: 3.17.0
+      min: 3.17.2
+      max: 3.17.2
     mlflow-tracing:
-      min: 3.17.0
-      max: 3.17.0
+      min: 3.17.2
+      max: 3.17.2
 
 - integration_name: molten
   is_external_package: true
@@ -823,7 +833,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.18.3
+      max: 4.19.0
 
 - integration_name: pymysql
   is_external_package: true
@@ -929,7 +939,7 @@ integrations:
   tested_versions_by_dependency:
     redis:
       min: 4.6.0
-      max: 6.4.0
+      max: 8.1.0
 
 - integration_name: rediscluster
   is_external_package: true
@@ -1045,6 +1055,16 @@ integrations:
       min: 0.21.0
       max: 0.34.0
 
+- integration_name: typesafe
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - typesafe-sdk
+  tested_versions_by_dependency:
+    typesafe-sdk:
+      min: 0.6.0
+      max: 0.7.5
+
 - integration_name: unittest
   is_external_package: false
   is_tested: true
@@ -1071,7 +1091,7 @@ integrations:
   tested_versions_by_dependency:
     valkey:
       min: 6.0.2
-      max: 6.1.1
+      max: 6.2.0
 
 - integration_name: vertexai
   is_external_package: true

@@ -5,6 +5,6 @@ from ddtrace.profiling.bootstrap import sitecustomize  # noqa:F401
 
 
 log = get_logger(__name__)
-log.debug("Enabling the profiler by auto import")
+log.debug("[profiling] Enabling the profiler by auto import")
 
 start_profiler = sitecustomize.start_profiler

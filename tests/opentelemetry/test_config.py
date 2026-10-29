@@ -133,8 +133,66 @@ def test_empty_otel_configuration_uses_defaults():
     assert config._otel_stats_computation_enabled is None
     assert otel_config.exporter.TIMEOUT == 10000
     assert otel_config.exporter.PROTOCOL == "grpc"
-    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
     assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 7500
+
+
+@pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "unsupported"})
+def test_unsupported_trace_protocol_uses_http_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
+
+
+@pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": " HTTP/PROTOBUF "})
+def test_whitespace_padded_trace_protocol_uses_http_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+    }
+)
+def test_global_grpc_trace_endpoint_is_used_without_http_path():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
+    assert otel_config.exporter.TRACES_ENDPOINT == "http://collector:4317"
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+    }
+)
+def test_trace_protocol_overrides_global_protocol_and_appends_http_path():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.TRACES_ENDPOINT == "http://collector:4318/v1/traces"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "false",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+    }
+)
+def test_apm_agentless_opt_out_keeps_local_otlp_trace_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_ENDPOINT.endswith(":4318/v1/traces")
+    assert "otlp.datadoghq.com" not in otel_config.exporter.TRACES_ENDPOINT
 
 
 @pytest.mark.subprocess(env={"OTEL_LOG_LEVEL": "debug"})
@@ -434,7 +492,9 @@ def test_otel_resource_attributes_version_tag():
         ("key=value", [("key", "value")]),
         ("k1=v1,k2=v2,k3=v3", [("k1", "v1"), ("k2", "v2"), ("k3", "v3")]),
         ("  k1 = v1 ,  k2 = v2 ", [("k1", "v1"), ("k2", "v2")]),
+        ("X-Test-Header=value", [("x-test-header", "value")]),
         ("invalid,key=value", [("key", "value")]),
+        ("=value", []),
         ("key=val=extra", [("key", "val=extra")]),
         ("missing-equals", []),
         ("=value", []),

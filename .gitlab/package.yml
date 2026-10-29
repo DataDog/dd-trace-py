@@ -125,9 +125,8 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-  # TODO(py-315): Linux cp315 builds are required (allow_failure removed). macOS/
-  # Windows 3.15 wheels and PyPI prune (`prune-unsupported-wheels.sh`) still lag —
-  # parent #17809.
+  # TODO(py-315): Linux cp315 builds are required (allow_failure removed). Windows
+  # 3.15 wheels still lag — parent #17809.
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -168,7 +167,7 @@ variables:
     matrix:
       - PYTHON_VERSIONS:
           - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
+          - "3.12 3.13 3.14 3.15"
   script: |
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
@@ -362,15 +361,18 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
+    # Enable sccache for Rust/C/C++ compilation caching
+    DD_USE_SCCACHE: "1"
+    # S3-backed sccache, same settings as "build linux"
+    SCCACHE_BUCKET: "dd-trace-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
+    SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
   needs:
     - job: "build sdist"
       artifacts: true
   script:
-    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
-    - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
-    - twine check ${SDIST_FILE}
-    - pip install ${SDIST_FILE}
-    - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+    - .gitlab/scripts/test-sdist.sh
 
 "build windows":
   stage: package
@@ -419,48 +421,6 @@ variables:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
-
-download_dependency_wheels:
-  image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
-  tags: [ "arch:amd64" ]
-  stage: package
-  needs:
-    - job: "build linux"
-      artifacts: true
-  variables:
-    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
-  rules:
-    # TODO(py-315): pip refuses the local ddtrace wheel on 3.15 while
-    # requires-python is <3.15. Remove this rule when requires-python allows 3.15.
-    - if: '$PYTHON_VERSION == "3.15"'
-      when: never
-    - when: on_success
-  parallel:
-    matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
-      - PYTHON_IMAGE_TAG: "3.9.13"
-        PYTHON_VERSION: "3.9"
-      - PYTHON_IMAGE_TAG: "3.10.13"
-        PYTHON_VERSION: "3.10"
-      - PYTHON_IMAGE_TAG: "3.11.6"
-        PYTHON_VERSION: "3.11"
-      - PYTHON_IMAGE_TAG: "3.12.0"
-        PYTHON_VERSION: "3.12"
-      - PYTHON_IMAGE_TAG: "3.13.0"
-        PYTHON_VERSION: "3.13"
-      - PYTHON_IMAGE_TAG: "3.14.0"
-        PYTHON_VERSION: "3.14"
-      - PYTHON_IMAGE_TAG: "3.15.0"
-        PYTHON_VERSION: "3.15"
-  script:
-    - .gitlab/download-dependency-wheels.sh
-  cache:
-    - key: v0-download-dep-wheels-cache
-      paths:
-        - ${CI_PROJECT_DIR}/.cache/
-  artifacts:
-    when: always
-    paths:
-      - "pywheels-dep/"
 
 "upload all":
   extends: .upload_wheels_base
