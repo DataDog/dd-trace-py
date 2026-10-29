@@ -6052,6 +6052,14 @@
         "internal": true
       }
     ],
+    "_DD_COVERAGE_IMPORT_ONLY_CONSERVATIVE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_CRASHTRACKING_TEST_TOKEN": [
       {
         "implementation": "A",

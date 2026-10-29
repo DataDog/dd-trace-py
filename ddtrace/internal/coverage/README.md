@@ -76,6 +76,31 @@ integration with no-coverage and instrumented controls. Run both through
 `scripts/run-benchmarks` against an explicit source baseline, not a published
 release lacking the experiment.
 
+## Conservative mode
+
+`_DD_COVERAGE_IMPORT_ONLY_CONSERVATIVE=1` (default: false) additionally attributes
+all collector-known import-time workspace files to each test. This includes
+preloaded files found by backfill, later observed loads, unused modules, and
+observed files subsequently removed from `sys.modules`. It covers many stored
+callback/registry cases at the cost of losing per-test precision.
+
+This is not all files on disk and is not a universal skipping-safety guarantee.
+Unobserved custom loads, files removed before installation, and resource or
+environment dependencies can still be missed. Files loaded after a test's
+coverage was collected are not retroactively added to its payload; worker and
+execution order therefore affect attribution.
+
+Both line-oriented and file-oriented context getters use the same immutable
+snapshot. New import-time metadata invalidates it; ordinary test-local edges do
+not. All traversable closure nodes are already registered import-time files, so
+conservative expansion needs neither per-root closures nor a second module set.
+The snapshot is built once per metadata change; producing a covered-file union
+still costs O(number of known files). A new collector installation starts fresh.
+
+Use this opt-in policy as a diagnostic or conservative fallback, not the default
+for evaluating import-only selection precision. Compare its impact and runtime
+with a workspace-filtered `sys.modules` snapshot and instrumented coverage.
+
 ## Cache boundaries and performance
 
 - The pytest plugin memoizes item-to-path lookup. Anchor discovery is cached per

@@ -28,6 +28,8 @@ from ddtrace.internal.coverage.mode import CoverageMode
 from ddtrace.internal.coverage.mode import ImportName
 from ddtrace.internal.coverage.util import resolved_path
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -230,6 +232,8 @@ class ImportOnlyCoverage(CoverageMode):
         # or module metadata (including aliases and previously empty resolutions).
         self._static_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
         self._test_file_anchors: dict[Path, tuple[str, ...]] = {}
+        self._conservative = asbool(env.get("_DD_COVERAGE_IMPORT_ONLY_CONSERVATIVE", "false"))
+        self._conservative_paths: t.Optional[frozenset[str]] = None
 
     def should_track(self, path: str) -> bool:
         return self._collector._is_instrumentable_path(Path(path))
@@ -373,6 +377,7 @@ class ImportOnlyCoverage(CoverageMode):
 
     def on_import_metadata_changed(self) -> None:
         self._static_import_time_dependency_paths_cache.clear()
+        self._conservative_paths = None
 
     def static_dependency_paths(self, root_path: str) -> frozenset[str]:
         """Cache the closure over shared edges, independent of any test context."""
@@ -409,6 +414,13 @@ class ImportOnlyCoverage(CoverageMode):
         self, root_paths: t.Iterable[str], import_names: dict[str, set[ImportName]]
     ) -> frozenset[str]:
         """Expand roots together, visiting overlapping shared closures only once."""
+        if self._conservative:
+            # Every traversable dependency is already a registered import-time
+            # file. Snapshot those keys once per metadata change, not one graph
+            # closure per file per test. Never mutate snapshots returned earlier.
+            if self._conservative_paths is None:
+                self._conservative_paths = frozenset(self._collector._import_time_covered)
+            return self._conservative_paths
         result: set[str] = set()
         pending = list(root_paths)
         while pending:
