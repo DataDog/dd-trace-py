@@ -53,6 +53,11 @@ _SUBSCRIBER_ADMIN_METHODS: dict[str, tuple[str, list[str]]] = {
     "seek": ("seek", ["subscription"]),
 }
 
+# Subscription admin methods whose result is dispatched on
+# "google_cloud_pubsub.subscription.result" so the datastreams pipelines
+# subscription -> topic cache can be populated (DSM2-531). No tracing change.
+_SUBSCRIPTION_RESULT_METHODS = frozenset(("createSubscription", "getSubscription", "updateSubscription"))
+
 _SCHEMA_METHODS: dict[str, tuple[str, list[str]]] = {
     "create_schema": ("createSchema", ["parent"]),
     "get_schema": ("getSchema", ["name"]),
@@ -148,7 +153,10 @@ def _make_admin_wrapper(resource_name: str, request_attr: list[str]):
             pubsub_method=resource_name,
             measured=True,
         ):
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
+            if resource_name in _SUBSCRIPTION_RESULT_METHODS:
+                core.dispatch("google_cloud_pubsub.subscription.result", (result,))
+            return result
 
     return wrapper
 

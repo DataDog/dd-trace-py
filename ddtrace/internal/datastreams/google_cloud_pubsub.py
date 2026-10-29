@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.datastreams.pipelines import get_pipelines_reporter
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
@@ -72,3 +73,70 @@ def dsm_pubsub_receive(subscription: str, message: Any, span: Optional[Any]) -> 
 if config._data_streams_enabled:
     core.on("google_cloud_pubsub.send.pre", dsm_pubsub_send)
     core.on("google_cloud_pubsub.receive.pre", dsm_pubsub_receive)
+
+
+# Automatic DSM pipelines (DSM2-531): service-topic sides and in-process links
+# only, no pathway context and no stats. These subscriptions are unconditional;
+# every handler bails out when get_pipelines_reporter() is None, so the feature
+# is a no-op when pipelines reporting is disabled.
+
+_PIPELINES_QUEUE_TYPE = "pubsub"
+
+# Dispatched with the Subscription result of create/get/update subscription
+# admin calls (see contrib/internal/google_cloud_pubsub/patch.py).
+_PIPELINES_SUBSCRIPTION_RESULT_EVENT = "google_cloud_pubsub.subscription.result"
+
+# Process-level cache: subscription path -> bound topic path. Consumers fall
+# back to the subscription path itself when the bound topic is unknown.
+_subscription_topic_cache: dict[str, str] = {}
+
+
+def _extract_subscription_field(result: Any, field: str) -> Optional[str]:
+    """Read field from a Subscription proto or a plain dict; empty/missing -> None."""
+    if isinstance(result, dict):
+        value = result.get(field)
+    else:
+        value = getattr(result, field, None)
+    return value if isinstance(value, str) and value else None
+
+
+def pipelines_pubsub_send(args: tuple[Any, ...], kwargs: dict[str, Any], span: Optional[Any] = None) -> None:
+    try:
+        reporter = get_pipelines_reporter()
+        if reporter is None:
+            return
+        topic = get_argument_value(args, kwargs, 0, "topic")
+        if topic:
+            reporter.on_produce(_PIPELINES_QUEUE_TYPE, "", topic)
+    except Exception:
+        log.debug("pipelines: failed to record pubsub produce side", exc_info=True)
+
+
+def pipelines_pubsub_receive(subscription: str, message: Optional[Any] = None, span: Optional[Any] = None) -> None:
+    try:
+        reporter = get_pipelines_reporter()
+        if reporter is None:
+            return
+        if subscription:
+            topic = _subscription_topic_cache.get(subscription, subscription)
+            reporter.set_current_consume(_PIPELINES_QUEUE_TYPE, "", topic, subscription)
+    except Exception:
+        log.debug("pipelines: failed to record pubsub consume side", exc_info=True)
+
+
+def pipelines_pubsub_subscription_result(result: Any) -> None:
+    try:
+        reporter = get_pipelines_reporter()
+        if reporter is None:
+            return
+        name = _extract_subscription_field(result, "name")
+        topic = _extract_subscription_field(result, "topic")
+        if name and topic:
+            _subscription_topic_cache[name] = topic
+    except Exception:
+        log.debug("pipelines: failed to cache pubsub subscription topic", exc_info=True)
+
+
+core.on("google_cloud_pubsub.send.pre", pipelines_pubsub_send)
+core.on("google_cloud_pubsub.receive.pre", pipelines_pubsub_receive)
+core.on(_PIPELINES_SUBSCRIPTION_RESULT_EVENT, pipelines_pubsub_subscription_result)
