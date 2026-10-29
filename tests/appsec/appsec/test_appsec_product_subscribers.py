@@ -21,9 +21,12 @@ EXPLOIT_PREVENTION_SUBSCRIBERS = (
 
 
 @pytest.fixture
-def subscribers():
+def subscribers(monkeypatch):
     was_enabled = asm_config._asm_enabled
+    monkeypatch.setattr(asm_config, "_asm_can_be_enabled", True)
+    monkeypatch.setattr(asm_config, "_asm_enabled_origin", asm_config._asm_enabled_origin)
     _listeners.disable_appsec()
+    product.unregister_subscribers()
     with ExitStack() as stack:
         yield {
             subscriber: (
@@ -33,21 +36,23 @@ def subscribers():
             for subscriber in EXPLOIT_PREVENTION_SUBSCRIBERS
         }
         _listeners.disable_appsec()
+        product.unregister_subscribers()
     if was_enabled:
         _listeners.load_appsec()
+        product.register_subscribers()
 
 
-def test_appsec_activation_registers_exploit_prevention_subscribers_once(subscribers):
+def test_remote_activation_registers_exploit_prevention_subscribers_once(subscribers):
     with mock.patch.object(asm_config, "_ep_enabled", True):
-        _listeners.load_appsec()
-        # The product manager registers again after start(), which already loaded AppSec.
+        product._enable_asm()
+        # Registering again, as the product manager does after start(), does nothing.
         product.register_subscribers()
 
         for register, unregister in subscribers.values():
             register.assert_called_once_with()
             unregister.assert_not_called()
 
-        _listeners.disable_appsec()
+        product._disable_asm()
         product.unregister_subscribers()
 
         for register, unregister in subscribers.values():
@@ -55,10 +60,10 @@ def test_appsec_activation_registers_exploit_prevention_subscribers_once(subscri
             unregister.assert_called_once_with()
 
 
-def test_appsec_without_exploit_prevention_registers_no_subscribers(subscribers):
+def test_remote_activation_without_exploit_prevention_registers_no_subscribers(subscribers):
     with mock.patch.object(asm_config, "_ep_enabled", False):
-        _listeners.load_appsec()
-        _listeners.disable_appsec()
+        product._enable_asm()
+        product._disable_asm()
 
     for register, unregister in subscribers.values():
         register.assert_not_called()
