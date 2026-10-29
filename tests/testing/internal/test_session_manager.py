@@ -821,6 +821,42 @@ class TestUpdatePrMergeBase:
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
         mock_git.pack_objects.assert_not_called()
 
+    def test_upload_git_data_skips_unshallow_when_merge_base_supplied_by_user(self) -> None:
+        """When the merge-base is user-supplied (DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA), no fetch is needed.
+
+        Restores the legacy plugin's early return (ddtrace/internal/ci_visibility/git_client.py):
+        with no commits missing from the backend and the merge-base already known,
+        shallow clones are left untouched.
+        """
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = SessionManager.__new__(SessionManager)
+        # Merge-base supplied via DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA takes precedence
+        # over computing it from the base/head SHAs.
+        sm.env_tags = {
+            GitTag.PULL_REQUEST_BASE_BRANCH_SHA: "supplied-merge-base",
+            GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "base-sha",
+            GitTag.COMMIT_HEAD_SHA: "head-sha",
+        }
+        sm.api_client = Mock()
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = True
+        mock_git.get_git_version.return_value = (2, 27, 0)
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_not_called()
+        mock_git.get_merge_base.assert_not_called()
+        mock_git.pack_objects.assert_not_called()
+        sm.api_client.send_git_pack_file.assert_not_called()
+
     def test_upload_git_data_skips_unshallow_when_all_commits_known(self) -> None:
         """No fetch when the backend knows all commits and no merge-base is needed."""
         sm = SessionManager.__new__(SessionManager)
