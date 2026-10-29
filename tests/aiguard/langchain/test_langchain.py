@@ -1,4 +1,6 @@
+import asyncio
 import json
+import time
 from typing import Any
 from unittest.mock import patch
 
@@ -1611,6 +1613,63 @@ async def test_streamed_async_response_evaluated_for_any_provider(mock_execute_r
     assert "".join(chunk.content for chunk in chunks) == "hello"
     _assert_evaluated_response(mock_execute_request, "hello")
     assert handler.tokens and set(handler.tokens) == {2}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"], ids=["allow", "deny"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_async_response_evaluated_off_event_loop(mock_execute_request, langchain, decision):
+    """A slow astream() response evaluation must not stall other asyncio tasks; a block still propagates."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    ticks = 0
+
+    async def ticker():
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.005)
+
+    ticks_during_response_eval = []
+
+    def execute_request(*args, **kwargs):
+        if mock_execute_request.call_count == 1:  # prompt evaluation
+            return mock_evaluate_response("ALLOW")
+        start = ticks
+        time.sleep(0.3)
+        ticks_during_response_eval.append(ticks - start)
+        return mock_evaluate_response(decision)
+
+    mock_execute_request.side_effect = execute_request
+    handler = _EvaluationOrderHandler(mock_execute_request)
+    ticker_task = asyncio.create_task(ticker())
+    chunks = []
+    try:
+        with _stream_evaluation_on():
+            stream = FakeListChatModel(responses=["hello"]).astream(input="hi", config={"callbacks": [handler]})
+            if decision == "ALLOW":
+                chunks = [chunk async for chunk in stream]
+            else:
+                with pytest.raises(AIGuardAbortError):
+                    async for chunk in stream:
+                        chunks.append(chunk)
+    finally:
+        ticker_task.cancel()
+        await asyncio.gather(ticker_task, return_exceptions=True)
+
+    if decision == "ALLOW":
+        assert "".join(chunk.content for chunk in chunks) == "hello"
+        assert handler.tokens and set(handler.tokens) == {2}
+        assert handler.ends == [2]
+        assert handler.errors == []
+    else:
+        assert chunks == []
+        assert handler.tokens == []
+        assert handler.ends == []
+        assert len(handler.errors) == 1
+    assert mock_execute_request.call_count == 2
+    # The ticker kept running while the blocking evaluation slept in its worker thread.
+    assert ticks_during_response_eval and ticks_during_response_eval[0] > 1
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
