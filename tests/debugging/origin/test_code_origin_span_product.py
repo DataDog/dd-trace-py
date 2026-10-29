@@ -117,7 +117,7 @@ def test_enabled_di_active_but_co_explicitly_set(monkeypatch):
 
 
 def test_apm_tracing_rc_none_value_falls_back_to_local_default(monkeypatch):
-    """An explicit null value is treated like a removed config: fall back to the local value."""
+    """A null value means the remote override was removed: fall back to the local value."""
     from ddtrace.internal.settings.code_origin import config
 
     monkeypatch.delenv(config.span.spec.enabled.full_name, raising=False)
@@ -133,25 +133,16 @@ def test_apm_tracing_rc_none_value_falls_back_to_local_default(monkeypatch):
         mock_stop.assert_called_once()
 
 
-def test_apm_tracing_rc_missing_key_falls_back_to_local_default(monkeypatch):
-    """A removed config (missing key) is treated like an explicit false: fall back to the local value."""
-    from ddtrace.internal.settings.code_origin import config
-
-    monkeypatch.delenv(config.span.spec.enabled.full_name, raising=False)
-
-    with (
-        patch.object(co_product, "start") as mock_start,
-        patch.object(co_product, "stop") as mock_stop,
-        patch.object(config.span, "enabled", False),
-        patch.object(config.span.parsed, "enabled", False),
-    ):
+def test_apm_tracing_rc_missing_key_is_noop():
+    """A record that does not set the key leaves the current state untouched."""
+    with patch.object(co_product, "start") as mock_start, patch.object(co_product, "stop") as mock_stop:
         apm_tracing_rc({}, None)
         mock_start.assert_not_called()
-        mock_stop.assert_called_once()
+        mock_stop.assert_not_called()
 
 
-def test_apm_tracing_rc_missing_key_preserves_local_enable(monkeypatch):
-    """A removed config falls back to the local value, so a locally-enabled feature stays enabled."""
+def test_apm_tracing_rc_none_value_preserves_local_enable(monkeypatch):
+    """A removed override falls back to the local value, so a locally-enabled feature stays enabled."""
     from ddtrace.internal.settings.code_origin import config
 
     full_name = config.span.spec.enabled.full_name
@@ -163,7 +154,7 @@ def test_apm_tracing_rc_missing_key_preserves_local_enable(monkeypatch):
         patch.object(config.span, "enabled", True),
         patch.object(config.span.parsed, "enabled", True),
     ):
-        apm_tracing_rc({}, None)
+        apm_tracing_rc({"code_origin_enabled": None}, None)
         mock_start.assert_called_once()
         mock_stop.assert_not_called()
 
