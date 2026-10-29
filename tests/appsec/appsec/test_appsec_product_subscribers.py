@@ -1,4 +1,5 @@
 from contextlib import ExitStack
+import sys
 from unittest import mock
 
 import pytest
@@ -70,9 +71,43 @@ def test_remote_activation_without_exploit_prevention_registers_no_subscribers(s
         unregister.assert_not_called()
 
 
+def test_direct_appsec_activation_registers_exploit_prevention_subscribers(subscribers):
+    with mock.patch.object(asm_config, "_ep_enabled", True):
+        _listeners.load_appsec()
+
+    for register, unregister in subscribers.values():
+        register.assert_called_once_with()
+        unregister.assert_not_called()
+
+
 def test_inactive_appsec_registers_no_subscribers(subscribers):
     with mock.patch.object(asm_config, "_ep_enabled", True):
         product.register_subscribers()
 
     for register, _ in subscribers.values():
         register.assert_not_called()
+
+
+def test_asm_switch_state_registers_and_unregisters_subscribers(subscribers):
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", True),
+        mock.patch.object(asm_config, "_ep_enabled", True),
+        mock.patch.object(_listeners, "load_appsec", side_effect=product.register_subscribers) as load_appsec,
+    ):
+        _listeners._asm_switch_state()
+        load_appsec.assert_called_once_with()
+
+    for register, unregister in subscribers.values():
+        register.assert_called_once_with()
+        unregister.assert_not_called()
+
+    with (
+        mock.patch.object(asm_config, "_asm_enabled", False),
+        mock.patch.object(_listeners, "disable_appsec"),
+        mock.patch.dict(sys.modules, {"ddtrace.appsec._processor": object()}),
+    ):
+        _listeners._asm_switch_state()
+
+    for register, unregister in subscribers.values():
+        register.assert_called_once_with()
+        unregister.assert_called_once_with()

@@ -1,18 +1,8 @@
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Union
-
+from ddtrace.internal.appsec import product_subscribers
 from ddtrace.internal.settings.asm import config
 
 
-if TYPE_CHECKING:
-    from ddtrace.internal.core.subscriber import ContextSubscriber
-    from ddtrace.internal.core.subscriber import Subscriber
-
-
 requires = ["remote-configuration"]
-
-_exploit_prevention_registered = False
 
 
 def post_preload() -> None:
@@ -48,22 +38,11 @@ def start() -> None:
 
 
 def register_subscribers() -> None:
-    # Remote configuration activates AppSec outside of start(), so _enable_asm() calls this too.
-    global _exploit_prevention_registered
-    if _exploit_prevention_registered or not (config._asm_enabled and config._ep_enabled):
-        return
-    for subscriber in _exploit_prevention_subscribers():
-        subscriber.register()
-    _exploit_prevention_registered = True
+    product_subscribers.register()
 
 
 def unregister_subscribers() -> None:
-    global _exploit_prevention_registered
-    if not _exploit_prevention_registered:
-        return
-    for subscriber in _exploit_prevention_subscribers():
-        subscriber.unregister()
-    _exploit_prevention_registered = False
+    product_subscribers.unregister()
 
 
 def restart(join: bool = False) -> None:
@@ -72,20 +51,6 @@ def restart(join: bool = False) -> None:
 
 def stop(join: bool = False) -> None:
     pass
-
-
-def _exploit_prevention_subscribers() -> tuple[Union[type["Subscriber"], type["ContextSubscriber[Any]"]], ...]:
-    from ddtrace.appsec._contrib.dbapi.subscribers import AppSecDbApiSubscriber
-    from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxRequestContextSubscriber
-    from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxSingleRequestContextSubscriber
-    from ddtrace.appsec._contrib.subprocess.subscribers import AppSecSubprocessCommandSubscriber
-
-    return (
-        AppSecDbApiSubscriber,
-        AppSecHttpxRequestContextSubscriber,
-        AppSecHttpxSingleRequestContextSubscriber,
-        AppSecSubprocessCommandSubscriber,
-    )
 
 
 def _disable_asm() -> None:
@@ -108,5 +73,4 @@ def _enable_asm() -> None:
         from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 
         if load_appsec(reconfigure_tracer=True, origin=APPSEC.ENABLED_ORIGIN_RC):
-            register_subscribers()
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
