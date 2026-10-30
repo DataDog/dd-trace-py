@@ -181,6 +181,29 @@ def strip_query_string(url: str) -> str:
     return h + fs + f
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+
+def url_origin(url: str) -> Optional[str]:
+    """Reduce url to scheme://host[:port], dropping userinfo, path, query and fragment, which can hold credentials.
+
+    Scheme and host are lowercased and a default port dropped. Returns None without scheme or host.
+    """
+    try:
+        parts = parse.urlsplit(url)
+        host = parts.hostname
+        port = parts.port
+    except (TypeError, ValueError):
+        return None
+    if not parts.scheme or not host:
+        return None
+    scheme = parts.scheme.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = host if port is None or _DEFAULT_PORTS.get(scheme) == port else f"{host}:{port}"
+    return f"{scheme}://{netloc}"
+
+
 def _redact_query_string_match(match: re.Match[bytes]) -> bytes:
     return (match.group(1) or b"") + b"<redacted>"
 

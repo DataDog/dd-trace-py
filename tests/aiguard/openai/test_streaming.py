@@ -240,6 +240,23 @@ def test_responses_stream_flag_off_not_buffered(mock_execute_request, openai_res
     mock_execute_request.assert_called_once()
 
 
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_stream_without_mcp_tools_unchanged_by_default_mcp(
+    mock_execute_request, openai_responses_stream_client
+):
+    """DD_AI_GUARD_MCP_ENABLED is on by default: a stream with only function tools is still unbuffered."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = openai_responses_stream_client.responses.create(
+        model=RESPONSES_MODEL, input="Hello", tools=[{"type": "function", "name": "lookup"}], stream=True
+    )
+    assert not isinstance(stream, BufferedAIGuardStream)
+    assert list(stream)
+
+    mock_execute_request.assert_called_once()
+    assert set(mock_execute_request.call_args.args[1]["data"]["attributes"]) == {"messages", "meta"}
+
+
 @pytest.mark.asyncio
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_responses_stream_async_flag_off_evaluates_input(
@@ -452,3 +469,43 @@ def test_non_stream_result_not_wrapped():
     sentinel = object()
     result = sync_wrapper(lambda *a, **k: sentinel, None, (), {})
     assert result is sentinel
+
+
+class _Manager:
+    """A stream whose context manager yields a new inner stream, like MessageStreamManager."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __enter__(self):
+        return self._inner
+
+    def __exit__(self, *exc):
+        return None
+
+    async def __aenter__(self):
+        return self._inner
+
+    async def __aexit__(self, *exc):
+        return None
+
+
+def _enabled():
+    return True
+
+
+def test_manager_path_keeps_the_enabled_check():
+    proxy = BufferedAIGuardStream(_Manager(iter([])), reconstruct=list, evaluate=lambda resp: None, enabled=_enabled)
+    with proxy as inner:
+        assert isinstance(inner, BufferedAIGuardStream)
+        assert inner._self_enabled is _enabled
+
+
+@pytest.mark.asyncio
+async def test_async_manager_path_keeps_the_enabled_check():
+    proxy = BufferedAIGuardAsyncStream(
+        _Manager(iter([])), reconstruct=list, evaluate=lambda resp: None, enabled=_enabled
+    )
+    async with proxy as inner:
+        assert isinstance(inner, BufferedAIGuardAsyncStream)
+        assert inner._self_enabled is _enabled

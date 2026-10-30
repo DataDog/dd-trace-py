@@ -4,11 +4,13 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.aiguard import MCP
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import ContentPart
 from ddtrace.aiguard import Function
 from ddtrace.aiguard import ImageURL
+from ddtrace.aiguard import MCPServer
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
@@ -812,3 +814,34 @@ def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
         ai_guard_client.evaluate(PROMPT, Options(block=False))
 
     assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"
+
+
+@pytest.mark.parametrize("mcp_servers", [None, []], ids=["none", "empty"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_omits_empty_mcp_servers(mock_execute_request, ai_guard_client, mcp_servers):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    ai_guard_client.evaluate([Message(role="user", content="hi")], mcp_servers=mcp_servers)
+
+    assert set(mock_execute_request.call_args.args[1]["data"]["attributes"]) == {"messages", "meta"}
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sends_mcp_servers(mock_execute_request, ai_guard_client):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    server = MCPServer(
+        id="mcp_b77bc22583ac5006",
+        managed_by="client",
+        transport="streamable_http",
+        tools={"wiki_search": "search"},
+        url="https://mcp.example.com",
+    )
+    tool_call = ToolCall(id="call_1", function=Function(name="wiki_search", arguments="{}"))
+    tool_call["mcp"] = MCP(server_id=server["id"])
+    messages = [Message(role="user", content="hi"), Message(role="assistant", tool_calls=[tool_call])]
+
+    ai_guard_client.evaluate(messages, mcp_servers=[server])
+
+    attributes = mock_execute_request.call_args.args[1]["data"]["attributes"]
+    assert attributes["mcp_servers"] == [server]
+    assert attributes["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_b77bc22583ac5006"}
