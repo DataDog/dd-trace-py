@@ -103,22 +103,25 @@ class TestProviderStatus:
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             provider = DataDogProvider()
             # Count synchronous provider emissions; SDK handlers may run later on an executor.
-            emit_ready = mocker.spy(provider, "emit_provider_ready")
+            emit = mocker.spy(provider, "emit")
+
+            def ready_emissions():
+                return [call for call in emit.call_args_list if call.args[0] == ProviderEvent.PROVIDER_READY]
 
             try:
                 _set_provider(provider)
-                emit_ready.assert_not_called()
+                assert ready_emissions() == []
 
                 # First configuration
                 config1 = create_config(create_boolean_flag("flag1", enabled=True))
                 process_ffe_configuration(config1)
-                emit_ready.assert_called_once()
+                assert len(ready_emissions()) == 1
 
                 # Second configuration
                 config2 = create_config(create_boolean_flag("flag2", enabled=True))
                 process_ffe_configuration(config2)
                 # Should not have emitted again
-                emit_ready.assert_called_once()
+                assert len(ready_emissions()) == 1
             finally:
                 api.clear_providers()
 
@@ -203,8 +206,8 @@ class TestProviderStatus:
                 api.clear_providers()
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
-    def test_config_received_before_initialize(self):
-        """Test that provider emits READY if config was received before initialize."""
+    def test_config_received_before_initialize(self, mocker):
+        """Test that the SDK reports READY without a provider emission for preloaded config."""
         ready_event = threading.Event()
 
         def on_provider_ready(event_details):
@@ -213,6 +216,7 @@ class TestProviderStatus:
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             # Create provider and process config before setting it
             provider = DataDogProvider()
+            emit = mocker.spy(provider, "emit")
             config = create_config(create_boolean_flag("test-flag", enabled=True))
             process_ffe_configuration(config)
 
@@ -221,11 +225,12 @@ class TestProviderStatus:
                 # Register after initialization so the immediate READY belongs to this provider.
                 api.add_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
 
-                # Provider should detect existing config and emit READY
+                # The fast path marks the provider READY; the SDK dispatches the event.
                 assert provider._status == ProviderStatus.READY
                 assert ready_event.wait(timeout=1.0)
+                assert ProviderEvent.PROVIDER_READY not in [call.args[0] for call in emit.call_args_list]
             finally:
-                api.remove_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
+                # clear_providers() also removes SDK handlers when initialization fails.
                 api.clear_providers()
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
