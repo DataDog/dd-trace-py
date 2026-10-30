@@ -17,6 +17,7 @@ from http.server import HTTPServer
 import json
 import os
 import threading
+import time
 
 import pytest
 
@@ -581,6 +582,64 @@ def test_fork_of_fork_broadcast():
     assert count == "1", "grandchild must receive the full snapshot, not an empty delta"
     assert path == BASE_PATH
     assert json.loads(content) == {"asm": {"enabled": True}}
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_child_subscriber_does_not_delay_fork():
+    # Regression test for #21388: the before-fork hook stops and joins the child
+    # subscriber's thread. If the subscriber waited for changes inside its target
+    # rather than in the PeriodicThread's interruptible wait, every fork from a
+    # forked worker (e.g. a uvloop subprocess spawn) would stall until that wait
+    # timed out, i.e. half the poll interval.
+    from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+    from tests.utils import override_global_config
+
+    with _MockAgent([RESPONSES[1]]) as agent, override_global_config(dict(_remote_config_poll_interval=20.0)):
+        client, _ = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True
+
+        read_fd, write_fd = os.pipe()
+        pid = os.fork()
+        if pid == 0:  # child
+            os.close(read_fd)
+            try:
+                dispatched = threading.Event()
+
+                def dispatch(records, enabled):
+                    client.dispatch_native_changes(records, enabled)
+                    dispatched.set()
+
+                client._product_callbacks[RemoteConfigProduct.AsmFeatures] = _Sink()
+                subscriber = RemoteConfigSubscriber(
+                    client.make_reader(), dispatch, "test", client.enabled_product_names
+                )
+                subscriber.start()
+                try:
+                    assert dispatched.wait(5.0)
+
+                    start = time.monotonic()
+                    cpid = os.fork()
+                    if cpid == 0:  # grandchild
+                        os._exit(0)
+                    elapsed = time.monotonic() - start
+                    os.waitpid(cpid, 0)
+                finally:
+                    subscriber.stop()
+                    subscriber.join()
+                os.write(write_fd, ("%f" % elapsed).encode())
+            finally:
+                os.close(write_fd)
+                os._exit(0)
+
+        os.close(write_fd)
+        out = os.read(read_fd, 4096).decode()
+        os.close(read_fd)
+        os.waitpid(pid, 0)
+
+    assert out, "child did not report the fork duration"
+    # Before the fix, the fork waited for the subscriber's 10s blocking wait.
+    assert float(out) < 2.0
 
 
 def test_poller_runs_periodic_every_cycle_even_when_fetch_fails():
