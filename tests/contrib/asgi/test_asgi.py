@@ -19,6 +19,8 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib._events.web_request import WebRequestCompleting
+from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
@@ -1043,6 +1045,24 @@ async def _send_complete_http_response(
         await send({"type": "http.response.body", "body": body})
 
 
+@pytest.fixture
+def request_events():
+    events = []
+
+    def record(event):
+        assert event.ctx.get_item("_inner_span") is event.span
+        assert not event.span.finished
+        if isinstance(event, WebRequestReady):
+            assert core.current is event.ctx
+        events.append(event)
+
+    for event_type in (WebRequestReady, WebRequestCompleting):
+        core.on(event_type.event_name, record)
+    yield events
+    for event_type in (WebRequestReady, WebRequestCompleting):
+        core.reset_listeners(event_type.event_name, record)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "outcome, exc_type",
@@ -1059,7 +1079,7 @@ async def _send_complete_http_response(
         ("handled_exception", None),
     ],
 )
-async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, outcome, exc_type):
+async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, request_events, outcome, exc_type):
     requests, finished, response_times, finished_errors = [], [], [], []
 
     def record_finish(span):
@@ -1105,6 +1125,9 @@ async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, outco
         assert send.call_args_list[0].args[0]["status"] == (403 if outcome.startswith("blocked") else 200)
 
     assert len(requests) == 3
+    assert [type(event) for event in request_events] == [WebRequestReady, WebRequestCompleting]
+    assert request_events[0].ctx is request_events[1].ctx
+    assert request_events[0].span is request_events[1].span is requests[0]
     assert finished == requests[::-1]
     assert all(child._parent is parent for parent, child in zip(requests, requests[1:]))
     assert not scope["datadog"]["request_spans"]
