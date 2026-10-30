@@ -43,10 +43,6 @@ Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DD_SLACK_USER_BRETT/EMMETT         optional overrides for reviewer @-mentions;
                                      defaults are hardcoded member IDs
 
-Legacy fallbacks (still read if the new names are unset):
-  DD_RELEASE_SLACK_WEBHOOK_URL_GUILD → DDTRACE_RELEASE_GUILD_CHANNEL_URL
-  DD_RELEASE_SLACK_DM_URL            → DDTRACE_RELEASE_DM_URL
-
 If the channel env var is unset and you pass --slack-channel=guild|test|prod,
 the script falls back to AWS SSM Parameter Store at:
   ci.dd-trace-py.slack-release-webhook-guild
@@ -120,15 +116,13 @@ assert PYPROJECT.is_file(), f"REPO_ROOT misconfigured: {PYPROJECT} does not exis
 # Slack webhook env vars. Channel webhooks: guild (#guild-dd-trace-py, default
 # review ping), prod (#apm-python-release), test, plus legacy single-channel.
 # ``--slack-channel`` selects which; ``--test-dm`` uses the DM webhook only.
-# Preferred names drop the DD_ product prefix (local release tooling, not agent
-# config). Legacy DD_RELEASE_SLACK_* names remain as fallbacks.
+# Guild/DM names drop the DD_ product prefix (local release tooling, not agent
+# config).
 SLACK_CHANNEL_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL"
 SLACK_CHANNEL_GUILD_ENV: str = "DDTRACE_RELEASE_GUILD_CHANNEL_URL"
-SLACK_CHANNEL_GUILD_ENV_LEGACY: str = "DD_RELEASE_SLACK_WEBHOOK_URL_GUILD"
 SLACK_CHANNEL_TEST_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL_TEST"
 SLACK_CHANNEL_PROD_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL_PROD"
 SLACK_DM_ENV: str = "DDTRACE_RELEASE_DM_URL"
-SLACK_DM_ENV_LEGACY: str = "DD_RELEASE_SLACK_DM_URL"
 SLACK_USER_BRETT_ENV: str = "DD_SLACK_USER_BRETT"
 SLACK_USER_EMMETT_ENV: str = "DD_SLACK_USER_EMMETT"
 # Hardcoded approver Slack member IDs (not secrets). Env vars above remain
@@ -2156,7 +2150,7 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
     """
     guild_url: str
     guild_env: str
-    guild_url, guild_env = _env_url(SLACK_CHANNEL_GUILD_ENV, SLACK_CHANNEL_GUILD_ENV_LEGACY)
+    guild_url, guild_env = _env_url(SLACK_CHANNEL_GUILD_ENV)
     test_url: str = os.environ.get(SLACK_CHANNEL_TEST_ENV, "").strip()
     prod_url: str = os.environ.get(SLACK_CHANNEL_PROD_ENV, "").strip()
     legacy_url: str = os.environ.get(SLACK_CHANNEL_ENV, "").strip()
@@ -2171,8 +2165,7 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
             )
         except SystemExit as exc:
             raise SystemExit(
-                f"--slack-channel=guild needs {SLACK_CHANNEL_GUILD_ENV} "
-                f"(or legacy {SLACK_CHANNEL_GUILD_ENV_LEGACY}) or SSM "
+                f"--slack-channel=guild needs {SLACK_CHANNEL_GUILD_ENV} or SSM "
                 f"{SSM_SLACK_WEBHOOK_GUILD} (webhook posting to "
                 f"#{SLACK_CHANNEL_GUILD_NAME} / <#{SLACK_CHANNEL_GUILD_ID}>). "
                 "Create a Workflow Builder webhook with a `text` variable bound "
@@ -2211,14 +2204,14 @@ def notify_slack(
     text: str = format_slack_announce(version, target_sha, draft_url)
     dm_url: str
     dm_env: str
-    dm_url, dm_env = _env_url(SLACK_DM_ENV, SLACK_DM_ENV_LEGACY)
+    dm_url, dm_env = _env_url(SLACK_DM_ENV)
 
     if test_dm:
         if not dm_url:
             raise SystemExit(
                 f"--test-dm requires {SLACK_DM_ENV} to be set "
-                f"(or legacy {SLACK_DM_ENV_LEGACY}; secret DM webhook; "
-                "not committed — export it locally or add an SSM path later)"
+                "(secret DM webhook; not committed — export it locally or "
+                "add an SSM path later)"
             )
         if precheck:
             post_webhook(dm_url, "[ping] release-script connectivity check (DM)")

@@ -26,9 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from create_gh_release import _GH_RELEASE_REQUIRED_FLAGS  # noqa: E402
 from create_gh_release import AUTO_CREATED_FOOTER  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_GUILD_ENV  # noqa: E402
-from create_gh_release import SLACK_CHANNEL_GUILD_ENV_LEGACY  # noqa: E402
 from create_gh_release import SLACK_DM_ENV  # noqa: E402
-from create_gh_release import SLACK_DM_ENV_LEGACY  # noqa: E402
 from create_gh_release import SLACK_USER_BRETT_ID  # noqa: E402
 from create_gh_release import SLACK_USER_EMMETT_ID  # noqa: E402
 from create_gh_release import ReleaseState  # noqa: E402
@@ -257,8 +255,6 @@ class SlackDefaultsTests(unittest.TestCase):
     def test_preferred_env_names(self) -> None:
         self.assertEqual(SLACK_CHANNEL_GUILD_ENV, "DDTRACE_RELEASE_GUILD_CHANNEL_URL")
         self.assertEqual(SLACK_DM_ENV, "DDTRACE_RELEASE_DM_URL")
-        self.assertEqual(SLACK_CHANNEL_GUILD_ENV_LEGACY, "DD_RELEASE_SLACK_WEBHOOK_URL_GUILD")
-        self.assertEqual(SLACK_DM_ENV_LEGACY, "DD_RELEASE_SLACK_DM_URL")
 
     def test_notify_slack_test_dm_only(self) -> None:
         import create_gh_release as mod
@@ -294,30 +290,6 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("*Draft patch release*", body)
         self.assertIn(AUTO_CREATED_FOOTER, body)
 
-    def test_notify_slack_legacy_dm_env_fallback(self) -> None:
-        import create_gh_release as mod
-
-        posted: list[tuple[str, str]] = []
-
-        def fake_post(url: str, text: str) -> None:
-            posted.append((url, text))
-
-        with mock.patch.dict(
-            "os.environ",
-            {SLACK_DM_ENV_LEGACY: "https://example.test/legacy-dm"},
-            clear=True,
-        ):
-            with mock.patch.object(mod, "post_webhook", fake_post):
-                mod.notify_slack(
-                    version="4.16.2",
-                    target_sha="deadbeef",
-                    draft_url="https://example/draft",
-                    test_dm=True,
-                    channel="guild",
-                    precheck=False,
-                )
-        self.assertEqual(posted[0][0], "https://example.test/legacy-dm")
-
     def test_notify_slack_guild_channel(self) -> None:
         import create_gh_release as mod
 
@@ -347,57 +319,6 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(url, "https://example.test/guild")
         self.assertIn("*Draft release*", body)
         self.assertNotIn("[TEST]", body)
-
-    def test_notify_slack_legacy_guild_env_fallback(self) -> None:
-        import create_gh_release as mod
-
-        posted: list[tuple[str, str]] = []
-
-        def fake_post(url: str, text: str) -> None:
-            posted.append((url, text))
-
-        with mock.patch.dict(
-            "os.environ",
-            {SLACK_CHANNEL_GUILD_ENV_LEGACY: "https://example.test/legacy-guild"},
-            clear=True,
-        ):
-            with mock.patch.object(mod, "post_webhook", fake_post):
-                mod.notify_slack(
-                    version="4.17.0",
-                    target_sha="cafebabe",
-                    draft_url="https://example/final",
-                    test_dm=False,
-                    channel="guild",
-                    precheck=False,
-                )
-        self.assertEqual(posted[0][0], "https://example.test/legacy-guild")
-
-    def test_new_env_prefers_over_legacy(self) -> None:
-        import create_gh_release as mod
-
-        posted: list[tuple[str, str]] = []
-
-        def fake_post(url: str, text: str) -> None:
-            posted.append((url, text))
-
-        with mock.patch.dict(
-            "os.environ",
-            {
-                SLACK_CHANNEL_GUILD_ENV: "https://example.test/new-guild",
-                SLACK_CHANNEL_GUILD_ENV_LEGACY: "https://example.test/legacy-guild",
-            },
-            clear=True,
-        ):
-            with mock.patch.object(mod, "post_webhook", fake_post):
-                mod.notify_slack(
-                    version="4.17.0",
-                    target_sha="cafebabe",
-                    draft_url="https://example/final",
-                    test_dm=False,
-                    channel="guild",
-                    precheck=False,
-                )
-        self.assertEqual(posted[0][0], "https://example.test/new-guild")
 
 
 class WritePyprojectVersionTests(unittest.TestCase):
