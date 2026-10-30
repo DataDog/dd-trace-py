@@ -1,0 +1,4 @@
+out/
+results*.json
+profile*.prof
+profile*.top.txt
