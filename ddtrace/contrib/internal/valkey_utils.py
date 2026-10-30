@@ -75,8 +75,8 @@ async def _run_valkey_command_async(ctx: core.ExecutionContext, func, args, kwar
         rowcount = 0
         raise
     finally:
-        if rowcount is None:
-            rowcount = determine_row_count(valkey_command=valkey_command, result=result)
         if valkey_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
+        elif rowcount is None:
+            rowcount = determine_row_count(valkey_command=valkey_command, result=result)
         core.dispatch("valkey.async_command.post", (ctx, rowcount))
