@@ -190,7 +190,12 @@ class EchionSampler
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
 
-    void set_max_frames(size_t max_frames) { stack_max_frames_ = std::max<size_t>(max_frames, 1); }
+    void configure_frame_limits(size_t max_frames, size_t frame_cache_capacity)
+    {
+        stack_max_frames_ = std::max<size_t>(max_frames, 1);
+        frame_cache_.set_capacity(frame_cache_capacity);
+    }
+
     [[nodiscard]] size_t stack_max_frames() const { return stack_max_frames_; }
 
     unsigned int max_tasks_per_sample() const { return max_tasks_per_sample_; }
@@ -204,6 +209,7 @@ class EchionSampler
 
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
+    [[nodiscard]] size_t frame_cache_capacity() const { return frame_cache_.capacity(); }
 
     // Clears every cache keyed by a CPython object address (code objects and their name/filename strings), since
     // CPython 3.14 can free and reuse them together. Sampling thread only: lookups return references into the table.
