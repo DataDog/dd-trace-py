@@ -23,6 +23,13 @@ def is_file_level_coverage_enabled() -> bool:
     return asbool(env.get("_DD_COVERAGE_FILE_LEVEL", default))
 
 
+def is_import_data_enabled() -> bool:
+    # Private opt-out from import-time coverage data in per-test coverage reports. Import-time
+    # data is what lets test skipping select tests that merely import changed code, so it is
+    # enabled by default: disabling it trades skipping correctness for per-test overhead.
+    return asbool(env.get("_DD_COVERAGE_INCLUDE_IMPORT_DATA", "true"))
+
+
 def collapse_ranges(numbers: list[int]) -> list[tuple[int, int]]:
     # This function turns an ordered list of numbers into a list of ranges.
     # For example, [1, 2, 3, 5, 6, 7, 9] becomes [(1, 3), (5, 7), (9, 9)]
