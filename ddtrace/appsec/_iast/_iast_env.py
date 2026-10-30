@@ -5,6 +5,7 @@ from typing import Union
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import SpanData
 
 
@@ -49,7 +50,9 @@ class IASTEnvironment:
         return f"{self.endpoint_method}:{self.endpoint_route}"
 
 
-def _get_iast_env() -> Optional[IASTEnvironment]:
+def _get_iast_env(context: Optional[core.ExecutionContext[Event]] = None) -> Optional[IASTEnvironment]:
+    if context is not None:
+        return context.find_item(IAST.REQUEST_CONTEXT_KEY)
     return core.find_item(IAST.REQUEST_CONTEXT_KEY)
 
 

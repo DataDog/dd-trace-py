@@ -2,12 +2,14 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 import ddtrace.appsec._iast._iast_request_context_base as base
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.appsec._iast_context import _get_iast_context_id
@@ -37,8 +39,10 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
     return None
 
 
-def _create_and_attach_iast_report_to_span(req_span: SpanData) -> None:
-    report_data: Optional[IastSpanReporter] = get_iast_reporter()
+def _create_and_attach_iast_report_to_span(req_span: SpanData, environment: Optional[IASTEnvironment] = None) -> None:
+    context_id = environment.context_id if environment is not None else _get_iast_context_id()
+    environment = environment or _get_iast_env()
+    report_data = environment.iast_reporter if environment is not None else None
     if report_data is not None:
         data = report_data.build_and_scrub_value_parts()
         if asm_config._use_metastruct_for_iast:
@@ -48,19 +52,22 @@ def _create_and_attach_iast_report_to_span(req_span: SpanData) -> None:
             req_span._set_struct_tag(IAST.STRUCT, data)
         else:
             req_span._set_attribute(IAST.JSON, report_data._to_str(data))
-    _set_metric_iast_request_tainted()
-    base._set_span_tag_iast_request_tainted(req_span)
-    _set_span_tag_iast_executed_sink(req_span)
+    tainted = debug_num_tainted_objects(context_id) if context_id is not None else 0
+    _set_metric_iast_request_tainted(tainted)
+    base._set_span_tag_iast_request_tainted(req_span, tainted)
+    _set_span_tag_iast_executed_sink(req_span, environment)
 
     if req_span._get_str_attribute(_ORIGIN_KEY) is None:
         req_span._set_attribute(_ORIGIN_KEY, IAST.ORIGIN_VALUE)
 
 
-def _iast_end_request(scope: Union[ExecutionContext[Event], SpanData]) -> None:
+def _iast_end_request(
+    scope: Union[ExecutionContext[Event], SpanData], context: Optional[ExecutionContext[Event]] = None
+) -> None:
     req_span: Optional[SpanData] = None
     try:
-        environment = _get_iast_env()
-        context_id = _get_iast_context_id()
+        environment = _get_iast_env(context)
+        context_id = environment.context_id if context is not None and environment else _get_iast_context_id()
         if environment is not None and (context_id is None or environment.context_id != context_id):
             environment = None
         if isinstance(scope, SpanData):
@@ -80,13 +87,15 @@ def _iast_end_request(scope: Union[ExecutionContext[Event], SpanData]) -> None:
             reporting_succeeded = False
             try:
                 if req_span._get_numeric_attribute(IAST.ENABLED) is None:
-                    enabled = base.is_iast_request_enabled()
+                    enabled = environment is not None if context is not None else base.is_iast_request_enabled()
                     req_span._set_attribute(IAST.ENABLED, float(enabled))
                     if enabled:
-                        _create_and_attach_iast_report_to_span(req_span)
+                        _create_and_attach_iast_report_to_span(req_span, environment)
                         reporting_succeeded = True
             finally:
-                base._iast_finish_request(req_span, shoud_update_global_vulnerability_limit=reporting_succeeded)
+                base._iast_finish_request(
+                    req_span, shoud_update_global_vulnerability_limit=reporting_succeeded, context=context
+                )
                 if environment is not None:
                     reset_request_vulnerabilities(environment)
                     environment.iast_hash_object_tracking.clear()

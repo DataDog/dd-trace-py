@@ -22,6 +22,7 @@ from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.appsec._iast_context import _get_iast_context_id
 from ddtrace.appsec._iast_context import is_iast_request_enabled as is_iast_request_enabled
 from ddtrace.internal import core
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
@@ -30,8 +31,9 @@ from ddtrace.internal.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-def _set_span_tag_iast_request_tainted(span: SpanData) -> None:
-    total_objects_tainted = _num_objects_tainted_in_request()
+def _set_span_tag_iast_request_tainted(span: SpanData, total_objects_tainted: Optional[int] = None) -> None:
+    if total_objects_tainted is None:
+        total_objects_tainted = _num_objects_tainted_in_request()
 
     if total_objects_tainted > 0:
         span._set_attribute(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
@@ -103,25 +105,31 @@ def _iast_start_request(span: Optional[SpanData] = None) -> Optional[int]:
     return context_id
 
 
-def _iast_finish_request(span: Optional[SpanData] = None, shoud_update_global_vulnerability_limit: bool = True) -> bool:
-    """Finalize the IAST request context and optionally update global limits.
-
-    This function only clears an environment owned by the active context, optionally
-    updates global vulnerability optimization data, and releases the native taint context.
-    """
+def _iast_finish_request(
+    span: Optional[SpanData] = None,
+    shoud_update_global_vulnerability_limit: bool = True,
+    context: Optional[core.ExecutionContext[Event]] = None,
+) -> bool:
+    """Release the owning request's state, optionally using its saved integration context."""
     context_id = _get_iast_context_id()
-    env = _get_iast_env()
+    env = _get_iast_env(context)
+    if context is not None:
+        # Completion can run in a different task. Release only this request's state.
+        if env is None or env.span is not span:
+            return False
+        context_id = env.context_id
     # Rejected admission can leave another request's environment visible through core.
     if env is not None and (context_id is None or env.context_id != context_id):
         env = None
     if env is not None and env.span is span:
         if shoud_update_global_vulnerability_limit:
             update_global_vulnerability_limit(env)
-        core.discard_item(IAST.REQUEST_CONTEXT_KEY)
+        (context if context is not None else core.current).discard_item(IAST.REQUEST_CONTEXT_KEY)
 
     if context_id is not None:
         finish_request_context(context_id)
-        IAST_CONTEXT.set(None)
+        if _get_iast_context_id() == context_id:
+            IAST_CONTEXT.set(None)
 
     if env is not None:
         env.iast_taint_source_objects.clear()
