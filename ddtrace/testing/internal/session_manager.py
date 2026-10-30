@@ -24,6 +24,8 @@ from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED
+from ddtrace.testing.internal.constants import DD_CIVISIBILITY_GIT_UPLOAD_ENABLED
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -738,6 +740,23 @@ class SessionManager:
             log.debug("Skipping git data upload in offline/payload-files mode")
             return
 
+        # Kill switch: skip the entire git metadata upload (search_commits, unshallow
+        # fetch, and packfile upload). Use this to upload git metadata once per
+        # pipeline (e.g. via `datadog-ci git-metadata upload` in a single job) instead
+        # of once per test job. The PR merge-base is still computed from local
+        # history when possible — a single local git command with no network I/O.
+        if not asbool(env.get(DD_CIVISIBILITY_GIT_UPLOAD_ENABLED, "true")):
+            log.debug("Git metadata upload disabled by %s, skipping", DD_CIVISIBILITY_GIT_UPLOAD_ENABLED)
+            try:
+                git = Git()
+                # Best-effort: no fetch will ever run on this path, so a local
+                # failure on a shallow clone is expected and stays quiet; a
+                # failure on a non-shallow repo keeps the warning.
+                self._update_pr_merge_base(git, quiet=git.is_shallow_repository())
+            except RuntimeError:
+                log.debug("git binary unavailable, skipping merge-base computation")
+            return
+
         # Fast path: a sibling worker already uploaded for this HEAD.
         if (sentinel_data := self._read_upload_sentinel()) is not None:
             log.debug("Git data upload already completed by another worker for this HEAD, skipping")
@@ -810,8 +829,13 @@ class SessionManager:
         # skipped entirely, matching the behavior of the other CI Visibility tracers.
         if is_shallow:
             if commits_not_in_backend or merge_base_needed:
-                log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-                unshallow_successful = git.try_all_unshallow_repository_methods()
+                unshallow_enabled = asbool(env.get(DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED, "true"))
+                if unshallow_enabled:
+                    log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+                    unshallow_successful = git.try_all_unshallow_repository_methods()
+                else:
+                    log.debug("Git unshallow disabled by %s", DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED)
+                    unshallow_successful = False
                 if unshallow_successful:
                     # Recompute the merge-base over the extended history. The local
                     # attempt above ran on the truncated shallow graph and may have
@@ -835,7 +859,7 @@ class SessionManager:
                             return
 
                         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
-                elif commits_not_in_backend:
+                elif commits_not_in_backend and unshallow_enabled:
                     log.warning("Failed to unshallow repository, continuing to send pack data")
 
         if not commits_not_in_backend:
