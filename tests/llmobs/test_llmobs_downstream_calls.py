@@ -191,3 +191,99 @@ def test_concurrent_tools_do_not_mix(llmobs, llmobs_events, tracer):
     asyncio.run(run())
     assert [e["target"] for e in _downstream_calls(_event(llmobs_events, "a"))["calls"]] == ["/alpha"]
     assert [e["target"] for e in _downstream_calls(_event(llmobs_events, "b"))["calls"]] == ["/beta"]
+
+
+def _client_span(tracer, name, **tags):
+    with tracer.trace(name) as span:
+        span.set_tag(SPAN_KIND, SpanKind.CLIENT)
+        for key, value in tags.items():
+            span.set_tag(key, value)
+    return span
+
+
+def test_client_nested_through_internal_span_is_counted_once(llmobs, llmobs_events, tracer):
+    with llmobs.tool("t"):
+        with tracer.trace("sdk.call") as outer:
+            outer.set_tag(SPAN_KIND, SpanKind.CLIENT)
+            outer.set_tag("http.url", "https://api.example.com/v1/orders/1")
+            with tracer.trace("retry.attempt"):
+                _http_call(tracer, "https://api.example.com/v1/orders/1", component="urllib3")
+
+    assert _downstream_calls(_event(llmobs_events, "t"))["total_count"] == 1
+
+
+def test_otel_semantic_http_attributes(llmobs, llmobs_events, tracer):
+    with llmobs.tool("t"):
+        _client_span(
+            tracer,
+            "http.request",
+            **{
+                "url.full": "https://api.example.com/v1/orders/7",
+                "http.request.method": "GET",
+                "http.response.status_code": "503",
+            },
+        )
+
+    (entry,) = _downstream_calls(_event(llmobs_events, "t"))["calls"]
+    assert (entry["kind"], entry["method"], entry["host"], entry["target"], entry["status"]) == (
+        "http",
+        "GET",
+        "api.example.com",
+        "/v1/orders/?",
+        "503",
+    )
+    assert entry["error_count"] == 1
+
+
+def test_db_ports_and_endpoint_labels(llmobs, llmobs_events, tracer):
+    with llmobs.tool("t"):
+        for port in ("5432", "5433"):
+            _client_span(
+                tracer,
+                "postgres.query",
+                **{"db.system": "postgresql", "out.host": "db.internal", "network.destination.port": port},
+            )
+        _client_span(
+            tracer,
+            "grpc",
+            **{
+                "grpc.method.path": "/search.Search/Query",
+                "out.host": "search",
+                "grpc.status.code": "StatusCode.UNAVAILABLE",
+            },
+        )
+
+    calls = _downstream_calls(_event(llmobs_events, "t"))
+    assert sorted(calls["endpoints"]) == [
+        "postgresql db.internal:5432 postgres.query",
+        "postgresql db.internal:5433 postgres.query",
+        "search/search.Search/Query",
+    ]
+    assert calls["statuses"] == ["StatusCode.UNAVAILABLE"]
+    assert calls["total_error_count"] == 1
+
+
+def test_malformed_and_ipv6_urls(llmobs, llmobs_events, tracer):
+    with llmobs.tool("t"):
+        _http_call(tracer, "http://[::1/broken")
+        _http_call(tracer, "http://[::1]:80/x")
+        _http_call(tracer, "http://[::1:80]/x")
+
+    calls = _downstream_calls(_event(llmobs_events, "t"))
+    assert calls["total_count"] == 3
+    assert {"[::1]:80", "[::1:80]"} <= set(calls["hosts"])
+
+
+def test_secret_like_and_long_paths_are_redacted(llmobs, llmobs_events, tracer):
+    with llmobs.tool("t"):
+        _http_call(
+            tracer, "https://hooks.example.com/services/T0A1B2C3D/B4E5F6G7H/aBcDeFgHiJkLmNoPqRsT1234", method="POST"
+        )
+        _http_call(tracer, "https://api.example.com/users/jane@example.com/profile")
+        _http_call(tracer, "https://api.example.com/" + "a" * 1000)
+
+    calls = _downstream_calls(_event(llmobs_events, "t"))
+    assert "aBcDeFgHiJkLmNoPqRsT1234" not in str(calls)
+    assert "jane@example.com" not in str(calls)
+    assert "/users/?/profile" in calls["targets"]
+    assert all(len(target) <= 256 for target in calls["targets"])

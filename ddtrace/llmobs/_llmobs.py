@@ -668,7 +668,7 @@ class LLMObs(Service):
         if not self.enabled:
             return
         if span.span_type != SpanTypes.LLM:
-            self._downstream_calls.on_span_finish(span, self._llmobs_context_provider.active())
+            self._downstream_calls.on_span_finish(span, self._propagated_llmobs_parent_id)
             return
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
@@ -732,6 +732,13 @@ class LLMObs(Service):
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
+
+    def _propagated_llmobs_parent_id(self) -> Optional[str]:
+        """LLMObs parent ID carried by the active context, e.g. in a thread-pool worker."""
+        active = self._llmobs_context_provider.active()
+        if isinstance(active, Context):
+            return active._meta.get(PROPAGATED_PARENT_ID_KEY)
+        return None
 
     def _enrich_with_http_client_ip(self, span: Span) -> None:
         # Only enrich the LLMObs root span; non-root spans join against the root at query time.

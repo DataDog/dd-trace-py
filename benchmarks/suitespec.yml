@@ -122,6 +122,16 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  llmobs_span:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@llmobs'
+      - benchmarks/llmobs_span/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   core_api:
     paths:
       - '@bootstrap'
