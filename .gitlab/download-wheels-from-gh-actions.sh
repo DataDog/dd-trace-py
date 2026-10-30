@@ -2,6 +2,7 @@
 set -eo pipefail
 
 source .gitlab/gha-utils.sh
+source .gitlab/scripts/gh-retry.sh
 
 RUN_ID=$(wait_for_run_id)
 
@@ -15,9 +16,13 @@ if [[ $(gh run view $RUN_ID --repo "$GH_REPO" --json status --jq .status) != "co
   sleep 300 # 5 minutes
 fi
 
-# gh run watch returns at once for a completed run. Its exit status is the only
-# check that fails this job when the workflow run failed.
-gh run watch $RUN_ID --interval 60 --exit-status 1 --repo "$GH_REPO"
+# gh run watch returns at once for a completed run. The conclusion check is the
+# only check that fails this job when the workflow run failed.
+gh_retry run watch $RUN_ID --interval 60 --repo "$GH_REPO"
+if [[ $(gh_retry run view $RUN_ID --repo "$GH_REPO" --json conclusion --jq .conclusion) != "success" ]]; then
+  echo "GitHub workflow run $RUN_ID did not succeed"
+  exit 1
+fi
 
 echo "Github workflow finished. Downloading wheels"
 # Download only win_arm64 wheels; amd64 and x86 wheels are built directly in GitLab.

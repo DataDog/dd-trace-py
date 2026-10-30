@@ -732,6 +732,7 @@ prof-correctness:
       changes:
         - .github/workflows/prof-correctness.yml
         - .gitlab-ci.yml
+        - .gitlab/scripts/gh-retry.sh
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
         - src/native/**/*
@@ -749,24 +750,29 @@ prof-correctness:
         echo "error: GH_TOKEN is empty after dd-octo-sts (policy dd-trace-py.gitlab.trigger-ci)" >&2
         exit 1
       fi
+      . .gitlab/scripts/gh-retry.sh
       TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
       # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
       TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
       echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
-      gh workflow run downstream-python.yml \
+      # A dispatch that fails can still start a run, so a retry can start a second
+      # run. The lookup below picks the newest run for this commit.
+      gh_retry workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
         -f "test_scenarios=${TEST_SCENARIOS}"
 
       RUN_ID=""
       for _ in $(seq 1 30); do
+        # If the lookup fails, RUN_ID is empty and the loop polls again.
         RUN_ID="$(gh run list \
           --repo DataDog/prof-correctness \
           --workflow=downstream-python.yml \
           --event workflow_dispatch \
           --limit 20 \
           --json databaseId,displayTitle,headSha,event,createdAt \
-          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty" \
+          || true)"
         if [ -n "${RUN_ID}" ]; then
           break
         fi
@@ -779,7 +785,12 @@ prof-correctness:
       fi
 
       echo "Watching prof-correctness run ${RUN_ID}"
-      gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
+      gh_retry run watch "${RUN_ID}" --repo DataDog/prof-correctness
+      CONCLUSION="$(gh_retry run view "${RUN_ID}" --repo DataDog/prof-correctness --json conclusion --jq .conclusion)"
+      if [ "${CONCLUSION}" != "success" ]; then
+        echo "error: prof-correctness run ${RUN_ID} completed with '${CONCLUSION}'" >&2
+        exit 1
+      fi
 
 lib_injection_tests:
   # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.
