@@ -88,8 +88,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Clear SpanLinks so thread-to-span links from this run don't carry over to the next start() in the
-    // same process, for example between tests.
+    // Clear SpanLinks so thread-to-span links from this run don't carry over to the next start().
     SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the

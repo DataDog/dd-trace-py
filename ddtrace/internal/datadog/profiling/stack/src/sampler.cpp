@@ -652,8 +652,8 @@ Sampler::Sampler()
 Sampler&
 Sampler::get()
 {
-    // Never destroyed: uWSGI can call exit() without running the Python atexit hook that stops the sampler, so the
-    // detached sampling thread may still be running.
+    // uWSGI may call exit without running the atexit hooks that stop the sampler.
+    // Making this a raw pointer prevents crashes at exit.
     static Sampler* const instance = new Sampler();
     return *instance;
 }
