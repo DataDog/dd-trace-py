@@ -1,7 +1,19 @@
+import functools
+import os
 import sys
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
+
+
+@functools.lru_cache(maxsize=4096)
+def resolved_path(path_str: str) -> str:
+    # Memoized realpath for coverage hot paths: instrument_module runs for every
+    # code object and every coverage report resolves the same workspace per test,
+    # while the symlink layout never changes mid-run. Profiling showed thousands
+    # of realpath/resolve calls on repeated inputs per run; the cache turns those
+    # into dict lookups.
+    return os.path.realpath(path_str)
 
 
 def is_file_level_coverage_enabled() -> bool:
