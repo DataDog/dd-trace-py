@@ -135,7 +135,6 @@ def emission_factory(monkeypatch):
 
     try:
         yield make
-        assert all(provider._evaluation_telemetry.get() is None for provider in providers)
     finally:
         api.clear_hooks()
         api.set_evaluation_context(EvaluationContext())
@@ -343,12 +342,21 @@ class ReturnNonContext(Hook):
 
 
 @pytest.mark.parametrize("opted_out", [False, True])
-def test_failure_after_gate_before_releases_handoff(emission_factory, opted_out):
+def test_context_merge_failure_respects_opt_out(emission_factory, opted_out):
     emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
     details = emissions.evaluate(context("bad", opted_out), options=FlagEvaluationOptions(hooks=[ReturnNonContext()]))
     assert (details.value, details.error_code) == (False, ErrorCode.GENERAL)
-    assert emissions.provider._evaluation_telemetry.get() is None
     count = int(not opted_out)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 0}
+
+
+@pytest.mark.parametrize("initial_opt_out", [False, True])
+def test_returned_opt_out_is_discarded_when_later_hook_merge_fails(emission_factory, initial_opt_out):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    options = FlagEvaluationOptions(hooks=[ReturnContext(True), ReturnNonContext()])
+    details = emissions.evaluate(context("bad", initial_opt_out), options=options)
+    assert (details.value, details.error_code) == (False, ErrorCode.GENERAL)
+    count = int(not initial_opt_out)
     assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 0}
 
 
@@ -547,7 +555,6 @@ def test_resolver_in_copied_context_keeps_flag_result(emission_factory, monkeypa
             details = await emissions.client.get_boolean_details_async(FLAG, False, context("off-loop", opted_out))
         emissions.spans.append(span)
         assert (details.value, details.error_code) == (True, None)
-        assert provider._evaluation_telemetry.get() is None
         return details
 
     monkeypatch.setattr(provider, "resolve_boolean_details_async", resolve_boolean_details_async)
@@ -644,7 +651,6 @@ def test_provider_status_short_circuit_respects_opt_out(emission_factory, monkey
     details = emissions.evaluate(subject, options=FlagEvaluationOptions(hooks=[ClearOnError()]))
     expected = ErrorCode.PROVIDER_NOT_READY if status == ProviderStatus.NOT_READY else ErrorCode.PROVIDER_FATAL
     assert (details.value, details.error_code) == (False, expected)
-    assert emissions.provider._evaluation_telemetry.get() is None
     count = int(not opted_out)
     assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 0}
 
@@ -712,12 +718,12 @@ def test_async_handoffs_capture_their_own_final_context(emission_factory, monkey
     assert emissions.counts() == {"evaluations": 4, "metrics": 4, "annotated_spans": 4, "exposures": 8}
 
 
-def test_handoff_ends_at_resolver_entry(emission_factory):
+def test_direct_resolution_in_after_does_not_change_outer_decision(emission_factory):
     emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
 
     class DirectResolve(Hook):
         def after(self, hook_context, details, hints):
-            # No SDK call, so no gate: this resolver must not see the outer handoff.
+            # A direct resolution carries only its own decision.
             emissions.provider.resolve_boolean_details(FLAG, False, context("direct", True))
 
     assert emissions.evaluate(context("outer"), options=FlagEvaluationOptions(hooks=[DirectResolve()])).value is True
@@ -733,3 +739,112 @@ def test_opt_out_preserves_local_debug_logging(emission_factory, caplog):
     messages = [record.getMessage() for record in caplog.records]
     assert any("Feature Flags: provider resolved" in message for message in messages)
     assert any("Feature Flags: evaluated" in message for message in messages)
+
+
+@pytest.mark.parametrize("returned", [False, True])
+@pytest.mark.parametrize("missing", [False, True])
+def test_executor_without_contextvars_uses_resolution_decision(emission_factory, monkeypatch, returned, missing):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    original = emissions.provider.resolve_boolean_details
+
+    async def resolve(flag_key, default_value, evaluation_context=None):
+        return await asyncio.get_running_loop().run_in_executor(
+            None, original, flag_key, default_value, evaluation_context
+        )
+
+    monkeypatch.setattr(emissions.provider, "resolve_boolean_details_async", resolve)
+
+    async def evaluate():
+        with tracer.trace("executor-opt-out") as span:
+            details = await emissions.client.get_boolean_details_async(
+                "missing" if missing else FLAG,
+                False,
+                context("executor", not returned),
+                FlagEvaluationOptions(hooks=[ReturnContext(returned)]),
+            )
+        emissions.spans.append(span)
+        return details
+
+    details = asyncio.run(evaluate())
+    assert details.error_code == (ErrorCode.FLAG_NOT_FOUND if missing else None)
+    assert "__dd_evaluation_telemetry_opt_out" not in details.flag_metadata
+    count = int(not returned)
+    assert emissions.counts() == {
+        "evaluations": count,
+        "metrics": count,
+        "annotated_spans": count,
+        "exposures": int(not missing),
+    }
+
+
+@pytest.mark.parametrize("provider_hook", [False, True])
+def test_direct_resolution_before_failure_does_not_clear_opt_out(emission_factory, monkeypatch, provider_hook):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+
+    class DirectThenRaise(Hook):
+        def before(self, hook_context, hints):
+            emissions.provider.resolve_boolean_details(FLAG, False, context("inner", False))
+            raise RuntimeError("application before hook failed")
+
+        def error(self, hook_context, exception, hints):
+            hook_context.evaluation_context.attributes[PARAMETER] = False
+
+    hook = DirectThenRaise()
+    options = FlagEvaluationOptions(hooks=[hook])
+    if provider_hook:
+        original = emissions.provider.get_provider_hooks
+        monkeypatch.setattr(emissions.provider, "get_provider_hooks", lambda: original() + [hook])
+        options = None
+    details = emissions.evaluate(context("outer", True), options=options)
+    assert details.error_code == ErrorCode.GENERAL
+    assert emissions.counts() == {"evaluations": 0, "metrics": 0, "annotated_spans": 0, "exposures": 1}
+
+
+@pytest.mark.parametrize("returned", [False, True])
+def test_after_failure_preserves_resolution_decision(emission_factory, returned):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+
+    class FailAfter(Hook):
+        def after(self, hook_context, details, hints):
+            assert "__dd_evaluation_telemetry_opt_out" not in details.flag_metadata
+            raise RuntimeError("after hook failed")
+
+    details = emissions.evaluate(
+        context("after-failure", not returned),
+        options=FlagEvaluationOptions(hooks=[ReturnContext(returned), FailAfter()]),
+    )
+    assert details.error_code == ErrorCode.GENERAL
+    count = int(not returned)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
+
+
+@pytest.mark.parametrize("value", [None, "scalar", 42, 4.25, True, {}, []])
+@pytest.mark.parametrize("returned", [False, True])
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_json_type_validation_preserves_opt_out(emission_factory, monkeypatch, value, returned, asynchronous):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    flag = create_json_flag(FLAG, value)
+    flag["allocations"][0]["splits"][0]["serialId"] = 340132
+    assert process_ffe_configuration(create_config(flag))
+    original = emissions.provider.resolve_object_details
+
+    async def resolve(flag_key, default_value, evaluation_context=None):
+        return await asyncio.get_running_loop().run_in_executor(
+            None, original, flag_key, default_value, evaluation_context
+        )
+
+    monkeypatch.setattr(emissions.provider, "resolve_object_details_async", resolve)
+    options = FlagEvaluationOptions(hooks=[ReturnContext(returned)])
+    subject = context("json-type", not returned)
+    if asynchronous:
+        with tracer.trace("json-executor") as span:
+            details = asyncio.run(emissions.client.get_object_details_async(FLAG, {}, subject, options))
+        emissions.spans.append(span)
+    else:
+        details = emissions.evaluate(subject, kind="object", default={}, options=options)
+    valid = isinstance(value, (dict, list))
+    assert details.value == (value if valid else {})
+    assert details.error_code == (None if valid else ErrorCode.TYPE_MISMATCH)
+    assert "__dd_evaluation_telemetry_opt_out" not in details.flag_metadata
+    count = int(not returned)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}

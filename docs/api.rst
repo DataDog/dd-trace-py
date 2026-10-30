@@ -91,9 +91,12 @@ OpenFeature
    and automatic flag span annotations. The provider captures the final merged context
    at resolver entry, including contexts returned by ``before`` hooks. A returned
    ``False`` can override an earlier ``True`` according to the OpenFeature SDK's
-   context precedence. Set the subject attribute before evaluation. Do not rely on
-   an ``after`` hook to change opt-out behavior across SDKs. Existing queued
-   telemetry remains intact.
+   context precedence. Returned contexts apply only when evaluation reaches the
+   resolver. The SDK skips ``before`` hooks while the provider is ``NOT_READY``
+   or ``FATAL`` and discards earlier returns if a later ``before`` hook raises.
+   Set the subject attribute in the evaluation context before evaluation so that
+   opt-out also applies in those cases. Do not rely on an ``after`` hook to change
+   opt-out behavior across SDKs. Existing queued telemetry remains intact.
 
    ``dd_evaluation_telemetry_opt_out`` remains an ordinary context attribute.
    Targeting rules can match on it, so changing it can change an assignment and

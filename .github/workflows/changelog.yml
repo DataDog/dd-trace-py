@@ -34,11 +34,11 @@ jobs:
           python-version: '3.13'
 
       - name: Lint changelog notes
-        run: reno lint
+        run: python scripts/reno_compat.py lint
 
       - name: Generate changelog
         run: |
-          reno report | tee CHANGELOG.rst
+          python scripts/reno_compat.py report | tee CHANGELOG.rst
           rst2html CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst

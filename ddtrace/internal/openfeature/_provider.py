@@ -7,7 +7,6 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
-from contextvars import ContextVar
 import time
 import typing
 
@@ -35,7 +34,9 @@ from ddtrace.internal.openfeature._debug_logging_hook import DebugLoggingHook
 from ddtrace.internal.openfeature._debug_logging_hook import debug_logging_enabled
 from ddtrace.internal.openfeature._debug_logging_hook import log_provider_resolution
 from ddtrace.internal.openfeature._debug_logging_hook import warn_raw_evaluation_data_logged
+from ddtrace.internal.openfeature._evaluation_telemetry import METADATA_EVALUATION_TELEMETRY_OPT_OUT
 from ddtrace.internal.openfeature._evaluation_telemetry import EvaluationTelemetryHook
+from ddtrace.internal.openfeature._evaluation_telemetry import _opted_out
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
@@ -140,9 +141,6 @@ class DataDogProvider(AbstractProvider):
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
-        self._evaluation_telemetry: ContextVar[typing.Optional[EvaluationTelemetryHook]] = ContextVar(
-            "ddtrace.openfeature.evaluation_telemetry", default=None
-        )
 
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
@@ -271,9 +269,9 @@ class DataDogProvider(AbstractProvider):
         inside one new EvaluationTelemetryHook per call. This relies on the SDK
         calling get_provider_hooks once per evaluation. The wrapper forwards
         only finally_after, so the wrapped hooks must stay finally-only.
-        The resolver reads a ContextVar to capture the final merged context. A
-        custom resolver running in a thread or executor without copying contextvars
-        skips that handoff, so the gate sees only the pre-hook evaluation context.
+        The resolver carries the final merged context's decision in its result
+        metadata, so executor-based resolutions need not copy contextvars.
+        The gate consumes that metadata before returning the SDK evaluation.
         Debug logging remains outside the telemetry gate.
         """
         hooks: list[typing.Any] = []
@@ -286,7 +284,7 @@ class DataDogProvider(AbstractProvider):
         if self._enable_evaluation_telemetry_opt_out_parameter and hooks:
             # Fresh per-invocation state avoids requiring a hook-data API
             # from older OpenFeature versions.
-            hooks = [EvaluationTelemetryHook(hooks, self._evaluation_telemetry)]
+            hooks = [EvaluationTelemetryHook(hooks)]
         if self._debug_logging_hook is not None:
             hooks.append(self._debug_logging_hook)
         return hooks
@@ -546,10 +544,6 @@ class DataDogProvider(AbstractProvider):
           flag is not found in the configuration
         - Returns error with error_code and error_message on other errors
         """
-        telemetry = self._evaluation_telemetry.get()
-        if telemetry is not None:
-            telemetry.capture_resolution_context(evaluation_context)
-
         # Capture one snapshot at provider entry. Every exit path
         # carries consent from the exact configuration used for resolution;
         # downstream code must never reread live configuration.
@@ -558,6 +552,9 @@ class DataDogProvider(AbstractProvider):
             EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000),
             METADATA_OBSERVE_FULL_EVALUATION_DATA: observe_full_evaluation_data,
         }
+
+        if self._enable_evaluation_telemetry_opt_out_parameter:
+            flag_metadata[METADATA_EVALUATION_TELEMETRY_OPT_OUT] = _opted_out(evaluation_context)
 
         # If provider is not active, return default value
         if not self._active:
@@ -665,7 +662,19 @@ class DataDogProvider(AbstractProvider):
                     flag_metadata=flag_metadata,
                 )
 
-            # Success - return resolved value (which may be None for JSON flags)
+            # OpenFeature object evaluations accept only dict/list. Return the
+            # type error here so the SDK does not replace our result with an
+            # error that discards the per-evaluation telemetry decision.
+            if variation_type == VariationType.Object and not isinstance(details.value, (dict, list)):
+                return FlagResolutionDetails(
+                    value=default_value,
+                    reason=Reason.ERROR,
+                    error_code=ErrorCode.TYPE_MISMATCH,
+                    error_message=f"Expected type {(dict, list)} but got {type(details.value)}",
+                    flag_metadata=flag_metadata,
+                )
+
+            # Success - return the resolved value.
             return FlagResolutionDetails(
                 value=typing.cast(ResolvedValue, details.value),
                 reason=reason,

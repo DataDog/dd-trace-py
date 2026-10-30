@@ -448,6 +448,14 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  openfeature_opt_out:
+    paths:
+      - ddtrace/internal/openfeature/_provider.py
+      - ddtrace/internal/openfeature/_evaluation_telemetry.py
+      - benchmarks/openfeature_opt_out/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   openfeature_flagevaluation:
     paths:
       - ddtrace/internal/openfeature/_flageval_pii.py
