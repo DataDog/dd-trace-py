@@ -112,6 +112,7 @@ def emit_ddtest_jobs(
     services = list(dict.fromkeys(config.get("services") or []))
     env = dict(config.get("env") or {})
     retry = config.get("retry")
+    retry_policy = config.get("retry_policy")
     timeout = config.get("timeout")
     allow_failure = config.get("allow_failure", False)
     suite_name = config.get("pattern") or clean_name
@@ -173,7 +174,8 @@ def emit_ddtest_jobs(
     # The job prepares and plans hashes in parallel across Python versions,
     # partitioning the plan artifact by hash.
     print(f"{plan_name}:", file=f)
-    print(f"  extends: {plan_tpl}", file=f)
+    extends = f"[{plan_tpl}, {retry_policy}]" if retry_policy else plan_tpl
+    print(f"  extends: {extends}", file=f)
     print(f"  stage: {stage}", file=f)
     print("  needs:", file=f)
     print("    - prechecks", file=f)
@@ -208,7 +210,8 @@ def emit_ddtest_jobs(
     for py, python_environments in environments_by_python.items():
         py_run_name = f"{run_name}-{py}"
         print(f"{py_run_name}:", file=f)
-        print(f"  extends: {run_tpl}", file=f)
+        extends = f"[{run_tpl}, {retry_policy}]" if retry_policy else run_tpl
+        print(f"  extends: {extends}", file=f)
         print(f"  stage: {stage}", file=f)
         print("  needs:", file=f)
         print("    - prechecks", file=f)

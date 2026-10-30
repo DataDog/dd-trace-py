@@ -105,6 +105,7 @@ class JobSpec:
     parallelism: t.Optional[int] = None
     venvs_per_job: t.Optional[int] = None
     retry: t.Optional[int] = None
+    retry_policy: t.Optional[str] = None
     timeout: t.Optional[int] = None
     skip: bool = False
     allow_failure: bool = False
@@ -127,7 +128,8 @@ class JobSpec:
             base += "_snapshot"
 
         lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
-        lines.append(f"  extends: {base}")
+        extends = f"[{base}, {self.retry_policy}]" if self.retry_policy else base
+        lines.append(f"  extends: {extends}")
 
         # Set stage
         lines.append(f"  stage: {self.stage}")

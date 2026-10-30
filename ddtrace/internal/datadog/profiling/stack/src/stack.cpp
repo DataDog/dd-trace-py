@@ -88,10 +88,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear SpanLinks. The memory should be cleared up
-    // when the program exits as SpanLinks is a static singleton instance.
-    // However, this was necessary to make sure that the state is not shared
-    // across tests, as the tests are run in the same process.
+    // Clear SpanLinks so thread-to-span links from this run don't carry over to the next start().
     SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the

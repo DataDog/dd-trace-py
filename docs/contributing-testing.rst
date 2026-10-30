@@ -297,6 +297,24 @@ finding and fixing the root cause of the unreliable behavior. Upholding this res
 suite's coverage meaningfully broad while skipping tests.
 
 
+How does CI retry service startup failures?
+-------------------------------------------
+
+``tests/wait-for-services.py`` exits with status 75 (``EX_TEMPFAIL``) when a known service
+fails its readiness checks after polling. The failure log includes the service name and
+the underlying exception. Missing client libraries and usage errors exit with status 1.
+
+Azure test suites select ``.retry_on_infrastructure_or_service_failure`` using the
+``retry_policy`` key in their ``suitespec.yml`` definitions. This shared policy retries
+a job up to twice when either the existing infrastructure failure rules match or the job
+exits with status 75, including on ``main``. Ordinary test failures do not match this policy.
+Other suites keep their existing retry behavior.
+
+The shared policy also enables ``FF_USE_NEW_BASH_EVAL_STRATEGY`` so GitLab Runner preserves
+the readiness command's exit status. The legacy Bash evaluator can turn status 75 into 1,
+which would prevent the service-failure retry rule from matching.
+
+
 How do I find out if a slow or timed-out CI job ran on a slow machine?
 -----------------------------------------------------------------------
 
