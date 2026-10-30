@@ -6,6 +6,7 @@ import json
 import logging
 import sys
 import typing
+from unittest import mock
 
 from fastapi import Cookie
 from fastapi import FastAPI
@@ -22,6 +23,7 @@ from starlette.background import BackgroundTask
 from starlette.responses import PlainTextResponse
 from starlette.responses import StreamingResponse
 
+from ddtrace.appsec._iast import _request_lifecycle as lifecycle
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._overhead_control_engine import oce
@@ -1221,7 +1223,8 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
 
 @pytest.mark.parametrize("mounted", [False, True])
 @pytest.mark.parametrize("inferred_proxy", [False, True])
-def test_iast_analysis_survives_response_middleware(tracer, test_spans, monkeypatch, mounted, inferred_proxy):
+@pytest.mark.parametrize("buffered", [False, True])
+def test_iast_analysis_survives_response_middleware(tracer, test_spans, monkeypatch, mounted, inferred_proxy, buffered):
     import sqlite3
 
     with override_global_config(
@@ -1270,21 +1273,38 @@ def test_iast_analysis_survives_response_middleware(tracer, test_spans, monkeypa
 
                 owner = tracer.current_span()
                 owners.append(owner)
-                messages = []
 
-                async def buffer_send(message):
-                    messages.append(message)
+                def inspect_response():
+                    assert not owner.finished
+                    query = scope["state"]["query"]
+                    assert get_tainted_ranges(query)
+                    with closing(sqlite3.connect(":memory:")) as connection:
+                        connection.execute(query)
 
-                # Let the child finish before inspecting and forwarding its response.
-                await self.app(scope, receive, buffer_send)
-                assert scope["state"]["request_span"].finished is mounted
-                assert not owner.finished
-                query = scope["state"]["query"]
-                assert get_tainted_ranges(query)
-                with closing(sqlite3.connect(":memory:")) as connection:
-                    connection.execute(query)
-                for message in messages:
-                    await send(message)
+                if buffered:
+                    messages = []
+
+                    async def buffer_send(message):
+                        messages.append(message)
+
+                    # Inspect after the child finishes but before forwarding its response.
+                    await self.app(scope, receive, buffer_send)
+                    assert scope["state"]["request_span"].finished is mounted
+                    inspect_response()
+                    for message in messages:
+                        await send(message)
+                else:
+
+                    async def inspect_send(message):
+                        terminal = message["type"] == "http.response.body" and not message.get("more_body", False)
+                        if terminal and not mounted:
+                            inspect_response()
+                        await send(message)
+                        if terminal and mounted:
+                            # The parent requested finishing; its child still needs analysis.
+                            inspect_response()
+
+                    await self.app(scope, receive, inspect_send)
 
         application.add_middleware(InspectResponse)
 
@@ -1384,4 +1404,74 @@ def test_streaming_background_work_cannot_taint_a_later_request(tracer):
             await asyncio.gather(first_task, second_task)
 
         asyncio.run(asyncio.wait_for(run(), timeout=10))
+        assert debug_context_array_free_slots_number() == baseline
+
+
+@pytest.mark.parametrize("spec", ["2.3", "2.4"])
+@pytest.mark.parametrize("sampled", [False, True])
+@pytest.mark.parametrize("mounted", [False, True])
+def test_request_events_admit_once_and_release_streaming_analysis(
+    tracer, test_spans, monkeypatch, spec, sampled, mounted
+):
+    import sqlite3
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_request_sampling=100 if sampled else 0, _iast_deduplication_enabled=False)
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        baseline = debug_context_array_free_slots_number()
+        start = mock.Mock(wraps=lifecycle._iast_start_request)
+        monkeypatch.setattr(lifecycle, "_iast_start_request", start)
+        child = FastAPI()
+        application = FastAPI() if mounted else child
+        if mounted:
+            application.mount("/child", child)
+
+        @child.get("/")
+        async def endpoint(request: Request):
+            query = request.query_params["query"]
+            assert bool(get_tainted_ranges(query)) is sampled
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(query)
+
+            async def stream():
+                yield b"ok"
+
+            return StreamingResponse(stream())
+
+        async def invoke():
+            async def receive():
+                await asyncio.Event().wait()
+
+            async def send(_message):
+                pass
+
+            await application(
+                dict(
+                    type="http",
+                    asgi=dict(version="3.0", spec_version=spec),
+                    http_version="1.1",
+                    method="GET",
+                    scheme="http",
+                    path="/child/" if mounted else "/",
+                    root_path="",
+                    query_string=b"query=SELECT%201",
+                    headers=[],
+                    server=("localhost", 80),
+                ),
+                receive,
+                send,
+            )
+
+        asyncio.run(asyncio.wait_for(invoke(), timeout=10))
+        start.assert_called_once()
+        spans = [span for trace in test_spans.pop_traces() for span in trace if span.name == "fastapi.request"]
+        owner = start.call_args.args[0]
+        assert len(spans) == (2 if mounted else 1)
+        assert owner.get_metric(IAST.ENABLED) == float(sampled)
+        assert bool(load_iast_report(owner)) is sampled
+        assert all(span.get_metric(IAST.ENABLED) is None for span in spans if span is not owner)
+        if sampled:
+            assert owner.get_metric("_dd.iast.telemetry.request.tainted") > 0
+            assert owner.get_metric("_dd.iast.telemetry.executed.sink.sql_injection") > 0
         assert debug_context_array_free_slots_number() == baseline
