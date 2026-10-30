@@ -37,7 +37,8 @@ class SpanLinks
   public:
     static SpanLinks& get_instance()
     {
-        // Never destroyed: the sampling thread may still use it when exit() runs static destructors.
+        // Never destroyed: uWSGI can call exit() without running the Python atexit hook that stops the sampler, so the
+        // sampling thread may still use it.
         static SpanLinks* const instance = new SpanLinks();
         return *instance;
     }

@@ -108,7 +108,8 @@ get_gc_callbacks()
 GCFrameTracker&
 GCFrameTracker::get()
 {
-    // Never destroyed: the sampling thread may still use it when exit() runs static destructors.
+    // Never destroyed: uWSGI can call exit() without running the Python atexit hook that stops the sampler, so the
+    // sampling thread may still use it.
     static GCFrameTracker* const tracker = new GCFrameTracker();
     return *tracker;
 }

@@ -126,8 +126,8 @@ ProfilerState::start()
                        []() { ProfilerState::get().postfork_parent(); },
                        []() { ProfilerState::get().postfork_child(); });
 
-        // No std::atexit cleanup: exit() can run while the stack sampler is still using the profile and the
-        // profiles dictionary. The OS reclaims them.
+        // No std::atexit cleanup: uWSGI can call exit() without running the Python atexit hook that stops the sampler,
+        // which may still be using the profile and the profiles dictionary. The OS reclaims them.
 
         // Set the global initialization flag
         initialized_.store(true, std::memory_order_release);

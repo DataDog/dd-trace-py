@@ -51,7 +51,8 @@ class StackChunk
 
 // ----------------------------------------------------------------------------
 
-// Never destroyed: the sampling thread may still use it when exit() runs static destructors.
+// A raw pointer, so exit() has nothing to destroy: uWSGI can call it without running the Python atexit hook that stops
+// the sampler.
 inline StackChunk* stack_chunk = nullptr;
 
 #endif // PY_VERSION_HEX >= 0x030b0000
