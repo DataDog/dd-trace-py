@@ -72,6 +72,45 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Subscriber bundles
+
+Products can declare related subscribers with `SubscriberBundle` from
+`ddtrace.internal.products`:
+
+```python
+from ddtrace.internal.products import SubscriberBundle
+
+WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
+    module="example_product.subscribers",
+    subscribers=("RequestSubscriber", "RequestContextSubscriber"),
+)
+
+# Call from the owner's existing initialization path.
+WEB_FRAMEWORK_SUBSCRIBERS.register()
+```
+
+Declarations do not import subscriber modules. Calling `register()` loads the module
+and resolves every declared name before registering listeners. Classes must use
+`auto_register = False` so importing their module does not register them implicitly.
+Repeated registration uses named-listener deduplication and can restore listeners
+after a reset. Import and callback failures propagate to the caller; registration
+is not a transaction across callback failures.
+
+`unregister()` removes listeners in reverse declaration order without importing an
+unused module. The caller owns teardown timing: completion listeners must remain
+registered until active contexts finish.
+
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration` and
+registers it when `ddtrace._trace.subscribers` is imported. Existing integration
+imports reach that package, including direct/manual instrumentation without the
+product manager. Shared tracing listeners retain their existing process lifetime;
+other subscriber families continue to register automatically.
+
+Bundles do not change the `Product` protocol or `ProductManager`. Products call
+bundles from their existing initialization paths; automatic subscriber lifecycle
+hooks can be added separately.
+
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from
