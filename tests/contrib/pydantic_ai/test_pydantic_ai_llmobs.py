@@ -481,6 +481,45 @@ class TestLLMObsPydanticAI:
         # "Omit()" in a slot that is meant to hold a number.
         assert "temperature" not in settings
 
+    @pytest.mark.parametrize(
+        ("return_value", "content", "expected_output"),
+        [
+            ({"total": 42}, "Extra note for the model.", '{"total": 42}'),
+            ({"total": 42}, None, '{"total": 42}'),
+            ("", "Extra note for the model.", ""),
+        ],
+    )
+    async def test_tool_return_output_uses_return_value(
+        self, pydantic_ai, pydantic_ai_llmobs, test_spans, return_value, content, expected_output
+    ):
+        """A ToolReturn's output is return_value, not the extra content or the wrapper repr."""
+        try:
+            from pydantic_ai.messages import ToolReturn
+        except ImportError:
+            pytest.skip("pydantic-ai has no ToolReturn")
+
+        agent = pydantic_ai.Agent(model=_test_model(), name="test_agent")
+
+        @agent.tool_plain
+        def lookup() -> ToolReturn:
+            """Look up a total."""
+            return ToolReturn(return_value=return_value, content=content)
+
+        await agent.run("Call lookup.")
+        spans = [span for trace in test_spans.pop_traces() for span in trace]
+        tool_spans = [
+            data for span in spans if (data := _get_llmobs_data_metastruct(span)) and data.get("name") == "lookup"
+        ]
+        assert len(tool_spans) == 1
+        assert_llmobs_span_data(
+            tool_spans[0],
+            span_kind="tool",
+            name="lookup",
+            output_value=expected_output,
+            metadata={"description": "Look up a total."},
+            tags=PYDANTIC_AI_TAGS,
+        )
+
 
 class TestLLMObsPydanticAISpanLinks:
     async def test_agent_calls_tool(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, openai_patched, test_spans):
