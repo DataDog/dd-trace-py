@@ -19,6 +19,7 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import importlib
+import json
 import os
 import re
 import shlex
@@ -104,6 +105,7 @@ class JobSpec:
     parallelism: t.Optional[int] = None
     venvs_per_job: t.Optional[int] = None
     retry: t.Optional[int] = None
+    retry_policy: t.Optional[str] = None
     timeout: t.Optional[int] = None
     skip: bool = False
     allow_failure: bool = False
@@ -126,7 +128,8 @@ class JobSpec:
             base += "_snapshot"
 
         lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
-        lines.append(f"  extends: {base}")
+        extends = f"[{base}, {self.retry_policy}]" if self.retry_policy else base
+        lines.append(f"  extends: {extends}")
 
         # Set stage
         lines.append(f"  stage: {self.stage}")
@@ -746,15 +749,31 @@ prechecks:
       echo -e "\\e[0Ksection_end:`date +%s`:pip_cache_info\\r\\e[0K"
         """
         )
-        for i, (name, command) in enumerate(checks):
-            f.write(
-                rf"""
-    - |
-      echo -e "\e[0Ksection_start:`date +%s`:section_{i}[collapsed=true]\\r\\e[0K{name}"
-      {command}
-      echo -e "\e[0Ksection_end:`date +%s`:section_{i}\\r\\e[0K"
+        f.write(
             """
-            )
+    - |
+      # Build the shared lint environment once up front: the checks below run
+      # in parallel and would otherwise all queue behind the uv environment
+      # lock while the first one creates .venv-lint.
+      scripts/lint prepare
+    - |
+      # Run the selected checks in parallel. The runner buffers each check's
+      # output and prints it as a collapsible section (failed checks stay
+      # expanded), followed by a summary; it exits non-zero if any check fails.
+      scripts/run-parallel-prechecks.py - <<'EOF'
+"""
+        )
+        # The check list is passed to the runner on stdin, one JSON
+        # object per line: {"name": ..., "command": ...}. The six-space
+        # indent matches the YAML block above so the heredoc body starts
+        # at column zero; the runner strips each line before parsing as
+        # defense against indentation drift.
+        for name, command in checks:
+            f.write("      " + json.dumps({"name": name, "command": command}) + "\n")
+        f.write(
+            """      EOF
+"""
+        )
         f.write(
             """
   cache:

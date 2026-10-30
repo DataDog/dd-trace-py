@@ -30,6 +30,10 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
+# Keep in sync with .retry_on_infrastructure_or_service_failure in .gitlab/retry-policies.yml.
+SERVICE_UNAVAILABLE_EXIT_CODE = 75
+
+
 # Golden ratio: consecutive Fibonacci numbers converge to this, so
 # `initial_wait * PHI**i` is the closed-form equivalent of scaling by the
 # i-th Fibonacci number. Mirrors ddtrace.internal.utils.retry.fibonacci_backoff_with_jitter
@@ -312,7 +316,14 @@ if __name__ == "__main__":
             if service not in check_functions:
                 log.warning("Unknown service: %s", service)
             else:
-                check_functions[service]()
+                try:
+                    check_functions[service]()
+                except ImportError:
+                    # Retrying the job cannot supply a missing client library.
+                    raise
+                except Exception:
+                    log.exception("Failed to verify that %s is alive", service)
+                    sys.exit(SERVICE_UNAVAILABLE_EXIT_CODE)
     else:
         print(f"usage: python {sys.argv[0]} SERVICE_NAME")
         sys.exit(1)

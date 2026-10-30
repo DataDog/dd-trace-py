@@ -823,24 +823,24 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
+        Set the OTLP endpoint for trace export.
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
-        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        :param url: The full URL of the OTLP endpoint.
         """
         ...
     def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
         """
-        Select the OTLP export protocol: "http/json" or "http/protobuf".
-        Any other value raises ValueError.
-        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
+        Select the OTLP export protocol: "grpc", "http/json", or "http/protobuf".
+        Any other value raises ValueError. gRPC supports plaintext endpoints only.
+        :param protocol: The OTLP protocol.
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
-        Set additional HTTP headers for OTLP trace export requests.
-        :param headers: A list of (key, value) header pairs.
+        Set additional metadata for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs. gRPC metadata keys must be lowercase.
         """
         ...
     def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
@@ -1307,6 +1307,7 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def uuid4() -> str: ...
 def process_metrics() -> tuple[int, int, int, int, int, int]:
     """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
 
@@ -1553,8 +1554,11 @@ class RemoteConfigReader:
         polls.
         """
         ...
-    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+    def read(self, enabled_products: list[str]) -> Optional[list[RemoteConfigChange]]:
         """Return the changes since the last read (removals first).
+
+        None means no consistent snapshot could be read (e.g. the origin was
+        compacting the shared memory); the next read retries from the same state.
 
         ``enabled_products`` are the wire names the caller currently subscribes
         to; configs for other products are withheld so they are re-emitted once
@@ -1609,8 +1613,20 @@ class RemoteConfigClient:
     ) -> None:
         """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
         ...
+    def fetch(
+        self, products: list[RemoteConfigProduct], extra_services: list[str]
+    ) -> Optional[list[RemoteConfigChange]]:
+        """Perform a single fetch against the agent and return the per-poll changes.
+
+        None means the agent replied that nothing changed.
+        """
+        ...
     def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
-        """Perform a single fetch against the agent and return the per-poll changes."""
+        """Like fetch, but returns no changes rather than None when nothing changed.
+
+        Kept for the callers that expect a list, such as test harnesses outside
+        this repository.
+        """
         ...
     def set_config_state(self, path: str, error: Optional[str] = None) -> None:
         """Acknowledge (``error=None``) or report an error for an applied config."""

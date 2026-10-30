@@ -26,6 +26,8 @@ log = get_logger(__name__)
 
 TYPESAFE_MODEL_PROVIDER = "typesafe"
 OPENROUTER_MODEL_PROVIDER = "openrouter"
+DECISION_PROVIDER_TAG = "decision_provider"
+TYPESAFE_DECISION_PROVIDER = "typesafe"
 # Matches the SDK's own pattern for automatic image references, which it scans request bodies for
 IMAGE_REFERENCE = re.compile(r"<image:[0-9a-f]{32}>")
 
@@ -80,6 +82,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
             input_messages=input_messages,
             output_messages=output_messages,
             metrics=metrics,
+            tags={DECISION_PROVIDER_TAG: TYPESAFE_DECISION_PROVIDER},
         )
 
     def _set_apm_shadow_tags(

@@ -10,6 +10,7 @@ reading frames to inject native call information.
 
 import sys
 
+from ddtrace.internal import uwsgi
 from ddtrace.internal.logger import get_logger
 
 
@@ -28,6 +29,15 @@ def start() -> None:
         return
 
     if sys.version_info < (3, 12):
+        return
+
+    # Enabling the CALL event walks the frames of every thread state, which can crash in such a worker.
+    if uwsgi.forked_without_fork_hooks():
+        log.warning(
+            "Native frame attribution is disabled in this uWSGI worker because the master forked it without "
+            "running the Python fork hooks. Enable the lazy-apps or py-call-uwsgi-fork-hooks uWSGI option to "
+            "restore this feature."
+        )
         return
 
     from ddtrace.internal.datadog.profiling.stack._stack import start_native_monitoring
