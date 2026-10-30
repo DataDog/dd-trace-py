@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Run a command under Austin inside the testrunner container, using a test
+# environment prepared by scripts/run-tests. The MOJO profile is written to
+# profile-artifacts/ in the checkout, which the container shares with the host.
+#
+# Usage:
+#   austin-docker --venv HASH --name NAME [--runs N] [--env KEY=VALUE]... [AUSTIN_OPTION]... -- COMMAND [ARG]...
+#
+# With --runs N, the command is profiled N times in the same container and the
+# profiles are written to profile-artifacts/NAME-1.mojo ... NAME-N.mojo.
+#
+# Example:
+#   austin-docker --venv dce7fdcd6af2 --name spans -i 1ms -- python profile-artifacts/workload.py
+
+set -euo pipefail
+
+AUSTIN_REQUIREMENT="austin-dist>=4.1"
+
+usage() {
+    sed -n '6,13s/^# \{0,1\}//p' "$0" >&2
+    exit 2
+}
+
+venv=""
+name=""
+runs=""
+env_assignments=()
+austin_args=()
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --venv) venv="${2:?--venv needs a value}"; shift 2 ;;
+        --name) name="${2:?--name needs a value}"; shift 2 ;;
+        --runs) runs="${2:?--runs needs a value}"; shift 2 ;;
+        --env) env_assignments+=("${2:?--env needs a value}"); shift 2 ;;
+        -o|--output) echo "error: the output file is set by --name" >&2; exit 2 ;;
+        -h|--help) usage ;;
+        --) shift; break ;;
+        *) austin_args+=("$1"); shift ;;
+    esac
+done
+[ -n "$venv" ] && [ -n "$name" ] && [ "$#" -gt 0 ] || usage
+
+root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
+venv_dir=".cache/test-environments/$venv"
+if [ ! -f "$root/$venv_dir/.complete" ]; then
+    echo "error: $venv_dir is not a prepared test environment." >&2
+    echo "Prepare it first, e.g. scripts/run-tests --venv $venv -- -k __build_only__" >&2
+    exit 1
+fi
+
+if [ -n "$runs" ]; then
+    [[ "$runs" =~ ^[1-9][0-9]*$ ]] || { echo "error: --runs needs a positive integer" >&2; exit 2; }
+    outputs=()
+    for run in $(seq 1 "$runs"); do outputs+=("profile-artifacts/$name-$run.mojo"); done
+else
+    outputs=("profile-artifacts/$name.mojo")
+fi
+mkdir -p "$root/profile-artifacts"
+
+# uv's default cache is the host-mounted ~/.cache, where it cannot set the
+# permissions of the austin binary it extracts, so keep the cache in the
+# container. The container is removed after each run, so Austin is reinstalled
+# every time; the wheel is small.
+container_script="set -e
+export UV_CACHE_DIR=/tmp/uv-cache
+uv venv -q /tmp/austin-venv
+uv pip install -q --python /tmp/austin-venv/bin/python $(printf '%q' "$AUSTIN_REQUIREMENT")
+export VIRTUAL_ENV=/home/bits/project/$venv_dir
+export PATH=\$VIRTUAL_ENV/bin:\$PATH
+/tmp/austin-venv/bin/austin -V
+for output in $(printf '%q ' "${outputs[@]}"); do
+    echo \"Profiling to \$output\"
+    /tmp/austin-venv/bin/austin ${austin_args[*]+$(printf '%q ' "${austin_args[@]}")}-o \"\$output\" $(printf '%q ' "$@")
+done"
+
+"$root/scripts/ddtest" env ${env_assignments[@]+"${env_assignments[@]}"} bash -c "$container_script"
+
+printf "Profile written to $root/%s\n" "${outputs[@]}"
