@@ -34,6 +34,10 @@ class Product(Protocol):
 
     def start(self) -> None: ...
 
+    def register_subscribers(self) -> None: ...
+
+    def unregister_subscribers(self) -> None: ...
+
     def restart(self, join: bool = False) -> None: ...
 
     def stop(self, join: bool = False) -> None: ...
@@ -135,6 +139,13 @@ class ProductManager:
                 failed.add(name)
                 continue
 
+            # Subscribers are registered after start() so they can rely on what start() set up. A failure
+            # here does not fail the product: it is running, it only misses some of its subscribers.
+            try:
+                product.register_subscribers()
+            except Exception:
+                log.exception("Failed to register subscribers for product '%s'", name)
+
             # enabled() only says the lifecycle must run; a product can start without being active
             # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
             try:
@@ -176,6 +187,10 @@ class ProductManager:
     def stop_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
+                try:
+                    product.unregister_subscribers()
+                except Exception:
+                    log.exception("Failed to unregister subscribers for product '%s'", name)
                 if not product.enabled():
                     continue
                 product.stop(join=join)
@@ -187,10 +202,15 @@ class ProductManager:
     def exit_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
-                if not product.enabled():
-                    continue
-                if (skip_exit := getattr(product, "skip_exit", None)) is not None and skip_exit():
+                enabled = product.enabled()
+                if enabled and (skip_exit := getattr(product, "skip_exit", None)) is not None and skip_exit():
                     log.debug("Skipping stop on exit for product '%s'", name)
+                    continue
+                try:
+                    product.unregister_subscribers()
+                except Exception:
+                    log.exception("Failed to unregister subscribers for product '%s' on exit", name)
+                if not enabled:
                     continue
                 product.stop(join=join)
                 log.debug("Stopped product '%s' on exit", name)

@@ -36,6 +36,14 @@ def start() -> None:
         load_appsec(reconfigure_tracer=False)
 
 
+def register_subscribers() -> None:
+    pass
+
+
+def unregister_subscribers() -> None:
+    pass
+
+
 def restart(join: bool = False) -> None:
     pass
 

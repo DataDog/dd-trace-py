@@ -30,6 +30,12 @@ class BaseProduct(Product):
     def start(self) -> None:
         self.started = True
 
+    def register_subscribers(self) -> None:
+        pass
+
+    def unregister_subscribers(self) -> None:
+        pass
+
     def restart(self, join: bool = False) -> None:
         self.restarted = True
 
@@ -134,6 +140,12 @@ def test_product_manager_restart():
 
         def start(self) -> None:
             self.started = True
+
+        def register_subscribers(self) -> None:
+            pass
+
+        def unregister_subscribers(self) -> None:
+            pass
 
         def restart(self, join: bool = False) -> None:
             self.restarted = True
@@ -329,6 +341,120 @@ def test_product_manager_activated_failure_does_not_fail_product():
     assert broken.started
     assert dependent.started
     telemetry_writer.product_activated.assert_called_once_with("dependent", True)
+
+
+class RecordingProduct(BaseProduct):
+    def __init__(self, calls: list[str]) -> None:
+        super().__init__()
+        self.calls = calls
+
+    def start(self) -> None:
+        self.calls.append("start")
+
+    def register_subscribers(self) -> None:
+        self.calls.append("register_subscribers")
+
+    def unregister_subscribers(self) -> None:
+        self.calls.append("unregister_subscribers")
+
+    def stop(self, join: bool = False) -> None:
+        self.calls.append("stop")
+
+
+def test_product_manager_registers_subscribers_after_start():
+    calls: list[str] = []
+    manager = ProductManagerTest({"a": RecordingProduct(calls)})
+
+    manager.start_products()
+    assert calls == ["start", "register_subscribers"]
+
+    manager.stop_products()
+    assert calls == ["start", "register_subscribers", "unregister_subscribers", "stop"]
+
+
+@pytest.mark.parametrize("shutdown_method", ["stop_products", "exit_products"])
+def test_product_manager_unregisters_subscribers_of_disabled_products(shutdown_method):
+    class Disabled(RecordingProduct):
+        def enabled(self) -> bool:
+            return False
+
+    calls: list[str] = []
+    product = Disabled(calls)
+    manager = ProductManagerTest({"disabled": product})
+
+    # Model a subscriber registered by an integration patch hook while the product is disabled.
+    product.register_subscribers()
+
+    manager.start_products()
+    getattr(manager, shutdown_method)()
+
+    assert calls == ["register_subscribers", "unregister_subscribers"]
+
+
+def test_product_manager_unregisters_subscribers_before_stopping_on_exit():
+    calls: list[str] = []
+    manager = ProductManagerTest({"a": RecordingProduct(calls)})
+
+    manager.exit_products()
+
+    assert calls == ["unregister_subscribers", "stop"]
+
+
+def test_product_manager_skips_cleanup_on_exit_for_skip_exit_products():
+    class SkipExit(RecordingProduct):
+        def skip_exit(self) -> bool:
+            return True
+
+    calls: list[str] = []
+    manager = ProductManagerTest({"a": SkipExit(calls)})
+
+    manager.exit_products()
+
+    assert calls == []
+
+
+def test_product_manager_subscriber_failure_does_not_prevent_exit_stop():
+    class Broken(RecordingProduct):
+        def unregister_subscribers(self) -> None:
+            raise RuntimeError()
+
+    calls: list[str] = []
+    manager = ProductManagerTest({"a": Broken(calls)})
+
+    manager.exit_products()
+
+    assert calls == ["stop"]
+
+
+def test_product_manager_subscriber_failures_do_not_fail_product():
+    class Broken(RecordingProduct):
+        def register_subscribers(self) -> None:
+            raise RuntimeError()
+
+        def unregister_subscribers(self) -> None:
+            raise RuntimeError()
+
+    class Dependent(BaseProduct):
+        requires = ["broken"]
+
+    calls: list[str] = []
+    dependent = Dependent()
+    manager = ProductManagerTest({"broken": Broken(calls), "dependent": dependent})
+
+    manager.start_products()
+    assert calls == ["start"]
+    assert dependent.started
+
+    manager.stop_products()
+    assert calls == ["start", "stop"]
+
+
+def test_products_implement_the_product_protocol():
+    hooks = ("post_preload", "enabled", "start", "register_subscribers", "unregister_subscribers", "restart", "stop")
+    for entry_point in get_product_entry_points():
+        product = entry_point.load()
+        missing = [hook for hook in hooks if not callable(getattr(product, hook, None))]
+        assert not missing, (entry_point.name, missing)
 
 
 def _remotely_startable_products():

@@ -24,6 +24,14 @@ def start() -> None:
     symbol_db.bootstrap()
 
 
+def register_subscribers() -> None:
+    pass
+
+
+def unregister_subscribers() -> None:
+    pass
+
+
 def restart(join: bool = False) -> None:
     if not config._force:
         from ddtrace.internal import symbol_db
