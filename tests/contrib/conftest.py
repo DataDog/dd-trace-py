@@ -4,6 +4,8 @@ import sys
 
 import pytest
 
+from tests.contrib.patch import PatchTestCase
+from tests.contrib.patch import PatchTestClass
 from tests.llmobs.conftest import reset_agentless_cache  # noqa: F401
 
 
@@ -61,3 +63,9 @@ def pytest_sessionfinish(session):
         print(f"\nCritical error during registry update orchestration: {e}", file=sys.stderr)
     finally:
         IntegrationUpdateOrchestrator.cleanup_session_data(session)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pycollect_makeitem(collector, name, obj):
+    if isinstance(obj, type) and issubclass(obj, PatchTestCase.Base):
+        return PatchTestClass.from_parent(collector, name=name, obj=obj)
