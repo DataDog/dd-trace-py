@@ -60,6 +60,17 @@ def wait_for_es(host: str, port: int):
     raise Exception(f"Could not connect to ES at {host}:{port}")
 
 
+def test_and_emit_get_version():
+    version = get_version()
+    assert isinstance(version, str)
+    assert version == ""
+
+    versions = get_versions()
+    assert len(versions) > 0
+    for module_name, v in versions.items():
+        emit_integration_and_version_to_test_agent("elasticsearch", v, module_name=module_name)
+
+
 class ElasticsearchPatchTest(TracerTestCase):
     """
     Elasticsearch integration test suite.
@@ -369,16 +380,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         self.reset()
         assert len(spans) == 1
         assert len(spans[0].get_tag("elasticsearch.body")) < 25000
-
-    def test_and_emit_get_version(self):
-        version = get_version()
-        assert isinstance(version, str)
-        assert version == ""
-
-        versions = get_versions()
-        assert len(versions) > 0
-        for module_name, v in versions.items():
-            emit_integration_and_version_to_test_agent("elasticsearch", v, module_name=module_name)
 
     @pytest.mark.skipif(
         elasticsearch.__version__ >= (8, 0, 0),
