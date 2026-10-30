@@ -72,30 +72,6 @@ SAMPLING_MECHANISM_CONSTANTS = {f"-{value}" for name, value in vars(SamplingMech
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
 
 
-class RateSampler:
-    """Sampler based on a rate
-
-    Keep (100 * `sample_rate`)% of the traces.
-    It samples randomly, its main purpose is to reduce the instrumentation footprint.
-    """
-
-    def __init__(self, sample_rate: float = 1.0) -> None:
-        """sample_rate is clamped between 0 and 1 inclusive"""
-        sample_rate = min(1, max(0, sample_rate))
-        self.set_sample_rate(sample_rate)
-
-    def set_sample_rate(self, sample_rate: float) -> None:
-        self.sample_rate = float(sample_rate)
-        self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
-
-    def sample(self, span: SpanData) -> bool:
-        sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
-        return sampled
-
-    def __repr__(self):
-        return f"RateSampler(sample_rate={self.sample_rate})"
-
-
 def format_rate(rate: float) -> str:
     """Format a sampling rate for _dd.p.ksr: up to 6 decimal digits, trailing zeros stripped.
 

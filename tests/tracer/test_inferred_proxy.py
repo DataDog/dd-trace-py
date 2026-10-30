@@ -3,8 +3,8 @@ import pytest
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._inferred_proxy import supported_proxies
 from ddtrace._trace.span import Span
-from ddtrace.internal.constants import INFERRED_SPAN_NAMES
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.inferred_spans import INFERRED_SPAN_NAMES
 
 
 def test_inferred_span_names_cover_supported_proxies() -> None:
