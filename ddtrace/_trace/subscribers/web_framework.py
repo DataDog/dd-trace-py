@@ -29,6 +29,21 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     event_names = (WebFrameworkRequestEvent.event_name, "bottle.request")
 
     @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        if ctx.event.tracing_enabled:
+            super()._on_context_started(ctx)
+
+    @classmethod
+    def _on_context_ended(
+        cls,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        # Use the entry decision so a runtime disable does not leave an existing span unfinished.
+        if ctx.event.tracing_enabled:
+            super()._on_context_ended(ctx, exc_info)
+
+    @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: WebFrameworkRequestEvent = ctx.event
 

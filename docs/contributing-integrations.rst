@@ -106,7 +106,11 @@ error is the original exception, or ``None`` on success; the result is ``None``
 when the callback raised. Hooks update event fields without accessing spans.
 They must not consume response bodies or retain exceptions and tracebacks.
 
-Request hooks and context events run regardless of tracing enablement. An ordinary
+Request hooks and context events run regardless of tracing enablement. Bottle
+captures its tracing decision in the event's ``tracing_enabled`` field at request
+entry. When false, the tracing subscriber skips span creation, distributed-header
+activation, and HTTP tagging while metadata listeners still run. A span started
+before tracing is disabled still finishes when its context exits. An ordinary
 preparation error bypasses the context and invokes the application once.
 An ordinary completion error preserves the application's result or exception.
 Process-control exceptions from metadata hooks are not suppressed.

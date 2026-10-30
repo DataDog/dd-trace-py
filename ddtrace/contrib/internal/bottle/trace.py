@@ -11,6 +11,7 @@ from bottle import response
 
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.web_framework import run_web_framework_request
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -62,6 +63,7 @@ def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEven
     full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
     return WebFrameworkRequestEvent(
         http_operation="bottle.request",
+        tracing_enabled=is_tracing_enabled(),
         service=plugin.service,
         resource=f"{method} {route.rule}",
         component=config.bottle.integration_name,

@@ -24,6 +24,9 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     span_type = SpanTypes.WEB
     span_kind = SpanKind.SERVER
 
+    # Capture the integration's tracing decision at entry, independently of metadata events.
+    tracing_enabled: bool = event_field(default=True)
+
     # Whether header keys should preserve their original casing during extraction.
     headers_case_sensitive: bool = event_field()
 

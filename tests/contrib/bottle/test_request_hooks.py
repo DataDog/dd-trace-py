@@ -6,6 +6,8 @@ import bottle
 import pytest
 import webtest
 
+from ddtrace._trace.subscribers import _base as tracing_subscribers
+from ddtrace._trace.subscribers import web_framework as web_subscribers
 from ddtrace.contrib.internal.bottle import trace
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.internal import core
@@ -58,6 +60,12 @@ def test_disabled_tracing_publishes_request_metadata(app, tracer, test_spans, mo
     monkeypatch.setattr(tracer, "enabled", False)
     observations = []
     calls = []
+    start_span = Mock(wraps=tracer.start_span)
+    extract_headers = Mock(wraps=tracing_subscribers.trace_utils.activate_distributed_headers)
+    set_http_meta = Mock(wraps=web_subscribers.trace_utils.set_http_meta)
+    monkeypatch.setattr(tracer, "start_span", start_span)
+    monkeypatch.setattr(tracing_subscribers.trace_utils, "activate_distributed_headers", extract_headers)
+    monkeypatch.setattr(web_subscribers.trace_utils, "set_http_meta", set_http_meta)
 
     def on_started(ctx):
         event = ctx.event
@@ -70,6 +78,7 @@ def test_disabled_tracing_publishes_request_metadata(app, tracer, test_spans, mo
     @app.route("/hello/<name>")
     def hello(name):
         calls.append(name)
+        assert tracer.current_span() is None
         return bottle.HTTPResponse("hello", status=201, headers={"X-Response": "observed"})
 
     core.on("context.started.bottle.request", on_started)
@@ -82,6 +91,9 @@ def test_disabled_tracing_publishes_request_metadata(app, tracer, test_spans, mo
 
     assert response.status_int == 201
     assert response.text == "hello"
+    start_span.assert_not_called()
+    extract_headers.assert_not_called()
+    set_http_meta.assert_not_called()
     assert calls == ["world"]
     assert observations == [
         ("started", "GET", "/hello/<name>", "key=value"),
@@ -132,3 +144,26 @@ def test_span_finishes_before_after_request_hook(app, tracer, test_spans):
     assert webtest.TestApp(app).get("/hello").status_int == 202
     (span,) = test_spans.pop()
     assert_span_http_status_code(span, 200)
+
+
+@pytest.mark.parametrize("initially_enabled", [False, True])
+def test_tracing_toggle_during_request_preserves_entry_decision(app, tracer, monkeypatch, initially_enabled):
+    monkeypatch.setattr(tracer, "enabled", initially_enabled)
+    spans = []
+
+    @app.route("/toggle")
+    def toggle():
+        spans.append(tracer.current_span())
+        tracer.enabled = not tracer.enabled
+        return "ok"
+
+    client = webtest.TestApp(app)
+    assert client.get("/toggle").text == "ok"
+    assert client.get("/toggle").text == "ok"
+    for enabled, span in zip((initially_enabled, not initially_enabled), spans):
+        if enabled:
+            assert span is not None
+            assert span.finished
+        else:
+            assert span is None
+    assert tracer.current_span() is None
