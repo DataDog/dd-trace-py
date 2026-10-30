@@ -251,6 +251,65 @@ def test_suspended_task_wall_time_is_bounded_by_elapsed_time() -> None:
     assert task_wall_time_ns <= 1.5 * elapsed_ns, (task_wall_time_ns, elapsed_ns)
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_task_lists_handoff"), err=None)
+def test_task_of_an_exited_thread_is_sampled() -> None:
+    # When a thread exits, CPython moves its pending tasks to the interpreter's task list. Only that list finds the
+    # leaf task here, so a wrong interpreter-list offset loses it even when the thread-list offset is right.
+    import asyncio
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    p = profiler.Profiler()
+    p.start()
+    assert _stack._asyncio_task_lists()[2] == "runtime-table"
+
+    async def leaf_sleep() -> None:
+        await asyncio.sleep(1.0)
+
+    async def wait_for(task: asyncio.Task[None]) -> None:
+        await task
+
+    loop = asyncio.new_event_loop()
+    start_ns: list[int] = []
+    leaf_tasks: list[asyncio.Task[None]] = []
+
+    def start_leaf_task() -> None:
+        start_ns.append(time.monotonic_ns())
+        leaf_tasks.append(loop.create_task(leaf_sleep(), name="leaf_task"))
+        loop.run_until_complete(asyncio.sleep(0.05))
+
+    thread = threading.Thread(target=start_leaf_task)
+    thread.start()
+    thread.join()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(wait_for(leaf_tasks[0]))
+    elapsed_ns = time.monotonic_ns() - start_ns[0]
+    loop.close()
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_time_index = pprof_utils.get_sample_type_index(profile, "wall-time")
+    samples = [
+        sample
+        for sample in pprof_utils.get_samples_with_label_key(profile, "task name")
+        if pprof_utils.get_str_label(profile, sample, "task name") == "leaf_task"
+    ]
+    assert samples, "the task of the exited thread was not sampled"
+    assert any(
+        pprof_utils.get_location_from_id(profile, location_id).function_name == "leaf_sleep"
+        for sample in samples
+        for location_id in sample.location_id
+    ), "the task's coroutine frame is missing"
+
+    task_wall_time_ns = sum(sample.value[wall_time_index] for sample in samples)
+    assert task_wall_time_ns <= 1.5 * elapsed_ns, (task_wall_time_ns, elapsed_ns)
+
+
 @pytest.mark.subprocess(err=None)
 def test_completed_asyncio_c_skips_modules_still_initializing() -> None:
     import sys
