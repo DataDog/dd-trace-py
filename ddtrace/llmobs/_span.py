@@ -21,6 +21,7 @@ class _LLMObsSpan(Protocol):
     error: int
     span_id: int
     trace_id: int
+    parent_id: Optional[int]
     start_ns: int
 
     @property

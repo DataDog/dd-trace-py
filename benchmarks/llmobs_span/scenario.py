@@ -21,10 +21,8 @@ class LLMObsSpan(Scenario):
     def run(self):
         if self.llmobs_enabled:
             LLMObs.enable(ml_app="benchmark", _tracer=tracer, agentless_enabled=False)
-            # Keep LLMObs events in memory: nothing is listening for them.
-            writer = LLMObs._instance._llmobs_span_writer
-            writer.stop()
-            writer.enqueue = lambda *args, **kwargs: None
+            # Drop LLMObs events: nothing is listening for them, and an empty buffer never flushes.
+            LLMObs._instance._llmobs_span_writer.enqueue = lambda *args, **kwargs: None
         utils.drop_traces(tracer)
         utils.drop_telemetry_events()
 

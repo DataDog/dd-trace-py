@@ -52,19 +52,24 @@ def _is_client_span(span: _LLMObsSpan) -> bool:
     return span.span_type != SpanTypes.LLM and span.get_tag(SPAN_KIND) == SpanKind.CLIENT
 
 
-def _owner(span: _LLMObsSpan) -> tuple[Optional[_LLMObsSpan], bool]:
-    """Return (nearest LLMObs ancestor, whether span is nested inside another client span).
+def _owner(span: _LLMObsSpan) -> tuple[Optional[_LLMObsSpan], bool, bool]:
+    """Return (nearest LLMObs ancestor, nested, continues_remote_parent).
 
-    A client span inside another one, even through intermediate spans, is part of that call.
+    nested is True when span sits inside another client span, even through intermediate spans, so it is
+    part of that call. continues_remote_parent is True when the walk ended at a span whose parent is not
+    in this thread (a thread-pool worker or another process), the only case where the active context can
+    carry an LLMObs parent that the walk could not reach.
     """
     parent = span._parent
+    last = span
     while parent is not None:
         if parent.span_type == SpanTypes.LLM:
-            return parent, False
+            return parent, False, False
         if parent.get_tag(SPAN_KIND) == SpanKind.CLIENT:
-            return None, True
+            return None, True, False
+        last = parent
         parent = parent._parent
-    return None, False
+    return None, False, last.parent_id is not None
 
 
 def _first_tag(span: _LLMObsSpan, *keys: str) -> str:
@@ -146,9 +151,14 @@ class DownstreamCallTracker:
         # LLMObs spans that can still receive calls, for client spans that ran in a thread pool and
         # only carry the LLMObs parent ID on their context rather than a parent span reference.
         self._open_spans: weakref.WeakValueDictionary[int, _LLMObsSpan] = weakref.WeakValueDictionary()
+        # LLMObs spans started and not yet popped. Lets callers skip the per-span work while none is open,
+        # which is most of the time. An LLMObs span that never finishes only keeps the slower path on.
+        self.open_count = 0
 
     def on_llmobs_span_start(self, span: _LLMObsSpan) -> None:
-        self._open_spans[span.span_id] = span
+        with self._lock:
+            self._open_spans[span.span_id] = span
+            self.open_count += 1
 
     def on_span_finish(self, span: _LLMObsSpan, propagated_parent_id: Callable[[], Optional[str]]) -> None:
         """Record span against its LLMObs owner if it is an outbound client call.
@@ -158,10 +168,12 @@ class DownstreamCallTracker:
         """
         if not _is_client_span(span):
             return
-        owner, nested = _owner(span)
+        owner, nested, continues_remote_parent = _owner(span)
         if nested:
             return
         if owner is None:
+            if not continues_remote_parent:
+                return
             parent_id = propagated_parent_id()
             if not parent_id or not parent_id.isdigit():
                 return
@@ -211,7 +223,8 @@ class DownstreamCallTracker:
         that aggregate correctly; values inside the list of calls do not.
         """
         with self._lock:
-            self._open_spans.pop(span.span_id, None)
+            if self._open_spans.pop(span.span_id, None) is not None:
+                self.open_count -= 1
             calls = span._get_ctx_item(DOWNSTREAM_CALLS_CTX_KEY)
             span._set_ctx_item(DOWNSTREAM_CALLS_CTX_KEY, _CLOSED)
         if not calls:

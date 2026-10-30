@@ -668,7 +668,8 @@ class LLMObs(Service):
         if not self.enabled:
             return
         if span.span_type != SpanTypes.LLM:
-            self._downstream_calls.on_span_finish(span, self._propagated_llmobs_parent_id)
+            if self._downstream_calls.open_count:
+                self._downstream_calls.on_span_finish(span, self._propagated_llmobs_parent_id)
             return
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
