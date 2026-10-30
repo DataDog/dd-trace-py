@@ -47,6 +47,11 @@ A short summary is usually enough; field lists are optional for unrendered docst
 Explain non-obvious invariants, not the next line of code. Do not add `AIDEV-*` anchors;
 `scripts/check_no_new_aidev_anchors.py` enforces this.
 
+`tests/` and `scripts/` are not Sphinx-rendered, so a double-backtick literal added there is
+noise. `scripts/check_no_rst_markup_in_prose.py` blocks new ones on added diff lines only;
+pre-existing occurrences stay. The checker and its test are excluded because they document
+the pattern. Write identifiers as plain text, for example `finish()`.
+
 ## Task-specific guidance
 
 Repository landmarks: tracing implementation is in `ddtrace/_trace/`, public tracing exports
