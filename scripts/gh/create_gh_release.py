@@ -74,7 +74,13 @@ Failure recovery:
   Draft release created but Slack post failed (draft-release):
       The draft is still on GitHub; re-run with --slack / --test-dm to
       announce the existing draft URL (no second draft is created), or
-      post manually.
+      post manually. Same path for Slack-only after a wet draft: e.g.
+      draft-release --target 4.16 --slack
+      (or re-run patch/rc/final with --slack). Existing draft is reused.
+
+  Dry-run with --slack / --test-dm:
+      Prints the exact Slack mrkdwn body (format_slack_announce) that would
+      be posted; does not call the webhook.
 
   ensure-branch checked out a local branch but `git push` failed:
       git checkout main && git branch -D <X.Y>   # then re-run ensure-branch
@@ -1227,16 +1233,24 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
         print("(reusing existing draft; not creating a duplicate)")
         print(review_text(version, existing_draft_url))
         if dry_run:
-            print("(dry-run) would notify Slack about existing draft")
+            if announce:
+                print_slack_announce_preview(
+                    version=version,
+                    target_sha=short_sha,
+                    draft_url=existing_draft_url,
+                    test_dm=bool(args.test_dm),
+                    channel=str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
+                )
             return 0
-        notify_slack(
-            version=version,
-            target_sha=short_sha,
-            draft_url=existing_draft_url,
-            test_dm=bool(args.test_dm),
-            channel=str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
-            precheck=bool(getattr(args, "slack_precheck", True)),
-        )
+        if announce:
+            notify_slack(
+                version=version,
+                target_sha=short_sha,
+                draft_url=existing_draft_url,
+                test_dm=bool(args.test_dm),
+                channel=str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
+                precheck=bool(getattr(args, "slack_precheck", True)),
+            )
         return 0
 
     ensure_ci_green(target_sha, allow_failure=args.allow_ci_failure)
@@ -1259,7 +1273,16 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
         print("----- END BODY -----")
         preview_args: list[str] = build_gh_release_args(version, target_sha, "<notes>", latest=latest)
         print(f"\n(dry-run) would: {' '.join(preview_args)}")
-        print(review_text(version, f"(draft URL for v{version})"))
+        preview_draft_url: str = f"(draft URL for v{version})"
+        print(review_text(version, preview_draft_url))
+        if announce:
+            print_slack_announce_preview(
+                version=version,
+                target_sha=short_sha,
+                draft_url=preview_draft_url,
+                test_dm=bool(args.test_dm),
+                channel=str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
+            )
         return 0
 
     notes_path: str
@@ -2180,6 +2203,36 @@ def format_slack_announce(version: str, target_sha: str, draft_url: str) -> str:
         f"\n"
         f"{auto_created_footer()}"
     )
+
+
+def _slack_announce_destination(*, test_dm: bool, channel: str) -> str:
+    """Human-readable destination for dry-run Slack previews (no secrets)."""
+    if test_dm:
+        return f"DM ({SLACK_DM_ENV})"
+    if channel == "prod":
+        return f"#{SLACK_CHANNEL_PROD_NAME}"
+    if channel == "guild":
+        return f"#{SLACK_CHANNEL_GUILD_NAME}"
+    if channel == "test":
+        return f"test channel ({SLACK_CHANNEL_TEST_ENV})"
+    return f"channel={channel}"
+
+
+def print_slack_announce_preview(
+    *,
+    version: str,
+    target_sha: str,
+    draft_url: str,
+    test_dm: bool,
+    channel: str,
+) -> None:
+    """Print the exact Slack mrkdwn that ``notify_slack`` would post (dry-run)."""
+    text: str = format_slack_announce(version, target_sha, draft_url)
+    dest: str = _slack_announce_destination(test_dm=test_dm, channel=channel)
+    print(f"\n(dry-run) would post to {dest}:")
+    print("----- SLACK MESSAGE -----")
+    print(text)
+    print("----- END SLACK MESSAGE -----")
 
 
 def post_webhook(url: str, text: str) -> None:

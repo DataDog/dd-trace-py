@@ -49,6 +49,7 @@ from create_gh_release import format_slack_announce  # noqa: E402
 from create_gh_release import is_rc_version  # noqa: E402
 from create_gh_release import is_stable_version  # noqa: E402
 from create_gh_release import load_local_env  # noqa: E402
+from create_gh_release import print_slack_announce_preview  # noqa: E402
 from create_gh_release import resolve_runner_display  # noqa: E402
 from create_gh_release import review_text  # noqa: E402
 from create_gh_release import should_mark_latest  # noqa: E402
@@ -272,6 +273,24 @@ class SlackDefaultsTests(unittest.TestCase):
         )
         self.assertIn("|vlad/release-create-release-rc-script>", body)
         self.assertNotIn("Draft patch release", body)
+
+    def test_print_slack_announce_preview_prints_exact_body(self) -> None:
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
+                expected: str = format_slack_announce("4.16.2", "deadbeef", "https://example/draft")
+                with mock.patch("builtins.print") as print_mock:
+                    print_slack_announce_preview(
+                        version="4.16.2",
+                        target_sha="deadbeef",
+                        draft_url="https://example/draft",
+                        test_dm=False,
+                        channel="prod",
+                    )
+        printed: list[str] = [str(c.args[0]) for c in print_mock.call_args_list if c.args]
+        self.assertTrue(any("#apm-python-release" in line for line in printed))
+        self.assertIn("----- SLACK MESSAGE -----", printed)
+        self.assertIn(expected, printed)
+        self.assertIn("----- END SLACK MESSAGE -----", printed)
 
     def test_auto_created_footer_includes_runner(self) -> None:
         with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
