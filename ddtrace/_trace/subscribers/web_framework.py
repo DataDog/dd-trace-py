@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
+from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.http_tags import set_query_string_tag
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
@@ -25,7 +26,22 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     """Shared tracing logic for web framework integrations."""
 
     auto_register = False
-    event_names = (WebFrameworkRequestEvent.event_name,)
+    event_names = (WebFrameworkRequestEvent.event_name, "bottle.request")
+
+    @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        if ctx.event.tracing_enabled:
+            super()._on_context_started(ctx)
+
+    @classmethod
+    def _on_context_ended(
+        cls,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        # Use the entry decision so a runtime disable does not leave an existing span unfinished.
+        if ctx.event.tracing_enabled:
+            super()._on_context_ended(ctx, exc_info)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
@@ -55,6 +71,15 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         res_headers = event.response_headers
 
         span: Span = span_from_context(ctx)
+
+        if (
+            event.response_from_exception
+            and status_code is not None
+            and is_otel_non_error_status(status_code)
+            and exc_info[0] is not None
+        ):
+            # Framework HTTP exceptions carry responses; their status determines OTel errors.
+            span._ignore_exception(exc_info[0])
 
         # event.resource can be updated at span finish time
         if event.resource:
