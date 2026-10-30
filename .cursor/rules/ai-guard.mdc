@@ -61,6 +61,21 @@ Preserve their lazy forwarding and deprecation behavior when changing public exp
 missing credentials. Direct `AIGuardClient` construction takes both credentials explicitly;
 see `_api_client.py` for the signatures.
 
+MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (server IDs, `mcp_servers` entries,
+the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners,
+gated by `DD_AI_GUARD_MCP_ENABLED`. Keep these invariants when changing it:
+- Requests carry a request-level `mcp_servers` list; each MCP tool call carries only
+  `mcp.server_id`, which must match an entry in the same request. Ordinary tools carry no `mcp`.
+- The server ID is `mcp_` + the first 16 hex characters of SHA-256 of the first applicable key
+  (`url|<origin>`, `connector|<id>`, `stdio|<command>|<args>`, `name|<label>`). Other tracers
+  compute the same ID, so do not change the keys, their order or the URL normalization.
+- URLs are reduced to their origin with `ddtrace.internal.utils.http.url_origin`: never send
+  userinfo, path, query or fragment, nor tool `headers` or `authorization`.
+- Resolve tools per request through `server_id` and `function.name`; never keep a
+  process-wide map indexed only by tool name.
+- New MCP code inside the listeners fails open (debug log) and only lets `AIGuardAbortError`
+  propagate.
+
 ## How AI Guard Works: High-Level Architecture
 
 ### 1. Lazy, opt-in initialization
