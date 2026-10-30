@@ -69,9 +69,12 @@ def test_deleted_record_removed_from_merged_config():
     )
     chained_config = callback._process_payloads([_record("a", None)])
 
-    assert dict(chained_config) == {"tracing_sampling_rate": 0.5}
+    # The settings of a deleted record are dispatched as None so handlers can
+    # revert them, but only on the call that deletes it.
+    assert dict(chained_config) == {"tracing_sampling_rate": 0.5, "dynamic_instrumentation_enabled": None}
 
-    assert dict(callback._process_payloads([_record("b", None)])) == {}
+    assert dict(callback._process_payloads([_record("b", None)])) == {"tracing_sampling_rate": None}
+    assert dict(callback._process_payloads([])) == {}
 
 
 def test_retargeted_record_removed_from_merged_config(monkeypatch):
@@ -80,10 +83,11 @@ def test_retargeted_record_removed_from_merged_config(monkeypatch):
 
     callback._process_payloads([_record("a", {"tracing_enabled": False}, {"service": "my-service", "env": "*"})])
     chained_config = callback._process_payloads(
-        [_record("a", {"tracing_enabled": False}, {"service": "other-service", "env": "*"})]
+        [_record("a", {"tracing_enabled": False}, {"service": "other-service", "env": "*"}, version=2)]
     )
 
-    assert dict(chained_config) == {}
+    # A record retargeted away from this process is removed for it.
+    assert dict(chained_config) == {"tracing_enabled": None}
 
 
 def test_updated_record_takes_precedence_on_ties():
@@ -140,7 +144,39 @@ def test_records_with_the_same_id_are_tracked_by_path():
     )
     chained_config = callback._process_payloads([_record("a", None, path="employee/APM_TRACING/a/config")])
 
-    assert dict(chained_config) == {"tracing_sampling_rate": 0.5}
+    assert dict(chained_config) == {"tracing_sampling_rate": 0.5, "tracing_enabled": None}
+
+
+def test_key_dropped_by_update_is_not_cleared():
+    # An update that stops setting a key does not remove an override: only a
+    # deleted or retargeted record does.
+    callback = APMTracingCallback()
+
+    callback._process_payloads([_record("a", {"exception_replay_enabled": True, "tracing_enabled": True})])
+    chained_config = callback._process_payloads([_record("a", {"tracing_enabled": True}, version=2)])
+
+    assert dict(chained_config) == {"tracing_enabled": True}
+
+
+def test_deleted_key_still_set_by_another_record_is_not_cleared():
+    callback = APMTracingCallback()
+
+    callback._process_payloads(
+        [_record("a", {"exception_replay_enabled": True}), _record("b", {"exception_replay_enabled": False})]
+    )
+    chained_config = callback._process_payloads([_record("b", None)])
+
+    assert dict(chained_config) == {"exception_replay_enabled": True}
+
+
+def test_deleted_record_not_targeting_this_process_is_not_cleared(monkeypatch):
+    monkeypatch.setattr(config, "service", "my-service")
+    callback = APMTracingCallback()
+
+    callback._process_payloads([_record("a", {"exception_replay_enabled": True}, {"service": "other", "env": "*"})])
+    chained_config = callback._process_payloads([_record("a", None)])
+
+    assert dict(chained_config) == {}
 
 
 @pytest.mark.parametrize(

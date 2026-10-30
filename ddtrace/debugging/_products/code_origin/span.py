@@ -62,6 +62,12 @@ APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableCodeOrigin,)
 
 
 def apm_tracing_rc(lib_config: t.Any, _config: t.Any) -> None:
-    if (enabled := lib_config.get("code_origin_enabled")) is not None:
-        should_start = (config.span.spec.enabled.full_name not in config.source or config.span.enabled) and enabled
-        start() if should_start else stop()
+    # A missing key means no record overrides this feature, so the current state
+    # is left untouched. A null one means the override was removed (e.g. its
+    # record was deleted on the backend), so fall back to the local value.
+    if "code_origin_enabled" not in lib_config:
+        return
+    if (enabled := lib_config["code_origin_enabled"]) is None:
+        enabled = config.span.parsed.enabled
+    should_start = (config.span.spec.enabled.full_name not in config.source or config.span.enabled) and enabled
+    start() if should_start else stop()
