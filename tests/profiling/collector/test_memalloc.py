@@ -284,7 +284,10 @@ class HeapInfo:
 
 
 def has_function_in_profile_sample(
-    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable[..., object], str]
+    profile: pprof_pb2.Profile,
+    sample: pprof_pb2.Sample,
+    function_or_name: Union[Callable[..., object], str],
+    leaf_only: bool = False,
 ) -> bool:
     """Check if a pprof profile sample contains a function in its stack trace.
 
@@ -294,6 +297,8 @@ def has_function_in_profile_sample(
         function_or_name: Either a function object (callable) or a string function name.
                          If a function object is provided, its qualified name will be used
                          for Python 3.11+, otherwise its __name__ will be used.
+        leaf_only: Only match the innermost frame, i.e. allocations made by the function itself
+                   rather than by Python code it called.
     """
     # Get the expected function name
     if callable(function_or_name):
@@ -301,7 +306,8 @@ def has_function_in_profile_sample(
     else:
         expected_function_name = function_or_name
 
-    for location_id in sample.location_id:
+    location_ids = sample.location_id[:1] if leaf_only else sample.location_id
+    for location_id in location_ids:
         location = pprof_utils.get_location_with_id(profile, location_id)
         if location.line:
             function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
@@ -670,17 +676,20 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
-        # Check that we have no significant live samples with 'one' in traceback (they were freed).
+        # Check that we have no significant live samples from one() (they were freed).
         # Small residual allocations may remain due to CPython internal caching (type caches, inline
         # bytecode caches, descriptor objects, etc.) that are allocated while one() is on the call
         # stack and not freed by del + gc.collect(). With aggressive sampling (heap_sample_size=32),
         # these are occasionally sampled. We only assert on allocations large enough to be the actual
         # one() result object (bytearray(256) on < 3.13 or (None,)*256 ~= 2096 bytes on 3.13+).
+        # Python code that runs while one() is on the stack (GC finalizers, gc or sys.monitoring
+        # callbacks) can also keep allocations of any size alive, so only count samples whose
+        # innermost frame is one(), where its result object is allocated.
         min_alloc_size = ONE_RESULT_MIN_ALLOC_SIZE
         one_samples_in_final = [
             sample
             for sample in live_samples
-            if has_function_in_profile_sample(final_profile, sample, one)
+            if has_function_in_profile_sample(final_profile, sample, one, leaf_only=True)
             and sample.value[heap_space_idx] >= min_alloc_size
         ]
 
@@ -839,12 +848,15 @@ def test_heap_live_samples_drops_after_free(tmp_path: Path) -> None:
 
         live_after = [s for s in profile_after.sample if s.value[heap_space_idx] > 0]
 
-        # 'one' should have no significant live samples (freed)
+        # 'one' should have no significant live samples (freed). See
+        # test_memory_collector_python_interface_with_allocation_tracking for why only large samples
+        # with one() as the innermost frame count.
         min_alloc_size = ONE_RESULT_MIN_ALLOC_SIZE
         one_live_after = [
             s
             for s in live_after
-            if has_function_in_profile_sample(profile_after, s, one) and s.value[heap_space_idx] >= min_alloc_size
+            if has_function_in_profile_sample(profile_after, s, one, leaf_only=True)
+            and s.value[heap_space_idx] >= min_alloc_size
         ]
         assert len(one_live_after) == 0, (
             f"Expected no significant live samples from 'one' after free, got {len(one_live_after)}"
