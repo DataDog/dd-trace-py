@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    uWSGI: Fixes an issue where uWSGI workers can hang at startup when ``ddtrace`` is imported in the master
+    process and neither ``lazy-apps`` nor ``py-call-uwsgi-fork-hooks`` is set.
