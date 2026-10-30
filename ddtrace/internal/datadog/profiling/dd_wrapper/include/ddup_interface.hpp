@@ -31,6 +31,13 @@ extern "C"
 
     // Discards the samples and stats collected so far and restarts the profile window at the current time.
     bool ddup_reset();
+    // GC monitor controls
+    void ddup_start_gc_monitor(uint64_t interval_ms,
+                               int survivor_threshold,
+                               int top_n,
+                               bool referrers_enabled,
+                               int max_depth);
+    void ddup_stop_gc_monitor();
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -53,6 +53,19 @@ _SETTINGS: dict[str, tuple[str, type]] = {
     "pythonMemoryMemDomain": ("memory.mem_domain_enabled", bool),
 }
 
+# The remote config profiler that enables the GC monitor with its reference chains, and the dotted names of the
+# profiling_config settings it sets. The GC monitor is not a Profiler argument: the Profiler reads these settings when
+# it starts, so they are merged and applied with the settings in _SETTINGS. They are keyed by dotted name in the merged
+# settings, which no payload setting name matches, so a payload can only set them through this profiler.
+_REFERENCE_CHAINS_PROFILER: str = "referenceChains"
+_REFERENCE_CHAINS_SETTINGS: tuple[str, ...] = ("gc.enabled", "gc.referrers_enabled")
+
+# The dotted name in profiling_config of each key in the merged settings.
+_SETTING_PATHS: dict[str, str] = {
+    **{key: path for key, (path, _) in _SETTINGS.items()},
+    **{path: path for path in _REFERENCE_CHAINS_SETTINGS},
+}
+
 # The profiling_config variables by dotted name, to validate remote config values like the environment variables.
 _SETTING_VARIABLES: dict[str, t.Any] = dict(type(profiling_config).items(recursive=True))
 
@@ -110,7 +123,7 @@ def _parse_setting(key: str, value: t.Any) -> t.Any:
 def _settings_from_env() -> dict[str, t.Any]:
     """Return the settings parsed from the environment, before remote config changed any of them."""
     settings: dict[str, t.Any] = {}
-    for key, (path, _) in _SETTINGS.items():
+    for key, path in _SETTING_PATHS.items():
         owner, name = _setting_owner(path)
         settings[key] = getattr(owner.parsed, name)
 
@@ -119,12 +132,12 @@ def _settings_from_env() -> dict[str, t.Any]:
 
 def _applied_settings() -> dict[str, t.Any]:
     """Return the settings in profiling_config, which the running profiler was built with."""
-    return {key: getattr(*_setting_owner(path)) for key, (path, _) in _SETTINGS.items()}
+    return {key: getattr(*_setting_owner(path)) for key, path in _SETTING_PATHS.items()}
 
 
 def _apply_settings(settings: dict[str, t.Any]) -> None:
     for key, value in settings.items():
-        setattr(*_setting_owner(_SETTINGS[key][0]), value)
+        setattr(*_setting_owner(_SETTING_PATHS[key]), value)
 
 
 def _apply_collectors(wanted: dict[str, bool]) -> None:
@@ -337,6 +350,12 @@ def _merge_configs(configs: list[dict[str, t.Any]]) -> dict[str, t.Any]:
                 merged_config["settings"][name] = _parse_setting(name, value)
             except (TypeError, ValueError, OverflowError) as e:
                 log.warning("[profiling-remote-config] Ignoring setting %s with invalid value %r: %s", name, value, e)
+
+    # When no configuration sets referenceChains, the GC monitor settings from the environment apply.
+    reference_chains: t.Optional[bool] = merged_config["profilers"].get(_REFERENCE_CHAINS_PROFILER)
+    if reference_chains is not None:
+        for path in _REFERENCE_CHAINS_SETTINGS:
+            merged_config["settings"][path] = reference_chains
 
     return merged_config
 
