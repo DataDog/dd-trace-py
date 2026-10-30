@@ -255,6 +255,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, 'aiobotocore~=2.0.0']
         - name: aiobotocore
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', 'async_generator~=1.10', pytest-randomly, aiobotocore]
   aiohttp:
     venvs_per_job: 8
@@ -376,8 +377,10 @@ suites:
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
         - name: aiokafka
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, 'aiokafka~=0.9.0']
         - name: aiokafka
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, aiokafka]
   aiopg:
     venvs_per_job: 8
@@ -533,6 +536,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/avro
       variants:
         - name: avro
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [avro, pytest-randomly]
   aws_lambda:
     paths:
@@ -587,8 +591,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_cosmos
       variants:
         - name: azure_cosmos
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['azure.cosmos~=4.9.0', 'pytest-asyncio==0.23.7', aiohttp, six]
         - name: azure_cosmos
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [azure.cosmos, 'pytest-asyncio==0.23.7', aiohttp, six]
   azure_eventhubs:
     venvs_per_job: 3
@@ -798,8 +804,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/botocore
       variants:
         - name: botocore
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['moto[all]<5.0', pytest-randomly, 'vcrpy==6.0.1', 'botocore==1.34.49', 'boto3==1.34.49']
         - name: botocore
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['moto[all]<5.0', pytest-randomly, 'vcrpy==7.0.0', 'botocore==1.38.26', 'boto3==1.38.26']
   bottle:
     paths:
@@ -1705,6 +1713,7 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, 'kombu>=5.0,<5.1']
         - name: kombu
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, kombu]
         - name: kombu
           python: ['3.10', '3.11']
@@ -1937,6 +1946,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/protobuf
       variants:
         - name: protobuf
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [protobuf, pytest-randomly]
   psycopg:
     venvs_per_job: 11
