@@ -21,6 +21,7 @@ from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
 from ddtrace.debugging._probe.model import TriggerFunctionProbe
 from ddtrace.debugging._redaction import DDRedactedExpression
+from ddtrace.debugging._redaction import DDTimedRedactedExpression
 
 
 def compile_template(*args):
@@ -44,6 +45,17 @@ def compile_capture_expressions(exprs):
 
 def ddexpr(json, dsl="test"):
     return DDExpression(dsl=dsl, callable=dd_compile(json))
+
+
+# A scope and a timed expression over it that only terminate if the
+# evaluation deadline stops them: any() walks a lazy range of 10**12 elements.
+SLOW_SCOPE = {"big": range(10**12)}
+
+
+def slow_timed_expr(dsl="slow"):
+    return DDTimedRedactedExpression.compile(
+        {"dsl": dsl, "json": {"any": [{"ref": "big"}, {"eq": [{"ref": "@it"}, -1]}]}}
+    )
 
 
 def ddstrtempl(segments, template=""):

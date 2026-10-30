@@ -38,7 +38,7 @@ from ddtrace.debugging._probe.model import TriggerFunctionProbe
 from ddtrace.debugging._probe.model import TriggerLineProbe
 from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._redaction import DDRedactedExpression
+from ddtrace.debugging._redaction import DDTimedRedactedExpression
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
@@ -52,7 +52,7 @@ def _compile_segment(segment: dict[str, Any]) -> TemplateSegment:
         return LiteralTemplateSegment(str_value=segment["str"])
 
     if "json" in segment:
-        return ExpressionTemplateSegment(expr=DDRedactedExpression.compile(segment))
+        return ExpressionTemplateSegment(expr=DDTimedRedactedExpression.compile(segment))
 
     msg = f"Invalid template segment: {segment}"
     raise ValueError(msg)
@@ -122,7 +122,7 @@ class LogProbeFactory(ProbeFactory):
             rate = sampling.get("snapshotsPerSecond", rate)
 
         args.update(
-            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
+            condition=DDTimedRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             rate=rate,
             limits=CaptureLimits.parse(attribs["capture"]) if "capture" in attribs else DEFAULT_CAPTURE_LIMITS,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
@@ -143,11 +143,11 @@ class MetricProbeFactory(ProbeFactory):
         args["tags"]["debugger.probeid"] = args["probe_id"]
 
         args.update(
-            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
+            condition=DDTimedRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             name=attribs["metricName"],
             kind=attribs["kind"],
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
-            value=DDRedactedExpression.compile(attribs["value"]) if "value" in attribs else None,
+            value=DDTimedRedactedExpression.compile(attribs["value"]) if "value" in attribs else None,
         )
 
 
@@ -157,7 +157,7 @@ class SpanProbeFactory(ProbeFactory):
     @classmethod
     def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         args.update(
-            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
+            condition=DDTimedRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
         )
 
@@ -172,7 +172,7 @@ class SpanDecorationProbeFactory(ProbeFactory):
             target_span=attribs["targetSpan"],
             decorations=[
                 SpanDecoration(
-                    when=DDRedactedExpression.compile(d["when"]) if "when" in d else None,
+                    when=DDTimedRedactedExpression.compile(d["when"]) if "when" in d else None,
                     tags=[
                         SpanDecorationTag(
                             name=t["name"],
@@ -199,7 +199,7 @@ class TriggerProbeFactory(ProbeFactory):
             rate=attribs.get("sampling", {}).get("cooldownInSeconds", DEFAULT_TRIGGER_PROBE_RATE),
             session_id=attribs["session_id"],
             level=int(attribs["level"]),
-            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
+            condition=DDTimedRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,
         )
 
