@@ -1384,14 +1384,25 @@ class TestUnshallowMarker:
         sm.api_client = Mock()
         return sm
 
-    def _write_marker(self, workspace_path, data) -> None:
+    def _write_marker(self, workspace_path, head_sha: str = "head-sha", commit_count: int = 5, timestamp=None) -> None:
         import json as _json
+        import time as _time
 
         marker_dir = workspace_path / ".testoptimization" / "git"
         marker_dir.mkdir(parents=True, exist_ok=True)
-        (marker_dir / "dd-trace-py.unshallow-done").write_text(_json.dumps(data))
+        (marker_dir / "dd-trace-py.unshallow-done").write_text(
+            _json.dumps(
+                {
+                    "head_sha": head_sha,
+                    "commit_count": commit_count,
+                    "timestamp": timestamp if timestamp is not None else _time.time(),
+                }
+            )
+        )
 
-    def _make_mock_git(self, merge_base: str = "", try_all: bool = True) -> Mock:
+    def _make_mock_git(
+        self, merge_base: str = "", try_all: bool = True, head_sha: str = "head-sha", commit_count: int = 5
+    ) -> Mock:
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
@@ -1400,19 +1411,19 @@ class TestUnshallowMarker:
         mock_git.get_merge_base.return_value = merge_base
         mock_git.get_filtered_revisions.return_value = ["commit-2"]
         mock_git.pack_objects.return_value = iter([])
+        mock_git.get_commit_sha.return_value = head_sha
+        mock_git.get_commit_count.return_value = commit_count
         return mock_git
 
     def test_no_marker_returns_false(self, tmp_path) -> None:
         (tmp_path / ".testoptimization" / "git").mkdir(parents=True)
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        assert sm._read_unshallow_done() is False
+        assert sm._read_unshallow_done(self._make_mock_git()) is False
 
     def test_matching_marker_returns_true(self, tmp_path) -> None:
-        import time as _time
-
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
-        assert sm._read_unshallow_done() is True
+        self._write_marker(tmp_path)
+        assert sm._read_unshallow_done(self._make_mock_git()) is True
 
     def test_marker_has_no_ttl(self, tmp_path) -> None:
         """An old marker still matches: the deepened history it recorded is still local.
@@ -1424,61 +1435,100 @@ class TestUnshallowMarker:
         import time as _time
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time() - 86400})
-        assert sm._read_unshallow_done() is True
+        self._write_marker(tmp_path, timestamp=_time.time() - 86400)
+        assert sm._read_unshallow_done(self._make_mock_git()) is True
 
     def test_different_head_marker_returns_false(self, tmp_path) -> None:
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_marker(tmp_path, head_sha="other-sha")
+        assert sm._read_unshallow_done(self._make_mock_git()) is False
+
+    def test_marker_uses_local_head_not_ci_provider_sha(self, tmp_path) -> None:
+        """The marker is keyed on the local HEAD, not the CI-provider COMMIT_SHA.
+
+        CI providers can set GitTag.COMMIT_SHA to the PR source commit while the
+        local checkout is at a different (e.g. merge) commit; the fetch deepens
+        the *local* history, so only the local HEAD is a valid marker key.
+        """
+        sm = self._make_sm(tmp_path, head_sha="ci-provider-sha")
+        mock_git = self._make_mock_git(head_sha="head-sha")
+
+        # A marker keyed on the CI-provider SHA is not honored.
+        self._write_marker(tmp_path, head_sha="ci-provider-sha")
+        assert sm._read_unshallow_done(mock_git) is False
+
+        # A marker keyed on the local HEAD is.
+        self._write_marker(tmp_path, head_sha="head-sha")
+        assert sm._read_unshallow_done(mock_git) is True
+
+    def test_reshallowed_checkout_rejects_marker(self, tmp_path) -> None:
+        """A re-shallow at the same commit (fewer reachable commits) re-fetches.
+
+        ``git fetch --depth=1 <same SHA>`` leaves HEAD unchanged while previously
+        fetched ancestors become unreachable; the recorded commit count catches
+        the truncated history and rejects the marker.
+        """
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_marker(tmp_path, commit_count=30)
+        mock_git = self._make_mock_git(head_sha="head-sha", commit_count=1)
+        assert sm._read_unshallow_done(mock_git) is False
+
+    def test_marker_without_commit_count_rejected(self, tmp_path) -> None:
+        """Markers from the previous format (no commit_count) are not honored."""
+        import json as _json
         import time as _time
 
+        marker_dir = tmp_path / ".testoptimization" / "git"
+        marker_dir.mkdir(parents=True)
+        (marker_dir / "dd-trace-py.unshallow-done").write_text(
+            _json.dumps({"head_sha": "head-sha", "timestamp": _time.time()})
+        )
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        self._write_marker(tmp_path, {"head_sha": "other-sha", "timestamp": _time.time()})
-        assert sm._read_unshallow_done() is False
+        assert sm._read_unshallow_done(self._make_mock_git()) is False
 
     def test_malformed_marker_returns_false(self, tmp_path) -> None:
         marker_dir = tmp_path / ".testoptimization" / "git"
         marker_dir.mkdir(parents=True)
         (marker_dir / "dd-trace-py.unshallow-done").write_text("not json{{")
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        assert sm._read_unshallow_done() is False
+        assert sm._read_unshallow_done(self._make_mock_git()) is False
 
-    def test_missing_head_sha_skips_check(self, tmp_path) -> None:
-        import time as _time
-
-        # No COMMIT_SHA in env_tags: even a matching marker must not be honored,
-        # because we don't know what HEAD to validate against.
-        sm = self._make_sm(tmp_path, head_sha=None)
-        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
-        assert sm._read_unshallow_done() is False
+    def test_git_sha_unavailable_returns_false(self, tmp_path) -> None:
+        self._write_marker(tmp_path)
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        assert sm._read_unshallow_done(self._make_mock_git(head_sha="")) is False
 
     def test_missing_workspace_path_attribute_returns_false(self) -> None:
-        from ddtrace.testing.internal.git import GitTag
-
         # Some tests build SessionManager via __new__ without setting workspace_path.
         sm = SessionManager.__new__(SessionManager)
-        sm.env_tags = {GitTag.COMMIT_SHA: "head-sha"}
-        assert sm._read_unshallow_done() is False
+        sm.env_tags = {}
+        assert sm._read_unshallow_done(self._make_mock_git()) is False
 
     def test_mark_writes_expected_payload(self, tmp_path) -> None:
         import json as _json
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm._mark_unshallow_done()
+        sm._mark_unshallow_done(self._make_mock_git(head_sha="head-sha", commit_count=7))
         marker_path = tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done"
         data = _json.loads(marker_path.read_text())
         assert data["head_sha"] == "head-sha"
+        assert data["commit_count"] == 7
         assert isinstance(data["timestamp"], (int, float))
 
-    def test_mark_noop_without_head_sha(self, tmp_path) -> None:
+    def test_mark_noop_without_local_head(self, tmp_path) -> None:
         sm = self._make_sm(tmp_path, head_sha=None)
-        sm._mark_unshallow_done()
+        sm._mark_unshallow_done(self._make_mock_git(head_sha=""))
+        assert not (tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done").exists()
+
+    def test_mark_noop_without_commit_count(self, tmp_path) -> None:
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._mark_unshallow_done(self._make_mock_git(commit_count=0))
         assert not (tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done").exists()
 
     def test_mark_noop_without_workspace_path(self) -> None:
-        from ddtrace.testing.internal.git import GitTag
-
         sm = SessionManager.__new__(SessionManager)
-        sm.env_tags = {GitTag.COMMIT_SHA: "head-sha"}
-        sm._mark_unshallow_done()  # must not raise
+        sm.env_tags = {}
+        sm._mark_unshallow_done(self._make_mock_git())  # must not raise
 
     def test_upload_git_data_skips_fetch_when_marker_present(self, tmp_path) -> None:
         """A follow-up pytest command (marker present) skips the fetch entirely.
@@ -1486,14 +1536,13 @@ class TestUnshallowMarker:
         The local history is already the post-fetch one, so the local merge-base
         attempt is authoritative: one merge-base call, warning level on failure.
         """
-        import time as _time
 
         from ddtrace.testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
         sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
-        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        self._write_marker(tmp_path)
         # Backend already knows all commits — only the merge-base needs the fetch.
         sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
@@ -1519,14 +1568,13 @@ class TestUnshallowMarker:
         the network fetch is skipped, since the history it would produce is
         already local.
         """
-        import time as _time
 
         from ddtrace.testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
         sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
-        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        self._write_marker(tmp_path)
         sm.api_client.get_known_commits.return_value = []  # everything missing
 
         mock_git = self._make_mock_git(merge_base="merge-base-sha")
@@ -1565,7 +1613,9 @@ class TestUnshallowMarker:
 
         marker_path = tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done"
         assert marker_path.exists()
-        assert _json.loads(marker_path.read_text())["head_sha"] == "head-sha"
+        marker_data = _json.loads(marker_path.read_text())
+        assert marker_data["head_sha"] == "head-sha"
+        assert marker_data["commit_count"] == 5
 
     def test_upload_git_data_does_not_write_marker_when_fetch_fails(self, tmp_path) -> None:
         """A failed fetch leaves no marker, so the next command retries it."""
@@ -1588,14 +1638,13 @@ class TestUnshallowMarker:
 
     def test_upload_git_data_fetches_again_when_marker_head_differs(self, tmp_path) -> None:
         """A marker left by a previous CI run on a different commit does not suppress the fetch."""
-        import time as _time
 
         from ddtrace.testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
         sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
-        self._write_marker(tmp_path, {"head_sha": "previous-head-sha", "timestamp": _time.time()})
+        self._write_marker(tmp_path, head_sha="previous-head-sha")
         sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = self._make_mock_git(merge_base="merge-base-sha")
@@ -1609,12 +1658,33 @@ class TestUnshallowMarker:
         mock_git.try_all_unshallow_repository_methods.assert_called_once()
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
 
-    def test_upload_git_data_marker_survives_cleanup(self, tmp_path) -> None:
-        """cleanup_upload_artifacts keeps the marker: its value is to outlive the session."""
-        import time as _time
+    def test_upload_git_data_fetches_again_when_reshallowed(self, tmp_path) -> None:
+        """Same HEAD but a re-truncated history: the recorded commit count rejects the marker."""
+        from ddtrace.testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
+        # Marker recorded 30 reachable commits; the checkout was re-shallowed to depth 1.
+        self._write_marker(tmp_path, commit_count=30)
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = self._make_mock_git(merge_base="merge-base-sha", commit_count=1)
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_called_once()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+
+    def test_upload_git_data_marker_survives_cleanup(self, tmp_path) -> None:
+        """cleanup_upload_artifacts keeps the marker: its value is to outlive the session."""
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_marker(tmp_path)
         # The upload sentinel (in .git/) is removed, the unshallow marker (in
         # .testoptimization/git/) is not.
         (tmp_path / ".git").mkdir()

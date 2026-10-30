@@ -81,12 +81,17 @@ _UPLOAD_LOCK_RETRY_INTERVAL_SECONDS = 0.5
 # do not fetch again. The fetch usually leaves .git/shallow in place (it
 # only moves the shallow boundary back), so later sessions still see a shallow
 # repository and would repeat the network round-trip even though a second fetch
-# reproduces exactly the history the first one already downloaded. Keyed to the
-# HEAD commit. There is deliberately no TTL and no cleanup: a later CI run
-# either has a fresh clone (marker absent) or a different HEAD (marker
-# mismatch), and a rerun on the same HEAD over a persistent workspace can
-# safely skip because the deepened history is still present locally and is a
-# superset of what a later 1-month shallow-since fetch would return.
+# reproduces exactly the history the first one already downloaded.
+# The marker is keyed to the repository's local HEAD (git rev-parse HEAD, not
+# the CI-provider commit SHA) and to the number of commits reachable from it,
+# so a checkout that was re-shallowed at the same commit (e.g. a
+# git fetch --depth=1 during a CI re-checkout) or a .testoptimization directory
+# restored into a fresh shallow clone is detected and re-fetched. There is
+# deliberately no TTL and no cleanup: a later CI run either has a fresh clone
+# (marker absent), a different HEAD (marker mismatch) or a re-truncated history
+# (commit count below the recorded one), and a rerun on the same HEAD over a
+# persistent workspace can safely skip because the recorded commit count still
+# bounds the locally present history.
 _UNSHALLOW_DONE_FILENAME = "dd-trace-py.unshallow-done"
 
 
@@ -613,15 +618,25 @@ class SessionManager:
             return None
         return Path(workspace_path) / TEST_OPTIMIZATION_DIR / TEST_OPTIMIZATION_GIT_DIR / _UNSHALLOW_DONE_FILENAME
 
-    def _read_unshallow_done(self) -> bool:
+    def _read_unshallow_done(self, git: Git) -> bool:
         """Return True if a previous session already ran the unshallow fetch for this HEAD.
 
-        Only a well-formed marker referencing the current HEAD commit counts;
-        anything else is treated as "not done" so the normal fetch path runs.
+        The marker is keyed to the repository's local HEAD (``git rev-parse
+        HEAD``), not the CI-provider commit SHA: the fetch deepens the *local*
+        history, so the local HEAD is the right identity for it. A marker only
+        counts when the local history still contains at least as many commits
+        reachable from HEAD as were present when the marker was written — a
+        checkout that was re-shallowed at the same commit (e.g.
+        ``git fetch --depth=1`` during a CI re-checkout) or a
+        ``.testoptimization`` directory restored into a fresh shallow clone is
+        not treated as already deepened. Anything else is treated as "not done"
+        so the normal fetch path runs.
         """
-        env_tags = getattr(self, "env_tags", None) or {}
-        head_sha = env_tags.get(GitTag.COMMIT_SHA)
-        if not head_sha:
+        head_sha = git.get_commit_sha()
+        if not isinstance(head_sha, str) or not head_sha:
+            return False
+        commit_count = git.get_commit_count()
+        if not isinstance(commit_count, int) or commit_count <= 0:
             return False
         marker = self._unshallow_done_path()
         if marker is None:
@@ -630,13 +645,20 @@ class SessionManager:
             data = json.loads(marker.read_text())
         except (OSError, ValueError):
             return False
-        return isinstance(data, dict) and data.get("head_sha") == head_sha
+        if not isinstance(data, dict) or data.get("head_sha") != head_sha:
+            return False
+        recorded_count = data.get("commit_count")
+        # Markers written before commit_count was recorded are not honored: the
+        # history depth they were written against is unknown.
+        return isinstance(recorded_count, int) and commit_count >= recorded_count
 
-    def _mark_unshallow_done(self) -> None:
+    def _mark_unshallow_done(self, git: Git) -> None:
         """Persist the unshallow-done marker so follow-up sessions skip the fetch."""
-        env_tags = getattr(self, "env_tags", None) or {}
-        head_sha = env_tags.get(GitTag.COMMIT_SHA)
-        if not head_sha:
+        head_sha = git.get_commit_sha()
+        if not isinstance(head_sha, str) or not head_sha:
+            return
+        commit_count = git.get_commit_count()
+        if not isinstance(commit_count, int) or commit_count <= 0:
             return
         marker = self._unshallow_done_path()
         if marker is None:
@@ -646,7 +668,7 @@ class SessionManager:
             # The .testoptimization/git directory usually does not exist yet in
             # normal (non-Bazel) runs; it is only created on demand here.
             marker.parent.mkdir(parents=True, exist_ok=True)
-            tmp.write_text(json.dumps({"head_sha": head_sha, "timestamp": time.time()}))
+            tmp.write_text(json.dumps({"head_sha": head_sha, "commit_count": commit_count, "timestamp": time.time()}))
             tmp.replace(marker)
         except OSError as e:
             log.debug("Could not write unshallow-done marker %s: %s", marker, e)
@@ -868,7 +890,9 @@ class SessionManager:
         # post-fetch one, and re-running the fetch would only repeat the same
         # network round-trip (the fetch moves the shallow boundary but usually
         # leaves .git/shallow in place, so the repo still reports as shallow).
-        already_unshallowed = self._read_unshallow_done()
+        # Only consulted on shallow repositories: a non-shallow repository
+        # never fetches, so the marker is irrelevant there.
+        already_unshallowed = is_shallow and self._read_unshallow_done(git)
         # Whether the PR merge-base still needs resolving, captured before the
         # local attempt below: a shallow-graph result is provisional and does not
         # resolve it (see _update_pr_merge_base).
@@ -898,7 +922,7 @@ class SessionManager:
                 log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
                 unshallow_successful = git.try_all_unshallow_repository_methods()
                 if unshallow_successful:
-                    self._mark_unshallow_done()
+                    self._mark_unshallow_done(git)
                     # Recompute the merge-base over the extended history. The local
                     # attempt above ran on the truncated shallow graph and may have
                     # returned an older ancestor than the true merge-base, so replace

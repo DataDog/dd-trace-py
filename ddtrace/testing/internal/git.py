@@ -247,6 +247,14 @@ class Git:
     def get_commit_sha(self) -> str:
         return self._git_output(["rev-parse", "HEAD"])
 
+    def get_commit_count(self) -> int:
+        """Return the number of commits reachable from HEAD (0 if the command fails)."""
+        output = self._git_output(["rev-list", "--count", "HEAD"])
+        try:
+            return int(output)
+        except ValueError:
+            return 0
+
     def get_upstream_sha(self) -> _GitSubprocessDetails:
         return self._call_git(["rev-parse", "@{upstream}"])
 
