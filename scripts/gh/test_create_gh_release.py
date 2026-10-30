@@ -691,6 +691,155 @@ class CiGreenPreflightTests(unittest.TestCase):
         finally:
             mod.run_out = original
 
+    def test_pending_without_wait_raises_waiting_on(self) -> None:
+        from create_gh_release import ensure_ci_green
+
+        mod, original = self._patch_responses(
+            state="pending",
+            statuses_ndjson='{"context": "dd-gitlab/build", "state": "pending"}\n',
+            check_runs_ndjson="",
+        )
+        try:
+            with self.assertRaises(WaitingOn) as ctx:
+                ensure_ci_green("abc123deadbeef", wait=False)
+            self.assertIn("CI green on abc123deadbe", str(ctx.exception))
+        finally:
+            mod.run_out = original
+
+
+class WaitForCiGreenTests(unittest.TestCase):
+    """Poll helper: fake gh status via summary_fn + fake clock (no real sleep)."""
+
+    def test_already_green_returns_without_sleep(self) -> None:
+        from create_gh_release import wait_for_ci_green
+
+        sleeps: list[float] = []
+        clock: list[float] = [0.0]
+
+        def summary(_sha: str) -> tuple[str, list[str], list[str], int]:
+            return ("success", [], [], 3)
+
+        def sleep_fn(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        wait_for_ci_green(
+            "deadbeef",
+            timeout_s=100.0,
+            poll_interval_s=10.0,
+            sleep_fn=sleep_fn,
+            monotonic_fn=lambda: clock[0],
+            summary_fn=summary,
+        )
+        self.assertEqual(sleeps, [])
+
+    def test_pending_then_green_polls_once(self) -> None:
+        from create_gh_release import wait_for_ci_green
+
+        sleeps: list[float] = []
+        clock: list[float] = [0.0]
+        calls: list[int] = [0]
+
+        def summary(_sha: str) -> tuple[str, list[str], list[str], int]:
+            calls[0] += 1
+            if calls[0] == 1:
+                return ("pending", [], ["dd-gitlab/build"], 2)
+            return ("success", [], [], 3)
+
+        def sleep_fn(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        wait_for_ci_green(
+            "deadbeef",
+            timeout_s=100.0,
+            poll_interval_s=10.0,
+            sleep_fn=sleep_fn,
+            monotonic_fn=lambda: clock[0],
+            summary_fn=summary,
+        )
+        self.assertEqual(sleeps, [10.0])
+        self.assertEqual(calls[0], 2)
+
+    def test_failure_raises_system_exit(self) -> None:
+        from create_gh_release import wait_for_ci_green
+
+        clock: list[float] = [0.0]
+
+        def summary(_sha: str) -> tuple[str, list[str], list[str], int]:
+            return ("failure", ["dd-gitlab/build"], [], 1)
+
+        with self.assertRaises(SystemExit) as ctx:
+            wait_for_ci_green(
+                "deadbeef",
+                timeout_s=100.0,
+                poll_interval_s=10.0,
+                sleep_fn=lambda _s: None,
+                monotonic_fn=lambda: clock[0],
+                summary_fn=summary,
+            )
+        self.assertIn("CI failed while waiting", str(ctx.exception))
+
+    def test_timeout_raises_waiting_on(self) -> None:
+        from create_gh_release import wait_for_ci_green
+
+        clock: list[float] = [0.0]
+        sleeps: list[float] = []
+
+        def summary(_sha: str) -> tuple[str, list[str], list[str], int]:
+            return ("pending", [], ["dd-gitlab/build"], 0)
+
+        def sleep_fn(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        with self.assertRaises(WaitingOn) as ctx:
+            wait_for_ci_green(
+                "deadbeefcafe",
+                timeout_s=25.0,
+                poll_interval_s=10.0,
+                sleep_fn=sleep_fn,
+                monotonic_fn=lambda: clock[0],
+                summary_fn=summary,
+            )
+        self.assertIn("CI still pending after 25", str(ctx.exception))
+        self.assertIn("deadbeefcafe", str(ctx.exception))
+        # 10 + 10 + 5 (remaining) then deadline hit on next loop
+        self.assertEqual(sleeps, [10.0, 10.0, 5.0])
+
+    def test_ensure_ci_green_wait_continues_after_pending(self) -> None:
+        from create_gh_release import ensure_ci_green
+
+        clock: list[float] = [0.0]
+        calls: list[int] = [0]
+
+        def summary(_sha: str) -> tuple[str, list[str], list[str], int]:
+            calls[0] += 1
+            if calls[0] <= 2:
+                return ("pending", [], ["dd-gitlab/build"], 1)
+            return ("success", [], [], 2)
+
+        with mock.patch("create_gh_release.get_commit_ci_summary", side_effect=summary):
+            ensure_ci_green(
+                "abc",
+                wait=True,
+                timeout_s=100.0,
+                poll_interval_s=1.0,
+                sleep_fn=lambda s: clock.__setitem__(0, clock[0] + s),
+                monotonic_fn=lambda: clock[0],
+            )
+        self.assertGreaterEqual(calls[0], 3)
+
+    def test_resolve_wait_ci_dry_run_never_waits(self) -> None:
+        from create_gh_release import resolve_wait_ci
+
+        dry: Any = mock.Mock(dry_run=True, wait_ci=True)
+        self.assertFalse(resolve_wait_ci(dry))
+        wet_default: Any = mock.Mock(dry_run=False, wait_ci=None)
+        self.assertTrue(resolve_wait_ci(wet_default))
+        wet_off: Any = mock.Mock(dry_run=False, wait_ci=False)
+        self.assertFalse(resolve_wait_ci(wet_off))
+
 
 class LoadLocalEnvTests(unittest.TestCase):
     def test_missing_file_is_noop(self) -> None:

@@ -28,9 +28,17 @@ Usage:
   scripts/gh/create_gh_release.py ensure-branch X.Y [--from A.B] [--dry-run]
   scripts/gh/create_gh_release.py draft-release [--target main] [--version 4.9.0rc3]
                                    [--allow-version-mismatch] [--allow-ci-failure]
+                                   [--wait-ci|--no-wait-ci] [--ci-wait-timeout SECS]
                                    [--slack] [--slack-channel prod|guild|test|auto]
                                    [--no-slack-precheck] [--test-dm]
                                    [--dry-run] [--verbose]
+
+CI wait (patch / rc / final / draft-release):
+  Wet runs poll GitHub statuses/checks until green (default --wait-ci, 75m
+  timeout, ~45s poll). On green the same invocation continues and creates the
+  draft. On red CI it exits with an error. On timeout it exits WAITING ON with
+  the last status (re-run to resume). --dry-run never waits. --no-wait-ci
+  exits WAITING ON immediately when CI is still pending.
 
 Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL
@@ -111,7 +119,9 @@ import shutil
 import subprocess  # nosec B404 — script orchestrates git/gh/aws CLIs
 import sys
 import tempfile
+import time
 from typing import Any
+from typing import Callable
 from typing import Optional
 import urllib.error
 import urllib.request
@@ -130,6 +140,10 @@ PYPROJECT: Path = REPO_ROOT / "pyproject.toml"
 assert PYPROJECT.is_file(), f"REPO_ROOT misconfigured: {PYPROJECT} does not exist"  # nosec B101 — startup invariant; OK to drop under -O
 # Gitignored local secrets (Slack webhooks). See .env.local.example.
 LOCAL_ENV_FILE: Path = Path(__file__).resolve().parent / ".env.local"
+
+# Wet-run CI poll defaults (patch / rc / final / draft-release). Dry-run never waits.
+DEFAULT_CI_WAIT_TIMEOUT_S: float = 75 * 60
+DEFAULT_CI_POLL_INTERVAL_S: float = 45.0
 
 # Slack webhook env vars. Channel webhooks: prod (#apm-python-release, default
 # review ping), optional guild (#guild-dd-trace-py), test, plus legacy
@@ -749,25 +763,16 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
     return overall_state, failing, pending, passing_count
 
 
-def ensure_ci_green(sha: str, allow_failure: bool = False) -> None:
-    """Refuse to draft a release on a commit whose CI isn't green.
-
-    Brett's ask: "validate that CI has completed and is green for the
-    target-to-be-released commit". Defensive against the "I cut a release from
-    a broken commit" foot-gun. ``allow_failure=True`` (from
-    ``--allow-ci-failure``) downgrades to a warning since some teams accept a
-    handful of flaky CI signals.
-    """
-    overall: str
-    failing: list[str]
-    pending: list[str]
-    passing: int
-    overall, failing, pending, passing = get_commit_ci_summary(sha)
-    label: str = f"CI: state={overall}, passing={passing}, pending={len(pending)}, failing={len(failing)}"
-    if overall == "success" and not failing and not pending:
-        print(label)
-        return
-    detail: str = label
+def format_ci_detail(
+    sha: str,
+    overall: str,
+    failing: list[str],
+    pending: list[str],
+    passing: int,
+) -> str:
+    """Human-readable CI roll-up for logs and WAITING ON / error messages."""
+    short: str = sha if len(sha) <= 12 else sha[:12]
+    detail: str = f"CI on {short}: state={overall}, passing={passing}, pending={len(pending)}, failing={len(failing)}"
     if failing:
         detail += "\n  failing:\n    " + "\n    ".join(failing[:10])
         if len(failing) > 10:
@@ -776,13 +781,146 @@ def ensure_ci_green(sha: str, allow_failure: bool = False) -> None:
         detail += "\n  pending:\n    " + "\n    ".join(pending[:10])
         if len(pending) > 10:
             detail += f"\n    ... and {len(pending) - 10} more"
+    return detail
+
+
+def resolve_wait_ci(args: argparse.Namespace) -> bool:
+    """Wet runs wait by default; ``--dry-run`` never waits (even with ``--wait-ci``)."""
+    dry_run: bool = bool(getattr(args, "dry_run", False))
+    if dry_run:
+        return False
+    explicit: Optional[bool] = getattr(args, "wait_ci", None)
+    if explicit is not None:
+        return bool(explicit)
+    return True
+
+
+def wait_for_ci_green(
+    sha: str,
+    *,
+    timeout_s: float = DEFAULT_CI_WAIT_TIMEOUT_S,
+    poll_interval_s: float = DEFAULT_CI_POLL_INTERVAL_S,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+    summary_fn: Optional[Callable[[str], tuple[str, list[str], list[str], int]]] = None,
+) -> None:
+    """Poll GitHub until CI is green, failed, or the timeout elapses.
+
+    On green: returns so the same invocation can create the draft.
+    On failure: raises ``SystemExit`` with the failing check names.
+    On timeout: raises ``WaitingOn`` with the last status (main prints
+    ``WAITING ON:`` and exits 2).
+    """
+    # Resolve at call time so tests can patch ``get_commit_ci_summary``.
+    resolve_summary: Callable[[str], tuple[str, list[str], list[str], int]] = (
+        summary_fn if summary_fn is not None else get_commit_ci_summary
+    )
+    started: float = monotonic_fn()
+    deadline: float = started + timeout_s
+    poll_n: int = 0
+    last_detail: str = ""
+    while True:
+        overall: str
+        failing: list[str]
+        pending: list[str]
+        passing: int
+        overall, failing, pending, passing = resolve_summary(sha)
+        last_detail = format_ci_detail(sha, overall, failing, pending, passing)
+        if overall == "success" and not failing and not pending:
+            elapsed_ok: float = monotonic_fn() - started
+            print(f"CI green after {elapsed_ok:.0f}s ({poll_n} polls): {last_detail}")
+            return
+        if failing:
+            raise SystemExit(
+                f"CI failed while waiting; refusing to draft. {last_detail}\n"
+                "Fix or tip past the failure, or pass --allow-ci-failure."
+            )
+        now: float = monotonic_fn()
+        remaining: float = deadline - now
+        if remaining <= 0:
+            raise WaitingOn(
+                f"CI still pending after {timeout_s:.0f}s on "
+                f"{sha if len(sha) <= 12 else sha[:12]}. {last_detail}\n"
+                "Re-run the same command to keep waiting, or pass --no-wait-ci."
+            )
+        elapsed: float = now - started
+        poll_n += 1
+        sleep_for: float = min(poll_interval_s, remaining)
+        print(
+            f"WAITING ON CI (poll {poll_n}): {last_detail} — "
+            f"elapsed {elapsed:.0f}s, next check in {sleep_for:.0f}s "
+            f"(timeout {timeout_s:.0f}s)",
+            flush=True,
+        )
+        sleep_fn(sleep_for)
+
+
+def ensure_ci_green(
+    sha: str,
+    allow_failure: bool = False,
+    *,
+    wait: bool = False,
+    timeout_s: float = DEFAULT_CI_WAIT_TIMEOUT_S,
+    poll_interval_s: float = DEFAULT_CI_POLL_INTERVAL_S,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+) -> None:
+    """Refuse to draft a release on a commit whose CI isn't green.
+
+    Brett's ask: "validate that CI has completed and is green for the
+    target-to-be-released commit". Defensive against the "I cut a release from
+    a broken commit" foot-gun. ``allow_failure=True`` (from
+    ``--allow-ci-failure``) downgrades to a warning since some teams accept a
+    handful of flaky CI signals.
+
+    When CI is still pending and ``wait=True`` (default for wet patch/rc/final/
+    draft-release), poll until green, failed, or ``timeout_s``. Dry-run callers
+    should pass ``wait=False`` so the script does not hang.
+    """
+    overall: str
+    failing: list[str]
+    pending: list[str]
+    passing: int
+    overall, failing, pending, passing = get_commit_ci_summary(sha)
+    detail: str = format_ci_detail(sha, overall, failing, pending, passing)
+    if overall == "success" and not failing and not pending:
+        print(detail)
+        return
     if allow_failure:
         print(f"WARN (--allow-ci-failure): {detail}", file=sys.stderr)
         return
-    raise SystemExit(
-        f"refusing to draft release on a commit with non-green CI. {detail}\n"
-        "Either wait for CI to complete on origin/<target>, or pass "
-        "--allow-ci-failure to override (e.g. for known-flaky red checks)."
+    if failing:
+        raise SystemExit(
+            f"refusing to draft release on a commit with non-green CI. {detail}\n"
+            "Either wait for CI to complete on origin/<target>, or pass "
+            "--allow-ci-failure to override (e.g. for known-flaky red checks)."
+        )
+    # Pending only from here.
+    if wait:
+        print(f"CI pending; waiting up to {timeout_s:.0f}s (poll every {poll_interval_s:.0f}s)")
+        wait_for_ci_green(
+            sha,
+            timeout_s=timeout_s,
+            poll_interval_s=poll_interval_s,
+            sleep_fn=sleep_fn,
+            monotonic_fn=monotonic_fn,
+            summary_fn=get_commit_ci_summary,
+        )
+        return
+    raise WaitingOn(
+        f"CI green on {sha if len(sha) <= 12 else sha[:12]}. {detail}\n"
+        "Re-run after CI finishes, or pass --wait-ci to poll in this process."
+    )
+
+
+def ensure_ci_green_from_args(sha: str, args: argparse.Namespace) -> None:
+    """Apply ``--wait-ci`` / ``--no-wait-ci`` / timeout flags from argparse."""
+    ensure_ci_green(
+        sha,
+        allow_failure=bool(getattr(args, "allow_ci_failure", False)),
+        wait=resolve_wait_ci(args),
+        timeout_s=float(getattr(args, "ci_wait_timeout", DEFAULT_CI_WAIT_TIMEOUT_S)),
+        poll_interval_s=float(getattr(args, "ci_poll_interval", DEFAULT_CI_POLL_INTERVAL_S)),
     )
 
 
@@ -1265,7 +1403,7 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
             )
         return 0
 
-    ensure_ci_green(target_sha, allow_failure=args.allow_ci_failure)
+    ensure_ci_green_from_args(target_sha, args)
 
     collapse: bool = bool(getattr(args, "collapse_rcs", False))
     earliest: Optional[str] = getattr(args, "earliest_version", None)
@@ -2099,7 +2237,7 @@ def cmd_patch(args: argparse.Namespace) -> int:
     if xy_branch_for_version(release_version) != branch:
         raise SystemExit(f"version {release_version} does not match target branch {branch}")
 
-    ensure_ci_green(branch_state.sha, allow_failure=args.allow_ci_failure)
+    ensure_ci_green_from_args(branch_state.sha, args)
 
     # Draft via shared draft-release path.
     draft_ns: argparse.Namespace = argparse.Namespace(
@@ -2134,7 +2272,7 @@ def cmd_rc(args: argparse.Namespace) -> int:
     check_system_tests_pin_fresh()
     check_libdatadog_released_tag("origin/main")
     check_slo_breaches_on_sha(candidate)
-    ensure_ci_green(candidate, allow_failure=args.allow_ci_failure)
+    ensure_ci_green_from_args(candidate, args)
 
     exists, is_draft, url = release_exists_for_tag(version)
     if exists and not is_draft:
@@ -2271,7 +2409,7 @@ def cmd_final(args: argparse.Namespace) -> int:
             f"refusing final: changes other than pyproject.toml since {last_rc_tag}:\n  " + "\n  ".join(non_version)
         )
 
-    ensure_ci_green(sha, allow_failure=args.allow_ci_failure)
+    ensure_ci_green_from_args(sha, args)
     earliest: str = f"{xy}.0rc1"
     draft_ns: argparse.Namespace = argparse.Namespace(
         target=xy,
@@ -2655,6 +2793,53 @@ def _add_common_flags(sp: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_ci_flags(sp: argparse.ArgumentParser) -> None:
+    """CI-green preflight + optional wait/poll (patch / rc / final / draft-release)."""
+    sp.add_argument(
+        "--allow-ci-failure",
+        action="store_true",
+        help=(
+            "downgrade the CI-green pre-flight to a warning. Use sparingly; the "
+            "default behavior refuses to draft on a commit with red or pending CI."
+        ),
+    )
+    wait_g: Any = sp.add_mutually_exclusive_group()
+    wait_g.add_argument(
+        "--wait-ci",
+        dest="wait_ci",
+        action="store_true",
+        default=None,
+        help=(
+            "poll GitHub until CI is green before drafting (default for wet runs; "
+            "ignored by --dry-run so dry-run never hangs)"
+        ),
+    )
+    wait_g.add_argument(
+        "--no-wait-ci",
+        dest="wait_ci",
+        action="store_false",
+        help="do not poll; exit WAITING ON immediately when CI is still pending",
+    )
+    sp.add_argument(
+        "--ci-wait-timeout",
+        type=float,
+        default=DEFAULT_CI_WAIT_TIMEOUT_S,
+        metavar="SECONDS",
+        help=(
+            f"max seconds to wait for CI when waiting "
+            f"(default: {int(DEFAULT_CI_WAIT_TIMEOUT_S)} = "
+            f"{int(DEFAULT_CI_WAIT_TIMEOUT_S) // 60}m)"
+        ),
+    )
+    sp.add_argument(
+        "--ci-poll-interval",
+        type=float,
+        default=DEFAULT_CI_POLL_INTERVAL_S,
+        metavar="SECONDS",
+        help=f"seconds between CI status polls (default: {int(DEFAULT_CI_POLL_INTERVAL_S)})",
+    )
+
+
 def _add_slack_flags(sp: argparse.ArgumentParser) -> None:
     sp.add_argument(
         "--slack",
@@ -2701,7 +2886,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     patch_p.add_argument("pr", help="fix PR number on main")
     patch_p.add_argument("--branch", help="release branch X.Y (default: sole backport X.Y label on the PR)")
-    patch_p.add_argument("--allow-ci-failure", action="store_true")
+    _add_ci_flags(patch_p)
     patch_p.add_argument("--dry-run", action="store_true")
     _add_slack_flags(patch_p)
     _add_common_flags(patch_p)
@@ -2709,7 +2894,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     rc_p: argparse.ArgumentParser = sub.add_parser("rc", help="resumable: cut the next RC draft")
     rc_p.add_argument("--candidate", help="SHA to release (default: origin/main HEAD)")
-    rc_p.add_argument("--allow-ci-failure", action="store_true")
+    _add_ci_flags(rc_p)
     rc_p.add_argument("--dry-run", action="store_true")
     _add_slack_flags(rc_p)
     _add_common_flags(rc_p)
@@ -2717,7 +2902,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     final_p: argparse.ArgumentParser = sub.add_parser("final", help="resumable: ship X.Y.0 from the last RC")
     final_p.add_argument("xy", help="release line like 4.17")
-    final_p.add_argument("--allow-ci-failure", action="store_true")
+    _add_ci_flags(final_p)
     final_p.add_argument("--dry-run", action="store_true")
     _add_slack_flags(final_p)
     _add_common_flags(final_p)
@@ -2773,14 +2958,7 @@ def build_parser() -> argparse.ArgumentParser:
             "a release without bumping pyproject first."
         ),
     )
-    dr.add_argument(
-        "--allow-ci-failure",
-        action="store_true",
-        help=(
-            "downgrade the CI-green pre-flight to a warning. Use sparingly; the "
-            "default behavior refuses to draft on a commit with red or pending CI."
-        ),
-    )
+    _add_ci_flags(dr)
     _add_slack_flags(dr)
     dr.add_argument("--dry-run", action="store_true")
     _add_common_flags(dr)

@@ -49,7 +49,7 @@ DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL=… \
 ## Human gates (typical)
 
 - Fix / backport / bump PR review and merge
-- CI green on `origin/X.Y` (or candidate SHA)
+- CI green on `origin/X.Y` (or candidate SHA) — wet `patch`/`rc`/`final`/`draft-release` poll by default (`--wait-ci`, ~75m / 45s); `--dry-run` never waits; `--no-wait-ci` exits `WAITING ON` immediately if still pending
 - Maintainer publish of the draft (tag ruleset)
 - PyPI appearing after the GitLab tag pipeline (`post-release`)
 - Dogfooding PRs in dd-source / dogweb (manual until Phase A)
