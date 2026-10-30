@@ -56,6 +56,7 @@ from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
 from ddtrace.internal.ci_visibility.service_registry import register_ci_visibility_instance
 from ddtrace.internal.ci_visibility.service_registry import unregister_ci_visibility_instance
 from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
+from ddtrace.internal.ci_visibility.utils import get_code_coverage_enabled_override
 from ddtrace.internal.ci_visibility.writer import CIVisibilityCoverageReportClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
@@ -346,6 +347,9 @@ class CIVisibility(Service, CIVisibilityProtocol):
 
     @staticmethod
     def _should_collect_coverage(coverage_enabled_by_api):
+        code_coverage_override = get_code_coverage_enabled_override()
+        if code_coverage_override is not None:
+            return code_coverage_override
         if not coverage_enabled_by_api and not asbool(
             env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
@@ -530,6 +534,9 @@ class CIVisibility(Service, CIVisibilityProtocol):
     def should_collect_coverage(cls) -> bool:
         if cls._instance is None:
             return False
+        code_coverage_override = get_code_coverage_enabled_override()
+        if code_coverage_override is not None:
+            return code_coverage_override
         return cls._instance._api_settings.coverage_enabled or asbool(
             env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         )
