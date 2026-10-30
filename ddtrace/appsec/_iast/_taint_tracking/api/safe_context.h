@@ -19,7 +19,7 @@ safe_get_tainted_object_map(PyObject* tainted_object);
  * @return TaintedObjectMapTypePtr or nullptr if not initialized or not found
  */
 TaintedObjectMapTypePtr
-safe_get_tainted_object_map_by_ctx_id(size_t ctx_id);
+safe_get_tainted_object_map_by_ctx_id(std::uint64_t ctx_id);
 
 /**
  * @brief Safely get tainted object map from a list of PyObjects.

@@ -83,16 +83,28 @@ List the matching environments before selecting one by hash. The runner starts a
     $ scripts/run-tests --list tests/contrib/django/
     $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-After a successful first run, pass ``-s`` before ``--`` to reuse the selected environment's existing ddtrace
-installation while refreshing its suite dependencies. Omit it after changing native code or project metadata, or
-after updating from main.
+Matching test environments are reused by default. Pass ``-r`` before ``--`` after changing native code or build
+configuration, or after updating from main when those inputs may have changed. This recreates the environment and
+refreshes the editable ddtrace build.
 
 .. code-block:: bash
 
-    $ scripts/run-tests -s --venv <environment-hash> -- -k test_specific_function
+    $ scripts/run-tests -r --venv <environment-hash> -- -k test_specific_function
 
-An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
-remains supported for existing workflows.
+An ``-s`` after ``--`` still belongs to the test command and disables output capture.
+The legacy runner option ``-s`` before ``--`` is a no-op; use ``-r`` to refresh the installation.
+
+Nightly coverage report upload
+------------------------------
+
+Nightly test environments enable coverage report upload by default only on Python 3.15. This focuses reports on
+new Python support without paying the collection and reporting cost on every Python version. Other nightly
+Python versions explicitly disable report upload; suites without a Python 3.15 environment do not fall back to
+another version. The full test matrix and the separate ITR coverage policy are unchanged.
+
+The version selection is defined by ``NIGHTLY_COVERAGE_PYTHON_VERSIONS`` in ``tests/suitespec.py``. Add versions
+there when expanding nightly report coverage. Explicit matrix, variant, and run environment overrides retain
+their existing precedence, including suites that disable report upload. Non-nightly defaults are unchanged.
 
 OpenFeature fixtures
 --------------------
@@ -142,33 +154,27 @@ To fix this:
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
 
-On Linux systems, when running tests with ``scripts/ddtest`` or ``scripts/run-tests``, you may encounter permission errors or file ownership issues. This happens because the container user's ID and group ID must match your local user's IDs.
+On Linux, Docker bind mounts keep the host's file ownership, so the container user must be able to write to
+your checkout. The test image runs as ``bits`` (user ID 1000). When your host user ID is not 1000,
+``scripts/ddtest`` (and therefore ``scripts/run-tests``) automatically runs the container command with your host
+user ID and group ID instead.
 
-To fix this, create a ``docker-compose.override.yml`` file in the repository root with the following contents:
-
-.. code-block:: yaml
-
-    services:
-      testrunner:
-        user: "${UID}:${GID}"
-
-Then, ensure your shell has the ``UID`` and ``GID`` environment variables set:
+To choose the IDs explicitly, set ``DD_TEST_USER``:
 
 .. code-block:: bash
 
-    export UID="$(id -u)"
-    export GID="$(id -g)"
+    $ DD_TEST_USER=1234:1234 scripts/ddtest
 
-You can add these exports to your shell profile (e.g., ``.bashrc``, ``.zshrc``) to make them persistent across sessions.
-
-After setting this up, run your tests normally:
+Set ``DD_TEST_USER`` to an empty value to keep the image's default ``bits`` user:
 
 .. code-block:: bash
 
-    $ scripts/ddtest
-    $ scripts/run-tests
+    $ DD_TEST_USER= scripts/ddtest
 
-The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
+If you previously added a ``docker-compose.override.yml`` that sets ``user: "${UID}:${GID}"`` for the
+``testrunner`` service, you can delete it. ``scripts/ddtest`` now handles this itself, and that override does
+not work with the current image, because the image's home directory, which holds the Python and Rust
+installations, is not accessible to other users.
 
 Build issues when running tests
 -------------------------------
@@ -179,13 +185,11 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run the environment without ``-s`` so that the ddtrace installation is refreshed:
+Then rebuild the environment so that the ddtrace installation is refreshed:
 
 .. code-block:: bash
 
-    $ scripts/run-tests --venv <environment-hash> -- -vv -k test_name
-
-Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
+    $ scripts/run-tests -r --venv <environment-hash> -- -vv -k test_name
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
@@ -293,6 +297,53 @@ finding and fixing the root cause of the unreliable behavior. Upholding this res
 suite's coverage meaningfully broad while skipping tests.
 
 
+How do I find out if a slow or timed-out CI job ran on a slow machine?
+-----------------------------------------------------------------------
+
+Maintainers can read the resource metrics of the pod that ran a CI job in Datadog.
+Use the pod metrics first. They need no change to the pipeline, and they work for a job that already finished.
+
+1. Open the job in GitLab. Note the job id from the URL, the start time, and the end time.
+2. In the job log, find the line ``Running on <pod> via <runner>``. Read the ``Waiting for pod``
+   lines above it. A reason such as ``Unschedulable`` means that the job waited for a machine,
+   not for tests.
+3. In Datadog Metrics, query the pod metrics with the ``ci-job-id`` tag and the container name
+   ``build``. Use the time from 2 minutes before the job start to 1 minute after the job end.
+   Compare the CPU usage with the CPU request and limit. Compare the memory working set with the
+   memory limit. Check the OOM event count. Group the query by the ``host`` tag to see the node
+   that ran the job.
+4. To explain a slow start, query the pod phase, ready, and unschedulable metrics with the pod name.
+   These metrics do not carry the job id. Search the Kubernetes events for the same pod name to
+   find scheduling failures.
+
+Do not trust the CPU throttling counters. The counters can read zero when a container uses more
+CPU than its limit. Compare the CPU usage with the limit instead.
+
+If the pod metrics do not explain the result, turn on the runtime probe. The root ``conftest.py``
+contains the probe. When the probe is on, it prints a ``RUNTIME PROBE`` block in the job log at
+the start and at the end of each pytest session.
+The block shows the CPU count and affinity, the cgroup CPU and memory limits and counters, and
+the results of three short benchmarks.
+Use the block to compare the machine against the machines of other jobs in the same pipeline.
+
+The probe is off by default because the benchmarks add a fraction of a second to each pytest session.
+To turn the probe on for a CI run, start a new pipeline for your branch and set the pipeline
+variable ``DD_TEST_RUNTIME_PROBE`` to ``1``.
+In GitLab, use **Build > Pipelines > New pipeline** and add the variable in the form.
+The ``run-tests-trigger`` job passes the variable to the test jobs in the child pipeline.
+A retry of a single job does not accept new variables, so a retry does not turn on the probe.
+
+To turn the probe on for a local run, set the variable before you run the tests::
+
+    $ DD_TEST_RUNTIME_PROBE=1 scripts/run-tests --venv <hash>
+
+``scripts/ddtest`` passes the variable into the test container.
+
+The probe does not run in ``pytest-xdist`` workers.
+When the GitLab job timeout or an out-of-memory kill stops a job, pytest does not run its
+session-end hook. In that case, the log contains only the block from the session start.
+
+
 How do I enable debug logs for just a specific part of the library?
 -------------------------------------------------------------------
 
@@ -302,3 +353,23 @@ environment variables. For example, to enable debug logs just for
 ``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
 will set the ``DEBUG`` log level for any logger whose name is prefixed with
 ``ddtrace.debugging``.
+
+Snapshot tests
+--------------
+
+Use ``@pytest.mark.snapshot`` or the ``snapshot_context`` fixture. Each attempt
+gets a unique capture token while keeping its baseline filename. Capture,
+comparison, and cleanup use that token; pass ``snapshot.token`` to external
+producers in the ``X-Datadog-Test-Session-Token`` header. Child processes must inherit
+``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` from inside the snapshot context.
+Other test traffic gets a background token to keep it out of active snapshots.
+
+Finish spans and join background producers before leaving the context. Comparison
+runs once after successful execution. Unmatched traces retain their existing
+``xfail`` behavior; other snapshot differences fail the test. Concurrent
+contexts sharing a global writer remain unsupported; the agent also retains its
+legacy timing-based handling of untagged requests.
+
+Local runs create missing baselines; review the generated JSON. CI requires existing
+baselines. For custom agent mounts, set ``DD_TEST_AGENT_SNAPSHOT_DIR`` to the snapshot
+directory inside the agent.

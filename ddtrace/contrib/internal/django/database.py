@@ -8,6 +8,11 @@ from typing import cast
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
+from ddtrace.contrib.internal.mysql.cursor import MySQLTracedCursor
+from ddtrace.contrib.internal.mysqldb.cursor import MySQLdbTracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
+from ddtrace.contrib.internal.pymysql.cursor import PyMySQLTracedCursor
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
@@ -43,15 +48,15 @@ def get_traced_cursor_cls(cursor_type: type[Any]) -> type[dbapi.TracedCursor]:
     traced_cursor_cls = dbapi.TracedCursor
     try:
         if cursor_type.__module__.startswith("psycopg2.") or cursor_type.__name__ == "Psycopg2TracedCursor":
-            # Import lazily to avoid importing psycopg if not already imported.
-            from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
-
             traced_cursor_cls = Psycopg2TracedCursor
         elif cursor_type.__module__.startswith("psycopg.") or cursor_type.__name__ == "Psycopg3TracedCursor":
-            # Import lazily to avoid importing psycopg if not already imported.
-            from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
-
             traced_cursor_cls = Psycopg3TracedCursor
+        elif cursor_type.__module__.startswith("MySQLdb.") or issubclass(cursor_type, MySQLdbTracedCursor):
+            traced_cursor_cls = MySQLdbTracedCursor
+        elif cursor_type.__module__.startswith("pymysql.") or issubclass(cursor_type, PyMySQLTracedCursor):
+            traced_cursor_cls = PyMySQLTracedCursor
+        elif cursor_type.__module__.startswith("mysql.connector.") or issubclass(cursor_type, MySQLTracedCursor):
+            traced_cursor_cls = MySQLTracedCursor
     except AttributeError:
         pass
     return traced_cursor_cls
@@ -94,7 +99,9 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     service = pin.service or get_conn_service_name(alias)
     cfg = get_conn_config(vendor, service)
 
-    traced_cursor_cls = get_traced_cursor_cls(type(cursor.cursor))
+    # The MySQL backend adds its own cursor wrapper to translate driver errors.
+    backend_cursor = getattr(cursor.cursor, "cursor", cursor.cursor)
+    traced_cursor_cls = get_traced_cursor_cls(type(backend_cursor))
     traced_cursor = traced_cursor_cls(
         cursor,
         cfg=cfg,

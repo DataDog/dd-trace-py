@@ -19,6 +19,8 @@ CaptorType = Callable[[list[tuple[str, Any]], list[tuple[str, Any]], ExcInfoType
 
 log = get_logger(__name__)
 meter = metrics.get_meter("signal.collector")
+# Guardrail metrics use the unprefixed names shared by all tracers in the debugger namespace.
+guardrails_meter = metrics.get_meter("")
 
 
 def _guardrail_tags(signal: Signal, reason: str, evaluation_kind: Optional[str] = None) -> dict[str, str]:
@@ -56,11 +58,7 @@ class SignalCollector:
             self._tracks[log_signal.__track__].put(log_signal)
         except BufferFull:
             log.debug("Encoder buffer full")
-            tags = {"reason": "queueFull", "probe_id": log_signal.probe.probe_id}
-            event_type = log_signal.__type__
-            if event_type is not None:
-                tags["event_type"] = event_type
-            meter.increment("dynamic_instrumentation.guardrails.events.dropped", tags=tags)
+            guardrails_meter.increment("events.dropped", tags=_guardrail_tags(log_signal, "queueFull"))
         except KeyError:
             log.error("No encoder for signal track %s", log_signal.__track__)
 
@@ -73,26 +71,26 @@ class SignalCollector:
             # vocabulary (evaluationErrorThrottled) — no metric.
             pass
         elif signal.state is SignalState.COND_TIMEOUT:
-            meter.increment(
-                "dynamic_instrumentation.guardrails.events.skipped",
+            guardrails_meter.increment(
+                "events.skipped",
                 tags=_guardrail_tags(signal, "evaluationTimeout", evaluation_kind="condition"),
             )
         elif signal.state is SignalState.COND_ERROR:
-            meter.increment(
-                "dynamic_instrumentation.guardrails.evaluation.errors",
+            guardrails_meter.increment(
+                "evaluation.errors",
                 tags={"probe_type": type(signal.probe).__name__, "error_kind": "condition"},
             )
         elif signal.state is SignalState.SKIP_RATE_GLOBAL:
-            meter.increment(
-                "dynamic_instrumentation.guardrails.events.skipped",
+            guardrails_meter.increment(
+                "events.skipped",
                 tags=_guardrail_tags(signal, "rateLimitGlobal"),
             )
         elif signal.state is SignalState.SKIP_RATE_PROBE:
-            meter.increment(
-                "dynamic_instrumentation.guardrails.events.skipped",
+            guardrails_meter.increment(
+                "events.skipped",
                 tags=_guardrail_tags(signal, "rateLimitProbe"),
             )
-        elif signal.state is SignalState.SKIP_BUDGET:
+        elif signal.state is SignalState.SKIP_BUDGET or signal.state is SignalState.SKIP_CAPPED:
             # budgetExceededInvocation isn't part of the events.skipped
             # reason vocabulary — no metric.
             pass
@@ -101,8 +99,8 @@ class SignalCollector:
 
         # Emit evaluation duration if measured
         if signal._eval_duration_ms is not None:
-            meter.distribution(
-                "dynamic_instrumentation.guardrails.evaluation.duration",
+            guardrails_meter.distribution(
+                "evaluation.duration",
                 signal._eval_duration_ms,
                 tags={"probe_type": type(signal.probe).__name__, "evaluation_kind": "condition"},
             )
@@ -110,32 +108,32 @@ class SignalCollector:
         # Emit capture/template evaluation durations and capture.incomplete for snapshots
         if isinstance(signal, Snapshot):
             if signal._template_eval_duration_ms is not None:
-                meter.distribution(
-                    "dynamic_instrumentation.guardrails.evaluation.duration",
+                guardrails_meter.distribution(
+                    "evaluation.duration",
                     signal._template_eval_duration_ms,
                     tags={"probe_type": type(signal.probe).__name__, "evaluation_kind": "template"},
                 )
             if signal._segment_timed_out:
-                meter.increment(
-                    "dynamic_instrumentation.guardrails.capture.incomplete",
+                guardrails_meter.increment(
+                    "capture.incomplete",
                     tags=_guardrail_tags(signal, "timeout", evaluation_kind="template"),
                 )
             if signal._capture_expr_error_reason is not None:
-                meter.increment(
-                    "dynamic_instrumentation.guardrails.capture.incomplete",
+                guardrails_meter.increment(
+                    "capture.incomplete",
                     tags=_guardrail_tags(
                         signal, signal._capture_expr_error_reason, evaluation_kind="capture_expression"
                     ),
                 )
             if signal._capture_incomplete_reason is not None:
-                meter.increment(
-                    "dynamic_instrumentation.guardrails.capture.incomplete",
+                guardrails_meter.increment(
+                    "capture.incomplete",
                     tags=_guardrail_tags(signal, signal._capture_incomplete_reason),
                 )
             if signal._capture_duration_ms is not None:
                 truncated = "true" if signal.errors else "false"
-                meter.distribution(
-                    "dynamic_instrumentation.guardrails.capture.duration",
+                guardrails_meter.distribution(
+                    "capture.duration",
                     signal._capture_duration_ms,
                     tags={"probe_type": type(signal.probe).__name__, "truncated": truncated},
                 )

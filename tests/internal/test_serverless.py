@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from tests.utils import override_env
@@ -28,6 +29,19 @@ def test_not_azure_function():
     assert in_azure_function() is False
 
 
+@pytest.mark.parametrize(
+    "environment,expected",
+    [
+        ({"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1:123456789012:image:test"}, True),
+        ({}, False),
+        ({"AWS_LAMBDA_MICROVM_IMAGE_ARN": "   "}, False),
+    ],
+)
+def test_is_aws_lambda_microvm(environment, expected):
+    with override_env(environment, replace_os_env=True):
+        assert in_aws_lambda_microvm() is expected
+
+
 standard_blocklist = [
     "ddtrace.appsec._api_security.api_manager",
     "ddtrace.internal.telemetry.writer",
@@ -46,7 +60,7 @@ standard_blocklist = [
     "ddtrace.appsec._iast._ast.iastpatch",
     "ddtrace.appsec._iast._taint_tracking._native",
     "ddtrace.appsec._iast._taint_tracking._vendor",
-    "ddtrace.appsec._shared._stacktrace",
+    "ddtrace.internal.security._stacktrace",
     "ddtrace.internal.datadog.profiling.libdd_wrapper",
     "ddtrace.internal.datadog.profiling.ddup._ddup",
     "ddtrace.internal.datadog.profiling.stack._stack",

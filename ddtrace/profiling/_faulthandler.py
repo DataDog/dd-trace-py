@@ -18,13 +18,17 @@ faulthandler is imported (before or after ddtrace).
 
 from __future__ import annotations
 
-import threading
 from types import ModuleType
 import typing
 from typing import Callable
 
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.threads import Lock
+
+
+if typing.TYPE_CHECKING:
+    from _thread import LockType
 
 
 @ModuleWatchdog.after_module_imported("faulthandler")
@@ -34,7 +38,7 @@ def _(faulthandler: ModuleType) -> None:
 
     _original_enable: Callable[..., None] = faulthandler.enable
     _original_disable: Callable[[], bool] = faulthandler.disable
-    _enable_lock: threading.Lock = threading.Lock()
+    _enable_lock: LockType = Lock()
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
         with _enable_lock:

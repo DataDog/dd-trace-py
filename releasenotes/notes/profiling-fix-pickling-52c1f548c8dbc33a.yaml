@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Profiling: a bug that could raise ``RecursionError`` when pickling a profiler object
+    has been fixed.

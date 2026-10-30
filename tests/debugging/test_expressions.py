@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._expressions import DDExpressionCompilationError
 from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._expressions import _is_one_shot_iterator
 from ddtrace.debugging._expressions import dd_compile
@@ -301,11 +302,11 @@ def test_compile_invalid_argument_raises(ast):
 # ---- DDExpression.compile failure path ----
 
 
-def test_dd_expression_compile_failure_falls_back_to_invalid_expression():
-    """DDExpression.compile uses _invalid_expression on compiler error (lines 436, 414)."""
-    expr = DDExpression.compile({"json": {"unknown_op": []}, "dsl": "bad_expr"})
-    # _invalid_expression returns None silently rather than raising
-    assert expr.eval({}) is None
+def test_dd_expression_compile_failure_raises():
+    """DDExpression.compile propagates compiler errors so the owning probe can be rejected."""
+    with pytest.raises(DDExpressionCompilationError, match="bad_expr") as exc_info:
+        DDExpression.compile({"json": {"unknown_op": []}, "dsl": "bad_expr"})
+    assert isinstance(exc_info.value.__cause__, ValueError)
 
 
 # ---- _make_lambda invalid predicate ----

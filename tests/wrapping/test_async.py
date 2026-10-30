@@ -2,19 +2,15 @@
 
 Async generators that ``await`` around their ``yield`` exercise the SEND-based
 await machinery that PR #18741 fixed for the internal bytecode trampoline; those
-cases now pass for every mechanism. The remaining known failures here are
-``wrapping_context``'s asend/athrow/aclose on 3.10 only (see the ``xfail_mechanism``
-markers).
+cases now pass for every mechanism.
 """
 
 import asyncio
-import sys
 
 import pytest
 
 from tests.wrapping._harness import aiterate
 from tests.wrapping._harness import run
-from tests.wrapping.mechanisms import xfail_mechanism
 
 
 # --- coroutines ------------------------------------------------------------
@@ -88,11 +84,6 @@ def test_async_generator_iterate(mech):
     assert run(aiterate(mech.wrap_function(ag)())) == [0, 1, 2]
 
 
-@xfail_mechanism(
-    "wrapping_context",
-    reason="WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)",
-    condition=sys.version_info[:2] == (3, 10),
-)
 def test_async_generator_asend(mech):
     async def ag():
         x = yield 0
@@ -109,11 +100,6 @@ def test_async_generator_asend(mech):
     assert run(driver()) == [0, 10, 20]
 
 
-@xfail_mechanism(
-    "wrapping_context",
-    reason="WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)",
-    condition=sys.version_info[:2] == (3, 10),
-)
 def test_async_generator_athrow_recovered(mech):
     async def ag():
         while True:
@@ -133,11 +119,6 @@ def test_async_generator_athrow_recovered(mech):
     assert run(driver()) == ("value", "recovered")
 
 
-@xfail_mechanism(
-    "wrapping_context",
-    reason="WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)",
-    condition=sys.version_info[:2] == (3, 10),
-)
 def test_async_generator_aclose_runs_finally(mech):
     log = []
 

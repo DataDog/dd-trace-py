@@ -1,3 +1,4 @@
+from functools import singledispatchmethod
 import ipaddress
 import sys
 from types import TracebackType
@@ -21,14 +22,12 @@ __all__ = [
 
 PYTHON_VERSION_INFO = sys.version_info
 
-# Last officially supported CPython. Matches requires-python <3.15.
-# TODO(py-315): bump MAX_PY to (3, 15) after 3.15 GAs
-MAX_PY: tuple[int, int] = (3, 14)
+# Last officially supported CPython. Matches requires-python <3.16.
+MAX_PY: tuple[int, int] = (3, 15)
 
 # Next CPython: packaging exclusive ceiling and wrap-live inclusive ceiling.
-# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.16 dies.
-# TODO(py-315): bump NEXT_MAX_PY to (3, 16) after 3.15 GAs
-NEXT_MAX_PY: tuple[int, int] = (3, 15)
+# wrap() / lazy are live through NEXT_MAX_PY (`is_supported_python_version()`); 3.17 dies.
+NEXT_MAX_PY: tuple[int, int] = (3, 16)
 
 NEXT_PY_UNSUPPORTED_MSG: str = (
     f"This version of CPython is not supported yet: {sys.version_info[0]}.{sys.version_info[1]}"
@@ -129,17 +128,17 @@ def ip_is_global(ip: str) -> bool:
 
 # This fix was implemented in 3.9.8
 # https://github.com/python/cpython/issues/83860
-if PYTHON_VERSION_INFO >= (3, 9, 8):
-    from functools import singledispatchmethod
-else:
-    from functools import singledispatchmethod
+def _singledispatchmethod_register(self: Any, cls: Any, method: Any = None) -> Any:
+    # Like CPython >= 3.9.8: only classmethod/staticmethod instances get
+    # annotations from __func__. hasattr catches the types too (member_descriptor)
+    # and blew up Symbol Database's @register(classmethod) on Python < 3.9.8.
+    if isinstance(cls, (staticmethod, classmethod)):
+        cls.__annotations__ = getattr(cls.__func__, "__annotations__", {})
+    return self.dispatcher.register(cls, func=method)
 
-    def _register(self, cls, method=None):
-        if hasattr(cls, "__func__"):
-            setattr(cls, "__annotations__", cls.__func__.__annotations__)
-        return self.dispatcher.register(cls, func=method)
 
-    singledispatchmethod.register = _register  # type: ignore[method-assign]
+if PYTHON_VERSION_INFO < (3, 9, 8):
+    singledispatchmethod.register = _singledispatchmethod_register  # type: ignore[method-assign]
 
 
 def get_mp_context():

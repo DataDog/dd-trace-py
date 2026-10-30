@@ -27,7 +27,6 @@ from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import _targets_agentless_intake
 from ddtrace.internal.settings._opentelemetry import otel_config
@@ -57,6 +56,7 @@ from ..gitmetadata import get_git_tags
 from ..logger import get_logger
 from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
+from ..serverless import in_aws_lambda_microvm
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
@@ -137,6 +137,8 @@ class TraceWriter(metaclass=abc.ABCMeta):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "TraceWriter":
         pass
 
@@ -152,6 +154,14 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
+    def _stop_accepting_writes(self) -> None:
+        """Reject later writes. MicroVM identity refresh calls this on the writer it replaces."""
+        # Only MicroVM writers have a writer lock; elsewhere there is no refresh and nothing to close.
+        writer_lock = getattr(self, "_writer_lock", None)
+        if writer_lock is not None:
+            with writer_lock:
+                self._accepting_writes = False
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -165,6 +175,8 @@ class LogWriter(TraceWriter):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
@@ -241,6 +253,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
         self._conn_lck: RLock = RLock()
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
@@ -425,6 +439,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         return response
 
     def write(self, spans=None):
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans=None):
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
@@ -846,7 +870,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-
+        # Identity refresh closes this writer before stopping it; the replacement writer accepts writes.
+        self._writer_lock = forksafe.RLock() if in_aws_lambda_microvm() else None
+        self._accepting_writes = True
         self._owner_pid = os.getpid()
 
         # Native exporter methods require exclusive access because PyO3 rejects
@@ -878,10 +904,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             return []
         headers = []
         for item in raw.split(","):
-            item = item.strip()
-            if "=" in item:
-                key, _, value = item.partition("=")
-                headers.append((key.strip(), value.strip()))
+            key, sep, value = item.partition("=")
+            key = key.strip().lower()
+            if sep and key:
+                # gRPC metadata keys must be lowercase; HTTP header names are case-insensitive.
+                headers.append((key, value.strip()))
         return headers
 
     @property
@@ -901,16 +928,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
-            # Only http/json and http/protobuf are supported; fall back to http/protobuf
-            # for anything else (e.g. grpc).
-            otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
-            if otlp_protocol not in ("http/json", "http/protobuf"):
-                log.debug(
-                    "OTLP trace protocol %r is not supported; defaulting to http/protobuf",
-                    otlp_protocol,
-                )
-                otlp_protocol = "http/protobuf"
-            builder.set_otlp_protocol(otlp_protocol)
+            builder.set_otlp_protocol(otel_config.exporter.TRACES_PROTOCOL)
             otlp_headers = self._parse_otlp_headers(otel_config.exporter.TRACES_HEADERS)
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
@@ -945,7 +963,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 heartbeat_ms = int(
                     config._telemetry_heartbeat_interval * 1000
                 )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
-                builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
+                builder.enable_telemetry(heartbeat_ms, config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
         exporter = builder.build(get_native_runtime())
@@ -997,6 +1015,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
     ) -> "NativeWriter":
         # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
         # the API version to v0.4.
@@ -1009,10 +1029,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.shutdown_exporter()
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
+        agentless_stats_endpoint = self._agentless_stats_endpoint
+        otlp_metrics_endpoint = self._otlp_metrics_endpoint
+        if self.agentless and (compute_stats_enabled is not None or stats_opt_out is not None):
+            # The agentless stats endpoint depends on the stats state, which these flags
+            # change: re-resolve it instead of carrying a stale value. Resolving it can
+            # also conflict with the preserved OTLP metrics endpoint, so apply the same
+            # precedence as at construction before building the replacement.
+            agentless_stats_endpoint = _resolve_agentless_stats_endpoint()
+            otlp_metrics_endpoint = _drop_conflicting_otlp_metrics_endpoint(
+                agentless_stats_endpoint, otlp_metrics_endpoint
+            )
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
-            compute_stats_enabled=self._compute_stats_enabled,
+            compute_stats_enabled=(
+                self._compute_stats_enabled if compute_stats_enabled is None else compute_stats_enabled
+            ),
             client_side_stats_obfuscation=self._client_side_stats_obfuscation,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
@@ -1022,11 +1055,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             report_metrics=self._report_metrics,
             response_callback=self._response_cb,
             test_session_token=self._test_session_token,
-            stats_opt_out=self._stats_opt_out,
+            stats_opt_out=self._stats_opt_out if stats_opt_out is None else stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
-            otlp_metrics_endpoint=self._otlp_metrics_endpoint,
+            otlp_metrics_endpoint=otlp_metrics_endpoint,
             api_key=self._api_key,
-            agentless_stats_endpoint=self._agentless_stats_endpoint,
+            agentless_stats_endpoint=agentless_stats_endpoint,
         )
 
     def _downgrade(self, status, client):
@@ -1122,11 +1155,24 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        # Identity refresh can close this writer concurrently; only MicroVM writers need this lock.
+        writer_lock = self._writer_lock
+        if writer_lock is None:
+            self._write_unlocked(spans)
+            return
+        with writer_lock:
+            if not self._accepting_writes:
+                return
+            self._write_unlocked(spans)
+
+    def _write_unlocked(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is not None and self._otlp_endpoint is not None:
             self._set_otlp_trace_context(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
+            # Flush under the writer lock: once refresh closes this writer, recreate() shuts down
+            # a sync writer's exporter, so a flush after that would send through a dead exporter.
             self.flush_queue()
 
     @staticmethod
@@ -1303,11 +1349,7 @@ def _use_sync_mode() -> bool:
 
 
 def _resolve_otlp_metrics_endpoint() -> Optional[str]:
-    if _is_otlp_trace_metrics_enabled(
-        otel_config.exporter,
-        config._otel_stats_computation_enabled,
-        config._otel_metrics_enabled,
-    ):
+    if config._otel_stats_computation_enabled is True:
         return otel_config.exporter.TRACE_METRICS_ENDPOINT
     return None
 
@@ -1316,6 +1358,23 @@ def _resolve_agentless_stats_endpoint() -> Optional[str]:
     if not config._trace_compute_stats or standalone_config.apm_opt_out:
         return None
     return compute_agentless_stats_url(config._dd_site.lower())
+
+
+def _drop_conflicting_otlp_metrics_endpoint(
+    agentless_stats_endpoint: Optional[str], otlp_metrics_endpoint: Optional[str]
+) -> Optional[str]:
+    """Drop the OTLP metrics endpoint when both stats endpoints are set: libdatadog rejects
+    an exporter configured with both at build time, and Datadog trace stats take precedence.
+    """
+    if agentless_stats_endpoint is not None and otlp_metrics_endpoint is not None:
+        log.warning(
+            "Datadog trace stats and OTLP trace metrics cannot both be exported in agentless "
+            "mode. Sending Datadog trace stats to %s; set DD_TRACE_STATS_COMPUTATION_ENABLED=0 "
+            "to export OTLP trace metrics instead.",
+            agentless_stats_endpoint,
+        )
+        return None
+    return otlp_metrics_endpoint
 
 
 def create_trace_writer(
@@ -1338,15 +1397,7 @@ def create_trace_writer(
         intake_url = compute_agentless_intake_url(config._dd_site.lower())
         verify_url(intake_url)
         agentless_stats_endpoint = _resolve_agentless_stats_endpoint()
-        if agentless_stats_endpoint is not None and otlp_metrics_endpoint is not None:
-            # libdatadog rejects both at build time, so one has to go before the exporter is built.
-            log.warning(
-                "Datadog trace stats and OTLP trace metrics cannot both be exported in agentless "
-                "mode. Sending Datadog trace stats to %s; set DD_TRACE_STATS_COMPUTATION_ENABLED=0 "
-                "to export OTLP trace metrics instead.",
-                agentless_stats_endpoint,
-            )
-            otlp_metrics_endpoint = None
+        otlp_metrics_endpoint = _drop_conflicting_otlp_metrics_endpoint(agentless_stats_endpoint, otlp_metrics_endpoint)
         return NativeWriter(
             intake_url=intake_url,
             api_key=config._dd_api_key,

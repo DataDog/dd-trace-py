@@ -1,3 +1,4 @@
+import io
 import itertools
 import os
 import subprocess
@@ -6,10 +7,12 @@ from unittest import mock
 import uuid
 
 import django
+from django.core.handlers.base import BaseHandler
 from django.core.signals import request_started
 from django.core.wsgi import get_wsgi_application
 from django.db import close_old_connections
 from django.db import connections
+from django.http import HttpResponse
 from django.test import modify_settings
 from django.test import override_settings
 from django.test.client import RequestFactory
@@ -23,11 +26,14 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.utils import get_request_uri
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.ext import http
 from ddtrace.ext import user
+from ddtrace.internal import core
 from ddtrace.internal import wrapping
 from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation._utils import get_wsgi_header
@@ -40,6 +46,141 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_names_the_request_span_from_the_route():
+    from django.test import Client
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        assert Client().get("/fn-view/").status_code == 200
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "GET"
+        assert root.get_tag("http.route") == "^fn-view/$"
+        assert root.get_metric("http.response.status_code") == 200
+        assert root.get_tag("http.response.status_code") is None
+        assert root.resource == "GET ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_substitutes_an_unaccepted_method_in_the_span_name():
+    from django.test import Client
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        Client().generic("PROPFIND", "/fn-view/")
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "_OTHER"
+        assert root.get_tag("http.request.method_original") == "PROPFIND"
+        assert root.resource == "HTTP ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_normalizes_resource_when_response_creation_aborts():
+    from django.test import Client
+    from django.test import override_settings
+    import pytest
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        with override_settings(DEBUG_PROPAGATE_EXCEPTIONS=True):
+            with pytest.raises(Exception, match="Error 500"):
+                Client().generic("PROPFIND", "/error-500/")
+
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "_OTHER"
+        assert root.get_tag("http.route") == "^error-500/$"
+        assert root.resource == "HTTP ^error-500/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_names_the_span_from_a_custom_converter_route():
+    from tests.contrib.django.utils import setup_django
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    setup_django()
+
+    from django.http import HttpResponse
+    from django.test import Client
+    from django.urls import clear_url_caches
+    from django.urls import path
+    from django.urls import register_converter
+
+    from ddtrace.trace import tracer
+    from tests.contrib.django.django_app import urls
+
+    converted = []
+    captured = {}
+
+    class RecordingConverter:
+        regex = "[^/]+"
+
+        def to_python(self, value):
+            converted.append(value)
+            return value
+
+        def to_url(self, value):
+            return value
+
+    def converted_view(request, value):
+        captured["resource"] = tracer.current_root_span().resource
+        return HttpResponse(value)
+
+    register_converter(RecordingConverter, "recording")
+    urls.urlpatterns.insert(0, path("converted/<recording:value>/", converted_view))
+    clear_url_caches()
+
+    with setup_django_test_spans():
+        assert Client().get("/converted/value/").status_code == 200
+
+    # Path params are resolved at request start as well as by Django, as with OTel semantics off.
+    assert converted == ["value", "value"], converted
+    assert captured["resource"] == "GET converted/<recording:value>/", captured
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_otel_semantics_keeps_async_request_resource_stable_during_application():
+    import asyncio
+    from unittest import mock
+
+    from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.django import response as django_response
+    from ddtrace.ext import SpanTypes
+    from ddtrace.trace import tracer
+
+    captured = {}
+
+    class Handler:
+        pass
+
+    class Request:
+        pass
+
+    handler = Handler()
+    Pin().onto(handler)
+
+    with tracer.start_span("django.request", resource="GET", span_type=SpanTypes.WEB) as span:
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "GET")
+        request = Request()
+        request.scope = {"datadog": {"request_spans": [span]}}
+
+        async def application(request):
+            captured["resource"] = span.resource
+            return object()
+
+        with (
+            mock.patch.object(django_response, "_before_request_tags"),
+            mock.patch.object(django_response, "_after_request_tags"),
+            mock.patch.object(django_response, "get_resolver", return_value=None),
+        ):
+            asyncio.run(django_response.traced_get_response_async(application, handler, (request,), {}))
+
+    assert captured["resource"] == "GET"
 
 
 @pytest.fixture(autouse=True)
@@ -1603,15 +1744,26 @@ def test_cache_delete_many():
     setup.__exit__(None, None, None)
 
 
-@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_CACHES": "true"})
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_CACHES": "true"}, parametrize={"TEST_DJANGO_USE_TZ": ["false", "true"]}
+)
 def test_cached_view():
+    import os
+
     from django.test import Client
+    from django.test import override_settings
 
     from tests.contrib.django.utils import setup_django_test_spans
     from tests.contrib.django.utils import with_default_django_db
 
+    use_tz = os.environ["TEST_DJANGO_USE_TZ"] == "true"
+
     # make the first request so that the view is cached
-    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
+    with (
+        setup_django_test_spans() as test_spans,
+        override_settings(USE_TZ=use_tz, TIME_ZONE="America/Chicago"),
+        with_default_django_db(test_spans),
+    ):
         client = Client()
         response = client.get("/cached-users/")
         assert response.status_code == 200
@@ -1660,12 +1812,15 @@ def test_cached_view():
             "_dd.svc_src": "django",
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-            "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+            "django.cache.key": (
+                "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us"
+                + (".America/Chicago" if use_tz else "")
+            ),
             "_dd.base_service": "ddtrace_subprocess_dir",
         }
 
         assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
-        assert span_header.get_tags() == expected_meta_header
+        assert span_header.get_tags() == expected_meta_header, span_header.get_tags()
 
 
 """
@@ -2648,6 +2803,94 @@ class TestWSGI:
             error=0,
             meta=meta,
         )
+
+    def test_get_wsgi_application_dispatches_web_request_starting(self, resource):
+        application = get_wsgi_application()
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = application(environ, start_response)
+            list(response)
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert test_response["status"] == "404 Not Found"
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+    def test_get_wsgi_application_dispatches_web_request_starting_once_with_wsgi_middleware(self, resource):
+        application = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = application(environ, start_response)
+            list(response)
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert test_response["status"] == "404 Not Found"
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+    @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGIRequest requires Django 3.0+")
+    def test_traced_get_response_dispatches_web_request_starting_for_asgi_request(self):
+        # django.core.handlers.asgi does not exist before Django 3.0.
+        from django.core.handlers.asgi import ASGIRequest
+
+        # Django 3.0 ASGI requests reach the sync get_response with a META dict
+        # built from the scope; the server here includes root_path in path.
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/aws/lambda-microvms/runtime/v1/run",
+            "root_path": "/aws/lambda-microvms/runtime/v1",
+            "query_string": b"",
+            "headers": [],
+        }
+        request = ASGIRequest(scope, io.BytesIO(b""))
+        request_starting_calls = []
+
+        def record_request_starting(method, path):
+            request_starting_calls.append((method, path))
+
+        core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+        try:
+            response = traced_get_response(lambda _handler, _request: HttpResponse("ok"), (BaseHandler(), request), {})
+        finally:
+            core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+        assert response.status_code == 200
+        assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
 
     def test_get_wsgi_application_500_request(self, test_spans, resource):
         application = get_wsgi_application()

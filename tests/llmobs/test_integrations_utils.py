@@ -1,4 +1,5 @@
 import base64
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -33,9 +34,11 @@ from ddtrace.llmobs._integrations.utils import _inline_image_budget
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_messages
+from ddtrace.llmobs._integrations.utils import capture_plain_text_tool_usage
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
+from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
@@ -499,6 +502,75 @@ def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
     tool_results = input_messages[0].get("tool_results", [])
     assert len(tool_results) == 1
     assert tool_results[0]["result"] == "from-input"
+
+
+@pytest.mark.parametrize(
+    "content,expected_name,expected_arguments,expected_observation",
+    [
+        ("Action: search\nAction Input: weather", "search", {"value": "weather"}, None),
+        (
+            'Thought: look it up\nAction: **search**\nAction Input: `{"q": "paris"}`\nObservation: sunny',
+            "search",
+            {"q": "paris"},
+            "sunny",
+        ),
+        ('Action 1: calc\nAction 1 Input 1: "2+2"\nObservation: 4', "calc", {"value": "2+2"}, "4"),
+        ("Action:  search \n\n Action Input:\n  weather\nObservation: done", "search", {"value": "weather"}, "done"),
+        (
+            "Action: first\nAction Input: a\nObservation: 1\nAction: second\nAction Input: b",
+            "first",
+            {"value": "a"},
+            "1\nAction: second\nAction Input: b",
+        ),
+    ],
+)
+def test_capture_plain_text_tool_usage_parses_react_content(
+    tracer, content, expected_name, expected_arguments, expected_observation
+):
+    tool_calls, tool_results = [], []
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        capture_plain_text_tool_usage(tool_calls, tool_results, content, span, is_input=True)
+
+    assert [(call["name"], call["arguments"]) for call in tool_calls] == [(expected_name, expected_arguments)]
+    assert [result["result"] for result in tool_results] == ([expected_observation] if expected_observation else [])
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Action: search but no input",
+        "Action Input: weather",
+        "no markers at all",
+    ],
+)
+def test_capture_plain_text_tool_usage_ignores_non_react_content(tracer, content):
+    tool_calls, tool_results = [], []
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        capture_plain_text_tool_usage(tool_calls, tool_results, content, span, is_input=True)
+
+    assert tool_calls == []
+    assert tool_results == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Action:" + " " * 3_000,
+        "Action:" + "\n" * 3_000 + "x",
+        "Action: " * 5_000,
+        "Action" + " " * 60_000,
+    ],
+    ids=["action-colon-spaces", "action-colon-newlines-text", "repeated-action-colon", "action-spaces"],
+)
+def test_capture_plain_text_tool_usage_stays_fast_on_crafted_content(tracer, content):
+    tool_calls, tool_results = [], []
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        start = time.monotonic()
+        capture_plain_text_tool_usage(tool_calls, tool_results, content, span, is_input=True)
+        elapsed = time.monotonic() - start
+
+    assert tool_calls == []
+    assert elapsed < 1.0
 
 
 def _chat_choice(finish_reason, content="hi"):
@@ -1916,3 +1988,92 @@ class TestAnthropicToolDefinitions:
         assert get_tool_definitions_from_anthropic_tools(tools) == [
             {"name": "deferred", "description": "", "schema": {}}
         ]
+
+
+def _web_search_call(status="completed", action_type="search"):
+    return {"type": "web_search_call", "id": "ws_1", "status": status, "action": {"type": action_type}}
+
+
+def _file_search_call(status="completed", queries=("company holiday policy",)):
+    return {"type": "file_search_call", "id": "fs_1", "status": status, "queries": list(queries), "results": None}
+
+
+_MESSAGE_ITEM = {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "hi"}]}
+
+
+class TestOpenAIServerToolUsageMetrics:
+    """Server-side web/file search calls are counted from tool_usage or the Responses output array."""
+
+    def test_no_tool_calls_omits_metrics(self):
+        assert get_openai_server_tool_usage_metrics({"output": [_MESSAGE_ITEM]}) == {}
+        assert get_openai_server_tool_usage_metrics({"output": []}) == {}
+        assert get_openai_server_tool_usage_metrics({}) == {}
+        assert get_openai_server_tool_usage_metrics(None) == {}
+
+    def test_chat_completion_has_no_output(self):
+        assert get_openai_server_tool_usage_metrics({"choices": [{"message": {"content": "hi"}}]}) == {}
+
+    def test_both_tools_interleaved_with_messages(self):
+        # Observed real-world order: tool calls are not grouped ahead of the messages.
+        resp = {"output": [_web_search_call(), _MESSAGE_ITEM, _file_search_call(), _MESSAGE_ITEM]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1, "storage_search_count": 1}
+
+    def test_only_search_actions_counted(self):
+        # Only search actions incur a tool call cost; reasoning models' open_page / find_in_page
+        # steps are free. Observed: 2 search + 3 open_page reported tool_usage num_requests=2.
+        resp = {
+            "output": [
+                _web_search_call(action_type="search"),
+                _web_search_call(action_type="open_page"),
+                _web_search_call(action_type="open_page"),
+                _web_search_call(action_type="find_in_page"),
+                _web_search_call(action_type="search"),
+            ]
+        }
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 2}
+
+    def test_only_non_search_actions_omits_metric(self):
+        resp = {"output": [_web_search_call(action_type="open_page"), _web_search_call(action_type="find_in_page")]}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    def test_web_search_without_action_counted(self):
+        resp = {"output": [{"type": "web_search_call", "id": "ws_1", "status": "completed"}]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}
+
+    def test_multiple_queries_count_as_one_call(self):
+        resp = {"output": [_file_search_call(queries=("a", "b", "c"))]}
+        assert get_openai_server_tool_usage_metrics(resp) == {"storage_search_count": 1}
+
+    @pytest.mark.parametrize("status", ["in_progress", "searching", "incomplete", "failed", None])
+    def test_non_completed_not_counted(self, status):
+        resp = {"output": [_web_search_call(status=status), _file_search_call(status=status)]}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    def test_sdk_response_objects(self):
+        # _get_attr reads both dicts and SDK model attributes.
+        resp = SimpleNamespace(
+            output=[
+                SimpleNamespace(type="web_search_call", status="completed"),
+                SimpleNamespace(type="message", status="completed"),
+                SimpleNamespace(type="file_search_call", status="completed"),
+            ]
+        )
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1, "storage_search_count": 1}
+
+    def test_tool_usage_web_search_takes_precedence(self):
+        resp = {
+            "output": [_web_search_call(), _file_search_call()],
+            "tool_usage": {"image_gen": {"total_tokens": 0}, "web_search": {"num_requests": 3}},
+        }
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 3, "storage_search_count": 1}
+
+    def test_tool_usage_zero_web_search_omits_metric(self):
+        resp = {"output": [_web_search_call()], "tool_usage": {"web_search": {"num_requests": 0}}}
+        assert get_openai_server_tool_usage_metrics(resp) == {}
+
+    @pytest.mark.parametrize(
+        "tool_usage", [None, {}, {"image_gen": {"total_tokens": 0}}, {"web_search": {}}, {"web_search": None}]
+    )
+    def test_tool_usage_without_web_search_count_falls_back(self, tool_usage):
+        resp = {"output": [_web_search_call(), _web_search_call(action_type="open_page")], "tool_usage": tool_usage}
+        assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}

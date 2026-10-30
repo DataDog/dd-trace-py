@@ -71,11 +71,16 @@ def cleanup_loaded_modules() -> None:
             "re",  # referenced by the typing module
             "sre_constants",  # imported by re at runtime
             "logging",
+            "warnings",  # logging keeps a reference to warnings for captureWarnings()
             "attr",
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch
             "dataclasses",  # for product loaded remotely that use dataclasses
+            # Patched by the run module hooks, possibly from a ddtrace thread
+            # when a product starts remotely. On Python < 3.13, importing it
+            # again from there would import threading via importlib.util.
+            "runpy",
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):

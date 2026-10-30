@@ -6,8 +6,8 @@ from heapq import heappop
 from heapq import heappush
 import json
 import os
-from threading import Thread
 from types import FrameType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -24,8 +24,13 @@ from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
 
 
+if TYPE_CHECKING:
+    from threading import Thread
+
+
 log = get_logger(__name__)
-meter = metrics.get_meter("signal.collector")
+# Guardrail metrics use the unprefixed names shared by all tracers in the debugger namespace.
+guardrails_meter = metrics.get_meter("")
 
 
 class JsonBuffer:
@@ -79,7 +84,7 @@ class BufferedEncoder(abc.ABC):
         """Flush the buffer and return the encoded data."""
 
 
-def _logs_track_logger_details(thread: Thread, frame: FrameType) -> dict[str, Any]:
+def _logs_track_logger_details(thread: "Thread", frame: FrameType) -> dict[str, Any]:
     code = frame.f_code
 
     return {
@@ -274,7 +279,7 @@ class SnapshotJsonEncoder(LogSignalJsonEncoder):
             tags = {"reason": "payloadTooLarge", "probe_id": item.probe.probe_id}
             if item.__type__ is not None:
                 tags["event_type"] = item.__type__
-            meter.increment("dynamic_instrumentation.guardrails.capture.incomplete", tags=tags)
+            guardrails_meter.increment("capture.incomplete", tags=tags)
         return pruned.encode("utf-8")
 
     def pruned(self, log_signal_json: str) -> str:

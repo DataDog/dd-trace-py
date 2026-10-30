@@ -12,6 +12,7 @@ replayed.  This is buffer-then-evaluate, NOT live forwarding — do not
 module exists to prevent).
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from collections.abc import Iterator
 import inspect
@@ -22,10 +23,10 @@ from typing import Optional
 import wrapt
 
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
+from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
 
 
 logger = ddlogger.get_logger(__name__)
@@ -146,7 +147,7 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
     # ------------------------------------------------------------------
     # Context-manager protocol
     #
-    # TracedStream.__enter__() (base_stream_handler.py) has two branches:
+    # TracedStream.__enter__() (ddtrace/contrib/internal/stream_handler.py) has two branches:
     #   - non-manager (raw Stream): returns ``self`` (the TracedStream).
     #   - manager (MessageStreamManager): returns a NEW TracedStream
     #     wrapping the inner MessageStream.
@@ -219,6 +220,9 @@ class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wr
         self._self_reconstruct = reconstruct
         self._self_evaluate = evaluate
         self._self_chunks: Optional[list[Any]] = None
+        # Drained but not yet allowed: a blocked or cancelled evaluation is retried on this buffer.
+        self._self_buffer: Optional[list[Any]] = None
+        self._self_lock: Optional[asyncio.Lock] = None
         self._self_passthrough: bool = False
         self._self_index: int = 0
 
@@ -229,12 +233,32 @@ class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wr
             if not aiguard_config._ai_guard_analyze_stream_responses_enabled or is_aiguard_context_active():
                 self._self_passthrough = True
                 return None
-            chunks: list[Any] = []
-            async for chunk in self.__wrapped__:
-                chunks.append(chunk)
-            _reconstruct_and_evaluate(self._self_reconstruct, self._self_evaluate, chunks)
-            self._self_chunks = chunks
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                # Not on asyncio (e.g. trio): evaluate inline.
+                await self._drain_and_evaluate(off_loop=False)
+            else:
+                if self._self_lock is None:
+                    self._self_lock = asyncio.Lock()
+                # Concurrent callers wait for the same verdict instead of reading the exhausted stream.
+                async with self._self_lock:
+                    await self._drain_and_evaluate(off_loop=True)
         return self._self_chunks
+
+    async def _drain_and_evaluate(self, off_loop: bool) -> None:
+        if self._self_chunks is not None:
+            return
+        if self._self_buffer is None:
+            self._self_buffer = [chunk async for chunk in self.__wrapped__]
+        if off_loop:
+            # The evaluation is a blocking HTTP call: run it off the event loop (contextvars are copied).
+            await asyncio.to_thread(
+                _reconstruct_and_evaluate, self._self_reconstruct, self._self_evaluate, self._self_buffer
+            )
+        else:
+            _reconstruct_and_evaluate(self._self_reconstruct, self._self_evaluate, self._self_buffer)
+        self._self_chunks = self._self_buffer
 
     def __aiter__(self) -> "BufferedAIGuardAsyncStream":
         return self
