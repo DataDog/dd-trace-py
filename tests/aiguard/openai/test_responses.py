@@ -8,6 +8,7 @@ evaluated by the before-hook; buffered response evaluation lives in test_streami
 
 import hashlib
 import json
+import traceback
 from unittest.mock import ANY
 from unittest.mock import patch
 
@@ -2105,3 +2106,212 @@ def test_failing_stream_buffering_decision_does_not_break_the_stream(
     assert list(stream)
     # Only the prompt is evaluated: the unbuffered stream is not.
     mock_execute_request.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Real-shaped MCP credentials never leave the process
+# ---------------------------------------------------------------------------
+
+# Fake values shaped like real credentials. Prefixes are split so secret scanners do not flag them.
+_GITHUB_PAT = "gh" + "p_" + "R7kq2ZxW9mLpT4vNbY8cHdF3sJ6aQe1uXo0i"
+_OPENAI_KEY = "sk" + "-proj-" + "Zt8yQm3vLk2pW9xRn5bC7dF1gHj4sA6eUo0iTqYwErT"
+_ANTHROPIC_KEY = "sk" + "-ant-api03-" + "Gk7Pq2Lm9Xw4Rt8Yb3Nc6Vd1Hs5Jf0AzQeUiOp"
+_SLACK_BOT = "xo" + "xb-" + "1234567890123-4567890123456-Hq7Lm2Xw9Rt4Yb8Nc3Vd6Js1"
+_GOOGLE_OAUTH = "ya" + "29." + "a0AfB_byC7kq2ZxW9mLpT4vNbY8cHdF3sJ6aQe1uXo0iR"
+_ZAPIER_PATH_TOKEN = "NGQ3ZTk1YjItOGM0MS00ZTFhLWI2ZDMtOWYyYTdjMWU1ZDQ4OnN1cGVyc2VjcmV0"
+_PASSWORD = "Tr0ub4dor-3xample!"
+
+LEAKY_MCP_URLS = [
+    pytest.param(
+        f"https://mcp.zapier.com/api/mcp/s/{_ZAPIER_PATH_TOKEN}/mcp",
+        "https://mcp.zapier.com",
+        (_ZAPIER_PATH_TOKEN, "/api/mcp/s/"),
+        id="token_in_path",
+    ),
+    pytest.param(
+        f"https://svc-mcp:{_PASSWORD}@mcp.corp.example.com/mcp",
+        "https://mcp.corp.example.com",
+        (_PASSWORD, "svc-mcp"),
+        id="basic_auth_userinfo",
+    ),
+    pytest.param(
+        f"https://{_GITHUB_PAT}@mcp.github.example.com/mcp",
+        "https://mcp.github.example.com",
+        (_GITHUB_PAT,),
+        id="token_as_username",
+    ),
+    pytest.param(
+        f"https://mcp.example.com/sse?api_key={_OPENAI_KEY}&session_id=f3a9c1",
+        "https://mcp.example.com",
+        (_OPENAI_KEY, "api_key", "f3a9c1"),
+        id="api_key_in_query",
+    ),
+    pytest.param(
+        f"https://mcp.example.com/mcp#access_token={_GOOGLE_OAUTH}",
+        "https://mcp.example.com",
+        (_GOOGLE_OAUTH, "access_token"),
+        id="token_in_fragment",
+    ),
+    pytest.param(
+        "https://ops%40corp.example:Tr0ub4dor%2D3xample%21@mcp.example.com:8443/mcp",
+        "https://mcp.example.com:8443",
+        ("ops%40corp", "Tr0ub4dor", "ops@corp"),
+        id="percent_encoded_userinfo",
+    ),
+    pytest.param(
+        f"HTTPS://svc:{_PASSWORD}@MCP.Example.COM:443/api/mcp/s/{_ZAPIER_PATH_TOKEN}/mcp"
+        f"?key={_OPENAI_KEY}#sig={_GOOGLE_OAUTH}",
+        "https://mcp.example.com",
+        (_PASSWORD, _ZAPIER_PATH_TOKEN, _OPENAI_KEY, _GOOGLE_OAUTH),
+        id="everything_at_once",
+    ),
+]
+
+# Credentials OpenAI hosted MCP tools carry outside the URL; AI Guard must never read them.
+_TOOL_CREDENTIALS = (_ANTHROPIC_KEY, _SLACK_BOT, _GOOGLE_OAUTH, "sessionid=8f2b")
+
+
+def _leaky_mcp_tools(server_url):
+    return [
+        {
+            "type": "mcp",
+            "server_label": "deepwiki",
+            "server_url": server_url,
+            "require_approval": "always",
+            "authorization": _GOOGLE_OAUTH,
+            "headers": {
+                "Authorization": f"Bearer {_ANTHROPIC_KEY}",
+                "X-Slack-Token": _SLACK_BOT,
+                "Cookie": "sessionid=8f2b",
+            },
+        },
+        {"type": "mcp", "server_label": "gmail", "connector_id": "connector_gmail", "authorization": _GOOGLE_OAUTH},
+    ]
+
+
+def _reported_text(mock_execute_request, test_spans, caplog):
+    """Everything AI Guard reports: evaluate payloads, AI Guard span tags and meta-struct, debug logs."""
+    reported = [json.dumps(call.args[1]) for call in mock_execute_request.call_args_list]
+    for span in test_spans.spans:
+        if span.name == AI_GUARD.RESOURCE_TYPE:
+            reported.append(json.dumps(span.get_tags()))
+            reported.append(json.dumps(span._get_meta_structs(), default=str))
+    reported.append(caplog.text)
+    return "\n".join(reported)
+
+
+@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
+def test_mcp_server_url_secrets_are_reduced_to_the_origin(server_url, origin, secrets, mcp_enabled):
+    servers = _hosted_mcp_servers(_leaky_mcp_tools(server_url))
+
+    assert servers["deepwiki"]["url"] == origin
+    assert servers["deepwiki"]["id"] == _server_id(f"url|{origin}")
+    assert "url" not in servers["gmail"]
+    serialized = json.dumps(servers)
+    for secret in secrets + _TOOL_CREDENTIALS:
+        assert secret not in serialized
+
+
+@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
+@patch(EXECUTE_REQUEST)
+def test_mcp_secrets_never_reported_on_an_allowed_approval(
+    mock_execute_request,
+    openai_responses_mcp_approval_client,
+    mcp_enabled,
+    test_spans,
+    caplog,
+    server_url,
+    origin,
+    secrets,
+):
+    """Through the real SDK call: the payloads, AI Guard spans and debug logs carry only the origin."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with caplog.at_level("DEBUG", logger="ddtrace"):
+        resp = openai_responses_mcp_approval_client.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=_leaky_mcp_tools(server_url)
+        )
+
+    assert resp.output[-1].type == "mcp_approval_request"
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == origin
+    # A non-empty capture, so the negative assertions below cannot pass on an empty log.
+    assert "AI Guard" in caplog.text
+    reported = _reported_text(mock_execute_request, test_spans, caplog)
+    assert origin in reported
+    for secret in secrets + _TOOL_CREDENTIALS:
+        assert secret not in reported
+
+
+@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
+@patch(EXECUTE_REQUEST)
+def test_mcp_secrets_never_reported_on_a_blocked_approval(
+    mock_execute_request,
+    openai_responses_mcp_approval_client,
+    mcp_enabled,
+    test_spans,
+    caplog,
+    server_url,
+    origin,
+    secrets,
+):
+    """A block reports the verdict, not the server credentials, in the error and its traceback."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    with caplog.at_level("DEBUG", logger="ddtrace"), pytest.raises(AIGuardAbortError) as raised:
+        openai_responses_mcp_approval_client.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=_leaky_mcp_tools(server_url)
+        )
+
+    rendered = "".join(traceback.format_exception(type(raised.value), raised.value, raised.value.__traceback__))
+    reported = _reported_text(mock_execute_request, test_spans, caplog) + str(raised.value) + rendered
+    for secret in secrets + _TOOL_CREDENTIALS:
+        assert secret not in reported
+
+
+@pytest.mark.parametrize("server_url,origin,secrets", LEAKY_MCP_URLS)
+@patch(EXECUTE_REQUEST)
+def test_mcp_secrets_never_reported_from_a_buffered_stream(
+    mock_execute_request,
+    openai_responses_mcp_approval_stream_client_mcp_buffered,
+    test_spans,
+    caplog,
+    server_url,
+    origin,
+    secrets,
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with caplog.at_level("DEBUG", logger="ddtrace"):
+        stream = openai_responses_mcp_approval_stream_client_mcp_buffered.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", tools=_leaky_mcp_tools(server_url), stream=True
+        )
+        assert list(stream)
+
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == origin
+    reported = _reported_text(mock_execute_request, test_spans, caplog)
+    for secret in secrets + _TOOL_CREDENTIALS:
+        assert secret not in reported
+
+
+@patch(EXECUTE_REQUEST)
+def test_mcp_secrets_never_reported_from_a_replayed_approval(mock_execute_request, mcp_enabled, test_spans, caplog):
+    """A stateless continuation replays the approval request and resends tools with credentials."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    server_url, origin, secrets = LEAKY_MCP_URLS[-1].values
+    kwargs = {
+        "model": RESPONSES_MODEL,
+        "tools": _leaky_mcp_tools(server_url),
+        "input": [
+            {"role": "user", "content": "Ask deepwiki"},
+            _approval_request(),
+            _approval_response(),
+        ],
+    }
+
+    with caplog.at_level("DEBUG", logger="ddtrace"):
+        _openai_response_create_before(new_ai_guard_client(), kwargs)
+
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == origin
+    reported = _reported_text(mock_execute_request, test_spans, caplog)
+    for secret in secrets + _TOOL_CREDENTIALS:
+        assert secret not in reported
