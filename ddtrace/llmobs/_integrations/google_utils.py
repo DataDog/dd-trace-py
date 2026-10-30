@@ -396,7 +396,13 @@ def extract_messages_from_adk_events(events) -> list[Message]:
     if not isinstance(events, list):
         events = [events]
 
+    # A streamed response arrives as partial events and then once more as one assembled event with the
+    # same id, so skip the partials of every response that got assembled.
+    assembled_ids = {_get_attr(event, "id", None) for event in events if not _get_attr(event, "partial", False)}
+    assembled_ids.discard(None)
     for event in events:
+        if _get_attr(event, "partial", False) and _get_attr(event, "id", None) in assembled_ids:
+            continue
         content = _get_attr(event, "content", None)
         if not content:
             continue
@@ -410,7 +416,8 @@ def extract_messages_from_adk_events(events) -> list[Message]:
         for part in parts:
             # Reuse the existing Google GenAI part extraction logic
             message = extract_message_from_part_google_genai(part, role)
-            if message:
+            # skips e.g. a thought-signature-only part, which has nothing to show
+            if message.get("content") or message.get("tool_calls") or message.get("tool_results"):
                 messages.append(message)
 
     return messages

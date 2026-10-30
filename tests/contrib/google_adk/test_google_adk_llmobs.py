@@ -1,10 +1,13 @@
 from unittest import mock
 
+from google.adk.events import Event
 from google.adk.tools.function_tool import FunctionTool
+from google.genai import types
 import pytest
 
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
+from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -43,6 +46,64 @@ AGENT_MANIFEST_METADATA = {
         }
     }
 }
+
+
+def _event(event_id, *parts, partial=None):
+    content = types.Content(role="model", parts=list(parts)) if parts else None
+    return Event(id=event_id, author="model", content=content, partial=partial)
+
+
+_CALL = types.Part(function_call=types.FunctionCall(name="lookup"))
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        # streamed text
+        (
+            [
+                _event("a", types.Part(text="Hel"), partial=True),
+                _event("a", types.Part(text="lo"), partial=True),
+                _event("a", types.Part(text="Hello")),
+            ],
+            ["Hello"],
+        ),
+        # streamed tool call
+        ([_event("a", _CALL, partial=True), _event("a", _CALL)], ["lookup"]),
+        # run_live: nothing assembled
+        (
+            [
+                _event("a", types.Part(text="Hel"), partial=True),
+                _event("a", types.Part(text="lo"), partial=True),
+                _event("b"),
+            ],
+            ["Hel", "lo"],
+        ),
+        # response cut off mid-stream after an assembled one
+        (
+            [
+                _event("a", types.Part(text="Let me"), partial=True),
+                _event("a", types.Part(text="Let me")),
+                _event("b", types.Part(text="It is"), partial=True),
+            ],
+            ["Let me", "It is"],
+        ),
+        # interleaved parallel branches, one cut off
+        (
+            [
+                _event("a", types.Part(text="Roses"), partial=True),
+                _event("b", types.Part(text="Wax"), partial=True),
+                _event("b", types.Part(text="Wax melts")),
+            ],
+            ["Roses", "Wax melts"],
+        ),
+        # thought-signature-only part
+        ([_event("a", types.Part(text="Hi."), types.Part(thought_signature=b"sig"))], ["Hi."]),
+    ],
+)
+def test_extract_messages_from_streamed_adk_events(events, expected):
+    messages = extract_messages_from_adk_events(events)
+    assert [m.get("content") or m["tool_calls"][0]["name"] for m in messages] == expected
 
 
 class TestLLMObsGoogleADK:
