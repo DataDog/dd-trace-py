@@ -241,7 +241,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         # import our fake third party package
         package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
-        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True, capture_output=True)
 
         from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
 

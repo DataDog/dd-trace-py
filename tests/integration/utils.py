@@ -36,11 +36,16 @@ def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     return log
 
 
-def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True):
+def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True, timeout=60.0):
     if env is None:
         env = dict()
     return pytest.mark.subprocess(
-        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err, check_logs=check_logs
+        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]},
+        env=env,
+        out=out,
+        err=err,
+        check_logs=check_logs,
+        timeout=timeout,
     )
 
 

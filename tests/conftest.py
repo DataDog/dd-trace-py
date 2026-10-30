@@ -463,7 +463,7 @@ def run_function_from_file(item, params=None):
 
     args = [sys.executable]
 
-    timeout = marker.kwargs.get("timeout", DEFAULT_TIMEOUT if isinstance(item, ClassSubprocessItem) else None)
+    timeout = marker.kwargs.get("timeout", DEFAULT_TIMEOUT)
     check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
@@ -515,8 +515,7 @@ def run_function_from_file(item, params=None):
         args.extend(marker.kwargs.get("args", []))
         out: Union[bytes, str]
         err: Union[bytes, str]
-        runner = run_process if isinstance(item, ClassSubprocessItem) else call_program
-        result = runner(*args, env=env, cwd=cwd, timeout=timeout)
+        result = run_process(*args, env=env, cwd=cwd, timeout=timeout)
         out, err, status, _ = result
         check_scenario_outcome(ProcessResult(*result))
 
