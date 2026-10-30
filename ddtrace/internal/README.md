@@ -112,8 +112,10 @@ imports an unused module.
 
 Tracing declares its web framework bundle in `ddtrace._trace.product.subscriber_bundles`.
 The product manager registers it after tracing starts. Importing
-`ddtrace._trace.subscribers` no longer registers the web framework subscriber;
-other subscriber families continue to register automatically.
+`ddtrace._trace.subscribers` also registers the web framework subscriber for public
+integration APIs used without the product lifecycle or with `DD_TRACE_ENABLED=false`.
+Registration is idempotent, so both paths can run safely. Other subscriber families
+continue to register automatically.
 
 The `subscriber_bundles` attribute is optional and defaults to no bundles; products
 need no registration or unregistration hooks. Only declare bundles whose lifetime the
