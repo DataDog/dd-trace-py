@@ -350,11 +350,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         code_coverage_override = get_code_coverage_enabled_override()
         if code_coverage_override is not None:
             return code_coverage_override
-        if not coverage_enabled_by_api and not asbool(
-            env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
-        ):
-            return False
-        return True
+        return coverage_enabled_by_api
 
     @staticmethod
     def _should_upload_coverage_report(coverage_report_upload_enabled_by_api):
@@ -537,9 +533,7 @@ class CIVisibility(Service, CIVisibilityProtocol):
         code_coverage_override = get_code_coverage_enabled_override()
         if code_coverage_override is not None:
             return code_coverage_override
-        return cls._instance._api_settings.coverage_enabled or asbool(
-            env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
-        )
+        return cls._instance._api_settings.coverage_enabled
 
     @classmethod
     def should_upload_coverage_report(cls) -> bool:

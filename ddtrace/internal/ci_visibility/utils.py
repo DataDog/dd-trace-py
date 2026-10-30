@@ -29,17 +29,20 @@ _CO_LINES_SUPPORTED = hasattr((lambda: None).__code__, "co_lines")
 
 
 def get_code_coverage_enabled_override() -> t.Optional[bool]:
-    """Return the explicit code coverage collection override from the environment, if set.
+    """Return the environment override for code coverage collection, if any is set.
 
     DD_CIVISIBILITY_CODE_COVERAGE_ENABLED is tri-state: when unset, the backend-provided settings
     decide whether code coverage collection is enabled; when set to true/false, code coverage
-    collection is forced on/off, taking precedence over the backend setting and over the private
-    _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE variable.
+    collection is forced on/off. The private _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE variable
+    only forces collection on, so it only takes effect when the public variable is unset; when
+    both are set, the public variable wins.
     """
     env_value = env.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED")
-    if env_value is None:
-        return None
-    return asbool(env_value)
+    if env_value is not None:
+        return asbool(env_value)
+    if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
+        return True
+    return None
 
 
 def get_relative_or_absolute_path_for_path(path: str, start_directory: str):

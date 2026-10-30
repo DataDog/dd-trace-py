@@ -866,17 +866,13 @@ class SessionManager:
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
-        ITR_FORCE_ENABLE_COVERAGE = asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false"))
-        if ITR_FORCE_ENABLE_COVERAGE:
-            log.debug("TIA code coverage collection is enabled by environment variable")
-            self.settings.coverage_enabled = True
-
-        # Public tri-state override for code coverage collection: unset lets the backend settings
-        # decide; true/false forces code coverage collection on/off, overriding both the backend
-        # setting and _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE.
+        # Environment override for code coverage collection: unset lets the backend settings decide;
+        # true/false forces code coverage collection on/off. The helper folds in the private
+        # _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE force-enable, which only takes effect when the
+        # public variable is unset (the public variable wins when both are set).
         code_coverage_override = get_code_coverage_enabled_override()
         if code_coverage_override is not None:
-            if ITR_FORCE_ENABLE_COVERAGE and not code_coverage_override:
+            if not code_coverage_override and asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
                 log.warning(
                     "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED=false takes precedence over "
                     "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: code coverage collection is disabled"
@@ -935,7 +931,7 @@ class SessionManager:
             log.warning("Test Impact Analysis is ENABLED by environment variable")
             self.settings.itr_enabled = True
 
-            if not ITR_PREVENT_TEST_SKIPPING and not ITR_FORCE_ENABLE_COVERAGE and code_coverage_override is not True:
+            if not ITR_PREVENT_TEST_SKIPPING and code_coverage_override is not True:
                 if not self.settings.skipping_enabled:
                     log.warning(
                         "TIA test skipping was NOT enabled by the backend but DD_CIVISIBILITY_ITR_ENABLED is set; "
