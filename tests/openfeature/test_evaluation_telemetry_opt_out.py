@@ -2,6 +2,7 @@
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import copy
 import hashlib
 import json
 import logging
@@ -14,6 +15,7 @@ from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationOptions
 from openfeature.flag_evaluation import Reason
 from openfeature.hook import Hook
+from openfeature.provider import ProviderStatus
 from openfeature.transaction_context import ContextVarsTransactionContextPropagator
 from openfeature.transaction_context.no_op_transaction_context_propagator import NoOpTransactionContextPropagator
 import pytest
@@ -32,6 +34,7 @@ from tests.openfeature.config_helpers import create_float_flag
 from tests.openfeature.config_helpers import create_integer_flag
 from tests.openfeature.config_helpers import create_json_flag
 from tests.openfeature.config_helpers import create_string_flag
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
@@ -124,21 +127,22 @@ def emission_factory(monkeypatch):
         provider._flag_eval_metrics._counter = counter
         provider._flag_eval_metrics._enabled = True
         domain = "telemetry-opt-out-%d" % len(providers)
-        set_provider = getattr(api, "set_provider_and_wait", api.set_provider)
-        set_provider(provider, domain)
+        set_openfeature_provider(provider, domain)
         emissions = Emissions(provider, api.get_client(domain), exposures, counter)
         monkeypatch.setattr(provider._flag_eval_evp_writer, "_send_payload", emissions.capture)
         providers.append(provider)
         return emissions
 
-    yield make
-    assert all(provider._evaluation_telemetry.get() is None for provider in providers)
-    api.clear_hooks()
-    api.set_evaluation_context(EvaluationContext())
-    api.set_transaction_context(EvaluationContext())
-    api.shutdown()
-    api.set_transaction_context_propagator(NoOpTransactionContextPropagator())
-    _set_ffe_config(None)
+    try:
+        yield make
+        assert all(provider._evaluation_telemetry.get() is None for provider in providers)
+    finally:
+        api.clear_hooks()
+        api.set_evaluation_context(EvaluationContext())
+        api.set_transaction_context(EvaluationContext())
+        api.shutdown()
+        api.set_transaction_context_propagator(NoOpTransactionContextPropagator())
+        _set_ffe_config(None)
 
 
 def test_boolean_true_suppresses_all_evaluation_signals(emission_factory):
@@ -398,6 +402,7 @@ def test_missing_flag_defaults_respect_opt_out(emission_factory, opted_out):
     assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 0}
 
 
+@pytest.mark.parametrize("opted_out", [False, True])
 @pytest.mark.parametrize(
     "kind,flag,default,expected",
     [
@@ -408,13 +413,16 @@ def test_missing_flag_defaults_respect_opt_out(emission_factory, opted_out):
         ("object", create_json_flag(FLAG, {"enabled": True}), {}, {"enabled": True}),
     ],
 )
-def test_all_flag_types_keep_native_results_and_exposures(emission_factory, kind, flag, default, expected):
+def test_all_flag_types_keep_native_results_and_exposures(emission_factory, kind, flag, default, expected, opted_out):
     emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    flag = copy.deepcopy(flag)
+    flag["allocations"][0]["splits"][0]["serialId"] = 340132
     assert process_ffe_configuration(create_config(flag))
-    details = emissions.evaluate(context("typed", True), kind=kind, default=default)
+    details = emissions.evaluate(context("typed", opted_out), kind=kind, default=default)
     assert details.value == expected
     assert details.error_code is None
-    assert emissions.counts() == {"evaluations": 0, "metrics": 0, "annotated_spans": 0, "exposures": 1}
+    count = int(not opted_out)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 1}
 
 
 @pytest.mark.parametrize("outer_opted_out", [False, True])
@@ -614,3 +622,114 @@ def test_hook_order_and_exception_isolation_are_unchanged(emission_factory, monk
             and record.exc_info is not None
             for record in caplog.records
         )
+
+
+class ClearOnError(Hook):
+    def error(self, hook_context, exception, hints):
+        # Runs after the gate's error stage and clears the opt-out.
+        hook_context.evaluation_context.attributes[PARAMETER] = False
+
+
+@pytest.mark.parametrize("status", [ProviderStatus.NOT_READY, ProviderStatus.FATAL])
+@pytest.mark.parametrize("source", ["invocation", "api"])
+@pytest.mark.parametrize("opted_out", [False, True])
+def test_provider_status_short_circuit_respects_opt_out(emission_factory, monkeypatch, status, source, opted_out):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    monkeypatch.setattr(emissions.client, "get_provider_status", lambda: status)
+    if source == "api":
+        api.set_evaluation_context(context("short-circuit", opted_out))
+        subject = EvaluationContext(targeting_key="short-circuit")
+    else:
+        subject = context("short-circuit", opted_out)
+    details = emissions.evaluate(subject, options=FlagEvaluationOptions(hooks=[ClearOnError()]))
+    expected = ErrorCode.PROVIDER_NOT_READY if status == ProviderStatus.NOT_READY else ErrorCode.PROVIDER_FATAL
+    assert (details.value, details.error_code) == (False, expected)
+    assert emissions.provider._evaluation_telemetry.get() is None
+    count = int(not opted_out)
+    assert emissions.counts() == {"evaluations": count, "metrics": count, "annotated_spans": count, "exposures": 0}
+
+
+FINAL_TAGS = ("ffe_flags_enc", "ffe_subjects_enc", "ffe_runtime_defaults")
+
+
+def _options(i):
+    return FlagEvaluationOptions(hooks=[ReturnContext(False)] if i % 2 == 0 else [])
+
+
+def _annotated(span):
+    return any(span.get_tag(key) is not None for key in FINAL_TAGS)
+
+
+def test_concurrent_handoffs_capture_their_own_final_context(emission_factory, monkeypatch):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    provider = emissions.provider
+    original = provider.resolve_boolean_details
+    barrier = Barrier(8)
+
+    def resolve_boolean_details(flag_key, default_value, evaluation_context=None):
+        # Every gate's before stage has run, and no resolver has captured yet.
+        barrier.wait(timeout=10)
+        return original(flag_key, default_value, evaluation_context)
+
+    monkeypatch.setattr(provider, "resolve_boolean_details", resolve_boolean_details)
+
+    def evaluate(i):
+        with tracer.trace("thread-handoff") as span:
+            details = emissions.client.get_boolean_details(FLAG, False, context(str(i), True), _options(i))
+        emissions.spans.append(span)
+        return details, span
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(evaluate, range(8)))
+    assert all((d.value, d.error_code) == (True, None) for d, _ in results)
+    assert [_annotated(span) for _, span in results] == [i % 2 == 0 for i in range(8)]
+    assert emissions.counts() == {"evaluations": 4, "metrics": 4, "annotated_spans": 4, "exposures": 8}
+
+
+def test_async_handoffs_capture_their_own_final_context(emission_factory, monkeypatch):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+    provider = emissions.provider
+    original = provider.resolve_boolean_details
+
+    async def resolve_boolean_details_async(flag_key, default_value, evaluation_context=None):
+        await asyncio.sleep(0)  # let every task run its before stage first
+        return original(flag_key, default_value, evaluation_context)
+
+    monkeypatch.setattr(provider, "resolve_boolean_details_async", resolve_boolean_details_async)
+
+    async def evaluate(i):
+        with tracer.trace("async-handoff") as span:
+            details = await emissions.client.get_boolean_details_async(FLAG, False, context(str(i), True), _options(i))
+        emissions.spans.append(span)
+        return details, span
+
+    async def run():
+        return await asyncio.gather(*(evaluate(i) for i in range(8)))
+
+    results = asyncio.run(run())
+    assert all((d.value, d.error_code) == (True, None) for d, _ in results)
+    assert [_annotated(span) for _, span in results] == [i % 2 == 0 for i in range(8)]
+    assert emissions.counts() == {"evaluations": 4, "metrics": 4, "annotated_spans": 4, "exposures": 8}
+
+
+def test_handoff_ends_at_resolver_entry(emission_factory):
+    emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+
+    class DirectResolve(Hook):
+        def after(self, hook_context, details, hints):
+            # No SDK call, so no gate: this resolver must not see the outer handoff.
+            emissions.provider.resolve_boolean_details(FLAG, False, context("direct", True))
+
+    assert emissions.evaluate(context("outer"), options=FlagEvaluationOptions(hooks=[DirectResolve()])).value is True
+    assert emissions.counts() == {"evaluations": 1, "metrics": 1, "annotated_spans": 1, "exposures": 2}
+
+
+def test_opt_out_preserves_local_debug_logging(emission_factory, caplog):
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._debug_logging_hook"):
+        emissions = emission_factory(enable_evaluation_telemetry_opt_out_parameter=True)
+        details = emissions.evaluate(context("debug-opted-out", True))
+    assert (details.value, details.error_code) == (True, None)
+    assert emissions.counts() == {"evaluations": 0, "metrics": 0, "annotated_spans": 0, "exposures": 1}
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("Feature Flags: provider resolved" in message for message in messages)
+    assert any("Feature Flags: evaluated" in message for message in messages)

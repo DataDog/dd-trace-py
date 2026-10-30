@@ -63,6 +63,11 @@ OpenFeature
    the environment. An omitted option or ``None`` uses the environment setting.
    The provider captures this setting at construction, not during evaluation.
 
+   The constructor option applies only to that provider instance. Providers that
+   omit it, including the provider created by the LLM Observability prompt manager,
+   use the environment setting. Set the environment variable before those providers
+   are constructed to enable support for them as well.
+
    The application supplies the consent decision in the evaluation context::
 
        from openfeature import api
@@ -77,6 +82,11 @@ OpenFeature
        )
        value = api.get_client().get_boolean_value("flag-key", False, context)
 
+   On OpenFeature 0.10 and later, ``api.set_provider`` does not wait for
+   initialization. Evaluations while the provider is not ready return the default
+   value. ``api.set_provider_and_wait`` waits, but raises ``ProviderNotReadyError``
+   if no configuration arrives within the initialization timeout.
+
    Only boolean ``True`` suppresses new evaluation events, evaluation metrics,
    and automatic flag span annotations. The provider captures the final merged context
    at resolver entry, including contexts returned by ``before`` hooks. A returned
@@ -85,11 +95,14 @@ OpenFeature
    an ``after`` hook to change opt-out behavior across SDKs. Existing queued
    telemetry remains intact.
 
-   The parameter remains an ordinary context attribute. Targeting rules can use it,
-   and exposure reporting applies its existing attribute rules. Context changes can
-   select another assignment and produce another exposure under the existing
-   exposure caching rules. Protected and full evaluation reporting keep their
-   existing behavior.
+   ``dd_evaluation_telemetry_opt_out`` remains an ordinary context attribute.
+   Targeting rules can match on it, so changing it can change an assignment and
+   produce a new exposure. Experiment exposures are still reported for opted-out
+   subjects. Each exposure includes the targeting key and all context attributes,
+   including ``dd_evaluation_telemetry_opt_out``. When the attribute is not ``True``,
+   evaluation events include it only when full evaluation data is enabled for the
+   environment. Opt-out suppresses evaluation telemetry in both reporting modes.
+   Local debug logging is controlled separately and can include raw evaluation data.
 
    Telemetry suppression does not disable experiment exposures or change flag
    values, variants, randomization, or application hooks.

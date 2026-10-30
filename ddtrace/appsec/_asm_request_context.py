@@ -23,7 +23,6 @@ from ddtrace.appsec._metrics import set_waf_request_metrics
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
-from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
@@ -31,8 +30,11 @@ from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import Constant_Class
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.inferred_spans import is_inferred_span
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.security._context import _ASM_CONTEXT
+from ddtrace.internal.security._context import get_entry_span as get_entry_span
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -75,7 +77,6 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 
-_ASM_CONTEXT: Literal["_asm_env"] = "_asm_env"
 _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
 _TELEMETRY: Literal["telemetry"] = "telemetry"
 API_SEC_CALLBACK: Optional[Callable[["ASM_Environment"], None]] = None
@@ -162,17 +163,6 @@ def get_blocked() -> Optional[Block_config]:
     if env is None:
         return None
     return env.blocked or None
-
-
-def get_entry_span() -> Optional[SpanData]:
-    env = _get_asm_context()
-    if env is None:
-        span = span_bus.get_span()
-        if span:
-            return span._service_entry_span
-        else:
-            return span_bus.get_root_span()
-    return env.entry_span
 
 
 KNUTH_FACTOR: int = 11400714819323199488
@@ -419,17 +409,6 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     core.discard_local_item(_ASM_CONTEXT)
 
 
-def set_value(category: str, address: str, value: Any) -> None:
-    env = _get_asm_context()
-    if env is None:
-        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
-        logger.debug("asm_context::set_value::no_active_context", extra=extra, stack_info=True)
-        return
-    asm_context_attr = getattr(env, category, None)
-    if asm_context_attr is not None:
-        asm_context_attr[address] = value
-
-
 def set_headers_response(headers: Any) -> None:
     if headers is not None:
         set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers)
@@ -455,13 +434,17 @@ def set_body_response(body_response: Any) -> None:
 
 
 def set_waf_address(address: str, value: Any) -> None:
+    env = _get_asm_context()
+    if env is None:
+        extra = {"product": "appsec", "more_info": f"::{address}", "stack_limit": 4}
+        logger.debug("asm_context::set_waf_address::no_active_context", extra=extra, stack_info=True)
+        return
     if address == SPAN_DATA_NAMES.REQUEST_URI_RAW:
         parse_address = parse.urlparse(value)
         no_scheme = parse.ParseResult("", "", *parse_address[2:])
-        waf_value = parse.urlunparse(no_scheme)
-        set_value(_WAF_ADDRESSES, address, waf_value)
+        env.waf_addresses[address] = parse.urlunparse(no_scheme)
     else:
-        set_value(_WAF_ADDRESSES, address, value)
+        env.waf_addresses[address] = value
     if address in (SPAN_DATA_NAMES.REQUEST_HTTP_IP, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE):
         core.set_item(address, value)
 

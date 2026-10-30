@@ -1,10 +1,16 @@
+from collections.abc import Iterator
 import os
 from unittest import mock
 
 import pytest
+from pytest_mock import MockerFixture
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace._trace.trace_handlers import _TracedIterable
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.wsgi import wsgi as wsgi_module
@@ -13,7 +19,11 @@ from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from ddtrace.internal import core
+from ddtrace.trace import Span
+from ddtrace.trace import tracer as global_tracer
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -248,6 +258,27 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
+
+
+def test_otel_semantics_keeps_method_resource_before_response_on_exception(tracer, test_spans):
+    observed_resources = []
+
+    def failing_application(environ, start_response):
+        root_span = global_tracer.current_root_span()
+        assert root_span is not None
+        observed_resources.append(root_span.resource)
+        global_tracer.sample(root_span)
+        raise RuntimeError("before start_response")
+
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        app = TestApp(DDWSGIMiddleware(failing_application, tracer=tracer))
+        with pytest.raises(RuntimeError, match="before start_response"):
+            app.get("/users/12345")
+
+    spans = test_spans.pop()
+    request_span = next(span for span in spans if span.name == "wsgi.request")
+    assert observed_resources == ["GET"]
+    assert request_span.resource == "GET"
 
 
 def test_distributed_tracing(tracer, test_spans):
@@ -487,28 +518,81 @@ def test_distributed_tracing_nested():
     assert resp.status_int == 200
 
 
-# FIXME: this test breaks other tests in this file in an unpredictable pattern
-"""
-def test_wsgi_traced_iterable(tracer, test_spans):
-    # Regression test to ensure wsgi iterable does not define an __len__ attribute
-    middleware = DDWSGIMiddleware(application)
-    environ = {
-        "PATH_INFO": "/chunked",
-        "wsgi.url_scheme": "http",
-        "SERVER_NAME": "localhost",
-        "SERVER_PORT": "80",
-        "REQUEST_METHOD": "GET",
-    }
+class _ClosableIterable:
+    def __init__(self, values: list[bytes]) -> None:
+        self.values = values
+        self.closed = False
+        self.custom_attribute = "forwarded"
 
-    def start_response(status, headers, exc_info=None):
-        pass
+    def __iter__(self) -> Iterator[bytes]:
+        return iter(self.values)
 
-    resp = middleware(environ, start_response)
-    assert hasattr(resp, "__iter__")
-    assert hasattr(resp, "close")
-    assert hasattr(resp, "next") or hasattr(resp, "__next__")
-    assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
-"""
+    def __len__(self) -> int:
+        return len(self.values)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes(mocker: MockerFixture) -> None:
+    wrapped = _ClosableIterable([b"one", b"two"])
+    parent_span = Span("wsgi.request")
+    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
+    finish = mocker.spy(Span, "finish")
+    iterable = _TracedIterable(wrapped, span, parent_span, wrapped_is_iterator=True)
+
+    assert not span.finished
+    assert not parent_span.finished
+
+    assert iterable.__wrapped__ is wrapped
+    assert iterable.__class__ is _ClosableIterable
+    assert isinstance(iterable, _ClosableIterable)
+    assert iterable.custom_attribute == "forwarded"
+    iterable.custom_attribute = "updated"
+    assert wrapped.custom_attribute == "updated"
+    del iterable.custom_attribute
+    assert not hasattr(wrapped, "custom_attribute")
+    assert not hasattr(iterable, "__len__"), "WSGI iterables should not expose __len__"
+    assert list(iterable) == [b"one", b"two"]
+    assert span.finished
+    assert parent_span.finished
+    assert span.error == 0
+    assert parent_span.error == 0
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+
+    iterable.close()
+    assert wrapped.closed
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+
+
+def test_wsgi_traced_iterable_finishes_spans_on_error(mocker: MockerFixture) -> None:
+    error = RuntimeError("test error")
+
+    def raising_iterable() -> Iterator[bytes]:
+        yield b"one"
+        raise error
+
+    parent_span = Span("wsgi.request")
+    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
+    finish = mocker.spy(Span, "finish")
+    iterable = _TracedIterable(raising_iterable(), span, parent_span)
+
+    assert next(iterable) == b"one"
+    assert not span.finished
+    assert not parent_span.finished
+    with pytest.raises(RuntimeError, match="test error") as exc_info:
+        next(iterable)
+
+    assert exc_info.value is error
+    assert span.error == 1
+    assert span.get_tag(ERROR_TYPE) == "builtins.RuntimeError"
+    assert span.get_tag(ERROR_MSG) == "test error"
+    assert "raising_iterable" in span.get_tag(ERROR_STACK)
+    assert "RuntimeError: test error" in span.get_tag(ERROR_STACK)
+    assert parent_span.error == 0
+    assert span.finished
+    assert parent_span.finished
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
 
 
 @pytest.mark.parametrize(
@@ -821,3 +905,30 @@ def test_construct_url_query_string_backfilled_when_raw_uri_lacks_it():
         "QUERY_STRING": "a=1&b=2",
     }
     assert construct_url(environ) == "http://localhost:8000/users?a=1&b=2"
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
+def test_otel_semantics_server_span_attributes():
+    from webtest import TestApp
+
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    def application(environ, start_response):
+        start_response("200 OK", [("Content-Type", "text/plain")])
+        return [b"*"]
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = TestApp(DDWSGIMiddleware(application))
+
+        client.get("/ok?q=1", headers=TEST_HEADERS)
+        span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
+        # A generic WSGI app has no route, so the resource is the method alone. WSGI does not report client
+        # attributes: its header names are title-cased, which set_http_meta does not look up.
+        assert_otel_server_span(
+            span, method="GET", status=200, path="/ok", query="q=1", resource="GET", client_attributes=False
+        )

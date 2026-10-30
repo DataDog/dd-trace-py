@@ -872,6 +872,31 @@ class TestGitLockRetry:
         assert "sha2" in warning_args
 
     @patch("shutil.which")
+    def test_get_merge_base_quiet_failure_logs_debug(self, mock_which: Mock) -> None:
+        """With warn=False, a failing merge-base logs at debug level instead of warning.
+
+        The pre-unshallow probe uses this: failing locally is expected on shallow
+        clones, so it must not pollute the warning log before the fetch and retry.
+        """
+        mock_which.return_value = "/usr/bin/git"
+        failure = _GitSubprocessDetails(
+            stdout="", stderr="fatal: Not a valid object name sha1", return_code=128, elapsed_seconds=0.0
+        )
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", return_value=failure),
+            patch("ddtrace.testing.internal.git.log") as mock_log,
+        ):
+            result = Git().get_merge_base("sha1", "sha2", warn=False)
+
+        assert result == ""
+        mock_log.warning.assert_not_called()
+        mock_log.debug.assert_called_once()
+        debug_args = mock_log.debug.call_args[0]
+        assert "sha1" in debug_args
+        assert "sha2" in debug_args
+
+    @patch("shutil.which")
     def test_unshallow_repository_skips_when_repo_not_shallow(self, mock_which: Mock) -> None:
         """unshallow_repository returns success without fetching when the repo is already non-shallow."""
         mock_which.return_value = "/usr/bin/git"

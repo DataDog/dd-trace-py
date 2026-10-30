@@ -1,4 +1,6 @@
+import asyncio
 import json
+import time
 from typing import Any
 from unittest.mock import patch
 
@@ -27,12 +29,15 @@ from tests.aiguard.utils import override_ai_guard_config
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
 
-# langchain 1.0 removed the legacy ``AgentExecutor`` / ``create_openai_functions_agent``
-# API in favor of ``create_agent`` (langgraph-based). Tests are split accordingly.
-requires_legacy_agents = pytest.mark.skipif(
-    LANGCHAIN_VERSION >= (1, 0, 0),
-    reason="legacy AgentExecutor / create_openai_functions_agent API removed in langchain 1.0",
-)
+# LangChain v1 moved the legacy agent API into langchain-classic.
+if LANGCHAIN_VERSION >= (1, 0, 0):
+    from langchain_classic.agents import AgentExecutor
+    from langchain_classic.agents import create_openai_functions_agent
+else:
+    from langchain.agents import AgentExecutor
+    from langchain.agents import create_openai_functions_agent
+
+
 requires_create_agent = pytest.mark.skipif(
     LANGCHAIN_VERSION < (1, 0, 0),
     reason="create_agent API introduced in langchain 1.0",
@@ -90,6 +95,20 @@ def _assert_evaluated_response(mock_execute_request, content: str) -> None:
     response_eval = _evaluated_messages(mock_execute_request, 1)
     assert response_eval[-1]["role"] == "assistant"
     assert content in response_eval[-1]["content"]
+
+
+# Arguments a provider returned truncated; langchain reports the call in invalid_tool_calls.
+INVALID_TOOL_ARGS = '{"city": "Par'
+
+# invalid_tool_calls only exists on newer langchain-core releases.
+requires_invalid_tool_calls = pytest.mark.skipif(
+    "invalid_tool_calls" not in (getattr(AIMessage, "model_fields", None) or getattr(AIMessage, "__fields__", {})),
+    reason="AIMessage.invalid_tool_calls is not available",
+)
+
+
+def _invalid_tool_call() -> dict:
+    return {"id": "bad", "name": "weather", "args": INVALID_TOOL_ARGS, "error": None}
 
 
 # Tool-call prompt whose recorded responses (tests/cassettes/openai) ask for add(a=1, b=1).
@@ -353,14 +372,67 @@ def test_text_and_tool_call_response_evaluated_as_one_turn(
     assert response_span.get_tag(AI_GUARD.TOOL_NAME_TAG) == "add"
 
 
-@requires_legacy_agents
+@requires_invalid_tool_calls
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_agent_action_evaluated_once(mock_execute_request, langchain_openai, openai_url):
-    """The legacy function_call path: Agent.plan does not repeat the response evaluation of the same call."""
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
+def test_invalid_tool_call_only_response_block(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
+):
+    """A reply whose only tool call failed to parse still carries model output, so it is evaluated."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    mock_openai_request.return_value = ChatResult(
+        generations=[ChatGeneration(message=AIMessage(content="", invalid_tool_calls=[_invalid_tool_call()]))]
+    )
 
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        llm.invoke([HumanMessage(content="Weather in Paris?")])
+
+    response = _evaluated_messages(mock_execute_request, 1)
+    assert response[-1]["role"] == "assistant"
+    assert response[-1]["tool_calls"][0]["function"] == {"name": "weather", "arguments": INVALID_TOOL_ARGS}
+
+
+@requires_invalid_tool_calls
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_valid_and_invalid_tool_calls_evaluated_as_one_turn(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url
+):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    mock_openai_request.return_value = ChatResult(
+        generations=[
+            ChatGeneration(
+                message=AIMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="ok", name="add", args={"a": 1, "b": 1})],
+                    invalid_tool_calls=[_invalid_tool_call()],
+                )
+            )
+        ]
+    )
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    llm.invoke([HumanMessage(content="Add 1 and 1, then check the weather in Paris.")])
+
+    assert mock_execute_request.call_count == 2
+    response = _evaluated_messages(mock_execute_request, 1)
+    assert [call["function"] for call in response[-1]["tool_calls"]] == [
+        {"name": "add", "arguments": '{"a": 1, "b": 1}'},
+        {"name": "weather", "arguments": INVALID_TOOL_ARGS},
+    ]
+
+
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_agent_action_evaluated_once(mock_execute_request, mock_openai_request, langchain_openai, openai_url):
+    """The legacy function_call path: Agent.plan does not repeat the response evaluation of the same call."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    mock_openai_request.side_effect = [
+        _mock_openai_tool_response("add", {"a": 1, "b": 1}),
+        ChatResult(generations=[ChatGeneration(message=AIMessage(content="2"))]),
+    ]
 
     agent_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
     llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
@@ -374,13 +446,53 @@ def test_agent_action_evaluated_once(mock_execute_request, langchain_openai, ope
     assert final_answer == {"role": "assistant", "content": result["output"]}
 
 
-@requires_legacy_agents
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_mode", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("rewritten", [False, True], ids=["failed-response", "rewritten-action"])
+@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_agent_action_is_checked_before_tool_execution(
+    mock_execute_request, mock_generate, mock_agenerate, langchain_openai, openai_url, async_mode, rewritten
+):
+    mock_execute_request.side_effect = [
+        mock_evaluate_response("ALLOW"),
+        mock_evaluate_response("ALLOW") if rewritten else ConnectionError("AI Guard unreachable"),
+        mock_evaluate_response("DENY"),
+    ]
+    response = _mock_openai_tool_response("add", {"a": 1, "b": 1})
+    mock_generate.return_value = response
+    mock_agenerate.return_value = response
+    prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    agent = create_openai_functions_agent(llm, [add], prompt)
+    if rewritten:
+
+        def rewrite_action(action):
+            action.tool_input = {"a": 1, "b": 99}
+            return action
+
+        agent = agent | rewrite_action
+    executor = AgentExecutor(agent=agent, tools=[add])
+    executor.agent.stream_runnable = False
+    tracker = ToolTrackingHandler()
+    with pytest.raises(AIGuardAbortError):
+        if async_mode:
+            await executor.ainvoke({"input": "1 + 1"}, config={"callbacks": [tracker]})
+        else:
+            executor.invoke({"input": "1 + 1"}, config={"callbacks": [tracker]})
+
+    assert tracker.tool_calls == []
+    assert mock_execute_request.call_count == 3
+    assert _tool_call_evaluations(mock_execute_request)[-1] == {
+        "name": "add",
+        "arguments": '{"a": 1, "b": 99}' if rewritten else '{"a": 1, "b": 1}',
+    }
+
+
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
@@ -410,14 +522,10 @@ def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
 
 
-@requires_legacy_agents
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_async_block(mock_execute_request, langchain_openai, openai_url, decision):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
@@ -447,14 +555,10 @@ async def test_agent_action_async_block(mock_execute_request, langchain_openai, 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
 
 
-@requires_legacy_agents
 @pytest.mark.asyncio
 @patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_intermediate_steps(mock_execute_request, mock_openai_request, langchain_openai, openai_url):
-    from langchain.agents import AgentExecutor
-    from langchain.agents import create_openai_functions_agent
-
     def ai_guard_mock(*args, **kwargs):
         messages = args[1]["data"]["attributes"]["messages"]
         last_message = messages[-1]
@@ -679,9 +783,10 @@ def test_create_agent_edited_tool_call_is_reevaluated(mock_execute_request, lang
 
 
 @requires_create_agent
+@pytest.mark.parametrize("broken_agent_import", [None, "langchain.agents", "langchain_classic.agents"], indirect=True)
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_create_agent_tool_call_evaluated_when_response_evaluation_fails(
-    mock_execute_request, langchain_openai, openai_url
+    mock_execute_request, langchain_openai, openai_url, broken_agent_import
 ):
     """A response evaluation that fails open leaves the tool call to be evaluated before it runs."""
     from langchain.agents import create_agent
@@ -695,9 +800,11 @@ def test_create_agent_tool_call_evaluated_when_response_evaluation_fails(
     llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
     agent = create_agent(model=llm, tools=[add])
 
+    tracker = ToolTrackingHandler()
     with pytest.raises(AIGuardAbortError):
-        agent.invoke({"messages": [HumanMessage(content=TOOL_PROMPT)]})
+        agent.invoke({"messages": [HumanMessage(content=TOOL_PROMPT)]}, config={"callbacks": [tracker]})
 
+    assert tracker.tool_calls == []
     assert mock_execute_request.call_count == 3
     assert _evaluated_messages(mock_execute_request, 2)[-1]["tool_calls"][0]["function"]["name"] == "add"
 
@@ -860,6 +967,23 @@ def test_message_conversion():
     assert result[7]["content"] == "One plus one is two"
 
 
+@requires_invalid_tool_calls
+def test_message_conversion_keeps_invalid_tool_calls():
+    """Some providers send unparsable calls back in the next request, so history must carry them."""
+    message = AIMessage(
+        content="",
+        tool_calls=[ToolCall(id="ok", name="add", args={"a": 1, "b": 1})],
+        invalid_tool_calls=[_invalid_tool_call()],
+    )
+
+    result = _convert_messages([HumanMessage(content="hi"), message])
+
+    assert [call["function"] for call in result[1]["tool_calls"]] == [
+        {"name": "add", "arguments": '{"a": 1, "b": 1}'},
+        {"name": "weather", "arguments": INVALID_TOOL_ARGS},
+    ]
+
+
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_streamed_chat_sync_allow(mock_execute_request, langchain_openai, openai_url):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -964,6 +1088,100 @@ async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, 
     with pytest.raises(AIGuardAbortError):
         async for _ in llm.astream(input="How do I write technical documentation?"):
             pass
+
+    mock_execute_request.assert_called_once()
+
+
+def _responses_stream_body() -> bytes:
+    snapshot = {
+        "id": "resp-test",
+        "object": "response",
+        "created_at": 0,
+        "model": "gpt-4o-mini",
+        "status": "completed",
+        "output": [
+            {
+                "id": "msg-test",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+            }
+        ],
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [],
+    }
+    events = [
+        ("response.created", {"type": "response.created", "response": {**snapshot, "status": "in_progress"}}),
+        (
+            "response.output_text.delta",
+            {
+                "type": "response.output_text.delta",
+                "item_id": "msg-test",
+                "output_index": 0,
+                "content_index": 0,
+                "delta": "ok",
+            },
+        ),
+        ("response.completed", {"type": "response.completed", "response": snapshot}),
+    ]
+    return b"".join(f"event: {name}\ndata: {json.dumps(data)}\n\n".encode() for name, data in events)
+
+
+@pytest.fixture
+def openai_contrib():
+    from ddtrace.contrib.internal.openai.patch import patch as patch_openai
+    from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
+
+    patch_openai()
+    try:
+        yield
+    finally:
+        unpatch_openai()
+
+
+def _responses_stream_chat(langchain_openai, is_async: bool):
+    import httpx
+
+    # Older langchain-openai forwards unknown kwargs like use_responses_api to chat.completions.create.
+    chat_fields = getattr(langchain_openai.ChatOpenAI, "model_fields", None) or langchain_openai.ChatOpenAI.__fields__
+    if "use_responses_api" not in chat_fields:
+        pytest.skip("ChatOpenAI(use_responses_api=...) requires langchain-openai>=0.3.9")
+
+    def _handler(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=_responses_stream_body())
+
+    transport = httpx.MockTransport(_handler)
+    client_kwargs = (
+        {"http_async_client": httpx.AsyncClient(transport=transport)}
+        if is_async
+        else {"http_client": httpx.Client(transport=transport)}
+    )
+    return langchain_openai.ChatOpenAI(api_key="<not-a-real-key>", use_responses_api=True, **client_kwargs)
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_responses_api_evaluated_once(mock_execute_request, langchain_openai, openai_contrib):
+    """The provider call runs during iteration, after the langchain stream marks the AI Guard context active."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = _responses_stream_chat(langchain_openai, is_async=False)
+
+    for _ in model.stream(input="how can langsmith help with testing?"):
+        pass
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_chat_responses_api_evaluated_once_async(mock_execute_request, langchain_openai, openai_contrib):
+    """Async variant: the openai responses before-hook is skipped while the langchain stream is active."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = _responses_stream_chat(langchain_openai, is_async=True)
+
+    async for _ in model.astream(input="how can langsmith help with testing?"):
+        pass
 
     mock_execute_request.assert_called_once()
 
@@ -1306,3 +1524,758 @@ def test_prompt_block_leaves_llmobs_output_empty(
     assert [m.get("content") for m in get_llmobs_output_messages(span)] == [""]
     assert not get_llmobs_metrics(span)
     assert span.get_metric("_dd.llmobs.total_tokens") is None
+
+
+# ---------------------------------------------------------------------------
+# LangChain owns AI Guard for its model calls: generate and stream claim the
+# context for the whole call. With stream analysis on, a stream is read in full
+# and the run manager's callbacks are held until the response is evaluated.
+# ---------------------------------------------------------------------------
+
+
+def _stream_evaluation_on():
+    return override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True))
+
+
+class _EvaluationOrderHandler(BaseCallbackHandler):
+    """Records how many AI Guard evaluations had run when each callback fired."""
+
+    def __init__(self, mock_execute_request):
+        self._mock = mock_execute_request
+        self.tokens: list = []
+        self.token_texts: list = []
+        self.ends: list = []
+        self.errors: list = []
+
+    def on_llm_new_token(self, token, **kwargs):
+        self.tokens.append(self._mock.call_count)
+        self.token_texts.append(token)
+
+    def on_llm_end(self, response, **kwargs):
+        self.ends.append(self._mock.call_count)
+
+    def on_llm_error(self, error, **kwargs):
+        self.errors.append(type(error).__name__)
+
+
+def _self_reporting_chat_model():
+    """A chat model that streams inside generate and reports each token itself, like ChatOpenAI(streaming=True)."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.language_models.chat_models import agenerate_from_stream
+    from langchain_core.language_models.chat_models import generate_from_stream
+    from langchain_core.messages import AIMessageChunk
+    from langchain_core.outputs import ChatGenerationChunk
+
+    class _SelfReportingChatModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-self-reporting"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return generate_from_stream(self._stream(messages, stop, run_manager, **kwargs))
+
+        async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+            return await agenerate_from_stream(self._astream(messages, stop, run_manager, **kwargs))
+
+        def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+            for text in ("self ", "reported"):
+                chunk = ChatGenerationChunk(message=AIMessageChunk(content=text))
+                if run_manager:
+                    run_manager.on_llm_new_token(text, chunk=chunk)
+                yield chunk
+
+        async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
+            for text in ("self ", "reported"):
+                chunk = ChatGenerationChunk(message=AIMessageChunk(content=text))
+                if run_manager:
+                    await run_manager.on_llm_new_token(text, chunk=chunk)
+                yield chunk
+
+    return _SelfReportingChatModel()
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_response_evaluated_once_with_the_openai_buffer_installed(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url
+):
+    """LangChain evaluates the streamed response itself; its claim keeps the OpenAI buffer from doing it again."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    chunks = list(model.stream(input="how can langsmith help with testing?"))
+
+    assert chunks
+    _assert_evaluated_response(mock_execute_request, "".join(chunk.content for chunk in chunks))
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_chat_async_response_evaluated_once_with_the_openai_buffer_installed(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    chunks = [chunk async for chunk in model.astream(input="how can langsmith help with testing?")]
+
+    assert chunks
+    _assert_evaluated_response(mock_execute_request, "".join(chunk.content for chunk in chunks))
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_response_block_delivers_no_chunk(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url, decision
+):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    received = []
+    with pytest.raises(AIGuardAbortError):
+        for chunk in model.stream(input="how can langsmith help with testing?"):
+            received.append(chunk)
+
+    assert received == []
+    assert mock_execute_request.call_count == 2
+    assert _evaluated_messages(mock_execute_request, 1)[-1]["role"] == "assistant"
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_response_evaluated_for_any_provider(mock_execute_request, langchain):
+    """The stream is buffered by LangChain itself, so a model with no AI Guard provider integration is covered."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    with _stream_evaluation_on():
+        chunks = list(FakeListChatModel(responses=["hello"]).stream(input="hi", config={"callbacks": [handler]}))
+
+    assert "".join(chunk.content for chunk in chunks) == "hello"
+    _assert_evaluated_response(mock_execute_request, "hello")
+    # LangChain reports each token to callbacks while the stream is read; none before the response is evaluated.
+    assert handler.tokens and set(handler.tokens) == {2}
+    assert handler.ends == [2]
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_response_block_for_any_provider(mock_execute_request, langchain, decision):
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    received = []
+    with _stream_evaluation_on(), pytest.raises(AIGuardAbortError):
+        for chunk in FakeListChatModel(responses=["blocked"]).stream(input="hi", config={"callbacks": [handler]}):
+            received.append(chunk)
+
+    assert received == []
+    assert handler.tokens == []
+    assert handler.ends == []
+    assert len(handler.errors) == 1
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_async_response_evaluated_for_any_provider(mock_execute_request, langchain):
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    with _stream_evaluation_on():
+        chunks = [
+            chunk
+            async for chunk in FakeListChatModel(responses=["hello"]).astream(
+                input="hi", config={"callbacks": [handler]}
+            )
+        ]
+
+    assert "".join(chunk.content for chunk in chunks) == "hello"
+    _assert_evaluated_response(mock_execute_request, "hello")
+    assert handler.tokens and set(handler.tokens) == {2}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"], ids=["allow", "deny"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_streamed_async_response_evaluated_off_event_loop(mock_execute_request, langchain, decision):
+    """A slow astream() response evaluation must not stall other asyncio tasks; a block still propagates."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    ticks = 0
+
+    async def ticker():
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.005)
+
+    ticks_during_response_eval = []
+
+    def execute_request(*args, **kwargs):
+        if mock_execute_request.call_count == 1:  # prompt evaluation
+            return mock_evaluate_response("ALLOW")
+        start = ticks
+        time.sleep(0.3)
+        ticks_during_response_eval.append(ticks - start)
+        return mock_evaluate_response(decision)
+
+    mock_execute_request.side_effect = execute_request
+    handler = _EvaluationOrderHandler(mock_execute_request)
+    ticker_task = asyncio.create_task(ticker())
+    chunks = []
+    try:
+        with _stream_evaluation_on():
+            stream = FakeListChatModel(responses=["hello"]).astream(input="hi", config={"callbacks": [handler]})
+            if decision == "ALLOW":
+                chunks = [chunk async for chunk in stream]
+            else:
+                with pytest.raises(AIGuardAbortError):
+                    async for chunk in stream:
+                        chunks.append(chunk)
+    finally:
+        ticker_task.cancel()
+        await asyncio.gather(ticker_task, return_exceptions=True)
+
+    if decision == "ALLOW":
+        assert "".join(chunk.content for chunk in chunks) == "hello"
+        assert handler.tokens and set(handler.tokens) == {2}
+        assert handler.ends == [2]
+        assert handler.errors == []
+    else:
+        assert chunks == []
+        assert handler.tokens == []
+        assert handler.ends == []
+        assert len(handler.errors) == 1
+    assert mock_execute_request.call_count == 2
+    # The ticker kept running while the blocking evaluation slept in its worker thread.
+    assert ticks_during_response_eval and ticks_during_response_eval[0] > 1
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_llm_response_evaluated_for_any_provider(mock_execute_request, langchain):
+    from langchain_core.language_models.llms import LLM
+    from langchain_core.outputs import GenerationChunk
+
+    class _StreamingLLM(LLM):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-streaming-llm"
+
+        def _call(self, prompt, stop=None, run_manager=None, **kwargs):
+            raise NotImplementedError
+
+        def _stream(self, prompt, stop=None, run_manager=None, **kwargs):
+            for text in ("llm ", "answer"):
+                yield GenerationChunk(text=text)
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with _stream_evaluation_on():
+        chunks = list(_StreamingLLM().stream("hi"))
+
+    assert "".join(chunks) == "llm answer"
+    _assert_evaluated_response(mock_execute_request, "llm answer")
+
+
+def _recording_http_client(seen: list):
+    """An httpx client that records whether a claim is held when the provider request goes out."""
+    import httpx
+
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    def _record(_request):
+        seen.append(is_aiguard_context_active())
+
+    return httpx.Client(event_hooks={"request": [_record]})
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["invoke", "stream"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_provider_request_is_sent_under_the_langchain_claim(mock_execute_request, langchain_openai, openai_url, stream):
+    """Seen from the provider: LangChain holds the claim when the OpenAI request is sent, so OpenAI skips it."""
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    seen: list = []
+    if stream:
+        model = langchain_openai.ChatOpenAI(base_url=openai_url, http_client=_recording_http_client(seen))
+        assert list(model.stream(input="how can langsmith help with testing?"))
+    else:
+        model = langchain_openai.ChatOpenAI(
+            temperature=0, max_tokens=256, n=1, base_url=openai_url, http_client=_recording_http_client(seen)
+        )
+        model.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    assert seen == [True]
+    assert is_aiguard_context_active() is False
+
+
+@pytest.mark.parametrize("stream_evaluation", [False, True], ids=["unbuffered", "buffered"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_stream_loop_body_claim(mock_execute_request, langchain_openai, openai_url, stream_evaluation):
+    """Unbuffered, LangChain holds the claim until the stream ends; buffered, it is read in full first."""
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    observed = []
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=stream_evaluation)):
+        for _ in model.stream(input="how can langsmith help with testing?"):
+            observed.append(is_aiguard_context_active())
+
+    assert observed and set(observed) == {not stream_evaluation}, observed
+    assert is_aiguard_context_active() is False
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_tokens_streamed_inside_generate_wait_for_verdict(mock_execute_request, langchain):
+    """A model streaming inside generate reports tokens to callbacks only after the response verdict."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    with _stream_evaluation_on():
+        result = _self_reporting_chat_model().invoke("hi", config={"callbacks": [handler]})
+
+    assert result.content == "self reported"
+    _assert_evaluated_response(mock_execute_request, "self reported")
+    assert handler.tokens == [2, 2]
+    assert handler.ends == [2]
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_tokens_streamed_inside_agenerate_wait_for_verdict(mock_execute_request, langchain):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    with _stream_evaluation_on():
+        result = await _self_reporting_chat_model().ainvoke("hi", config={"callbacks": [handler]})
+
+    assert result.content == "self reported"
+    _assert_evaluated_response(mock_execute_request, "self reported")
+    assert handler.tokens == [2, 2]
+    assert handler.ends == [2]
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_tokens_streamed_inside_generate_dropped_on_block(mock_execute_request, langchain, decision):
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    with _stream_evaluation_on(), pytest.raises(AIGuardAbortError):
+        _self_reporting_chat_model().invoke("hi", config={"callbacks": [handler]})
+
+    assert handler.tokens == []
+    assert handler.ends == []
+    # The run is closed with the block, so a tracer callback does not keep it open.
+    assert len(handler.errors) == 1
+    assert mock_execute_request.call_count == 2
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_tokens_streamed_inside_generate_are_live_when_flag_disabled(mock_execute_request, langchain):
+    """Without stream analysis nothing is held: tokens reach callbacks as the model streams."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    _self_reporting_chat_model().invoke("hi", config={"callbacks": [handler]})
+
+    assert handler.tokens == [1, 1]
+    assert mock_execute_request.call_count == 2
+
+
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_langgraph_messages_stream_waits_for_verdict(mock_execute_request, langchain, decision):
+    """LangGraph's stream_mode="messages" reads the model's callbacks, so it sees nothing before the verdict."""
+    pytest.importorskip("langgraph.graph")
+    from langgraph.graph import END
+    from langgraph.graph import START
+    from langgraph.graph import MessagesState
+    from langgraph.graph import StateGraph
+
+    model = _self_reporting_chat_model()
+
+    def call_model(state):
+        return {"messages": [model.invoke(state["messages"])]}
+
+    graph = StateGraph(MessagesState)
+    graph.add_node("model", call_model)
+    graph.add_edge(START, "model")
+    graph.add_edge("model", END)
+    app = graph.compile()
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+
+    seen_at = []
+    with _stream_evaluation_on():
+        if decision == "ALLOW":
+            for _message, _metadata in app.stream({"messages": [HumanMessage(content="hi")]}, stream_mode="messages"):
+                seen_at.append(mock_execute_request.call_count)
+            assert seen_at and set(seen_at) == {2}
+        else:
+            with pytest.raises(AIGuardAbortError):
+                for _ in app.stream({"messages": [HumanMessage(content="hi")]}, stream_mode="messages"):
+                    seen_at.append(mock_execute_request.call_count)
+            assert seen_at == []
+
+
+@pytest.mark.skipif(
+    parse_version(langchain_core.__version__) < (0, 2, 0),
+    reason="astream_events(version='v2') needs langchain-core 0.2",
+)
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_astream_events_stream_after_verdict(
+    mock_execute_request, openai_stream_evaluation, langchain_openai, openai_url
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    stream_events = []
+    async for event in model.astream_events("how can langsmith help with testing?", version="v2"):
+        if event["event"] == "on_chat_model_stream":
+            stream_events.append(mock_execute_request.call_count)
+
+    assert stream_events and set(stream_events) == {2}
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_async_stream_closed_from_an_earlier_task_releases_its_claim(mock_execute_request, langchain):
+    """The stream's claim handle travels with the stream, so a task whose Context predates the claim releases it."""
+    import asyncio
+
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from ddtrace.aiguard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    release = asyncio.Event()
+    holder: dict = {}
+
+    async def closer():
+        await release.wait()
+        await holder["iterator"].aclose()
+
+    closer_task = asyncio.create_task(closer())
+    holder["iterator"] = FakeListChatModel(responses=["several chunks"]).astream(input="hi").__aiter__()
+    await holder["iterator"].__anext__()
+    assert is_aiguard_context_active() is True
+
+    release.set()
+    await closer_task
+    assert is_aiguard_context_active() is False
+
+
+@pytest.mark.parametrize("stream_evaluation", [False, True], ids=["unbuffered", "buffered"])
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_tokens_from_the_sync_run_manager_are_replayed_after_verdict(
+    mock_execute_request, langchain, stream_evaluation
+):
+    """ainvoke runs a sync-only _generate in an executor with run_manager.get_sync(); its tokens are kept."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+
+    class _SyncOnlyModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-sync-only"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            for text in ("sync ", "tokens"):
+                if run_manager:
+                    run_manager.on_llm_new_token(text)
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="sync tokens"))])
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    handler = _EvaluationOrderHandler(mock_execute_request)
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=stream_evaluation)):
+        result = await _SyncOnlyModel().ainvoke("hi", config={"callbacks": [handler]})
+
+    assert result.content == "sync tokens"
+    assert handler.token_texts == ["sync ", "tokens"]
+    # Held until the verdict (2 evaluations) when buffered; live after the request check (1) otherwise.
+    assert set(handler.tokens) == ({2} if stream_evaluation else {1})
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_inner_stream_inside_generate_does_not_take_the_outer_verdict(mock_execute_request, langchain):
+    """A model that streams another model inside its own generate still gets its own response evaluated."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    class _OuterModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-outer"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            list(FakeListChatModel(responses=["inner answer"]).stream(input="inner prompt"))
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="outer answer"))])
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with _stream_evaluation_on():
+        assert _OuterModel().invoke("hi").content == "outer answer"
+
+    trailing = [_evaluated_messages(mock_execute_request, i)[-1] for i in range(mock_execute_request.call_count)]
+    assert {"role": "assistant", "content": "outer answer"} in trailing
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_batch_responses_are_evaluated_once_per_prompt(mock_execute_request, langchain):
+    """Runs of a batch cannot be paired with prompts at on_llm_end, so .generate.after evaluates each response."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = FakeListChatModel(responses=["first answer", "second answer"])
+
+    with _stream_evaluation_on():
+        model.generate([[HumanMessage(content="first")], [HumanMessage(content="second")]])
+
+    pairs = []
+    for i in range(mock_execute_request.call_count):
+        messages = _evaluated_messages(mock_execute_request, i)
+        if messages[-1]["role"] == "assistant":
+            pairs.append((messages[0]["content"], messages[-1]["content"]))
+    assert sorted(pairs) == [("first", "first answer"), ("second", "second answer")]
+
+
+def test_generate_before_reads_a_one_shot_iterable_once():
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations import _langchain as aiguard_langchain
+
+    with patch.object(aiguard_langchain, "_evaluate_langchain_messages", return_value=None) as evaluate:
+        aiguard_langchain._langchain_chatmodel_generate_before(Mock(), (batch for batch in [[HumanMessage("hi")]]))
+        aiguard_langchain._langchain_generate_finally()
+
+    evaluate.assert_called_once()
+
+
+def test_unpaired_generate_finally_leaves_other_claims_alone():
+    """A .finally without its .before must not release an enclosing framework's claim (Strands around LangChain)."""
+    from ddtrace.aiguard._context import is_aiguard_context_active
+    from ddtrace.aiguard._context import reset_aiguard_context_active
+    from ddtrace.aiguard._context import set_aiguard_context_active
+    from ddtrace.aiguard.integrations._langchain import _langchain_generate_finally
+
+    outer = set_aiguard_context_active()
+    try:
+        _langchain_generate_finally()
+        assert is_aiguard_context_active() is True
+    finally:
+        reset_aiguard_context_active(outer)
+
+
+@pytest.mark.skipif(
+    parse_version(langchain_core.__version__) < (0, 2, 0),
+    reason="astream_events(version='v2') needs langchain-core 0.2",
+)
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_astream_events_of_a_buffered_stream_emit_every_chunk_after_verdict(mock_execute_request, langchain):
+    """The buffered run stays open until its chunks are returned, so astream_events() still emits them."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream_events = []
+    with _stream_evaluation_on():
+        async for event in FakeListChatModel(responses=["hello"]).astream_events("hi", version="v2"):
+            if event["event"] == "on_chat_model_stream":
+                stream_events.append(mock_execute_request.call_count)
+
+    assert len(stream_events) == len("hello")
+    assert set(stream_events) == {2}
+
+
+def test_unpatch_removes_every_layer_of_the_stream_wrappers(langchain):
+    """AI Guard's layer sits outside the integration's; unpatch must take both off, newest first."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+
+    from ddtrace.contrib.internal.langchain.patch import unpatch
+
+    unpatch()
+
+    assert not hasattr(BaseChatModel.__dict__["stream"], "__wrapped__")
+    assert not hasattr(BaseChatModel.__dict__["astream"], "__wrapped__")
+
+
+class _FailingStream:
+    """A stream that yields one chunk, then fails; records whether the reader closed it."""
+
+    def __init__(self):
+        self.closed = False
+        self._sent = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._sent:
+            raise RuntimeError("provider read failed")
+        self._sent = True
+        return "chunk"
+
+    def close(self):
+        self.closed = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        return self.__next__()
+
+    async def aclose(self):
+        self.closed = True
+
+
+def test_buffered_stream_closes_the_stream_when_a_read_fails():
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations._langchain import _CallScope
+    from ddtrace.aiguard.integrations._langchain import _read_then_replay
+
+    stream = _FailingStream()
+    with pytest.raises(RuntimeError, match="provider read failed"):
+        list(_read_then_replay(_CallScope(Mock(), []), stream))
+
+    assert stream.closed
+
+
+@pytest.mark.asyncio
+async def test_buffered_astream_closes_the_stream_when_a_read_fails():
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations._langchain import _aread_then_replay
+    from ddtrace.aiguard.integrations._langchain import _CallScope
+
+    stream = _FailingStream()
+    with pytest.raises(RuntimeError, match="provider read failed"):
+        [chunk async for chunk in _aread_then_replay(_CallScope(Mock(), []), stream)]
+
+    assert stream.closed
+
+
+class _BadCloseStream(_FailingStream):
+    """A stream whose close raises; it yields one chunk, then fails or ends."""
+
+    def __init__(self, fail):
+        super().__init__()
+        self._fail = fail
+
+    def __next__(self):
+        if self._sent and not self._fail:
+            raise StopIteration
+        return super().__next__()
+
+    def close(self):
+        raise ValueError("close failed")
+
+
+@pytest.mark.parametrize("fail", [True, False], ids=["read-failed", "exhausted"])
+def test_a_failing_close_does_not_replace_the_outcome_of_the_drain(fail):
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard.integrations._langchain import _CallScope
+    from ddtrace.aiguard.integrations._langchain import _read_then_replay
+
+    replay = _read_then_replay(_CallScope(Mock(), []), _BadCloseStream(fail))
+    if fail:
+        with pytest.raises(RuntimeError, match="provider read failed"):
+            list(replay)
+    else:
+        assert list(replay) == ["chunk"]
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_streamed_tool_call_is_marked_evaluated_on_the_returned_chunks(mock_execute_request, langchain):
+    """An agent that assembles the returned chunks must see the streamed tool call as already evaluated."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessageChunk
+    from langchain_core.outputs import ChatGenerationChunk
+
+    from ddtrace.aiguard.integrations._langchain import _tool_call_already_evaluated
+
+    class _ToolCallStreamingModel(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake-tool-call-stream"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            raise NotImplementedError
+
+        def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content="", tool_call_chunks=[{"name": "add", "args": '{"a": 1', "id": "call_1", "index": 0}]
+                )
+            )
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content="", tool_call_chunks=[{"name": None, "args": ', "b": 1}', "id": None, "index": 0}]
+                )
+            )
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with _stream_evaluation_on():
+        chunks = list(_ToolCallStreamingModel().stream(input="What is 1 + 1?"))
+
+    aggregate = chunks[0]
+    for chunk in chunks[1:]:
+        aggregate = aggregate + chunk
+    assert _tool_call_already_evaluated(aggregate, "add", {"a": 1, "b": 1})
+
+
+class _RaisingErrorHandler(BaseCallbackHandler):
+    raise_error = True
+
+    def on_llm_error(self, error, **kwargs):
+        raise ValueError("callback failed")
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_a_raising_error_callback_does_not_replace_the_block(mock_execute_request, langchain):
+    """The block is a BaseException; a callback error must not turn it into a catchable Exception."""
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    with _stream_evaluation_on(), pytest.raises(AIGuardAbortError):
+        list(
+            FakeListChatModel(responses=["blocked"]).stream(input="hi", config={"callbacks": [_RaisingErrorHandler()]})
+        )
+
+
+def test_generate_finally_after_a_failed_before_pops_its_own_scope():
+    """If .before fails while reading its prompts, .finally must not pop the enclosing call's scope."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard._context import is_aiguard_context_active
+    from ddtrace.aiguard._context import reset_aiguard_context_active
+    from ddtrace.aiguard.integrations import _langchain as aiguard_langchain
+
+    def failing_prompts():
+        raise RuntimeError("bad prompts")
+        yield
+
+    outer = aiguard_langchain._push_generate_scope(Mock())
+    try:
+        with pytest.raises(RuntimeError, match="bad prompts"):
+            aiguard_langchain._langchain_chatmodel_generate_before(Mock(), failing_prompts())
+        aiguard_langchain._langchain_generate_finally()
+
+        assert aiguard_langchain._SCOPES.get()[-1] is outer
+        assert is_aiguard_context_active() is True
+    finally:
+        aiguard_langchain._SCOPES.set(aiguard_langchain._SCOPES.get()[:-1])
+        reset_aiguard_context_active(outer.claim)

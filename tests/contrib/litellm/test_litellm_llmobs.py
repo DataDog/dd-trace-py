@@ -4,8 +4,8 @@ import pytest
 
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metrics

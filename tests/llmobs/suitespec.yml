@@ -1,5 +1,12 @@
 ---
 components:
+  elevenlabs:
+    - ddtrace/contrib/internal/elevenlabs/*
+  aws_sdk_bedrock_runtime:
+    - ddtrace/contrib/internal/aws_sdk_bedrock_runtime/*
+    - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime.py
+    - ddtrace/llmobs/_integrations/aws_sdk_bedrock_runtime_utils.py
+    - ddtrace/contrib/_events/aws_sdk_bedrock_runtime.py
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
   claude_agent_sdk:
@@ -23,6 +30,8 @@ components:
     - ddtrace/contrib/internal/mcp/*
   mistralai:
     - ddtrace/contrib/internal/mistralai/*
+  typesafe:
+    - ddtrace/contrib/internal/typesafe/*
   openai:
     - ddtrace/contrib/internal/openai/*
   langgraph:
@@ -36,13 +45,45 @@ components:
   vllm:
     - ddtrace/contrib/internal/vllm/*
 suites:
-  anthropic:
-    venvs_per_job: 6
+  elevenlabs:
+    venvs_per_job: 2
+    services: [testagent]
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@contrib'
+      - '@elevenlabs'
+      - '@llmobs'
+      - tests/contrib/elevenlabs/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/elevenlabs
+      variants:
+        - name: elevenlabs
+          python: ['3.10', '3.12']
+          dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
+  aws_sdk_bedrock_runtime:
+    paths:
+      - "@bootstrap"
+      - "@core"
+      - "@tracing"
+      - "@contrib"
+      - "@aws_sdk_bedrock_runtime"
+      - "@llmobs"
+      - tests/contrib/aws_sdk_bedrock_runtime/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
+      variants:
+        - name: aws_sdk_bedrock_runtime
+          python: ["3.12", "3.13", '3.14']
+          dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
+  anthropic:
+    # TODO(py-315): the anthropic SDK is not 3.15-ready: the old row rejects
+    # new API kwargs and the newest row hits pydantic model construction
+    # errors. Re-add 3.15 once the SDK supports it.
+    venvs_per_job: 6
+    paths:
+      - '@bootstrap'
       - '@anthropic'
       - '@requests'
       - '@llmobs'
@@ -62,9 +103,6 @@ suites:
     venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@claude_agent_sdk'
       - '@llmobs'
       - tests/contrib/claude_agent_sdk/*
@@ -84,14 +122,19 @@ suites:
           dependencies: ['claude-agent-sdk==0.1.49', pytest-asyncio]
         - name: claude_agent_sdk
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: [claude-agent-sdk, pytest-asyncio]
+          # Pinned: claude-agent-sdk deletes old releases from PyPI (to free project
+          # storage), which breaks unpinned locks once the resolved version is gone.
+          # 0.1.22 is the closest surviving release to the previously resolved 0.1.21.
+          dependencies: ['claude-agent-sdk==0.1.22', pytest-asyncio]
+        - name: claude_agent_sdk
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          # Pinned to the newest 0.2.x release past the 48h lock cooldown so the
+          # current SDK line stays covered without latest-tracking (see above).
+          dependencies: ['claude-agent-sdk==0.2.160', pytest-asyncio]
   google_adk:
-    venvs_per_job: 3
+    venvs_per_job: 7
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@google_adk'
       - '@llmobs'
       - tests/contrib/google_adk/*
@@ -104,12 +147,8 @@ suites:
         - name: google_adk
           dependencies: [pytest-asyncio, pytest-xdist, google-adk, vcrpy, deprecated]
   google_genai:
-    venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@google_genai'
       - '@llmobs'
       - tests/contrib/google_genai/*
@@ -121,11 +160,11 @@ suites:
         - name: google_genai
           dependencies: [pytest-asyncio, google-genai]
   vertexai:
+    # TODO(py-315): the resolved google-genai tool definitions serialize
+    # differently on 3.15 and the span data assertions fail. Re-add 3.15
+    # after updating the expectations.
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@vertexai'
       - '@llmobs'
       - tests/contrib/vertexai/*
@@ -138,12 +177,9 @@ suites:
         - name: vertexai
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
-    venvs_per_job: 3
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@llama_index'
       - '@llmobs'
       - tests/contrib/llama_index/*
@@ -163,13 +199,13 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
+    # TODO(py-315): every variant pins greenlet==3.0.3, which requires python
+    # <3.15, so the 3.15 environments fail to build. Re-add 3.15 with a
+    # greenlet pin that supports it.
     venvs_per_job: 4
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@langchain'
       - '@requests'
       - '@llmobs'
@@ -192,9 +228,6 @@ suites:
     venvs_per_job: 3
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@litellm'
       - '@llmobs'
       - tests/contrib/litellm/*
@@ -204,7 +237,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/litellm
       variants:
         - name: litellm
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.65.4', 'openai==1.68.2']
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -214,10 +247,12 @@ suites:
           python: ['3.14']
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
   llmobs:
+    # TODO(py-315): the suite fails on 3.15: one variant cannot import deepeval
+    # (no 3.15 support) and another hits a pyo3 panic in native code surfaced as
+    # stderr noise. Re-add 3.15 once deepeval supports it and the pyo3 panic is
+    # triaged.
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
       - tests/cassettes/anthropic/*
@@ -230,7 +265,7 @@ suites:
       - tests/cassettes/tests.llmobs.*
     snapshot: true
     no_proxy: true
-    venvs_per_job: 2
+    venvs_per_job: 4
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
       variants:
@@ -241,21 +276,20 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, openai, google-cloud-aiplatform, boto3, 'pytest-asyncio==0.21.1', pytest-xdist, langchain, pandas, 'openfeature-sdk>=0.8,<1', deepeval, 'pydantic-evals>=1.31']
         - name: llmobs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
+    # TODO(py-315): the unpinned row resolves mcp 2.x, which renames FastMCP to
+    # MCPServer and the tests cannot import mcp.server.fastmcp. Re-add 3.15
+    # once the suite supports mcp 2.x (or pin mcp<2 here).
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@mcp'
       - '@llmobs'
       - tests/contrib/mcp/*
       - tests/snapshots/tests.contrib.mcp.*
     snapshot: true
-    venvs_per_job: 5
     matrix:
       command: pytest {cmdargs} tests/contrib/mcp
       variants:
@@ -264,13 +298,13 @@ suites:
           dependencies: [pytest-asyncio, 'mcp~=1.10.0']
         - name: mcp
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, 'mcp<2']
+        - name: mcp
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, mcp]
   mistralai:
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@mistralai'
       - '@llmobs'
       - tests/contrib/mistralai/*
@@ -286,13 +320,35 @@ suites:
         - name: mistralai
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, mistralai]
-  openai:
-    venvs_per_job: 3
+  typesafe:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@contrib'
+      - '@typesafe'
+      - '@llmobs'
+      - tests/contrib/typesafe/*
+      - tests/cassettes/typesafe/*
+      - tests/snapshots/tests.contrib.typesafe.*
+    snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/contrib/typesafe
+      variants:
+        - name: typesafe
+          python: ['3.10']
+          dependencies: [pytest-asyncio, 'typesafe-sdk~=0.6.0']
+        - name: typesafe
+          python: ['3.10', '3.13', '3.14']
+          dependencies: [pytest-asyncio, typesafe-sdk]
+  openai:
+    # TODO(py-315): the old openai rows fail to build on 3.15 (requires-python
+    # <3.15 in the dependency chain) and the newest rows hit openai SDK pydantic
+    # model construction errors on 3.15. Re-add 3.15 once the openai SDK
+    # supports it.
+    venvs_per_job: 5
+    paths:
+      - '@bootstrap'
       - '@openai'
       - '@requests'
       - '@llmobs'
@@ -313,7 +369,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, openai, pillow]
         - name: openai
-          python: ['3.10', '3.13']
+          python: ['3.10', '3.13', '3.14']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai~=3.26.0', pillow]
         - name: openai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -325,12 +381,9 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [vcrpy, 'urllib3~=1.26', 'pytest-asyncio==0.21.1', pytest-randomly, 'openai==1.66.0', pillow]
   langgraph:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@langgraph'
       - '@requests'
       - '@llmobs'
@@ -340,37 +393,38 @@ suites:
       command: pytest {cmdargs} tests/contrib/langgraph
       variants:
         - name: langgraph
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [pytest-asyncio, 'langgraph==0.2.23', langchain_openai, langchain_core, langchain]
         - name: langgraph
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [pytest-asyncio, 'langgraph==0.3.21', langchain_openai, langchain_core, langchain]
         - name: langgraph
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [pytest-asyncio, 'langgraph==0.3.22', langchain_openai, langchain_core, langchain]
         - name: langgraph
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain]
         - name: langgraph
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, 'langgraph==0.2.23', langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
         - name: langgraph
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, 'langgraph==0.3.21', langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
         - name: langgraph
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, 'langgraph==0.3.22', langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
         - name: langgraph
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, langgraph, langchain_openai, langchain_core, langchain, 'ormsgpack>=1.11.0']
   crewai:
+    # TODO(py-315): crewai requires chromadb, which has no cp315 wheels in
+    # stable releases (pre-releases only), and the onnxruntime it pulls in
+    # (1.31.0 ships cp311–cp314t only) lacks 3.15 support too. Add 3.15 to the
+    # python lists once those dependencies support Python 3.15.
     venvs_per_job: 2
     retry: 2
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@crewai'
       - '@requests'
       - '@llmobs'
@@ -387,12 +441,9 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
   openai_agents:
-    venvs_per_job: 4
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@openai_agents'
       - '@llmobs'
       - tests/contrib/openai_agents/*
@@ -421,12 +472,9 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [vcrpy, pytest-asyncio, openai, openai-agents]
   pydantic_ai:
-    venvs_per_job: 5
+    venvs_per_job: 8
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
       - '@pydantic_ai'
       - '@llmobs'
       - tests/contrib/pydantic_ai/*
@@ -445,16 +493,17 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==1.0.0', 'pydantic==2.12.0a1']
         - name: pydantic_ai
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==1.63.0']
   vllm:
+    # TODO(py-315): torch has no cp315 wheels yet (2.14.1 ships cp310–cp314t
+    # only), and the pinned 'vllm~=0.10.2' row also resolves an onnxruntime
+    # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
+    # run on Python 3.15 yet. Add 3.15 to the python lists once those
+    # dependencies publish 3.15 wheels.
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
-      - '@vllm'
       - '@llmobs'
       - tests/contrib/vllm/*
       - tests/snapshots/tests.contrib.vllm.*

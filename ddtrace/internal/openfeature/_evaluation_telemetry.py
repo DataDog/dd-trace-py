@@ -32,7 +32,7 @@ class EvaluationTelemetryHook(Hook):
         active: ContextVar[typing.Optional["EvaluationTelemetryHook"]],
     ) -> None:
         self._hooks = hooks
-        self._active = active
+        self._handoff = active
         self._token: typing.Optional[Token[typing.Optional[EvaluationTelemetryHook]]] = None
         self._hook_context: typing.Optional[HookContext] = None
         self._resolved_context: typing.Optional[EvaluationContext] = None
@@ -43,7 +43,7 @@ class EvaluationTelemetryHook(Hook):
     def before(self, hook_context: HookContext, hints: HookHints) -> None:
         self._hook_context = hook_context
         self._suppressed = _opted_out(hook_context.evaluation_context)
-        self._token = self._active.set(self)
+        self._token = self._handoff.set(self)
 
     def capture_resolution_context(self, context: typing.Optional[EvaluationContext]) -> None:
         # OpenFeature merges before-hook returns into a new context, but does
@@ -57,10 +57,11 @@ class EvaluationTelemetryHook(Hook):
         # The handoff ends at resolver entry, before native evaluation or any
         # nested calls. A copied context cannot reset the caller's token.
         # finally_after restores that token in the caller's context.
-        self._active.set(None)
+        self._handoff.set(None)
 
     def error(self, hook_context: HookContext, exception: Exception, hints: HookHints) -> None:
-        # Application before hooks can fail before our before stage runs.
+        # Provider NOT_READY/FATAL skips all before hooks; application before
+        # hooks can also fail before our before stage runs.
         # Capture before application error hooks can remove the attribute.
         if not self._resolved:
             self._suppressed = self._suppressed or _opted_out(hook_context.evaluation_context)
@@ -93,4 +94,4 @@ class EvaluationTelemetryHook(Hook):
     def _release(self) -> None:
         if self._token is not None:
             token, self._token = self._token, None
-            self._active.reset(token)
+            self._handoff.reset(token)

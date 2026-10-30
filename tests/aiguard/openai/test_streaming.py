@@ -1,11 +1,12 @@
 """Streaming response-evaluation AI Guard tests for the OpenAI SDK.
 
 All "buffered" cases run with ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true``
-(via the ``*_buffered`` fixtures). The flag-off contract pins live alongside the
-non-streaming tests in ``test_openai.py`` / ``test_responses.py`` and are kept
-unchanged.
+(via the *_buffered fixtures). Flag-off cases assert request inputs are evaluated and
+the stream is not buffered.
 """
 
+import asyncio
+import time
 from unittest.mock import patch
 
 import pytest
@@ -179,6 +180,137 @@ async def test_chat_stream_async_buffered_block(mock_execute_request, async_open
     assert mock_execute_request.call_count == 2
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"], ids=["allow", "deny"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_chat_stream_async_buffered_evaluates_off_event_loop(
+    mock_execute_request, async_openai_client_stream_buffered, decision
+):
+    """A slow buffered-response evaluation must not stall other asyncio tasks; a block still propagates."""
+    ticks = 0
+
+    async def ticker():
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.005)
+
+    ticks_during_response_eval = []
+
+    def execute_request(*args, **kwargs):
+        if mock_execute_request.call_count == 1:  # before-hook request evaluation
+            return mock_evaluate_response("ALLOW")
+        start = ticks
+        time.sleep(0.3)
+        ticks_during_response_eval.append(ticks - start)
+        return mock_evaluate_response(decision)
+
+    mock_execute_request.side_effect = execute_request
+    ticker_task = asyncio.create_task(ticker())
+    try:
+        stream = await async_openai_client_stream_buffered.chat.completions.create(
+            model=CHAT_MODEL, messages=_user_messages(), stream=True
+        )
+        seen = []
+        if decision == "ALLOW":
+            seen = [chunk async for chunk in stream]
+            assert seen
+        else:
+            with pytest.raises(AIGuardAbortError):
+                async for chunk in stream:
+                    seen.append(chunk)
+            assert seen == []
+    finally:
+        ticker_task.cancel()
+        await asyncio.gather(ticker_task, return_exceptions=True)
+
+    assert mock_execute_request.call_count == 2
+    # The ticker kept running while the blocking evaluation slept in its worker thread.
+    assert ticks_during_response_eval and ticks_during_response_eval[0] > 1
+
+
+def _run_without_event_loop(coro):
+    """Drive a coroutine that never suspends, with no asyncio loop running (as under trio)."""
+    try:
+        coro.send(None)
+    except StopIteration as stop:
+        return stop.value
+    raise AssertionError("coroutine suspended")
+
+
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"], ids=["allow", "deny"])
+def test_async_buffered_stream_without_asyncio_loop_evaluates_inline(decision):
+    """Without a running asyncio loop the evaluation runs inline: allow replays, block raises."""
+
+    async def source():
+        for chunk in ("a", "b"):
+            yield chunk
+
+    def evaluate(response):
+        assert response == ["a", "b"]
+        if decision == "DENY":
+            raise AIGuardAbortError(action="DENY", reason="blocked")
+
+    async def consume(stream):
+        return [chunk async for chunk in stream]
+
+    stream = BufferedAIGuardAsyncStream(source(), reconstruct=list, evaluate=evaluate)
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        if decision == "ALLOW":
+            assert _run_without_event_loop(consume(stream)) == ["a", "b"]
+        else:
+            with pytest.raises(AIGuardAbortError):
+                _run_without_event_loop(consume(stream))
+
+
+class _FinalMessageStream:
+    """Async stream with an Anthropic-style get_final_message that returns the full response."""
+
+    def __init__(self):
+        self._chunks = iter(["a", "b"])
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration
+
+    async def get_final_message(self):
+        return "full message"
+
+
+@pytest.mark.asyncio
+async def test_async_buffered_stream_concurrent_and_later_callers_share_the_verdict():
+    """A caller arriving during or after a blocking evaluation must not read the exhausted stream unevaluated."""
+    evaluated = []
+
+    def evaluate(response):
+        evaluated.append(response)
+        time.sleep(0.2)
+        # Mirrors the listeners, which skip an empty response.
+        if response:
+            raise AIGuardAbortError(action="DENY", reason="blocked")
+
+    async def consume(stream):
+        return [chunk async for chunk in stream]
+
+    async def final_message_during_evaluation(stream):
+        await asyncio.sleep(0.05)
+        return await stream.get_final_message()
+
+    stream = BufferedAIGuardAsyncStream(_FinalMessageStream(), reconstruct=list, evaluate=evaluate)
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        results = await asyncio.gather(consume(stream), final_message_during_evaluation(stream), return_exceptions=True)
+        assert [type(result) for result in results] == [AIGuardAbortError, AIGuardAbortError]
+        with pytest.raises(AIGuardAbortError):
+            await stream.get_final_message()
+
+    assert evaluated and all(response == ["a", "b"] for response in evaluated)
+
+
 # ---------------------------------------------------------------------------
 # Responses API
 # ---------------------------------------------------------------------------
@@ -186,7 +318,7 @@ async def test_chat_stream_async_buffered_block(mock_execute_request, async_open
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_responses_stream_sync_buffered_allow(mock_execute_request, openai_responses_stream_client_buffered):
-    """ALLOW: responses.create(stream=True) buffers; before-hook (lifted) + response eval."""
+    """ALLOW: responses.create(stream=True) buffers; request eval + response eval."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     stream = openai_responses_stream_client_buffered.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
@@ -231,14 +363,83 @@ async def test_responses_stream_async_buffered_allow(
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_responses_stream_flag_off_not_buffered(mock_execute_request, openai_responses_stream_client):
-    """Flag off: streaming Responses are skipped entirely (no wrapper, no eval)."""
+    """Flag off: streaming Responses are not buffered; only the request inputs are evaluated."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     stream = openai_responses_stream_client.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
     assert not isinstance(stream, BufferedAIGuardStream)
     list(stream)
 
-    mock_execute_request.assert_not_called()
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_responses_stream_async_flag_off_evaluates_input(
+    mock_execute_request, async_openai_responses_stream_client
+):
+    """Flag off: async streaming Responses are not buffered; only the request inputs are evaluated."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = await async_openai_responses_stream_client.responses.create(
+        model=RESPONSES_MODEL, input="Hello", stream=True
+    )
+    assert not isinstance(stream, BufferedAIGuardAsyncStream)
+    assert [event async for event in stream]
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_responses_stream_async_flag_off_blocks_on_deny(
+    mock_execute_request, async_openai_responses_stream_client, decision
+):
+    """Flag off: a blocking verdict on async streaming request inputs raises before the stream is returned."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        await async_openai_responses_stream_client.responses.create(model=RESPONSES_MODEL, input="Hello", stream=True)
+
+    assert isinstance(exc_info.value, AIGuardAbortError)
+    mock_execute_request.assert_called_once()
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_raw_response_stream_flag_off_evaluates_input(mock_execute_request, openai_responses_stream_client):
+    """Flag off: with_raw_response.create(stream=True) evaluates the request inputs once, unbuffered."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    raw = openai_responses_stream_client.responses.with_raw_response.create(
+        model=RESPONSES_MODEL, input="Hello", stream=True
+    )
+    stream = raw.parse()
+    assert not isinstance(stream, BufferedAIGuardStream)
+    assert list(stream)
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_raw_response_stream_flag_off_blocks_on_deny(
+    mock_execute_request, openai_responses_stream_client, decision
+):
+    """Flag off: a blocking verdict on with_raw_response.create(stream=True) inputs raises AIGuardAbortError."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        openai_responses_stream_client.responses.with_raw_response.create(
+            model=RESPONSES_MODEL, input="Hello", stream=True
+        )
+
+    assert isinstance(exc_info.value, AIGuardAbortError)
+    mock_execute_request.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

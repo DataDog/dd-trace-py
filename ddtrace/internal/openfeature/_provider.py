@@ -8,7 +8,6 @@ and forwards the raw bytes to the native FFE processor.
 from collections import OrderedDict
 from collections.abc import MutableMapping
 from contextvars import ContextVar
-import threading
 import time
 import typing
 
@@ -28,9 +27,14 @@ from openfeature.provider import ProviderStatus
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
+from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _register_provider
 from ddtrace.internal.openfeature._config import _unregister_provider
+from ddtrace.internal.openfeature._debug_logging_hook import DebugLoggingHook
+from ddtrace.internal.openfeature._debug_logging_hook import debug_logging_enabled
+from ddtrace.internal.openfeature._debug_logging_hook import log_provider_resolution
+from ddtrace.internal.openfeature._debug_logging_hook import warn_raw_evaluation_data_logged
 from ddtrace.internal.openfeature._evaluation_telemetry import EvaluationTelemetryHook
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
@@ -53,6 +57,7 @@ from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.internal.threads import Event
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -141,7 +146,7 @@ class DataDogProvider(AbstractProvider):
 
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
-        self._config_received = threading.Event()
+        self._config_received = Event()
         self._initialization_timed_out = False
 
         # Read through a fresh config instance so values reflect the environment at
@@ -224,6 +229,15 @@ class DataDogProvider(AbstractProvider):
         if self._active and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
             self._span_enrichment_hook = SpanEnrichmentHook()
 
+        # Evaluation-detail logging for self-diagnosis. Registered only when debug
+        # logs would actually be emitted, so it costs nothing otherwise. The
+        # provider-resolution line is gated on this hook too, so enabling debug after
+        # creation never starts the evaluation-detail lines; warning here covers them.
+        self._debug_logging_hook: typing.Optional[DebugLoggingHook] = None
+        if self._active and debug_logging_enabled():
+            self._debug_logging_hook = DebugLoggingHook()
+            warn_raw_evaluation_data_logged()
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -250,11 +264,17 @@ class DataDogProvider(AbstractProvider):
         3. SpanEnrichmentHook (_span_enrichment.py) — registered only when
            DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED is enabled (default off);
            accumulates feature-flag metadata onto the local-root APM span.
+        4. DebugLoggingHook (_debug_logging_hook.py) — registered only when debug logging is
+           enabled (DD_TRACE_DEBUG=true); logs the details of every evaluation.
 
-        When per-subject telemetry opt-out is enabled, these hooks are returned
+        When per-subject telemetry opt-out is enabled, the first three hooks are returned
         inside one new EvaluationTelemetryHook per call. This relies on the SDK
         calling get_provider_hooks once per evaluation. The wrapper forwards
         only finally_after, so the wrapped hooks must stay finally-only.
+        The resolver reads a ContextVar to capture the final merged context. A
+        custom resolver running in a thread or executor without copying contextvars
+        skips that handoff, so the gate sees only the pre-hook evaluation context.
+        Debug logging remains outside the telemetry gate.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
@@ -266,7 +286,9 @@ class DataDogProvider(AbstractProvider):
         if self._enable_evaluation_telemetry_opt_out_parameter and hooks:
             # Fresh per-invocation state avoids requiring a hook-data API
             # from older OpenFeature versions.
-            return [EvaluationTelemetryHook(hooks, self._evaluation_telemetry)]
+            hooks = [EvaluationTelemetryHook(hooks, self._evaluation_telemetry)]
+        if self._debug_logging_hook is not None:
+            hooks.append(self._debug_logging_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -291,6 +313,9 @@ class DataDogProvider(AbstractProvider):
         if not self._active:
             return
 
+        logger.debug(
+            "Feature Flags: waiting for provider initialization (timeout %.1fs)...", self._initialization_timeout
+        )
         self._initialization_timed_out = False
 
         # Register for RC config callbacks (in initialize, not __init__, so
@@ -319,15 +344,20 @@ class DataDogProvider(AbstractProvider):
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).
         if _get_ffe_snapshot() is not None:
-            logger.debug("FFE configuration already available, provider is READY")
             self._config_received.set()
             self._status = ProviderStatus.READY
+            logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")
             return  # SDK will dispatch PROVIDER_READY
 
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
+        wait_started = time.monotonic()
         if self._config_received.wait(timeout=self._initialization_timeout):
             self._status = ProviderStatus.READY
+            logger.debug(
+                "Feature Flags: provider initialized successfully (configuration received after %.2fs)",
+                time.monotonic() - wait_started,
+            )
             return  # SDK will dispatch PROVIDER_READY
 
         # the wait above must stay bounded. A blocked initialize() blocks
@@ -335,9 +365,11 @@ class DataDogProvider(AbstractProvider):
         # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
         # non-blocking registration and propagates it for blocking registration.
+        # Warning rather than error: errors are forwarded to telemetry, and a routine
+        # initialization timeout should not inflate its volume.
         logger.warning(
-            "openfeature: no Feature Flagging configuration received after %.1fs; evaluations will return "
-            "default values until configuration arrives",
+            "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
+            "evaluations will return default values until configuration arrives",
             self._initialization_timeout,
         )
         self._initialization_timed_out = True
@@ -351,6 +383,8 @@ class DataDogProvider(AbstractProvider):
         """
         if not self._active:
             return
+
+        logger.debug("Feature Flags: shutting down provider")
 
         # Stop the agentless poller if it was started.
         self._stop_configuration_source()
@@ -395,9 +429,14 @@ class DataDogProvider(AbstractProvider):
 
         # Unregister provider
         _unregister_provider(self)
+        logger.debug(
+            "Feature Flags: provider configuration callbacks detached; shared Remote Config delivery, if enabled, "
+            "stops with the tracer"
+        )
         self._status = ProviderStatus.NOT_READY
         self._config_received.clear()
         self._initialization_timed_out = False
+        logger.debug("Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work")
 
     def _start_configuration_source(self) -> None:
         """Start the agentless poller when agentless is the resolved source."""
@@ -424,6 +463,7 @@ class DataDogProvider(AbstractProvider):
         try:
             self._configuration_source.stop()
             self._configuration_source.join()
+            logger.debug("Feature Flags: agentless configuration source stopped")
         except ServiceStatusError:
             logger.debug("Agentless configuration source is already stopped", exc_info=True)
         self._configuration_source = None
@@ -475,6 +515,27 @@ class DataDogProvider(AbstractProvider):
         evaluation_context: typing.Optional[EvaluationContext] = None,
         variation_type: VariationType = VariationType.Boolean,
     ) -> FlagResolutionDetails[ResolvedValue]:
+        snapshot = _get_ffe_snapshot()
+        details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot)
+        if self._debug_logging_hook is not None:
+            log_provider_resolution(
+                flag_key,
+                variation_type,
+                default_value,
+                evaluation_context,
+                details,
+                snapshot.identity if snapshot is not None else None,
+            )
+        return details
+
+    def _resolve(
+        self,
+        flag_key: str,
+        default_value: ResolvedValue,
+        evaluation_context: typing.Optional[EvaluationContext],
+        variation_type: VariationType,
+        snapshot: typing.Optional[_FfeSnapshot],
+    ) -> FlagResolutionDetails[ResolvedValue]:
         """
         Core resolution logic for all flag types.
 
@@ -492,7 +553,6 @@ class DataDogProvider(AbstractProvider):
         # Capture one snapshot at provider entry. Every exit path
         # carries consent from the exact configuration used for resolution;
         # downstream code must never reread live configuration.
-        snapshot = _get_ffe_snapshot()
         observe_full_evaluation_data = snapshot.observe_full_evaluation_data if snapshot is not None else False
         flag_metadata: dict[str, typing.Any] = {
             EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000),
@@ -575,6 +635,13 @@ class DataDogProvider(AbstractProvider):
                     allocation_key=details.allocation_key,
                     evaluation_context=evaluation_context,
                     serial_id=details.serial_id,
+                )
+            else:
+                logger.debug(
+                    "Feature Flags: exposure not recorded for %s: exposure logging is disabled for this "
+                    "evaluation (allocation=%r)",
+                    flag_key,
+                    details.allocation_key,
                 )
 
             # Add allocation_key to the provider-entry timestamp metadata when present.
@@ -728,11 +795,13 @@ class DataDogProvider(AbstractProvider):
         """
         if not self._config_received.is_set():
             self._status = ProviderStatus.READY
-            logger.debug("First FFE configuration received, provider is now READY")
             # The SDK emits READY after successful initialization. The provider only
             # owns the recovery event after initialization reported an error.
             if self._initialization_timed_out:
+                logger.debug("Feature Flags: provider recovered: configuration received after initialization timed out")
                 self._emit_ready_event()
+            else:
+                logger.debug("First FFE configuration received, provider is now READY")
 
         # Signal the event last after status is updated.
         self._config_received.set()

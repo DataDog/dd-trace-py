@@ -16,8 +16,6 @@ from unittest import mock
 
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
-from openfeature.exception import ProviderNotReadyError
-from openfeature.provider import ProviderStatus
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -28,6 +26,7 @@ from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
 from tests.openfeature.config_helpers import create_string_flag
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -51,17 +50,9 @@ def provider_and_client():
     assert provider._flag_eval_evp_writer is not None
     assert provider._flag_eval_evp_hook is not None
 
+    set_openfeature_provider(provider)
+    client = api.get_client()
     try:
-        # Complete initialization before tests deliver configuration. OpenFeature 0.10
-        # initializes asynchronously unless the blocking registration API is used.
-        set_provider = getattr(api, "set_provider_and_wait", api.set_provider)
-        try:
-            set_provider(provider)
-        except ProviderNotReadyError:
-            # Blocking registration propagates the expected zero-timeout failure.
-            pass
-        client = api.get_client()
-        assert client.get_provider_status() == ProviderStatus.ERROR
         yield provider, client
     finally:
         api.shutdown()

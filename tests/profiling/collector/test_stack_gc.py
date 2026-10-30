@@ -99,6 +99,7 @@ def test_gc_callback_is_removed_when_native_sampler_start_fails() -> None:
 )
 def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread() -> None:
     import _thread
+    import gc
     import os
     import pathlib
     import tempfile
@@ -111,6 +112,10 @@ def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread(
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.gc_utils import gc_samples
     from tests.profiling.collector.gc_utils import slow_cyclic_collection
+
+    # Only the worker's explicit collection should produce GC samples, including
+    # while the collector starts and imports modules on the main thread.
+    gc.disable()
 
     test_name = "test_gc_frame_precedes_triggering_frame"
     pprof_prefix = str(pathlib.Path(tempfile.mkdtemp()) / test_name)

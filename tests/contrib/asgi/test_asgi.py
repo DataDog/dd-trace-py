@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable
+from contextlib import nullcontext
 from functools import partial
 import logging
 import os
@@ -15,6 +16,7 @@ import pytest
 
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
@@ -22,10 +24,13 @@ from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.utils import override_config
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 
@@ -324,6 +329,28 @@ async def test_basic_asgi(scope, test_spans):
     _check_span_tags(scope, request_span)
 
 
+def test_otel_semantics_does_not_replace_resource_with_404(tracer):
+    from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace.ext import SpanTypes
+
+    middleware = TraceMiddleware(basic_app)
+    with (
+        tracer.start_span("asgi.request", resource="GET /items/{id}", span_type=SpanTypes.WEB, activate=False) as span,
+        override_global_config(dict(_otel_trace_semantics_enabled=True)),
+        override_config("asgi", dict(obfuscate_404_resource=True)),
+    ):
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+        middleware._handle_http_response(
+            {},
+            {"type": "http.response.start", "status": 404},
+            span,
+            "GET",
+            {},
+        )
+
+        assert span.resource == "GET /items/{id}"
+
+
 @pytest.mark.asyncio
 async def test_basic_asgi_sets_ip_tags_from_peer_ip(scope, test_spans):
     """Regression test checking that, in the absence of proxy headers, IP tags are set from peer IP."""
@@ -508,6 +535,20 @@ async def test_query_string(scope, test_spans):
         assert request_span.get_tag("component") == "asgi"
         assert request_span.get_tag("span.kind") == "server"
         _check_span_tags(scope, request_span)
+
+
+@pytest.mark.asyncio
+async def test_otel_semantics_preserves_query_without_datadog_query_tracing(scope, test_spans):
+    scope["query_string"] = b"q=public"
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        app = TraceMiddleware(basic_app)
+        instance = ApplicationCommunicator(app, scope)
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+
+    request_span = test_spans.pop_traces()[0][0]
+    assert request_span.get_tag("url.query") == "q=public"
 
 
 @pytest.mark.asyncio
@@ -1003,6 +1044,83 @@ async def _send_complete_http_response(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "outcome, exc_type",
+    [
+        ("response", None),
+        ("early", RuntimeError),
+        ("early", asyncio.CancelledError),
+        ("blocked", None),
+        ("blocked_active", None),
+        ("child_error", None),
+        ("late", RuntimeError),
+        ("late", asyncio.CancelledError),
+        ("callback_error", None),
+        ("handled_exception", None),
+    ],
+)
+async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, outcome, exc_type):
+    requests, finished, response_times, finished_errors = [], [], [], []
+
+    def record_finish(span):
+        finished.append(span)
+        finished_errors.append(span.get_tag(ERROR_TYPE))
+
+    async def app(scope, receive, send):
+        requests.extend(scope["datadog"]["request_spans"])
+        for span in requests:
+            span._on_finish_callbacks.insert(0, record_finish)
+        if outcome == "early":
+            raise exc_type("request failed")
+        response_times.extend(requests[-1].start_ns / 1e9 + offset for offset in (1, 2, 3))
+        monkeypatch.setattr(
+            "ddtrace.contrib.internal.asgi.middleware.Time", mock.Mock(time=mock.Mock(side_effect=response_times))
+        )
+        if outcome in ("blocked", "blocked_active"):
+            blocked = {"type": "auto", "status_code": 403}
+            if outcome == "blocked_active":
+                monkeypatch.setattr("ddtrace.contrib.internal.asgi.middleware.get_blocked", lambda: blocked)
+            raise BlockingException(blocked)
+        if outcome in ("late", "child_error", "callback_error", "handled_exception"):
+            requests[-1].error = 1
+        if outcome == "callback_error":
+            requests[0]._on_finish_callbacks.append(mock.Mock(side_effect=RuntimeError("finish failed")))
+        await _send_complete_http_response(receive, send)
+        if outcome == "late":
+            raise exc_type("cleanup failed")
+
+    middleware = TraceMiddleware(TraceMiddleware(TraceMiddleware(app)))
+    receive = mock.AsyncMock(return_value={"type": "http.request", "body": b""})
+    send = mock.AsyncMock()
+    scope = _http_scope()
+    if outcome == "handled_exception":
+        try:
+            raise RuntimeError("already handled")
+        except RuntimeError:
+            await middleware(scope, receive, send)
+    else:
+        with pytest.raises(exc_type) if exc_type else nullcontext():
+            await middleware(scope, receive, send)
+    if not exc_type:
+        assert send.call_args_list[0].args[0]["status"] == (403 if outcome.startswith("blocked") else 200)
+
+    assert len(requests) == 3
+    assert finished == requests[::-1]
+    assert all(child._parent is parent for parent, child in zip(requests, requests[1:]))
+    assert not scope["datadog"]["request_spans"]
+    assert not scope["datadog"].get("request_spans_to_finish")
+    assert not tracer._span_aggregator._traces
+    if exc_type:
+        assert all(error and error.endswith(exc_type.__name__) for error in finished_errors)
+    elif outcome == "handled_exception":
+        assert not any(finished_errors)
+    if outcome not in ("early", "blocked_active"):
+        queued = requests if outcome in ("response", "blocked") else requests[:-1]
+        for span, end_time in zip(queued, response_times):
+            assert span.start_ns + span.duration_ns == int(end_time * 1e9)
+
+
+@pytest.mark.asyncio
 async def test_unfinished_llm_child_not_finished_when_request_completes(test_spans):
     """An ASGI request must never force-finish LLM spans it did not open.
 
@@ -1093,3 +1211,54 @@ async def test_unfinished_non_llm_child_not_finished_when_request_completes(test
     assert worker_span.duration_ns is None
     assert test_spans.pop_traces() == []
     worker_span.finish()
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
+def test_otel_semantics_server_span_attributes():
+    import asyncio
+
+    from asgiref.testing import ApplicationCommunicator
+
+    from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+    from tests.contrib.otel_http_server import TEST_CLIENT_ADDRESS
+    from tests.contrib.otel_http_server import TEST_USER_AGENT
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    async def app(scope, receive, send):
+        await receive()
+        await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": b"*"})
+
+    async def request(spans, path, query=b""):
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": path,
+            "query_string": query,
+            "scheme": "http",
+            "server": ("127.0.0.1", 8080),
+            "client": ("127.0.0.1", 32767),
+            "headers": [
+                [b"user-agent", TEST_USER_AGENT.encode()],
+                [b"x-forwarded-for", TEST_CLIENT_ADDRESS.encode()],
+            ],
+        }
+        communicator = ApplicationCommunicator(TraceMiddleware(app), scope)
+        await communicator.send_input({"type": "http.request", "body": b""})
+        await communicator.receive_output(1)
+        await communicator.receive_output(1)
+        await communicator.wait()
+        return spans.get_root_span()
+
+    async def run():
+        with scoped_tracer() as tracer:
+            spans = TracerSpanContainer(tracer)
+
+            # A generic ASGI app has no route, so the resource is the method alone.
+            span = await request(spans, "/ok", query=b"q=1")
+            assert_otel_server_span(span, method="GET", status=200, path="/ok", query="q=1", resource="GET")
+            assert span.get_metric("server.port") == 8080
+
+    asyncio.run(run())
