@@ -15,11 +15,10 @@ from os.path import splitext
 from pathlib import Path
 import platform
 import random
-import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
-from tempfile import mkdtemp
+from tempfile import TemporaryDirectory
 import time
 from typing import Any
 from typing import Callable
@@ -30,6 +29,7 @@ from unittest import mock
 from uuid import uuid4
 import warnings
 
+from _pytest.compat import getfuncargnames
 import pytest
 
 import ddtrace
@@ -60,6 +60,11 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.writer import AgentWriterInterface
 from tests import utils
+from tests.process import DDTRACE_RUN
+from tests.process import DEFAULT_TIMEOUT
+from tests.process import PythonProcess
+from tests.process import check_scenario_outcome
+from tests.process import run_process
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
 from tests.utils import request_token
@@ -79,10 +84,6 @@ code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 ITR_UNSKIPPABLE_DDTRACE_MARKERS = ("subprocess", "snapshot")
-
-# Prefer the wrapper installed with the running interpreter: the first ddtrace-run found on PATH may
-# belong to another environment and import a ddtrace build that does not match sys.executable.
-DDTRACE_RUN: str = shutil.which("ddtrace-run", path=os.path.dirname(sys.executable)) or "ddtrace-run"
 
 # Stash keys for storing original test name and nodeid before Python version suffix is added
 # For pytest >= 7.1.0, use StashKey; for older versions, use attribute names
@@ -335,6 +336,11 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     yield _run
 
 
+@pytest.fixture
+def python_process(tmp_path):
+    return PythonProcess(tmp_path / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
+
+
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
@@ -414,7 +420,9 @@ class FunctionDefFinder(ast.NodeVisitor):
 
         t = ast.parse(path.read_text())
         self.visit(t)
-        t.body = self._body or []
+        if self._body is None:
+            raise ValueError(f"No synchronous subprocess scenario named {self.func_name} in {file}")
+        t.body = self._body
         return t
 
 
@@ -436,26 +444,22 @@ def is_stream_ok(
 
 
 def run_function_from_file(item, params=None):
-    file = Path(item.location[0])
-    func = item.originalname
     marker = item.get_closest_marker("subprocess")
-    run_module = marker.kwargs.get("run_module", False)
 
     args = [sys.executable]
 
-    timeout = marker.kwargs.get("timeout", None)
+    timeout = marker.kwargs.get("timeout", DEFAULT_TIMEOUT if isinstance(item, ClassSubprocessItem) else None)
     check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
         args.insert(0, DDTRACE_RUN)
 
-    # Add -m if running script as a module
-    if run_module:
-        args.append("-m")
-
     # Override environment variables for the subprocess
     env = os.environ.copy()
+    if isinstance(item, ClassSubprocessItem):
+        # Match the normal test environment without running the parent git-metadata fixture.
+        env.pop("DD_GIT_REPOSITORY_URL", None)
     pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
@@ -473,74 +477,145 @@ def run_function_from_file(item, params=None):
     expected_out = marker.kwargs.get("out", "")
     expected_err = marker.kwargs.get("err", "")
 
-    # Create a temporary dir named `ddtrace_subprocess_dir` that will be used for service naming
-    # consistency. Use a unique parent dir so parallel xdist workers don't share the same path
-    # and race on cleanup (shutil.rmtree would delete files still in use by other workers).
-    temp_dir = mkdtemp()
-    custom_temp_dir = os.path.join(temp_dir, DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
-
-    os.makedirs(custom_temp_dir, exist_ok=True)
-
-    try:
-        with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
-            # Keep test assertions active while imported application code retains its optimization level.
-            dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec", optimize=0), fp.file)
-
-            # If running a module with -m, we change directory to the module's
-            # folder and run the module directly.
-            if run_module:
-                cwd, module = split(splitext(fp.name)[0])
-                args.append(module)
-            else:
-                cwd = None
-                args.append(fp.name)
-
-            # Add any extra requested args
-            args.extend(marker.kwargs.get("args", []))
-
-            def _subprocess_wrapper() -> None:
-                out: Union[bytes, str]
-                err: Union[bytes, str]
-                out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
-
-                xfailed = (
-                    "_pytest.outcomes.XFailed" in err if isinstance(err, str) else b"_pytest.outcomes.XFailed" in err
-                ) and status == 1
-                if xfailed:
-                    pytest.xfail("subprocess test resulted in XFail")
-                    return
-
-                if callable(expected_status):
-                    status_ok = expected_status(status)
-                elif isinstance(expected_status, (set, tuple, list)):
-                    status_ok = status in expected_status
+    with contextlib.ExitStack() as stack:
+        cwd = None
+        if isinstance(item, ClassSubprocessItem):
+            args.extend(["-c", f"from tests.process import run_scenario; run_scenario(*{item.method_spec!r})"])
+        else:
+            # Keep the service-name directory stable inside a unique parent for parallel workers.
+            temp_dir = stack.enter_context(TemporaryDirectory())
+            custom_temp_dir = os.path.join(temp_dir, DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
+            os.makedirs(custom_temp_dir)
+            with NamedTemporaryFile(mode="wb", suffix=".pyc", dir=custom_temp_dir, delete=False) as fp:
+                file = Path(item.location[0])
+                scenario = FunctionDefFinder(item.originalname).find(file)
+                # Keep test assertions active while imported application code retains its optimization level.
+                dump_code_to_file(compile(scenario, file, "exec", optimize=0), fp.file)
+                if marker.kwargs.get("run_module", False):
+                    cwd, module = split(splitext(fp.name)[0])
+                    args.extend(["-m", module])
                 else:
-                    status_ok = status == expected_status
-                if not status_ok:
-                    raise AssertionError(
-                        "Expected status %s, got %s."
-                        "\n=== Captured STDOUT ===\n%r=== End of captured STDOUT ==="
-                        "\n=== Captured STDERR ===\n%r=== End of captured STDERR ==="
-                        % (expected_status, status, out, err)
-                    )
+                    args.append(fp.name)
 
-                if not is_stream_ok(out, expected_out):
-                    if check_logs:
-                        raise AssertionError("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
-                    else:
-                        pytest.xfail("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
+        args.extend(marker.kwargs.get("args", []))
+        out: Union[bytes, str]
+        err: Union[bytes, str]
+        runner = run_process if isinstance(item, ClassSubprocessItem) else call_program
+        result = runner(*args, env=env, cwd=cwd, timeout=timeout)
+        out, err, status, _ = result
+        if isinstance(item, ClassSubprocessItem):
+            check_scenario_outcome(result)
 
-                if not is_stream_ok(err, expected_err):
-                    if check_logs:
-                        raise AssertionError("STDERR: Expected [%r] got [%r]" % (expected_err, err))
-                    else:
-                        pytest.xfail("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
+        error_text = err.decode("utf-8", errors="replace") if isinstance(err, bytes) else err
+        if (
+            not isinstance(item, ClassSubprocessItem)
+            and status == 1
+            and (
+                "unittest.case.SkipTest:" in error_text
+                or "unittest.SkipTest:" in error_text
+                or "_pytest.outcomes.Skipped:" in error_text
+            )
+        ):
+            pytest.skip(error_text.splitlines()[-1])
 
-            return _subprocess_wrapper()
-    finally:
-        # Clean up the unique parent temp directory (contains ddtrace_subprocess_dir)
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+        if not isinstance(item, ClassSubprocessItem) and status == 1 and "_pytest.outcomes.XFailed" in error_text:
+            pytest.xfail("subprocess test resulted in XFail")
+
+        if callable(expected_status):
+            status_ok = expected_status(status)
+        elif isinstance(expected_status, (set, tuple, list)):
+            status_ok = status in expected_status
+        else:
+            status_ok = status == expected_status
+        if not status_ok:
+            raise AssertionError(
+                "Expected status %s, got %s."
+                "\n=== Captured STDOUT ===\n%r=== End of captured STDOUT ==="
+                "\n=== Captured STDERR ===\n%r=== End of captured STDERR ===" % (expected_status, status, out, err)
+            )
+
+        if not is_stream_ok(out, expected_out):
+            if check_logs:
+                raise AssertionError("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
+            else:
+                pytest.xfail("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
+
+        if not is_stream_ok(err, expected_err):
+            if check_logs:
+                raise AssertionError("STDERR: Expected [%r] got [%r]" % (expected_err, err))
+            else:
+                pytest.xfail("STDOUT: Expected [%r] got [%r]" % (expected_out, out))
+
+
+class ClassSubprocessItem(pytest.Function):
+    """Keep reporting metadata in pytest and execute only the method's lifecycle in a child."""
+
+    def __init__(self, *args, original, params, **kwargs):
+        callobj = original.obj
+        if issubclass(original.cls, TestCase) and getattr(callobj, "__self__", None) is None:
+            callobj = getattr(original.cls(original.originalname), original.originalname)
+        super().__init__(
+            *args,
+            callobj=callobj,
+            originalname=original.originalname,
+            callspec=getattr(original, "callspec", None),
+            keywords=original.keywords,
+            **kwargs,
+        )
+        self.method_spec = (self.cls.__module__, self.cls.__qualname__, self.originalname)
+        self.params = params
+        self.own_markers = original.own_markers.copy()
+        self.extra_keyword_matches.update(original.extra_keyword_matches)
+
+    def setup(self):
+        # Request only explicit dependencies, without Function.setup's autouse fixture setup.
+        fixtures = dict.fromkeys(name for mark in self.iter_markers("usefixtures") for name in mark.args)
+        for name in fixtures:
+            self._request.getfixturevalue(name)
+        if self.get_closest_marker("snapshot") is not None:
+            self._request.getfixturevalue("snapshot")
+
+    def runtest(self):
+        run_function_from_file(self, params=self.params)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collectstart(collector):
+    if not isinstance(collector, pytest.Class):
+        return
+    original_collect = collector.collect
+
+    def collect():
+        for item in original_collect():
+            if not isinstance(item, pytest.Function):
+                yield item
+                continue
+            marker = item.get_closest_marker("subprocess")
+            if marker is None:
+                yield item
+                continue
+            if getfuncargnames(getattr(item.cls, item.originalname), cls=item.cls):
+                raise collector.CollectError(
+                    f"{item.nodeid}: subprocess methods cannot receive parent fixtures; "
+                    "create child state in setup or use an explicit python_process test"
+                )
+            if hasattr(item, "callspec"):
+                names = marker.kwargs.get("parametrize", {})
+                variants = [{name: item.callspec.params[name] for name in names}]
+            else:
+                variants = unwind_params(marker.kwargs.get("parametrize"))
+            for params in variants:
+                suffix = ""
+                if params and not hasattr(item, "callspec"):
+                    suffix = "[" + "-".join(str(value) for value in params.values()) + "]"
+                yield ClassSubprocessItem.from_parent(
+                    item.parent,
+                    name=item.name + suffix,
+                    original=item,
+                    params=params,
+                )
+
+    collector.collect = collect
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -571,7 +646,9 @@ def pytest_collection_modifyitems(session, config, items):
     for item in items:
         if skip_benchmark is not None and "benchmark" in getattr(item, "fixturenames", ()):
             item.add_marker(skip_benchmark)
-        if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
+        if any(
+            item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS
+        ) or "python_process" in getattr(item, "fixturenames", ()):
             item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 
         # Store original name and nodeid before modification

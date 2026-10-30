@@ -8,8 +8,6 @@ from unittest import mock
 import pytest
 
 from tests import utils
-from tests.utils import TracerTestCase
-from tests.utils import override_env
 from tests.utils import terminate_process_group
 
 
@@ -47,94 +45,49 @@ time.sleep(60)
         terminate_process_group(proc, timeout=1)
 
 
-class ConftestTestCase(TracerTestCase):
-    """
-    Test case to verify conftest code works as expected
-    """
+@pytest.fixture
+def pytester(pytester, monkeypatch):
+    root = Path(__file__).resolve().parents[2]
+    pytester.makeconftest((root / "tests/conftest.py").read_text())
+    monkeypatch.setenv("DD_API_KEY", "foobar.baz")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(pytester.path), str(root), os.getenv("PYTHONPATH", "")]))
+    return pytester
 
-    @pytest.fixture(autouse=True)
-    def fixtures(self, testdir):
-        """
-        Fixtures to use in tests
-        """
-        self.testdir = testdir
 
-    def makeconftest(self, conftest_rel_path="../conftest.py"):
+def test_process_fixture_is_unskippable(pytester):
+    pytester.makepyfile(
         """
-        Copy tests/conftest.py contents to the testdir conftest
+        def test_selection(request, python_process):
+            reasons = [m.kwargs.get("reason") for m in request.node.iter_markers("skipif")]
+            assert "datadog_itr_unskippable" in reasons
         """
-        this_dir = os.path.dirname(__file__)
-        abs_file_path = os.path.join(this_dir, conftest_rel_path)
-        with open(abs_file_path, encoding="utf-8") as conftest:
-            self.testdir.makeconftest(conftest.read())
+    )
+    pytester.runpytest_subprocess("--no-cov", "-o", "addopts=").assert_outcomes(passed=1)
 
-    def inline_run(self, *args):
-        """
-        Override inline_run to use our conftest
-        """
-        with override_env({"DD_API_KEY": "foobar.baz"}):
-            self.makeconftest()
-            return self.testdir.inline_run(*args)
 
-    def test_subprocess_fail(self):
+def test_subprocess_skips(pytester):
+    pytester.makepyfile(
         """
-        Test a failing test with subprocess decorator
-        """
-        py_file = self.testdir.makepyfile(
-            """
-            import pytest
+        import pytest
 
-            @pytest.mark.subprocess()
-            def test_fail():
-                assert False
-            """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(file_name)
-        rec.assertoutcome(passed=0, failed=1, skipped=0)
+        @pytest.mark.skip
+        @pytest.mark.subprocess
+        def test_parent_skip():
+            raise AssertionError("skipped method ran")
 
-    def test_subprocess_pass(self):
+        @pytest.mark.subprocess
+        def test_child_skip():
+            import unittest
+            raise unittest.SkipTest("child platform")
         """
-        Test a passing test with subprocess decorator
-        """
-        py_file = self.testdir.makepyfile(
-            """
-            import pytest
-
-            @pytest.mark.subprocess()
-            def test_pass():
-                assert True
-            """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(file_name)
-        rec.assertoutcome(passed=1, failed=0, skipped=0)
-
-    def test_subprocess_skip(self):
-        """
-        Test a skipping test with subprocess decorator
-        """
-        py_file = self.testdir.makepyfile(
-            """
-            import pytest
-
-            @pytest.mark.skip
-            @pytest.mark.subprocess()
-            def test_pass():
-                assert True
-            """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(file_name)
-        rec.assertoutcome(passed=0, failed=0, skipped=1)
+    )
+    pytester.runpytest_subprocess("--no-cov", "-o", "addopts=").assert_outcomes(skipped=2)
 
 
 @pytest.mark.parametrize("optimization", ["0", "1", "2"])
 def test_subprocess_assertions_with_optimization(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, optimization: str
 ) -> None:
-    root = Path(__file__).resolve().parents[2]
-    pytester.makeconftest((root / "tests/conftest.py").read_text())
     pytester.makepyfile(application="def optimized():\n    return not __debug__\n")
     pytester.makepyfile(
         test_assertions="""
@@ -156,17 +109,126 @@ def test_subprocess_assertions_with_optimization(
         """
     )
     monkeypatch.setenv("PYTHONOPTIMIZE", optimization)
-    monkeypatch.setenv("DD_API_KEY", "foobar.baz")
-    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(pytester.path), str(root), os.getenv("PYTHONPATH", "")]))
     result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "test_assertions.py", timeout=30)
     result.assert_outcomes(passed=1, failed=1)
     result.stdout.fnmatch_lines(["*subprocess assertion must execute*"])
 
 
+def test_class_subprocess(pytester, monkeypatch):
+    pytester.makeconftest(
+        (pytester.path / "conftest.py").read_text() + "\n@pytest.fixture(autouse=True)\ndef unrelated_fixture():\n"
+        "    raise AssertionError('isolated method loaded a parent fixture')\n"
+    )
+    pytester.makepyfile(
+        test_cases="""
+        import asyncio
+        import os
+        from pathlib import Path
+        import unittest
+        import pytest
+
+        MODE = os.getenv("CHILD_MODE", "parent")
+
+        class TestCase(unittest.IsolatedAsyncioTestCase):
+            async def asyncSetUp(self):
+                assert MODE == "child"
+                assert os.getpid() != int(os.environ["PARENT_PID"])
+                self.loop = asyncio.get_running_loop()
+
+            async def asyncTearDown(self):
+                assert asyncio.get_running_loop() is self.loop
+                with Path(os.environ["EVENTS"]).open("a") as stream:
+                    stream.write(self._testMethodName + "\\n")
+
+            @pytest.mark.subprocess(env={"CHILD_MODE": "child"}, parametrize={"CASE": ["one", "two"]})
+            async def test_async(self):
+                await asyncio.sleep(0)
+                assert asyncio.get_running_loop() is self.loop
+                assert os.environ["CASE"] in ("one", "two")
+
+            @pytest.mark.subprocess(env={"CHILD_MODE": "child", "PYTHONOPTIMIZE": "1"})
+            def test_failure(self):
+                assert False, "class assertion must execute"
+        """
+    )
+    monkeypatch.setenv("PARENT_PID", str(os.getpid()))
+    monkeypatch.setenv("EVENTS", str(pytester.path / "events"))
+    result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "-v", "test_cases.py", timeout=30)
+    result.assert_outcomes(passed=2, failed=1)
+    result.stdout.fnmatch_lines(["*class assertion must execute*"])
+    for variant in ("one", "two"):
+        result.stdout.re_match_lines([rf".*TestCase::test_async\[{variant}\].*PASSED.*"])
+    assert sorted((pytester.path / "events").read_text().splitlines()) == ["test_async", "test_async", "test_failure"]
+
+
+def test_class_subprocess_preserves_collection_and_explicit_fixtures(pytester, monkeypatch):
+    pytester.makeconftest(
+        (pytester.path / "conftest.py").read_text()
+        + """
+@pytest.fixture(autouse=True)
+def unrelated_fixture():
+    raise AssertionError("isolated method loaded a parent fixture")
+
+@pytest.fixture
+def parent_environment(monkeypatch):
+    monkeypatch.setenv("EXPLICIT_FIXTURE", "configured")
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    setattr(item, "rep_" + call.when, outcome.get_result())
+
+@contextlib.contextmanager
+def _snapshot_context(token, **kwargs):
+    with open(os.environ["EVENTS"], "a") as stream:
+        stream.write("enter:" + token + "\\n")
+    yield mock.Mock()
+    with open(os.environ["EVENTS"], "a") as stream:
+        stream.write("exit:" + token + "\\n")
+"""
+    )
+    pytester.makepyfile(
+        test_metadata="""
+        import os
+        import unittest
+        import pytest
+
+        @pytest.fixture
+        def explicit_fixture(request, parent_environment):
+            assert isinstance(request.instance, request.cls)
+            assert len(list(request.node.iter_markers("usefixtures"))) == 1
+
+        @pytest.mark.subprocess
+        @pytest.mark.usefixtures("explicit_fixture")
+        class Base:
+            def setup_method(self, method):
+                self.ready = True
+
+            @pytest.mark.snapshot
+            def test_inherited(self):
+                assert self.ready
+                assert os.environ["EXPLICIT_FIXTURE"] == "configured"
+
+        class TestUnit(Base, unittest.TestCase):
+            pass
+
+        class TestPlain(Base):
+            pass
+        """
+    )
+    monkeypatch.setenv("EVENTS", str(pytester.path / "events"))
+    result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "test_metadata.py", timeout=30)
+    result.assert_outcomes(passed=2)
+    events = (pytester.path / "events").read_text().splitlines()
+    for cls in ("TestUnit", "TestPlain"):
+        prefix = f"test_metadata.{cls}.test_inherited"
+        entered = [event.removeprefix("enter:") for event in events if event.startswith("enter:" + prefix)]
+        assert len(entered) == 1
+        assert events.count("exit:" + entered[0]) == 1
+
+
 @pytest.mark.parametrize("inherited_token", [None, "parent-snapshot"])
 def test_session_token_survives_writer_replacement(pytester, monkeypatch, inherited_token):
-    root = Path(__file__).resolve().parents[2]
-    pytester.makeconftest((root / "tests/conftest.py").read_text())
     pytester.makepyfile(
         test_token="""
         import os
@@ -190,8 +252,6 @@ def test_session_token_survives_writer_replacement(pytester, monkeypatch, inheri
         headers += ",X-Datadog-Test-Session-Token:" + inherited_token
     monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", headers)
     monkeypatch.setenv("EXPECTED_SNAPSHOT_TOKEN", inherited_token or "")
-    monkeypatch.setenv("DD_API_KEY", "foobar.baz")
-    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(root), os.getenv("PYTHONPATH", "")]))
     result = pytester.runpytest_subprocess("--no-cov", "-o", "addopts=", "test_token.py", timeout=30)
     result.assert_outcomes(passed=1)
 
