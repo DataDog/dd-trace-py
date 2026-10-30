@@ -1,9 +1,8 @@
 from types import TracebackType
 from typing import Optional
 
-from ddtrace._trace.subscribers._base import TracingSubscriber
+from ddtrace._trace.subscribers._base import SpanLifecycleSubscriber
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib._events.llm import LlmEvents
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -20,23 +19,16 @@ _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 log = get_logger(__name__)
 
 
-class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
+class LlmTracingSubscriber(SpanLifecycleSubscriber["LlmRequestEvent"]):
     """Shared tracing logic for all LLM integrations.
 
     Handles span creation, base tag setting, proxy detection,
     and LLMObs tag extraction. Provider-specific logic is delegated
     to the integration object carried by the event, or, for events that
-    carry none, to subscribers of the LlmEvents span lifecycle events.
+    carry none, to subscribers of the SpanLifecycleEvents dispatched for llm.request.
     """
 
     event_names = (LlmRequestEvent.event_name,)
-
-    @classmethod
-    def _on_context_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
-        # SPAN_STARTING must be dispatched before super() creates the span, because span creation reads
-        # event.span_type and SPAN_STARTING listeners (such as LLMObs setting it to "llm") may change it.
-        core.dispatch(LlmEvents.SPAN_STARTING.value, (ctx,))
-        super()._on_context_started(ctx)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext["LlmRequestEvent"]) -> None:
@@ -51,7 +43,6 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         span._remove_attribute(SPAN_KIND)
 
         if event.llmobs_integration is None:
-            core.dispatch(LlmEvents.SPAN_STARTED.value, (ctx,))
             return
 
         if event.submit_to_llmobs:
@@ -87,7 +78,6 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         """
         event: LlmRequestEvent = ctx.event
         if event.llmobs_integration is None:
-            core.dispatch(LlmEvents.SPAN_FINISHING.value, (ctx,))
             return
         event.llmobs_integration.llmobs_set_tags(
             span_from_context(ctx),
