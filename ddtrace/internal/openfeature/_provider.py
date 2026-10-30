@@ -184,7 +184,7 @@ class DataDogProvider(AbstractProvider):
             self._flag_eval_metrics = FlagEvalMetrics()
             self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
 
-        # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
+        # EVP flagevaluation writer + hook — gated by DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED
         # (default on). Gates ONLY the EVP path; the OTel path above is always registered
         # when the provider is enabled (preserves the existing OTel non-regression).
         # the killswitch is read through the ddtrace config system
@@ -238,7 +238,7 @@ class DataDogProvider(AbstractProvider):
         1. OTel FlagEvalMetricsHook (_flageval_metrics.py) — always registered when the provider
            is enabled; emits the feature_flag.evaluations OTel counter (preserved unchanged).
         2. FlagEvalEVPHook (_flag_eval_evp_hook.py) — registered only when
-           DD_FLAGGING_EVALUATION_COUNTS_ENABLED is enabled (default on); enqueues cheap
+           DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED is enabled (default on); enqueues cheap
            snapshots to FlagEvaluationWriter for EVP flagevaluation emission.
         3. SpanEnrichmentHook (_span_enrichment.py) — registered only when
            DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED is enabled (default off);

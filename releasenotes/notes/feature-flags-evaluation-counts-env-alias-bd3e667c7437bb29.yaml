@@ -1,0 +1,6 @@
+features:
+  - |
+    OpenFeature: Adds ``DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED`` (default ``true``)
+    to control aggregated evaluation-count delivery independently of exposure delivery.
+    ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED`` remains supported as an alias, with the
+    new name taking precedence when both are set.

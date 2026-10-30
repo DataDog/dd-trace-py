@@ -19,7 +19,7 @@ Key design properties:
 - Eval-time from metadata key "dd.eval.timestamp_ms"; fallback to enqueue-time.
 - First/last evaluation: min/max under lock.
 - runtime_default_used: True when variant is None/absent.
-- Killswitch: DD_FLAGGING_EVALUATION_COUNTS_ENABLED (default on); gates EVP path only.
+- Killswitch: DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED (default on); gates EVP path only.
 - Non-blocking enqueue: queue.Queue(QUEUE_SIZE); drops + counts on queue.Full.
 """
 

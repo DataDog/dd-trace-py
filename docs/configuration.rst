@@ -1470,6 +1470,16 @@ Feature Flagging
          Stable kill switch for Feature Flagging. When ``False``, the provider is
          disabled regardless of the configured source.
 
+   DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Enables delivery of aggregated evaluation counts to ``/api/v2/flagevaluation``.
+         Set to ``False`` before initializing the provider to disable this stream.
+         Flag evaluation, configuration fetching, exposure delivery, and OpenTelemetry
+         evaluation metrics are unaffected. ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED``
+         remains supported as an alias; this setting takes precedence when both are set.
+
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE:
      type: String
      default: agentless

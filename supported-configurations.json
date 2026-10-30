@@ -1781,6 +1781,17 @@
         "default": "true"
       }
     ],
+    "DD_FEATURE_FLAGS_EVALUATION_COUNTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true,
+        "aliases": [
+          "DD_FLAGGING_EVALUATION_COUNTS_ENABLED"
+        ]
+      }
+    ],
     "DD_FFE_INTAKE_ENABLED": [
       {
         "implementation": "A",
@@ -1793,14 +1804,6 @@
         "implementation": "A",
         "type": "decimal",
         "default": "1.0"
-      }
-    ],
-    "DD_FLAGGING_EVALUATION_COUNTS_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true",
-        "experimental": true
       }
     ],
     "DD_FLASK_CACHE_SERVICE": [
