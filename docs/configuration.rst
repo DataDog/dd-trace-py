@@ -1021,6 +1021,19 @@ Test Visibility
      version_added:
         v1.13.0:
 
+   DD_CIVISIBILITY_CODE_COVERAGE_ENABLED:
+     type: Boolean
+     default: (unset)
+
+     description: |
+        Forces per-test code coverage collection on or off for a single test run, regardless of
+        the code coverage settings for the service. When unset, whether code coverage is collected
+        is decided by the Datadog backend. Set to ``true`` to always collect code coverage, or to
+        ``false`` to disable code coverage collection for the run.
+
+     version_added:
+        v4.17.0:
+
    DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED:
      type: Boolean
      default: False

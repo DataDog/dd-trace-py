@@ -17,6 +17,7 @@ try:
 except ImportError:  # pragma: no cover — Windows / restricted environments
     _FCNTL_AVAILABLE = False
 
+from ddtrace.internal.ci_visibility.utils import get_code_coverage_enabled_override
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.paths import relative_parts
 from ddtrace.internal.utils.paths import relative_path
@@ -865,10 +866,22 @@ class SessionManager:
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
-        ITR_FORCE_ENABLE_COVERAGE = asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false"))
-        if ITR_FORCE_ENABLE_COVERAGE:
-            log.debug("TIA code coverage collection is enabled by environment variable")
-            self.settings.coverage_enabled = True
+        # Environment override for code coverage collection: unset lets the backend settings decide;
+        # true/false forces code coverage collection on/off. The helper folds in the private
+        # _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE force-enable, which only takes effect when the
+        # public variable is unset (the public variable wins when both are set).
+        code_coverage_override = get_code_coverage_enabled_override()
+        if code_coverage_override is not None:
+            if not code_coverage_override and asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
+                log.warning(
+                    "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED=false takes precedence over "
+                    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: code coverage collection is disabled"
+                )
+            log.debug(
+                "TIA code coverage collection is %s by environment variable",
+                "enabled" if code_coverage_override else "disabled",
+            )
+            self.settings.coverage_enabled = code_coverage_override
 
         if not asbool(env.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
             log.debug("Early Flake Detection is disabled by environment variable")
@@ -906,8 +919,9 @@ class SessionManager:
 
         # If ITR is explicitly enabled via env var but the backend did not return skipping_enabled (e.g. because the
         # service has not yet built up enough test history), and we are not in coverage-only mode
-        # (_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING / _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE), force skipping on
-        # so that tests are actually skipped once the skippable list is populated.
+        # (_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING / _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE /
+        # DD_CIVISIBILITY_CODE_COVERAGE_ENABLED=true), force skipping on so that tests are actually
+        # skipped once the skippable list is populated.
 
         _itr_enabled_env = env.get("DD_CIVISIBILITY_ITR_ENABLED")
         if _itr_enabled_env is not None and not asbool(_itr_enabled_env):
@@ -917,7 +931,7 @@ class SessionManager:
             log.warning("Test Impact Analysis is ENABLED by environment variable")
             self.settings.itr_enabled = True
 
-            if not ITR_PREVENT_TEST_SKIPPING and not ITR_FORCE_ENABLE_COVERAGE:
+            if not ITR_PREVENT_TEST_SKIPPING and code_coverage_override is not True:
                 if not self.settings.skipping_enabled:
                     log.warning(
                         "TIA test skipping was NOT enabled by the backend but DD_CIVISIBILITY_ITR_ENABLED is set; "

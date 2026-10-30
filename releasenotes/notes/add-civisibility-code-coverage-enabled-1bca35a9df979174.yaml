@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    CI Visibility: Adds the ``DD_CIVISIBILITY_CODE_COVERAGE_ENABLED`` environment variable to
+    force per-test code coverage collection on or off for a single test run. When the variable
+    is not set, whether code coverage is collected is decided by the Test Optimization settings
+    for the service.

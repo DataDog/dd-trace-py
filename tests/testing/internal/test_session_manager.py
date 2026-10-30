@@ -533,6 +533,35 @@ class TestSessionManagerEnvVarOverrides:
             assert session_manager.settings.coverage_enabled is expected_setting
 
     @pytest.mark.parametrize(
+        "env_var_value, backend_coverage_enabled, expected_setting",
+        [
+            # Unset: the backend setting decides.
+            (None, False, False),
+            (None, True, True),
+            # Explicitly set: the env var forces coverage collection on/off.
+            ("true", False, True),
+            ("true", True, True),
+            ("false", False, False),
+            ("false", True, False),
+        ],
+    )
+    def test_session_manager_code_coverage_enabled_override(
+        self, monkeypatch, env_var_value, backend_coverage_enabled, expected_setting
+    ):
+        with self.mock_settings(coverage_enabled=backend_coverage_enabled):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", env_var_value)
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.coverage_enabled is expected_setting
+
+    def test_session_manager_code_coverage_enabled_overrides_force_enable(self, monkeypatch):
+        with self.mock_settings(coverage_enabled=True):
+            monkeypatch.setenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            monkeypatch.setenv("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED", "false")
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.coverage_enabled is False
+
+    @pytest.mark.parametrize(
         "env_var, env_value, setting_attr, expected",
         [
             ("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false", "coverage_report_upload_enabled", False),
