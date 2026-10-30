@@ -425,6 +425,7 @@ dependencies = [
  "build_common",
  "bytes",
  "libc",
+ "libdd-ai-usage",
  "libdd-capabilities-impl",
  "libdd-common",
  "libdd-crashtracker",
@@ -1380,6 +1381,16 @@ name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+
+[[package]]
+name = "libdd-ai-usage"
+version = "0.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=83c9c89232efa93fd369d3cafd94961cd4acda89#83c9c89232efa93fd369d3cafd94961cd4acda89"
+dependencies = [
+ "prost",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "libdd-alloc"

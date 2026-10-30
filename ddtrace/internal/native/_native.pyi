@@ -1007,6 +1007,70 @@ class SerializationError(Exception):
 
     ...
 
+class ai_usage:
+    """
+    Native LLM usage and cost metrics (libdd-ai-usage).
+    """
+
+    class UsageMetrics:
+        """
+        The metric points of one export window. Safe to share between threads.
+        """
+
+        def __init__(self, metrics: Optional[list[str]] = None) -> None:
+            """metrics lists the metric names to keep; by default every metric a profile defines is kept."""
+            ...
+        def record(
+            self,
+            profile_id: str,
+            observation: dict[str, Any],
+            deployment_attributes: Optional[dict[str, str]] = None,
+        ) -> list[str]:
+            """
+            Project one observation under a versioned profile id and add its points.
+
+            Returns the issue codes raised beside the points. Raises ValueError(error_code, message)
+            when the observation is rejected; nothing is recorded then.
+            """
+            ...
+        def is_empty(self) -> bool: ...
+        def take_otlp(
+            self,
+            scope_name: str,
+            scope_version: str,
+            start_time_unix_nano: int,
+            time_unix_nano: int,
+            datadog: bool = False,
+        ) -> Optional[bytes]:
+            """
+            Take the points recorded so far as an OTLP ExportMetricsServiceRequest in protobuf, or None.
+
+            datadog selects the Datadog binding, for an export Datadog stores as it arrives: cost in USD and
+            versioned values with "/", as over DogStatsD.
+            """
+            ...
+        def take_otlp_parts(
+            self,
+            scope_name: str,
+            scope_version: str,
+            start_time_unix_nano: int,
+            time_unix_nano: int,
+            max_bytes: int,
+            datadog: bool = False,
+        ) -> list[bytes]:
+            """
+            Take the points recorded so far as OTLP ExportMetricsServiceRequests of at most max_bytes each, or [].
+
+            The points are split by series; the points of one series always go in the same request, which can then
+            exceed max_bytes. A batch that fits gives one request, the same bytes take_otlp returns.
+            """
+            ...
+        def take_dogstatsd(self) -> list[str]:
+            """
+            Take the points recorded so far as DogStatsD lines, without newlines.
+            """
+            ...
+
 class ffe:
     """
     Native Feature Flags and Experimentation module.
