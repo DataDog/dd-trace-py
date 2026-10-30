@@ -754,51 +754,29 @@ prof-correctness:
       TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
       # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
       TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
-      # Prints the ID of the dispatched run. Prints nothing if the run is not
-      # there yet or the lookup fails, so that the caller can poll again.
-      find_run_id() {
-        gh_retry run list \
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
+      # A dispatch that fails can still start a run, so a retry can start a second
+      # run. The lookup below picks the newest run for this commit.
+      gh_retry workflow run downstream-python.yml \
+        --repo DataDog/prof-correctness \
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
+        -f "test_scenarios=${TEST_SCENARIOS}"
+
+      RUN_ID=""
+      for _ in $(seq 1 30); do
+        # If the lookup fails, RUN_ID is empty and the loop polls again.
+        RUN_ID="$(gh run list \
           --repo DataDog/prof-correctness \
           --workflow=downstream-python.yml \
           --event workflow_dispatch \
           --limit 20 \
           --json databaseId,displayTitle,headSha,event,createdAt \
           --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty" \
-          || true
-      }
-
-      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
-      # GitHub can return a 5xx error and create the run all the same. Look for the
-      # run before each new dispatch, so that a retry does not start a second run.
-      RUN_ID=""
-      RETRY_DELAY=5
-      for attempt in 1 2 3 4 5; do
-        if gh workflow run downstream-python.yml \
-          --repo DataDog/prof-correctness \
-          -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
-          -f "test_scenarios=${TEST_SCENARIOS}"; then
-          break
-        fi
-        if [ "${attempt}" -eq 5 ]; then
-          echo "error: could not dispatch DataDog/prof-correctness downstream-python after ${attempt} attempts" >&2
-          exit 1
-        fi
-        echo "Dispatch attempt ${attempt} failed, retrying in ${RETRY_DELAY}s..."
-        sleep "${RETRY_DELAY}"
-        RETRY_DELAY=$((RETRY_DELAY * 2))
-        RUN_ID="$(find_run_id)"
-        if [ -n "${RUN_ID}" ]; then
-          echo "Found run ${RUN_ID} from a failed dispatch attempt"
-          break
-        fi
-      done
-
-      for _ in $(seq 1 30); do
+          || true)"
         if [ -n "${RUN_ID}" ]; then
           break
         fi
         sleep 2
-        RUN_ID="$(find_run_id)"
       done
 
       if [ -z "${RUN_ID}" ]; then
@@ -807,7 +785,12 @@ prof-correctness:
       fi
 
       echo "Watching prof-correctness run ${RUN_ID}"
-      gh_watch_run DataDog/prof-correctness "${RUN_ID}" --exit-status
+      gh_retry run watch "${RUN_ID}" --repo DataDog/prof-correctness
+      CONCLUSION="$(gh_retry run view "${RUN_ID}" --repo DataDog/prof-correctness --json conclusion --jq .conclusion)"
+      if [ "${CONCLUSION}" != "success" ]; then
+        echo "error: prof-correctness run ${RUN_ID} completed with '${CONCLUSION}'" >&2
+        exit 1
+      fi
 
 lib_injection_tests:
   # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.

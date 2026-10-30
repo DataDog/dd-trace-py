@@ -5,12 +5,10 @@ set -eo pipefail
 # no GitHub remote, so every gh call fails unless it names the repository.
 export GH_REPO="DataDog/dd-trace-py"
 
-source "$(dirname "${BASH_SOURCE[0]}")/scripts/gh-retry.sh"
-
 wait_for_run_id() {
   get_run_id() {
       RUN_ID=$(
-          gh_retry run ls \
+          gh run ls \
           --repo "$GH_REPO" \
           --commit="$CI_COMMIT_SHA" \
           $([ -z "$TRIGGERING_EVENT" ] && echo "" || echo "--event=$TRIGGERING_EVENT") \
