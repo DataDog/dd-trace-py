@@ -824,7 +824,31 @@ def wait_for_ci_green(
         failing: list[str]
         pending: list[str]
         passing: int
-        overall, failing, pending, passing = resolve_summary(sha)
+        try:
+            overall, failing, pending, passing = resolve_summary(sha)
+        except subprocess.CalledProcessError as exc:
+            # Transient gh/API blips should not abort a long wait; retry until timeout.
+            now_err: float = monotonic_fn()
+            remaining_err: float = deadline - now_err
+            if remaining_err <= 0:
+                raise WaitingOn(
+                    f"CI still unresolved after {timeout_s:.0f}s on "
+                    f"{sha if len(sha) <= 12 else sha[:12]} "
+                    f"(last gh API error: exit {exc.returncode}). "
+                    f"{last_detail or '(no successful status poll yet)'}\n"
+                    "Re-run the same command to keep waiting, or pass --no-wait-ci."
+                ) from exc
+            elapsed_err: float = now_err - started
+            poll_n += 1
+            sleep_err: float = min(poll_interval_s, remaining_err)
+            print(
+                f"WAITING ON CI (poll {poll_n}): gh API error (exit {exc.returncode}); "
+                f"retrying — elapsed {elapsed_err:.0f}s, next check in {sleep_err:.0f}s "
+                f"(timeout {timeout_s:.0f}s)",
+                flush=True,
+            )
+            sleep_fn(sleep_err)
+            continue
         last_detail = format_ci_detail(sha, overall, failing, pending, passing)
         if overall == "success" and not failing and not pending:
             elapsed_ok: float = monotonic_fn() - started

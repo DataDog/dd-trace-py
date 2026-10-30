@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess  # nosec B404 — only to build CalledProcessError fixtures for wait tests
 import sys
 import tempfile
 import textwrap
@@ -839,6 +840,34 @@ class WaitForCiGreenTests(unittest.TestCase):
         self.assertTrue(resolve_wait_ci(wet_default))
         wet_off: Any = mock.Mock(dry_run=False, wait_ci=False)
         self.assertFalse(resolve_wait_ci(wet_off))
+
+    def test_transient_api_error_retries_then_green(self) -> None:
+        from create_gh_release import wait_for_ci_green
+
+        sleeps: list[float] = []
+        clock: list[float] = [0.0]
+        calls: list[int] = [0]
+
+        def summary(_sha: str) -> tuple[str, list[str], list[str], int]:
+            calls[0] += 1
+            if calls[0] == 1:
+                raise subprocess.CalledProcessError(1, ["gh", "api", "status"])
+            return ("success", [], [], 2)
+
+        def sleep_fn(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        wait_for_ci_green(
+            "deadbeef",
+            timeout_s=100.0,
+            poll_interval_s=10.0,
+            sleep_fn=sleep_fn,
+            monotonic_fn=lambda: clock[0],
+            summary_fn=summary,
+        )
+        self.assertEqual(sleeps, [10.0])
+        self.assertEqual(calls[0], 2)
 
 
 class LoadLocalEnvTests(unittest.TestCase):
