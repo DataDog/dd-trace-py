@@ -95,6 +95,20 @@ def _assert_evaluated_response(mock_execute_request, content: str) -> None:
     assert content in response_eval[-1]["content"]
 
 
+# Arguments a provider returned truncated; langchain reports the call in invalid_tool_calls.
+INVALID_TOOL_ARGS = '{"city": "Par'
+
+# invalid_tool_calls only exists on newer langchain-core releases.
+requires_invalid_tool_calls = pytest.mark.skipif(
+    "invalid_tool_calls" not in (getattr(AIMessage, "model_fields", None) or getattr(AIMessage, "__fields__", {})),
+    reason="AIMessage.invalid_tool_calls is not available",
+)
+
+
+def _invalid_tool_call() -> dict:
+    return {"id": "bad", "name": "weather", "args": INVALID_TOOL_ARGS, "error": None}
+
+
 # Tool-call prompt whose recorded responses (tests/cassettes/openai) ask for add(a=1, b=1).
 TOOL_PROMPT = "What is 1 + 1? Use the add tool."
 TEXT_AND_TOOL_PROMPT = "Say what you are about to do, then add 1 and 1 with the add tool."
@@ -354,6 +368,58 @@ def test_text_and_tool_call_response_evaluated_as_one_turn(
     response_span = _ai_guard_spans(test_spans)[-1]
     assert response_span.get_tag(AI_GUARD.TARGET_TAG) == "tool"
     assert response_span.get_tag(AI_GUARD.TOOL_NAME_TAG) == "add"
+
+
+@requires_invalid_tool_calls
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_invalid_tool_call_only_response_block(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
+):
+    """A reply whose only tool call failed to parse still carries model output, so it is evaluated."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response(decision)]
+    mock_openai_request.return_value = ChatResult(
+        generations=[ChatGeneration(message=AIMessage(content="", invalid_tool_calls=[_invalid_tool_call()]))]
+    )
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        llm.invoke([HumanMessage(content="Weather in Paris?")])
+
+    response = _evaluated_messages(mock_execute_request, 1)
+    assert response[-1]["role"] == "assistant"
+    assert response[-1]["tool_calls"][0]["function"] == {"name": "weather", "arguments": INVALID_TOOL_ARGS}
+
+
+@requires_invalid_tool_calls
+@patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_valid_and_invalid_tool_calls_evaluated_as_one_turn(
+    mock_execute_request, mock_openai_request, langchain_openai, openai_url
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    mock_openai_request.return_value = ChatResult(
+        generations=[
+            ChatGeneration(
+                message=AIMessage(
+                    content="",
+                    tool_calls=[ToolCall(id="ok", name="add", args={"a": 1, "b": 1})],
+                    invalid_tool_calls=[_invalid_tool_call()],
+                )
+            )
+        ]
+    )
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    llm.invoke([HumanMessage(content="Add 1 and 1, then check the weather in Paris.")])
+
+    assert mock_execute_request.call_count == 2
+    response = _evaluated_messages(mock_execute_request, 1)
+    assert [call["function"] for call in response[-1]["tool_calls"]] == [
+        {"name": "add", "arguments": '{"a": 1, "b": 1}'},
+        {"name": "weather", "arguments": INVALID_TOOL_ARGS},
+    ]
 
 
 @patch("langchain_openai.chat_models.ChatOpenAI._generate", autospec=True)
@@ -897,6 +963,23 @@ def test_message_conversion():
 
     assert result[7]["role"] == "assistant"
     assert result[7]["content"] == "One plus one is two"
+
+
+@requires_invalid_tool_calls
+def test_message_conversion_keeps_invalid_tool_calls():
+    """Some providers send unparsable calls back in the next request, so history must carry them."""
+    message = AIMessage(
+        content="",
+        tool_calls=[ToolCall(id="ok", name="add", args={"a": 1, "b": 1})],
+        invalid_tool_calls=[_invalid_tool_call()],
+    )
+
+    result = _convert_messages([HumanMessage(content="hi"), message])
+
+    assert [call["function"] for call in result[1]["tool_calls"]] == [
+        {"name": "add", "arguments": '{"a": 1, "b": 1}'},
+        {"name": "weather", "arguments": INVALID_TOOL_ARGS},
+    ]
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

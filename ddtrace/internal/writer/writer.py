@@ -907,8 +907,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         headers = []
         for item in raw.split(","):
             key, sep, value = item.partition("=")
-            key = key.strip()
+            key = key.strip().lower()
             if sep and key:
+                # gRPC metadata keys must be lowercase; HTTP header names are case-insensitive.
                 headers.append((key, value.strip()))
         return headers
 
@@ -929,16 +930,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
-            # Only http/json and http/protobuf are supported; fall back to http/protobuf
-            # for anything else (e.g. grpc).
-            otlp_protocol = otel_config.exporter.TRACES_PROTOCOL.strip().lower()
-            if otlp_protocol not in ("http/json", "http/protobuf"):
-                log.debug(
-                    "OTLP trace protocol %r is not supported; defaulting to http/protobuf",
-                    otlp_protocol,
-                )
-                otlp_protocol = "http/protobuf"
-            builder.set_otlp_protocol(otlp_protocol)
+            builder.set_otlp_protocol(otel_config.exporter.TRACES_PROTOCOL)
             otlp_headers = self._parse_otlp_headers(otel_config.exporter.TRACES_HEADERS)
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)

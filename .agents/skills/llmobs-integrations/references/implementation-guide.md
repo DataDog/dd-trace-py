@@ -21,7 +21,7 @@ the provider's `_integration_name`. Supply the two provider-specific behaviors:
 
 Use the actual base/reference signatures and implement or inherit the behavior needed by the
 integration. For standard request integrations, construct it lazily in the LLMObs subscriber
-with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/anthropic/subscribers.py`.
+with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/_subscribers.py`.
 Keep contrib free of LLMObs imports. When extending an integration that stores its instance on
 `module._datadog_integration`, preserve that ownership and cleanup unless migrating its lifecycle.
 
@@ -62,8 +62,9 @@ standard request integrations so contrib does not import LLMObs.
 
 ## LLMObs subscribers and registration
 
-Follow `ddtrace/llmobs/_contrib/anthropic/`. Each handler receives an `ExecutionContext` and
-must filter on `ctx.event.component`, because the events are shared across integrations:
+Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration. The shared subscribers
+in `ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
+registered integration using `ctx.event.component`:
 
 - `LlmEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
@@ -71,11 +72,14 @@ must filter on `ctx.event.component`, because the events are shared across integ
   before children start. Preserve APM shadow tags and proxy handling from the reference.
 - `LlmEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
 
-Set `auto_register = False`. Provide `listen()` / `unlisten()` in
-`ddtrace/llmobs/_contrib/<name>/__init__.py`; register all three handlers in `listen()`.
-During `unlisten()`, retain the finishing handler so in-flight requests and deferred streams
-still receive output and usage data. Build the integration lazily after its config is registered.
-Subscribers also set APM shadow tags, so registration must work with LLMObs disabled.
+Provide `listen()` / `unlisten()` in `ddtrace/llmobs/_contrib/<name>/__init__.py`.
+Call the shared `register(component, integration_cls)` from `listen()` and
+`unregister(component)` from `unlisten()`; do not create per-integration subscriber classes.
+Shared listeners remain registered; unregistering removes only that component from the registry
+and cache. Each started request retains its integration on its execution context, so in-flight
+requests and deferred streams still finalize after unpatch or repatch. Build the integration
+lazily after its config is registered. Subscribers also set APM shadow tags, so registration
+must work with LLMObs disabled.
 
 Declare the subscriber module in `pyproject.toml`, substituting the integration's name:
 
@@ -140,10 +144,24 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 | Library | Input | Output | Cache Fields |
 |---------|-------|--------|-------------|
 | Anthropic | `input_tokens` | `output_tokens` | `cache_creation_input_tokens`, `cache_read_input_tokens` |
-| OpenAI chat | `prompt_tokens` | `completion_tokens` | `prompt_tokens_details.cached_tokens` (already included in input total) |
+| OpenAI chat | `prompt_tokens` | `completion_tokens` | `prompt_tokens_details.cached_tokens` (already included in input total), `prompt_tokens_details.cache_write_tokens` |
+| OpenAI responses | `input_tokens` | `output_tokens` | `input_tokens_details.cached_tokens` (already included in input total), `input_tokens_details.cache_write_tokens`, and its TTL split `input_tokens_details.cache_write_tokens_details.ttl_30m_tokens` / `ttl_12h_tokens` |
 | Google GenAI | `prompt_token_count` | `candidates_token_count` | `cached_content_token_count` |
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
+
+When a provider splits cache writes by TTL because each TTL is billed at a different rate, report the split next to `CACHE_WRITE_INPUT_TOKENS_METRIC_KEY`: Anthropic `cache_creation.ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens` map to `ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens`, and OpenAI `ttl_30m_tokens` / `ttl_12h_tokens` map to `ephemeral_30m_input_tokens` / `ephemeral_12h_input_tokens`.
+
+For OpenAI Realtime, read the singular `input_token_details` and
+`output_token_details` fields. Preserve `audio_tokens` as `input_audio_tokens` /
+`output_audio_tokens`, `cached_tokens` as `cache_read_input_tokens`, and
+`cached_tokens_details.audio_tokens` as `cache_audio_read_tokens`. These are subsets
+of the inclusive totals. Preserve explicit zero counts and omit missing breakdowns;
+never infer zero cached audio from a missing cached-token detail object. Preserve
+`text_tokens` as `input_text_tokens` / `output_text_tokens`, input `image_tokens`
+as `input_image_tokens`, and cached text/image counts as `cache_text_read_tokens` /
+`cache_image_read_tokens`. Only emit nonnegative integer counts (not booleans);
+never infer text counts by subtracting audio from totals.
 
 ### Server-Side Tool Usage
 

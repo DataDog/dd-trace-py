@@ -514,7 +514,10 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_test_finished_all_the_tags(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+    @pytest.mark.parametrize("excluded", [False, True])
+    def test_record_test_finished_all_the_tags(
+        self, telemetry_api: TelemetryAPI, mock_writer: Mock, excluded: bool
+    ) -> None:
         session = TestSession("pytest")
         module, _ = session.get_or_create_child("module")
         suite, _ = module.get_or_create_child("suite")
@@ -525,6 +528,8 @@ class TestTelemetry:
             is_disabled=True,
             is_attempt_to_fix=True,
         )
+        test.prevent_failure_suppression = excluded
+        test.no_auto_retry = excluded
         test.set_early_flake_detection_abort_reason("slow")
         _initial_test_run = test.make_test_run()
         retry_test_run = test.make_test_run()
