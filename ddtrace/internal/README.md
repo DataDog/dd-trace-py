@@ -44,7 +44,7 @@ object that implements the product protocol. This consists of a Python object
 | `post_preload() -> None` | A function with the logic required to finish initialization after the library  preload stage |
 | `enabled() -> bool` | A function that returns whether the product should be started; called before `start()` by the product manager |
 | `start() -> None` | A function with the logic required to enable the product (called only when `enabled()` returns `True`) |
-| `register_subscribers() -> None` | Called after a successful `start()` to register product-owned event subscribers; failures are logged without failing the product |
+| `register_subscribers() -> None` | Called after a successful `start()` to register product-owned event subscribers; products may also call it from another lifecycle hook, such as `on_integration_patched()`; failures in the product manager's post-start call are logged without failing the product |
 | `unregister_subscribers() -> None` | Called during shutdown before `stop()`, including at process exit and for disabled products; failures are logged without preventing `stop()` |
 | `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
 | `stop(join: bool = False) -> None` | A function with the logic required to stop the product; also called at process exit (see `skip_exit`) |
@@ -68,6 +68,7 @@ gets extended to add support for additional features.
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
+| `on_integration_patched(integration_name: str) -> None` | Called after a successful integration patch; use it for product work that depends on an integration being patched. Failures are logged without interrupting patching |
 | `skip_exit() -> bool` | For enabled products, return `True` to skip process-exit cleanup, including `unregister_subscribers()` and `stop()`; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |

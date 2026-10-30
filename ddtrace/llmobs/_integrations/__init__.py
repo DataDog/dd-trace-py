@@ -28,6 +28,13 @@ _INTEGRATION_MODULES = {
     "VertexAIIntegration": ".vertexai",
 }
 
+# Integrations that leave the LLMObs tagging of their llm.request spans to LLMObsLlmSubscriber, mapped
+# to the class of their LLMObs integration.
+SUBSCRIBER_INTEGRATIONS = {
+    "anthropic": "AnthropicIntegration",
+    "llama_index": "LlamaIndexIntegration",
+}
+
 
 def __getattr__(name: str) -> Any:
     try:

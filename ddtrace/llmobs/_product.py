@@ -32,11 +32,24 @@ def start() -> None:
 
 
 def register_subscribers() -> None:
-    pass
+    from ddtrace.llmobs._subscribers import LLMObsLlmSubscriber
+
+    LLMObsLlmSubscriber.register()
 
 
 def unregister_subscribers() -> None:
-    pass
+    from ddtrace.llmobs._subscribers import LLMObsLlmSubscriber
+
+    LLMObsLlmSubscriber.unregister()
+
+
+def on_integration_patched(integration_name: str) -> None:
+    # The subscriber tags spans whether or not LLMObs is enabled, so it is registered when one of its
+    # integrations is patched rather than only when the product starts.
+    from ddtrace.llmobs._integrations import SUBSCRIBER_INTEGRATIONS
+
+    if integration_name in SUBSCRIBER_INTEGRATIONS:
+        register_subscribers()
 
 
 def restart(join: bool = False) -> None:

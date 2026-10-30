@@ -12,17 +12,17 @@ Use `apm-integrations` as well when changing contrib patching, registration, or 
 
 Standard request spans use `LlmRequestEvent` and `core.context_with_event()`; the tracing
 subscriber owns span creation, errors, and finishing. For new integrations, leave the event's
-`llmobs_integration` unset and register the integration class under
-`ddtrace/llmobs/_contrib/<name>/`. Shared `SpanLifecycleEvents` subscribers in
-`ddtrace/llmobs/_contrib/_subscribers.py` select the integration using `ctx.event.component`.
+`llmobs_integration` unset and map the contrib's component to its integration class in
+`SUBSCRIBER_INTEGRATIONS` (`ddtrace/llmobs/_integrations/__init__.py`). The shared
+`LLMObsLlmSubscriber` in `ddtrace/llmobs/_subscribers.py` selects the integration by `ctx.event.component`.
 Specialized agent/tool/duplex integrations may use direct spans.
 Preserve the existing lifecycle when extending an integration.
 
 - Standard requests: `ddtrace/contrib/internal/anthropic/patch.py` and
   `ddtrace/llmobs/_integrations/anthropic.py`.
-- Product registration: `ddtrace/llmobs/_contrib/anthropic/`; shared subscribers:
-  `ddtrace/llmobs/_contrib/_subscribers.py`; patch hooks:
-  `ddtrace/internal/integration_hooks.py` and `pyproject.toml`'s `ddtrace.integration_hooks` group.
+- Shared subscriber: `ddtrace/llmobs/_subscribers.py`; registration: `register_subscribers()` and
+  `on_integration_patched()` in `ddtrace/llmobs/_product.py`, called by `ProductManager`
+  (`ddtrace/internal/products.py`).
 - Agent/tool spans: `ddtrace/llmobs/_integrations/claude_agent_sdk.py`.
 - Base contract: `ddtrace/llmobs/_integrations/base.py`.
 - Streaming: `ddtrace/internal/utils/streaming.py`.
@@ -40,8 +40,8 @@ Preserve the existing lifecycle when extending an integration.
   stream owner, not an ASGI sweep that could truncate an agent outliving its request.
 - Stamp agent kind/name when the span starts so children can resolve their parent attribution.
 - Reuse extraction and metadata sanitizers; retain provider-specific token accounting and media limits.
-- Build subscriber-owned integration instances lazily. Register through the contrib's
-  `integration_hooks.on_patch()` / `on_unpatch()` calls so direct patching also works.
+- Build subscriber-owned integration instances lazily. Contrib never registers subscribers:
+  `ddtrace/_monkey.py` notifies the product manager after every successful patch.
   Keep shared subscribers available when LLMObs is disabled for APM shadow tags. Retain each
   started request's integration on its execution context so requests and streams still finalize
   after unpatch or repatch. See the implementation guide for lifecycle details.

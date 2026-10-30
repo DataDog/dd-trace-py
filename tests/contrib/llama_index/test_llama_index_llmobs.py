@@ -452,23 +452,20 @@ def test_stream_finalizes_after_unpatch(llama_index, llama_index_llmobs, test_sp
     )
 
 
-def test_shared_subscribers_isolate_components_and_repatch(monkeypatch):
+def test_shared_subscriber_isolates_components_and_retains_active_integration(llama_index, monkeypatch):
     from ddtrace import config
     from ddtrace.contrib._events.llm import LlmRequestEvent
     from ddtrace.internal import core
-    from ddtrace.llmobs._contrib import _subscribers
+    from ddtrace.llmobs import _subscribers
 
-    monkeypatch.setattr(_subscribers, "_integration_classes", {})
-    monkeypatch.setattr(_subscribers, "_integrations", {})
+    monkeypatch.setattr(_subscribers, "_integrations_by_component", {})
     first = mock.Mock(llmobs_enabled=False)
     replacement = mock.Mock(llmobs_enabled=False)
     other = mock.Mock(llmobs_enabled=False)
     for integration in (first, replacement, other):
         integration._is_instrumented_proxy_url.return_value = False
-    factory = mock.Mock(side_effect=[first, replacement])
-    other_factory = mock.Mock(return_value=other)
-    _subscribers.register("llama_index", factory)
-    _subscribers.register("anthropic", other_factory)
+    monkeypatch.setitem(_subscribers._integrations_by_component, "llama_index", first)
+    monkeypatch.setitem(_subscribers._integrations_by_component, "anthropic", other)
 
     def request(component):
         return core.context_with_event(
@@ -480,18 +477,18 @@ def test_shared_subscribers_isolate_components_and_repatch(monkeypatch):
         )
 
     with request("llama_index"):
-        _subscribers.unregister("llama_index")
+        monkeypatch.setitem(_subscribers._integrations_by_component, "llama_index", None)
         with request("llama_index"):
             pass
         first.llmobs_set_tags.assert_not_called()
         with request("anthropic"):
             pass
         other.llmobs_set_tags.assert_called_once()
-        _subscribers.register("llama_index", factory)
-        _subscribers.register("llama_index", factory)
+        monkeypatch.setitem(_subscribers._integrations_by_component, "llama_index", replacement)
+        _subscribers.LLMObsLlmSubscriber.register()
+        _subscribers.LLMObsLlmSubscriber.register()
         with request("llama_index"):
             pass
         replacement.llmobs_set_tags.assert_called_once()
         first.llmobs_set_tags.assert_not_called()
     first.llmobs_set_tags.assert_called_once()
-    assert factory.call_count == 2

@@ -1,2 +1,3 @@
-TAG_MODEL = "llama_index.request.model"
-TAG_PROVIDER = "llama_index.request.provider"
+COMPONENT = "llama_index"
+TAG_MODEL = f"{COMPONENT}.request.model"
+TAG_PROVIDER = f"{COMPONENT}.request.provider"

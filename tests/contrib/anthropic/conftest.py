@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.anthropic.patch import patch
+from ddtrace import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.anthropic.utils import get_request_vcr
@@ -41,7 +41,7 @@ def anthropic():
                 ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
             )
         ):
-            patch()
+            patch(anthropic=True)
             import anthropic
 
             yield anthropic
