@@ -873,10 +873,12 @@ def cmd_bump_rc(args: argparse.Namespace) -> int:
     run(["git", "push", "-u", "origin", branch], cwd=REPO_ROOT)
     branch_pushed: bool = True
 
-    pr_body: str = (
-        f"Bump pyproject.toml to {next_version}.\n\n"
-        f"{generated_by_pr_line('bump-rc')}\n"
-        f"Once merged, run `scripts/gh/create_gh_release.py draft-release` to create the GitHub draft."
+    pr_body: str = build_version_bump_pr_body(
+        title=f"chore: bump {next_version}",
+        base_branch=base_branch,
+        new_version=next_version,
+        body_extra=("Once merged, run `scripts/gh/create_gh_release.py draft-release` to create the GitHub draft."),
+        generated_by_extra="bump-rc",
     )
     try:
         pr_url: str = run_out(
@@ -1584,6 +1586,207 @@ def inspect_branch_state(branch: str) -> ReleaseState:
     return state
 
 
+def _is_version_bump_pr_title(title: str) -> bool:
+    """True for chore bump / set-version PRs — not fix content in a cut."""
+    lowered: str = title.lower().strip()
+    if "set version" in lowered:
+        return True
+    if "bump" in lowered and "version" in lowered:
+        return True
+    # ``chore: bump 4.17.0rc2`` (no "version" word) from bump-rc / post-release.
+    if re.match(r"^(chore:\s*)?bump\s+\d", lowered):
+        return True
+    return False
+
+
+def resolve_previous_published_tag(base_branch: str, new_version: str) -> Optional[str]:
+    """Tag to diff against for the bump PR ``Included since`` section.
+
+    Prefer the published release matching ``origin/<base_branch>``'s current
+    pyproject version (the floor of the cut). Fall back to the newest published
+    tag on the same ``X.Y`` line that is strictly older than ``new_version``.
+    """
+    target: Version = Version(normalize_version_str(new_version))
+    try:
+        current: str = read_pyproject_version_at(f"origin/{base_branch}")
+        current_ver: Version = Version(normalize_version_str(current))
+        current_tag: str = f"v{normalize_version_str(current)}"
+        if current_ver < target and _release_tag_is_published(current_tag):
+            return current_tag
+    except (SystemExit, InvalidVersion, subprocess.CalledProcessError):
+        pass
+
+    best: Optional[tuple[Version, str]] = None
+    for rel in list_published_release_tags():
+        if rel.get("isDraft"):
+            continue
+        raw_tag: str = rel.get("tagName") or ""
+        try:
+            ver: Version = Version(normalize_version_str(raw_tag))
+        except InvalidVersion:
+            continue
+        if ver.major != target.major or ver.minor != target.minor:
+            continue
+        if ver >= target:
+            continue
+        tag: str = raw_tag if raw_tag.startswith("v") else f"v{normalize_version_str(raw_tag)}"
+        if best is None or ver > best[0]:
+            best = (ver, tag)
+    return best[1] if best else None
+
+
+def _pulls_for_commit(sha: str) -> list[dict[str, Any]]:
+    """PRs GitHub associates with ``sha`` (REST ``/commits/{sha}/pulls``)."""
+    cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
+        [
+            "gh",
+            "api",
+            f"repos/{GH_REPO}/commits/{sha}/pulls",
+            "-H",
+            "Accept: application/vnd.github+json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(REPO_ROOT),
+    )
+    if cp.returncode != 0 or not cp.stdout.strip():
+        return []
+    try:
+        data: Any = json.loads(cp.stdout)
+    except ValueError:
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _pr_numbers_in_subject(subject: str) -> list[int]:
+    """``(#12345)`` markers commonly left by merge/backport commits."""
+    return [int(m) for m in re.findall(r"\(#(\d+)\)", subject)]
+
+
+def list_merged_prs_since(prev_tag: str, head_ref: str, *, base_branch: str) -> list[dict[str, Any]]:
+    """Merged PRs that land in ``prev_tag..head_ref`` (usually onto ``base_branch``).
+
+    Prefer commit→PR association from the GitHub API; fall back to ``(#N)`` in
+    the commit subject. Skips open PRs and version-bump titles so the bump PR
+    itself never appears as "included" content.
+    """
+    log_out: str = run_out(
+        ["git", "log", "--format=%H%x00%s", f"{prev_tag}..{head_ref}"],
+        cwd=REPO_ROOT,
+    )
+    found: dict[int, dict[str, Any]] = {}
+    for line in log_out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if "\x00" in line:
+            sha: str
+            subject: str
+            sha, subject = line.split("\x00", 1)
+        else:
+            sha, subject = line, ""
+        sha = sha.strip()
+        if not sha:
+            continue
+
+        candidates: list[dict[str, Any]] = []
+        for pull in _pulls_for_commit(sha):
+            number: Any = pull.get("number")
+            if not isinstance(number, int):
+                continue
+            title: str = pull.get("title") or ""
+            merged_at: Optional[str] = pull.get("merged_at")
+            base: Any = pull.get("base") or {}
+            base_ref: str = base.get("ref") or "" if isinstance(base, dict) else ""
+            url: str = pull.get("html_url") or f"https://github.com/{GH_REPO}/pull/{number}"
+            candidates.append(
+                {
+                    "number": number,
+                    "title": title,
+                    "url": url,
+                    "merged_at": merged_at,
+                    "base_ref": base_ref,
+                }
+            )
+
+        if not candidates:
+            for num in _pr_numbers_in_subject(subject):
+                try:
+                    view: dict[str, Any] = gh_pr_view(num)
+                except SystemExit:
+                    continue
+                candidates.append(
+                    {
+                        "number": int(view.get("number") or num),
+                        "title": view.get("title") or "",
+                        "url": view.get("url") or f"https://github.com/{GH_REPO}/pull/{num}",
+                        "merged_at": view.get("mergedAt"),
+                        "base_ref": view.get("baseRefName") or "",
+                    }
+                )
+
+        for cand in candidates:
+            number_i: int = int(cand["number"])
+            title_s: str = str(cand.get("title") or "")
+            if _is_version_bump_pr_title(title_s):
+                continue
+            if not cand.get("merged_at"):
+                continue
+            base_ref_s: str = str(cand.get("base_ref") or "")
+            # Prefer PRs merged into the bump base; still accept same-line
+            # backports if GitHub omits base (rare) but the subject matched.
+            if base_ref_s and base_ref_s != base_branch:
+                continue
+            if number_i not in found:
+                found[number_i] = {
+                    "number": number_i,
+                    "title": title_s,
+                    "url": str(cand.get("url") or f"https://github.com/{GH_REPO}/pull/{number_i}"),
+                }
+
+    return [found[n] for n in sorted(found)]
+
+
+def format_included_since_section(prev_tag: str, prs: list[dict[str, Any]]) -> str:
+    """Markdown block listing merged PRs in this cut since ``prev_tag``."""
+    lines: list[str] = [f"Included since {prev_tag}:"]
+    if not prs:
+        lines.append("- (none yet)")
+        return "\n".join(lines)
+    for pr in prs:
+        number: int = int(pr["number"])
+        url: str = str(pr.get("url") or f"https://github.com/{GH_REPO}/pull/{number}")
+        title: str = str(pr.get("title") or "").strip() or f"#{number}"
+        lines.append(f"- [#{number}]({url}): {title}")
+    return "\n".join(lines)
+
+
+def build_version_bump_pr_body(
+    *,
+    title: str,
+    base_branch: str,
+    new_version: str,
+    body_extra: str = "",
+    generated_by_extra: str = "",
+    head_ref: Optional[str] = None,
+) -> str:
+    """Body for a version-bump PR: summary, included PRs since prior tag, Generated-by footer."""
+    head: str = head_ref or f"origin/{base_branch}"
+    parts: list[str] = [f"{title.rstrip('.')}."]
+    prev_tag: Optional[str] = resolve_previous_published_tag(base_branch, new_version)
+    if prev_tag is not None:
+        included: list[dict[str, Any]] = list_merged_prs_since(prev_tag, head, base_branch=base_branch)
+        parts.append("")
+        parts.append(format_included_since_section(prev_tag, included))
+    if body_extra.strip():
+        parts.append("")
+        parts.append(body_extra.strip())
+    parts.append("")
+    parts.append(generated_by_pr_line(generated_by_extra))
+    return "\n".join(parts) + "\n"
+
+
 def open_version_bump_pr(
     *,
     base_branch: str,
@@ -1594,15 +1797,31 @@ def open_version_bump_pr(
 ) -> Optional[str]:
     """Create a version-bump branch/PR. Returns PR URL or None on dry-run."""
     branch: str = f"bump-version/{new_version}"
+    run(["git", "fetch", "origin", base_branch], cwd=REPO_ROOT)
+    pr_body: str = build_version_bump_pr_body(
+        title=title,
+        base_branch=base_branch,
+        new_version=new_version,
+        body_extra=body_extra,
+    )
     if dry_run:
         print(f"(dry-run) would open PR {title!r} on base {base_branch} via branch {branch}")
+        print("--- bump PR body ---")
+        print(pr_body.rstrip())
+        print("--- end bump PR body ---")
         return None
     ensure_gh_auth()
     ensure_gh_push_scope()
     ensure_clean_tree()
-    run(["git", "fetch", "origin", base_branch], cwd=REPO_ROOT)
     run(["git", "switch", base_branch], cwd=REPO_ROOT)
     run(["git", "pull", "--ff-only", "origin", base_branch], cwd=REPO_ROOT)
+    # Rebuild after pull so Included-since matches the tip we branch from.
+    pr_body = build_version_bump_pr_body(
+        title=title,
+        base_branch=base_branch,
+        new_version=new_version,
+        body_extra=body_extra,
+    )
     if remote_branch_exists(branch):
         raise WaitingOn(f"branch {branch!r} already exists on origin — reuse/merge that bump PR or delete it")
     run(["git", "switch", "-c", branch], cwd=REPO_ROOT)
@@ -1613,7 +1832,6 @@ def open_version_bump_pr(
     run(["git", "add", "pyproject.toml"], cwd=REPO_ROOT)
     run(["git", "commit", "-m", title], cwd=REPO_ROOT)
     run(["git", "push", "-u", "origin", branch], cwd=REPO_ROOT)
-    pr_body: str = f"{title}.\n\n{generated_by_pr_line()}\n{body_extra}"
     pr_url: str = run_out(
         [
             "gh",
