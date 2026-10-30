@@ -5,8 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal.bottle.trace import _run_request
-from ddtrace.contrib.internal.web_framework import complete_request_safely
+from ddtrace.contrib.internal.bottle import trace
 from ddtrace.contrib.internal.web_framework import run_web_framework_request
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import Config
@@ -18,9 +17,18 @@ class Cancelled(BaseException):
     pass
 
 
-@pytest.fixture(params=[run_web_framework_request, _run_request], ids=["shared", "bottle"])
-def runner(request):
-    return request.param
+@pytest.fixture(params=["shared", "bottle"])
+def runner(request, monkeypatch):
+    if request.param == "shared":
+        return run_web_framework_request
+
+    def run_bottle_request(callback, args, kwargs, *, prepare, complete):
+        monkeypatch.setattr(trace, "_prepare_request", lambda plugin, route: prepare())
+        monkeypatch.setattr(trace, "_complete_request", complete)
+        wrapped = trace.TracePlugin().apply(callback, route=object())
+        return wrapped(*args, **kwargs)
+
+    return run_bottle_request
 
 
 @pytest.fixture
@@ -181,7 +189,8 @@ def test_returned_iterator_is_not_consumed_or_wrapped(runner, event, tracer, tes
 
 
 @pytest.mark.parametrize("failure", [None, ValueError("callback failed"), Cancelled("cancelled")])
-def test_bottle_context_lifecycle_preserves_exception(event, tracer, failure):
+@pytest.mark.parametrize("runner", ["bottle"], indirect=True)
+def test_bottle_context_lifecycle_preserves_exception(runner, event, tracer, failure):
     started = Mock()
     ended = Mock()
     generic_started = Mock()
@@ -192,10 +201,10 @@ def test_bottle_context_lifecycle_preserves_exception(event, tracer, failure):
     try:
         callback = Mock(return_value="result", side_effect=failure)
         if failure is None:
-            assert _run_request(callback, (), {}, prepare=lambda: event, complete=Mock()) == "result"
+            assert runner(callback, (), {}, prepare=lambda: event, complete=Mock()) == "result"
         else:
             with pytest.raises(type(failure)) as caught:
-                _run_request(callback, (), {}, prepare=lambda: event, complete=Mock())
+                runner(callback, (), {}, prepare=lambda: event, complete=Mock())
             assert caught.value is failure
     finally:
         core.reset_listeners("context.started.bottle.request", started)
@@ -211,75 +220,4 @@ def test_bottle_context_lifecycle_preserves_exception(event, tracer, failure):
     assert exc_info[1] is failure
     assert exc_info[0] is (type(failure) if failure is not None else None)
     assert core.current is parent
-    assert tracer.current_span() is None
-
-
-@pytest.mark.parametrize("replace", [False, True])
-def test_shared_execution_adapter_observes_completed_metadata(event, tracer, test_spans, replace):
-    event.activate_distributed_headers = False
-    failure = Cancelled("callback interrupted")
-    order = []
-    callback_result = object()
-    replacement = object()
-
-    def callback():
-        order.append("callback")
-        if replace:
-            raise failure
-        return callback_result
-
-    def complete(request_event, result, error):
-        assert request_event is event
-        assert tracer.current_span() is not None
-        order.append((result, error))
-        request_event.response_status_code = 500 if error else 202
-
-    def execute(request_event, invoke, kwargs, passed_complete):
-        assert core.current.event is request_event
-        assert kwargs == {}
-        assert passed_complete is complete
-        order.append("before")
-        try:
-            result = invoke()
-        except Cancelled as exc:
-            assert exc is failure
-            assert event.response_status_code == 500
-            complete_request_safely(passed_complete, event, replacement, None)
-            return replacement
-        assert event.response_status_code == 202
-        order.append("after")
-        return result
-
-    result = run_web_framework_request(callback, (), {}, prepare=lambda: event, complete=complete, execute=execute)
-    if replace:
-        assert result is replacement
-        assert order == ["before", "callback", (None, failure), (replacement, None)]
-    else:
-        assert result is callback_result
-        assert order == ["before", "callback", (callback_result, None), "after"]
-    (span,) = test_spans.pop()
-    assert span.finished
-    assert span.error == 0
-    assert_span_http_status_code(span, 202)
-    assert tracer.current_span() is None
-
-
-def test_preparation_failure_bypasses_execution_adapter(tracer):
-    callback = Mock(return_value="result")
-    execute = Mock()
-    complete = Mock()
-    assert (
-        run_web_framework_request(
-            callback,
-            (1,),
-            {"key": 2},
-            prepare=Mock(side_effect=ValueError("metadata failed")),
-            complete=complete,
-            execute=execute,
-        )
-        == "result"
-    )
-    callback.assert_called_once_with(1, key=2)
-    execute.assert_not_called()
-    complete.assert_not_called()
     assert tracer.current_span() is None

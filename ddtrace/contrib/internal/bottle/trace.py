@@ -11,7 +11,6 @@ from bottle import response
 
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
-from ddtrace.contrib.internal.web_framework import CompleteCallback
 from ddtrace.contrib.internal.web_framework import run_web_framework_request
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -46,27 +45,16 @@ class TracePlugin:
         prepare = partial(_prepare_request, self, route)
 
         def wrapped(*args: Any, **kwargs: Any) -> Any:
-            return _run_request(callback, args, kwargs, prepare=prepare, complete=_complete_request)
+            return run_web_framework_request(
+                callback,
+                args,
+                kwargs,
+                prepare=prepare,
+                complete=_complete_request,
+                context_name_override="bottle.request",
+            )
 
         return wrapped
-
-
-def _run_request(
-    callback: Callable[..., Any],
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-    *,
-    prepare: Callable[[], WebFrameworkRequestEvent],
-    complete: CompleteCallback,
-) -> Any:
-    return run_web_framework_request(
-        callback,
-        args,
-        kwargs,
-        prepare=prepare,
-        complete=complete,
-        context_name_override="bottle.request",
-    )
 
 
 def _prepare_request(plugin: TracePlugin, route: Any) -> WebFrameworkRequestEvent:

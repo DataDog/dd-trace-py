@@ -106,20 +106,8 @@ error is the original exception, or ``None`` on success; the result is ``None``
 when the callback raised. Hooks update event fields without accessing spans.
 They must not consume response bodies or retain exceptions and tracebacks.
 
-For an integration that needs response inspection or replacement, the optional
-``execute(event, invoke, kwargs, complete)`` adapter runs inside the context. Calling
-``invoke()`` executes the application callback with its original arguments and completes
-its metadata before returning or re-raising. The adapter can then inspect the metadata
-and preserve or replace the outcome. If it skips the callback or replaces its
-outcome, the adapter must update the final metadata before returning; it can use
-``complete_request_safely(complete, event, result, error)``. The runner passes the
-callback's keyword arguments and the integration's ``complete`` hook on every request,
-so an adapter holds no per-request state and can be built once at import time. The
-adapter must not invoke the application more than once or manage context or span
-completion. Without an adapter, the runner calls ``invoke()`` directly.
-
 Request hooks and context events run regardless of tracing enablement. An ordinary
-preparation error bypasses the context and adapter and invokes the application once.
+preparation error bypasses the context and invokes the application once.
 An ordinary completion error preserves the application's result or exception.
 Process-control exceptions from metadata hooks are not suppressed.
 
