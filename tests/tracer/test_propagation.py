@@ -706,7 +706,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 assert span.context.dd_origin == "synthetics"
                 assert span.context._meta == {
                     "_dd.origin": "synthetics",
-                    "_dd.p.dm": "-4",
+                    "_dd.p.dm": "-5",
                     "_dd.p.ts": "02",
                 }
                 with tracer.trace("child_span") as child_span:
@@ -716,7 +716,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                     assert child_span.context.dd_origin == "synthetics"
                     assert child_span.context._meta == {
                         "_dd.origin": "synthetics",
-                        "_dd.p.dm": "-4",
+                        "_dd.p.dm": "-5",
                         "_dd.p.ts": "02",
                     }
 
