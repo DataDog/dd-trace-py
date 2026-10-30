@@ -27,7 +27,11 @@ from .version import __version__  # noqa: E402
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+    from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
     from ddtrace.trace import tracer  # noqa: F401
+
+    # Wired here rather than in ddtrace.trace so that the tracing product does not depend on the OpenTelemetry one.
+    register_otel_thread_context_listener(tracer)
 
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: E402, F401
