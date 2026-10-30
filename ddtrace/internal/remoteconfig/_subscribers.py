@@ -31,9 +31,10 @@ class RemoteConfigSubscriber(PeriodicService):
         # Poll at twice the agent poll rate. The wait is the PeriodicThread's own,
         # so stop() and the before-fork hook interrupt it at once. A blocking wait
         # inside periodic() would hold up every fork from this process until it
-        # timed out.
+        # timed out. PeriodicThread truncates the interval to whole milliseconds,
+        # so keep it at 1ms or more to avoid spinning.
         super().__init__(
-            interval=config._remote_config_poll_interval / 2,
+            interval=max(0.001, config._remote_config_poll_interval / 2),
             no_wait_at_start=True,
             autorestart=False,
         )
