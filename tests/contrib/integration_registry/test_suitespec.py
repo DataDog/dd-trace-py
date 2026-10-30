@@ -4,7 +4,6 @@ from mappings import EXCLUDED_FROM_TESTING
 import pytest
 
 from ddtrace.internal.compat import MAX_PY
-from ddtrace.internal.compat import NEXT_MAX_PY
 from tests import suitespec
 from tests.suitespec import DEFAULT_PYTHON_VERSIONS
 from tests.suitespec import get_patterns
@@ -83,11 +82,12 @@ def test_nightly_coverage_report_upload_versions_can_be_extended(coverage_suite_
 def test_python_versions_follow_compat_bounds():
     environments = get_test_environments(nightly=False)
 
-    # MAX_PY is the last packaged CPython (requires-python). The default CI
-    # matrix also schedules NEXT_MAX_PY the same way it already schedules MAX_PY.
+    # MAX_PY is the last packaged CPython (requires-python). Schedule it in the
+    # default matrix. NEXT_MAX_PY is wrap-live only until the testrunner image
+    # ships that interpreter — do not require it in DEFAULT yet.
     assert f"{MAX_PY[0]}.{MAX_PY[1]}" in DEFAULT_PYTHON_VERSIONS
-    assert DEFAULT_PYTHON_VERSIONS[-1] == f"{NEXT_MAX_PY[0]}.{NEXT_MAX_PY[1]}"
-    assert f"{NEXT_MAX_PY[0]}.{NEXT_MAX_PY[1]}" in {environment.python for environment in environments["smoke_test"]}
+    assert DEFAULT_PYTHON_VERSIONS[-1] == f"{MAX_PY[0]}.{MAX_PY[1]}"
+    assert f"{MAX_PY[0]}.{MAX_PY[1]}" in {environment.python for environment in environments["smoke_test"]}
 
 
 def test_integrations_have_suitespec_environments(

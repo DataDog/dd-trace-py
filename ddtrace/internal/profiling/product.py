@@ -1,12 +1,22 @@
-"""Product plugin that installs and starts the profiler."""
+"""Product plugin that installs and starts the profiler, and lets Remote Config control it."""
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigProduct
+from ddtrace.internal.profiling import remoteconfig
+from ddtrace.internal.settings._config import config as global_config
 from ddtrace.internal.settings.profiling import config as profiling_config
 
 
 log = get_logger(__name__)
 
-requires: list[str] = []
+# Profiling does not depend on Remote Configuration: the profiler starts in post_preload, which the product manager
+# calls even when remote-configuration is disabled or failed to start. requires only makes the RC subscription in start
+# wait for the remote-configuration product, which defers the first poll until every product has registered.
+requires: list[str] = ["remote-configuration"]
+
+
+def _remote_config_enabled() -> bool:
+    return bool(global_config._remote_config_enabled) and bool(profiling_config.remote_config_experiment)
 
 
 def post_preload() -> None:
@@ -35,11 +45,28 @@ def post_preload() -> None:
 
 
 def enabled() -> bool:
-    return bool(profiling_config.install) or bool(profiling_config.enabled)
+    return bool(profiling_config.install) or bool(profiling_config.enabled) or _remote_config_enabled()
 
 
 def start() -> None:
-    pass
+    if _remote_config_enabled():
+        # Remote Config can start the profiler from its own thread, where signal handlers cannot be installed, so
+        # install them now, on the main thread. install is False when the profiler cannot run on this platform.
+        if profiling_config.install:
+            try:
+                from ddtrace.profiling.profiler import Profiler
+
+                Profiler._register_exit_signal_handler()
+            except Exception:
+                log.debug("failed to register the profiler exit signal handler", exc_info=True)
+
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        callback = remoteconfig.ProfilingRCCallback()
+        remoteconfig_poller.register_callback(RemoteConfigProduct.Debug, callback)
+        remoteconfig_poller.register_callback(RemoteConfigProduct.ApmProfiling, callback)
+        remoteconfig_poller.enable_product(RemoteConfigProduct.Debug)
+        remoteconfig_poller.enable_product(RemoteConfigProduct.ApmProfiling)
 
 
 def activated() -> bool:
@@ -54,5 +81,13 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    # The profiler registers its own atexit hook.
-    pass
+    # The profiler registers its own atexit hook, so only the Remote Config subscription is undone here.
+    if not _remote_config_enabled():
+        return
+
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.Debug)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.Debug)
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.ApmProfiling)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.ApmProfiling)

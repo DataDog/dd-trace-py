@@ -51,6 +51,8 @@ class StackChunk
 
 // ----------------------------------------------------------------------------
 
-inline std::unique_ptr<StackChunk> stack_chunk = nullptr;
+// uWSGI may call exit without running the atexit hooks that stop the sampler.
+// Making this a raw pointer prevents crashes at exit.
+inline StackChunk* stack_chunk = nullptr;
 
 #endif // PY_VERSION_HEX >= 0x030b0000

@@ -1,0 +1,62 @@
+id: uuid4-usage
+snapshots:
+  from uuid import UUID, uuid4:
+    labels:
+    - source: from uuid import UUID, uuid4
+      style: primary
+      start: 0
+      end: 28
+    - source: uuid
+      style: secondary
+      start: 5
+      end: 9
+    - source: uuid4
+      style: secondary
+      start: 23
+      end: 28
+  from uuid import uuid4:
+    labels:
+    - source: from uuid import uuid4
+      style: primary
+      start: 0
+      end: 22
+    - source: uuid
+      style: secondary
+      start: 5
+      end: 9
+    - source: uuid4
+      style: secondary
+      start: 17
+      end: 22
+  from uuid import uuid4 as make_id:
+    labels:
+    - source: from uuid import uuid4 as make_id
+      style: primary
+      start: 0
+      end: 33
+    - source: uuid
+      style: secondary
+      start: 5
+      end: 9
+    - source: uuid4
+      style: secondary
+      start: 17
+      end: 22
+  import uuid; str(uuid.uuid4()):
+    labels:
+    - source: uuid.uuid4()
+      style: primary
+      start: 17
+      end: 29
+  import uuid; uuid.uuid4():
+    labels:
+    - source: uuid.uuid4()
+      style: primary
+      start: 13
+      end: 25
+  import uuid; uuid.uuid4().hex:
+    labels:
+    - source: uuid.uuid4()
+      style: primary
+      start: 13
+      end: 25

@@ -301,11 +301,14 @@ suites:
       - '@core'
       - '@tracing'
       - ddtrace/internal/*
+      - .gitlab/retry-policies*.yml
       - scripts/check_no_new_aidev_anchors.py
+      - scripts/ddtest_jobs.py
       - scripts/gen_gitlab_config.py
       - scripts/run-tests
       - scripts/update-libddwaf-checksums.py
       - tests/internal/*
+      - tests/wait-for-services.py
       - tests/submod/*
       - tests/cache/*
       - tests/snapshots/tests.internal.*
@@ -490,7 +493,7 @@ suites:
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
       variants:
         - name: tracer-uwsgi
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
   wait:
     type: helper

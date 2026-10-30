@@ -7,9 +7,20 @@ from unittest.mock import Mock
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.bdd import _get_step_func_args_json
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
+
+
+# pytest-bdd releases available at the time of writing (up to 9.0.0) read pytest
+# internals that pytest 9.2 removed (e.g. FixtureManager._arg2fixturedefs), so nested
+# scenario sessions cannot run. The dedicated pytest_bdd suite pins pytest in
+# tests/ci_visibility/suitespec.yml. Remove when pytest-bdd supports pytest >= 9.2.
+_requires_pytest_bdd_compat = pytest.mark.skipif(
+    parse_version(pytest.__version__) >= (9, 2, 0),
+    reason="pytest-bdd does not support pytest 9.2 or newer yet",
+)
 
 
 _SIMPLE_SCENARIO = """
@@ -139,6 +150,7 @@ class TestPytestBdd:
         assert version != ""
         emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_scenario_with_parameters(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with all steps."""
         pytester.makefile(
@@ -208,6 +220,7 @@ class TestPytestBdd:
             {"bars": "no"},
         ]
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_scenario(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with all steps."""
         pytester.makefile(
@@ -253,6 +266,7 @@ class TestPytestBdd:
             ("then", "I don't have a bar"),
         ]
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_scenario_with_failed_step(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with a failed step."""
         pytester.makefile(
@@ -299,6 +313,7 @@ class TestPytestBdd:
         ]
         assert capture["step_spans"][-1]["error_msg"] == "assert 0 == -1"
 
+    @_requires_pytest_bdd_compat
     def test_pytest_bdd_with_missing_step_implementation(self, pytester: Pytester) -> None:
         """Test that pytest-bdd captures missing steps."""
         pytester.makefile(

@@ -17,7 +17,6 @@ import os
 import random
 import re
 import socket
-import threading
 import time
 from typing import Any
 from typing import Callable
@@ -32,6 +31,7 @@ from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import retry
@@ -169,7 +169,7 @@ class AgentlessConfigurationSource(PeriodicService):
         # to unblock the worker thread mid-request; see _cancel_in_flight_request.
         # The lock keeps the shutdown thread from touching a connection the worker
         # is concurrently replacing or closing.
-        self._conn_lock = threading.Lock()
+        self._conn_lock = Lock()
         self._in_flight_conn: Optional[Any] = None
 
     # -- scheduling ---------------------------------------------------------
