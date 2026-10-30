@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from typing import Optional
 
@@ -86,7 +87,13 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
         )
 
         return result
-    except Exception:
+    except BaseException as exc:
+        if not isinstance(exc, (Exception, asyncio.CancelledError)):
+            # The MCP SDK requires AnyIO, but an unrelated module can also be named mcp.
+            from anyio import get_cancelled_exc_class
+
+            if not isinstance(exc, get_cancelled_exc_class()):
+                raise
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )

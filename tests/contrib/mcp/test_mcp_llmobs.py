@@ -6,7 +6,12 @@ import os
 from textwrap import dedent
 from unittest import mock
 
+import anyio
+import pytest
+
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
@@ -176,6 +181,101 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
         tags={"service": "mcptest", "ml_app": "<ml-app-name>", "integration": "mcp"},
         name="MCP Client list Tools",
     )
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("llmobs_enabled", [True, False])
+def test_llmobs_client_tool_cancellation(mcp_setup, request, test_spans, mcp_server, backend, llmobs_enabled):
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    if backend == "trio":
+        pytest.importorskip("trio")
+
+    if llmobs_enabled:
+        llmobs = request.getfixturevalue("mcp_llmobs")
+    else:
+        LLMObs.disable()
+        llmobs = None
+
+    async def run_test():
+        started = anyio.Event()
+
+        @mcp_server.tool()
+        async def slow_tool(argument: str) -> str:
+            started.set()
+            await anyio.sleep_forever()
+            return argument
+
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            if backend == "asyncio":
+                task = asyncio.create_task(client.call_tool("slow_tool", {"argument": "value"}))
+                await asyncio.wait_for(started.wait(), timeout=10)
+                task.cancel("cancelled by caller")
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            else:
+                cancellation_reached_caller = anyio.Event()
+
+                async def call_tool():
+                    try:
+                        await client.call_tool("slow_tool", {"argument": "value"})
+                    except anyio.get_cancelled_exc_class():
+                        cancellation_reached_caller.set()
+                        raise
+
+                async with anyio.create_task_group() as task_group:
+                    task_group.start_soon(call_tool)
+                    with anyio.fail_after(10):
+                        await started.wait()
+                    task_group.cancel_scope.cancel()
+                assert cancellation_reached_caller.is_set()
+
+    anyio.run(run_test, backend=backend)
+
+    client_spans = [span for span in test_spans.pop() if span.resource == "client_tool_call"]
+    assert len(client_spans) == 1
+    client_span = client_spans[0]
+    assert client_span.finished
+    assert client_span.error
+    expected_error_type = "asyncio.exceptions.CancelledError" if backend == "asyncio" else "trio.Cancelled"
+    assert client_span.get_tag(ERROR_TYPE) == expected_error_type
+    if llmobs_enabled:
+        events = [
+            call.args[0]
+            for call in llmobs._instance._llmobs_span_writer.enqueue.call_args_list
+            if call.args[0]["span_id"] == str(client_span.span_id)
+        ]
+        assert len(events) == 1
+        assert events[0]["meta"]["span"]["kind"] == "tool"
+        assert events[0]["status"] == "error"
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(client_span),
+            span_kind="tool",
+            name="MCP Client Tool Call: slow_tool",
+            input_value=json.dumps({"argument": "value"}, sort_keys=True),
+            error=mock.ANY,
+        )
+
+
+def test_llmobs_client_tool_interrupt(mcp_setup, mcp_llmobs, test_spans):
+    from ddtrace.contrib.internal.mcp.patch import traced_call_tool
+
+    interrupt = KeyboardInterrupt("stopped")
+
+    async def interrupted_tool(*args, **kwargs):
+        raise interrupt
+
+    async def run_test():
+        with pytest.raises(KeyboardInterrupt) as caught:
+            await traced_call_tool(interrupted_tool, None, ("tool", {}), {})
+        assert caught.value is interrupt
+
+    asyncio.run(run_test())
+
+    client_span = next(span for span in test_spans.pop() if span.resource == "client_tool_call")
+    assert client_span.finished
+    assert not client_span.error
+    assert not mcp_llmobs._instance._llmobs_span_writer.enqueue.called
 
 
 def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_call_tool):
@@ -532,8 +632,6 @@ def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
     1. ``func`` (i.e. ``respond``) is called before ``llmobs_set_tags``.
     2. ``llmobs_set_tags`` still runs even when ``func`` raises ``ClosedResourceError``.
     """
-    import anyio
-
     from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
 
     call_order = []

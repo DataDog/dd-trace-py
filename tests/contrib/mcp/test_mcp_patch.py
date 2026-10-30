@@ -87,3 +87,27 @@ except ModuleNotFoundError as error:
 
     assert status == 0, stderr.decode()
     assert b"failed to enable ddtrace support for mcp" not in stderr
+
+
+def test_unrelated_mcp_module_without_anyio(run_python_code_in_subprocess):
+    code = """
+import sys
+import types
+
+class BlockAnyio:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "anyio":
+            raise ModuleNotFoundError("No module named 'anyio'", name="anyio")
+
+sys.meta_path.insert(0, BlockAnyio())
+sys.modules.pop("anyio", None)
+mcp = types.ModuleType("mcp")
+sys.modules["mcp"] = mcp
+
+from ddtrace import patch
+patch(mcp=True)
+assert mcp.__datadog_patch is False
+"""
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr.decode()

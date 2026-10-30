@@ -1,0 +1,3 @@
+fixes:
+  - |
+    mcp: Fixes missing LLM Observability tool spans when a client tool call is canceled.
