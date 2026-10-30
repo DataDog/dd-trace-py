@@ -92,8 +92,10 @@ current signatures and defaults.
 `scripts/gh/create_gh_release.py` drives patch, RC, and final releases described in
 `docs/contributing-release.rst`: intent commands (`patch`, `rc`, `final`, `post-release`)
 inspect GitHub/git state, do every dd-trace-py-side step they can, and stop at a reviewed
-draft GitHub release. Always-draft (publishing requires a maintainer). See
-`scripts/gh/create_gh_release.py --help` and `.agents/skills/release/SKILL.md`.
+draft GitHub release. Always-draft (publishing requires a maintainer). Default `--slack`
+target is `#apm-python-release` (`DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` or SSM
+`ci.dd-trace-py.slack-release-webhook-prod`). See `scripts/gh/create_gh_release.py --help`
+and `.agents/skills/release/SKILL.md`.
 
 Tests live in `scripts/gh/test_create_gh_release.py`. GitLab `prechecks` runs them when
 `scripts/gh/` changes (see `scripts/gen_gitlab_config.py`). Locally:

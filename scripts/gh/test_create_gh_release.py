@@ -24,7 +24,10 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from create_gh_release import _GH_RELEASE_REQUIRED_FLAGS  # noqa: E402
+from create_gh_release import SLACK_CHANNEL_DEFAULT  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_GUILD_ENV  # noqa: E402
+from create_gh_release import SLACK_CHANNEL_PROD_ENV  # noqa: E402
+from create_gh_release import SLACK_CHANNEL_PROD_ENV_LEGACY  # noqa: E402
 from create_gh_release import SLACK_DM_ENV  # noqa: E402
 from create_gh_release import SLACK_USER_BRETT_ID  # noqa: E402
 from create_gh_release import SLACK_USER_EMMETT_ID  # noqa: E402
@@ -228,9 +231,10 @@ class SlackDefaultsTests(unittest.TestCase):
         parser = build_parser()
         for argv in (
             ["patch", "1", "--branch", "4.16", "--test-dm", "--no-slack-precheck"],
-            ["rc", "--slack", "--slack-channel", "guild"],
+            ["rc", "--slack", "--slack-channel", "prod"],
             ["final", "4.17", "--slack", "--test-dm"],
             ["draft-release", "--test-dm"],
+            ["rc", "--slack", "--slack-channel", "guild"],
         ):
             ns = parser.parse_args(argv)
             self.assertTrue(hasattr(ns, "slack"))
@@ -238,10 +242,11 @@ class SlackDefaultsTests(unittest.TestCase):
             self.assertTrue(hasattr(ns, "slack_channel"))
             self.assertTrue(hasattr(ns, "slack_precheck"))
 
-    def test_slack_channel_defaults_to_guild(self) -> None:
+    def test_slack_channel_defaults_to_prod(self) -> None:
         parser = build_parser()
         ns = parser.parse_args(["rc", "--slack"])
-        self.assertEqual(ns.slack_channel, "guild")
+        self.assertEqual(ns.slack_channel, "prod")
+        self.assertEqual(ns.slack_channel, SLACK_CHANNEL_DEFAULT)
 
     def test_format_slack_announce_template(self) -> None:
         with mock.patch.dict("os.environ", {}, clear=True):
@@ -315,8 +320,11 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(run_mock.call_count, 1)
 
     def test_preferred_env_names(self) -> None:
+        self.assertEqual(SLACK_CHANNEL_PROD_ENV, "DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL")
+        self.assertEqual(SLACK_CHANNEL_PROD_ENV_LEGACY, "DD_RELEASE_SLACK_WEBHOOK_URL_PROD")
         self.assertEqual(SLACK_CHANNEL_GUILD_ENV, "DDTRACE_RELEASE_GUILD_CHANNEL_URL")
         self.assertEqual(SLACK_DM_ENV, "DDTRACE_RELEASE_DM_URL")
+        self.assertEqual(SLACK_CHANNEL_DEFAULT, "prod")
 
     def test_notify_slack_test_dm_only(self) -> None:
         import create_gh_release as mod
@@ -330,7 +338,7 @@ class SlackDefaultsTests(unittest.TestCase):
             "os.environ",
             {
                 SLACK_DM_ENV: "https://example.test/dm",
-                SLACK_CHANNEL_GUILD_ENV: "https://example.test/guild",
+                SLACK_CHANNEL_PROD_ENV: "https://example.test/prod",
             },
             clear=True,
         ):
@@ -341,7 +349,7 @@ class SlackDefaultsTests(unittest.TestCase):
                         target_sha="deadbeef",
                         draft_url="https://example/draft",
                         test_dm=True,
-                        channel="guild",
+                        channel="prod",
                         precheck=False,
                     )
         self.assertEqual(len(posted), 1)
@@ -353,7 +361,65 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("*Draft patch release*", body)
         self.assertIn(f"Run by {_FAKE_RUNNER}", body)
 
-    def test_notify_slack_guild_channel(self) -> None:
+    def test_notify_slack_prod_channel(self) -> None:
+        import create_gh_release as mod
+
+        posted: list[tuple[str, str]] = []
+
+        def fake_post(url: str, text: str) -> None:
+            posted.append((url, text))
+
+        with mock.patch.dict(
+            "os.environ",
+            {SLACK_CHANNEL_PROD_ENV: "https://example.test/prod"},
+            clear=True,
+        ):
+            with mock.patch.object(mod, "post_webhook", fake_post):
+                mod.notify_slack(
+                    version="4.17.0",
+                    target_sha="cafebabe",
+                    draft_url="https://example/final",
+                    test_dm=False,
+                    channel="prod",
+                    precheck=False,
+                )
+        self.assertEqual(len(posted), 1)
+        url: str
+        body: str
+        url, body = posted[0]
+        self.assertEqual(url, "https://example.test/prod")
+        self.assertIn("*Draft release*", body)
+        self.assertNotIn("[TEST]", body)
+
+    def test_notify_slack_prod_legacy_env(self) -> None:
+        import create_gh_release as mod
+
+        posted: list[tuple[str, str]] = []
+
+        def fake_post(url: str, text: str) -> None:
+            posted.append((url, text))
+
+        with mock.patch.dict(
+            "os.environ",
+            {SLACK_CHANNEL_PROD_ENV_LEGACY: "https://example.test/prod-legacy"},
+            clear=True,
+        ):
+            with mock.patch.object(mod, "post_webhook", fake_post):
+                mod.notify_slack(
+                    version="4.17.0",
+                    target_sha="cafebabe",
+                    draft_url="https://example/final",
+                    test_dm=False,
+                    channel="prod",
+                    precheck=False,
+                )
+        self.assertEqual(len(posted), 1)
+        url: str
+        _body: str
+        url, _body = posted[0]
+        self.assertEqual(url, "https://example.test/prod-legacy")
+
+    def test_notify_slack_guild_channel_escape_hatch(self) -> None:
         import create_gh_release as mod
 
         posted: list[tuple[str, str]] = []
