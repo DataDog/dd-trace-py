@@ -42,8 +42,7 @@ discover_asyncio_offsets(PyObject* asyncio_module)
         return std::nullopt;
     }
 
-    auto offsets =
-      read_asyncio_debug_offsets_at(table_address, EchionSampler::asyncio_mirror_task_layout(), read_own_memory);
+    auto offsets = read_asyncio_debug_offsets_at(table_address, EchionSampler::asyncio_mirror_task_layout());
     if (!offsets) {
         return std::nullopt;
     }
@@ -56,8 +55,7 @@ discover_asyncio_offsets(PyObject* asyncio_module)
 #else
     const uintptr_t interp_base = reinterpret_cast<uintptr_t>(PyThreadState_GetInterpreter(tstate));
 #endif
-    if (!asyncio_offsets_match_live_heads(
-          *offsets, reinterpret_cast<uintptr_t>(tstate), interp_base, read_own_memory)) {
+    if (!asyncio_offsets_match_live_heads(*offsets, reinterpret_cast<uintptr_t>(tstate), interp_base)) {
         return std::nullopt;
     }
     return offsets;

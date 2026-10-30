@@ -64,25 +64,18 @@ static_assert(sizeof(PyAsyncioDebugOffsets) == 13 * sizeof(uint64_t));
 std::optional<AsyncioOffsets>
 parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets);
 
-// Same contract as read_own_memory in vm.h. Tests pass a fake reader.
-using AsyncioReadMemory = bool (*)(uintptr_t address, void* buffer, size_t size);
-
-// Reads and validates the table at table_address. Its task layout must equal expected_task_layout.
+// Reads the table at table_address with read_own_memory and validates it. Its task layout must equal
+// expected_task_layout.
 std::optional<AsyncioOffsets>
-read_asyncio_debug_offsets_at(uintptr_t table_address,
-                              const AsyncioTaskLayout& expected_task_layout,
-                              AsyncioReadMemory read);
+read_asyncio_debug_offsets_at(uintptr_t table_address, const AsyncioTaskLayout& expected_task_layout);
 
 // True when head_address holds a readable, self-consistent circular list head: head->next->prev == head and
 // head->prev->next == head. An empty list is self-linked and passes.
 bool
-asyncio_list_head_is_consistent(uintptr_t head_address, AsyncioReadMemory read);
+asyncio_list_head_is_consistent(uintptr_t head_address);
 
 // Checks the offsets against live list heads: the thread head always, the interpreter head only when interp_base is
 // non-zero. Callers pass 0 on free-threaded builds, where another thread can be moving tasks into the interpreter list
 // at the same time.
 bool
-asyncio_offsets_match_live_heads(const AsyncioOffsets& offsets,
-                                 uintptr_t thread_base,
-                                 uintptr_t interp_base,
-                                 AsyncioReadMemory read);
+asyncio_offsets_match_live_heads(const AsyncioOffsets& offsets, uintptr_t thread_base, uintptr_t interp_base);

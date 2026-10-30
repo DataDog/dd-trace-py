@@ -1,5 +1,5 @@
-// AsyncioDebug table tests: validation against fake memory on every Python version, and discovery through the real
-// _asyncio module state on Python 3.14+.
+// AsyncioDebug table tests: validation of tables and list heads built in test memory on every Python version, and
+// discovery through the real _asyncio module state on Python 3.14+.
 
 #include "asyncio_debug_test_table.h"
 
@@ -13,35 +13,10 @@
 #include <unistd.h>
 
 #include <cstring>
-#include <utility>
-#include <vector>
 
 using asyncio_debug_test::valid_table;
 
 namespace {
-
-// Readable regions of the fake address space. The fake reader copies only from inside one of them, so tests can make
-// any address unreadable by not registering it.
-std::vector<std::pair<uintptr_t, size_t>> g_readable;
-
-bool
-fake_read(uintptr_t start, void* buffer, size_t size)
-{
-    for (const auto& [base, length] : g_readable) {
-        if (start >= base && size <= length && start - base <= length - size) {
-            std::memcpy(buffer, reinterpret_cast<const void*>(start), size);
-            return true;
-        }
-    }
-    return false;
-}
-
-template<typename T>
-void
-make_readable(const T& object)
-{
-    g_readable.emplace_back(reinterpret_cast<uintptr_t>(&object), sizeof(object));
-}
 
 AsyncioTaskLayout
 layout_of(const PyAsyncioDebugOffsets& table)
@@ -67,11 +42,27 @@ address_of(const Node& node)
     return reinterpret_cast<uintptr_t>(&node);
 }
 
-class AsyncioFakeMemory : public ::testing::Test
+// Provides one inaccessible page, so tests can point at memory that read_own_memory cannot read.
+class AsyncioMemory : public ::testing::Test
 {
   protected:
-    void SetUp() override { g_readable.clear(); }
-    void TearDown() override { g_readable.clear(); }
+    void SetUp() override
+    {
+        page_size_ = static_cast<size_t>(getpagesize());
+        page_ = mmap(nullptr, page_size_, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        ASSERT_NE(page_, MAP_FAILED);
+    }
+    void TearDown() override
+    {
+        if (page_ != MAP_FAILED) {
+            munmap(page_, page_size_);
+        }
+    }
+    uintptr_t unreadable() const { return reinterpret_cast<uintptr_t>(page_); }
+
+  private:
+    void* page_ = MAP_FAILED;
+    size_t page_size_ = 0;
 };
 
 } // namespace
@@ -153,62 +144,56 @@ TEST(AsyncioDebugOffsets, RejectsMisalignedThreadHead)
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
 }
 
-TEST_F(AsyncioFakeMemory, ReadsValidTable)
+TEST_F(AsyncioMemory, ReadsValidTable)
 {
     const auto table = valid_table();
-    make_readable(table);
 
-    auto offsets = read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout_of(table), fake_read);
+    auto offsets = read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout_of(table));
     ASSERT_TRUE(offsets);
     EXPECT_EQ(offsets->interpreter_tasks_head, table.interpreter.asyncio_tasks_head);
     EXPECT_EQ(offsets->thread_tasks_head, table.thread.asyncio_tasks_head);
 }
 
-TEST_F(AsyncioFakeMemory, RejectsNullMisalignedOrUnreadableTableAddress)
+TEST_F(AsyncioMemory, RejectsNullMisalignedOrUnreadableTableAddress)
 {
     // Room for a misaligned copy one byte in, so only the alignment check can reject it.
     alignas(uint64_t) unsigned char bytes[sizeof(PyAsyncioDebugOffsets) + 1] = {};
     const auto table = valid_table();
     std::memcpy(bytes + 1, &table, sizeof(table));
-    make_readable(bytes);
     const auto layout = layout_of(table);
 
-    EXPECT_FALSE(read_asyncio_debug_offsets_at(0, layout, fake_read));
-    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(bytes + 1), layout, fake_read));
+    EXPECT_FALSE(read_asyncio_debug_offsets_at(0, layout));
+    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(bytes + 1), layout));
 
-    const auto unreadable = valid_table();
-    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&unreadable), layout, fake_read));
+    EXPECT_FALSE(read_asyncio_debug_offsets_at(unreadable(), layout));
 }
 
-TEST_F(AsyncioFakeMemory, RejectsTableThatFailsValidation)
+TEST_F(AsyncioMemory, RejectsTableThatFailsValidation)
 {
     auto table = valid_table();
     table.thread.asyncio_tasks_head = 0;
-    make_readable(table);
 
-    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout_of(table), fake_read));
+    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout_of(table)));
 }
 
-TEST_F(AsyncioFakeMemory, RejectsTaskLayoutDifferingByOneField)
+TEST_F(AsyncioMemory, RejectsTaskLayoutDifferingByOneField)
 {
     const auto table = valid_table();
-    make_readable(table);
 
     auto layout = layout_of(table);
     layout.task_node += sizeof(uintptr_t);
-    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout, fake_read));
+    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout));
 
     layout = layout_of(table);
     layout.size += sizeof(uintptr_t);
-    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout, fake_read));
+    EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout));
 }
 
-TEST_F(AsyncioFakeMemory, AcceptsEmptyAndTwoNodeLists)
+TEST_F(AsyncioMemory, AcceptsEmptyAndTwoNodeLists)
 {
     Node empty{};
     empty.next = empty.prev = address_of(empty);
-    make_readable(empty);
-    EXPECT_TRUE(asyncio_list_head_is_consistent(address_of(empty), fake_read));
+    EXPECT_TRUE(asyncio_list_head_is_consistent(address_of(empty)));
 
     Node head{}, first{}, second{};
     head.next = address_of(first);
@@ -217,63 +202,52 @@ TEST_F(AsyncioFakeMemory, AcceptsEmptyAndTwoNodeLists)
     first.prev = address_of(head);
     second.next = address_of(head);
     second.prev = address_of(first);
-    make_readable(head);
-    make_readable(first);
-    make_readable(second);
-    EXPECT_TRUE(asyncio_list_head_is_consistent(address_of(head), fake_read));
+    EXPECT_TRUE(asyncio_list_head_is_consistent(address_of(head)));
 }
 
-TEST_F(AsyncioFakeMemory, RejectsInconsistentOrUnreadableHeads)
+TEST_F(AsyncioMemory, RejectsInconsistentOrUnreadableHeads)
 {
     Node head{}, neighbor{};
-    make_readable(head);
-    make_readable(neighbor);
     const auto link = [&]() {
         head.next = head.prev = address_of(neighbor);
         neighbor.next = neighbor.prev = address_of(head);
     };
 
     link();
-    ASSERT_TRUE(asyncio_list_head_is_consistent(address_of(head), fake_read));
+    ASSERT_TRUE(asyncio_list_head_is_consistent(address_of(head)));
 
     link();
     head.next = 0;
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head), fake_read));
+    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
 
     link();
     head.prev = 0;
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head), fake_read));
+    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
 
     link();
     neighbor.prev = address_of(neighbor);
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head), fake_read));
+    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
 
     link();
     neighbor.next = address_of(neighbor);
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head), fake_read));
+    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
 
-    Node unreadable_head{};
-    unreadable_head.next = unreadable_head.prev = address_of(unreadable_head);
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(unreadable_head), fake_read));
+    EXPECT_FALSE(asyncio_list_head_is_consistent(unreadable()));
 
-    Node unreadable_neighbor{};
-    unreadable_neighbor.next = unreadable_neighbor.prev = address_of(head);
     link();
-    head.next = head.prev = address_of(unreadable_neighbor);
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head), fake_read));
+    head.next = head.prev = unreadable();
+    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
 }
 
-TEST_F(AsyncioFakeMemory, ChecksThreadHeadAlwaysAndInterpreterHeadWhenGiven)
+TEST_F(AsyncioMemory, ChecksThreadHeadAlwaysAndInterpreterHeadWhenGiven)
 {
-    // Each fake struct is one list head preceded by 16 bytes, so the head offset is 16 for both.
+    // Each state is one list head preceded by 16 bytes, so the head offset is 16 for both.
     struct FakeState
     {
         unsigned char padding[16];
         Node head;
     };
     FakeState thread{}, interp{};
-    make_readable(thread);
-    make_readable(interp);
     thread.head.next = thread.head.prev = address_of(thread.head);
     interp.head.next = interp.head.prev = address_of(interp.head);
     const AsyncioOffsets offsets{ .interpreter_tasks_head = offsetof(FakeState, head),
@@ -281,19 +255,19 @@ TEST_F(AsyncioFakeMemory, ChecksThreadHeadAlwaysAndInterpreterHeadWhenGiven)
     const auto thread_base = reinterpret_cast<uintptr_t>(&thread);
     const auto interp_base = reinterpret_cast<uintptr_t>(&interp);
 
-    EXPECT_TRUE(asyncio_offsets_match_live_heads(offsets, thread_base, interp_base, fake_read));
+    EXPECT_TRUE(asyncio_offsets_match_live_heads(offsets, thread_base, interp_base));
 
     interp.head.next = 0;
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, thread_base, interp_base, fake_read));
+    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, thread_base, interp_base));
     // The free-threaded path passes no interpreter base and must not look at that head.
-    EXPECT_TRUE(asyncio_offsets_match_live_heads(offsets, thread_base, 0, fake_read));
+    EXPECT_TRUE(asyncio_offsets_match_live_heads(offsets, thread_base, 0));
 
     thread.head.next = 0;
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, thread_base, 0, fake_read));
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, 0, 0, fake_read));
+    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, thread_base, 0));
+    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, 0, 0));
 
     const AsyncioOffsets overflowing{ .interpreter_tasks_head = 16, .thread_tasks_head = SIZE_MAX };
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(overflowing, thread_base, 0, fake_read));
+    EXPECT_FALSE(asyncio_offsets_match_live_heads(overflowing, thread_base, 0));
 }
 
 TEST(AsyncioReadOwnMemory, ReadsReadableMemoryAndRejectsUnreadableMemory)

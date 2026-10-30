@@ -2,6 +2,7 @@
 // Every failure returns no offsets, which disables the native task lists but not thread-stack sampling.
 
 #include <echion/cpython/asyncio_debug.h>
+#include <echion/vm.h>
 
 #include <limits>
 
@@ -42,16 +43,14 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
 }
 
 std::optional<AsyncioOffsets>
-read_asyncio_debug_offsets_at(uintptr_t table_address,
-                              const AsyncioTaskLayout& expected_task_layout,
-                              AsyncioReadMemory read)
+read_asyncio_debug_offsets_at(uintptr_t table_address, const AsyncioTaskLayout& expected_task_layout)
 {
     if (table_address == 0 || table_address % alignof(uint64_t) != 0) {
         return std::nullopt;
     }
 
     PyAsyncioDebugOffsets table{};
-    if (!read(table_address, &table, sizeof(table))) {
+    if (!read_own_memory(table_address, &table, sizeof(table))) {
         return std::nullopt;
     }
 
@@ -74,28 +73,25 @@ struct ListNode
 } // namespace
 
 bool
-asyncio_list_head_is_consistent(uintptr_t head_address, AsyncioReadMemory read)
+asyncio_list_head_is_consistent(uintptr_t head_address)
 {
     ListNode head{};
-    if (!read(head_address, &head, sizeof(head)) || head.next == 0 || head.prev == 0) {
+    if (!read_own_memory(head_address, &head, sizeof(head)) || head.next == 0 || head.prev == 0) {
         return false;
     }
 
     ListNode next{};
     ListNode prev{};
-    return read(head.next, &next, sizeof(next)) && read(head.prev, &prev, sizeof(prev)) && next.prev == head_address &&
-           prev.next == head_address;
+    return read_own_memory(head.next, &next, sizeof(next)) && read_own_memory(head.prev, &prev, sizeof(prev)) &&
+           next.prev == head_address && prev.next == head_address;
 }
 
 bool
-asyncio_offsets_match_live_heads(const AsyncioOffsets& offsets,
-                                 uintptr_t thread_base,
-                                 uintptr_t interp_base,
-                                 AsyncioReadMemory read)
+asyncio_offsets_match_live_heads(const AsyncioOffsets& offsets, uintptr_t thread_base, uintptr_t interp_base)
 {
-    const auto head_matches = [read](uintptr_t base, size_t offset) {
+    const auto head_matches = [](uintptr_t base, size_t offset) {
         return base != 0 && offset <= std::numeric_limits<uintptr_t>::max() - base &&
-               asyncio_list_head_is_consistent(base + offset, read);
+               asyncio_list_head_is_consistent(base + offset);
     };
 
     if (!head_matches(thread_base, offsets.thread_tasks_head)) {
