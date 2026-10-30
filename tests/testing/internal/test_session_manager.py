@@ -705,9 +705,25 @@ class TestUpdatePrMergeBase:
         )
         mock_git = Mock()
         mock_git.get_merge_base.return_value = "merge-base-sha"
-        sm._update_pr_merge_base(mock_git)
-        mock_git.get_merge_base.assert_called_once_with("base-sha", "head-sha")
+        assert sm._update_pr_merge_base(mock_git) == "merge-base-sha"
+        mock_git.get_merge_base.assert_called_once_with("base-sha", "head-sha", warn=True)
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+
+    def test_quiet_probe_passes_warn_false(self) -> None:
+        """quiet=True forwards warn=False to git so the expected pre-fetch failure stays at debug level."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_session_manager(
+            {
+                GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "base-sha",
+                GitTag.COMMIT_HEAD_SHA: "head-sha",
+            }
+        )
+        mock_git = Mock()
+        mock_git.get_merge_base.return_value = ""
+        assert sm._update_pr_merge_base(mock_git, quiet=True) == ""
+        mock_git.get_merge_base.assert_called_once_with("base-sha", "head-sha", warn=False)
+        assert GitTag.PULL_REQUEST_BASE_BRANCH_SHA not in sm.env_tags
 
     def test_skips_update_when_merge_base_empty(self) -> None:
         from ddtrace.testing.internal.git import GitTag
@@ -754,7 +770,11 @@ class TestUpdatePrMergeBase:
         ):
             sm.upload_git_data()
 
-        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
+        # Pre-fetch probe (quiet) then post-fetch recomputation (authoritative).
+        assert mock_git.get_merge_base.call_args_list == [
+            call(base_sha, head_sha, warn=False),
+            call(base_sha, head_sha, warn=True),
+        ]
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
 
     def test_upload_git_data_computes_merge_base_on_non_shallow_repo(self) -> None:
@@ -786,7 +806,8 @@ class TestUpdatePrMergeBase:
         ):
             sm.upload_git_data()
 
-        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
+        # Non-shallow repository: the local computation is authoritative (and warns on failure).
+        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha, warn=True)
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
 
     def test_upload_git_data_computes_merge_base_when_all_commits_known(self) -> None:
@@ -817,7 +838,7 @@ class TestUpdatePrMergeBase:
         ):
             sm.upload_git_data()
 
-        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
+        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha, warn=True)
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
         mock_git.pack_objects.assert_not_called()
 
@@ -881,8 +902,14 @@ class TestUpdatePrMergeBase:
         mock_git.pack_objects.assert_not_called()
         sm.api_client.send_git_pack_file.assert_not_called()
 
-    def test_upload_git_data_skips_unshallow_when_merge_base_computed_locally(self) -> None:
-        """No fetch when all commits are known and the merge-base resolves from local history."""
+    def test_upload_git_data_unshallows_to_recompute_provisional_merge_base(self) -> None:
+        """A merge-base computed from the shallow graph does not suppress the fetch.
+
+        git treats shallow boundary commits as roots, so a local merge-base can be an
+        older ancestor while the true merge-base is hidden behind a truncated parent.
+        The fetch therefore still runs and the merge-base is recomputed over the
+        extended history, replacing the provisional local value.
+        """
         from ddtrace.testing.internal.git import GitTag
 
         base_sha = "base-sha"
@@ -900,7 +927,10 @@ class TestUpdatePrMergeBase:
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
         mock_git.is_shallow_repository.return_value = True
         mock_git.get_git_version.return_value = (2, 27, 0)
-        mock_git.get_merge_base.return_value = "merge-base-sha"
+        mock_git.try_all_unshallow_repository_methods.return_value = True
+        # First attempt on the shallow graph returns a stale ancestor; the
+        # recomputation after the fetch returns the true merge-base.
+        mock_git.get_merge_base.side_effect = ["stale-merge-base", "true-merge-base"]
 
         with (
             patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
@@ -908,9 +938,49 @@ class TestUpdatePrMergeBase:
         ):
             sm.upload_git_data()
 
-        mock_git.try_all_unshallow_repository_methods.assert_not_called()
-        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+        mock_git.try_all_unshallow_repository_methods.assert_called_once()
+        assert mock_git.get_merge_base.call_args_list == [
+            call(base_sha, head_sha, warn=False),
+            call(base_sha, head_sha, warn=True),
+        ]
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "true-merge-base"
+        # Nothing missing from the backend — no pack upload despite the unshallow.
         mock_git.pack_objects.assert_not_called()
+        sm.api_client.send_git_pack_file.assert_not_called()
+
+    def test_upload_git_data_keeps_local_merge_base_when_unshallow_fails(self) -> None:
+        """When the fetch fails, the provisional local merge-base is kept as a best-effort fallback."""
+        from ddtrace.testing.internal.git import GitTag
+
+        base_sha = "base-sha"
+        head_sha = "head-sha"
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {
+            GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
+            GitTag.COMMIT_HEAD_SHA: head_sha,
+        }
+        sm.api_client = Mock()
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = True
+        mock_git.get_git_version.return_value = (2, 27, 0)
+        mock_git.try_all_unshallow_repository_methods.return_value = False
+        mock_git.get_merge_base.return_value = "local-merge-base"
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_called_once()
+        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha, warn=False)
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "local-merge-base"
+        mock_git.pack_objects.assert_not_called()
+        sm.api_client.send_git_pack_file.assert_not_called()
 
     def test_upload_git_data_unshallows_for_merge_base_when_all_commits_known(self) -> None:
         """The fetch still runs when all commits are known but the merge-base needs more history."""
@@ -943,7 +1013,10 @@ class TestUpdatePrMergeBase:
             sm.upload_git_data()
 
         mock_git.try_all_unshallow_repository_methods.assert_called_once()
-        assert mock_git.get_merge_base.call_args_list == [call(base_sha, head_sha), call(base_sha, head_sha)]
+        assert mock_git.get_merge_base.call_args_list == [
+            call(base_sha, head_sha, warn=False),
+            call(base_sha, head_sha, warn=True),
+        ]
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
         # Nothing missing from the backend — no pack upload despite the unshallow.
         mock_git.pack_objects.assert_not_called()
