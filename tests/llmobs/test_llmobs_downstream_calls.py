@@ -44,7 +44,15 @@ def test_http_calls_are_grouped_by_endpoint(llmobs, llmobs_events, tracer):
         ("GET", "api.example.com", "/v1/orders/?", "200", 2, 0),
     ]
     assert all(e["kind"] == "http" for e in entries)
+    assert calls["hosts"] == ["api.example.com"]
+    assert sorted(calls["targets"]) == ["/search", "/v1/orders/?"]
+    assert sorted(calls["statuses"]) == ["200", "429"]
+    assert sorted(calls["endpoints"]) == ["GET api.example.com/v1/orders/?", "POST api.example.com/search"]
+    assert calls["total_count"] == 3
+    assert calls["total_error_count"] == 1
+    assert calls["total_duration_ms"] >= 0
     assert "omitted_count" not in calls
+    assert "secret" not in str(calls) and "pw" not in str(calls)
 
 
 def test_ids_are_templated(llmobs, llmobs_events, tracer):
@@ -80,7 +88,9 @@ def test_db_and_grpc_calls(llmobs, llmobs_events, tracer):
             span.set_tag(SPAN_KIND, SpanKind.CLIENT)
             span.set_tag("grpc.method.path", "/search.Search/Query")
 
-    entries = {e["kind"]: e for e in _downstream_calls(_event(llmobs_events, "t"))["calls"]}
+    calls = _downstream_calls(_event(llmobs_events, "t"))
+    entries = {e["kind"]: e for e in calls["calls"]}
+    assert "SELECT" not in str(calls)
     assert entries["db"]["method"] == "postgresql"
     assert entries["db"]["host"] == "db.internal"
     assert entries["db"]["target"] == "postgres.query"
@@ -165,6 +175,7 @@ def test_distinct_endpoints_are_capped(llmobs, llmobs_events, tracer):
     calls = _downstream_calls(_event(llmobs_events, "t"))
     assert len(calls["calls"]) == MAX_DOWNSTREAM_CALLS
     assert calls["omitted_count"] == 5
+    assert calls["total_count"] == MAX_DOWNSTREAM_CALLS + 5
 
 
 def test_concurrent_tools_do_not_mix(llmobs, llmobs_events, tracer):

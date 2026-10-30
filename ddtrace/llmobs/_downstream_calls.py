@@ -6,6 +6,7 @@ the tool's LLMObs event instead of depending on the APM trace being kept.
 
 import re
 from typing import Any
+from typing import Iterable
 from typing import Optional
 from typing import Union
 from urllib.parse import urlsplit
@@ -66,6 +67,10 @@ def _call_key(span: Span) -> tuple[str, str, str, str, str]:
     return ("other", span.get_tag(COMPONENT) or "", host, span.name, "")
 
 
+def _distinct(values: Iterable[str]) -> list[str]:
+    return [v for v in dict.fromkeys(values) if v]
+
+
 class DownstreamCallTracker:
     def __init__(self) -> None:
         self._lock = Lock()
@@ -96,8 +101,11 @@ class DownstreamCallTracker:
         with self._lock:
             calls = owner._get_ctx_item(DOWNSTREAM_CALLS_CTX_KEY)
             if calls is None:
-                calls = {"entries": {}, "omitted": 0}
+                calls = {"entries": {}, "omitted": 0, "count": 0, "error_count": 0, "duration_ms": 0.0}
                 owner._set_ctx_item(DOWNSTREAM_CALLS_CTX_KEY, calls)
+            calls["count"] += 1
+            calls["error_count"] += int(failed)
+            calls["duration_ms"] += duration_ms
             entry = calls["entries"].get(key)
             if entry is None:
                 if len(calls["entries"]) >= MAX_DOWNSTREAM_CALLS:
@@ -118,7 +126,12 @@ class DownstreamCallTracker:
             entry["duration_ms"] += duration_ms
 
     def pop(self, span: Span) -> Optional[dict[str, Any]]:
-        """Stop tracking span and return its summary, if any calls were recorded."""
+        """Stop tracking span and return its summary, if any calls were recorded.
+
+        The per-call list is for display. Hosts, targets, statuses and endpoints are also reported as
+        flat lists so spans can be filtered and grouped by them, and the totals are span-level scalars
+        that aggregate correctly; values inside the list of calls do not.
+        """
         with self._lock:
             self._open_spans.pop(span.span_id, None)
             calls = span._get_ctx_item(DOWNSTREAM_CALLS_CTX_KEY)
@@ -128,7 +141,16 @@ class DownstreamCallTracker:
         entries = list(calls["entries"].values())
         for entry in entries:
             entry["duration_ms"] = round(entry["duration_ms"], 3)
-        summary: dict[str, Any] = {"calls": entries}
+        summary: dict[str, Any] = {
+            "calls": entries,
+            "hosts": _distinct(e["host"] for e in entries),
+            "targets": _distinct(e["target"] for e in entries),
+            "statuses": _distinct(e["status"] for e in entries),
+            "endpoints": _distinct(" ".join(filter(None, (e["method"], e["host"] + e["target"]))) for e in entries),
+            "total_count": calls["count"],
+            "total_error_count": calls["error_count"],
+            "total_duration_ms": round(calls["duration_ms"], 3),
+        }
         if calls["omitted"]:
             summary["omitted_count"] = calls["omitted"]
         return summary
