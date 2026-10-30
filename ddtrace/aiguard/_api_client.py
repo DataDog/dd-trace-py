@@ -422,12 +422,17 @@ class AIGuardClient:
 
         Raises:
             AIGuardAbortError: If execution should be aborted and block is set to true
-            AIGuardClientError: If evaluation request fails
+            AIGuardClientError: If evaluation request fails or no global tracer has been initialized
         """
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        from ddtrace.trace import tracer
+        # The tracer comes from the core registry rather than ddtrace.trace so AI Guard doesn't depend on the
+        # tracing product. The verdict is reported on the ai_guard span, so evaluating without a tracer would
+        # silently drop it.
+        tracer = core.root.get_item("tracer")
+        if tracer is None:
+            raise AIGuardClientError("AI Guard requires the global tracer, but no tracer has been initialized")
 
         # Classifies the error metric when a raise below escapes. Transport and response paths
         # each set their own type, so anything still holding the default failed inside our own

@@ -4,9 +4,6 @@ from ddtrace.internal.constants import Constant_Class
 
 
 class AI_GUARD(metaclass=Constant_Class):
-    # environment variables
-    BLOCK_ENV: Literal["DD_AI_GUARD_BLOCK"] = "DD_AI_GUARD_BLOCK"
-
     # span related information
     RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
 
@@ -95,19 +92,3 @@ class AI_GUARD(metaclass=Constant_Class):
         INTEGRATION_LITELLM,
         INTEGRATION_STRANDS,
     )
-
-    # environment variables
-    ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
-    ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
-    ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
-    ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
-    ENV_REDACTION_ENABLED: Literal["DD_AI_GUARD_REDACTION_ENABLED"] = "DD_AI_GUARD_REDACTION_ENABLED"
-    ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
-    ENV_ANALYZE_STREAM_RESPONSES_ENABLED: Literal["DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"] = (
-        "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED"
-    )
-    # Per-LLM kill switches: DD_AI_GUARD_<LLM>_ENABLED, true by default, set to
-    # false to disable AI Guard auto-instrumentation for that specific provider.
-    ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
-    ENV_ANTHROPIC_ENABLED: Literal["DD_AI_GUARD_ANTHROPIC_ENABLED"] = "DD_AI_GUARD_ANTHROPIC_ENABLED"
-    ENV_LANGCHAIN_ENABLED: Literal["DD_AI_GUARD_LANGCHAIN_ENABLED"] = "DD_AI_GUARD_LANGCHAIN_ENABLED"
