@@ -26,6 +26,8 @@ from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_DIR
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_GIT_DIR
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
 from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
@@ -73,6 +75,19 @@ _UPLOAD_SENTINEL_TTL_SECONDS = 300
 _UPLOAD_LOCK_FILENAME = "dd-trace-py.upload.lock"
 _UPLOAD_LOCK_TIMEOUT_SECONDS = 60.0
 _UPLOAD_LOCK_RETRY_INTERVAL_SECONDS = 0.5
+
+# Marker written after a successful unshallow fetch (git fetch --shallow-since
+# --update-shallow) so that follow-up pytest commands sharing the same checkout
+# do not fetch again. The fetch usually leaves .git/shallow in place (it
+# only moves the shallow boundary back), so later sessions still see a shallow
+# repository and would repeat the network round-trip even though a second fetch
+# reproduces exactly the history the first one already downloaded. Keyed to the
+# HEAD commit. There is deliberately no TTL and no cleanup: a later CI run
+# either has a fresh clone (marker absent) or a different HEAD (marker
+# mismatch), and a rerun on the same HEAD over a persistent workspace can
+# safely skip because the deepened history is still present locally and is a
+# superset of what a later 1-month shallow-since fetch would return.
+_UNSHALLOW_DONE_FILENAME = "dd-trace-py.unshallow-done"
 
 
 def _parse_line_number(value: str) -> t.Optional[int]:
@@ -584,6 +599,58 @@ class SessionManager:
         except OSError as e:
             log.debug("Could not write git upload sentinel %s: %s", sentinel, e)
 
+    def _unshallow_done_path(self) -> t.Optional[Path]:
+        """Return the path to the unshallow-done marker, or None if unavailable.
+
+        The marker lives inside the ``.testoptimization/git/`` directory at the
+        workspace root — the same ``.testoptimization`` tree used for the
+        manifest/HTTP cache and by other CI Visibility tracers such as
+        datadog-ci (Ruby) — so it is scoped to one repo checkout and shared by
+        every pytest command run against that checkout in the CI instance.
+        """
+        workspace_path = getattr(self, "workspace_path", None)
+        if workspace_path is None:
+            return None
+        return Path(workspace_path) / TEST_OPTIMIZATION_DIR / TEST_OPTIMIZATION_GIT_DIR / _UNSHALLOW_DONE_FILENAME
+
+    def _read_unshallow_done(self) -> bool:
+        """Return True if a previous session already ran the unshallow fetch for this HEAD.
+
+        Only a well-formed marker referencing the current HEAD commit counts;
+        anything else is treated as "not done" so the normal fetch path runs.
+        """
+        env_tags = getattr(self, "env_tags", None) or {}
+        head_sha = env_tags.get(GitTag.COMMIT_SHA)
+        if not head_sha:
+            return False
+        marker = self._unshallow_done_path()
+        if marker is None:
+            return False
+        try:
+            data = json.loads(marker.read_text())
+        except (OSError, ValueError):
+            return False
+        return isinstance(data, dict) and data.get("head_sha") == head_sha
+
+    def _mark_unshallow_done(self) -> None:
+        """Persist the unshallow-done marker so follow-up sessions skip the fetch."""
+        env_tags = getattr(self, "env_tags", None) or {}
+        head_sha = env_tags.get(GitTag.COMMIT_SHA)
+        if not head_sha:
+            return
+        marker = self._unshallow_done_path()
+        if marker is None:
+            return
+        tmp = marker.with_suffix(marker.suffix + ".tmp")
+        try:
+            # The .testoptimization/git directory usually does not exist yet in
+            # normal (non-Bazel) runs; it is only created on demand here.
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps({"head_sha": head_sha, "timestamp": time.time()}))
+            tmp.replace(marker)
+        except OSError as e:
+            log.debug("Could not write unshallow-done marker %s: %s", marker, e)
+
     def _upload_lock_path(self) -> t.Optional[Path]:
         """Return the path to the cross-process upload lock, or None if unavailable."""
         workspace_path = getattr(self, "workspace_path", None)
@@ -608,6 +675,12 @@ class SessionManager:
         lock and unshallow concurrently — reintroducing the very race the lock
         is meant to prevent. The lock file is a zero-byte placeholder; leaving
         it in .git/ is harmless.
+
+        The unshallow-done marker (``.testoptimization/git/dd-trace-py.unshallow-done``)
+        is never touched by this cleanup: unlike the upload sentinel, its value
+        is precisely to outlive this pytest process, so the next pytest command
+        run against the same checkout in the CI instance can skip the unshallow
+        fetch.
         """
         sentinel = self._upload_sentinel_path()
         if sentinel is not None:
@@ -790,29 +863,42 @@ class SessionManager:
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
         is_shallow = git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0)
+        # Whether a previous pytest command in this CI instance already ran the
+        # unshallow fetch for this HEAD: the local graph is then already the
+        # post-fetch one, and re-running the fetch would only repeat the same
+        # network round-trip (the fetch moves the shallow boundary but usually
+        # leaves .git/shallow in place, so the repo still reports as shallow).
+        already_unshallowed = self._read_unshallow_done()
         # Whether the PR merge-base still needs resolving, captured before the
         # local attempt below: a shallow-graph result is provisional and does not
         # resolve it (see _update_pr_merge_base).
         merge_base_needed = self._pr_merge_base_missing()
 
         # Attempt the merge-base from the local history first. On non-shallow
-        # repositories this is authoritative. On shallow clones it is at best a
-        # provisional value kept only as a fallback for when the fetch below
-        # fails; a successful fetch replaces it with a recomputation over the
-        # extended history. Failing locally on a shallow clone is expected, so
-        # the attempt stays quiet (debug level).
-        local_merge_base = self._update_pr_merge_base(git, quiet=is_shallow)
+        # repositories — and on shallow clones a previous session in this CI
+        # instance already deepened — this is authoritative. On a shallow clone
+        # that has not been deepened yet it is at best a provisional value kept
+        # only as a fallback for when the fetch below fails; a successful fetch
+        # replaces it with a recomputation over the extended history. Failing
+        # locally on a not-yet-deepened shallow clone is expected, so that
+        # attempt stays quiet (debug level).
+        local_merge_base = self._update_pr_merge_base(git, quiet=is_shallow and not already_unshallowed)
 
-        # Only unshallow when there is work that needs the extra history: commits
-        # missing from the backend, or a PR merge-base that is not resolved by a
-        # preexisting (user-supplied) value. When the backend already knows every
-        # commit and the merge-base is resolved (or not applicable), the fetch is
-        # skipped entirely, matching the behavior of the other CI Visibility tracers.
-        if is_shallow:
+        # Only unshallow when there is work that needs the extra history and no
+        # earlier session in this CI instance already did it: commits missing
+        # from the backend, or a PR merge-base that is not resolved by a
+        # preexisting (user-supplied) value. When the backend already knows
+        # every commit and the merge-base is resolved (or not applicable), the
+        # fetch is skipped entirely, matching the behavior of the other CI
+        # Visibility tracers. When the unshallow-done marker matches our HEAD,
+        # the fetch is skipped for the same reason: it already ran and would
+        # only reproduce the history that is already local.
+        if is_shallow and not already_unshallowed:
             if commits_not_in_backend or merge_base_needed:
                 log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
                 unshallow_successful = git.try_all_unshallow_repository_methods()
                 if unshallow_successful:
+                    self._mark_unshallow_done()
                     # Recompute the merge-base over the extended history. The local
                     # attempt above ran on the truncated shallow graph and may have
                     # returned an older ancestor than the true merge-base, so replace

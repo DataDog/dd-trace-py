@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: on CI instances that run several ``pytest`` commands against the same
+    shallow clone, the ``git fetch --shallow-since`` unshallow now runs only once per
+    checkout (for a given commit) instead of once per command, so every command after
+    the first starts faster.

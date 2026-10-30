@@ -1365,6 +1365,267 @@ class TestUploadSentinel:
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-merge-base"
 
 
+class TestUnshallowMarker:
+    """Tests for the unshallow-done marker that deduplicates fetches across pytest commands.
+
+    CI instances often run several pytest commands sequentially against the same
+    checkout. The shallow-since fetch moves the shallow boundary but usually leaves
+    .git/shallow in place, so each new session still sees a shallow repository and
+    would repeat the fetch. The marker records that the fetch already ran for this
+    HEAD so follow-up commands skip it.
+    """
+
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> t.Any:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = workspace_path
+        sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
+        sm.api_client = Mock()
+        return sm
+
+    def _write_marker(self, workspace_path, data) -> None:
+        import json as _json
+
+        marker_dir = workspace_path / ".testoptimization" / "git"
+        marker_dir.mkdir(parents=True, exist_ok=True)
+        (marker_dir / "dd-trace-py.unshallow-done").write_text(_json.dumps(data))
+
+    def _make_mock_git(self, merge_base: str = "", try_all: bool = True) -> Mock:
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = True
+        mock_git.get_git_version.return_value = (2, 27, 0)
+        mock_git.try_all_unshallow_repository_methods.return_value = try_all
+        mock_git.get_merge_base.return_value = merge_base
+        mock_git.get_filtered_revisions.return_value = ["commit-2"]
+        mock_git.pack_objects.return_value = iter([])
+        return mock_git
+
+    def test_no_marker_returns_false(self, tmp_path) -> None:
+        (tmp_path / ".testoptimization" / "git").mkdir(parents=True)
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        assert sm._read_unshallow_done() is False
+
+    def test_matching_marker_returns_true(self, tmp_path) -> None:
+        import time as _time
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        assert sm._read_unshallow_done() is True
+
+    def test_marker_has_no_ttl(self, tmp_path) -> None:
+        """An old marker still matches: the deepened history it recorded is still local.
+
+        Unlike the upload sentinel (5-minute TTL), the marker gates a local
+        state fact (the fetch already ran), not backend knowledge, so a long CI
+        instance must keep benefiting from it.
+        """
+        import time as _time
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time() - 86400})
+        assert sm._read_unshallow_done() is True
+
+    def test_different_head_marker_returns_false(self, tmp_path) -> None:
+        import time as _time
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_marker(tmp_path, {"head_sha": "other-sha", "timestamp": _time.time()})
+        assert sm._read_unshallow_done() is False
+
+    def test_malformed_marker_returns_false(self, tmp_path) -> None:
+        marker_dir = tmp_path / ".testoptimization" / "git"
+        marker_dir.mkdir(parents=True)
+        (marker_dir / "dd-trace-py.unshallow-done").write_text("not json{{")
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        assert sm._read_unshallow_done() is False
+
+    def test_missing_head_sha_skips_check(self, tmp_path) -> None:
+        import time as _time
+
+        # No COMMIT_SHA in env_tags: even a matching marker must not be honored,
+        # because we don't know what HEAD to validate against.
+        sm = self._make_sm(tmp_path, head_sha=None)
+        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        assert sm._read_unshallow_done() is False
+
+    def test_missing_workspace_path_attribute_returns_false(self) -> None:
+        from ddtrace.testing.internal.git import GitTag
+
+        # Some tests build SessionManager via __new__ without setting workspace_path.
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {GitTag.COMMIT_SHA: "head-sha"}
+        assert sm._read_unshallow_done() is False
+
+    def test_mark_writes_expected_payload(self, tmp_path) -> None:
+        import json as _json
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._mark_unshallow_done()
+        marker_path = tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done"
+        data = _json.loads(marker_path.read_text())
+        assert data["head_sha"] == "head-sha"
+        assert isinstance(data["timestamp"], (int, float))
+
+    def test_mark_noop_without_head_sha(self, tmp_path) -> None:
+        sm = self._make_sm(tmp_path, head_sha=None)
+        sm._mark_unshallow_done()
+        assert not (tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done").exists()
+
+    def test_mark_noop_without_workspace_path(self) -> None:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {GitTag.COMMIT_SHA: "head-sha"}
+        sm._mark_unshallow_done()  # must not raise
+
+    def test_upload_git_data_skips_fetch_when_marker_present(self, tmp_path) -> None:
+        """A follow-up pytest command (marker present) skips the fetch entirely.
+
+        The local history is already the post-fetch one, so the local merge-base
+        attempt is authoritative: one merge-base call, warning level on failure.
+        """
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
+        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        # Backend already knows all commits — only the merge-base needs the fetch.
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = self._make_mock_git(merge_base="merge-base-sha")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_not_called()
+        # Authoritative single local computation (not the quiet pre-fetch probe).
+        mock_git.get_merge_base.assert_called_once_with("base-sha", "head-sha", warn=True)
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+        mock_git.pack_objects.assert_not_called()
+        sm.api_client.send_git_pack_file.assert_not_called()
+
+    def test_upload_git_data_uploads_missing_commits_without_fetch_when_marker_present(self, tmp_path) -> None:
+        """With the marker present, missing commits are uploaded from local history without a fetch.
+
+        A failed upload in a previous command retries the pack upload here; only
+        the network fetch is skipped, since the history it would produce is
+        already local.
+        """
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
+        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        sm.api_client.get_known_commits.return_value = []  # everything missing
+
+        mock_git = self._make_mock_git(merge_base="merge-base-sha")
+        mock_git.pack_objects.return_value = iter([tmp_path / "pack-1.pack"])
+        sm.api_client.send_git_pack_file.return_value = 123
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_not_called()
+        mock_git.get_filtered_revisions.assert_called_once()
+        mock_git.pack_objects.assert_called_once()
+        sm.api_client.send_git_pack_file.assert_called()
+
+    def test_upload_git_data_writes_marker_after_successful_fetch(self, tmp_path) -> None:
+        """A successful unshallow fetch persists the marker for follow-up commands."""
+        import json as _json
+
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = self._make_mock_git(merge_base="merge-base-sha", try_all=True)
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        marker_path = tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done"
+        assert marker_path.exists()
+        assert _json.loads(marker_path.read_text())["head_sha"] == "head-sha"
+
+    def test_upload_git_data_does_not_write_marker_when_fetch_fails(self, tmp_path) -> None:
+        """A failed fetch leaves no marker, so the next command retries it."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = self._make_mock_git(merge_base="local-merge-base", try_all=False)
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done").exists()
+
+    def test_upload_git_data_fetches_again_when_marker_head_differs(self, tmp_path) -> None:
+        """A marker left by a previous CI run on a different commit does not suppress the fetch."""
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
+        self._write_marker(tmp_path, {"head_sha": "previous-head-sha", "timestamp": _time.time()})
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = self._make_mock_git(merge_base="merge-base-sha")
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.try_all_unshallow_repository_methods.assert_called_once()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+
+    def test_upload_git_data_marker_survives_cleanup(self, tmp_path) -> None:
+        """cleanup_upload_artifacts keeps the marker: its value is to outlive the session."""
+        import time as _time
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_marker(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        # The upload sentinel (in .git/) is removed, the unshallow marker (in
+        # .testoptimization/git/) is not.
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "dd-trace-py.upload-done").write_text("{}")
+
+        sm.cleanup_upload_artifacts()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+        assert (tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done").exists()
+
+
 class TestUploadLock:
     """Tests for the cross-process lock around upload_git_data."""
 
