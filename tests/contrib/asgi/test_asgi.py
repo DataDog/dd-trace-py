@@ -438,6 +438,7 @@ from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("scope", [{{}}], indirect=True)
 async def test(scope, test_spans):
     app = TraceMiddleware(basic_app)
     instance = ApplicationCommunicator(app, scope)
