@@ -81,7 +81,8 @@ def weak_link_tasks(parent: asyncio.Task[Any], child: asyncio.Future[Any]) -> No
 def init_asyncio(
     scheduled_tasks: Sequence[asyncio.Task[Any]],
     eager_tasks: Optional[Sequence[asyncio.Task[Any]]],
-) -> None: ...
+) -> bool: ...  # False when Python 3.14+ native task-list discovery failed
+def _asyncio_task_lists() -> tuple[int, int, str]: ...  # test introspection: (interp head, thread head, source)
 
 # Greenlet support
 def track_greenlet(greenlet_id: int, name: str, frame: Union[FrameType, bool, None]) -> None: ...
