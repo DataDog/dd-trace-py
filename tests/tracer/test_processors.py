@@ -8,6 +8,7 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
+from ddtrace._trace.processor import _accepts_keyword
 from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
@@ -422,6 +423,72 @@ def test_aggregator_reset_with_args():
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.writer._api_version == "v0.5"
     assert span.trace_id in aggr._traces
+
+
+@pytest.mark.parametrize("reset_kwargs", [{}, {"compute_stats": True, "apm_opt_out": False}])
+def test_aggregator_reset_writer_without_stats_args(reset_kwargs):
+    """Writers whose recreate() predates the stats arguments are still recreated on reset."""
+
+    class LegacyWriter(DummyWriter):
+        def recreate(self, appsec_enabled=None, llmobs_enabled=None):
+            recreated.append((appsec_enabled, llmobs_enabled))
+            return LegacyWriter()
+
+    recreated = []
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    old_writer = aggr.writer = LegacyWriter()
+
+    aggr.reset(appsec_enabled=True, **reset_kwargs)
+
+    assert recreated == [(True, None)]
+    assert isinstance(aggr.writer, LegacyWriter)
+    assert aggr.writer is not old_writer
+
+
+def test_aggregator_reset_writer_without_signature():
+    """Stats arguments are omitted when the writer's recreate() signature can't be inspected."""
+
+    class LegacyWriter(DummyWriter):
+        def recreate(self, appsec_enabled=None, llmobs_enabled=None):
+            return LegacyWriter()
+
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    old_writer = aggr.writer = LegacyWriter()
+
+    with mock.patch("inspect.signature", side_effect=ValueError):
+        aggr.reset(compute_stats=True, apm_opt_out=False)
+
+    assert isinstance(aggr.writer, LegacyWriter)
+    assert aggr.writer is not old_writer
+
+
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (lambda stats_opt_out=None: None, True),
+        (lambda *, stats_opt_out=None: None, True),
+        (lambda **kwargs: None, True),
+        (lambda other=None: None, False),
+        (lambda stats_opt_out=None, /: None, False),
+        (lambda stats_opt_out=None, /, **kwargs: None, True),
+    ],
+)
+def test_accepts_keyword(func, expected):
+    assert _accepts_keyword(func, "stats_opt_out") is expected
+
+
+def test_aggregator_reset_passes_stats_args_to_writer():
+    """Writers that accept the stats arguments receive them on reset, but only when they are set."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    writer = aggr.writer = mock.Mock(spec=DummyWriter)
+    aggr.reset(compute_stats=True, apm_opt_out=False)
+    writer.recreate.assert_called_once_with(
+        appsec_enabled=None, llmobs_enabled=None, compute_stats_enabled=True, stats_opt_out=False
+    )
+
+    writer = aggr.writer = mock.Mock(spec=DummyWriter)
+    aggr.reset()
+    writer.recreate.assert_called_once_with(appsec_enabled=None, llmobs_enabled=None)
 
 
 def test_aggregator_bad_processor():
