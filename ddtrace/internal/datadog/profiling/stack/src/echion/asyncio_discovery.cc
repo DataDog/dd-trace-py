@@ -32,7 +32,7 @@ discover_asyncio_offsets(PyObject* asyncio_module)
         return std::nullopt;
     }
     // The module's exec sets md_state with a plain store, which another thread can be doing right now on free-threaded
-    // builds, so the slot is copied through the kernel.
+    // builds, so the slot is read with a syscall.
     uintptr_t state = 0;
     if (!read_own_memory(
           reinterpret_cast<uintptr_t>(asyncio_module) + offsetof(PyModuleObject, md_state), &state, sizeof(state))) {

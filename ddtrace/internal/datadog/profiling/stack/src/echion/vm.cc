@@ -237,7 +237,7 @@ read_own_memory(uintptr_t address, void* buffer, size_t size)
 
 #if defined PL_LINUX
     struct iovec local = { buffer, size };
-    // The kernel copies from this address; it is never dereferenced here.
+    // process_vm_readv copies from this address; it is never dereferenced here.
     struct iovec remote = { reinterpret_cast<void*>(address), size }; // NOLINT(performance-no-int-to-ptr)
     return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
 #elif defined PL_DARWIN

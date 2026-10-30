@@ -4,7 +4,7 @@
 // _PyThreadStateImpl. Their offsets can change between 3.14 patch releases when unrelated fields earlier in those
 // structs change, so a wheel built against one patch release cannot rely on compile-time offsets. CPython's _asyncio
 // module publishes them in a 13-field table, and its module state points to that table. asyncio_discovery.cc finds
-// the pointer; this file reads the table through the kernel, validates it, and checks the offsets against live list
+// the pointer; this file reads the table with a syscall, validates it, and checks the offsets against live list
 // heads before anything is published. Every failure returns no offsets, which disables the native task lists but not
 // thread-stack sampling.
 
