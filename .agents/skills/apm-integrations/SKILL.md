@@ -34,7 +34,7 @@ may have mypy exemptions, so passing checks alone does not establish that new co
   `kwargs: dict[str, Any]`, and `-> Any`; use more precise types when known.
 - Parameterize collections (`dict[str, Any]`, `list[str]`, `tuple[Any, ...]`), not bare
   `dict`, `list`, or `tuple`. Import needed types such as `Any` and `Callable` from `typing`.
-- The package supports Python 3.9 (`pyproject.toml`). Use `Optional[T]` / `Union[...]` for
+- The package supports Python 3.10 (`pyproject.toml`). Use `Optional[T]` / `Union[...]` for
   annotations evaluated there; do not introduce `T | None` into such modules merely for style.
   Preserve an existing postponed-annotation convention where applicable.
 - Avoid `# type: ignore` unless needed; use the specific error code and explain the reason.

@@ -16,7 +16,6 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import service
 from ddtrace.internal import threads as internal_threads
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
@@ -672,7 +671,6 @@ def test_profiler_serverless(monkeypatch: pytest.MonkeyPatch) -> None:
     assert p.tags["functionname"] == "foobar"
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_profiler_ddtrace_deprecation() -> None:
     """

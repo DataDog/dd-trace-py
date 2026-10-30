@@ -44,9 +44,7 @@ __all__ = [
 
 def check_supported_python_version():
     if not is_at_least_py(3, 10):
-        deprecation_message = (
-            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 5.0.0."
-        )
+        deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.18.0."
         if not is_at_least_py(3, 9):
             deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.0.0."
         deprecate(

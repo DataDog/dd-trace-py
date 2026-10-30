@@ -1,4 +1,3 @@
-from dis import findlinestarts
 from functools import lru_cache
 from functools import wraps
 import inspect
@@ -20,10 +19,6 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-# co_lines() is available from Python 3.10+; check once at import time.
-# TODO: remove _CO_LINES_SUPPORTED and the findlinestarts fallback once Python 3.9 support is dropped.
-_CO_LINES_SUPPORTED = hasattr((lambda: None).__code__, "co_lines")
 
 
 def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
@@ -55,14 +50,9 @@ def _max_line_in_code(code: types.CodeType) -> int:
     line for such functions.
     """
     max_line = code.co_firstlineno
-    if _CO_LINES_SUPPORTED:
-        for _, _, line in code.co_lines():
-            if line is not None and line > max_line:
-                max_line = line
-    else:
-        for _, line in findlinestarts(code):
-            if line is not None and line > max_line:
-                max_line = line
+    for _, _, line in code.co_lines():
+        if line is not None and line > max_line:
+            max_line = line
     for const in code.co_consts:
         if isinstance(const, types.CodeType):
             nested = _max_line_in_code(const)
@@ -89,7 +79,6 @@ def get_source_lines_for_test_method(
     # we read the original test function's code object, not the decorator wrapper's.
     # co_firstlineno gives the start; _max_line_in_code recurses into nested code objects
     # so that tests ending with a nested class/def report the correct end line.
-    # TODO: drop the findlinestarts branch once Python 3.9 support is removed.
     try:
         func = inspect.unwrap(test_method_object)
         code = func.__code__

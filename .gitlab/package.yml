@@ -1,10 +1,9 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
   MANYLINUX_AMD64_IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
-  ALPINE_BUILD_IMAGE_TAG: "v126532003-233089d-alpine_build"
+  ALPINE_BUILD_IMAGE_TAG: "v145388687-2a6433e-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
-  - "3.9"
   - "3.10"
   - "3.11"
   - "3.12"
@@ -13,7 +12,6 @@ variables:
   - "3.15"
 
 .PYTHON_TAGS: &PYTHON_TAGS
-  - "cp39-cp39"
   - "cp310-cp310"
   - "cp311-cp311"
   - "cp312-cp312"
@@ -166,7 +164,7 @@ variables:
   parallel:
     matrix:
       - PYTHON_VERSIONS:
-          - "3.9 3.10 3.11"
+          - "3.10 3.11"
           - "3.12 3.13 3.14 3.15"
   script: |
     set -euo pipefail
@@ -380,7 +378,7 @@ variables:
   tags: ["windows-v2:2022"]
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         WINDOWS_ARCH: ["amd64", "x86"]
   variables:
     WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"

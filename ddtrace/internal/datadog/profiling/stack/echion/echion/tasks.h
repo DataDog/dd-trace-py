@@ -60,12 +60,7 @@ extern "C"
     } PyAsyncGenASend;
 
 #ifndef PyAsyncGenASend_CheckExact
-#if PY_VERSION_HEX >= 0x03090000
-// Py_IS_TYPE is only available since Python 3.9
 #define PyAsyncGenASend_CheckExact(obj) (Py_IS_TYPE(obj, &_PyAsyncGenASend_Type))
-#else // PY_VERSION_HEX >= 0x03090000
-#define PyAsyncGenASend_CheckExact(obj) (Py_TYPE(obj) == &_PyAsyncGenASend_Type)
-#endif // PY_VERSION_HEX < 0x03090000
 #endif // defined PyAsyncGenASend_CheckExact
 }
 

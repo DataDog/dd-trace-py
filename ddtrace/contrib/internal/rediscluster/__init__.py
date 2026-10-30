@@ -34,7 +34,7 @@ Configuration
 
    Default: ``1000``
 
-.. py:data:: ddtrace.config.aredis["resource_only_command"]
+.. py:data:: ddtrace.config.rediscluster["resource_only_command"]
 
    The span resource will only include the command executed. To include all
    arguments in the span resource, set this value to ``False``.

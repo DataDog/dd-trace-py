@@ -19,7 +19,6 @@ api
 app
 appsec
 AppSec
-aredis
 args
 ARN
 ASAN

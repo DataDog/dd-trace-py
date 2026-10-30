@@ -28,7 +28,6 @@ PATCH_MODULES = {
     "aiokafka": True,
     "aiomysql": True,
     "anyio": True,
-    "aredis": True,
     "asyncio": True,
     "avro": True,
     "aws_sdk_bedrock_runtime": True,

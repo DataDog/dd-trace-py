@@ -4,7 +4,6 @@ import sys
 
 import pytest
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
@@ -544,7 +543,6 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     )
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

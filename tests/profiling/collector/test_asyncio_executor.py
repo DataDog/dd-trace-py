@@ -269,37 +269,6 @@ def test_asyncio_executor_wall_time() -> None:
                 ],
             ),
         )
-    elif PYVERSION >= (3, 9):
-        # Thread Pool Executor
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name=executor_thread_name,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="slow_sync_function",
-                        filename="test_asyncio_executor.py",
-                        line_no=slow_sync_function.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="run",
-                        filename="",
-                        line_no=-1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="_worker",
-                        filename="",
-                        line_no=-1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="run",
-                        filename="",
-                        line_no=-1,
-                    ),
-                ],
-            ),
-        )
     else:
         # Thread Pool Executor
         pprof_utils.assert_profile_has_sample(

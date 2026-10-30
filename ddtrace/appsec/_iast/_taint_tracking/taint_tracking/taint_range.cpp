@@ -10,12 +10,7 @@ namespace py = pybind11;
 static PyObject*
 new_reference(PyObject* object)
 {
-#if PY_VERSION_HEX >= 0x030A0000
     return Py_NewRef(object);
-#else
-    Py_INCREF(object);
-    return object;
-#endif
 }
 
 void

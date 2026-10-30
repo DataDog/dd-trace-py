@@ -36,7 +36,7 @@ suites:
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
-          python: ['3.9', '3.10']
+          python: ['3.10']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==3.19.0']
         - name: profile
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
@@ -51,7 +51,7 @@ suites:
         # TODO(py-315): protobuf 4.22.0 has no cp315 wheels and its sdist does not
         # build for the test jobs, so the environment fails at setup on 3.15.
         # Only the unpinned protobuf row (7.x) covers 3.15; the 3.19.0 row stays
-        # on 3.9 and 3.10. Re-add 3.15 here only with a protobuf 4.x pin that
+        # on 3.10. Re-add 3.15 here only with a protobuf 4.x pin that
         # supports it.
         - name: profile
           python: ['3.11', '3.12', '3.13']
@@ -81,7 +81,7 @@ suites:
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      python: ['3.10', '3.11', '3.12', '3.13']
       variants:
         - name: profile-uwsgi
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, 'uwsgi<2.0.30', protobuf]

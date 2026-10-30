@@ -58,7 +58,6 @@ Defaults must be defined in ``event_field(...)`` (for example ``default=...`` or
 from dataclasses import MISSING
 from dataclasses import dataclass
 from dataclasses import field
-import sys
 from typing import Any
 from typing import ClassVar
 from typing import TypeVar
@@ -66,12 +65,9 @@ from typing import TypeVar
 
 EventType = TypeVar("EventType", bound="Event")
 
-_PY3_9: bool = sys.version_info[:2] == (3, 9)
-
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:
-    """Creates a dataclass field with special handling to ensure retro compatibility
-    as python 3.9 does not support kw_only which is required by TracingEvent to
+    """Creates a keyword-only dataclass field, which TracingEvent requires to
     allow a child class to have attributes without a default value.
     """
     kwargs: dict[str, Any] = {}
@@ -79,14 +75,7 @@ def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:
         kwargs["default"] = default
     if default_factory is not MISSING:
         kwargs["default_factory"] = default_factory
-
-    if _PY3_9:
-        # Python 3.9 does not support dataclass kw_only fields.
-        # Keep default=None fallback only when no explicit default/default_factory is provided.
-        if default is MISSING and default_factory is MISSING:
-            kwargs["default"] = None
-    else:
-        kwargs["kw_only"] = True
+    kwargs["kw_only"] = True
 
     return field(**kwargs)
 

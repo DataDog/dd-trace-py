@@ -16,7 +16,7 @@ license = { text = "LICENSE.BSD3" }
 # ddtrace has many sub-components which can break when CPython internals
 # change over versions, e.g. profiling. So we explicitly mark incompatibility
 # with versions we don't support yet.
-requires-python = ">=3.9,<3.16"
+requires-python = ">=3.10,<3.16"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -25,7 +25,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -288,7 +287,7 @@ lint.select = [
     "G",
     "I",
     "PLW0244",  # redefined-slots-in-subclass
-    "UP",  # pyupgrade rules (targets py39 based on requires-python)
+    "UP",  # pyupgrade rules (targets py310 based on requires-python)
     "W",
 ]
 lint.unfixable =[

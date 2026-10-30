@@ -31,10 +31,10 @@ candidate:
     - interruptible: true
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "build linux: [amd64, cp39-cp39, v133965508-8f84bce-manylinux2014_x86_64]"
+      job: "build linux: [amd64, cp310-cp310, v133965508-8f84bce-manylinux2014_x86_64]"
       artifacts: true
   script: |
-    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
+    cp pywheels/*-cp310-cp310-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
   artifacts:
     reports:

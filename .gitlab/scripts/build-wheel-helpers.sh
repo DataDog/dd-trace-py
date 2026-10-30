@@ -106,7 +106,7 @@ build_wheel() {
   PYTHON_VER=$(uv run --no-project python -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')")
 
   # Get a rough Python tag for logging purposes
-  #   e.g. "cp313-x86_64_pc_linux_gnu", "cp39-x86_64_pc_linux_musl", etc
+  #   e.g. "cp313-x86_64_pc_linux_gnu", "cp310-x86_64_pc_linux_musl", etc
   PYTHON_TAG=$(uv run --no-project python -c "import sysconfig; import sys; build_type = sysconfig.get_config_var('BUILD_GNU_TYPE'); py_ver = sysconfig.get_config_var('py_version_nodot'); print('cp' + py_ver + '-' + build_type.replace('-', '_'))")
 
   export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_TAG}.log"

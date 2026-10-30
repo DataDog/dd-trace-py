@@ -160,7 +160,7 @@ suites:
       - tests/smoke_test.py
     matrix:
       command: python tests/smoke_test.py {cmdargs}
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants: [{name: smoke_test}]
   crashtracker:
     env:
@@ -179,7 +179,7 @@ suites:
       variants:
         - name: crashtracker
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82']
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.10', '3.11']
         - name: crashtracker
           python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
@@ -323,10 +323,10 @@ suites:
         UV_NO_CACHE: '1'
       variants:
         - name: internal
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.10', '3.11']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
         - name: internal
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.10', '3.11']
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
         - name: internal
           python: ['3.12', '3.13', '3.14']
@@ -339,7 +339,7 @@ suites:
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
         - name: internal
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           command: pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, pyarmor]
   wrapping:
@@ -355,10 +355,10 @@ suites:
         DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS: 'true'
       variants:
         - name: wrapping
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-xdist, wrapt]
         - name: wrapping
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-xdist, 'wrapt<2.0.0']
         - name: wrapping
           python: ['3.15']
@@ -376,10 +376,6 @@ suites:
       command: pytest {cmdargs} tests/lib_injection/
       variants:
         - name: lib_injection
-          python: ['3.9']
-          dependencies: [PyYAML, 'pip==26.0.1', pytest-randomly]
-        - name: lib_injection
-          # 3.9 stays on pip 26.0.1. 3.10+ uses pip 26.2.1, including 3.15.
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [PyYAML, 'pip==26.2.1', pytest-randomly]
   runtime:
@@ -403,10 +399,10 @@ suites:
       command: pytest {cmdargs} tests/openfeature
       variants:
         - name: openfeature
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'openfeature-sdk~=0.8.0']
         - name: openfeature
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, openfeature-sdk]
   telemetry:
     env:
@@ -429,7 +425,7 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask>=3.1.2']
         - name: telemetry
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
     venvs_per_job: 2
@@ -463,9 +459,6 @@ suites:
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
           env:
             PYTHONOPTIMIZE: '1'
-        - name: tracer-legacy-attrs
-          python: ['3.9']
-          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun, 'cattrs<23.2.0']
         - name: tracer-128-bit-traceid-disabled
           python: ['3.14', '3.15']
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, pytest-xdist, setuptools, boto3, freezegun]
@@ -493,22 +486,21 @@ suites:
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
       variants:
         - name: tracer-uwsgi
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
   wait:
     type: helper
     paths:
       - tests/wait-for-services.py
     matrix:
-      # Python 3.10 is incompatible with the pinned kombu and vertica clients.
       command: python tests/wait-for-services.py {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_TRACE_AGENT_URL: http://testagent:9126
-      python: ['3.9']
+      python: ['3.10']
       variants:
         - name: wait
-          dependencies: [azure-data-tables, azure-storage-blob, azure-storage-queue, cassandra-driver, psycopg2-binary, 'mysql-connector-python!=8.0.18', 'vertica-python>=0.6.0,<0.7.0', 'kombu>=4.2.0,<4.3.0', pymssql, pytest-randomly, redis, requests]
+          dependencies: [azure-data-tables, azure-storage-blob, azure-storage-queue, cassandra-driver, psycopg2-binary, 'mysql-connector-python!=8.0.18', 'vertica-python>=0.6.0,<0.7.0', 'kombu>=5.0,<6.0', pymssql, pytest-randomly, redis, requests]
   vendor:
     paths:
       - '@vendor'

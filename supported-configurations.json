@@ -461,23 +461,6 @@
         "sensitive": true
       }
     ],
-    "DD_AREDIS_CMD_MAX_LENGTH": [
-      {
-        "implementation": "A",
-        "type": "int",
-        "default": "1000"
-      }
-    ],
-    "DD_AREDIS_SERVICE": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": "redis",
-        "aliases": [
-          "DD_AREDIS_SERVICE_NAME"
-        ]
-      }
-    ],
     "DD_ASGI_OBFUSCATE_404_RESOURCE": [
       {
         "implementation": "A",
@@ -3980,13 +3963,6 @@
         "implementation": "A",
         "type": "string",
         "default": ""
-      }
-    ],
-    "DD_TRACE_AREDIS_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
       }
     ],
     "DD_TRACE_ASGI_ENABLED": [

@@ -176,7 +176,6 @@ INTEGRATION_CONFIGS = frozenset(
         "httplib",
         "rq",
         "jinja2",
-        "aredis",
         "algoliasearch",
         "asgi",
         "tornado",

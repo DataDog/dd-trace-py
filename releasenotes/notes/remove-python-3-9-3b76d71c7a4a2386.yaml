@@ -1,0 +1,10 @@
+---
+upgrade:
+  - |
+    Support for ddtrace with Python 3.9 is removed after being deprecated in the 4.0 release line.
+    ddtrace now requires Python 3.10 or later, wheels are no longer published for Python 3.9, and
+    Single Step Instrumentation no longer instruments Python 3.9 applications.
+  - |
+    aredis: Removes the aredis integration, along with the ``DD_TRACE_AREDIS_ENABLED``,
+    ``DD_AREDIS_SERVICE``, and ``DD_AREDIS_CMD_MAX_LENGTH`` environment variables. aredis does not
+    support Python 3.10 or later.

@@ -150,7 +150,7 @@ def emit_ddtest_jobs(
             if "testagent" in wait_for:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             print(
-                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
+                f"    - {wait_environment}uv run --no-project --python 3.10 --no-python-downloads "
                 f"--with-requirements {wait_lockfile} --no-progress "
                 f"python tests/wait-for-services.py {' '.join(wait_for)}",
                 file=f,

@@ -9,12 +9,10 @@
 #define Py_BUILD_CORE
 #include <Python.h>
 
-#if PY_VERSION_HEX >= 0x03090000
 #if defined __GNUC__ && defined HAVE_STD_ATOMIC
 #undef HAVE_STD_ATOMIC
 #endif
 #include <internal/pycore_interp.h>
-#endif
 
 #include <functional>
 

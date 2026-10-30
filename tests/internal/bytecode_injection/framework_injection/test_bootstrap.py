@@ -6,7 +6,7 @@ import pytest
 
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),
+    sys.version_info[:2] > (3, 11),
     reason="Injection is currently only supported for 3.10 and 3.11",
 )
 

@@ -115,7 +115,6 @@ class TestCodeProvenance:
             for path in item["paths"]:
                 assert path.startswith("/") and path.startswith(site_packages_path)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Python 3.10+ only")
     def test_stdlib_paths(self) -> None:
         file_path = get_code_provenance_file()
         assert file_path is not None

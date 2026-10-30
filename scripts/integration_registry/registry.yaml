@@ -97,16 +97,6 @@ integrations:
       min: 3.4.0
       max: 4.15.1
 
-- integration_name: aredis
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - aredis
-  tested_versions_by_dependency:
-    aredis:
-      min: 1.1.8
-      max: 1.1.8
-
 - integration_name: asgi
   is_external_package: false
   is_tested: true

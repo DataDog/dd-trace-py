@@ -6,7 +6,7 @@ Validates that all expected wheels and sdist are present with correct versions.
 Uses the packaging library to properly parse and validate filenames.
 
 Expected artifacts:
-  - 58 wheels: 6 Python versions (cp39-cp314) × 8 base platforms + 4 × win_arm64
+  - 50 wheels: 5 Python versions (cp310-cp314) × 8 base platforms + 4 × win_arm64
     + 6 Linux/macOS cp315 platforms (Windows cp315 not required yet)
   - 1 sdist: source distribution
 
@@ -31,7 +31,7 @@ from packaging.version import Version
 
 
 # Configuration
-PYTHON_TAGS: list[str] = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314", "cp315"]
+PYTHON_TAGS: list[str] = ["cp310", "cp311", "cp312", "cp313", "cp314", "cp315"]
 WIN_ARM64_PYTHON_TAGS = ["cp311", "cp312", "cp313", "cp314"]
 
 BASE_PLATFORMS = [

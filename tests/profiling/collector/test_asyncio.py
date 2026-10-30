@@ -356,7 +356,6 @@ class TestAsyncGenericLockProfiling:
     def lock_class(self) -> type[asyncio.Lock]:
         return asyncio.Lock
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_type_union_syntax(self) -> None:
         """Test that PEP 604 type union syntax works with wrapped lock classes.
 

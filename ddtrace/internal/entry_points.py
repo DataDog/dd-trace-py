@@ -1,7 +1,6 @@
 from importlib.metadata import entry_points
 import typing as t
 
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 
 
@@ -19,15 +18,8 @@ _TRUSTED_DISTRIBUTIONS = frozenset({"ddtrace", "ddtrace-serverless"})
 _TRUSTED_MODULE_PREFIXES = frozenset({"ddtrace."})
 
 
-if is_at_least_py(3, 10):
-
-    def get_entry_points(group: str) -> list[t.Any]:
-        return list(entry_points(group=group))
-
-else:
-
-    def get_entry_points(group: str) -> list[t.Any]:
-        return [ep for _, eps in entry_points().items() for ep in eps if ep.group == group]
+def get_entry_points(group: str) -> list[t.Any]:
+    return list(entry_points(group=group))
 
 
 def is_trusted(plugin: t.Any) -> bool:

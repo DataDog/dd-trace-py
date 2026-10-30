@@ -273,7 +273,7 @@ def test_client_library_services_wait_in_the_client_environment(gen_gitlab_confi
     command = _wait_command(gen_gitlab_config_mod, services, snapshot=False)
 
     assert (
-        "uv run --no-project --python 3.9 --no-python-downloads "
+        "uv run --no-project --python 3.10 --no-python-downloads "
         "--with-requirements tests/requirements_locks/wait.txt --no-progress "
         f"python tests/wait-for-services.py {' '.join(services)}"
     ) in command

@@ -550,7 +550,7 @@ def pytest_collection_modifyitems(session, config, items):
 
     Subprocess coverage collection is broken, and snapshot tests must run to validate test-agent output.
 
-    Also: add py39 - py314 suffix as parametrization in test names
+    Also: add py310 - py314 suffix as parametrization in test names
     """
     # All pytest-benchmark releases available at the time of writing (up to 5.3.0) read
     # Node._nodeid, which pytest 9.2 removed, so tests requesting the benchmark fixture

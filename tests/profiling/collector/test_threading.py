@@ -1119,7 +1119,6 @@ class LockCollectorTestBase:
             except Exception as e:
                 print(f"Error removing file: {e}")
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_type_union_syntax(self) -> None:
         """Test that PEP 604 type union syntax works with wrapped lock classes.
 
@@ -2221,7 +2220,6 @@ class TestThreadingLockCollector(LockCollectorTestBase):
     def lock_class(self) -> type[threading.Lock]:
         return threading.Lock
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_skips_for_lock(self) -> None:
         """Assert PEP 604 test skips for Lock when it's a factory (Python < 3.14), or runs when it's a type (3.14+)."""
         with self.collector_class(capture_pct=100):
@@ -2264,7 +2262,6 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
     def lock_class(self) -> type[threading.RLock]:
         return threading.RLock
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_skips_for_rlock(self) -> None:
         """Assert PEP 604 test skips for RLock when it's a factory, or runs when it's a type."""
         with self.collector_class(capture_pct=100):

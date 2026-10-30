@@ -23,12 +23,6 @@ algoliasearch
 ^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.algoliasearch
 
-.. _aredis:
-
-aredis
-^^^^^^
-.. automodule:: ddtrace.contrib.internal.aredis
-
 .. _asgi:
 
 asgi

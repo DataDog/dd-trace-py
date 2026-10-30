@@ -8,7 +8,6 @@ from warnings import warn
 import pytest
 
 import ddtrace
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
@@ -455,7 +454,6 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
@@ -507,9 +505,6 @@ def test_module_watchdog_pkg_resources_support_already_imported():
     p.resource_listdir("namespace_test.ns_module", ".")
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="importlib.resources.files is not available or broken in Python < 3.10"
-)
 @pytest.mark.subprocess(env=dict(NSPATH=str(Path(__file__).parent)))
 def test_module_watchdog_importlib_resources_files():
     import os

@@ -43,7 +43,6 @@ mkdir -p ../pywheels-dep
 (
   cd ../pywheels
   PYTHONUNBUFFERED=TRUE python3 ../lib-injection/dl_wheels.py \
-    --python-version=3.9 \
     --python-version=3.10 \
     --python-version=3.11 \
     --python-version=3.12 \
