@@ -1192,6 +1192,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
         ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type"],
         async_mode=False,
     ):
+        env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
         out, err, status, pid = ddtrace_run_python_code_in_subprocess(
             """
 import openai

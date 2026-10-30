@@ -491,7 +491,7 @@ suites:
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
       variants:
         - name: tracer-uwsgi
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.15']
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
   wait:
     type: helper
