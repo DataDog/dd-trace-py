@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import subprocess
+from unittest import TestCase
 from unittest import mock
 
 import pytest
@@ -10,8 +11,6 @@ import pytest
 import ddtrace
 from ddtrace.internal import debug
 from tests.integration.utils import AGENT_VERSION
-from tests.subprocesstest import SubprocessTestCase
-from tests.subprocesstest import run_in_subprocess
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")
@@ -111,9 +110,9 @@ def test_debug_post_configure_uds():
     assert re.match("^Agent not reachable", agent_error)
 
 
-class TestGlobalConfig(SubprocessTestCase):
-    @run_in_subprocess(
-        env_overrides=dict(
+class TestGlobalConfig(TestCase):
+    @pytest.mark.subprocess(
+        env=dict(
             DD_AGENT_HOST="0.0.0.0",
             DD_TRACE_AGENT_PORT="4321",
             DD_TRACE_HEALTH_METRICS_ENABLED="true",
@@ -142,11 +141,7 @@ class TestGlobalConfig(SubprocessTestCase):
         icfg = f.get("integrations", {})
         assert "django" not in icfg
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234"))
     def test_trace_agent_url(self):
         from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
         from ddtrace.trace import tracer
@@ -154,12 +149,7 @@ class TestGlobalConfig(SubprocessTestCase):
         f = debug.collect(TracerDebugInfo.from_tracer(tracer))
         assert f.get("agent_url") == "http://0.0.0.0:1234"
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://localhost:8126",
-            DD_TRACE_STARTUP_LOGS="1",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_STARTUP_LOGS="1"))
     def test_tracer_loglevel_info_connection(self):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
@@ -171,12 +161,7 @@ class TestGlobalConfig(SubprocessTestCase):
             mock_logger.mock_calls
         )
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-            DD_TRACE_STARTUP_LOGS="1",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="1"))
     def test_tracer_loglevel_info_no_connection(self):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
@@ -184,33 +169,19 @@ class TestGlobalConfig(SubprocessTestCase):
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
         assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:1234",
-            DD_TRACE_STARTUP_LOGS="0",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:1234", DD_TRACE_STARTUP_LOGS="0"))
     def test_tracer_log_disabled_error(self):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             ddtrace.trace.tracer.configure()
         assert mock_logger.mock_calls == []
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
-            DD_TRACE_STARTUP_LOGS="0",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126", DD_TRACE_STARTUP_LOGS="0"))
     def test_tracer_log_disabled(self):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             ddtrace.trace.tracer.configure()
         assert mock_logger.mock_calls == []
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_AGENT_URL="http://0.0.0.0:8126",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_AGENT_URL="http://0.0.0.0:8126"))
     def test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:

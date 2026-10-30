@@ -923,7 +923,7 @@ async def test_chat_completion_async_stream_span_finished(openai, openai_vcr, sn
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai_v1.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
 )
-def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess):
+def test_integration_sync(openai_api_key, python_process):
     """OpenAI uses httpx for its synchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
@@ -944,7 +944,7 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
             "PYTHONPATH": ":".join(pypath),
         }
     )
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 import openai
 import ddtrace
@@ -959,6 +959,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     )
 """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
     assert out == b""
@@ -970,7 +971,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     ignores=["meta.http.useragent"],
     async_mode=False,
 )
-def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess):
+def test_integration_async(openai_api_key, python_process):
     """OpenAI uses httpx for its asynchronous requests.
 
     Running in a subprocess with ddtrace-run should produce traces
@@ -991,7 +992,7 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
             "PYTHONPATH": ":".join(pypath),
         }
     )
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 import asyncio
 import openai
@@ -1010,6 +1011,7 @@ async def task():
 asyncio.run(task())
 """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
     assert out == b""
@@ -1169,7 +1171,7 @@ async def test_azure_openai_aembedding(openai, azure_openai_config, openai_vcr, 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
-def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+def test_integration_service_name(openai_api_key, python_process, schema_version, service_name):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
@@ -1193,7 +1195,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
         async_mode=False,
     ):
         env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
-        out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        out, err, status, _ = python_process(
             """
 import openai
 import ddtrace
@@ -1206,6 +1208,7 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     resp = client.completions.create(model="ada", prompt="hello world")
     """,
             env=env,
+            ddtrace_run=True,
         )
         assert status == 0, err
         assert out == b""

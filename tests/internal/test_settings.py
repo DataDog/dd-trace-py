@@ -257,11 +257,11 @@ def test_settings_missing_lib_config(config, monkeypatch):
         assert config._config[expected_name].source() == expected_source
 
 
-def test_remoteconfig_sampling_rules(ddtrace_run_python_code_in_subprocess):
+def test_remoteconfig_sampling_rules(python_process):
     env = os.environ.copy()
     env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1, "name":"test"}]'})
 
-    _, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    _, err, status, _ = python_process(
         """
 from ddtrace import config, tracer
 from ddtrace._trace.sampler import DatadogSampler
@@ -322,18 +322,19 @@ assert span.get_tag("_dd.p.dm") == "-0"
 assert span.context.sampling_priority == 1
         """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err.decode("utf-8")
 
 
-def test_remoteconfig_global_sample_rate_and_rules(ddtrace_run_python_code_in_subprocess):
+def test_remoteconfig_global_sample_rate_and_rules(python_process):
     """There is complex logic regarding the interaction between setting new
     sample rates and rules with remote config.
     """
     env = os.environ.copy()
     env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9, "name":"rules"}, {"sample_rate":0.8}]'})
 
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    _, err, status, _ = python_process(
         """
 from ddtrace import config, tracer
 from ddtrace._trace.sampler import DatadogSampler
@@ -443,14 +444,15 @@ assert span.get_metric("_dd.rule_psr") is None
 assert span.get_tag("_dd.p.dm") == "-0"
          """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err.decode("utf-8")
 
 
-def test_remoteconfig_custom_tags(ddtrace_run_python_code_in_subprocess):
+def test_remoteconfig_custom_tags(python_process):
     env = os.environ.copy()
     env.update({"DD_TAGS": "team:apm"})
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
@@ -471,14 +473,15 @@ with tracer.trace("test") as span:
 assert span.get_tag("team") == "apm"
         """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 
 
-def test_remoteconfig_tracing_enabled(ddtrace_run_python_code_in_subprocess):
+def test_remoteconfig_tracing_enabled(python_process):
     env = os.environ.copy()
     env.update({"DD_TRACE_ENABLED": "true"})
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
@@ -494,12 +497,13 @@ call_apm_tracing_rc(_base_rc_config({"tracing_enabled": "true"}), config)
 assert tracer.enabled is False
         """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 
 
-def test_remoteconfig_logs_injection_jsonlogger(ddtrace_run_python_code_in_subprocess):
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+def test_remoteconfig_logs_injection_jsonlogger(python_process):
+    out, err, status, _ = python_process(
         """
 import logging
 from pythonjsonlogger import jsonlogger
@@ -520,7 +524,8 @@ call_apm_tracing_rc(_base_rc_config({"log_injection_enabled": False}), config)
 with tracer.trace("test") as span:
     print(span.trace_id)
     log.critical("Hello, World!")
-"""
+""",
+        ddtrace_run=True,
     )
 
     assert status == 0, err
@@ -530,8 +535,8 @@ with tracer.trace("test") as span:
     assert "dd.trace_id" not in log_disabled
 
 
-def test_remoteconfig_logs_injection_std_logger(ddtrace_run_python_code_in_subprocess):
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+def test_remoteconfig_logs_injection_std_logger(python_process):
+    _, err, status, _ = python_process(
         """
 import logging
 from ddtrace import config, tracer
@@ -551,7 +556,8 @@ for handler in logging.root.handlers:
     handler.setFormatter(logging.Formatter())
 # Generate a new log
 log.critical("Hi Friend!")
-"""
+""",
+        ddtrace_run=True,
     )
 
     assert status == 0, err
@@ -562,10 +568,10 @@ log.critical("Hi Friend!")
         assert val not in err_str[1], f"log injection should NOT be enabled: {val} is not in {err_str[1]}"
 
 
-def test_remoteconfig_header_tags(ddtrace_run_python_code_in_subprocess):
+def test_remoteconfig_header_tags(python_process):
     env = os.environ.copy()
     env.update({"DD_TRACE_HEADER_TAGS": "X-Header-Tag-419:env_set_tag_name"})
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 from ddtrace import config, tracer
 from ddtrace.contrib import trace_utils
@@ -602,6 +608,7 @@ assert span3.get_tag("header_tag_420") is None
 assert span3.get_tag("env_set_tag_name") == "helloworld"
         """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 

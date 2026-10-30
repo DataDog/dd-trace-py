@@ -459,7 +459,7 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(tel
         _assert_logs(test_agent_session, expected_payload)
 
 
-def test_http_propagation_extraction_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_http_propagation_extraction_telemetry(test_agent_session, python_process):
     """Test that HTTP propagation extraction records telemetry metrics correctly"""
     code = """
 from ddtrace.propagation.http import HTTPPropagator
@@ -482,7 +482,7 @@ context = HTTPPropagator.extract(headers)
     # agentless (intake) and the metrics would never reach the local test agent.
     env.pop("DD_API_KEY", None)
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     # Get extraction telemetry metrics
@@ -505,7 +505,7 @@ context = HTTPPropagator.extract(headers)
     assert "header_style:baggage" in baggage_metrics[0]["tags"]
 
 
-def test_http_propagation_injection_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_http_propagation_injection_telemetry(test_agent_session, python_process):
     """Test that HTTP propagation injection records telemetry metrics correctly"""
     code = """
 from ddtrace._trace.context import Context
@@ -529,7 +529,7 @@ HTTPPropagator.inject(context, headers)
     # agentless (intake) and the metrics would never reach the local test agent.
     env.pop("DD_API_KEY", None)
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     # Get injection telemetry metrics
@@ -559,7 +559,7 @@ HTTPPropagator.inject(context, headers)
     assert "header_style:baggage" in baggage_metrics[0]["tags"]
 
 
-def test_baggage_max_items_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_baggage_max_items_telemetry(test_agent_session, python_process):
     """Test that baggage max items limit violation records telemetry correctly"""
     code = """
 from ddtrace._trace.context import Context
@@ -582,7 +582,7 @@ HTTPPropagator.inject(context_items, headers_items)
     # agentless (intake) and the metrics would never reach the local test agent.
     env.pop("DD_API_KEY", None)
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     # Get baggage truncation metrics
@@ -599,7 +599,7 @@ HTTPPropagator.inject(context_items, headers_items)
     assert "truncation_reason:baggage_item_count_exceeded" in item_truncated_metrics[0]["tags"]
 
 
-def test_baggage_max_bytes_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_baggage_max_bytes_telemetry(test_agent_session, python_process):
     """Test that baggage max bytes limit violation records telemetry correctly"""
     code = """
 from ddtrace._trace.context import Context
@@ -621,7 +621,7 @@ HTTPPropagator.inject(context_bytes, headers_bytes)
     # agentless (intake) and the metrics would never reach the local test agent.
     env.pop("DD_API_KEY", None)
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     # Get baggage truncation metrics
@@ -638,7 +638,7 @@ HTTPPropagator.inject(context_bytes, headers_bytes)
     assert "truncation_reason:baggage_byte_count_exceeded" in byte_truncated_metrics[0]["tags"]
 
 
-def test_baggage_malformed_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_baggage_malformed_telemetry(test_agent_session, python_process):
     """Test that malformed baggage headers record telemetry correctly"""
     code = """
 from ddtrace.propagation.http import HTTPPropagator
@@ -654,7 +654,7 @@ HTTPPropagator.extract(malformed_headers)
     # agentless (intake) and the metrics would never reach the local test agent.
     env.pop("DD_API_KEY", None)
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     # Get malformed baggage metrics

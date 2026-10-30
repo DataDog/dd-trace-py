@@ -6,15 +6,15 @@ import sys
 import pytest
 
 from ddtrace.internal.datadog.profiling import stack as _stack_ext
+from tests.process import run_process
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
-from tests.utils import call_program
 
 
 def test_call_script() -> None:
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
-    stdout, stderr, exitcode, _ = call_program(
+    stdout, stderr, exitcode, _ = run_process(
         "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py"), env=env
     )
     if sys.platform == "win32":
@@ -31,7 +31,7 @@ def test_call_script() -> None:
 def test_call_script_gevent() -> None:
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
-    stdout, stderr, exitcode, pid = call_program(
+    stdout, stderr, exitcode, _ = run_process(
         sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py"), env=env
     )
     assert exitcode == 0, (stdout, stderr)
@@ -47,7 +47,7 @@ def test_call_script_pprof_output(tmp_path: Path) -> None:
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
     env["DD_PROFILING_ENABLED"] = "1"
-    stdout, stderr, exitcode, _ = call_program(
+    stdout, stderr, exitcode, _ = run_process(
         "ddtrace-run",
         sys.executable,
         os.path.join(os.path.dirname(__file__), "simple_program.py"),
@@ -71,7 +71,7 @@ def test_fork(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, stderr, exitcode, pid = call_program(
+    stdout, stderr, exitcode, pid = run_process(
         sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
     )
     assert exitcode == 0, stderr
@@ -153,7 +153,7 @@ def test_fork(tmp_path: Path) -> None:
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent() -> None:
     env = os.environ.copy()
-    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env)
+    _, _, exitcode, _ = run_process("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env)
     assert exitcode == 0
 
 
@@ -170,7 +170,7 @@ def test_multiprocessing(method: str, tmp_path: Path) -> None:
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_ENABLED"] = "1"
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, stderr, exitcode, _ = call_program(
+    stdout, stderr, exitcode, _ = run_process(
         "ddtrace-run",
         sys.executable,
         os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
@@ -200,7 +200,7 @@ def test_subprocess_inherited_bootstrap(tmp_path: Path) -> None:
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_ENABLED"] = "1"
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, stderr, exitcode, _ = call_program(
+    stdout, stderr, exitcode, _ = run_process(
         "ddtrace-run",
         sys.executable,
         os.path.join(os.path.dirname(__file__), "_test_subprocess.py"),

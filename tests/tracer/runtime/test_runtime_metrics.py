@@ -14,9 +14,9 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.runtime.runtime_metrics import TracerTags
 from ddtrace.internal.service import ServiceStatus
+from tests.process import run_process
 from tests.utils import BaseTestCase
 from tests.utils import TracerTestCase
-from tests.utils import call_program
 from tests.utils import override_global_config
 
 
@@ -364,8 +364,8 @@ def test_runtime_worker_flush_keeps_automatic_gc_running():
 
 
 def test_fork():
-    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
+    _, _, exitcode, _ = run_process("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
     assert exitcode == 0
 
-    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_disable.py"))
+    _, _, exitcode, _ = run_process("python", os.path.join(os.path.dirname(__file__), "fork_disable.py"))
     assert exitcode == 0

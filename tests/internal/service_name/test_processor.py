@@ -13,7 +13,7 @@ def processor():
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
-def test_base_service(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
+def test_base_service(python_process, schema_version, global_service_name):
     expected_base_service_name = {
         None: global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
         "v0": global_service_name or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
@@ -69,10 +69,7 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if global_service_name is not None:
         env["DD_SERVICE"] = global_service_name
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (out, err)
 
 

@@ -50,8 +50,8 @@ from tests.debugging.utils import create_span_function_probe
 from tests.debugging.utils import ddexpr
 from tests.debugging.utils import ddstrtempl
 from tests.internal.remoteconfig import rcm_endpoint
+from tests.process import run_process
 from tests.utils import TracerTestCase
-from tests.utils import call_program
 
 
 def good_probe():
@@ -1502,7 +1502,7 @@ def test_debugger_run_module():
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join((cwd, env.get("PYTHONPATH", "")))
 
-    out, err, status, _ = call_program(sys.executable, "-m", "target", cwd=cwd, env=env)
+    out, err, status, _ = run_process(sys.executable, "-m", "target", cwd=cwd, env=env)
 
     assert out.strip() == b"OK", err.decode()
     assert status == 0
@@ -2384,6 +2384,6 @@ def test_on_run_module_via_m_flag():
 
     env = os.environ.copy()
 
-    out, err, status, _ = call_program("ddtrace-run", sys.executable, "-m", "target", cwd=str(cwd), env=env)
+    out, err, _, _ = run_process("ddtrace-run", sys.executable, "-m", "target", cwd=str(cwd), env=env)
 
     assert out.strip() == b"OK", err.decode()

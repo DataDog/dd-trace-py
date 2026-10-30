@@ -258,7 +258,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -272,7 +272,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -286,7 +286,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0(self):
         self.create_index(self.es)
         spans = self.get_spans()
@@ -294,7 +294,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service == "elasticsearch"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         self.create_index(self.es)
         spans = self.get_spans()
@@ -302,7 +302,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
     def test_service_mapping_config(self):
         """
         When a user specifies a service mapping it should override the default

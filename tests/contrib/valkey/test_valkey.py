@@ -98,7 +98,7 @@ class TestValkeyPatch(TracerTestCase):
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "valkey"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
@@ -107,7 +107,7 @@ class TestValkeyPatch(TracerTestCase):
         )
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0_schema(self):
         us = self.r.get("cheese")
         assert us is None
@@ -116,7 +116,7 @@ class TestValkeyPatch(TracerTestCase):
         )
         assert span.name == "valkey.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1_schema(self):
         us = self.r.get("cheese")
         assert us is None
@@ -390,7 +390,7 @@ class TestValkeyPatch(TracerTestCase):
         for command in multi_key_get_commands:
             self.command_test_rowcount(command, 0, expect_result=False)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         from ddtrace import config
 
@@ -402,7 +402,7 @@ class TestValkeyPatch(TracerTestCase):
         )
         assert span.service == "valkey"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         from ddtrace import config
 
@@ -414,7 +414,7 @@ class TestValkeyPatch(TracerTestCase):
         )
         assert span.service == "valkey"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         from ddtrace import config
 
@@ -426,9 +426,7 @@ class TestValkeyPatch(TracerTestCase):
         )
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_VALKEY_SERVICE="myvalkey", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_VALKEY_SERVICE="myvalkey", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_env_user_specified_valkey_service_v0(self):
         self.r.get("cheese")
         span = find_redis_span(
@@ -446,8 +444,8 @@ class TestValkeyPatch(TracerTestCase):
             )
             assert span.service == "cfg-valkey", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-specified-valkey-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
         )
     )
@@ -544,8 +542,8 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         )
         assert span is not None
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
+    @snapshot(token_override="tests.contrib.valkey.test_valkey.test_user_specified_service")
     def test_user_specified_service(self):
         from ddtrace import config
 
@@ -553,8 +551,8 @@ class TestValkeyPatchSnapshot(TracerTestCase):
 
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_SERVICE="myvalkey"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_VALKEY_SERVICE="myvalkey"))
+    @snapshot(token_override="tests.contrib.valkey.test_valkey.test_env_user_specified_valkey_service")
     def test_env_user_specified_valkey_service(self):
         self.r.get("cheese")
 
@@ -566,16 +564,16 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.reset()
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-valkey"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-valkey"))
+    @snapshot(token_override="tests.contrib.valkey.test_valkey.test_service_precedence")
     def test_service_precedence(self):
         self.r.get("cheese")
 
         self.reset()
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_CMD_MAX_LENGTH="10"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_VALKEY_CMD_MAX_LENGTH="10"))
+    @snapshot(token_override="tests.contrib.valkey.test_valkey.test_custom_cmd_length_env")
     def test_custom_cmd_length_env(self):
         self.r.get("here-is-a-long-key-name")
 
@@ -584,8 +582,8 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         with self.override_config("valkey", dict(cmd_max_length=7)):
             self.r.get("here-is-a-long-key-name")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_RESOURCE_ONLY_COMMAND="false"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_VALKEY_RESOURCE_ONLY_COMMAND="false"))
+    @snapshot(token_override="tests.contrib.valkey.test_valkey.test_full_command_in_resource_env")
     def test_full_command_in_resource_env(self):
         self.r.get("put_key_in_resource")
         p = self.r.pipeline(transaction=False)

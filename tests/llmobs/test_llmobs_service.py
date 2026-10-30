@@ -1663,7 +1663,7 @@ def test_activate_distributed_headers_activates_context(llmobs):
             mock_provider.activate.assert_called_once_with(dummy_context)
 
 
-def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
+def test_listener_hooks_enqueue_correct_writer(python_process):
     """
     Regression test that ensures that listener hooks enqueue span events to the correct writer,
     not the default writer created at startup.
@@ -1673,7 +1673,7 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
     env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
-    out, err, status, pid = run_python_code_in_subprocess(
+    _, err, status, _ = python_process(
         """
 import mock
 import sys

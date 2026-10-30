@@ -15,7 +15,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 from tests.process import check_scenario_outcome
-from tests.utils import call_program
+from tests.process import run_process
 
 
 TRACER_VERSION = __version__
@@ -774,7 +774,7 @@ class PatchTestCase:
                 env = os.environ.copy()
                 env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+                out, err, _, _ = run_process("ddtrace-run", sys.executable, f.name, env=env)
 
                 self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
@@ -903,7 +903,7 @@ class PatchTestCase:
                 env["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
                 env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+                out, err, _, _ = run_process("ddtrace-run", sys.executable, f.name, env=env)
                 assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()
 
 

@@ -6,7 +6,6 @@ import tempfile
 
 import pytest
 
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
 
@@ -58,7 +57,8 @@ class ErrorTestCases(TracerTestCase):
             for j, event_attrs in enumerate(span_events):
                 self.spans[i].assert_span_event_attributes(j, event_attrs)
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_basic_try_except(self):
         self._run_error_test(
             "test_basic_try_except_f",
@@ -67,7 +67,8 @@ class ErrorTestCases(TracerTestCase):
             expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}]],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_basic_multiple_except(self):
         self._run_error_test(
             "test_basic_multiple_except_f",
@@ -81,7 +82,8 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_handle_same_error_multiple_times(self):
         self._run_error_test(
             "test_handle_same_error_multiple_times_f",
@@ -95,7 +97,8 @@ class ErrorTestCases(TracerTestCase):
             self.spans[0]._get_events()[0].attributes["exception.stacktrace"]
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_handled_same_error_different_type(self):
         self._run_error_test(
             "test_handled_same_error_different_type_f",
@@ -109,7 +112,8 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_handled_then_raise_error(self):
         self._run_error_test(
             "test_handled_then_raise_error_f",
@@ -118,7 +122,8 @@ class ErrorTestCases(TracerTestCase):
             expected_events=[[]],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_more_handled_than_collector_capacity(self):
         self._run_error_test(
             "test_more_handled_than_collector_capacity_f",
@@ -129,7 +134,8 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_async_error(self):
         self._run_error_test(
             "test_asyncio_error_f",
@@ -143,7 +149,8 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_handled_in_parent_span(self):
         from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
         from tests.errortracking._test_functions import handled_in_parent_span_f
@@ -168,7 +175,8 @@ class ErrorTestCases(TracerTestCase):
         assert self.spans[1].name == "child_span"
         assert len(self.spans[1]._get_events()) == 0
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_unhashable_exception(self):
         """Test that unhashable exceptions (e.g., with mutable attributes) are handled correctly."""
         self._run_error_test(
@@ -194,8 +202,8 @@ class UserCodeErrorTestCases(TracerTestCase):
     a real environment
     """
 
-    @pytest.fixture(scope="class", autouse=True)
-    def load_user_code(self):
+    def setUp(self):
+        super().setUp()
         from tests.errortracking._test_functions import main_user_code_string
         from tests.errortracking._test_functions import module_user_code_string
         from tests.errortracking._test_functions import submodule_1_string
@@ -285,11 +293,8 @@ class UserCodeErrorTestCases(TracerTestCase):
         for message in expected_events.get("messages_absent", []):
             assert message not in event_messages
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS="user",
-        )
-    )
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="user"))
     def test_user_code_reporting(self):
         self._run_user_code_test(
             initial_value="",
@@ -301,11 +306,8 @@ class UserCodeErrorTestCases(TracerTestCase):
             },
         )
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS="third_party",
-        )
-    )
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="third_party"))
     def test_user_code_reporting_with_third_party(self):
         self._run_user_code_test(
             initial_value="",
@@ -313,11 +315,8 @@ class UserCodeErrorTestCases(TracerTestCase):
             expected_events={"min_events": 1, "messages_present": ["<error_numpy_f>"]},
         )
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="numpy,user_module",
-        )
-    )
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="numpy,user_module"))
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
         self._run_user_code_test(
             initial_value="",
@@ -325,7 +324,8 @@ class UserCodeErrorTestCases(TracerTestCase):
             expected_events={"min_events": 2, "messages_present": ["module caught error", "<error_numpy_f>"]},
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule"))
     def test_user_code_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",
@@ -338,7 +338,8 @@ class UserCodeErrorTestCases(TracerTestCase):
             use_submodules=True,
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule.submodule_2"))
+    @skipif_errortracking_not_supported
+    @pytest.mark.subprocess(env=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule.submodule_2"))
     def test_user_code_narrowed_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",

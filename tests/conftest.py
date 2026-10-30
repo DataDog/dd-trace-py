@@ -284,12 +284,6 @@ def clear_context_after_every_test():
         _DD_CONTEXTVAR.set(None)
 
 
-def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
-    runner = PythonProcess(Path(str(tmpdir)) / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
-    path = runner._source("")
-    return tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME, path.name)
-
-
 @pytest.fixture
 def ddtrace_tmp_path(tmp_path):
     # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
@@ -302,16 +296,6 @@ def ddtrace_tmp_path(tmp_path):
         init_file.write_text("")  # Create an empty __init__.py file
 
     return ddtrace_dir
-
-
-@pytest.fixture
-def run_python_code_in_subprocess(python_process):
-    return python_process
-
-
-@pytest.fixture
-def ddtrace_run_python_code_in_subprocess(python_process):
-    return functools.partial(python_process, ddtrace_run=True)
 
 
 @pytest.fixture

@@ -325,7 +325,7 @@ def test_send_multiple_events(mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 2, "span")])
 
 
-def test_send_on_exit(run_python_code_in_subprocess):
+def test_send_on_exit(python_process):
     requests_received = []
 
     class _Handler(BaseHTTPRequestHandler):
@@ -351,7 +351,7 @@ def test_send_on_exit(run_python_code_in_subprocess):
         pypath.append(env["PYTHONPATH"])
     env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
 
-    out, err, status, pid = run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs.test_llmobs_span_agentless_writer import _completion_event

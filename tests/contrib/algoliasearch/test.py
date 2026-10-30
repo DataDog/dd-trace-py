@@ -2,6 +2,8 @@ import importlib
 import sys
 from unittest import mock
 
+import pytest
+
 from ddtrace import config
 from ddtrace._monkey import _patch_all
 from ddtrace.contrib.internal.algoliasearch.patch import V4
@@ -207,7 +209,7 @@ class AlgoliasearchTest(TracerTestCase):
         spans = self.get_spans()
         assert not spans, spans
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         """
         When a service name is specified by the user
@@ -222,7 +224,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].service == "algoliasearch"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", DD_SERVICE="mysvc"))
     def test_user_specified_service_v0(self):
         """
         When a service name is specified by the user
@@ -237,7 +239,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].service == "algoliasearch"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
     def test_user_specified_service_v1(self):
         """
         In the v1 service name schema, services default to $DD_SERVICE,
@@ -252,7 +254,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].service == "mysvc"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_v0_schema(self):
         _patch_all()
         self.perform_search("test search")
@@ -263,7 +265,7 @@ class AlgoliasearchTest(TracerTestCase):
         assert spans[0].name == "algoliasearch.search"
         unpatch()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_name_v1_schema(self):
         _patch_all()
         self.perform_search("test search")

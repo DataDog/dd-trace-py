@@ -7,6 +7,7 @@ from unittest import skipIf
 import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
+import pytest
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
@@ -302,7 +303,7 @@ class PsycopgCore(TracerTestCase):
             assert rows[0][0] == "one"
             assert rows[1][0] == "two"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_app_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -320,7 +321,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_app_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -338,9 +339,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
@@ -349,9 +348,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
+    @pytest.mark.subprocess(env=dict(DD_PSYCOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
@@ -360,7 +357,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
@@ -369,7 +366,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "postgres"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
@@ -378,7 +375,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_v0_schema(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
@@ -387,7 +384,7 @@ class PsycopgCore(TracerTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].name == "postgres.query"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_name_v1_schema(self):
         conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
@@ -402,8 +399,8 @@ class PsycopgCore(TracerTestCase):
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query"))
 
-    @snapshot()
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @pytest.mark.subprocess(env=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @snapshot(token_override="tests.contrib.psycopg2.test_psycopg.test_postgres_dbm_propagation_tag")
     def test_postgres_dbm_propagation_tag(self):
         """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
         conn = psycopg2.connect(**POSTGRES_CONFIG)
@@ -415,12 +412,9 @@ class PsycopgCore(TracerTestCase):
         cursor.execute(SQL("select 'composed_blah'"))
         cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
+    @pytest.mark.subprocess(
+        env=dict(
+            DD_DBM_PROPAGATION_MODE="service", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
         )
     )
     def test_postgres_dbm_propagation_comment(self):

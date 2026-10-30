@@ -125,7 +125,7 @@ async def test_patch_unpatch(tracer, test_spans):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_user_specified_service_v0(ddtrace_run_python_code_in_subprocess):
+async def test_user_specified_service_v0(python_process):
     """
     v0: When a user specifies a service for the app
         The aiomysql integration should not use it.
@@ -133,7 +133,7 @@ async def test_user_specified_service_v0(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SERVICE"] = "my-service-name"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 import asyncio
 import aiomysql
@@ -147,6 +147,7 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
     assert out == err == b""
@@ -154,7 +155,7 @@ asyncio.run(test())""",
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_user_specified_service_v1(ddtrace_run_python_code_in_subprocess):
+async def test_user_specified_service_v1(python_process):
     """
     v1: When a user specifies a service for the app
         The aiomysql integration should use it.
@@ -162,7 +163,7 @@ async def test_user_specified_service_v1(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_SERVICE"] = "my-service-name"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 import asyncio
 import aiomysql
@@ -176,6 +177,7 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
     assert out == err == b""
@@ -183,14 +185,14 @@ asyncio.run(test())""",
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_unspecified_service_v1(ddtrace_run_python_code_in_subprocess):
+async def test_unspecified_service_v1(python_process):
     """
     v1: When a user specifies nothing for a service,
         it should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 import asyncio
 import aiomysql
@@ -203,6 +205,7 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
     assert out == err == b""
@@ -211,14 +214,14 @@ asyncio.run(test())""",
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 @pytest.mark.parametrize("version", ["v0", "v1"])
-async def test_schematized_span_name(ddtrace_run_python_code_in_subprocess, version):
+async def test_schematized_span_name(python_process, version):
     """
     When a user specifies a service for the app
         The aiomysql integration should not use it.
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 import asyncio
 import aiomysql
@@ -230,6 +233,7 @@ async def test():
     conn.close()
 asyncio.run(test())""",
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
     assert out == err == b""
@@ -257,9 +261,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         unpatch()
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_service_integration_v0(self):
         conn = await self._get_conn()
 
@@ -270,9 +272,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
+    @pytest.mark.subprocess(env=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_service_integration_v1(self):
         conn = await self._get_conn()
 
@@ -283,7 +283,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_service_v0(self):
         conn = await self._get_conn()
 
@@ -294,7 +294,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysql"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_service_v1(self):
         conn = await self._get_conn()
 
@@ -305,7 +305,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_unspecified_service_v1(self):
         conn = await self._get_conn()
 
@@ -316,7 +316,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_span_name_v0_schema(self):
         conn = await self._get_conn()
 
@@ -327,7 +327,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == "mysql.query"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_span_name_v1_schema(self):
         conn = await self._get_conn()
 
@@ -338,19 +338,16 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == "mysql.query"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @pytest.mark.subprocess(env=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_aiomysql_dbm_propagation_enabled(self):
         conn = await self._get_conn()
         cursor = await conn.cursor()
 
         await shared_tests._test_dbm_propagation_enabled(self.tracer, cursor, "mysql")
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
+    @pytest.mark.subprocess(
+        env=dict(
+            DD_DBM_PROPAGATION_MODE="service", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
         )
     )
     async def test_aiomysql_dbm_propagation_comment_with_global_service_name_configured(self):
@@ -363,8 +360,8 @@ class AioMySQLTestCase(AsyncioTestCase):
             config=AIOMYSQL_CONFIG, db_system="mysql", cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",
@@ -382,8 +379,8 @@ class AioMySQLTestCase(AsyncioTestCase):
             config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",
@@ -401,8 +398,8 @@ class AioMySQLTestCase(AsyncioTestCase):
             config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",

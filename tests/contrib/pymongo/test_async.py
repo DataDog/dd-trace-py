@@ -107,13 +107,8 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="full",
-            DD_ENV="test_env",
-            DD_VERSION="1.2.3",
-            DD_SERVICE="test_service",
-        )
+    @pytest.mark.subprocess(
+        env=dict(DD_DBM_PROPAGATION_MODE="full", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service")
     )
     async def test_async_dbm_propagation_full_mode(self) -> None:
         command_capture = AsyncCommandCapture()

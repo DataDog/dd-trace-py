@@ -1,4 +1,5 @@
 from falcon import testing
+import pytest
 
 from ddtrace import config
 from ddtrace.constants import USER_KEEP
@@ -61,7 +62,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         assert traces[0][0].parent_id != 42
         assert traces[0][0].trace_id != 100
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_FALCON_DISTRIBUTED_TRACING="False"))
+    @pytest.mark.subprocess(env=dict(DD_FALCON_DISTRIBUTED_TRACING="False"))
     def test_distributed_tracing_disabled_via_env_var(self):
         self.api = get_app(tracer=self.tracer)
 
@@ -81,7 +82,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         assert traces[0][0].parent_id != 42
         assert traces[0][0].trace_id != 100
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"))
     def test_inferred_spans_api_gateway_distributed_tracing_enabled(self):
         config.falcon["distributed_tracing"] = True
         distributed_headers = {
@@ -126,7 +127,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
             distributed_sampling_priority=USER_KEEP,
         )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
     def test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
         # When inferred proxy is disabled, there should be no inferred span
         config.falcon["distributed_tracing"] = True

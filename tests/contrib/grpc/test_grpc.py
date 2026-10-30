@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 from .common import _GRPC_VERSION
@@ -23,7 +22,7 @@ from .hello_pb2_grpc import HelloStub
 
 
 class GrpcTestCase(GrpcBaseTestCase):
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -33,7 +32,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         from ddtrace import config
 
@@ -46,7 +45,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert spans[0].service == "grpc-client"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -56,7 +55,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -66,7 +65,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "grpc-client"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_client_service_name_config_env_override_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -76,7 +75,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert spans[0].service == "mygrpc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_client_service_name_config_env_override_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -86,9 +85,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "mygrpc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_service_precedence_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -98,9 +95,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         client_span, server_span = spans
         assert client_span.service == "mygrpc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_GRPC_SERVICE="mygrpc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_service_precedence_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -525,7 +520,7 @@ class GrpcTestCase(GrpcBaseTestCase):
             rpc_error = exception_context.exception
             assert grpc.StatusCode.UNIMPLEMENTED == rpc_error.code()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_app_service_name(self):
         """
         When a service name is specified by the user
@@ -548,7 +543,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_server_span(spans[1], "mysvc", "SayHello", "unary")
         self._check_client_span(spans[0], "grpc-client", "SayHello", "unary")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_service_name_config_override(self):
         """
         When a service name is specified by the user in config.grpc{_server}
@@ -567,7 +562,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_server_span(spans[1], "myserversvc", "SayHello", "unary")
         self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_GRPC_SERVICE="myclientsvc"))
+    @pytest.mark.subprocess(env=dict(DD_GRPC_SERVICE="myclientsvc"))
     def test_client_service_name_config_env_override(self):
         """
         When a service name is specified by the user in the DD_GRPC_SERVICE env var
@@ -581,7 +576,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         spans = self.get_spans_with_sync_and_assert(size=2)
         self._check_client_span(spans[0], "myclientsvc", "SayHello", "unary")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)
@@ -592,7 +587,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert client_span.name == "grpc", "Expected 'grpc', got %s" % client_span.name
         assert server_span.name == "grpc", "Expected 'grpc', got %s" % server_span.name
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
         with grpc.insecure_channel("127.0.0.1:%d" % (self._grpc_port)) as channel:
             stub = HelloStub(channel)

@@ -21,7 +21,7 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from tests.utils import call_program
+from tests.process import run_process
 from tests.utils import override_global_config
 
 
@@ -92,7 +92,7 @@ def _to_config_str(value):
     ],
 )
 def test_app_started_event_configuration_override_asm(
-    test_agent_session, run_python_code_in_subprocess, env_var, value, expected_value
+    test_agent_session, python_process, env_var, value, expected_value
 ):
     """asserts that asm configuration value is changed and queues a valid telemetry request"""
     env = os.environ.copy()
@@ -100,7 +100,7 @@ def test_app_started_event_configuration_override_asm(
     env[env_var] = value
     # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
     env.pop("DD_API_KEY", None)
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    _, stderr, status, _ = python_process("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
     configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
@@ -158,14 +158,14 @@ def test_app_started_forwards_process_tags(telemetry_writer, test_agent_session,
     assert "svc.user:" in application["process_tags"] or "svc.auto:" in application["process_tags"]
 
 
-def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_update_dependencies_event(test_agent_session, python_process):
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
+    _, stderr, status, _ = python_process("import xmltodict", env=env, ddtrace_run=True)
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("xmltodict")
     assert len(deps) == 1, deps
@@ -219,11 +219,11 @@ _WORKER_BOOTSTRAP = """import django
     assert this not in __import__('sys').modules, 'django.setup() imported the URLconf'"""
 
 
-def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_endpoint_discovery_event(test_agent_session, python_process):
     env = os.environ.copy()
     mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _SERVING_BOOTSTRAP}
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    _, stderr, status, _ = python_process(mini_django_app, env=env, ddtrace_run=True)
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("django")
     assert len(deps) == 1, deps
@@ -249,7 +249,7 @@ def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in
     ), endpoints
 
 
-def test_endpoint_discovery_message_limit(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_endpoint_discovery_message_limit(test_agent_session, python_process):
     """DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT caps a payload, it does not drop endpoints.
 
     The limit is handed to the native worker, which splits app-endpoints across payloads. Only the
@@ -270,7 +270,7 @@ for i in range(7):
 for _ in range(4):
     telemetry_writer.periodic(force_flush=True)
 """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     events = test_agent_session.get_events("app-endpoints")
@@ -284,7 +284,7 @@ for _ in range(4):
     assert paths == {"/r%d" % i for i in range(7)}, paths
 
 
-def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, python_process):
     """A process that never builds a request handler must not import the URLconf.
 
     Reading resolver.url_patterns imports ROOT_URLCONF and, through include(), every view module behind it. A Celery
@@ -295,7 +295,7 @@ def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, ddt
 
     mini_django_app = _MINI_DJANGO_APP % {"bootstrap": _WORKER_BOOTSTRAP}
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    _, stderr, status, _ = python_process(mini_django_app, env=env, ddtrace_run=True)
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("django")
     assert len(deps) == 1, deps
@@ -303,30 +303,28 @@ def test_endpoint_discovery_skipped_without_http_handler(test_agent_session, ddt
     assert test_agent_session.get_events("app-endpoints") == []
 
 
-def test_instrumentation_source_config(
-    test_agent_session, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess
-):
+def test_instrumentation_source_config(test_agent_session, python_process):
     env = os.environ.copy()
 
-    _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=env)
+    _, stderr, status, _ = run_process("ddtrace-run", sys.executable, "-c", "", env=env)
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
     assert configs and configs[-1]["value"] == "cmd_line"
     test_agent_session.clear()
 
-    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace.auto", env=env)
+    _, stderr, status, _ = run_process(sys.executable, "-c", "import ddtrace.auto", env=env)
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
     assert configs and configs[-1]["value"] == "manual"
     test_agent_session.clear()
 
-    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
+    _, stderr, status, _ = run_process(sys.executable, "-c", "import ddtrace", env=env)
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
     assert not configs, "instrumentation_source should not be set when ddtrace instrumentation is not used"
 
 
-def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_update_dependencies_event_when_disabled(test_agent_session, python_process):
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
@@ -334,19 +332,19 @@ def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
+    _process_result = python_process("import xmltodict", env=env, ddtrace_run=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 0, events
 
 
-def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_update_dependencies_event_not_stdlib(test_agent_session, python_process):
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(
+    _, stderr, status, _ = python_process(
         """
 import sys
 import httpretty
@@ -354,6 +352,7 @@ del sys.modules["httpretty"]
 import httpretty
 """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("httpretty")
@@ -715,7 +714,7 @@ def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available(
     assert config._dd_api_key in (None, "")
 
 
-def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess, tmpdir):
+def test_otel_config_telemetry(test_agent_session, python_process, tmpdir):
     """
     asserts that telemetry data is submitted for OpenTelemetry configurations
     """
@@ -733,7 +732,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_SDK_DISABLED"] = "true"
     env["OTEL_UNSUPPORTED_CONFIG"] = "value"
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = python_process("import ddtrace", env=env)
     assert status == 0, stderr
 
     configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
@@ -788,7 +787,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert env_invalid_metrics == []
 
 
-def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
+def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, python_process):
     """The OTEL_EXPORTER_OTLP_*_HEADERS family is excluded from configuration telemetry, while
     non-sensitive OTLP exporter configurations are still reported.
     """
@@ -815,7 +814,7 @@ import opentelemetry
     # Non-sensitive OTLP exporter configurations that must still be reported.
     env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4318"
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env)
     assert status == 0, stderr
 
     configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}

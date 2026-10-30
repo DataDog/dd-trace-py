@@ -1,12 +1,13 @@
 from pathlib import Path
+from unittest import TestCase
 import unittest.mock
 
+import pytest
+
 from ddtrace import _monkey
-from tests.subprocesstest import SubprocessTestCase
-from tests.subprocesstest import run_in_subprocess
 
 
-class TestPatching(SubprocessTestCase):
+class TestPatching(TestCase):
     """
     In these test cases it is assumed that:
 
@@ -17,24 +18,24 @@ class TestPatching(SubprocessTestCase):
      httplib is used as a representative of disabled by default integrations.
     """
 
-    @run_in_subprocess(env_overrides=dict())
+    @pytest.mark.subprocess(env=dict())
     def test_patch_all_env_override_sqlite_none(self):
         # Make sure sqlite is enabled by default.
         _monkey._patch_all()
         assert "sqlite3" in _monkey._PATCHED_MODULES
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SQLITE3_ENABLED="false"))
     def test_patch_all_env_override_sqlite_disabled(self):
         _monkey._patch_all()
         assert "sqlite3" not in _monkey._PATCHED_MODULES
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SQLITE3_ENABLED="false"))
     def test_patch_all_env_override_manual_patch(self):
         # Manual patching should not be affected by the environment variable override.
         _monkey.patch(sqlite3=True)
         assert "sqlite3" in _monkey._PATCHED_MODULES
 
-    @run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_patch_raise_exception_manual_patch(self):
         # Manual patching should not be affected by the environment variable override.
         with self.assertRaises(_monkey.ModuleNotFoundException) as me:
@@ -43,7 +44,7 @@ class TestPatching(SubprocessTestCase):
         assert "module_dne does not have automatic instrumentation" in str(me.exception)
         assert "module_dne" not in _monkey._PATCHED_MODULES
 
-    @run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_patch_no_raise_when_only_pyc_exists(self):
         # A compiled-only integration (patch.pyc, no patch.py) should not raise ModuleNotFoundException.
         original_exists = Path.exists
@@ -66,23 +67,23 @@ class TestPatching(SubprocessTestCase):
 
         assert not raised_module_not_found, "ModuleNotFoundException raised when patch.pyc exists"
 
-    @run_in_subprocess(env_overrides=dict())
+    @pytest.mark.subprocess(env=dict())
     def test_patch_all_env_override_httplib_none(self):
         # Make sure httplib is disabled by default.
         _monkey._patch_all()
         assert "httplib" not in _monkey._PATCHED_MODULES
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_HTTPLIB_ENABLED="true"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_HTTPLIB_ENABLED="true"))
     def test_patch_all_env_override_httplib_enabled(self):
         _monkey._patch_all()
         assert "httplib" in _monkey._PATCHED_MODULES
 
-    @run_in_subprocess(env_overrides=dict(DD_MODEL_LAB_ENABLED="true"))
+    @pytest.mark.subprocess(env=dict(DD_MODEL_LAB_ENABLED="true"))
     def test_patch_all_env_override_model_lab_enables_mlflow(self):
         _monkey._patch_all()
         assert "mlflow" in _monkey._PATCHED_MODULES
 
-    @run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_patch_exception_on_import(self):
         # Manual patching should not be affected by the environment variable override.
         import sqlite3
@@ -92,7 +93,7 @@ class TestPatching(SubprocessTestCase):
         with self.assertRaises(AttributeError):
             _monkey.patch(raise_errors=True, sqlite3=True)
 
-    @run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_patch_exception_on_import_no_raise(self):
         # Manual patching should not be affected by the environment variable override.
         import sqlite3
@@ -105,7 +106,7 @@ class TestPatching(SubprocessTestCase):
         assert logs.records[0].getMessage().startswith("failed to enable ddtrace support for sqlite3:")
         assert "connect" in logs.records[0].getMessage()
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_SAFE_INSTRUMENTATION_ENABLED="true"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SAFE_INSTRUMENTATION_ENABLED="true"))
     def test_patch_guardrails_with_unsupported_integration_version(self):
         # spy on fastapi get_version method and return a fake version we don't support
         with unittest.mock.patch("ddtrace.contrib.internal.fastapi.patch.get_version", return_value="0.0.0"):
