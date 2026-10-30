@@ -44,8 +44,8 @@ object that implements the product protocol. This consists of a Python object
 | `post_preload() -> None` | A function with the logic required to finish initialization after the library  preload stage |
 | `enabled() -> bool` | A function that returns whether the product should be started; called before `start()` by the product manager |
 | `start() -> None` | A function with the logic required to enable the product (called only when `enabled()` returns `True`) |
-| `register_subscribers() -> None` | Called after a successful `start()` to register product-owned event subscribers; failures are logged without failing the product |
-| `unregister_subscribers() -> None` | Called during shutdown before `stop()`, including at process exit and for disabled products; failures are logged without preventing `stop()` |
+| `register_subscribers() -> None` | Called after bundle registration following a successful `start()`; failures are logged without failing the product |
+| `unregister_subscribers() -> None` | Called before `stop()`, including cleanup for disabled products; failures are logged without preventing shutdown |
 | `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
 | `stop(join: bool = False) -> None` | A function with the logic required to stop the product; also called at process exit (see `skip_exit`) |
 
@@ -66,19 +66,19 @@ gets extended to add support for additional features.
 | Attribute | Description |
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
+| `subscriber_bundles: tuple[SubscriberBundle, ...]` | Bundles registered after a successful `start()` and unregistered after `stop()`; omitted by default |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
-| `skip_exit() -> bool` | For enabled products, return `True` to skip process-exit cleanup, including `unregister_subscribers()` and `stop()`; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
+| `skip_exit() -> bool` | For enabled products, return `True` to skip `unregister_subscribers()`, `stop()`, and bundle unregistration at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
-## Product subscriber bundles
+## Subscriber bundles
 
-Products group related subscribers with `SubscriberBundle` from
-`ddtrace.internal.products`. The product protocol supplies the lifecycle hooks;
-there is no separate product registry or identity wrapper.
+Products can declare related subscribers with `SubscriberBundle` from
+`ddtrace.internal.products`:
 
 ```python
 from ddtrace.internal.products import SubscriberBundle
@@ -88,32 +88,48 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     subscribers=("RequestSubscriber", "RequestContextSubscriber"),
 )
 
-
-def register_subscribers() -> None:
-    WEB_FRAMEWORK_SUBSCRIBERS.register()
+# Declare on the product module. The manager owns registration and teardown.
+subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS,)
 ```
 
-A product can declare several bundles for different event families and select them
-inside its hooks according to its activation policy. The manager calls registration
-after a successful `start()`; product eligibility does not necessarily imply activation.
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Classes must use
-`auto_register = False`; repeated registration uses named-listener deduplication and
-can restore listeners after a reset. Import and callback failures propagate to the
-owning lifecycle, whose hook handling isolates failures from other products.
-Registration is not a transaction across callback failures.
+`auto_register = False` so importing their module does not register them implicitly.
+Repeated registration uses named-listener deduplication and can restore listeners
+after a reset. Import and callback failures propagate to the caller; registration
+is not a transaction across callback failures.
 
-`SubscriberBundle.unregister()` removes listeners in reverse declaration order without
-importing an unused module. The product owns its draining or listener-retention policy:
-the manager calls unregistration before `stop()` and on exit, unless `skip_exit()`
-skips cleanup. Removing completion listeners before active contexts finish is unsafe.
+`ProductManager.start_products()` registers declared bundles in order after a
+successful `start()`. Disabled products, failed starts, and products whose dependencies
+failed do not register bundles. Registration failures are logged per bundle without
+preventing other bundles or products from starting.
 
-Tracing's hooks register `WEB_FRAMEWORK_SUBSCRIBERS` from
-`ddtrace._trace._registration`. Loading tracing subscribers also registers this bundle,
-so direct/manual integration imports work when the product lifecycle has not run. Its unregistration
-hook deliberately retains the shared listeners, matching the existing tracing lifetime
-and allowing active contexts to finish after an explicit product stop. Other subscriber
-families keep their existing lifecycle until migrated.
+`stop_products()` and `exit_products()` unregister bundles in reverse declaration order
+after `stop()` returns, allowing completion listeners to run while the product drains
+active contexts. If `stop()` raises, listeners are retained. Disabled products still
+have their bundles unregistered; enabled products using `skip_exit()` retain their
+bundles at process exit. Unregistration failures are logged per bundle without
+preventing other bundles or products from being cleaned up. `unregister()` never
+imports an unused module.
+
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace.product`.
+Importing `ddtrace._trace.subscribers` registers the web framework subscriber directly,
+without importing the tracing product module. Existing integration
+imports reach that package, including direct/manual instrumentation without the
+product manager. Shared tracing listeners retain their existing process lifetime;
+other subscriber families continue to register automatically.
+
+The `subscriber_bundles` attribute is optional and defaults to no bundles. Only
+declare bundles whose lifetime the manager should own. The `register_subscribers()`
+and `unregister_subscribers()` hooks support custom policies alongside declared bundles.
+The registration hook runs after declared bundles are registered. The unregistration
+hook runs before `stop()`; declared bundles remain registered until `stop()` returns.
+Hook failures do not prevent bundle cleanup or other products from running.
+
+Tracing's registration hook registers its shared bundle, while its unregistration
+hook deliberately retains listeners for manual instrumentation and completion of
+active contexts. These listeners are also registered through the existing import
+path rather than the `subscriber_bundles` attribute, preserving their process lifetime.
 
 
 ## Remote Configuration Callbacks
