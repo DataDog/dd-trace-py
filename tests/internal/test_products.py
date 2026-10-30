@@ -1,10 +1,13 @@
 from unittest.mock import MagicMock
+from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.internal.products import Product
 from ddtrace.internal.products import ProductManager
+from ddtrace.internal.products import SubscriberBundle
 from ddtrace.internal.products import get_product_entry_points
 
 
@@ -29,12 +32,6 @@ class BaseProduct(Product):
 
     def start(self) -> None:
         self.started = True
-
-    def register_subscribers(self) -> None:
-        pass
-
-    def unregister_subscribers(self) -> None:
-        pass
 
     def restart(self, join: bool = False) -> None:
         self.restarted = True
@@ -140,12 +137,6 @@ def test_product_manager_restart():
 
         def start(self) -> None:
             self.started = True
-
-        def register_subscribers(self) -> None:
-            pass
-
-        def unregister_subscribers(self) -> None:
-            pass
 
         def restart(self, join: bool = False) -> None:
             self.restarted = True
@@ -343,120 +334,6 @@ def test_product_manager_activated_failure_does_not_fail_product():
     telemetry_writer.product_activated.assert_called_once_with("dependent", True)
 
 
-class RecordingProduct(BaseProduct):
-    def __init__(self, calls: list[str]) -> None:
-        super().__init__()
-        self.calls = calls
-
-    def start(self) -> None:
-        self.calls.append("start")
-
-    def register_subscribers(self) -> None:
-        self.calls.append("register_subscribers")
-
-    def unregister_subscribers(self) -> None:
-        self.calls.append("unregister_subscribers")
-
-    def stop(self, join: bool = False) -> None:
-        self.calls.append("stop")
-
-
-def test_product_manager_registers_subscribers_after_start():
-    calls: list[str] = []
-    manager = ProductManagerTest({"a": RecordingProduct(calls)})
-
-    manager.start_products()
-    assert calls == ["start", "register_subscribers"]
-
-    manager.stop_products()
-    assert calls == ["start", "register_subscribers", "unregister_subscribers", "stop"]
-
-
-@pytest.mark.parametrize("shutdown_method", ["stop_products", "exit_products"])
-def test_product_manager_unregisters_subscribers_of_disabled_products(shutdown_method):
-    class Disabled(RecordingProduct):
-        def enabled(self) -> bool:
-            return False
-
-    calls: list[str] = []
-    product = Disabled(calls)
-    manager = ProductManagerTest({"disabled": product})
-
-    # Model a subscriber registered by an integration patch hook while the product is disabled.
-    product.register_subscribers()
-
-    manager.start_products()
-    getattr(manager, shutdown_method)()
-
-    assert calls == ["register_subscribers", "unregister_subscribers"]
-
-
-def test_product_manager_unregisters_subscribers_before_stopping_on_exit():
-    calls: list[str] = []
-    manager = ProductManagerTest({"a": RecordingProduct(calls)})
-
-    manager.exit_products()
-
-    assert calls == ["unregister_subscribers", "stop"]
-
-
-def test_product_manager_skips_cleanup_on_exit_for_skip_exit_products():
-    class SkipExit(RecordingProduct):
-        def skip_exit(self) -> bool:
-            return True
-
-    calls: list[str] = []
-    manager = ProductManagerTest({"a": SkipExit(calls)})
-
-    manager.exit_products()
-
-    assert calls == []
-
-
-def test_product_manager_subscriber_failure_does_not_prevent_exit_stop():
-    class Broken(RecordingProduct):
-        def unregister_subscribers(self) -> None:
-            raise RuntimeError()
-
-    calls: list[str] = []
-    manager = ProductManagerTest({"a": Broken(calls)})
-
-    manager.exit_products()
-
-    assert calls == ["stop"]
-
-
-def test_product_manager_subscriber_failures_do_not_fail_product():
-    class Broken(RecordingProduct):
-        def register_subscribers(self) -> None:
-            raise RuntimeError()
-
-        def unregister_subscribers(self) -> None:
-            raise RuntimeError()
-
-    class Dependent(BaseProduct):
-        requires = ["broken"]
-
-    calls: list[str] = []
-    dependent = Dependent()
-    manager = ProductManagerTest({"broken": Broken(calls), "dependent": dependent})
-
-    manager.start_products()
-    assert calls == ["start"]
-    assert dependent.started
-
-    manager.stop_products()
-    assert calls == ["start", "stop"]
-
-
-def test_products_implement_the_product_protocol():
-    hooks = ("post_preload", "enabled", "start", "register_subscribers", "unregister_subscribers", "restart", "stop")
-    for entry_point in get_product_entry_points():
-        product = entry_point.load()
-        missing = [hook for hook in hooks if not callable(getattr(product, hook, None))]
-        assert not missing, (entry_point.name, missing)
-
-
 def _remotely_startable_products():
     """The products that remote configuration can start, via their apm_tracing_rc handler."""
     names = set()
@@ -533,3 +410,143 @@ def test_remote_product_start_does_not_import_threading():
         pytest.xfail("starting LLMObs imports subprocess, and with it threading")
 
     assert not imported
+
+
+def test_product_bundles_register_after_each_successful_start() -> None:
+    product = BaseProduct()
+    first, second = Mock(spec=SubscriberBundle), Mock(spec=SubscriberBundle)
+    product.subscriber_bundles = (first, second)
+    calls = Mock()
+    calls.attach_mock(first, "first")
+    calls.attach_mock(second, "second")
+
+    def assert_started() -> None:
+        assert product.started
+
+    first.register.side_effect = assert_started
+    manager = ProductManagerTest({"product": product})
+    manager.start_products()
+    assert calls.mock_calls == [call.first.register(), call.second.register()]
+    manager.stop_products()
+    calls.reset_mock()
+    manager.start_products()
+    assert calls.mock_calls == [call.first.register(), call.second.register()]
+
+
+@pytest.mark.parametrize("unavailable", ["disabled", "failed_start", "failed_dependency"])
+def test_unavailable_products_do_not_register_bundles(unavailable: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    product = BaseProduct()
+    bundle = Mock(spec=SubscriberBundle)
+    product.subscriber_bundles = (bundle,)
+    products = {"product": product}
+    if unavailable == "disabled":
+        monkeypatch.setattr(product, "enabled", Mock(return_value=False))
+    elif unavailable == "failed_start":
+        monkeypatch.setattr(product, "start", Mock(side_effect=RuntimeError("start failed")))
+    else:
+        product.requires = ["dependency"]
+        dependency = BaseProduct()
+        monkeypatch.setattr(dependency, "start", Mock(side_effect=RuntimeError("dependency failed")))
+        products["dependency"] = dependency
+    manager = ProductManagerTest(products)
+    manager.start_products()
+    bundle.register.assert_not_called()
+
+
+def test_bundle_registration_failure_does_not_block_other_bundles_or_products() -> None:
+    product, dependent = BaseProduct(), BaseProduct()
+    first, second = Mock(spec=SubscriberBundle), Mock(spec=SubscriberBundle)
+    first.register.side_effect = ImportError("unavailable")
+    product.subscriber_bundles = (first, second)
+    dependent.requires = ["product"]
+    manager = ProductManagerTest({"product": product, "dependent": dependent})
+    manager.start_products()
+    first.register.assert_called_once_with()
+    second.register.assert_called_once_with()
+    assert dependent.started
+
+
+@pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
+def test_product_bundles_unregister_in_reverse_order_after_stop(shutdown: str) -> None:
+    product = BaseProduct()
+    first, second = Mock(spec=SubscriberBundle), Mock(spec=SubscriberBundle)
+    product.subscriber_bundles = (first, second)
+    calls = Mock()
+    calls.attach_mock(first, "first")
+    calls.attach_mock(second, "second")
+
+    def assert_stopped() -> None:
+        assert product.stopped
+
+    second.unregister.side_effect = assert_stopped
+    manager = ProductManagerTest({"product": product})
+    manager.start_products()
+    calls.reset_mock()
+    getattr(manager, shutdown)(join=True)
+    assert calls.mock_calls == [call.second.unregister(), call.first.unregister()]
+
+
+@pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
+def test_bundle_unregistration_failure_does_not_block_cleanup(shutdown: str) -> None:
+    product, other = BaseProduct(), BaseProduct()
+    first, second, third = (Mock(spec=SubscriberBundle) for _ in range(3))
+    second.unregister.side_effect = RuntimeError("unregister failed")
+    product.subscriber_bundles = (first, second)
+    other.subscriber_bundles = (third,)
+    manager = ProductManagerTest({"other": other, "product": product})
+    manager.start_products()
+    getattr(manager, shutdown)()
+    first.unregister.assert_called_once_with()
+    second.unregister.assert_called_once_with()
+    third.unregister.assert_called_once_with()
+    assert product.stopped and other.stopped
+
+
+@pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
+def test_disabled_product_still_unregisters_bundles(shutdown: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    product = BaseProduct()
+    bundle = Mock(spec=SubscriberBundle)
+    product.subscriber_bundles = (bundle,)
+    manager = ProductManagerTest({"product": product})
+    manager.start_products()
+    monkeypatch.setattr(product, "enabled", Mock(return_value=False))
+    getattr(manager, shutdown)()
+    bundle.unregister.assert_called_once_with()
+    assert not product.stopped
+
+
+def test_skip_exit_retains_bundles_but_explicit_stop_unregisters(monkeypatch: pytest.MonkeyPatch) -> None:
+    product = BaseProduct()
+    bundle = Mock(spec=SubscriberBundle)
+    product.subscriber_bundles = (bundle,)
+    monkeypatch.setattr(product, "skip_exit", Mock(return_value=True), raising=False)
+    manager = ProductManagerTest({"product": product})
+    manager.start_products()
+    manager.exit_products()
+    bundle.unregister.assert_not_called()
+    assert not product.stopped
+    manager.stop_products()
+    bundle.unregister.assert_called_once_with()
+    assert product.stopped
+
+
+@pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
+def test_failed_stop_retains_completion_listeners(shutdown: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    product = BaseProduct()
+    bundle = Mock(spec=SubscriberBundle)
+    product.subscriber_bundles = (bundle,)
+    monkeypatch.setattr(product, "stop", Mock(side_effect=RuntimeError("drain failed")))
+    manager = ProductManagerTest({"product": product})
+    manager.start_products()
+    getattr(manager, shutdown)()
+    bundle.unregister.assert_not_called()
+
+
+def test_product_without_bundle_attribute_keeps_existing_lifecycle() -> None:
+    product = Mock(spec=("enabled", "start", "stop"))
+    product.enabled.return_value = True
+    manager = ProductManagerTest({"product": product})
+    manager.start_products()
+    product.start.assert_called_once_with()
+    manager.stop_products()
+    product.stop.assert_called_once_with(join=False)

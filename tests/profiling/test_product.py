@@ -951,6 +951,46 @@ def test_profiler_started_off_main_thread_flushes_on_sigterm() -> None:
 
 
 @pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_ENABLED": "false",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+        "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
+    },
+    err=None,
+)
+def test_product_subscribes_to_debug_and_apm_profiling() -> None:
+    from unittest import mock
+
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.profiling import product
+    from ddtrace.internal.profiling import remoteconfig
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    products = [RemoteConfigProduct.Debug, RemoteConfigProduct.ApmProfiling]
+
+    with (
+        mock.patch.object(remoteconfig_poller, "register_callback") as register_callback,
+        mock.patch.object(remoteconfig_poller, "enable_product") as enable_product,
+    ):
+        product.start()
+
+    assert [c.args[0] for c in register_callback.call_args_list] == products
+    callbacks = [c.args[1] for c in register_callback.call_args_list]
+    assert isinstance(callbacks[0], remoteconfig.ProfilingRCCallback)
+    assert callbacks[0] is callbacks[1]
+    assert [c.args[0] for c in enable_product.call_args_list] == products
+
+    with (
+        mock.patch.object(remoteconfig_poller, "unregister_callback") as unregister_callback,
+        mock.patch.object(remoteconfig_poller, "disable_product") as disable_product,
+    ):
+        product.stop()
+
+    assert [c.args[0] for c in unregister_callback.call_args_list] == products
+    assert [c.args[0] for c in disable_product.call_args_list] == products
+
+
+@pytest.mark.subprocess(
     ddtrace_run=True,
     env={
         "DD_PROFILING_ENABLED": "true",
@@ -968,6 +1008,7 @@ def test_profiler_starts_with_remote_config_disabled() -> None:
 
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")
 
@@ -998,6 +1039,7 @@ def test_profiler_starts_when_remote_config_fails_to_start() -> None:
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
     # The profiling product depends on remote-configuration, so it does not subscribe to Remote Config.
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")
 

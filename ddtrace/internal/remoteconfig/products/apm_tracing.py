@@ -158,14 +158,6 @@ def start():
             on("apm-tracing.rc", rc_handler, name)
 
 
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
-
-
 def restart(join=False):
     pass
 

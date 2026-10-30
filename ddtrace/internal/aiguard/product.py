@@ -18,14 +18,6 @@ def start() -> None:
     load_ai_guard()
 
 
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
-
-
 def restart(join: bool = False) -> None:
     pass
 

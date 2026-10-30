@@ -22,14 +22,6 @@ def start() -> None:
     HandledExceptionCollector.enable()
 
 
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
-
-
 def restart(join: bool = False) -> None:
     pass
 

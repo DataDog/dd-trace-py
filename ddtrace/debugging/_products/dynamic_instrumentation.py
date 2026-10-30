@@ -34,14 +34,6 @@ def before_fork() -> None:
     import ddtrace.debugging._probe.remoteconfig  # noqa
 
 
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
-
-
 def restart(join: bool = False) -> None:
     # Nothing to do
     pass

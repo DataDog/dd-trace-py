@@ -62,22 +62,17 @@ def start() -> None:
 
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register_callback(RemoteConfigProduct.Debug, remoteconfig.ProfilingRCCallback())
+        callback = remoteconfig.ProfilingRCCallback()
+        remoteconfig_poller.register_callback(RemoteConfigProduct.Debug, callback)
+        remoteconfig_poller.register_callback(RemoteConfigProduct.ApmProfiling, callback)
         remoteconfig_poller.enable_product(RemoteConfigProduct.Debug)
+        remoteconfig_poller.enable_product(RemoteConfigProduct.ApmProfiling)
 
 
 def activated() -> bool:
     # The product manager calls this after start, before post_preload starts the profiler. The configuration is
     # already disabled when the platform or the native extensions are not supported, and in armed mode.
     return bool(profiling_config.enabled)
-
-
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
 
 
 def restart(join: bool = False) -> None:
@@ -94,3 +89,5 @@ def stop(join: bool = False) -> None:
 
     remoteconfig_poller.unregister_callback(RemoteConfigProduct.Debug)
     remoteconfig_poller.disable_product(RemoteConfigProduct.Debug)
+    remoteconfig_poller.unregister_callback(RemoteConfigProduct.ApmProfiling)
+    remoteconfig_poller.disable_product(RemoteConfigProduct.ApmProfiling)

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 import starlette
+from starlette.background import BackgroundTask
 
 import ddtrace
 from ddtrace.constants import USER_KEEP
@@ -46,6 +47,37 @@ def _trace_context_ids(tracer):
     if context is None:
         return None
     return context.trace_id, context.span_id
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_mounted_apps_finish_child_before_parent(fastapi_tracer, streaming):
+    requests, finished = [], []
+    root, middle, leaf = fastapi.FastAPI(), fastapi.FastAPI(), fastapi.FastAPI()
+
+    @leaf.get("/")
+    async def endpoint(request: fastapi.Request):
+        requests.extend(request.scope["datadog"]["request_spans"])
+        for span in requests:
+            span._on_finish_callbacks.append(finished.append)
+        if streaming:
+
+            async def chunks():
+                yield b"ok"
+
+            return starlette.responses.StreamingResponse(chunks())
+
+        async def background():
+            assert all(span.finished for span in requests)
+
+        return starlette.responses.PlainTextResponse("ok", background=BackgroundTask(background))
+
+    middle.mount("/leaf", leaf)
+    root.mount("/middle", middle)
+    with TestClient(root) as client:
+        assert client.get("/middle/leaf/").text == "ok"
+
+    assert len(requests) == 3
+    assert finished == requests[::-1]
 
 
 @pytest.mark.skipif(
@@ -535,6 +567,78 @@ def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
     assert request_span.get_tag("http.route") == "/items/{item_id}", (
         f"Expected http.route tag '/items/{{item_id}}', got {request_span.get_tag('http.route')!r}"
     )
+
+
+@pytest.mark.parametrize("catch_all_location", ["none", "app", "router"])
+def test_included_router_resource_with_catch_all(fastapi_tracer, test_spans, catch_all_location):
+    """A fallback route must not replace the route that actually handled the request."""
+    app = fastapi.FastAPI()
+    api = fastapi.APIRouter()
+
+    @api.get("/items/{item_id}")
+    async def get_item(item_id: int):
+        return {"id": item_id}
+
+    async def catch_all(full_path: str):
+        raise fastapi.HTTPException(status_code=404)
+
+    app.include_router(api)
+    if catch_all_location == "app":
+        app.add_api_route("/{full_path:path}", catch_all, methods=["GET"], include_in_schema=False)
+    elif catch_all_location == "router":
+        fallback = fastapi.APIRouter()
+        fallback.add_api_route("/{full_path:path}", catch_all, methods=["GET"], include_in_schema=False)
+        app.include_router(fallback)
+
+    with TestClient(app) as client:
+        response = client.get("/items/1")
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 1}
+    request_spans = list(test_spans.filter_spans(name="fastapi.request"))
+    assert len(request_spans) == 1
+    request_span = request_spans[0]
+    assert (request_span.resource, request_span.get_tag("http.route")) == (
+        "GET /items/{item_id}",
+        "/items/{item_id}",
+    )
+
+
+@pytest.mark.skipif(
+    parse_version(fastapi.__version__) < parse_version("0.137.0"),
+    reason="Older FastAPI versions do not preserve mounts when including routers",
+)
+@pytest.mark.parametrize("prefix", ["", "/api"])
+@pytest.mark.parametrize("included_subapp_route", [False, True])
+def test_included_router_mounted_app_resource_names(fastapi_tracer, test_spans, prefix, included_subapp_route):
+    """Both mounted request spans must receive templates, including lazy sub-app routes."""
+    subapp = fastapi.FastAPI()
+    subrouter = fastapi.APIRouter()
+
+    @subrouter.get("/items/{item_id}")
+    async def get_item(item_id: int):
+        return {"id": item_id}
+
+    if included_subapp_route:
+        subapp.include_router(subrouter, prefix="/v1")
+    else:
+        subapp.add_api_route("/items/{item_id}", get_item)
+    subpath = "/v1" if included_subapp_route else ""
+    router = fastapi.APIRouter()
+    router.mount("/sub", subapp)
+    app = fastapi.FastAPI()
+    app.include_router(router, prefix=prefix)
+
+    with TestClient(app) as client:
+        response = client.get(f"{prefix}/sub{subpath}/items/1")
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 1}
+    request_spans = list(test_spans.filter_spans(name="fastapi.request"))
+    assert len(request_spans) == 2
+    for span in request_spans:
+        assert span.resource == f"GET {subpath}/items/{{item_id}}"
+        assert span.get_tag("http.route") == f"{subpath}/items/{{item_id}}"
 
 
 def test_nested_include_router_resource_names(fastapi_tracer, test_spans):

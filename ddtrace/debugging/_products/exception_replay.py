@@ -24,14 +24,6 @@ def enabled() -> bool:
     return bool(config.enabled)
 
 
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
-
-
 def restart(join: bool = False) -> None:
     pass
 

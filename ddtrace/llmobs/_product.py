@@ -31,14 +31,6 @@ def start() -> None:
     LLMObs.enable(_auto=True)
 
 
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
-
-
 def restart(join: bool = False) -> None:
     pass
 

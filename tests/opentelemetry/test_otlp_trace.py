@@ -162,7 +162,11 @@ def test_otlp_traces_sent_via_http():
         # trace-metrics exporter is HTTP/JSON only and derives an HTTP /v1/metrics endpoint
         # regardless of the configured metrics protocol.
         "DD_SERVICE": "test-svc",
-    }
+    },
+    parametrize={
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": ["false", "true"],
+        "DD_METRICS_OTEL_ENABLED": ["false", "true"],
+    },
 )
 def test_otlp_trace_metrics_exported_via_http():
     """End-to-end: libdatadog computes span stats and exports the traces.span.sdk.metrics.duration histogram.

@@ -60,14 +60,6 @@ def start():
         raise
 
 
-def register_subscribers() -> None:
-    pass
-
-
-def unregister_subscribers() -> None:
-    pass
-
-
 def restart(join=False):
     if config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
