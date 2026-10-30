@@ -250,6 +250,13 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn(":lgtm:", body)
         self.assertIn("*Publish release*", body)
         self.assertIn(AUTO_CREATED_FOOTER, body)
+        self.assertIn("release automation", body)
+        self.assertIn("scripts/gh/create_gh_release.py", body)
+        self.assertIn(
+            "https://github.com/DataDog/dd-trace-py/tree/vlad/release-create-release-rc-script",
+            body,
+        )
+        self.assertIn("|vlad/release-create-release-rc-script>", body)
         self.assertNotIn("Draft patch release", body)
 
     def test_preferred_env_names(self) -> None:

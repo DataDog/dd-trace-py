@@ -156,8 +156,12 @@ BACKPORT_LABEL_RE: re.Pattern[str] = re.compile(r"^backport\s+(\d+\.\d+)$")
 SYSTEM_TESTS_PIN_MAX_AGE_DAYS: int = 14
 REVIEW_TEXT_TEMPLATE: str = ":headsup: The draft release for {version} is ready for review. Can I get a :lgtm:? {url}"
 # Light “small print” footer for Slack / review paste — italic via Slack `_..._`.
+# Branch link is intentional self-promo for the release-script work (no PR yet).
+_RELEASE_SCRIPT_BRANCH_URL: str = "https://github.com/DataDog/dd-trace-py/tree/vlad/release-create-release-rc-script"
 AUTO_CREATED_FOOTER: str = (
-    "_Created automatically by `scripts/gh/create_gh_release.py` — try `patch` / `rc` / `final`._"
+    "_Brought to you by release automation — `scripts/gh/create_gh_release.py` "
+    f"on <{_RELEASE_SCRIPT_BRANCH_URL}|vlad/release-create-release-rc-script>. "
+    "Try `patch` / `rc` / `final`._"
 )
 
 # When True, ``run_external_with_stderr`` echoes stderr from reno/pandoc/etc.
