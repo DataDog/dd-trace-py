@@ -98,46 +98,32 @@ class TestProviderStatus:
                 api.clear_providers()
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
-    def test_provider_ready_event_only_once(self):
+    def test_provider_ready_event_only_once(self, mocker):
         """Test that PROVIDER_READY event is only emitted once, not on subsequent configs."""
-        ready_events = []
-        ready_event = threading.Event()
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider()
+            # Count synchronous provider emissions; SDK handlers may run later on an executor.
+            emit = mocker.spy(provider, "emit")
 
-        def on_provider_ready(event_details):
-            ready_events.append(event_details)
-            ready_event.set()
+            def ready_emissions():
+                return [call for call in emit.call_args_list if call.args[0] == ProviderEvent.PROVIDER_READY]
 
-        api.add_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
-
-        try:
-            with override_global_config({"experimental_flagging_provider_enabled": True}):
-                provider = DataDogProvider()
+            try:
                 _set_provider(provider)
-
-                # Clear events from initialization
-                ready_events.clear()
-                ready_event.clear()
+                assert ready_emissions() == []
 
                 # First configuration
                 config1 = create_config(create_boolean_flag("flag1", enabled=True))
                 process_ffe_configuration(config1)
-                assert ready_event.wait(timeout=1.0)
-
-                count_after_first = len(ready_events)
-                assert count_after_first >= 1  # Should have emitted
+                assert len(ready_emissions()) == 1
 
                 # Second configuration
-                ready_event.clear()
                 config2 = create_config(create_boolean_flag("flag2", enabled=True))
                 process_ffe_configuration(config2)
-                assert not ready_event.wait(timeout=0.05)
-
-                count_after_second = len(ready_events)
                 # Should not have emitted again
-                assert count_after_second == count_after_first
-        finally:
-            api.remove_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
-            api.clear_providers()
+                assert len(ready_emissions()) == 1
+            finally:
+                api.clear_providers()
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
     def test_sdk_error_event_emitted_when_initialization_times_out(self):
@@ -220,30 +206,31 @@ class TestProviderStatus:
                 api.clear_providers()
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
-    def test_config_received_before_initialize(self):
-        """Test that provider emits READY if config was received before initialize."""
-        ready_events = []
+    def test_config_received_before_initialize(self, mocker):
+        """Test that the SDK reports READY without a provider emission for preloaded config."""
+        ready_event = threading.Event()
 
         def on_provider_ready(event_details):
-            ready_events.append(event_details)
+            ready_event.set()
 
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             # Create provider and process config before setting it
             provider = DataDogProvider()
+            emit = mocker.spy(provider, "emit")
             config = create_config(create_boolean_flag("test-flag", enabled=True))
             process_ffe_configuration(config)
 
-            # Now set the provider and add handler
-            api.add_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
-
             try:
                 _set_provider(provider)
+                # Register after initialization so the immediate READY belongs to this provider.
+                api.add_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
 
-                # Provider should detect existing config and emit READY
+                # The fast path marks the provider READY; the SDK dispatches the event.
                 assert provider._status == ProviderStatus.READY
-                assert len(ready_events) >= 1
+                assert ready_event.wait(timeout=1.0)
+                assert ProviderEvent.PROVIDER_READY not in [call.args[0] for call in emit.call_args_list]
             finally:
-                api.remove_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
+                # clear_providers() also removes SDK handlers when initialization fails.
                 api.clear_providers()
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")

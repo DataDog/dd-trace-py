@@ -509,11 +509,18 @@ class Git:
             if TelemetryAPI._instance is not None:
                 TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
 
-    def get_merge_base(self, sha1: str, sha2: str) -> str:
-        """Return the best common ancestor commit SHA of sha1 and sha2."""
+    def get_merge_base(self, sha1: str, sha2: str, warn: bool = True) -> str:
+        """Return the best common ancestor commit SHA of sha1 and sha2.
+
+        A failing merge-base is usually expected on shallow clones (the required
+        commits may simply be missing from the local history), so callers probing
+        before an unshallow pass warn=False to keep the log at debug level.
+        """
         result = self._call_git(["merge-base", sha1, sha2])
         if result.return_code != 0:
-            log.warning("Error getting merge-base for %s and %s: %s", sha1, sha2, result.stderr)
+            (log.warning if warn else log.debug)(
+                "Error getting merge-base for %s and %s: %s", sha1, sha2, result.stderr
+            )
             return ""
         return result.stdout
 

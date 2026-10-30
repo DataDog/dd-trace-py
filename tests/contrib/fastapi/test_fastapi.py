@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 import starlette
+from starlette.background import BackgroundTask
 
 import ddtrace
 from ddtrace.constants import USER_KEEP
@@ -46,6 +47,37 @@ def _trace_context_ids(tracer):
     if context is None:
         return None
     return context.trace_id, context.span_id
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_mounted_apps_finish_child_before_parent(fastapi_tracer, streaming):
+    requests, finished = [], []
+    root, middle, leaf = fastapi.FastAPI(), fastapi.FastAPI(), fastapi.FastAPI()
+
+    @leaf.get("/")
+    async def endpoint(request: fastapi.Request):
+        requests.extend(request.scope["datadog"]["request_spans"])
+        for span in requests:
+            span._on_finish_callbacks.append(finished.append)
+        if streaming:
+
+            async def chunks():
+                yield b"ok"
+
+            return starlette.responses.StreamingResponse(chunks())
+
+        async def background():
+            assert all(span.finished for span in requests)
+
+        return starlette.responses.PlainTextResponse("ok", background=BackgroundTask(background))
+
+    middle.mount("/leaf", leaf)
+    root.mount("/middle", middle)
+    with TestClient(root) as client:
+        assert client.get("/middle/leaf/").text == "ok"
+
+    assert len(requests) == 3
+    assert finished == requests[::-1]
 
 
 @pytest.mark.skipif(
