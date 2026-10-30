@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-dd-trace-py works with Python 3.8 and above.
+dd-trace-py works with Python 3.10 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
@@ -206,7 +206,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`rq`                                        | >= 1.8        | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`sanic`                                     | >= 20.12.0    | Yes [3]_       |
+| :ref:`sanic`                                     | >= 20.12.0    | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`selenium`                                  | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -254,8 +254,6 @@ contacting support.
   as possible in your Python entrypoint.
 
 .. [2] only the synchronous client
-
-.. [3] only in Python 3.8 and above.
 
 .. [4] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 
