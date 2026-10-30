@@ -1,5 +1,5 @@
 fixes:
   - |
-    App and API Protection: Fixes an issue where IAST findings reference the wrong
-    request span when inferred proxy services or multiple services are instrumented
-    in the same trace.
+    App and API Protection: Fixes an issue where runtime stack traces can be missing
+    from IAST findings for requests nested under other spans, including when a parent
+    span has already finished.
