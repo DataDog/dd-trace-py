@@ -444,6 +444,23 @@ def test_aggregator_reset_writer_without_stats_args(reset_kwargs):
     assert aggr.writer is not old_writer
 
 
+def test_aggregator_reset_writer_without_signature():
+    """Stats arguments are omitted when the writer's recreate() signature can't be inspected."""
+
+    class LegacyWriter(DummyWriter):
+        def recreate(self, appsec_enabled=None, llmobs_enabled=None):
+            return LegacyWriter()
+
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    old_writer = aggr.writer = LegacyWriter()
+
+    with mock.patch("inspect.signature", side_effect=ValueError):
+        aggr.reset(compute_stats=True, apm_opt_out=False)
+
+    assert isinstance(aggr.writer, LegacyWriter)
+    assert aggr.writer is not old_writer
+
+
 def test_aggregator_reset_passes_stats_args_to_writer():
     """Writers that accept the stats arguments receive them on reset, but only when they are set."""
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)

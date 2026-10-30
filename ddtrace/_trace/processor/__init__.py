@@ -315,7 +315,7 @@ def _accepts_keyword(func, name: str) -> bool:
     try:
         parameters = inspect.signature(func).parameters
     except (TypeError, ValueError):
-        return True
+        return False
     return name in parameters or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
 
 
