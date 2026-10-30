@@ -110,8 +110,9 @@ bundles at process exit. Unregistration failures are logged per bundle without
 preventing other bundles or products from being cleaned up. `unregister()` never
 imports an unused module.
 
-Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration` and
-registers it when `ddtrace._trace.subscribers` is imported. Existing integration
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace.product`.
+Importing `ddtrace._trace.subscribers` registers the web framework subscriber directly,
+without importing the tracing product module. Existing integration
 imports reach that package, including direct/manual instrumentation without the
 product manager. Shared tracing listeners retain their existing process lifetime;
 other subscriber families continue to register automatically.

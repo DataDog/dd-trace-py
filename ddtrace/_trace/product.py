@@ -5,6 +5,7 @@ from envier import En
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
+from ddtrace.internal.products import SubscriberBundle
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.http import HttpConfig
 from ddtrace.internal.utils.formats import asbool
@@ -14,6 +15,13 @@ from ddtrace.internal.utils.formats import parse_tags_str
 log = get_logger(__name__)
 
 requires = ["remote-configuration"]
+
+
+# Shared tracing listeners retain their process lifetime for manual instrumentation.
+WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.web_framework",
+    subscribers=("WebFrameworkRequestSubscriber",),
+)
 
 
 class _Config(En):

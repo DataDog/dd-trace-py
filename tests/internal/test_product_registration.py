@@ -153,7 +153,7 @@ def test_products_can_share_events_without_sharing_listener_ownership(monkeypatc
 
 
 def test_tracing_bundle_registration_preserves_request_completion(tracer, test_spans) -> None:
-    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace._trace.product import WEB_FRAMEWORK_SUBSCRIBERS
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal.settings._config import Config
     from ddtrace.internal.settings.integration import IntegrationConfig
@@ -181,11 +181,14 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
 
 @pytest.mark.subprocess
 def test_direct_integration_import_registers_web_subscribers() -> None:
+    import sys
+
     import ddtrace.contrib  # noqa: F401
     from ddtrace.internal import core
     from ddtrace.internal.products import manager
 
     assert manager._products is None
+    assert "ddtrace._trace.product" not in sys.modules
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
 
@@ -235,3 +238,13 @@ def test_manager_owns_declared_bundle_listeners(monkeypatch: pytest.MonkeyPatch,
         assert calls == ["start", "end"]
     finally:
         RequestSubscriber.unregister()
+
+
+@pytest.mark.subprocess
+def test_tracing_product_declaration_does_not_import_subscribers() -> None:
+    import sys
+
+    from ddtrace._trace.product import WEB_FRAMEWORK_SUBSCRIBERS
+
+    assert WEB_FRAMEWORK_SUBSCRIBERS.module == "ddtrace._trace.subscribers.web_framework"
+    assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
