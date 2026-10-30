@@ -179,6 +179,34 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
     assert test_spans.pop() == [span]
 
 
+def test_tracing_hooks_preserve_completion_of_active_contexts(tracer, test_spans) -> None:
+    from ddtrace._trace import product
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.internal.span_bus import span_from_context
+
+    product.register_subscribers()
+    product.register_subscribers()
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="test",
+        integration_config=IntegrationConfig(Config(), "test"),
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
+        assert not span.finished
+        product.unregister_subscribers()
+        event.response_status_code = 201
+    assert span.finished
+    assert span.get_tag("http.status_code") == "201"
+    assert test_spans.pop() == [span]
+
+
 @pytest.mark.subprocess
 def test_direct_integration_import_registers_web_subscribers() -> None:
     import sys

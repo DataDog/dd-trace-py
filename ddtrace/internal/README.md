@@ -44,6 +44,8 @@ object that implements the product protocol. This consists of a Python object
 | `post_preload() -> None` | A function with the logic required to finish initialization after the library  preload stage |
 | `enabled() -> bool` | A function that returns whether the product should be started; called before `start()` by the product manager |
 | `start() -> None` | A function with the logic required to enable the product (called only when `enabled()` returns `True`) |
+| `register_subscribers() -> None` | Called after bundle registration following a successful `start()`; failures are logged without failing the product |
+| `unregister_subscribers() -> None` | Called before `stop()`, including cleanup for disabled products; failures are logged without preventing shutdown |
 | `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
 | `stop(join: bool = False) -> None` | A function with the logic required to stop the product; also called at process exit (see `skip_exit`) |
 
@@ -67,7 +69,7 @@ gets extended to add support for additional features.
 | `subscriber_bundles: tuple[SubscriberBundle, ...]` | Bundles registered after a successful `start()` and unregistered after `stop()`; omitted by default |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
-| `skip_exit() -> bool` | Return `True` to skip `stop()` and bundle unregistration at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
+| `skip_exit() -> bool` | For enabled products, return `True` to skip `unregister_subscribers()`, `stop()`, and bundle unregistration at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
@@ -117,11 +119,17 @@ imports reach that package, including direct/manual instrumentation without the
 product manager. Shared tracing listeners retain their existing process lifetime;
 other subscriber families continue to register automatically.
 
-The `subscriber_bundles` attribute is optional and defaults to no bundles; products
-need no registration or unregistration hooks. Only declare bundles whose lifetime the
-manager should own. Tracing's shared listeners remain registered through the existing
-import path rather than this attribute, preserving manual instrumentation and the
-completion of contexts after a product stop.
+The `subscriber_bundles` attribute is optional and defaults to no bundles. Only
+declare bundles whose lifetime the manager should own. The `register_subscribers()`
+and `unregister_subscribers()` hooks support custom policies alongside declared bundles.
+The registration hook runs after declared bundles are registered. The unregistration
+hook runs before `stop()`; declared bundles remain registered until `stop()` returns.
+Hook failures do not prevent bundle cleanup or other products from running.
+
+Tracing's registration hook registers its shared bundle, while its unregistration
+hook deliberately retains listeners for manual instrumentation and completion of
+active contexts. These listeners are also registered through the existing import
+path rather than the `subscriber_bundles` attribute, preserving their process lifetime.
 
 
 ## Remote Configuration Callbacks

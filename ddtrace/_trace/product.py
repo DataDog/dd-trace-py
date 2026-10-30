@@ -57,6 +57,16 @@ def start():
         _install_trace_methods(config._trace_methods)
 
 
+def register_subscribers() -> None:
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
+
+
+def unregister_subscribers() -> None:
+    # Shared tracing listeners also serve manual instrumentation. Retain completion
+    # listeners for contexts that can finish after an explicit product stop.
+    pass
+
+
 def restart(join=False):
     from ddtrace.trace import tracer
 

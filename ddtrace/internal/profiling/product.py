@@ -75,6 +75,14 @@ def activated() -> bool:
     return bool(profiling_config.enabled)
 
 
+def register_subscribers() -> None:
+    pass
+
+
+def unregister_subscribers() -> None:
+    pass
+
+
 def restart(join: bool = False) -> None:
     # Nothing to do: the lifecycle lock is fork-safe.
     pass
