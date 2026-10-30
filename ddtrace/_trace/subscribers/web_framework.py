@@ -24,6 +24,7 @@ log = get_logger(__name__)
 class WebFrameworkRequestSubscriber(TracingSubscriber):
     """Shared tracing logic for web framework integrations."""
 
+    auto_register = False
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod

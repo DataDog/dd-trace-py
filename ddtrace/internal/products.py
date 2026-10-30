@@ -1,7 +1,11 @@
 import atexit
 from collections import defaultdict
 from collections import deque
+from dataclasses import dataclass
+from importlib import import_module
 from itertools import chain
+import sys
+from types import ModuleType
 import typing as t
 from typing import Protocol
 
@@ -37,6 +41,46 @@ class Product(Protocol):
     def restart(self, join: bool = False) -> None: ...
 
     def stop(self, join: bool = False) -> None: ...
+
+
+class RegistrableSubscriber(Protocol):
+    def register(self) -> None: ...
+
+    def unregister(self) -> None: ...
+
+
+@dataclass(frozen=True)
+class SubscriberBundle:
+    """Subscribers exported by one lazily imported product module.
+
+    Subscriber classes must disable auto_register so importing the module does not
+    activate listeners before explicit registration. Named listener registration
+    supplies idempotency; bundles deliberately do not cache registration state.
+    """
+
+    module: str
+    subscribers: tuple[str, ...]
+
+    def _resolve(self, module: ModuleType) -> tuple[RegistrableSubscriber, ...]:
+        # Resolve the whole declaration before changing listeners, so a misspelled
+        # subscriber name cannot leave an otherwise valid bundle partly registered.
+        return tuple(t.cast(RegistrableSubscriber, getattr(module, name)) for name in self.subscribers)
+
+    def register(self) -> None:
+        """Register the bundle, importing its module only when requested."""
+        for subscriber in self._resolve(import_module(self.module)):
+            subscriber.register()
+
+    def unregister(self) -> None:
+        """Remove the bundle's listeners after the owner has drained active contexts.
+
+        Teardown never imports a previously unused product module. Products needing
+        completion listeners for active requests must defer this operation.
+        """
+        module = sys.modules.get(self.module)
+        if module is not None:
+            for subscriber in reversed(self._resolve(module)):
+                subscriber.unregister()
 
 
 class ProductManager:
