@@ -80,7 +80,7 @@ class SubscriberBundle:
         """
         module = sys.modules.get(self.module)
         if module is not None:
-            for subscriber in reversed(self._resolve(module)):
+            for subscriber in self._resolve(module):
                 subscriber.unregister()
 
 
@@ -225,7 +225,7 @@ class ProductManager:
                 log.exception("Failed to restart product '%s'", name)
 
     def _unregister_subscribers(self, name: str, product: Product) -> None:
-        for bundle in reversed(getattr(product, "subscriber_bundles", ())):
+        for bundle in getattr(product, "subscriber_bundles", ()):
             try:
                 bundle.unregister()
             except Exception:

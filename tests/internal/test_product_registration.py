@@ -79,7 +79,7 @@ def test_missing_subscriber_does_not_partially_register() -> None:
     subscriber.register.assert_not_called()
 
 
-def test_unregister_bundle_in_reverse_order(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unregister_bundle_removes_all_subscribers(monkeypatch: pytest.MonkeyPatch) -> None:
     module = ModuleType("example.web")
     calls: list[str] = []
     for name in ("RequestSubscriber", "InspectSubscriber"):
@@ -88,7 +88,7 @@ def test_unregister_bundle_in_reverse_order(monkeypatch: pytest.MonkeyPatch) -> 
         setattr(module, name, subscriber)
     monkeypatch.setitem(sys.modules, module.__name__, module)
     SubscriberBundle(module.__name__, ("RequestSubscriber", "InspectSubscriber")).unregister()
-    assert calls == ["InspectSubscriber", "RequestSubscriber"]
+    assert sorted(calls) == ["InspectSubscriber", "RequestSubscriber"]
 
 
 def test_bundle_import_failure_propagates_to_caller() -> None:

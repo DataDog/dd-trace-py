@@ -467,23 +467,21 @@ def test_bundle_registration_failure_does_not_block_other_bundles_or_products() 
 
 
 @pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
-def test_product_bundles_unregister_in_reverse_order_after_stop(shutdown: str) -> None:
+def test_product_bundles_unregister_after_stop(shutdown: str) -> None:
     product = BaseProduct()
     first, second = Mock(spec=SubscriberBundle), Mock(spec=SubscriberBundle)
     product.subscriber_bundles = (first, second)
-    calls = Mock()
-    calls.attach_mock(first, "first")
-    calls.attach_mock(second, "second")
 
     def assert_stopped() -> None:
         assert product.stopped
 
+    first.unregister.side_effect = assert_stopped
     second.unregister.side_effect = assert_stopped
     manager = ProductManagerTest({"product": product})
     manager.start_products()
-    calls.reset_mock()
     getattr(manager, shutdown)(join=True)
-    assert calls.mock_calls == [call.second.unregister(), call.first.unregister()]
+    first.unregister.assert_called_once_with()
+    second.unregister.assert_called_once_with()
 
 
 @pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])

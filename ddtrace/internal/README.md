@@ -102,7 +102,7 @@ successful `start()`. Disabled products, failed starts, and products whose depen
 failed do not register bundles. Registration failures are logged per bundle without
 preventing other bundles or products from starting.
 
-`stop_products()` and `exit_products()` unregister bundles in reverse declaration order
+`stop_products()` and `exit_products()` unregister declared bundles
 after `stop()` returns, allowing completion listeners to run while the product drains
 active contexts. If `stop()` raises, listeners are retained. Disabled products still
 have their bundles unregistered; enabled products using `skip_exit()` retain their
