@@ -71,10 +71,10 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
         rowcount = 0
         raise
     finally:
-        if rowcount is None:
-            rowcount = determine_row_count(redis_command=redis_command, result=result)
         if redis_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
+        elif rowcount is None:
+            rowcount = determine_row_count(redis_command=redis_command, result=result)
         core.dispatch("redis.async_command.post", (ctx, rowcount))
 
 

@@ -91,10 +91,10 @@ def _run_valkey_command(ctx: core.ExecutionContext, func, args, kwargs):
         rowcount = 0
         raise
     finally:
-        if rowcount is None:
-            rowcount = determine_row_count(valkey_command=valkey_command, result=result)
         if valkey_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
+        elif rowcount is None:
+            rowcount = determine_row_count(valkey_command=valkey_command, result=result)
         core.dispatch("valkey.command.post", (ctx, rowcount))
 
 
