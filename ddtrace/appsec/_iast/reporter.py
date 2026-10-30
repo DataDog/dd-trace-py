@@ -13,6 +13,7 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.appsec._iast_context import is_iast_request_enabled
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.security._constants import STACK_TRACE
 from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
@@ -156,6 +157,7 @@ class IastSpanReporter(NotNoneDictable):
     stacktrace_id: int = 0
     sources: list[Source] = dataclasses.field(default_factory=list)
     vulnerabilities: set[Vulnerability] = dataclasses.field(default_factory=set)
+    report_span: Optional[SpanData] = dataclasses.field(default=None, repr=False, compare=False)
 
     def __hash__(self) -> int:
         """
@@ -190,7 +192,7 @@ class IastSpanReporter(NotNoneDictable):
         self.stacktrace_id += 1
 
         str_id = str(self.stacktrace_id)
-        if not report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
+        if not report_stack(span=self.report_span, stack_id=str_id, namespace=STACK_TRACE.IAST):
             vulnerability.location.stackId = None
         else:
             vulnerability.location.stackId = self.stacktrace_id
