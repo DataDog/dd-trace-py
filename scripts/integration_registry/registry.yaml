@@ -507,7 +507,7 @@ integrations:
   tested_versions_by_dependency:
     graphql-core:
       min: 3.1.7
-      max: 3.3.0
+      max: 3.3.1
 
 - integration_name: grpc
   is_external_package: true
@@ -939,7 +939,7 @@ integrations:
   tested_versions_by_dependency:
     redis:
       min: 4.6.0
-      max: 6.4.0
+      max: 8.1.0
 
 - integration_name: rediscluster
   is_external_package: true

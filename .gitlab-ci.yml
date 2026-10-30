@@ -21,7 +21,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "930d080d1ec2685dc3844dd9715ac0dbbf409b2d"
+  SYSTEM_TESTS_REF: "37382f4551445d7864c7794399be1c28935ebb8a"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native"
