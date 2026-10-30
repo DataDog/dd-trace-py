@@ -652,8 +652,10 @@ Sampler::Sampler()
 Sampler&
 Sampler::get()
 {
-    static Sampler instance;
-    return instance;
+    // uWSGI may call exit without running the atexit hooks that stop the sampler.
+    // Making this a raw pointer prevents crashes at exit.
+    static Sampler* const instance = new Sampler();
+    return *instance;
 }
 
 void

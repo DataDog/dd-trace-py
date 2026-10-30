@@ -539,6 +539,7 @@ suites:
           dependencies: [aws-durable-execution-sdk-python, aws-durable-execution-sdk-python-testing]
   azure_cosmos:
     venvs_per_job: 7
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -558,6 +559,7 @@ suites:
           dependencies: [azure.cosmos, 'pytest-asyncio==0.23.7', aiohttp, six]
   azure_eventhubs:
     venvs_per_job: 3
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -595,6 +597,7 @@ suites:
     # every test fails on 3.15. Re-add 3.15 once azure.functions and the durable
     # task worker support it.
     venvs_per_job: 6
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -620,6 +623,7 @@ suites:
     # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
     # host worker support it.
     venvs_per_job: 4
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -640,6 +644,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
+    retry_policy: .retry_on_infrastructure_or_service_failure
     # TODO(py-315): the azure functions worker stack does not support Python 3.15;
     # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
     # host worker support it.
@@ -671,6 +676,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: [azure.functions, azure.cosmos, azure.storage.blob, aiohttp]
   azure_functions:eventhubs:
+    retry_policy: .retry_on_infrastructure_or_service_failure
     # TODO(py-315): the azure functions worker stack does not support Python 3.15;
     # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
     # host worker support it.
@@ -699,6 +705,7 @@ suites:
     # every test fails on 3.15. Re-add 3.15 once azure.functions and the functions
     # host worker support it.
     venvs_per_job: 3
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -722,6 +729,7 @@ suites:
           dependencies: [azure.functions, azure.servicebus]
   azure_servicebus:
     venvs_per_job: 3
+    retry_policy: .retry_on_infrastructure_or_service_failure
     paths:
       - '@bootstrap'
       - '@contrib'
