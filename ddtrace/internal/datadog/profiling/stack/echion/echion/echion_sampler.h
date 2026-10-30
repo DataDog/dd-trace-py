@@ -46,6 +46,9 @@ class EchionSampler
     // Task Link maps (Task -> Task relationships)
     std::unordered_map<PyObject*, PyObject*> task_link_map_;
     std::unordered_map<PyObject*, PyObject*> weak_task_link_map_;
+    // Weakly linked children that were missing from the last Task snapshot. Always a subset of the
+    // weak_task_link_map_ keys.
+    std::unordered_set<PyObject*> missing_weak_link_children_;
     std::mutex task_link_map_lock_;
 
     // Greenlet maps
@@ -143,6 +146,36 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*>& task_link_map() { return task_link_map_; }
     std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
+
+    // The caller must hold task_link_map_lock().
+    void weak_link_task(PyObject* parent, PyObject* child)
+    {
+        weak_task_link_map_[child] = parent;
+        // Give a new link the full grace period of prune_weak_task_links, even if a finished Task at
+        // the same address was missing from the last snapshot.
+        missing_weak_link_children_.erase(child);
+    }
+
+    // Remove the weak links of children that are missing from two Task snapshots in a row. A child can be
+    // missing from one snapshot without having finished: it may have been created and linked after the
+    // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
+    // would detach it from its parent for the rest of its life.
+    // The caller must hold task_link_map_lock().
+    void prune_weak_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        for (auto it = weak_task_link_map_.begin(); it != weak_task_link_map_.end();) {
+            PyObject* child = it->first;
+            if (live_task_origins.find(child) != live_task_origins.end()) {
+                missing_weak_link_children_.erase(child);
+                ++it;
+            } else if (missing_weak_link_children_.erase(child) > 0) {
+                it = weak_task_link_map_.erase(it);
+            } else {
+                missing_weak_link_children_.insert(child);
+                ++it;
+            }
+        }
+    }
 
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
     std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map() { return greenlet_parent_map_; }
@@ -275,6 +308,7 @@ class EchionSampler
         new (&thread_info_map_) std::unordered_map<uintptr_t, ThreadInfo::Ptr>();
         new (&task_link_map_) std::unordered_map<PyObject*, PyObject*>();
         new (&weak_task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
         new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
         new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();

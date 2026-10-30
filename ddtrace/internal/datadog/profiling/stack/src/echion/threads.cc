@@ -196,15 +196,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
 
         // Clean up the weak_task_link_map. Reuse the same all_task_origins set
-        to_remove.clear();
-        for (auto kv : weak_task_link_map) {
-            if (all_task_origins.find(kv.first) == all_task_origins.end())
-                to_remove.push_back(kv.first);
-        }
-
-        for (auto key : to_remove) {
-            weak_task_link_map.erase(key);
-        }
+        echion.prune_weak_task_links(all_task_origins);
 
         // Determine the parent tasks from the gather (strong) links.
         for (auto& link : task_link_map) {

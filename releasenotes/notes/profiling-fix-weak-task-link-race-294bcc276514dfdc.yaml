@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where an asyncio Task created with ``asyncio.create_task`` is sometimes
+    reported without the stack of the Task that created it.
