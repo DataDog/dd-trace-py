@@ -24,13 +24,13 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from create_gh_release import _GH_RELEASE_REQUIRED_FLAGS  # noqa: E402
-from create_gh_release import AUTO_CREATED_FOOTER  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_GUILD_ENV  # noqa: E402
 from create_gh_release import SLACK_DM_ENV  # noqa: E402
 from create_gh_release import SLACK_USER_BRETT_ID  # noqa: E402
 from create_gh_release import SLACK_USER_EMMETT_ID  # noqa: E402
 from create_gh_release import ReleaseState  # noqa: E402
 from create_gh_release import WaitingOn  # noqa: E402
+from create_gh_release import auto_created_footer  # noqa: E402
 from create_gh_release import build_gh_release_args  # noqa: E402
 from create_gh_release import build_parser  # noqa: E402
 from create_gh_release import compose_release_body  # noqa: E402
@@ -43,11 +43,15 @@ from create_gh_release import format_notes_for_version  # noqa: E402
 from create_gh_release import format_slack_announce  # noqa: E402
 from create_gh_release import is_rc_version  # noqa: E402
 from create_gh_release import is_stable_version  # noqa: E402
+from create_gh_release import resolve_runner_display  # noqa: E402
 from create_gh_release import review_text  # noqa: E402
 from create_gh_release import should_mark_latest  # noqa: E402
 from create_gh_release import slack_mention  # noqa: E402
 from create_gh_release import write_pyproject_version  # noqa: E402
 from create_gh_release import xy_branch_for_version  # noqa: E402
+
+
+_FAKE_RUNNER: str = "<https://github.com/test-runner|test-runner>"
 
 
 def dedent(s: str) -> str:
@@ -189,11 +193,12 @@ class EolComposeTests(unittest.TestCase):
         self.assertIn("- note", body)
 
     def test_review_text_template(self) -> None:
-        text: str = review_text("4.16.2", "https://example/draft")
+        with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
+            text: str = review_text("4.16.2", "https://example/draft")
         self.assertIn("4.16.2", text)
         self.assertIn(":lgtm:", text)
         self.assertIn("https://example/draft", text)
-        self.assertIn(AUTO_CREATED_FOOTER, text)
+        self.assertIn(f"Run by {_FAKE_RUNNER}", text)
 
     def test_draft_kind_phrase(self) -> None:
         self.assertEqual(draft_kind_phrase("4.17.0rc2"), "RC release")
@@ -240,7 +245,8 @@ class SlackDefaultsTests(unittest.TestCase):
 
     def test_format_slack_announce_template(self) -> None:
         with mock.patch.dict("os.environ", {}, clear=True):
-            body: str = format_slack_announce("4.17.0rc2", "abc123", "https://example/draft")
+            with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
+                body: str = format_slack_announce("4.17.0rc2", "abc123", "https://example/draft")
         self.assertIn("*Draft RC release*", body)
         self.assertIn("`4.17.0rc2`", body)
         self.assertIn("<https://example/draft|Open draft release / notes>", body)
@@ -249,7 +255,7 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn(f"<@{SLACK_USER_EMMETT_ID}>", body)
         self.assertIn(":lgtm:", body)
         self.assertIn("*Publish release*", body)
-        self.assertIn(AUTO_CREATED_FOOTER, body)
+        self.assertIn(f"Run by {_FAKE_RUNNER}", body)
         self.assertIn("release automation", body)
         self.assertIn("scripts/gh/create_gh_release.py", body)
         self.assertIn(
@@ -258,6 +264,55 @@ class SlackDefaultsTests(unittest.TestCase):
         )
         self.assertIn("|vlad/release-create-release-rc-script>", body)
         self.assertNotIn("Draft patch release", body)
+
+    def test_auto_created_footer_includes_runner(self) -> None:
+        with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
+            footer: str = auto_created_footer()
+        self.assertIn("release automation", footer)
+        self.assertIn("scripts/gh/create_gh_release.py", footer)
+        self.assertIn("|vlad/release-create-release-rc-script>", footer)
+        self.assertIn(f"Run by {_FAKE_RUNNER}", footer)
+        self.assertIn("Try `patch` / `rc` / `final`.", footer)
+
+    def test_resolve_runner_display_prefers_gh_login(self) -> None:
+        import create_gh_release as mod
+
+        fake_gh: mock.Mock = mock.Mock(returncode=0, stdout="vlad-scherbich\n", stderr="")
+        with mock.patch.object(mod, "_RUNNER_DISPLAY_CACHE", None):
+            with mock.patch("create_gh_release.subprocess.run", return_value=fake_gh) as run_mock:
+                display: str = resolve_runner_display()
+        self.assertEqual(display, "<https://github.com/vlad-scherbich|vlad-scherbich>")
+        run_mock.assert_called_once()
+        argv: list[str] = run_mock.call_args.args[0]
+        self.assertEqual(argv[:3], ["gh", "api", "user"])
+
+    def test_resolve_runner_display_falls_back_to_git_name(self) -> None:
+        import create_gh_release as mod
+
+        gh_fail: mock.Mock = mock.Mock(returncode=1, stdout="", stderr="boom")
+        git_ok: mock.Mock = mock.Mock(returncode=0, stdout="Local Name\n", stderr="")
+
+        def fake_run(cmd: list[str], **_kwargs: Any) -> mock.Mock:
+            if cmd and cmd[0] == "gh":
+                return gh_fail
+            return git_ok
+
+        with mock.patch.object(mod, "_RUNNER_DISPLAY_CACHE", None):
+            with mock.patch("create_gh_release.subprocess.run", side_effect=fake_run):
+                display: str = resolve_runner_display()
+        self.assertEqual(display, "`Local Name`")
+
+    def test_resolve_runner_display_caches(self) -> None:
+        import create_gh_release as mod
+
+        fake_gh: mock.Mock = mock.Mock(returncode=0, stdout="cached-user\n", stderr="")
+        with mock.patch.object(mod, "_RUNNER_DISPLAY_CACHE", None):
+            with mock.patch("create_gh_release.subprocess.run", return_value=fake_gh) as run_mock:
+                first: str = resolve_runner_display()
+                second: str = resolve_runner_display()
+        self.assertEqual(first, second)
+        self.assertEqual(first, "<https://github.com/cached-user|cached-user>")
+        self.assertEqual(run_mock.call_count, 1)
 
     def test_preferred_env_names(self) -> None:
         self.assertEqual(SLACK_CHANNEL_GUILD_ENV, "DDTRACE_RELEASE_GUILD_CHANNEL_URL")
@@ -280,14 +335,15 @@ class SlackDefaultsTests(unittest.TestCase):
             clear=True,
         ):
             with mock.patch.object(mod, "post_webhook", fake_post):
-                mod.notify_slack(
-                    version="4.16.2",
-                    target_sha="deadbeef",
-                    draft_url="https://example/draft",
-                    test_dm=True,
-                    channel="guild",
-                    precheck=False,
-                )
+                with mock.patch.object(mod, "resolve_runner_display", return_value=_FAKE_RUNNER):
+                    mod.notify_slack(
+                        version="4.16.2",
+                        target_sha="deadbeef",
+                        draft_url="https://example/draft",
+                        test_dm=True,
+                        channel="guild",
+                        precheck=False,
+                    )
         self.assertEqual(len(posted), 1)
         url: str
         body: str
@@ -295,7 +351,7 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(url, "https://example.test/dm")
         self.assertTrue(body.startswith("[TEST] "))
         self.assertIn("*Draft patch release*", body)
-        self.assertIn(AUTO_CREATED_FOOTER, body)
+        self.assertIn(f"Run by {_FAKE_RUNNER}", body)
 
     def test_notify_slack_guild_channel(self) -> None:
         import create_gh_release as mod

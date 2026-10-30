@@ -86,6 +86,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from dataclasses import field
+import getpass
 import importlib.util
 import json
 import os
@@ -158,11 +159,8 @@ REVIEW_TEXT_TEMPLATE: str = ":headsup: The draft release for {version} is ready 
 # Light “small print” footer for Slack / review paste — italic via Slack `_..._`.
 # Branch link is intentional self-promo for the release-script work (no PR yet).
 _RELEASE_SCRIPT_BRANCH_URL: str = "https://github.com/DataDog/dd-trace-py/tree/vlad/release-create-release-rc-script"
-AUTO_CREATED_FOOTER: str = (
-    "_Brought to you by release automation — `scripts/gh/create_gh_release.py` "
-    f"on <{_RELEASE_SCRIPT_BRANCH_URL}|vlad/release-create-release-rc-script>. "
-    "Try `patch` / `rc` / `final`._"
-)
+# Cached Slack/review credit for who ran the script (gh login or local name).
+_RUNNER_DISPLAY_CACHE: Optional[str] = None
 
 # When True, ``run_external_with_stderr`` echoes stderr from reno/pandoc/etc.
 # to the user's terminal. Set by ``main`` from ``--verbose``.
@@ -373,9 +371,70 @@ def draft_kind_phrase(version: str) -> str:
     return "release"
 
 
+def resolve_runner_display() -> str:
+    """Who ran this script, for Slack/review fine print.
+
+    Prefer the authenticated GitHub login (linkable); fall back to
+    ``git config user.name``, then the local login name. Cached once per
+    process so precheck + announce (or review paste + Slack) do not re-hit
+    ``gh``.
+    """
+    global _RUNNER_DISPLAY_CACHE
+    if _RUNNER_DISPLAY_CACHE is not None:
+        return _RUNNER_DISPLAY_CACHE
+
+    login: str = ""
+    try:
+        cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
+            ["gh", "api", "user", "--jq", ".login"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if cp.returncode == 0:
+            login = cp.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    if login:
+        _RUNNER_DISPLAY_CACHE = f"<https://github.com/{login}|{login}>"
+        return _RUNNER_DISPLAY_CACHE
+
+    name: str = ""
+    try:
+        cp_git: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes git CLI, trusted PATH
+            ["git", "config", "user.name"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=REPO_ROOT,
+        )
+        if cp_git.returncode == 0:
+            name = cp_git.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    if name:
+        _RUNNER_DISPLAY_CACHE = f"`{name}`"
+        return _RUNNER_DISPLAY_CACHE
+
+    local_user: str = getpass.getuser()
+    _RUNNER_DISPLAY_CACHE = f"`{local_user}`"
+    return _RUNNER_DISPLAY_CACHE
+
+
+def auto_created_footer() -> str:
+    """Fine-print footer: automation branch credit plus who ran the tool."""
+    runner: str = resolve_runner_display()
+    return (
+        "_Brought to you by release automation — `scripts/gh/create_gh_release.py` "
+        f"on <{_RELEASE_SCRIPT_BRANCH_URL}|vlad/release-create-release-rc-script>. "
+        f"Run by {runner}. "
+        "Try `patch` / `rc` / `final`._"
+    )
+
+
 def review_text(version: str, url: str) -> str:
     head: str = REVIEW_TEXT_TEMPLATE.format(version=normalize_version_str(version), url=url)
-    return f"{head}\n{AUTO_CREATED_FOOTER}"
+    return f"{head}\n{auto_created_footer()}"
 
 
 def load_format_release_notes() -> Any:
@@ -2102,7 +2161,7 @@ def format_slack_announce(version: str, target_sha: str, draft_url: str) -> str:
         f"{brett} {emmett} — can I get a :lgtm:? Please review and "
         f"*Publish release* when ready (needs repo-owner perms; the tag is created at publish).\n"
         f"\n"
-        f"{AUTO_CREATED_FOOTER}"
+        f"{auto_created_footer()}"
     )
 
 
