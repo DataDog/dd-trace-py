@@ -4,6 +4,7 @@ import time
 import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
+import pytest
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
@@ -180,7 +181,7 @@ class PsycopgCore(AsyncioTestCase):
             dict(name="postgres.query", resource=query.as_string(db)),
         )
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_app_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -198,7 +199,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service != "mysvc"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_app_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -216,7 +217,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].service == "mysvc"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_span_name_v0_schema(self):
         conn = await self._get_conn()
         await conn.cursor().execute("""select 'blah'""")
@@ -225,7 +226,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(len(spans), 1)
         assert spans[0].name == "postgres.query"
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_span_name_v1_schema(self):
         conn = await self._get_conn()
         await conn.cursor().execute("""select 'blah'""")

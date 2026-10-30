@@ -1,6 +1,7 @@
 import os
 
 import consul
+import pytest
 from wrapt import BoundFunctionWrapper
 
 from ddtrace.contrib.internal.consul.patch import patch
@@ -176,7 +177,7 @@ class TestSchematization(TracerTestCase):
         unpatch()
         super().tearDown()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_service_name_default(self):
         key = "test/put/consul"
         value = "test_value"
@@ -189,8 +190,8 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    @pytest.mark.subprocess(
+        env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
     )
     def test_schematize_service_name_v0(self):
         key = "test/put/consul"
@@ -204,8 +205,8 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    @pytest.mark.subprocess(
+        env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
     )
     def test_schematize_service_name_v1(self):
         key = "test/put/consul"
@@ -219,7 +220,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
+    @pytest.mark.subprocess(env=dict(CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_unspecified_service_name_default(self):
         key = "test/put/consul"
         value = "test_value"
@@ -232,9 +233,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_unspecified_service_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
@@ -247,9 +246,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_unspecified_service_name_v1(self):
         key = "test/put/consul"
         value = "test_value"
@@ -262,9 +259,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_operation_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
@@ -277,9 +272,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.name == consulx.CMD
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_operation_name_v1(self):
         key = "test/put/consul"
         value = "test_value"

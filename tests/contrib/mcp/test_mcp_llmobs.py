@@ -354,7 +354,7 @@ def test_client_info_tags_empty_without_client_info():
     assert get_client_info_tags(get_client_info({"name": "calculator", "arguments": {}}, session)) == {}
 
 
-def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
+def test_mcp_distributed_tracing_disabled_env(python_process, llmobs_backend):
     """Test that distributed tracing is disabled when DD_MCP_DISTRIBUTED_TRACING=false."""
     env = os.environ.copy()
     env["DD_LLMOBS_ML_APP"] = "test-ml-app"
@@ -364,7 +364,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     env["DD_APM_TRACING_ENABLED"] = "0"  # LLMOBS_AGENT_PROXY: subprocess asserts writer HTTP, not meta_struct
     env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
     env["DD_MCP_DISTRIBUTED_TRACING"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         dedent(
             """
         import asyncio
@@ -392,6 +392,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
         """
         ),
         env=env,
+        ddtrace_run=True,
     )
     assert out == b""
     assert status == 0, err

@@ -2,6 +2,7 @@
 import time
 
 import pymongo
+import pytest
 
 from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.internal.pymongo.patch import unpatch
@@ -474,7 +475,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         self.clients.append(client)
         return self.tracer, client
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         """
         v0 (default): When a user specifies a service for the app
@@ -492,7 +493,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -510,7 +511,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @pytest.mark.subprocess(env=dict())
     def test_user_specified_service_default_override(self):
         """
         Override service name using config
@@ -529,7 +530,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert spans
         assert spans[0].service == "new-mongo", f"service name is {spans[0].service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -547,7 +548,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @pytest.mark.subprocess(env=dict())
     def test_unspecified_service_v0(self):
         """
         v0: When a user does not specify a service for the app
@@ -560,9 +561,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].service == "pymongo"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_pymongo_service_v0(self):
         _, client = self.get_tracer_and_client()
 
@@ -570,9 +569,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = self.get_user_spans()
         assert len(spans) == 2
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_pymongo_service_v1(self):
         _, client = self.get_tracer_and_client()
 
@@ -580,8 +577,8 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = self.get_user_spans()
         assert len(spans) == 2
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    @pytest.mark.subprocess(
+        env=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     def test_service_precedence_v0(self):
         _, client = self.get_tracer_and_client()
@@ -590,8 +587,8 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = self.get_user_spans()
         assert len(spans) == 2
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    @pytest.mark.subprocess(
+        env=dict(DD_SERVICE="mysvc", DD_PYMONGO_SERVICE="mypymongo", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
     )
     def test_service_precedence_v1(self):
         _, client = self.get_tracer_and_client()
@@ -600,7 +597,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = self.get_user_spans()
         assert len(spans) == 2
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0_schema(self):
         """
         v0 schema: Pymongo operation names resolve to pymongo.cmd
@@ -612,7 +609,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].name == "pymongo.cmd"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1_schema(self):
         """
         v1 schema: Pymongo operations names resolve to mongodb.query
@@ -624,7 +621,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 2
         assert spans[1].name == "mongodb.query"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_peer_service_tagging(self):
         _, client = self.get_tracer_and_client()
 
@@ -653,22 +650,22 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
                 if s.name == "pymongo.cmd":
                     assert high_cardinality_string not in s.resource
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @pytest.mark.subprocess(env=dict())
     def test_mongodb_obfuscation_default_enabled_find_operation(self):
         self._assert_find_query_obfuscation('{"name": "?"}')
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="true"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_MONGODB_OBFUSCATION="true"))
     def test_mongodb_obfuscation_enabled_find_operation(self):
         self._assert_find_query_obfuscation('{"name": "?"}')
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
     def test_mongodb_obfuscation_disabled_find_operation(self):
         self._assert_find_query_obfuscation(
             '{"name": "Toronto Maple Leafs"}',
             high_cardinality_string="Toronto Maple Leafs",
         )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
     def test_mongodb_obfuscation_disabled_update_delete_operations(self):
         _, client = self.get_tracer_and_client()
         db = client["testdb"]
@@ -717,14 +714,14 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(find_spans) == 1
         return find_spans[0], oid
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="true"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_MONGODB_OBFUSCATION="true"))
     def test_mongodb_obfuscation_enabled_bson_types_in_query(self):
         """Resource name and mongodb.query tag are both normalized when obfuscation enabled."""
         span, _ = self._get_bson_find_span()
         assert span.resource == 'find items {"_id": "?"}'
         assert span.get_tag("mongodb.query") == '{"_id": "?"}'
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_MONGODB_OBFUSCATION="false"))
     def test_mongodb_obfuscation_disabled_bson_types_in_query(self):
         """Resource stays normalized while mongodb.query tag shows raw query with BSON types in Extended JSON."""
         span, oid = self._get_bson_find_span()
@@ -733,7 +730,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert '{"$oid": "' in tag
         assert str(oid) in tag
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ENABLED="false"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_ENABLED="false"))
     def test_patch_with_disabled_tracer(self):
         _, client = self.get_tracer_and_client()
 
@@ -955,10 +952,8 @@ class TestPymongoDBMInjection(TracerTestCase):
         unpatch()
         super().tearDown()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="full", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service"
-        )
+    @pytest.mark.subprocess(
+        env=dict(DD_DBM_PROPAGATION_MODE="full", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service")
     )
     def test_dbm_propagation_full_mode(self):
         """Test that DBM comment is injected when propagation mode is 'full'"""
@@ -1016,7 +1011,7 @@ class TestPymongoDBMInjection(TracerTestCase):
             % insert_span.context._traceparent
         )
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="disabled"))
+    @pytest.mark.subprocess(env=dict(DD_DBM_PROPAGATION_MODE="disabled"))
     def test_dbm_propagation_disabled(self):
         """Test that DBM comment is not injected when propagation mode is 'disabled'"""
         from ddtrace.internal.settings._database_monitoring import dbm_config
@@ -1050,10 +1045,8 @@ class TestPymongoDBMInjection(TracerTestCase):
         assert find_commands[0].get("find") == "songs"
         assert find_commands[0].get("comment") is None
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service"
-        )
+    @pytest.mark.subprocess(
+        env=dict(DD_DBM_PROPAGATION_MODE="service", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service")
     )
     def test_dbm_propagation_service_mode(self):
         """Test that DBM comment is injected with service info when propagation mode is 'service'"""
@@ -1123,10 +1116,8 @@ class TestPymongoDBMInjection(TracerTestCase):
             "dddbs='pymongo',dde='test_env',ddps='test_service',ddpv='1.2.3'",
         ]
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service"
-        )
+    @pytest.mark.subprocess(
+        env=dict(DD_DBM_PROPAGATION_MODE="service", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service")
     )
     def test_dbm_propagation_disabled_on_old_pymongo(self):
         """Test that DBM propagation is disabled on old PyMongo versions"""

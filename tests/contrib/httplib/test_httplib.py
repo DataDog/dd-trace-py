@@ -536,7 +536,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.get_tag("out.host"), "DNE")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_schematization_httplib_service_name_default(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -548,7 +548,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc", msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_schematization_urlib_service_name_default(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)
@@ -558,7 +558,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc", msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_httplib_service_name_v0(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -570,7 +570,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc", msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_urllib_service_name_v0(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)
@@ -580,7 +580,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc", msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_httplib_service_name_v1(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -592,7 +592,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc", msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_urllib_service_name_v1(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)
@@ -602,7 +602,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, "mysvc", msg=span.service)
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_schematization_httplib_unspecified_service_name_default(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -614,7 +614,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertIsNone(span.service, msg=span.service)
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_schematization_urllib_unspecified_service_name_default(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)
@@ -624,7 +624,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertIsNone(span.service, msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_httplib_unspecified_service_name_v0(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -636,7 +636,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertIsNone(span.service, msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_urllib_unspecified_service_name_v0(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)
@@ -646,7 +646,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertIsNone(span.service, msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_httplib_unspecified_service_name_v1(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -658,7 +658,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME, msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_urllib_unspecified_service_name_v1(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)
@@ -668,7 +668,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, DEFAULT_SPAN_SERVICE_NAME, msg=span.service)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_httplib_unspecified_operation_name_v0(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -680,7 +680,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, self.SPAN_NAME)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_urllib_unspecified_operation_name_v0(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)
@@ -690,7 +690,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, self.SPAN_NAME)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_httplib_unspecified_operation_name_v1(self):
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -702,7 +702,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "http.client.request")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_urllib_unspecified_operation_name_v1(self):
         with override_global_tracer(self.tracer):
             urlopen(URL_200)

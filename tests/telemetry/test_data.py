@@ -46,7 +46,7 @@ def test_get_application_with_values():
     assert application["env"] == "staging"
 
 
-def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
+def test_application_with_setenv(python_process, monkeypatch):
     """
     validates the return value of get_application when DD_SERVICE, DD_VERSION, and DD_ENV environment variables are set
     """
@@ -54,7 +54,7 @@ def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
     monkeypatch.setenv("DD_VERSION", "12.34.56")
     monkeypatch.setenv("DD_ENV", "prod")
 
-    out, err, status, _ = run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace import config

@@ -394,7 +394,7 @@ def _generate_in_subprocess(random_topic):
 
 
 @pytest.mark.snapshot(token="tests.contrib.kafka.test_kafka.test_service_override_env_var", ignores=SNAPSHOT_IGNORES)
-def test_service_override_env_var(ddtrace_run_python_code_in_subprocess, kafka_topic):
+def test_service_override_env_var(python_process, kafka_topic):
     code = f"""
 import sys
 import pytest
@@ -411,7 +411,7 @@ if __name__ == "__main__":
     env = os.environ.copy()
     env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
 
@@ -419,7 +419,7 @@ if __name__ == "__main__":
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("service", [None, "mysvc"])
 @pytest.mark.parametrize("schema", [None, "v0", "v1"])
-def test_schematized_span_service_and_operation(ddtrace_run_python_code_in_subprocess, service, schema, kafka_topic):
+def test_schematized_span_service_and_operation(python_process, service, schema, kafka_topic):
     code = f"""
 import sys
 import pytest
@@ -437,7 +437,7 @@ if __name__ == "__main__":
     if schema:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
 
@@ -481,7 +481,7 @@ def test_tracing_context_is_not_propagated_by_default(kafka_tracer, test_spans, 
 
 
 # Propagation should work when enabled
-def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
+def test_tracing_context_is_propagated_when_enabled(python_process, kafka_topic):
     code = """
 import os
 import pytest
@@ -551,13 +551,13 @@ if __name__ == "__main__":
     env = os.environ.copy()
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
     env["KAFKA_TEST_TOPIC"] = kafka_topic
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out.decode() + err.decode()
 
 
 # Context is attached as span links when the integration is listed in
 # DD_TRACE_PROPAGATION_AS_SPAN_LINKS
-def test_tracing_context_is_linked_when_span_links_enabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
+def test_tracing_context_is_linked_when_span_links_enabled(python_process, kafka_topic):
     code = """
 import os
 import pytest
@@ -633,7 +633,7 @@ if __name__ == "__main__":
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
     env["DD_TRACE_PROPAGATION_AS_SPAN_LINKS"] = "kafka"
     env["KAFKA_TEST_TOPIC"] = kafka_topic
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out.decode() + err.decode()
 
 
@@ -761,7 +761,7 @@ def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_
 
 
 # Poll should not be traced when disabled
-def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
+def test_does_not_trace_empty_poll_when_disabled(python_process, kafka_topic):
     code = """
 import os
 import pytest
@@ -841,7 +841,7 @@ if __name__ == "__main__":
     env = os.environ.copy()
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     env["KAFKA_TEST_TOPIC"] = kafka_topic
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out.decode() + err.decode()
 
 

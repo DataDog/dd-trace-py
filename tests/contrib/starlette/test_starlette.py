@@ -511,7 +511,7 @@ def test_table_query_snapshot(snapshot_client):
     starlette_version >= (0, 21, 0), reason="Starlette>=0.21.0 replaced requests with httpx in TestClient"
 )
 @snapshot()
-def test_incorrect_patching(run_python_code_in_subprocess):
+def test_incorrect_patching(python_process):
     """
     When Starlette is patched after the app is created
         We create no traces
@@ -542,7 +542,7 @@ with TestClient(app) as test_client:
     assert r.text == "Success"
     """
 
-    out, err, status, _ = run_python_code_in_subprocess(code)
+    out, err, status, _ = python_process(code)
     assert status == 0, err
     assert out == b"", err
     assert b"datadog context not present in ASGI request scope, trace middleware may be missing\n" in err, err
@@ -586,7 +586,7 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
         ("mysvc", "v1"),
     ],
 )
-def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
+def test_schematization(python_process, service_schema):
     service, schema = service_schema
     code = """
 import pytest
@@ -618,7 +618,7 @@ if __name__ == "__main__":
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     env["DD_TRACE_HTTPX_ENABLED"] = "false"
     env["DD_TRACE_REQUESTS_ENABLED"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 

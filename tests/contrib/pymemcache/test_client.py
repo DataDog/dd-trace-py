@@ -344,7 +344,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         self.client.sock = MockSocket(list(mock_socket_values))
         return self.client
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         """
         In the default naming schema (v0) -
@@ -363,7 +363,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         In the v0 naming schema -
@@ -382,7 +382,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
         In the v1 naming schema -
@@ -401,7 +401,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         """
         In the v1 naming schema -
@@ -415,7 +415,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0(self):
         """
         v0 schema: The operation name is memcached.command
@@ -427,7 +427,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].name == "memcached.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1(self):
         """
         v1 schema: The operation name is memcached.command

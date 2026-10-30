@@ -438,7 +438,7 @@ def test_writer_restarts_in_child_and_flushes_traces_after_fork():
     tracer.flush()
 
 
-def test_snapshot_attempt_isolates_late_previous_producer(snapshot_context, run_python_code_in_subprocess):
+def test_snapshot_attempt_isolates_late_previous_producer(snapshot_context, python_process):
     code = """
 from ddtrace import tracer
 with tracer.trace("operation", service="my-svc") as span:
@@ -451,15 +451,15 @@ tracer.shutdown()
     name = "tests.integration.test_integration_snapshots.test_single_trace_single_span"
     with snapshot_context(token=name) as first:
         previous_env = os.environ.copy()
-        _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
+        _, err, status, _ = python_process(code, env=previous_env)
         assert status == 0, err
 
     assert first.requests() == []
     with snapshot_context(token=name) as second:
         assert first.token != second.token
-        _, err, status, _ = run_python_code_in_subprocess(code, env=previous_env)
+        _, err, status, _ = python_process(code, env=previous_env)
         assert status == 0, err
-        _, err, status, _ = run_python_code_in_subprocess(code, env=os.environ.copy())
+        _, err, status, _ = python_process(code, env=os.environ.copy())
         assert status == 0, err
         assert len([r for r in first.requests() if r["url"].endswith("/traces")]) == 1
         assert len([r for r in second.requests() if r["url"].endswith("/traces")]) == 1

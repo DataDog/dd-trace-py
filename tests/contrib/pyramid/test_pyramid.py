@@ -11,7 +11,6 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import TracerTestCase
 from tests.utils import terminate_process_group
 from tests.webclient import Client
 
@@ -153,7 +152,7 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
 class TestSchematization(PyramidBase):
     instrument = True
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_schematized_service_name_default(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
@@ -161,7 +160,7 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
@@ -169,7 +168,7 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
@@ -177,7 +176,7 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.service == "mysvc", f"Expected 'mysvc' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_schematized_unspecified_service_name_default(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
@@ -185,7 +184,7 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
@@ -193,7 +192,7 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.service == "pyramid", f"Expected 'pyramid' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
@@ -201,7 +200,7 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.service == DEFAULT_SPAN_SERVICE_NAME, f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' and got {s.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()
@@ -209,7 +208,7 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.name == "pyramid.request", f"Expected 'pyramid.request' and got {s.name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
         self.app.get("/", status=200)
         spans = self.pop_spans()

@@ -35,9 +35,8 @@ class TestSubprocessPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(subprocess.Popen.__init__)
         self.assert_not_double_wrapped(subprocess.Popen.wait)
 
-    # These are disabled because the base class uses @run_in_subprocess which
-    # import subprocess before we have a chance to patch. However, the contrib
-    # unittests already test patch and unpatch
+    # The process harness imports subprocess before this scenario can patch it.
+    # Dedicated subprocess integration tests cover these patch/unpatch cases.
     def test_ddtrace_run_patch_on_import(self):
         pass
 

@@ -780,11 +780,11 @@ def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch):
         assert integration._has_downstream_openai_span(kwargs, "gpt-4o") is False
 
 
-def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
+def test_enable_llmobs_after_litellm_was_imported(python_process):
     """
     Test that LLMObs.enable() logs a warning if litellm is imported before LLMObs.enable() is called.
     """
-    _, err, _, _ = run_python_code_in_subprocess(
+    _, err, _, _ = python_process(
         """
 import litellm
 from ddtrace.llmobs import LLMObs
@@ -797,11 +797,11 @@ LLMObs.disable()
     assert ("LLMObs.enable() called after litellm was imported but before it was patched") in err.decode()
 
 
-def test_import_litellm_after_llmobs_was_enabled(run_python_code_in_subprocess):
+def test_import_litellm_after_llmobs_was_enabled(python_process):
     """
     Test that LLMObs.enable() does not logs a warning if litellm is imported after LLMObs.enable() is called.
     """
-    _, err, _, _ = run_python_code_in_subprocess(
+    _, err, _, _ = python_process(
         """
 from ddtrace.llmobs import LLMObs
 LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)

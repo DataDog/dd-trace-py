@@ -104,9 +104,7 @@ cases = [(config, msg, LEVELS.index(msg) >= LEVELS.index(config)) for config in 
     ],
 )
 @pytest.mark.parametrize("configured_level, message_level, should_log", cases)
-def test_logger_subprocess(
-    backend, configured_level, message_level, should_log, tmp_path, ddtrace_run_python_code_in_subprocess
-):
+def test_logger_subprocess(backend, configured_level, message_level, should_log, tmp_path, python_process):
     log_path = tmp_path / f"{backend}_{configured_level}_{message_level}.log"
     # Use absolute path to avoid subprocess working directory issues
     log_path_abs = str(log_path.resolve())
@@ -126,7 +124,7 @@ from ddtrace.internal.native._native import logger
 message_level = f"{message_level}"
 logger.log(message_level, f"{message}")
     """
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
 
     assert status == 0
     if backend == "":

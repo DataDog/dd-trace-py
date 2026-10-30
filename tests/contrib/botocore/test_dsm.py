@@ -113,12 +113,12 @@ class BotocoreDSMTest(TracerTestCase):
             except botocore.exceptions.ClientError:
                 pass
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch.object(sys.modules["ddtrace.contrib.internal.botocore.services.sqs"], "_encode_data")
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs_raw_delivery(self, mock_encode):
         """
         Moto doesn't currently handle raw delivery message handling quite correctly.
@@ -184,8 +184,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert in_parent_hash == out_hash
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
@@ -230,8 +230,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert in_parent_hash == out_hash
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_json_body(self):
         # A JSON message body must still link the consumer pathway to the producer.
         with (
@@ -266,8 +266,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert in_parent_hash == out_hash
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
@@ -317,9 +317,9 @@ class BotocoreDSMTest(TracerTestCase):
             assert in_parent_hash == out_hash
             self._assert_dsm_counts(in_stats, min_latency_count=3, payload_count=3)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_events
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_eventbridge(self):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
@@ -379,8 +379,8 @@ class BotocoreDSMTest(TracerTestCase):
             finally:
                 self._delete_eventbridge_resources(bridge, event_bus_name, rule_name, target_id)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_header_information(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         response = self.sqs_client.receive_message(
@@ -393,8 +393,8 @@ class BotocoreDSMTest(TracerTestCase):
         )
         assert "_datadog" in response["Messages"][0]["MessageAttributes"]
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
@@ -442,8 +442,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert in_parent_hash == 0
             self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_records(self):
@@ -488,8 +488,8 @@ class BotocoreDSMTest(TracerTestCase):
         assert in_parent_hash == out_hash
         self._assert_dsm_counts(in_stats, min_latency_count=2, payload_count=2)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_record(self):
@@ -533,8 +533,8 @@ class BotocoreDSMTest(TracerTestCase):
         assert in_parent_hash == out_hash
         self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
+    @pytest.mark.subprocess(env=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     def test_kinesis_consume_keeps_upstream_pathway_start(self):
         upstream_age_sec = 3600.0
@@ -573,8 +573,8 @@ class BotocoreDSMTest(TracerTestCase):
             "pathway start" % (full_pathway_latency_sec, upstream_age_sec)
         )
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DATA_STREAMS_ENABLED="True",
             DD_BOTOCORE_DISTRIBUTED_TRACING="False",
             DD_BOTOCORE_PROPAGATION_ENABLED="False",
@@ -601,8 +601,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert "_datadog" in data
             assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DATA_STREAMS_ENABLED="True",
             DD_BOTOCORE_DISTRIBUTED_TRACING="True",
             DD_BOTOCORE_PROPAGATION_ENABLED="True",
@@ -629,8 +629,8 @@ class BotocoreDSMTest(TracerTestCase):
             assert "_datadog" in data
             assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DATA_STREAMS_ENABLED="False",
             DD_BOTOCORE_DISTRIBUTED_TRACING="False",
             DD_BOTOCORE_PROPAGATION_ENABLED="False",

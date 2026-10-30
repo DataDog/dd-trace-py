@@ -462,7 +462,7 @@ async def test_endpoint_with_numeric_arg(tracer, client, test_spans):
 
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_service_name_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+def test_service_name_schematization(python_process, schema_version, service_name):
     expected_service_name = {
         None: service_name or "sanic",
         "v0": service_name or "sanic",
@@ -504,15 +504,12 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name is not None:
         env["DD_SERVICE"] = service_name
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out or err
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_operation_name_schematization(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_operation_name_schematization(python_process, schema_version):
     expected_operation_name = {None: "sanic.request", "v0": "sanic.request", "v1": "http.server.request"}[
         schema_version
     ]
@@ -550,10 +547,7 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out or err
 
 
