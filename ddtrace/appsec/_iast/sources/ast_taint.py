@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import TypeVar
 
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -10,12 +11,15 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted
 from ..constants import DEFAULT_SOURCE_IO_FUNCTIONS
 
 
+_T = TypeVar("_T")
+
+
 def ast_function(
-    func: Callable,
-    flag_added_args: Any,
+    func: Callable[..., _T],
+    flag_added_args: int,
     *args: Any,
     **kwargs: Any,
-) -> Any:
+) -> _T:
     instance = getattr(func, "__self__", None)
     func_name = getattr(func, "__name__", None)
     cls_name = ""

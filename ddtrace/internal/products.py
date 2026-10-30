@@ -58,7 +58,7 @@ class SubscriberBundle:
     """Subscribers exported by one lazily imported product module.
 
     Subscriber classes must disable auto_register so importing the module does not
-    activate listeners outside the product's lifecycle. Named listener registration
+    activate listeners before explicit registration. Named listener registration
     supplies idempotency; bundles deliberately do not cache registration state.
     """
 

@@ -90,7 +90,7 @@ def test_unregister_bundle_in_reverse_order(monkeypatch: pytest.MonkeyPatch) -> 
     assert calls == ["InspectSubscriber", "RequestSubscriber"]
 
 
-def test_product_failure_propagates_to_lifecycle() -> None:
+def test_bundle_import_failure_propagates_to_caller() -> None:
     bundle = SubscriberBundle("example.web", ("RequestSubscriber",))
     with patch("ddtrace.internal.products.import_module", side_effect=ImportError("unavailable")):
         with pytest.raises(ImportError, match="unavailable"):
@@ -149,6 +149,33 @@ def test_products_can_share_events_without_sharing_listener_ownership(monkeypatc
     finally:
         security.unregister()
         tracing.unregister()
+
+
+def test_tracing_bundle_registration_preserves_request_completion(tracer, test_spans) -> None:
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.internal.span_bus import span_from_context
+
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="test",
+        integration_config=IntegrationConfig(Config(), "test"),
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
+        assert not span.finished
+        event.response_status_code = 201
+    assert span.finished
+    assert span.get_tag("http.status_code") == "201"
+    assert test_spans.pop() == [span]
 
 
 def test_tracing_hooks_preserve_completion_of_active_contexts(tracer, test_spans) -> None:

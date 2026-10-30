@@ -21,7 +21,7 @@ the provider's `_integration_name`. Supply the two provider-specific behaviors:
 
 Use the actual base/reference signatures and implement or inherit the behavior needed by the
 integration. For standard request integrations, construct it lazily in the LLMObs subscriber
-with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/anthropic/subscribers.py`.
+with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/_subscribers.py`.
 Keep contrib free of LLMObs imports. When extending an integration that stores its instance on
 `module._datadog_integration`, preserve that ownership and cleanup unless migrating its lifecycle.
 
@@ -42,7 +42,7 @@ Implement only the extraction helpers needed by the provider. Register exported 
 
 ## Patch lifecycle (`LlmRequestEvent`)
 
-Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `LlmEvents` so product subscribers can add tags and extract LLMObs data.
+Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/contrib/_events/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
 
 Key points:
 - Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset for subscriber-based integrations
@@ -62,20 +62,26 @@ standard request integrations so contrib does not import LLMObs.
 
 ## LLMObs subscribers and registration
 
-Follow `ddtrace/llmobs/_contrib/anthropic/`. Each handler receives an `ExecutionContext` and
-must filter on `ctx.event.component`, because the events are shared across integrations:
+Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration.
+`LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so it dispatches each
+`SpanLifecycleEvents` phase as `"<phase>.llm.request"`. The shared subscribers in
+`ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
+registered integration using `ctx.event.component`:
 
-- `LlmEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
+- `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
-- `LlmEvents.SPAN_STARTED`: set base tags, annotate the integration, and stamp agent kind/name
+- `SpanLifecycleEvents.SPAN_STARTED`: set base tags, annotate the integration, and stamp agent kind/name
   before children start. Preserve APM shadow tags and proxy handling from the reference.
-- `LlmEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
+- `SpanLifecycleEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
 
-Set `auto_register = False`. Provide `listen()` / `unlisten()` in
-`ddtrace/llmobs/_contrib/<name>/__init__.py`; register all three handlers in `listen()`.
-During `unlisten()`, retain the finishing handler so in-flight requests and deferred streams
-still receive output and usage data. Build the integration lazily after its config is registered.
-Subscribers also set APM shadow tags, so registration must work with LLMObs disabled.
+Provide `listen()` / `unlisten()` in `ddtrace/llmobs/_contrib/<name>/__init__.py`.
+Call the shared `register(component, integration_cls)` from `listen()` and
+`unregister(component)` from `unlisten()`; do not create per-integration subscriber classes.
+Shared listeners remain registered; unregistering removes only that component from the registry
+and cache. Each started request retains its integration on its execution context, so in-flight
+requests and deferred streams still finalize after unpatch or repatch. Build the integration
+lazily after its config is registered. Subscribers also set APM shadow tags, so registration
+must work with LLMObs disabled.
 
 Declare the subscriber module in `pyproject.toml`, substituting the integration's name:
 
@@ -186,7 +192,7 @@ Agent integrations have a critical ordering constraint. `_resolve_parent_agent()
 
 Direct spans call `_stamp_llmobs_span_kind_at_start()` through `BaseLLMIntegration.trace()`.
 Events carrying `llmobs_integration` call it through `LlmTracingSubscriber.on_started`;
-subscriber-based integrations must call it in their `SPAN_STARTED` handler. Extraction classes
+subscriber-based integrations must call it in their `SpanLifecycleEvents.SPAN_STARTED` handler. Extraction classes
 customize the two hooks below instead of stamping kind at finish time.
 
 ### Hooks to implement for agent spans
