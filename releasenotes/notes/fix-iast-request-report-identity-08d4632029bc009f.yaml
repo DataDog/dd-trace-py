@@ -1,0 +1,5 @@
+fixes:
+  - |
+    App and API Protection: Fixes an issue where runtime stack traces can be missing
+    from IAST findings for requests nested under other spans, including when a parent
+    span has already finished.

@@ -78,7 +78,8 @@ class VulnerabilityBase:
 
         report = get_iast_reporter()
         span_id = 0
-        span = span_bus.get_root_span()
+        environment = _get_iast_env()
+        span = environment.span if environment is not None else span_bus.get_root_span()
         if span:
             span_id = span.span_id
             # Mark the span as kept to avoid being dropped by the agent.
@@ -97,7 +98,7 @@ class VulnerabilityBase:
         if report:
             report._append_vulnerability(vulnerability)
         else:
-            report = IastSpanReporter(vulnerabilities={vulnerability})
+            report = IastSpanReporter(vulnerabilities={vulnerability}, report_span=span)
         report.add_ranges_to_evidence_and_extract_sources(vulnerability)
 
         set_iast_reporter(report)
