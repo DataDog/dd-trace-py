@@ -1,0 +1,3 @@
+fixes:
+  - |
+    litellm: Fixes duplicate token usage reporting when completion requests use fallbacks.
