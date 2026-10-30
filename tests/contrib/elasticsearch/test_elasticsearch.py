@@ -90,8 +90,16 @@ class ElasticsearchPatchTest(TracerTestCase):
 
         es = self._get_es()
         config = self._get_es_config()
-        wait_for_es(config["host"], config["port"])
-        self.create_index(es)
+        # A probe can pass before index creation times out. Retry setup before patching the client.
+        # Index creation permits an existing index, so a request can be repeated after a timeout.
+        for attempt in range(3):
+            wait_for_es(config["host"], config["port"])
+            try:
+                self.create_index(es)
+                break
+            except (elasticsearch.ConnectionError, elasticsearch.ConnectionTimeout):
+                if attempt == 2:
+                    raise
 
         patch()
 
@@ -509,3 +517,68 @@ class _Spy:
     def close(self):
         self._log.append(True)
         self._gen.close()
+
+
+@pytest.fixture
+def es_setup(monkeypatch: pytest.MonkeyPatch) -> tuple[ElasticsearchPatchTest, mock.Mock, mock.Mock]:
+    test = ElasticsearchPatchTest(methodName="test_elasticsearch")
+    es = mock.Mock()
+    calls = mock.Mock()
+    monkeypatch.setattr(TracerTestCase, "setUp", mock.Mock())
+    monkeypatch.setattr(test, "_get_es", mock.Mock(return_value=es))
+    monkeypatch.setattr(test, "create_index", calls.create_index)
+    monkeypatch.setattr(f"{__name__}.wait_for_es", calls.wait_for_es)
+    monkeypatch.setattr(f"{__name__}.patch", calls.patch)
+    return test, es, calls
+
+
+@pytest.mark.parametrize("error_type", [elasticsearch.ConnectionError, elasticsearch.ConnectionTimeout])
+@pytest.mark.parametrize("failures", [0, 1, 2])
+def test_setup_recovers_from_connection_errors(es_setup, error_type: type[Exception], failures: int) -> None:
+    test, es, calls = es_setup
+    if elasticsearch.__version__ >= (8, 0, 0):
+        error = error_type("Service did not respond")
+    else:
+        error = error_type("N/A", "Service did not respond")
+    calls.create_index.side_effect = [error] * failures + [None]
+
+    test.setUp()
+
+    config = test._get_es_config()
+    assert calls.mock_calls == [
+        call
+        for _ in range(failures + 1)
+        for call in [mock.call.wait_for_es(config["host"], config["port"]), mock.call.create_index(es)]
+    ] + [mock.call.patch()]
+    assert test.es is es
+
+
+def test_setup_stops_after_repeated_timeouts(es_setup) -> None:
+    test, es, calls = es_setup
+    if elasticsearch.__version__ >= (8, 0, 0):
+        error = elasticsearch.ConnectionTimeout("Service did not respond")
+    else:
+        error = elasticsearch.ConnectionTimeout("N/A", "Service did not respond")
+    calls.create_index.side_effect = error
+
+    with pytest.raises(elasticsearch.ConnectionTimeout) as exc:
+        test.setUp()
+
+    assert exc.value is error
+    assert calls.create_index.call_args_list == [mock.call(es)] * 3
+    assert calls.wait_for_es.call_count == 3
+    calls.patch.assert_not_called()
+
+
+def test_setup_does_not_retry_other_errors(es_setup) -> None:
+    test, es, calls = es_setup
+    error = ValueError("Invalid index mapping")
+    calls.create_index.side_effect = error
+
+    with pytest.raises(ValueError) as exc:
+        test.setUp()
+
+    assert exc.value is error
+    calls.create_index.assert_called_once_with(es)
+    calls.wait_for_es.assert_called_once()
+    calls.patch.assert_not_called()
