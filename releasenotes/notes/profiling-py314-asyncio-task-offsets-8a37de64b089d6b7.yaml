@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where asyncio task samples are missing, or report greatly inflated wall time, on
+    Python 3.14 patch releases other than the one ``ddtrace`` was built with.

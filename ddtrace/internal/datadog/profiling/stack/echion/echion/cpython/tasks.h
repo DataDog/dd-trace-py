@@ -182,6 +182,32 @@ extern "C"
         uintptr_t task_tid;
 #endif
     } TaskObj;
+
+    // Mirror of asyncio_state, _asyncio's module state, from Modules/_asynciomodule.c (unchanged from CPython 3.14.0
+    // through 3.15.0). Only debug_offsets is read; the other fields are kept so its offset matches.
+    typedef struct
+    {
+        PyTypeObject* FutureIterType;
+        PyTypeObject* TaskStepMethWrapper_Type;
+        PyTypeObject* FutureType;
+        PyTypeObject* TaskType;
+        PyObject* asyncio_mod;
+        PyObject* context_kwname;
+        PyObject* non_asyncio_tasks;
+        PyObject* non_asyncio_eager_tasks;
+        PyObject* iscoroutine_typecache;
+        PyObject* asyncio_get_event_loop_policy; // Renamed asyncio_get_event_loop in 3.16.0a1
+        PyObject* asyncio_future_repr_func;
+        PyObject* asyncio_CancelledError;
+        PyObject* asyncio_InvalidStateError;
+        PyObject* asyncio_task_get_stack_func;
+        PyObject* asyncio_task_print_stack_func;
+        PyObject* asyncio_task_repr_func;
+        PyObject* asyncio_iscoroutine_func;
+        PyObject* traceback_extract_stack;
+        uint64_t task_name_counter;
+        void* debug_offsets;
+    } AsyncioStateMirror;
 #elif PY_VERSION_HEX >= 0x030d0000
     typedef struct
     {

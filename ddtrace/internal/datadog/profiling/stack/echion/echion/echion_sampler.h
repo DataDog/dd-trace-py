@@ -152,9 +152,21 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_.load(std::memory_order_relaxed); }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_.load(std::memory_order_relaxed); }
 
-    // TODO: When these offsets come from CPython's runtime AsyncioDebug table, also check that table's task layout
-    // (size, task_name, task_awaited_by, task_is_task, task_awaited_by_is_set, task_coro, task_node) against Echion's
-    // compile-time TaskObj mirror.
+#if PY_VERSION_HEX >= 0x030e0000
+    // The TaskObj layout Echion's task unwinding was compiled against. Runtime AsyncioDebug tables must match it
+    // exactly before their list-head offsets are used.
+    static AsyncioTaskLayout asyncio_mirror_task_layout()
+    {
+        return AsyncioTaskLayout{ sizeof(TaskObj),
+                                  offsetof(TaskObj, task_name),
+                                  offsetof(TaskObj, task_awaited_by),
+                                  offsetof(TaskObj, task_is_task),
+                                  offsetof(TaskObj, task_awaited_by_is_set),
+                                  offsetof(TaskObj, task_coro),
+                                  offsetof(TaskObj, task_node) };
+    }
+#endif
+
     void set_asyncio_offsets(const AsyncioOffsets& offsets)
     {
         asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
