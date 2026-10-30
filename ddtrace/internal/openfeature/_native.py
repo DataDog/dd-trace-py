@@ -21,6 +21,17 @@ log = get_logger(__name__)
 
 VariationType = ffe.FlagType
 ResolutionDetails = ffe.ResolutionDetails
+DEPENDENT_FLAG_VARIANT_KEY_V1 = "dependent-flag-variant-key-v1"
+
+
+def get_evaluator_capabilities() -> tuple[str, ...]:
+    """Return capabilities explicitly supported by the loaded native evaluator.
+
+    Older native extensions have no reporter and therefore advertise no optional
+    UFC features. Transport support alone never implies evaluator support.
+    """
+    reporter = getattr(ffe, "get_evaluator_capabilities", None)
+    return tuple(reporter()) if reporter is not None else ()
 
 
 def process_ffe_configuration(config: Any) -> bool:
