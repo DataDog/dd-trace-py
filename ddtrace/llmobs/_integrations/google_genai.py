@@ -175,10 +175,15 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         return metadata
 
     def _function_declaration_to_tool_definition(self, function_declaration) -> ToolDefinition:
-        schema = _get_attr(function_declaration, "parameters", {}) or {}
+        schema = _get_attr(function_declaration, "parameters", None)
+        if schema is None:
+            # `parameters` and `parameters_json_schema` are mutually exclusive in google-genai.
+            schema = _get_attr(function_declaration, "parameters_json_schema", None)
+        if schema is None:
+            schema = {}
         if hasattr(schema, "model_dump"):
             schema = schema.model_dump(exclude_none=True)
-        else:
+        elif not isinstance(schema, dict):
             schema = {"value": repr(schema)}
 
         return ToolDefinition(
