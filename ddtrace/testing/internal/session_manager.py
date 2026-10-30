@@ -813,6 +813,16 @@ class SessionManager:
                 log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
                 unshallow_successful = git.try_all_unshallow_repository_methods()
                 if unshallow_successful:
+                    # Recompute the merge-base over the extended history. The local
+                    # attempt above ran on the truncated shallow graph and may have
+                    # returned an older ancestor than the true merge-base, so replace
+                    # the value it stored (user-supplied values are never cleared).
+                    if local_merge_base and (
+                        self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) == local_merge_base
+                    ):
+                        del self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA]
+                    self._update_pr_merge_base(git)
+
                     if commits_not_in_backend:
                         log.debug(
                             "Unshallow successful, getting latest commits from backend based on unshallowed commits"
@@ -825,16 +835,6 @@ class SessionManager:
                             return
 
                         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
-
-                    # Recompute the merge-base over the extended history. The local
-                    # attempt above ran on the truncated shallow graph and may have
-                    # returned an older ancestor than the true merge-base, so replace
-                    # the value it stored (user-supplied values are never cleared).
-                    if local_merge_base and (
-                        self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) == local_merge_base
-                    ):
-                        del self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA]
-                    self._update_pr_merge_base(git)
                 elif commits_not_in_backend:
                     log.warning("Failed to unshallow repository, continuing to send pack data")
 
