@@ -1,7 +1,9 @@
+import asyncio
 from concurrent import futures
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
+from threading import Event
 from threading import Thread
 
 
@@ -56,6 +58,21 @@ def capture_otlp_traces(protocol, port=None):
 @contextmanager
 def _capture_grpc_metrics():
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceResponse
+
+    try:
+        import grpc  # noqa: F401
+    except ImportError:
+        from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+
+        with _capture_grpclib_requests(
+            "/opentelemetry.proto.collector.metrics.v1.MetricsService/Export",
+            ExportMetricsServiceRequest,
+            ExportMetricsServiceResponse,
+            4317,
+        ) as requests:
+            yield requests
+        return
+
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import MetricsServiceServicer
     from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import add_MetricsServiceServicer_to_server
 
@@ -94,6 +111,47 @@ def _capture_grpc_requests(servicer_type, add_servicer_to_server, response_type,
         yield service.requests
     finally:
         server.stop(2).wait()
+
+
+@contextmanager
+def _capture_grpclib_requests(method, request_type, response_type, port):
+    from grpclib.const import Cardinality
+    from grpclib.const import Handler
+    from grpclib.server import Server
+
+    requests = []
+
+    class Service:
+        async def export(self, stream):
+            requests.append(await stream.recv_message())
+            await stream.send_message(response_type())
+
+        def __mapping__(self):
+            return {method: Handler(self.export, Cardinality.UNARY_UNARY, request_type, response_type)}
+
+    started = Event()
+    state = {}
+
+    def run_server():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        server = Server([Service()], loop=loop)
+        state.update(loop=loop, server=server)
+        loop.run_until_complete(server.start("127.0.0.1", port))
+        started.set()
+        loop.run_forever()
+        server.close()
+        loop.run_until_complete(server.wait_closed())
+        loop.close()
+
+    thread = Thread(target=run_server, daemon=True)
+    thread.start()
+    assert started.wait(5), "Timed out starting the mock OTLP gRPC server"
+    try:
+        yield requests
+    finally:
+        state["loop"].call_soon_threadsafe(state["loop"].stop)
+        thread.join(2)
 
 
 @contextmanager

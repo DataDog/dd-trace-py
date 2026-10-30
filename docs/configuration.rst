@@ -633,7 +633,8 @@ computation to the OpenTelemetry Collector or Datadog intake by default.
 
      description: |
         When used with ``ddtrace-run`` this configuration enables support for exporting OTLP metrics generated
-        by the OpenTelemetry Metrics API. The application must also include its own OTLP metrics exporter.
+        by the OpenTelemetry Metrics API. Install ``ddtrace[opentelemetry]`` to include the lightweight
+        gRPC and HTTP/protobuf exporters.
 
      version_added:
        v3.11.0:
@@ -1328,7 +1329,8 @@ Logs
          When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
          by the OpenTelemetry Logging API. Setting ``OTEL_LOGS_EXPORTER=otlp`` also enables this support, while
          ``OTEL_LOGS_EXPORTER=none`` disables it. If both environment variables are set,
-         ``DD_LOGS_OTEL_ENABLED`` takes precedence. The application must also include its own OTLP logs exporter.
+         ``DD_LOGS_OTEL_ENABLED`` takes precedence. Install ``ddtrace[opentelemetry]`` to include the lightweight
+         gRPC and HTTP/protobuf exporters.
 
      version_added:
        v3.12.0: Adds support for submitting logs via an OTLP Exporter.
