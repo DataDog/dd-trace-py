@@ -642,6 +642,11 @@ def gen_pre_checks() -> None:
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
+        name="Release create_gh_release unit tests",
+        command="scripts/gh/test_create_gh_release.py",
+        paths={"scripts/gh/*"},
+    )
+    check(
         name="Check suitespec coverage",
         command="scripts/lint suitespec-check",
         paths={"*"},

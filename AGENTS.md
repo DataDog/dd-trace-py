@@ -95,7 +95,8 @@ inspect GitHub/git state, do every dd-trace-py-side step they can, and stop at a
 draft GitHub release. Always-draft (publishing requires a maintainer). See
 `scripts/gh/create_gh_release.py --help` and `.agents/skills/release/SKILL.md`.
 
-Tests live in `scripts/gh/test_create_gh_release.py`. Run them directly:
+Tests live in `scripts/gh/test_create_gh_release.py`. GitLab `prechecks` runs them when
+`scripts/gh/` changes (see `scripts/gen_gitlab_config.py`). Locally:
 
 ```bash
 scripts/gh/test_create_gh_release.py
