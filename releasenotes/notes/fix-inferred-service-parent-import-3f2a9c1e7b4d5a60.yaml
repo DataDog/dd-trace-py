@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    tracing: inferred service name detection no longer imports application packages while ddtrace starts.
+    Before this fix, processes started with ``python -m`` (for example the Airflow webserver's gunicorn)
+    could import the application during bootstrap. Combined with module cleanup, which is enabled when
+    ``gevent`` is installed, this broke PyYAML and crash-looped the Airflow webserver with
+    ``ConstructorError: could not determine a constructor for the tag None``.
