@@ -38,10 +38,6 @@ variables:
   timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
-    if [[ -n "$CI_JOB_TOKEN" ]];
-    then
-      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    fi
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
     (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
@@ -212,10 +208,6 @@ benchmarks-pr-comment:
   allow_failure: true
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
-    if [[ -n "$CI_JOB_TOKEN" ]];
-    then
-      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    fi
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
     export PATH="$PATH:/platform/steps"
 
