@@ -1,6 +1,5 @@
 ---
 fixes:
   - |
-    tracing: Fixes a ``TypeError`` raised after a fork or on ``tracer.configure()`` when the
-    tracer uses a custom trace writer that overrides ``recreate()`` without the
-    ``compute_stats_enabled`` and ``stats_opt_out`` arguments.
+    tracing: Fixes a ``TypeError`` raised after a fork or on ``tracer.configure()``
+    when using a custom trace writer.
