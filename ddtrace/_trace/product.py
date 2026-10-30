@@ -17,10 +17,11 @@ log = get_logger(__name__)
 requires = ["remote-configuration"]
 
 
-# Shared tracing listeners retain their process lifetime for manual instrumentation.
-WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
-    module="ddtrace._trace.subscribers.web_framework",
-    subscribers=("WebFrameworkRequestSubscriber",),
+subscriber_bundles = (
+    SubscriberBundle(
+        module="ddtrace._trace.subscribers.web_framework",
+        subscribers=("WebFrameworkRequestSubscriber",),
+    ),
 )
 
 
