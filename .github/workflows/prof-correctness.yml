@@ -142,26 +142,52 @@ jobs:
         run: |
           # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
           TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
-          echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA} via ${INSTALL_URL}"
-          gh workflow run downstream-python.yml \
-            --repo DataDog/prof-correctness \
-            -f "dd_trace_py_commit_sha=${DD_TRACE_PY_SHA}" \
-            -f "test_scenarios=${TEST_SCENARIOS}" \
-            -f "ddtrace_install_url=${INSTALL_URL}"
-
-          RUN_ID=""
-          for _ in $(seq 1 30); do
-            RUN_ID="$(gh run list \
+          # Prints the ID of the dispatched run. Prints nothing if the API call fails,
+          # so that a transient GitHub error does not stop the job.
+          find_run_id() {
+            gh run list \
               --repo DataDog/prof-correctness \
               --workflow=downstream-python.yml \
               --event workflow_dispatch \
               --limit 20 \
               --json databaseId,displayTitle,headSha,event,createdAt \
-              --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${DD_TRACE_PY_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+              --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${DD_TRACE_PY_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty" \
+              || true
+          }
+
+          echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA} via ${INSTALL_URL}"
+          # GitHub can return a 5xx error and create the run all the same. Look for the
+          # run before each new dispatch, so that a retry does not start a second run.
+          RUN_ID=""
+          RETRY_DELAY=5
+          for attempt in 1 2 3 4 5; do
+            if gh workflow run downstream-python.yml \
+              --repo DataDog/prof-correctness \
+              -f "dd_trace_py_commit_sha=${DD_TRACE_PY_SHA}" \
+              -f "test_scenarios=${TEST_SCENARIOS}" \
+              -f "ddtrace_install_url=${INSTALL_URL}"; then
+              break
+            fi
+            if [ "${attempt}" -eq 5 ]; then
+              echo "error: could not dispatch DataDog/prof-correctness downstream-python after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "Dispatch attempt ${attempt} failed, retrying in ${RETRY_DELAY}s..."
+            sleep "${RETRY_DELAY}"
+            RETRY_DELAY=$((RETRY_DELAY * 2))
+            RUN_ID="$(find_run_id)"
+            if [ -n "${RUN_ID}" ]; then
+              echo "Found run ${RUN_ID} from a failed dispatch attempt"
+              break
+            fi
+          done
+
+          for _ in $(seq 1 30); do
             if [ -n "${RUN_ID}" ]; then
               break
             fi
             sleep 2
+            RUN_ID="$(find_run_id)"
           done
 
           if [ -z "${RUN_ID}" ]; then
@@ -170,8 +196,20 @@ jobs:
           fi
 
           echo "Watching prof-correctness run ${RUN_ID}"
-          if ! gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status; then
-            echo "---- prof-correctness failed-step logs ----"
-            gh run view "${RUN_ID}" --repo DataDog/prof-correctness --log-failed
-            exit 1
-          fi
+          # gh run watch also fails on an API error while the run continues. If the run
+          # did not complete, watch it again. Otherwise, the run conclusion is the result.
+          for attempt in 1 2 3 4 5; do
+            if gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status; then
+              exit 0
+            fi
+            STATUS="$(gh run view "${RUN_ID}" --repo DataDog/prof-correctness --json status --jq .status || true)"
+            if [ "${STATUS}" = "completed" ]; then
+              echo "---- prof-correctness failed-step logs ----"
+              gh run view "${RUN_ID}" --repo DataDog/prof-correctness --log-failed
+              exit 1
+            fi
+            echo "Watch attempt ${attempt} failed before run ${RUN_ID} completed, retrying in 30s..."
+            sleep 30
+          done
+          echo "error: could not watch prof-correctness run ${RUN_ID} after 5 attempts" >&2
+          exit 1

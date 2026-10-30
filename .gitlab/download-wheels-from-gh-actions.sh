@@ -8,7 +8,7 @@ RUN_ID=$(wait_for_run_id)
 mkdir pywheels
 cd pywheels
 
-if [[ $(gh run view $RUN_ID --repo "$GH_REPO" --json status --jq .status) != "completed" ]]; then
+if [[ $(gh_retry run view $RUN_ID --repo "$GH_REPO" --json status --jq .status) != "completed" ]]; then
   echo "Waiting for workflow to finish"
 
   # Give time to the job to finish
@@ -17,7 +17,7 @@ fi
 
 # gh run watch returns at once for a completed run. Its exit status is the only
 # check that fails this job when the workflow run failed.
-gh run watch $RUN_ID --interval 60 --exit-status 1 --repo "$GH_REPO"
+gh_watch_run "$GH_REPO" $RUN_ID --interval 60 --exit-status
 
 echo "Github workflow finished. Downloading wheels"
 # Download only win_arm64 wheels; amd64 and x86 wheels are built directly in GitLab.
