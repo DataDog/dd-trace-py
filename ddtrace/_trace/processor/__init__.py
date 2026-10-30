@@ -1,5 +1,6 @@
 import abc
 from collections import defaultdict
+import inspect
 from itertools import chain
 import logging
 from typing import Optional
@@ -309,6 +310,15 @@ def _resolve_apm_trace_agentless() -> bool:
     return True
 
 
+def _accepts_keyword(func, name: str) -> bool:
+    """Whether func can be called with the keyword argument name."""
+    try:
+        parameters = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return True
+    return name in parameters or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
+
+
 # Track telemetry span metrics by span api
 # ex: otel api, opentracing api, datadog api
 _SPANS_CREATED_RECORDERS: dict[str, MetricRecorder] = {}
@@ -593,12 +603,12 @@ class SpanAggregator(SpanProcessor):
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(
-            appsec_enabled=appsec_enabled,
-            llmobs_enabled=llmobs_enabled,
-            compute_stats_enabled=compute_stats,
-            stats_opt_out=apm_opt_out,
-        )
+        recreate_kwargs = {"appsec_enabled": appsec_enabled, "llmobs_enabled": llmobs_enabled}
+        # Writers outside ddtrace may still override recreate() without the stats arguments.
+        for name, value in (("compute_stats_enabled", compute_stats), ("stats_opt_out", apm_opt_out)):
+            if value is not None and _accepts_keyword(self.writer.recreate, name):
+                recreate_kwargs[name] = value
+        self.writer = self.writer.recreate(**recreate_kwargs)
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
