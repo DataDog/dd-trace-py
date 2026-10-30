@@ -1,5 +1,7 @@
+from functools import partial
 from types import FrameType
 import typing as t
+import weakref
 
 import gevent
 from gevent import thread
@@ -12,7 +14,10 @@ from greenlet import greenlet
 from greenlet import settrace
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.native._native import DD_CONTEXTVAR
+from ddtrace.profiling import _span_links
 
 
 # Original objects
@@ -32,6 +37,16 @@ _original_greenlet_tracers: dict[int, t.Optional[TraceCallback]] = {}
 _greenlet_tracer_enabled: bool = False
 _greenlet_parent_map: dict[int, int] = {}
 _parent_greenlet_count: dict[int, int] = {}
+# The greenlets that stack.track_greenlet accepted, by id. The sampler renders only these as greenlets, so only these
+# get span link keys. A greenlet's span link key holds the span that the sampler labels the greenlet's samples with.
+# _tracked_greenlets cannot be used for that: record_greenlet_switch adds both sides of every
+# switch to it, including greenlets that cannot be tracked, like the main greenlet of a thread. Each weak reference
+# untracks its greenlet when the greenlet is collected, which also removes its span link key. That covers greenlets
+# that die without a switch the greenlet tracer can see, for example a suspended greenlet whose native thread exits.
+_natively_tracked: dict[int, "weakref.ref[greenlet]"] = {}
+# The lifecycle token (stack.lifecycle()) each greenlet was last seeded with, by id. Seeding writes the span that a
+# greenlet inherited in its own Context to the greenlet's span link key, see _seed_greenlet_span_link.
+_seeded: dict[int, int] = {}
 
 FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
 
@@ -39,9 +54,15 @@ FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
 @forksafe.register
 def _reset_after_fork() -> None:
     # Native greenlet state is cleared in the child, so greenlets must be tracked and linked again.
+    # Tracer._child_after_fork runs before this hook, because the tracer registered its hook first. Its activation
+    # re-dispatch writes the current greenlet's span link key while _natively_tracked still holds the parent's entries.
+    # That key has no weak reference until the greenlet's next switch tracks it again. The greenlet is running, so it
+    # switches before it can die.
     _tracked_greenlets.clear()
     _greenlet_parent_map.clear()
     _parent_greenlet_count.clear()
+    _natively_tracked.clear()
+    _seeded.clear()
 
     # A new thread could reuse the id of a thread that is gone.
     current_thread_ident: int = _get_native_thread_ident()
@@ -60,6 +81,11 @@ def track_gevent_greenlet(gl: _Greenlet, _from_tracer: bool = False) -> _Greenle
     frame: t.Union[FrameType, bool, None] = FRAME_NOT_SET
 
     try:
+        if not _from_tracer:
+            # A greenlet that is being spawned has not run yet. So a span link key or a seeding record for its id
+            # belongs to a dead greenlet that lived at the same address, and must not label this one.
+            _seeded.pop(greenlet_id, None)
+            stack.clear_greenlet(greenlet_id)
         stack.track_greenlet(greenlet_id, gl.name or type(gl).__qualname__, frame)
     except AttributeError as e:
         raise GreenletTrackingError("Cannot track greenlet with no name attribute") from e
@@ -84,8 +110,74 @@ def track_gevent_greenlet(gl: _Greenlet, _from_tracer: bool = False) -> _Greenle
             raise GreenletTrackingError("Cannot link greenlet for untracking") from e
 
     _tracked_greenlets.add(greenlet_id)
+    try:
+        _natively_tracked[greenlet_id] = weakref.ref(gl, partial(_on_greenlet_collected, greenlet_id))
+    except Exception:  # nosec B110
+        # Without a weak reference nothing would remove the greenlet's span link key, so it gets none.
+        pass
 
     return gl
+
+
+def _on_greenlet_collected(greenlet_id: int, _ref: "weakref.ref[greenlet]") -> None:
+    # A weak reference callback must not raise. Module globals can already be gone when a greenlet is collected during
+    # interpreter shutdown.
+    try:
+        _untrack_greenlet_by_id(greenlet_id)
+    except Exception:  # nosec B110
+        pass
+
+
+def current_tracked_greenlet_id() -> int:
+    """Return the id of the current greenlet if it is natively tracked, otherwise 0.
+
+    The id is gevent.thread.get_ident(greenlet), which is id(greenlet). It is the id the sampler reads span link keys
+    with.
+    """
+    greenlet_id: int = thread.get_ident(gevent.getcurrent())
+    return greenlet_id if greenlet_id in _natively_tracked else 0
+
+
+def _seed_greenlet_span_link(gl: _Greenlet, greenlet_id: int) -> None:
+    """Publish the span gl inherited in its own Context, once per greenlet and lifecycle.
+
+    A lifecycle is the time between one start of the stack profiler and its stop. Activation events label a greenlet
+    only when it activates a span during the lifecycle. Seeding labels the greenlets that do not: greenlets that
+    already ran when profiling started, greenlets that were suspended across a stop and a start, and, in a fork child,
+    the suspended greenlets of the forking thread. The current greenlet of a fork child is labeled before that, see
+    _reset_after_fork. A new gevent.Greenlet is seeded with no span, and the gevent integration then activates its span
+    as the first thing the greenlet runs.
+
+    This runs inside the greenlet tracer, which greenlet uninstalls if it raises, so it never raises.
+    """
+    try:
+        lifecycle_mirror = _span_links.lifecycle_mirror
+        # An even token means that span links are closed, so there is nothing to seed.
+        if (
+            not lifecycle_mirror & 1
+            or greenlet_id not in _natively_tracked
+            or _seeded.get(greenlet_id) == lifecycle_mirror
+        ):
+            return
+        tracer = _span_links.lifecycle_tracer
+        if tracer is None:
+            return
+        provider = tracer.context_provider
+        # Without inheritance mode, the provider may keep its spans outside DD_CONTEXTVAR. Seeding could then write no
+        # span over a label from an activation, like the one start republishes for the current greenlet.
+        if not context_meta.inheritance_mode(provider):
+            return
+        token = stack.lifecycle()
+        # gr_context can be read for a suspended greenlet, the running one, and a dead one. It is None until the
+        # greenlet sets a context variable, and a greenlet starts with an empty Context, so None means no span.
+        context = gl.gr_context
+        item = context_meta.resolve(context.get(DD_CONTEXTVAR)) if context is not None else None
+        _span_links.publish(provider, token, False, 0, greenlet_id, item)
+        # Record the token the write used, not the mirror. If a stop or a start happened after the mirror was read,
+        # native code dropped the write, and the record does not match the new mirror, so the next switch seeds again.
+        _seeded[greenlet_id] = token
+    except Exception:  # nosec B110
+        pass
 
 
 def record_greenlet_switch(
@@ -175,15 +267,24 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         except Exception:  # nosec B110
             pass
 
+        _seed_greenlet_span_link(origin, origin_id)
+        _seed_greenlet_span_link(target, target_id)
+
     if (original_tracer := _original_greenlet_tracers.get(_get_native_thread_ident())) is not None:
         original_tracer(event, args)
 
 
 def _untrack_greenlet_by_id(greenlet_id: int) -> None:
     """Untrack a greenlet by its ID. Idempotent."""
-    if greenlet_id not in _tracked_greenlets:
+    if greenlet_id not in _tracked_greenlets and greenlet_id not in _natively_tracked:
         return
-    stack.untrack_greenlet(greenlet_id)
+    try:
+        stack.untrack_greenlet(greenlet_id)
+    finally:
+        # Even if untracking fails in native code, the greenlet must not keep its span link key.
+        _natively_tracked.pop(greenlet_id, None)
+        _seeded.pop(greenlet_id, None)
+        stack.clear_greenlet(greenlet_id)
     _tracked_greenlets.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
@@ -313,11 +414,16 @@ def patch() -> None:
         _original_greenlet_tracers[thread_ident] = t.cast(t.Optional[TraceCallback], settrace(greenlet_tracer))
 
     _greenlet_tracer_enabled = True
+    # From now on, a greenlet sample gets the span of its own greenlet, or no span, never the span of its thread. This
+    # comes last, once the greenlet tracer, which seeds greenlet keys, is installed. unpatch turns it off first.
+    stack.set_logical_attribution(stack.SPAN_LINK_DOMAIN_GREENLET, True)
 
 
 def unpatch() -> None:
     global _greenlet_tracer_enabled
 
+    # Greenlet samples go back to the span of their thread before greenlets stop being tracked.
+    stack.set_logical_attribution(stack.SPAN_LINK_DOMAIN_GREENLET, False)
     _greenlet_tracer_enabled = False
 
     gevent.Greenlet = gevent.greenlet.Greenlet = _Greenlet

@@ -88,6 +88,19 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_span_links test_span_links.cpp)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # ELF --wrap only redirects unresolved references from the executable, not calls inside _stack. Compile the
+    # production implementation into this isolated test so failure injection leaves sanitizer allocators untouched.
+    add_executable(test_span_links_alloc ../src/span_links.cpp test_span_links_alloc.cpp)
+    target_include_directories(test_span_links_alloc PRIVATE ../include)
+    target_link_libraries(test_span_links_alloc PRIVATE gtest_main)
+    target_link_options(test_span_links_alloc PRIVATE -Wl,--wrap=_Znwm)
+    add_ddup_config(test_span_links_alloc)
+    gtest_discover_tests(
+        test_span_links_alloc DISCOVERY_MODE PRE_TEST
+        PROPERTIES
+        TIMEOUT 300)
+endif()
 dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
 
 function(configure_stack_internal_test name)
@@ -109,11 +122,18 @@ dd_wrapper_add_test(test_sample_lifecycle test_sample_lifecycle.cpp)
 target_link_libraries(test_sample_lifecycle PRIVATE dd_wrapper)
 configure_stack_internal_test(test_sample_lifecycle)
 
+dd_wrapper_add_test(test_stack_renderer_span_labels test_stack_renderer_span_labels.cpp)
+target_link_libraries(test_stack_renderer_span_labels PRIVATE dd_wrapper)
+configure_stack_internal_test(test_stack_renderer_span_labels)
+
 dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
 configure_stack_internal_test(test_sampling_cycle_state)
 
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
+
+dd_wrapper_add_test(test_running_loop test_running_loop.cpp)
+configure_stack_internal_test(test_running_loop)
 
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.

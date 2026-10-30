@@ -25,10 +25,17 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
     reset_cycle_state();
 
+    // Created before any frame is copied, so that keys created during this unwind are ignored. It reads the switch of
+    // the domain rendered on this thread: tasks when the thread has an asyncio loop, greenlets otherwise. The loop is
+    // effective_loop(), so a loop that runs without set_event_loop also counts.
+    const Datadog::LogicalSpanReader spans(Datadog::SpanLinks::get_instance(),
+                                           effective_loop() ? Datadog::SpanLinkDomain::AsyncioTask
+                                                            : Datadog::SpanLinkDomain::Greenlet);
+
     // Asyncio stitching needs the root-side event-loop boundary and overlap
     // metadata, so preserve Echion's existing discovery depth for task-aware
     // stacks. Non-task thread stacks can stop at the configured reporting limit.
-    const size_t max_frames = asyncio_loop ? MAX_STACK_UNWIND_SAFETY_LIMIT : echion.stack_max_frames();
+    const size_t max_frames = effective_loop() ? MAX_STACK_UNWIND_SAFETY_LIMIT : echion.stack_max_frames();
     python_stack_unwind_result = UnwindResult::Unknown();
     auto frame_unwind_result = unwind_python_stack(echion, tstate, python_stack, max_frames);
     if (!frame_unwind_result) {
@@ -36,15 +43,15 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     }
     python_stack_unwind_result = *frame_unwind_result;
 
-    if (asyncio_loop) {
+    if (effective_loop()) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(echion, tstate, wall_time_us);
+        (void)unwind_tasks(echion, tstate, wall_time_us, spans);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(echion, tstate, native_id, wall_time_us);
+        unwind_greenlets(echion, tstate, native_id, wall_time_us, spans);
     }
     return Result<void>::ok();
 }
@@ -66,7 +73,7 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
     auto& asyncio_boundary_frame = echion.asyncio_boundary_frame();
     auto& uvloop_boundary_frame = echion.uvloop_boundary_frame();
 
-    auto& boundary_frame = using_uvloop ? uvloop_boundary_frame : asyncio_boundary_frame;
+    auto& boundary_frame = effective_uvloop() ? uvloop_boundary_frame : asyncio_boundary_frame;
 
     for (size_t i = 0; i < python_stack.size(); i++) {
         const auto& frame = python_stack[i];
@@ -82,7 +89,7 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
             }
             const auto& frame_name = maybe_frame_name->get();
 
-            if (using_uvloop) {
+            if (effective_uvloop()) {
                 // For uvloop, the boundary frame depends on the Python version:
                 // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
                 // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
@@ -140,7 +147,10 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
+ThreadInfo::unwind_tasks(EchionSampler& echion,
+                         PyThreadState* tstate,
+                         microsecond_t wall_time_us,
+                         const Datadog::LogicalSpanReader& spans)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
     const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
@@ -243,7 +253,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         FrameStack task_stack;
-        task->unwind(echion, task_stack, using_uvloop);
+        task->unwind(echion, task_stack, effective_uvloop());
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
@@ -301,6 +311,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         // Must match _task.task_object_address() so lock and stack samples correlate.
         auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
+        // The task's coroutine frames were copied into task_coro_stacks above.
+        stack_info->span = spans.read(task_id);
         auto& stack = stack_info->stack;
         if (leaf_task_idx > 0) {
             stack_info->walltime_ns = scaled_walltime_ns;
@@ -354,7 +366,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                     auto python_frame = python_stack[i];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
-                    if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
+                    if (is_uvloop_wrapper_frame(echion, effective_uvloop(), python_frame)) {
                         continue;
                     }
                     if (!leaf_owns_gc_marker) {
@@ -439,7 +451,7 @@ Result<void>
 ThreadInfo::for_each_task_address_from_thread_list(EchionSampler& echion, const TaskAddressCallback& callback)
 {
     const size_t tasks_head_offset = echion.asyncio_thread_tasks_head_offset();
-    if (this->tstate_addr == 0 || this->asyncio_loop == 0 || tasks_head_offset == 0 ||
+    if (this->tstate_addr == 0 || this->effective_loop() == 0 || tasks_head_offset == 0 ||
         tasks_head_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
         return Result<void>::ok();
     }
@@ -467,7 +479,7 @@ ThreadInfo::for_each_task_address_from_interpreter_list(EchionSampler& echion,
                                                         const TaskAddressCallback& callback)
 {
     const size_t tasks_head_offset = echion.asyncio_interpreter_tasks_head_offset();
-    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0 || tasks_head_offset == 0) {
+    if (tstate == nullptr || tstate->interp == nullptr || this->effective_loop() == 0 || tasks_head_offset == 0) {
         return Result<void>::ok();
     }
 
@@ -546,7 +558,7 @@ ThreadInfo::get_task_addresses_from_linked_list(uintptr_t head_addr)
 Result<void>
 ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, const TaskAddressCallback& callback)
 {
-    if (this->asyncio_loop == 0)
+    if (this->effective_loop() == 0)
         return Result<void>::ok();
 
     // Python 3.14+ task discovery combines four sources:
@@ -614,7 +626,7 @@ ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, 
 Result<void>
 ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState*, const TaskAddressCallback& callback)
 {
-    if (this->asyncio_loop == 0)
+    if (this->effective_loop() == 0)
         return Result<void>::ok();
 
     auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
@@ -673,7 +685,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     std::vector<TaskInfo::Ptr> tasks;
     auto result = for_each_task_address(echion, tstate, [&](TaskObj* task_addr) -> Result<void> {
         auto maybe_task_info = TaskInfo::create(echion, task_addr);
-        if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
+        if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->effective_loop()) {
             tasks.push_back(std::move(*maybe_task_info));
         }
         // Individual unreadable Tasks are expected in a lock-free snapshot and remain best effort.
@@ -697,7 +709,8 @@ void
 ThreadInfo::unwind_greenlets(EchionSampler& echion,
                              PyThreadState* tstate,
                              unsigned long cur_native_id,
-                             microsecond_t wall_time_us)
+                             microsecond_t wall_time_us,
+                             const Datadog::LogicalSpanReader& spans)
 {
     std::vector<GreenletSnapshot> snapshots;
 
@@ -837,6 +850,9 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
             auto gc_frame = echion.use_gc_frame(on_cpu ? echion.current_gc_frame() : nullptr);
             temp.unwind(echion, snap.frame, tstate, stack);
         }
+        // Read after the greenlet's frames were copied, and outside greenlet_info_map_lock, so greenlet switches never
+        // wait for the span links mutex.
+        stack_info->span = spans.read(snap.greenlet_id);
 
         for (auto& [parent_name, parent_frame] : snap.parent_chain) {
             GreenletInfo parent_temp(0, parent_frame, parent_name);
@@ -887,8 +903,11 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(
-                  task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
+                renderer.render_task_begin(task_name,
+                                           task_stack_info->on_cpu,
+                                           task_stack_info->task_id,
+                                           task_stack_info->walltime_ns,
+                                           task_stack_info->span);
             });
 
             task_stack_info->stack.render(echion, TruncationStatus::Unknown);
@@ -898,8 +917,11 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(
-                  task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
+                renderer.render_task_begin(task_name,
+                                           greenlet_stack->on_cpu,
+                                           greenlet_stack->task_id,
+                                           greenlet_stack->walltime_ns,
+                                           greenlet_stack->span);
             });
 
             auto& stack = greenlet_stack->stack;

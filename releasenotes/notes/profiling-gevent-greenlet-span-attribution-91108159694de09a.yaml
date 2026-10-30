@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where CPU and wall time samples of a gevent greenlet were attributed to the span
+    that another greenlet on the same thread activated last. Each greenlet's samples are now attributed to the span
+    active in that greenlet, or to no span if none is active.

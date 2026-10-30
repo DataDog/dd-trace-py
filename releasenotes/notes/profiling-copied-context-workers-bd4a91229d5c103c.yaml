@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where CPU and wall time samples of functions run with ``anyio.to_thread.run_sync`` are
+    not attributed to the span that called them. Samples of functions run with ``asyncio.to_thread`` are now also
+    attributed to the calling span when the ``futures`` integration is disabled. With the default context provider,
+    when the calling span finishes while the function still runs, its samples are attributed to the span's unfinished
+    parent instead of the finished span. Profiles of these worker threads now show an extra ``run_in_worker`` frame
+    below the function.

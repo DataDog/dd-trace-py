@@ -20,6 +20,8 @@
 #endif // PY_VERSION_HEX >= 0x030b0000
 #include <echion/errors.h>
 
+#include "span_links.hpp"
+
 class EchionSampler;
 
 enum class TruncationStatus
@@ -94,6 +96,8 @@ class StackInfo
     // correlate stack and lock samples on the timeline.
     uint64_t task_id;
     bool on_cpu;
+    // The task's or greenlet's own span, read after its frames were copied. See Datadog::LogicalSpanReader.
+    Datadog::LogicalSpan span;
     FrameStack stack;
 
     // Per-task override wall-time to use in reservoir sampling.

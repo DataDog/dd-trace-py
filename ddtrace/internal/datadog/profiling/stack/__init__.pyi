@@ -85,11 +85,46 @@ def pause_sampling() -> bool | None:
 
 def resume_sampling() -> None: ...
 
-# span <-> profile association
-def link_span(span_id: int, local_root_span_id: int, span_type: Optional[str] = None) -> None: ...
-def unlink_span(expected_span_id: int) -> None: ...
-def clear_span() -> None: ...
-def unlink_finished_span(span_id: int) -> None: ...
+# Keyed span links, per thread, asyncio task and greenlet. A link entry is None ("no span") or
+# (span_id, local_root_span_id, span_type, kind), where kind is SPAN_LINK_KIND_SPAN or SPAN_LINK_KIND_CONTEXT.
+SpanLinkEntry = Optional[tuple[int, int, Optional[str], int]]
+
+SPAN_LINK_KIND_SPAN: int
+SPAN_LINK_KIND_CONTEXT: int
+SPAN_LINK_DOMAIN_THREAD: int
+SPAN_LINK_DOMAIN_ASYNCIO_TASK: int
+SPAN_LINK_DOMAIN_GREENLET: int
+
+def lifecycle() -> int:
+    """Return the span links lifecycle token. It is odd while span links are open and even while they are closed."""
+    ...
+
+def link(token: int, thread: bool, task_id: int, greenlet_id: int, entry: SpanLinkEntry) -> None:
+    """Write entry to the current thread's key if thread is true, and to the task and greenlet keys whose id is not 0.
+
+    Ignored unless token is the current lifecycle token and is odd. None erases the thread key, leaves a tombstone on
+    an existing task or greenlet key, and creates nothing for a missing one.
+    """
+    ...
+
+def retarget(token: int, span_id: int, entry: SpanLinkEntry) -> None:
+    """Point every SPAN-kind link that holds span_id at entry, with the same token and None rules as link()."""
+    ...
+
+def holds_span(span_id: int) -> bool: ...
+def clear_task(task_id: int) -> None: ...
+def clear_greenlet(greenlet_id: int) -> None: ...
+def links_open() -> None: ...
+def links_close() -> None: ...
+def set_logical_attribution(domain: int, enabled: bool) -> None:
+    """Turn per-unit span attribution on or off for SPAN_LINK_DOMAIN_ASYNCIO_TASK or SPAN_LINK_DOMAIN_GREENLET.
+
+    Both are off by default. The profiler turns SPAN_LINK_DOMAIN_ASYNCIO_TASK on when it hooks asyncio (see
+    _install_task_span_link_hooks in ddtrace/profiling/_asyncio.py). While a domain is off, its task or greenlet samples
+    get the thread's span. Once it is on, they get only their own key's span, or no span. The switches survive
+    links_open(), links_close() and fork. Any other domain raises ValueError.
+    """
+    ...
 
 # Thread management
 def register_thread(python_thread_id: int, native_id: int, name: str) -> None: ...
@@ -97,6 +132,20 @@ def unregister_thread(python_thread_id: int) -> None: ...
 
 # Asyncio support
 def track_asyncio_loop(thread_id: int, loop: Optional[asyncio.AbstractEventLoop]) -> None: ...
+def enter_running_loop(thread_id: int, loop: asyncio.AbstractEventLoop, unowned: bool = False, /) -> bool:
+    """Set the running loop of a registered thread. Only pass plain asyncio loops (BaseEventLoop), not uvloop.
+
+    The sampler renders the tasks of the running loop when one is set, otherwise those of the configured loop that
+    track_asyncio_loop sets. An owned call (unowned=False) always replaces the slot. An unowned call, made when the
+    profiler starts inside a loop that is already running, only fills an empty slot. Returns whether the slot was
+    set. Does nothing and returns False for an unregistered thread.
+    """
+    ...
+
+def exit_running_loop(thread_id: int, loop: asyncio.AbstractEventLoop, /) -> None:
+    """Clear the running loop of a registered thread if it still holds loop."""
+    ...
+
 def link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
 def weak_link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
 def init_asyncio(
