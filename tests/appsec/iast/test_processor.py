@@ -19,6 +19,8 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.security._constants import STACK_TRACE
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.utils import override_env
@@ -163,11 +165,13 @@ def test_iast_report_identity_matches_analysis_owner(processor_iast_context, tra
             assert vulnerability["location"]["stackId"] in {stack["id"] for stack in stacks}
             assert entry.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") > 0
             assert upstream.context.sampling_priority == USER_KEEP
+            assert upstream.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == f"-{SamplingMechanism.APPSEC}"
             for span in (upstream, request, child):
                 assert load_iast_report(span) is None
                 assert span.get_metric(IAST.ENABLED) is None
             assert _get_iast_env() is None
             assert debug_context_array_free_slots_number() == baseline
+        assert upstream.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == f"-{SamplingMechanism.APPSEC}"
 
 
 @pytest.mark.parametrize("parent_kind", ["custom", "finished_request", "inferred_proxy"])

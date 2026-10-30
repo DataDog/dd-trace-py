@@ -10,7 +10,7 @@ def _asm_manual_keep(span: SpanData) -> None:
 
     span._override_sampling_decision(USER_KEEP)
     # set decision maker to ASM = -5
-    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
+    span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, span._set_sampling_decision_maker(SamplingMechanism.APPSEC))
 
     # set trace source propagation tag (_dd.p.ts) with the ASM bit
     add_trace_source(span, TraceSource.ASM)
