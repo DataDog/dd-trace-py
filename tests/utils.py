@@ -42,6 +42,7 @@ from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.internal.settings._database_monitoring import dbm_config
@@ -373,6 +374,16 @@ def scoped_tracer(use_dummy_writer=True):
     """Provides a test-scoped global tracer with no configuration leaks."""
     try:
         if use_dummy_writer:
+            # Retire the old stats worker so it cannot flush into a later snapshot session.
+            writer = ddtrace.tracer._span_aggregator.writer
+            try:
+                writer.flush_queue()
+                writer.stop()
+            except ServiceStatusError:
+                # Native exporters exist even when the writer's periodic thread never started.
+                shutdown_exporter = getattr(writer, "shutdown_exporter", None)
+                if shutdown_exporter is not None:
+                    shutdown_exporter()
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
         yield ddtrace.tracer
     finally:
@@ -718,8 +729,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)
 
-    def set_test_session_token(self, token: Optional[str]) -> None:
-        self._inner_writer.set_test_session_token(token)
+    def set_test_session_token(self, token: Optional[str], compute_stats_enabled: Optional[bool] = None) -> None:
+        self._inner_writer.set_test_session_token(token, compute_stats_enabled=compute_stats_enabled)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         self._inner_writer.stop(timeout=timeout)
@@ -1330,6 +1341,7 @@ def snapshot_context(
     wait_for_num_traces: Optional[int] = None,
     timeout: float = 5.0,
     subprocess_mode: bool = False,
+    compute_stats_enabled: bool = False,
 ) -> Iterator[SnapshotTest]:
     """Capture one tagged attempt; async_mode is retained for compatibility."""
     if timeout <= 0 or (wait_for_num_traces is not None and wait_for_num_traces < 0):
@@ -1371,14 +1383,19 @@ def snapshot_context(
     status, body = client._request("GET", url, timeout=timeout, retry=False, xfail_on_error=False)
     if status != 200:
         pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+    original_compute_stats_enabled = dd_config._trace_compute_stats
+    original_stats_env = os.environ.get("DD_TRACE_STATS_COMPUTATION_ENABLED")
     completed = False
     try:
         headers = parse_tags_str(old_headers or "")
         headers[header] = session.token
         os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(f"{k}:{v}" for k, v in headers.items())
+        dd_config._trace_compute_stats = compute_stats_enabled
+        # Subprocesses must use the same stats setting as the snapshot writer.
+        os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = str(compute_stats_enabled).lower()
         if not subprocess_mode:
             if isinstance(writer, AgentWriterInterface):
-                writer.set_test_session_token(session.token)
+                writer.set_test_session_token(session.token, compute_stats_enabled=compute_stats_enabled)
             else:
                 writer._headers[header] = session.token
         try:
@@ -1397,6 +1414,11 @@ def snapshot_context(
                 session.wait_for_traces(wait_for_num_traces, timeout)
             session.verify(ignores, timeout)
     finally:
+        if original_stats_env is None:
+            os.environ.pop("DD_TRACE_STATS_COMPUTATION_ENABLED", None)
+        else:
+            os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = original_stats_env
+        dd_config._trace_compute_stats = original_compute_stats_enabled
         failed = sys.exc_info()[0] is not None or not session.verify_on_exit
         try:
             session.clear()
@@ -1415,7 +1437,9 @@ def snapshot_context(
                 try:
                     if isinstance(writer_now, AgentWriterInterface):
                         if getattr(writer_now, "_test_session_token", None) == session.token:
-                            writer_now.set_test_session_token(old_token)
+                            writer_now.set_test_session_token(
+                                old_token, compute_stats_enabled=original_compute_stats_enabled
+                            )
                     elif isinstance(writer_now, HTTPWriter) and writer_now._headers.get(header) == session.token:
                         if old_token is None:
                             writer_now._headers.pop(header, None)
@@ -1430,7 +1454,13 @@ def snapshot_context(
 
 
 def snapshot(
-    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
+    ignores=None,
+    include_tracer=False,
+    variants=None,
+    async_mode=True,
+    token_override=None,
+    wait_for_num_traces=None,
+    compute_stats_enabled=False,
 ):
     """Performs a snapshot integration test with the testing agent.
 
@@ -1467,6 +1497,7 @@ def snapshot(
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
+            compute_stats_enabled=compute_stats_enabled,
         ):
             # Run the test.
             if include_tracer:
