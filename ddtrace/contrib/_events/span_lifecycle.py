@@ -7,7 +7,7 @@ from typing import ClassVar
 from ddtrace.internal import core
 
 
-class SpanCycleEvents(Enum):
+class SpanLifecycleEvents(Enum):
     # Dispatched by the tracing SpanLifecycleSubscriber as "<value>.<context identifier>" with (ctx,),
     # so products can take part in a span's lifecycle without depending on the tracer.
     SPAN_STARTING = "span.starting"
@@ -51,11 +51,11 @@ class SpanLifecycleListener:
         pass
 
     @classmethod
-    def _listeners(cls) -> list[tuple[str, SpanCycleEvents, Callable[[core.ExecutionContext[Any]], None]]]:
+    def _listeners(cls) -> list[tuple[str, SpanLifecycleEvents, Callable[[core.ExecutionContext[Any]], None]]]:
         handlers = (
-            (SpanCycleEvents.SPAN_STARTING, cls.on_starting),
-            (SpanCycleEvents.SPAN_STARTED, cls.on_started),
-            (SpanCycleEvents.SPAN_FINISHING, cls.on_finishing),
+            (SpanLifecycleEvents.SPAN_STARTING, cls.on_starting),
+            (SpanLifecycleEvents.SPAN_STARTED, cls.on_started),
+            (SpanLifecycleEvents.SPAN_FINISHING, cls.on_finishing),
         )
         return [
             (f"{phase.value}.{event_name}", phase, handler)

@@ -450,3 +450,45 @@ def test_stream_finalizes_after_unpatch(llama_index, llama_index_llmobs, test_sp
         metrics={"input_tokens": 8, "output_tokens": 1, "total_tokens": 9},
         tags=EXPECTED_TAGS,
     )
+
+
+def test_shared_subscriber_isolates_components_and_retains_active_integration(llama_index, monkeypatch):
+    from ddtrace import config
+    from ddtrace.contrib._events.llm import LlmRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.llmobs import _subscribers
+
+    monkeypatch.setattr(_subscribers, "_integrations_by_component", {})
+    first = mock.Mock(llmobs_enabled=False)
+    replacement = mock.Mock(llmobs_enabled=False)
+    other = mock.Mock(llmobs_enabled=False)
+    for integration in (first, replacement, other):
+        integration._is_instrumented_proxy_url.return_value = False
+    monkeypatch.setitem(_subscribers._integrations_by_component, "llama_index", first)
+    monkeypatch.setitem(_subscribers._integrations_by_component, "anthropic", other)
+
+    def request(component):
+        return core.context_with_event(
+            LlmRequestEvent(
+                component=component,
+                integration_config=getattr(config, component),
+                provider="test",
+            )
+        )
+
+    with request("llama_index"):
+        monkeypatch.setitem(_subscribers._integrations_by_component, "llama_index", None)
+        with request("llama_index"):
+            pass
+        first.llmobs_set_tags.assert_not_called()
+        with request("anthropic"):
+            pass
+        other.llmobs_set_tags.assert_called_once()
+        monkeypatch.setitem(_subscribers._integrations_by_component, "llama_index", replacement)
+        _subscribers.LLMObsLlmSubscriber.register()
+        _subscribers.LLMObsLlmSubscriber.register()
+        with request("llama_index"):
+            pass
+        replacement.llmobs_set_tags.assert_called_once()
+        first.llmobs_set_tags.assert_not_called()
+    first.llmobs_set_tags.assert_called_once()

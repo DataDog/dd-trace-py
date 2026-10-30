@@ -4,7 +4,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
-from ddtrace.contrib._events.span_cycle import SpanLifecycleListener
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleListener
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context

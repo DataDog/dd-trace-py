@@ -25,7 +25,7 @@ class LlmTracingSubscriber(SpanLifecycleSubscriber["LlmRequestEvent"]):
     Handles span creation, base tag setting, proxy detection,
     and LLMObs tag extraction. Provider-specific logic is delegated
     to the integration object carried by the event, or, for events that
-    carry none, to subscribers of the SpanCycleEvents dispatched for llm.request.
+    carry none, to subscribers of the SpanLifecycleEvents dispatched for llm.request.
     """
 
     event_names = (LlmRequestEvent.event_name,)
