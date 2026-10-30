@@ -219,16 +219,23 @@ def test_fresh_analyses_after_entry_admission_failed(processor_iast_context, tra
     assert debug_context_array_free_slots_number() == baseline
 
 
-@pytest.mark.parametrize("method", ["build_and_scrub_value_parts", "_to_str"])
-def test_iast_reporting_failure_releases_analysis(processor_iast_context, tracer, monkeypatch, method):
+@pytest.mark.parametrize(
+    "metastruct,method",
+    [(True, "build_and_scrub_value_parts"), (False, "build_and_scrub_value_parts"), (False, "_to_str")],
+)
+def test_iast_reporting_failure_allows_retry(processor_iast_context, tracer, monkeypatch, metastruct, method):
     def fail(*args):
         raise ValueError("reporting failed")
 
-    monkeypatch.setattr(IastSpanReporter, method, fail)
-    with override_global_config(dict(_use_metastruct_for_iast=False)):
+    original = getattr(IastSpanReporter, method)
+    with override_global_config(dict(_use_metastruct_for_iast=metastruct, _iast_max_vulnerabilities_per_requests=1)):
         tracer.configure(iast_enabled=True)
         baseline = debug_context_array_free_slots_number()
-        span = traced_function(tracer)
-        assert load_iast_report(span) is None
-        assert _get_iast_env() is None
-        assert debug_context_array_free_slots_number() == baseline
+        # A failed report must allow retry; a successful one still advances the endpoint limit.
+        for report_method, reported in ((fail, False), (original, True), (original, False)):
+            monkeypatch.setattr(IastSpanReporter, method, report_method)
+            with tracer.trace("request", span_type=SpanTypes.WEB) as span:
+                hashlib.md5(b"value").hexdigest()
+            assert (load_iast_report(span) is not None) is reported
+            assert _get_iast_env() is None
+            assert debug_context_array_free_slots_number() == baseline

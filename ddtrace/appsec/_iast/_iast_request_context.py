@@ -77,14 +77,16 @@ def _iast_end_request(scope: Union[ExecutionContext[Event], SpanData]) -> None:
             return
 
         if asm_config._iast_enabled:
+            reporting_succeeded = False
             try:
                 if req_span._get_numeric_attribute(IAST.ENABLED) is None:
                     enabled = base.is_iast_request_enabled()
                     req_span._set_attribute(IAST.ENABLED, float(enabled))
                     if enabled:
                         _create_and_attach_iast_report_to_span(req_span)
+                        reporting_succeeded = True
             finally:
-                base._iast_finish_request(req_span)
+                base._iast_finish_request(req_span, shoud_update_global_vulnerability_limit=reporting_succeeded)
                 if environment is not None:
                     reset_request_vulnerabilities(environment)
                     environment.iast_hash_object_tracking.clear()
