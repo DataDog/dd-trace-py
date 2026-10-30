@@ -112,6 +112,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._context import LLMObsContextProvider
+from ddtrace.llmobs._downstream_calls import DownstreamCallTracker
 from ddtrace.llmobs._eval_metric import _build_evaluation_metric_event
 from ddtrace.llmobs._eval_metric import _build_feedback_metric_event
 from ddtrace.llmobs._eval_metric import _SubmissionTelemetryContext
@@ -645,6 +646,7 @@ class LLMObs(Service):
         forksafe.register(self._child_after_fork)
 
         self._link_tracker = LinkTracker()
+        self._downstream_calls = DownstreamCallTracker()
         self._annotations: list[tuple[str, str, dict[str, Any]]] = []
         self._annotation_context_lock = RLock()
         # True if enable() switched the APM writer to agentless; disable() reverts it.
@@ -655,6 +657,7 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
+            self._downstream_calls.on_llmobs_span_start(span)
             routing = get_routing_context()
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
@@ -662,11 +665,22 @@ class LLMObs(Service):
             self._do_annotations(span)
 
     def _on_span_finish(self, span: Span) -> None:
-        if not self.enabled or span.span_type != SpanTypes.LLM:
+        if not self.enabled:
+            return
+        if span.span_type != SpanTypes.LLM:
+            if self._downstream_calls.open_count:
+                self._downstream_calls.on_span_finish(span, self._propagated_llmobs_parent_id)
             return
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
+
+        # Popped for every LLMObs span so nothing is retained, but only tools report it: calls made
+        # inside an LLM or MCP client span are already represented by that span. Read the kind here
+        # rather than when the calls finish, since integrations like MCP set it after the handler runs.
+        downstream_calls = self._downstream_calls.pop(span)
+        if downstream_calls and span_kind == "tool":
+            _annotate_llmobs_span_data(span, downstream_calls=downstream_calls)
 
         self._enrich_with_http_client_ip(span)
         self._sampling_resolver.resolve_if_root(span)
@@ -719,6 +733,13 @@ class LLMObs(Service):
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
+
+    def _propagated_llmobs_parent_id(self) -> Optional[str]:
+        """LLMObs parent ID carried by the active context, e.g. in a thread-pool worker."""
+        active = self._llmobs_context_provider.active()
+        if isinstance(active, Context):
+            return active._meta.get(PROPAGATED_PARENT_ID_KEY)
+        return None
 
     def _enrich_with_http_client_ip(self, span: Span) -> None:
         # Only enrich the LLMObs root span; non-root spans join against the root at query time.

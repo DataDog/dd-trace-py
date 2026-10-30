@@ -785,6 +785,7 @@ def _annotate_llmobs_span_data(
     session_id: Optional[str] = None,
     span_links: Optional[list[_SpanLink]] = None,
     agent_manifest: Optional[dict[str, Any]] = None,
+    downstream_calls: Optional[dict[str, Any]] = None,
     config: Optional[dict[str, Any]] = None,
     expected_output: Optional[Any] = None,
     experiment_input: Optional[str] = None,
@@ -843,11 +844,13 @@ def _annotate_llmobs_span_data(
             # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
             # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
-        if agent_manifest is not None or cost_tags is not None:
+        if agent_manifest is not None or cost_tags is not None or downstream_calls is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
             if agent_manifest is not None:
                 metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if downstream_calls is not None:
+                metadata_dd[LLMOBS_STRUCT.DOWNSTREAM_CALLS] = downstream_calls
             if cost_tags is not None:
                 existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
                 for cost_tag in cost_tags:

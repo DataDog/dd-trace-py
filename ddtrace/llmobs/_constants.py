@@ -269,6 +269,7 @@ class LLMOBS_STRUCT:
     MESSAGES: Final = "messages"
     DOCUMENTS: Final = "documents"
     AGENT_MANIFEST: Final = "agent_manifest"
+    DOWNSTREAM_CALLS: Final = "downstream_calls"
     SPAN: Final = "span"
     KIND: Final = "kind"
     MODEL_NAME: Final = "model_name"

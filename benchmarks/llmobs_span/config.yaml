@@ -1,0 +1,17 @@
+llmobs-disabled: &base
+  llmobs_enabled: false
+  nspans: 100
+  client: false
+  in_tool: false
+spans:
+  <<: *base
+  llmobs_enabled: true
+client-spans:
+  <<: *base
+  llmobs_enabled: true
+  client: true
+tool-client-spans:
+  <<: *base
+  llmobs_enabled: true
+  client: true
+  in_tool: true
