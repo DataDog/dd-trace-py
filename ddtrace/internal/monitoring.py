@@ -47,6 +47,11 @@ else:
     _SUPPORTS_LOCAL_PY_UNWIND = False
 
 _GLOBAL_EVENTS = _E.EXCEPTION_HANDLED | _E.RAISE
+# The method delivering each global event, keyed by event bit.
+_GLOBAL_EVENT_METHODS: dict[int, str] = {
+    _E.EXCEPTION_HANDLED: "on_exception_handled",
+    _E.RAISE: "on_raise",
+}
 
 
 class MonitoringToolUnavailable(RuntimeError):
@@ -121,7 +126,8 @@ class MonitoringEventHandler(ABC):
         handler must not affect the monitored function's behavior.
         ``on_py_line``, ``on_exception_handled``, and ``on_raise`` are caught
         and logged instead so one sub-system cannot disrupt another. Global
-        handlers registered with direct=True must handle their own failures.
+        handlers registered with direct=True or subclassing
+        DirectSafeEventHandler must handle their own failures.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
@@ -152,6 +158,64 @@ class MonitoringEventHandler(ABC):
 
     def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
         pass
+
+
+class DirectSafeEventHandler(MonitoringEventHandler):
+    """Global-event handlers whose overridden methods contain their own failures.
+
+    Handlers of this type are delivered directly: CPython calls the overridden
+    methods without the multiplexer dispatch frame, so an exception escaping a
+    method propagates into the monitored frame instead of being contained by
+    the multiplexer. Every overridden method must catch its own exceptions
+    and return normally, and must return None: a sys.monitoring.DISABLE
+    return is only meaningful for local events and makes CPython remove the
+    callback. Verify that in the handler's test suite with assert_direct_safe.
+    """
+
+
+class _HostileException(Exception):
+    """Exception whose every attribute lookup raises.
+
+    A user-defined exception can make any attribute access fail, not just
+    __class__ or __traceback__; this reproduces the worst case a direct
+    callback faces from user code.
+    """
+
+    def __getattribute__(self, name: str) -> Any:
+        raise RuntimeError("hostile attribute access")
+
+
+def assert_direct_safe(handler: MonitoringEventHandler, code: Optional[CodeType] = None) -> None:
+    """Verify that a direct-safe handler contains its failures.
+
+    Calls every overridden global-event method with an exception whose
+    attribute lookups all raise, the worst-case input a direct callback
+    faces. Raises AssertionError when the handler is not a
+    DirectSafeEventHandler, when any overridden method lets an exception
+    escape (such an escape would propagate into the monitored frame under
+    direct delivery), or when a method returns a value instead of None (a
+    DISABLE return makes CPython remove the callback for the event).
+    """
+    if not isinstance(handler, DirectSafeEventHandler):
+        raise AssertionError(
+            f"{type(handler).__name__} must inherit from DirectSafeEventHandler to be delivered directly"
+        )
+    code = compile("pass", "<direct-safety-check>", "exec") if code is None else code
+    exception = _HostileException("hostile")
+    for method_name in _GLOBAL_EVENT_METHODS.values():
+        if getattr(type(handler), method_name) is getattr(MonitoringEventHandler, method_name):
+            continue  # not overridden for this event
+        try:
+            result = getattr(handler, method_name)(code, 0, exception)
+        except BaseException as e:
+            # Only use the type name: formatting the escaped exception itself
+            # may trigger more attribute failures.
+            raise AssertionError(
+                f"{type(handler).__name__}.{method_name} must contain its failures: it raised "
+                f"{type(e).__name__} when the delivered exception attribute access failed"
+            ) from e
+        if result is not None:
+            raise AssertionError(f"{type(handler).__name__}.{method_name} must return None")
 
 
 def _events_for_handler(handler: MonitoringEventHandler) -> int:
@@ -493,16 +557,19 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
         _release_tool_if_unused()
 
 
-def register_global(handler: MonitoringEventHandler, *, direct: bool = False) -> None:
+def register_global(handler: MonitoringEventHandler, *, direct: Optional[bool] = None) -> None:
     """Register handler for the global events it overrides.
 
     Each global event (EXCEPTION_HANDLED, RAISE) supports a single subscriber.
     Registering the current owner is idempotent; a different owner is rejected
     without changing any event.
 
-    With direct=True, CPython calls the overridden methods directly. These
-    callbacks must handle their own failures and return None. The first
-    registration selects the delivery mode until that event is unregistered.
+    Delivery is direct when the handler is a DirectSafeEventHandler or when
+    direct=True is passed: CPython calls the overridden methods without the
+    multiplexer dispatch frame, and the callbacks must handle their own
+    failures and return None. Direct=False forces wrapped delivery with
+    multiplexer-side error isolation. The first registration selects the
+    delivery mode until that event is unregistered.
     """
     handler_events = _events_for_handler(handler) & _GLOBAL_EVENTS
     if not handler_events:
@@ -510,6 +577,9 @@ def register_global(handler: MonitoringEventHandler, *, direct: bool = False) ->
 
     global _global_exception_handled_handler
     global _global_raise_handler
+
+    if direct is None:
+        direct = isinstance(handler, DirectSafeEventHandler)
 
     with _registry_lock:
         if (
@@ -530,13 +600,18 @@ def register_global(handler: MonitoringEventHandler, *, direct: bool = False) ->
         if previous_exception_handled is _global_exception_handled_handler and previous_raise is _global_raise_handler:
             return
 
-        previous_callbacks: list[tuple[int, Any]] = []
+        tool_id: Optional[int] = None
         try:
             tool_id = _setup()
             if direct:
                 # Register the handler's own methods with CPython, skipping the
                 # multiplexer dispatch frame on every event. Only events that
-                # had no previous owner take the mode of this registration.
+                # had no previous owner take the mode of this registration;
+                # for those events the installed callback is always the
+                # multiplexer wrapper, so the rollback below can restore the
+                # wrappers unconditionally instead of tracking what was
+                # installed (an interrupt can land between the installation
+                # and any bookkeeping).
                 for event, owner, callback in (
                     (
                         _E.EXCEPTION_HANDLED,
@@ -546,12 +621,7 @@ def register_global(handler: MonitoringEventHandler, *, direct: bool = False) ->
                     (_E.RAISE, previous_raise, handler.on_raise),
                 ):
                     if handler_events & event and owner is None:
-                        previous_callbacks.append(
-                            (
-                                event,
-                                _sys_monitoring.register_callback(tool_id, event, callback),
-                            )
-                        )
+                        _sys_monitoring.register_callback(tool_id, event, callback)
             _sys_monitoring.set_events(tool_id, _compute_global_events())
         except BaseException:
             # Also roll back on KeyboardInterrupt/SystemExit: a handler left
@@ -559,8 +629,13 @@ def register_global(handler: MonitoringEventHandler, *, direct: bool = False) ->
             # the idempotent early return and silently stay inactive.
             _global_exception_handled_handler = previous_exception_handled
             _global_raise_handler = previous_raise
-            for event, callback in reversed(previous_callbacks):
-                _sys_monitoring.register_callback(tool_id, event, callback)
+            if tool_id is not None:
+                # The interruption may also come from _setup() itself, before
+                # the tool was claimed.
+                if handler_events & _E.EXCEPTION_HANDLED:
+                    _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
+                if handler_events & _E.RAISE:
+                    _sys_monitoring.register_callback(tool_id, _E.RAISE, _on_raise)
             _release_tool_if_unused()
             raise
 
@@ -573,10 +648,8 @@ def unregister_global(handler: MonitoringEventHandler) -> None:
     with _registry_lock:
         removed_events = 0
         if _global_exception_handled_handler is handler:
-            _global_exception_handled_handler = None
             removed_events |= _E.EXCEPTION_HANDLED
         if _global_raise_handler is handler:
-            _global_raise_handler = None
             removed_events |= _E.RAISE
         if not removed_events:
             # A previous teardown may have been interrupted after the owners
@@ -585,10 +658,20 @@ def unregister_global(handler: MonitoringEventHandler) -> None:
             if _tool_id is None or not (_sys_monitoring.get_events(_tool_id) & _GLOBAL_EVENTS):
                 return
         if _tool_id is not None:
-            _sys_monitoring.set_events(_tool_id, _compute_global_events())
+            # Tear down the CPython side before clearing ownership: an
+            # interruption at any point here leaves the owners recorded, so
+            # the state stays consistent and the retry completes the
+            # teardown. Compute the arming mask as if the owners were already
+            # removed, since set_events must reflect the post-teardown state.
+            remaining = _compute_global_events() & ~removed_events
+            _sys_monitoring.set_events(_tool_id, remaining)
             # Release direct bound callbacks even while another owner keeps the tool alive.
             if removed_events & _E.EXCEPTION_HANDLED:
                 _sys_monitoring.register_callback(_tool_id, _E.EXCEPTION_HANDLED, _on_exception_handled)
             if removed_events & _E.RAISE:
                 _sys_monitoring.register_callback(_tool_id, _E.RAISE, _on_raise)
+        if removed_events & _E.EXCEPTION_HANDLED:
+            _global_exception_handled_handler = None
+        if removed_events & _E.RAISE:
+            _global_raise_handler = None
         _release_tool_if_unused()
