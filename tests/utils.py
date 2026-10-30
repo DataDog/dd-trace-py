@@ -713,7 +713,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         compute_stats_enabled: Optional[bool] = None,
         stats_opt_out: Optional[bool] = None,
     ) -> DummyWriter:
-        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._inner_writer._api_version
+        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled, api_version=api_version)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)
