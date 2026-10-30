@@ -21,7 +21,7 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 - Verify `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` in event-based patch wrappers, plus either registered LLMObs subscribers or `llmobs_integration=integration` for older integrations
 - Verify success and error paths call `ctx.dispatch_ended_event(...)`
 - Legacy integrations only: verify `patch()` stores integration: `module._datadog_integration = MyIntegration(integration_config=config.mylib)`
-- Subscriber-based integrations: do not store the integration on the module (that re-couples the patch layer to LLMObs). Instead verify the subscriber's lazy `integration()` classmethod builds and caches the instance (e.g. `LLMObsAnthropicSubscriber.integration()` in `ddtrace/llmobs/_contrib/anthropic/subscribers.py`)
+- Subscriber-based integrations: do not store the integration on the module (that re-couples the patch layer to LLMObs). Instead verify that the component is registered by its entry point and the shared starting subscriber in `ddtrace/llmobs/_contrib/_subscribers.py` builds and stores the integration on the request context
 - Check `DD_LLMOBS_ENABLED=1` is set
 
 ---
