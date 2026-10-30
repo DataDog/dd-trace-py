@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable
+from contextlib import nullcontext
 from functools import partial
 import logging
 import os
@@ -15,6 +16,7 @@ import pytest
 
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
@@ -22,6 +24,7 @@ from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -1040,6 +1043,83 @@ async def _send_complete_http_response(
     if message.get("type") == "http.request":
         await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
         await send({"type": "http.response.body", "body": body})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "outcome, exc_type",
+    [
+        ("response", None),
+        ("early", RuntimeError),
+        ("early", asyncio.CancelledError),
+        ("blocked", None),
+        ("blocked_active", None),
+        ("child_error", None),
+        ("late", RuntimeError),
+        ("late", asyncio.CancelledError),
+        ("callback_error", None),
+        ("handled_exception", None),
+    ],
+)
+async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, outcome, exc_type):
+    requests, finished, response_times, finished_errors = [], [], [], []
+
+    def record_finish(span):
+        finished.append(span)
+        finished_errors.append(span.get_tag(ERROR_TYPE))
+
+    async def app(scope, receive, send):
+        requests.extend(scope["datadog"]["request_spans"])
+        for span in requests:
+            span._on_finish_callbacks.insert(0, record_finish)
+        if outcome == "early":
+            raise exc_type("request failed")
+        response_times.extend(requests[-1].start_ns / 1e9 + offset for offset in (1, 2, 3))
+        monkeypatch.setattr(
+            "ddtrace.contrib.internal.asgi.middleware.Time", mock.Mock(time=mock.Mock(side_effect=response_times))
+        )
+        if outcome in ("blocked", "blocked_active"):
+            blocked = {"type": "auto", "status_code": 403}
+            if outcome == "blocked_active":
+                monkeypatch.setattr("ddtrace.contrib.internal.asgi.middleware.get_blocked", lambda: blocked)
+            raise BlockingException(blocked)
+        if outcome in ("late", "child_error", "callback_error", "handled_exception"):
+            requests[-1].error = 1
+        if outcome == "callback_error":
+            requests[0]._on_finish_callbacks.append(mock.Mock(side_effect=RuntimeError("finish failed")))
+        await _send_complete_http_response(receive, send)
+        if outcome == "late":
+            raise exc_type("cleanup failed")
+
+    middleware = TraceMiddleware(TraceMiddleware(TraceMiddleware(app)))
+    receive = mock.AsyncMock(return_value={"type": "http.request", "body": b""})
+    send = mock.AsyncMock()
+    scope = _http_scope()
+    if outcome == "handled_exception":
+        try:
+            raise RuntimeError("already handled")
+        except RuntimeError:
+            await middleware(scope, receive, send)
+    else:
+        with pytest.raises(exc_type) if exc_type else nullcontext():
+            await middleware(scope, receive, send)
+    if not exc_type:
+        assert send.call_args_list[0].args[0]["status"] == (403 if outcome.startswith("blocked") else 200)
+
+    assert len(requests) == 3
+    assert finished == requests[::-1]
+    assert all(child._parent is parent for parent, child in zip(requests, requests[1:]))
+    assert not scope["datadog"]["request_spans"]
+    assert not scope["datadog"].get("request_spans_to_finish")
+    assert not tracer._span_aggregator._traces
+    if exc_type:
+        assert all(error and error.endswith(exc_type.__name__) for error in finished_errors)
+    elif outcome == "handled_exception":
+        assert not any(finished_errors)
+    if outcome not in ("early", "blocked_active"):
+        queued = requests if outcome in ("response", "blocked") else requests[:-1]
+        for span, end_time in zip(queued, response_times):
+            assert span.start_ns + span.duration_ns == int(end_time * 1e9)
 
 
 @pytest.mark.asyncio
