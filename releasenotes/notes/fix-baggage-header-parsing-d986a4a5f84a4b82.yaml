@@ -1,0 +1,3 @@
+fixes:
+  - |
+    tracing: Fixes inconsistent handling of baggage headers that exceed extraction limits.
