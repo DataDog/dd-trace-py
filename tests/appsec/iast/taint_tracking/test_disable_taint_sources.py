@@ -21,7 +21,8 @@ from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast_context import _get_iast_context_id
-from ddtrace.appsec._iast_context import iast_suppress_context
+from ddtrace.internal.security import _taint_sources
+from ddtrace.internal.security._taint_sources import iast_suppress_context
 
 
 @pytest.fixture(params=[iast_suppress_context, iast_disabled_taint_sources])
@@ -97,12 +98,12 @@ def test_taint_sources_restored_after_exception(iast_context_defaults, suppress_
 def test_taint_source_suppression_without_request(suppress_taint_sources):
     def without_request():
         assert _get_iast_context_id() is None
-        assert _iast_context._is_iast_taint_source_enabled()
+        assert _taint_sources._is_iast_taint_source_enabled()
         with suppress_taint_sources():
             assert _get_iast_context_id() is None
-            assert not _iast_context._is_iast_taint_source_enabled()
+            assert not _taint_sources._is_iast_taint_source_enabled()
             assert not is_pyobject_tainted(_taint("suppressed_without_request"))
-        assert _iast_context._is_iast_taint_source_enabled()
+        assert _taint_sources._is_iast_taint_source_enabled()
         assert _get_iast_context_id() is None
 
     contextvars.Context().run(without_request)
@@ -111,10 +112,10 @@ def test_taint_source_suppression_without_request(suppress_taint_sources):
 def test_taint_source_suppression_is_context_local(suppress_taint_sources):
     other_context = contextvars.copy_context()
     with suppress_taint_sources():
-        assert not _iast_context._is_iast_taint_source_enabled()
-        assert other_context.run(_iast_context._is_iast_taint_source_enabled)
-        assert not _iast_context._is_iast_taint_source_enabled()
-    assert _iast_context._is_iast_taint_source_enabled()
+        assert not _taint_sources._is_iast_taint_source_enabled()
+        assert other_context.run(_taint_sources._is_iast_taint_source_enabled)
+        assert not _taint_sources._is_iast_taint_source_enabled()
+    assert _taint_sources._is_iast_taint_source_enabled()
 
 
 def test_is_iast_request_enabled_re_export_is_shared():
