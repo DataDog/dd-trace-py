@@ -8,7 +8,7 @@ coverage[toml]==7.16.2
 datadog==0.54.0
 datadog-lambda==8.128.0
 ddtrace==4.15.2
-ddtrace-internal==0.1.0
+ddtrace-internal==0.2.0
 envier==0.6.1
 hypothesis==6.45.0
 idna==3.20
