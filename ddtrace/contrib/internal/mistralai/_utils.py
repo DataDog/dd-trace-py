@@ -1,10 +1,18 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
-from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
-from ddtrace.contrib.internal.stream_handler import StreamHandler
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import StreamHandler
+
+
+log = get_logger(__name__)
+
+
+def extract_provider(kwargs: dict[str, Any]) -> str:
+    server_url = kwargs.get("server_url") or ""
+    return "mistral" if not server_url or "mistral" in server_url.lower() else "unknown"
 
 
 def _accumulate_tool_calls(tool_calls_map: dict[int, dict[str, Any]], tool_calls: list[Any]) -> None:
@@ -99,16 +107,23 @@ def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
     return merged_response
 
 
-class BaseMistralAIStreamHandler(BaseStreamHandler):
+class BaseMistralAIStreamHandler:
+    """Mixed into StreamHandler/AsyncStreamHandler, which provide chunks and options."""
+
+    chunks: list[Any]
+    options: dict[str, Any]
+
     def finalize_stream(self, exception: Optional[BaseException] = None) -> None:
-        self.integration.llmobs_set_tags(
-            self.primary_span,
-            args=list(self.request_args),
-            kwargs=self.request_kwargs,
-            response=_join_chunks(self.chunks),
-            operation="llm",
-        )
-        self.primary_span.finish()
+        """Build the response from chunks, then dispatch the deferred ended event, which finishes the span."""
+        ctx = self.options["ctx"]
+        try:
+            ctx.event.response = _join_chunks(self.chunks)
+        except Exception:
+            log.warning("Error processing streamed MistralAI response.", exc_info=True)
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class MistralAIStreamHandler(BaseMistralAIStreamHandler, StreamHandler):

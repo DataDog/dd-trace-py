@@ -46,6 +46,8 @@ Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_ev
 
 Key points:
 - Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset for subscriber-based integrations
+- Pass `request_args=args` when the wrapped call accepts positional arguments that extraction reads; the finishing subscriber forwards them to `llmobs_set_tags()`
+- `_get_base_url()` receives `instance` and `request_kwargs`, so integrations whose base URL is a request argument (LiteLLM's `api_base`) can still detect instrumented proxies
 - Set contrib-owned APM tags through the event's `tags`; pass `None` as the stream handler's integration when contrib has none
 - The event/subscriber path owns span creation and finishing; patch wrappers should not call `tracer.trace()`, `integration.trace()`, or create spans directly for standard request spans
 - Use `with core.context_with_event(event, dispatch_end_event=False) as ctx:` when streaming or when the wrapper needs to dispatch the ended event manually
@@ -111,6 +113,10 @@ Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/internal/utils/strea
 When `__enter__` wraps a stream manager, the parent retains the child wrapper for the `with` body so `__del__` cannot finalize the shared handler early. `on_stream_created` runs before that retain; if it raises, the handler is finalized immediately because Python will not call `__exit__`.
 
 Wire into patch with `make_traced_stream(response, handler)`.
+
+When one stream completes several requests, the handler finishes each request's context.
+LiteLLM's Router streams the response of the inner `litellm.completion` call, so the router
+wrapper adds its context to that stream's handler (`ddtrace/contrib/internal/litellm/utils.py`).
 
 For the agent pattern (tool child spans within streams), see `ddtrace/llmobs/_integrations/claude_agent_sdk.py`.
 

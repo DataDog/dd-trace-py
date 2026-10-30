@@ -1,7 +1,10 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.internal.settings import env
+from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
+from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
+from ddtrace.contrib.internal.litellm.utils import is_completion_operation
+from ddtrace.contrib.internal.litellm.utils import model_map
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -9,7 +12,6 @@ from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
@@ -19,18 +21,10 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
-from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.trace import Span
 
-
-TEXT_COMPLETION_OPERATIONS = (
-    "text_completion",
-    "atext_completion",
-    "router.text_completion",
-    "router.atext_completion",
-)
 
 MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature", "tags")
 METADATA_KEYS = (
@@ -48,16 +42,11 @@ PROXY_SERVER_REQUEST_KEYS = ("body", "url", "method")
 
 class LiteLLMIntegration(BaseLLMIntegration):
     _integration_name = "litellm"
-    # maps requested model name to parsed model name and provider
-    _model_map: dict[str, tuple[str, str]] = {}
+    # Shared with the contrib, which fills it in as litellm resolves providers.
+    _model_map = model_map
 
-    def _set_base_span_tags(
-        self, span: Span, model: Optional[str] = None, host: Optional[str] = None, **kwargs: dict[str, Any]
-    ) -> None:
-        if model is not None:
-            span._set_attribute("litellm.request.model", model)
-        if host is not None:
-            span._set_attribute("litellm.request.host", host)
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Nothing to do: the contrib sets the APM model/host tags itself."""
 
     def _llmobs_set_tags(
         self,
@@ -80,7 +69,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         )
 
         # use Open AI helpers since response format will match Open AI
-        if self.is_completion_operation(operation):
+        if is_completion_operation(operation):
             openai_set_meta_tags_from_completion(span, kwargs, response, integration_name="litellm")
         else:
             openai_set_meta_tags_from_chat(span, kwargs, response, integration_name="litellm")
@@ -109,7 +98,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
         elif not base_url and "router" in operation:
-            llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
+            llm_router = kwargs.get(ROUTER_INSTANCE_KEY)
             if llm_router:
                 metadata["router_settings"] = {
                     "router_general_settings": getattr(llm_router, "router_general_settings", None),
@@ -139,44 +128,12 @@ class LiteLLMIntegration(BaseLLMIntegration):
             )
         return new_model_list
 
-    def _has_downstream_openai_span(self, kwargs: dict[str, Any], model: Optional[str] = None) -> bool:
-        """
-        Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
-
-        Currently, this only applies to the OpenAI integration when the following conditions are met:
-            - request is not streamed
-            - model provider is OpenAI/AzureOpenAI
-            - the OpenAI integration is enabled
-        """
-        stream = kwargs.get("stream", False)
-        model_lower = model.lower() if model else ""
-        # Detect litellm proxy routing — the OpenAI integration never fires when requests go through a proxy.
-        # Three mechanisms exist (v1.72.1+ for use_litellm_proxy):
-        #   1. model prefix:        model="litellm_proxy/<model>"
-        #   2. per-call kwarg:      use_litellm_proxy=True
-        #   3. module-level flag:   litellm.use_litellm_proxy = True  /  USE_LITELLM_PROXY env var
-        if model_lower.startswith("litellm_proxy/"):
-            return False
-        if kwargs.get("use_litellm_proxy"):
-            return False
-        import litellm as _litellm
-
-        if getattr(_litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
-            return False
-        # OpenRouter routes through litellm's own HTTP handler, not the OpenAI SDK, so there's no
-        # downstream OpenAI span to defer to.
-        if model_lower.startswith("openrouter/"):
-            return False
-        # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
-        is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
-        return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
-
     def _resolve_model_name(self, span: Span, response: Optional[Any], model_name: str, model_provider: str) -> str:
         # Azure requires an arbitrary deployment name as the request model; the canonical model
         # comes from the response. azure_ai is excluded — LiteLLM rewrites its response model to
         # "azure_ai/<deployment>", which would not match the cost catalog.
         if model_provider in ("azure", "azure_text"):
-            response_model = span.get_tag("litellm.response.model") or _get_attr(response, "model", None)
+            response_model = span.get_tag(TAG_RESPONSE_MODEL) or _get_attr(response, "model", None)
             if response_model:
                 return str(response_model)
         return model_name
@@ -216,9 +173,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             if value:
                 new_data[key] = value
         return new_data
-
-    def is_completion_operation(self, operation: str) -> bool:
-        return operation in TEXT_COMPLETION_OPERATIONS
 
     def is_router_operation(self, operation: Optional[str]) -> bool:
         return "router" in operation if operation else False
@@ -282,6 +236,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         return metrics
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
-        base_url = kwargs.get("base_url")
+    def _get_base_url(self, **kwargs: Any) -> Optional[str]:
+        request_kwargs = kwargs.get("request_kwargs") or {}
+        base_url = request_kwargs.get("base_url") or request_kwargs.get("api_base")
         return str(base_url) if base_url else None

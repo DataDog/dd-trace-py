@@ -80,6 +80,9 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 [project.entry-points.'ddtrace.integration_hooks']
 anthropic = "ddtrace.llmobs._contrib.anthropic"
 llama_index = "ddtrace.llmobs._contrib.llama_index"
+litellm = "ddtrace.llmobs._contrib.litellm"
+mistralai = "ddtrace.llmobs._contrib.mistralai"
+typesafe = "ddtrace.llmobs._contrib.typesafe"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
