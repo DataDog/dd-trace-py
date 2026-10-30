@@ -425,14 +425,64 @@ def w3c_encode_tag(args: tuple[Pattern, str, str]) -> str:
     return tag_val.replace("=", "~")
 
 
+# dd= fields that must always be retained when a member is truncated to fit
+# the W3C 256-character limit. Any other field (e.g. propagated t.* tags) is
+# optional and may be dropped as a whole field.
+_W3C_DD_MANDATORY_FIELD_PREFIXES = (
+    "p:",
+    "s:",
+    "o:",
+    "t.dm:",
+    "t.usr.id:",
+)
+
+
+def _w3c_dd_member_fits(value: str) -> bool:
+    return len(value) <= W3C_DD_LIST_MEMBER_MAX_CHARS
+
+
+def _w3c_dd_member_truncate_to_limit(value: str) -> str:
+    """Drop optional t.* fields (whole fields) until ``value`` fits the limit.
+
+    Mandatory fields are always retained; among optional fields the least
+    important (most recently added) ones are dropped first so the remaining
+    trace state stays parseable.
+    """
+    fields = value.split(";")
+    mandatory = [f for f in fields if f.startswith(_W3C_DD_MANDATORY_FIELD_PREFIXES)]
+    optional = [f for f in fields if not f.startswith(_W3C_DD_MANDATORY_FIELD_PREFIXES)]
+    while optional and not _w3c_dd_member_fits(";".join(mandatory + optional)):
+        optional.pop()
+    return ";".join(mandatory + optional)
+
+
+def _w3c_tracestate_enforce_dd_limit(tracestate: str) -> str:
+    """Ensure every dd= list-member value stays within W3C_DD_LIST_MEMBER_MAX_CHARS.
+
+    The parent-id field added by :func:`w3c_tracestate_add_p` can push a dd=
+    value past the 256-character limit. When that happens, optional t.* fields
+    are dropped (whole fields) so the remaining trace state remains parseable
+    instead of being rejected by W3C consumers.
+    """
+    members = tracestate.split(",")
+    for i, member in enumerate(members):
+        if member.startswith("dd="):
+            value = member[len("dd=") :]
+            if not _w3c_dd_member_fits(value):
+                members[i] = "dd=" + _w3c_dd_member_truncate_to_limit(value)
+    return ",".join(members)
+
+
 def w3c_tracestate_add_p(tracestate, span_id):
     # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
     p_member = f"{W3C_TRACESTATE_PARENT_ID_KEY}:{span_id:016x}"
     if "dd=" in tracestate:
-        return tracestate.replace("dd=", f"dd={p_member};")
+        new_tracestate = tracestate.replace("dd=", f"dd={p_member};")
     elif tracestate:
-        return f"dd={p_member},{tracestate}"
-    return f"dd={p_member}"
+        new_tracestate = f"dd={p_member},{tracestate}"
+    else:
+        new_tracestate = f"dd={p_member}"
+    return _w3c_tracestate_enforce_dd_limit(new_tracestate)
 
 
 class Response:
