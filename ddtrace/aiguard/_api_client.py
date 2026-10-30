@@ -13,10 +13,12 @@ from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
+from ddtrace.aiguard._types import MCP  # noqa:F401
 from ddtrace.aiguard._types import ContentPart  # noqa:F401
 from ddtrace.aiguard._types import Evaluation
 from ddtrace.aiguard._types import Function  # noqa:F401
 from ddtrace.aiguard._types import ImageURL  # noqa:F401
+from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
 from ddtrace.aiguard.middleware import _MIDDLEWARES
@@ -54,7 +56,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
 
 
-__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation"]
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation", "MCP", "MCPServer"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -401,6 +403,7 @@ class AIGuardClient:
         source: str = AI_GUARD.SOURCE_SDK,
         integration: str = AI_GUARD.INTEGRATION_NONE,
         tags: Optional[dict[str, Any]] = None,
+        mcp_servers: Optional[list[MCPServer]] = None,
     ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
@@ -416,6 +419,8 @@ class AIGuardClient:
                 telemetry tag. Only meaningful when source is auto; otherwise reported as none.
             tags: Optional custom tags set on the AI Guard span, e.g. to filter evaluations in
                 queries. Keys under the reserved ai_guard. prefix are ignored.
+            mcp_servers: MCP servers referenced by the mcp.server_id of the tool calls in
+                messages. Sent along with the messages; omitted when empty.
 
         Returns:
             EvaluationResult containing action and reason
@@ -470,7 +475,10 @@ class AIGuardClient:
                     if not key.startswith(_RESERVED_TAG_PREFIX):
                         span.set_tag(key, value)
             try:
-                payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
+                request_attributes: dict[str, Any] = {"messages": messages, "meta": self._meta}
+                if mcp_servers:
+                    request_attributes["mcp_servers"] = mcp_servers
+                payload = {"data": {"attributes": request_attributes}}
                 span.set_tag(AI_GUARD.TARGET_TAG, target.value)
                 if target is EvaluationTarget.TOOL:
                     # The tool name is best effort: a tool result whose call is not in the

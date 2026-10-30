@@ -452,3 +452,43 @@ def test_non_stream_result_not_wrapped():
     sentinel = object()
     result = sync_wrapper(lambda *a, **k: sentinel, None, (), {})
     assert result is sentinel
+
+
+class _Manager:
+    """A stream whose context manager yields a new inner stream, like MessageStreamManager."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __enter__(self):
+        return self._inner
+
+    def __exit__(self, *exc):
+        return None
+
+    async def __aenter__(self):
+        return self._inner
+
+    async def __aexit__(self, *exc):
+        return None
+
+
+def _enabled():
+    return True
+
+
+def test_manager_path_keeps_the_enabled_check():
+    proxy = BufferedAIGuardStream(_Manager(iter([])), reconstruct=list, evaluate=lambda resp: None, enabled=_enabled)
+    with proxy as inner:
+        assert isinstance(inner, BufferedAIGuardStream)
+        assert inner._self_enabled is _enabled
+
+
+@pytest.mark.asyncio
+async def test_async_manager_path_keeps_the_enabled_check():
+    proxy = BufferedAIGuardAsyncStream(
+        _Manager(iter([])), reconstruct=list, evaluate=lambda resp: None, enabled=_enabled
+    )
+    async with proxy as inner:
+        assert isinstance(inner, BufferedAIGuardAsyncStream)
+        assert inner._self_enabled is _enabled
