@@ -31,6 +31,7 @@ def get_product_entry_points() -> list[t.Any]:
 
 class Product(Protocol):
     requires: list[str]
+    subscriber_bundles: tuple["SubscriberBundle", ...] = ()
 
     def post_preload(self) -> None: ...
 
@@ -179,6 +180,12 @@ class ProductManager:
                 failed.add(name)
                 continue
 
+            for bundle in getattr(product, "subscriber_bundles", ()):
+                try:
+                    bundle.register()
+                except Exception:
+                    log.exception("Failed to register subscriber bundle %r for product '%s'", bundle, name)
+
             # enabled() only says the lifecycle must run; a product can start without being active
             # (e.g. AppSec waiting on remote activation). Evaluate after start() to see load failures.
             try:
@@ -217,27 +224,38 @@ class ProductManager:
             except Exception:
                 log.exception("Failed to restart product '%s'", name)
 
+    def _unregister_subscribers(self, name: str, product: Product) -> None:
+        for bundle in reversed(getattr(product, "subscriber_bundles", ())):
+            try:
+                bundle.unregister()
+            except Exception:
+                log.exception("Failed to unregister subscriber bundle %r for product '%s'", bundle, name)
+
     def stop_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
-                if not product.enabled():
-                    continue
-                product.stop(join=join)
-                log.debug("Stopped product '%s'", name)
-                telemetry_writer.product_activated(name.replace("-", "_"), False)
+                enabled = product.enabled()
+                if enabled:
+                    product.stop(join=join)
+                    log.debug("Stopped product '%s'", name)
+                # Keep completion listeners available while stop() drains active work.
+                self._unregister_subscribers(name, product)
+                if enabled:
+                    telemetry_writer.product_activated(name.replace("-", "_"), False)
             except Exception:
                 log.exception("Failed to stop product '%s'", name)
 
     def exit_products(self, join: bool = False) -> None:
         for name, product in reversed(self.products):
             try:
-                if not product.enabled():
-                    continue
-                if (skip_exit := getattr(product, "skip_exit", None)) is not None and skip_exit():
+                enabled = product.enabled()
+                if enabled and (skip_exit := getattr(product, "skip_exit", None)) is not None and skip_exit():
                     log.debug("Skipping stop on exit for product '%s'", name)
                     continue
-                product.stop(join=join)
-                log.debug("Stopped product '%s' on exit", name)
+                if enabled:
+                    product.stop(join=join)
+                    log.debug("Stopped product '%s' on exit", name)
+                self._unregister_subscribers(name, product)
             except Exception:
                 try:
                     log.exception("Failed to stop product '%s' on exit", name)

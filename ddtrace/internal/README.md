@@ -64,9 +64,10 @@ gets extended to add support for additional features.
 | Attribute | Description |
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
+| `subscriber_bundles: tuple[SubscriberBundle, ...]` | Bundles registered after a successful `start()` and unregistered after `stop()`; omitted by default |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
-| `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
+| `skip_exit() -> bool` | Return `True` to skip `stop()` and bundle unregistration at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
@@ -85,8 +86,8 @@ WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     subscribers=("RequestSubscriber", "RequestContextSubscriber"),
 )
 
-# Call from the owner's existing initialization path.
-WEB_FRAMEWORK_SUBSCRIBERS.register()
+# Declare on the product module. The manager owns registration and teardown.
+subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS,)
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
@@ -96,9 +97,18 @@ Repeated registration uses named-listener deduplication and can restore listener
 after a reset. Import and callback failures propagate to the caller; registration
 is not a transaction across callback failures.
 
-`unregister()` removes listeners in reverse declaration order without importing an
-unused module. The caller owns teardown timing: completion listeners must remain
-registered until active contexts finish.
+`ProductManager.start_products()` registers declared bundles in order after a
+successful `start()`. Disabled products, failed starts, and products whose dependencies
+failed do not register bundles. Registration failures are logged per bundle without
+preventing other bundles or products from starting.
+
+`stop_products()` and `exit_products()` unregister bundles in reverse declaration order
+after `stop()` returns, allowing completion listeners to run while the product drains
+active contexts. If `stop()` raises, listeners are retained. Disabled products still
+have their bundles unregistered; enabled products using `skip_exit()` retain their
+bundles at process exit. Unregistration failures are logged per bundle without
+preventing other bundles or products from being cleaned up. `unregister()` never
+imports an unused module.
 
 Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration` and
 registers it when `ddtrace._trace.subscribers` is imported. Existing integration
@@ -106,9 +116,11 @@ imports reach that package, including direct/manual instrumentation without the
 product manager. Shared tracing listeners retain their existing process lifetime;
 other subscriber families continue to register automatically.
 
-Bundles do not change the `Product` protocol or `ProductManager`. Products call
-bundles from their existing initialization paths; automatic subscriber lifecycle
-hooks can be added separately.
+The `subscriber_bundles` attribute is optional and defaults to no bundles; products
+need no registration or unregistration hooks. Only declare bundles whose lifetime the
+manager should own. Tracing's shared listeners remain registered through the existing
+import path rather than this attribute, preserving manual instrumentation and the
+completion of contexts after a product stop.
 
 
 ## Remote Configuration Callbacks

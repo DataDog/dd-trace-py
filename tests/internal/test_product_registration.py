@@ -12,6 +12,7 @@ from ddtrace.internal import core
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.products import ProductManager
 from ddtrace.internal.products import SubscriberBundle
 
 
@@ -187,3 +188,50 @@ def test_direct_integration_import_registers_web_subscribers() -> None:
     assert manager._products is None
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
+
+
+@pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
+def test_manager_owns_declared_bundle_listeners(monkeypatch: pytest.MonkeyPatch, shutdown: str) -> None:
+    calls: list[str] = []
+
+    class RequestSubscriber(ContextSubscriber[RegistrationEvent]):
+        auto_register = False
+        event_names = (RegistrationEvent.event_name,)
+
+        @classmethod
+        def on_started(cls, ctx: core.ExecutionContext[RegistrationEvent]) -> None:
+            calls.append("start")
+
+        @classmethod
+        def on_ended(
+            cls,
+            ctx: core.ExecutionContext[RegistrationEvent],
+            exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
+        ) -> None:
+            calls.append("end")
+
+    module = ModuleType("example.managed_subscribers")
+    setattr(module, "RequestSubscriber", RequestSubscriber)
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    product = Mock()
+    product.requires = []
+    product.enabled.return_value = True
+    product.skip_exit.return_value = False
+    product.subscriber_bundles = (SubscriberBundle(module.__name__, ("RequestSubscriber",)),)
+    manager = ProductManager()
+    manager._products = [("test", product)]
+    context = core.context_with_event(RegistrationEvent())
+    # stop() drains the active context while its completion listener is still registered.
+    product.stop.side_effect = lambda join=False: context.__exit__(None, None, None)
+    try:
+        manager.start_products()
+        manager.start_products()
+        context.__enter__()
+        assert calls == ["start"]
+        getattr(manager, shutdown)()
+        assert calls == ["start", "end"]
+        with core.context_with_event(RegistrationEvent()):
+            pass
+        assert calls == ["start", "end"]
+    finally:
+        RequestSubscriber.unregister()
