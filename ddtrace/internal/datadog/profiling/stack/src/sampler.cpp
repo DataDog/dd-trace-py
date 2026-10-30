@@ -404,6 +404,33 @@ Sampler::take_sampling_thread_error()
 }
 
 void
+Sampler::record_foreign_segv_handler(bool already_owned, const std::string& owner, bool sampling_stopped) noexcept
+{
+    try {
+        const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
+        // Profiler restart calls set_fast_copy(true) again, so without this the
+        // sampling thread would stash a second notice for the same takeover.
+        if (foreign_segv_handler_reported_) {
+            return;
+        }
+        foreign_segv_handler_ = ForeignSegvHandler{ already_owned, owner, sampling_stopped };
+        foreign_segv_handler_reported_ = true;
+    } catch (...) {
+        // Swallow: diagnostic must not abort sampling.
+        return;
+    }
+}
+
+std::optional<ForeignSegvHandler>
+Sampler::take_foreign_segv_handler()
+{
+    const std::lock_guard<std::mutex> guard(foreign_segv_handler_mutex_);
+    std::optional<ForeignSegvHandler> handler;
+    handler.swap(foreign_segv_handler_);
+    return handler;
+}
+
+void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     seed_fast_copy_profiler_stats();
@@ -433,7 +460,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
     // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    const bool fast_copy_desired = fast_copy_active;
+    // Prefer configured intent so a child restarted after the parent fell back still
+    // probes (fallback clears fast_copy_active). Also honor the live active bit so a
+    // false→true set_fast_copy toggle cannot leave monitoring off while safe_memcpy runs.
+    const bool fast_copy_desired = (!fast_copy_user_disabled || fast_copy_active) && safe_memcpy_initialized;
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
@@ -443,6 +473,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
     const bool fast_copy_warmup = fast_copy_desired && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
+    // True once we have seen our handlers on this sampling thread. When there is no
+    // warmup (process_vm_readv unavailable), the first foreign-handler notice still
+    // means "already owned" unless we previously observed ownership here.
+    bool saw_owned_handlers = false;
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
@@ -476,13 +510,18 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         // Foreign handler handling (see notes before the loop); faulthandler's
         // transient swaps are safe since the sampler is paused around them.
-        if (fast_copy_desired) {
+        // Skip once fallback is done: segv_handler_installed() is two sigaction
+        // queries and must not run every sample for the rest of the process.
+        // Probe at most once per cycle and reuse the result below.
+        if (fast_copy_desired && !handler_fallback_done) {
             if (!fast_copy_upgraded) {
                 // Warmup window: still on the safe syscall copy. Once it elapses,
                 // upgrade to safe_memcpy only if we still own the handlers.
                 if (sample_time_now >= fast_copy_warmup_deadline) {
                     fast_copy_upgraded = true; // decide once
-                    if (segv_handler_installed()) {
+                    const bool handlers_owned = segv_handler_installed();
+                    if (handlers_owned) {
+                        saw_owned_handlers = true;
                         set_fast_copy_enabled(true);
                     } else {
                         // Another component already owns a handler; stay on the safe
@@ -491,31 +530,77 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         handler_fallback_done = true;
                         mark_fast_copy_syscall_fallback();
                         const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                        record_foreign_segv_handler(true, ownership.owners, false);
                         std::cerr << "ddtrace stack profiler: "
                                   << lost_ownership_clause("does not own", ownership.foreign)
                                   << "; keeping the syscall-based memory copy to avoid crashing. "
                                   << "Handler owners: " << ownership.owners << std::endl;
                     }
                 }
-            } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
-                // A handler was taken over after upgrading; fall back permanently
-                // (no debounce). This is not free: it pins the process to the slower
-                // syscall copy for its remaining lifetime, which can meaningfully
-                // degrade sample quality (e.g. on asyncio workloads). We still prefer
-                // it over the alternative, which is crashing under a foreign handler.
-                handler_fallback_done = true;
-                mark_fast_copy_syscall_fallback();
-                const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
-                std::cerr << "ddtrace stack profiler: " << lost_ownership_clause("no longer owns", ownership.foreign)
-                          << "; falling back to syscall-based memory copy to avoid crashing. "
-                          << "Handler owners: " << ownership.owners << std::endl;
-                if (!set_fast_copy_enabled(false)) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
-                    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+            } else if (fast_copy_active) {
+                const bool handlers_owned = segv_handler_installed();
+                if (handlers_owned) {
+                    saw_owned_handlers = true;
+                } else {
+                    // A handler was taken over after upgrading; fall back permanently
+                    // (no debounce). This is not free: it pins the process to the slower
+                    // syscall copy for its remaining lifetime, which can meaningfully
+                    // degrade sample quality (e.g. on asyncio workloads). We still prefer
+                    // it over the alternative, which is crashing under a foreign handler.
+                    // When warmup never ran, !saw_owned_handlers means foreign from the
+                    // first check (same meaning as warmup-end already_owned=true).
+                    handler_fallback_done = true;
+                    mark_fast_copy_syscall_fallback();
+                    const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                    const bool already_owned = !saw_owned_handlers;
+                    std::cerr << "ddtrace stack profiler: "
+                              << lost_ownership_clause(already_owned ? "does not own" : "no longer owns",
+                                                       ownership.foreign)
+                              << "; falling back to syscall-based memory copy to avoid crashing. "
+                              << "Handler owners: " << ownership.owners << std::endl;
+                    if (!set_fast_copy_enabled(false)) {
+                        // No safe fallback available (e.g. process_vm_readv blocked), so
+                        // safe_memcpy is still active; reading under a foreign handler would
+                        // crash - stop sampling instead.
+                        record_foreign_segv_handler(already_owned, ownership.owners, true);
+                        std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                                     "stopping stack sampling to avoid crashing. "
+                                  << "Handler owners: " << ownership.owners << std::endl;
+                        // Match the unexpected-exception path: prefork must not restart
+                        // a sampler that has already stopped itself.
+                        sampler_active_.store(false);
+                        break;
+                    }
+                    record_foreign_segv_handler(already_owned, ownership.owners, false);
+                }
+            } else {
+                // Desired but inactive when this thread started (typical: forked child
+                // after the parent already fell back, and no syscall warmup path).
+                // Probe once; enable safe_memcpy only if we still own the handlers.
+                const bool handlers_owned = segv_handler_installed();
+                if (handlers_owned) {
+                    saw_owned_handlers = true;
+                    if (!set_fast_copy_enabled(true)) {
+                        handler_fallback_done = true;
+                        mark_fast_copy_syscall_fallback();
+                        const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                        record_foreign_segv_handler(true, ownership.owners, true);
+                        std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
+                                     "stopping stack sampling to avoid crashing. "
+                                  << "Handler owners: " << ownership.owners << std::endl;
+                        sampler_active_.store(false);
+                        break;
+                    }
+                } else {
+                    handler_fallback_done = true;
+                    mark_fast_copy_syscall_fallback();
+                    const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
+                    record_foreign_segv_handler(true, ownership.owners, true);
+                    std::cerr << "ddtrace stack profiler: " << lost_ownership_clause("does not own", ownership.foreign)
+                              << "; no safe memory-copy fallback available; "
                                  "stopping stack sampling to avoid crashing. "
                               << "Handler owners: " << ownership.owners << std::endl;
+                    sampler_active_.store(false);
                     break;
                 }
             }
@@ -684,6 +769,17 @@ Sampler::postfork_child()
     // reporting it again here would attribute it to the wrong process.
     new (&sampling_thread_error_mutex_) std::mutex();
     new (&sampling_thread_error_) std::optional<SamplingThreadError>();
+
+    // Drop a parent-inherited takeover notice; the child records its own if needed.
+    // Clear a runtime takeover fallback so the child can re-probe. Keep an
+    // init-time fallback (safe_memcpy never installed): the child will not
+    // re-mark it because fast_copy_desired requires safe_memcpy_initialized.
+    new (&foreign_segv_handler_mutex_) std::mutex();
+    new (&foreign_segv_handler_) std::optional<ForeignSegvHandler>();
+    foreign_segv_handler_reported_ = false;
+    if (safe_memcpy_initialized) {
+        fast_copy_syscall_fallback = false;
+    }
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
