@@ -113,6 +113,12 @@ class OpenFeatureConfig(DDConfig):
         default=True,
     )
 
+    evaluation_telemetry_per_subject_opt_out_enabled = DDConfig.var(
+        bool,
+        "DD_FEATURE_FLAGS_EVALUATION_TELEMETRY_PER_SUBJECT_OPT_OUT_ENABLED",
+        default=False,
+    )
+
     # Where Feature Flagging loads Universal Flag Configuration from.
     # Supported: "agentless" (default) and "remote_config"; "offline" is reserved
     # and currently unsupported. Normalized to trimmed lowercase; validity and
@@ -157,6 +163,7 @@ class OpenFeatureConfig(DDConfig):
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
         "feature_flags_enabled",
+        "evaluation_telemetry_per_subject_opt_out_enabled",
         "configuration_source",
         "configuration_source_agentless_base_url",
         "configuration_source_agentless_poll_interval_seconds",
