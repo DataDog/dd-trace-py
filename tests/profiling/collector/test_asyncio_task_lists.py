@@ -1,8 +1,7 @@
 """Discovery of the native asyncio task lists on Python 3.14+.
 
-CI builds and runs on the same Python release, so profile-based tests pass even when the task-list offsets are wrong
-for other releases. These tests check what asyncio initialization publishes to the sampler, for each order in which
-asyncio, _asyncio and ddtrace can be imported.
+Most tests check what asyncio initialization publishes to the sampler, for each order in which asyncio, _asyncio and
+ddtrace can be imported.
 """
 
 import sys
@@ -206,8 +205,7 @@ def test_asyncio_c_hook_does_not_initialize_when_stack_is_disabled() -> None:
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_task_lists_wall_time"), err=None)
 def test_suspended_task_wall_time_is_bounded_by_elapsed_time() -> None:
-    # Wrong list-head offsets made the walker find the same task many times per sample, inflating its wall time far
-    # beyond the time it existed, or lose the task altogether.
+    # Each sample counts a suspended task at most once, so its wall time cannot exceed the time it existed.
     import asyncio
     import os
     import time
@@ -252,8 +250,8 @@ def test_suspended_task_wall_time_is_bounded_by_elapsed_time() -> None:
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_task_lists_handoff"), err=None)
 def test_task_of_an_exited_thread_is_sampled() -> None:
-    # When a thread exits, CPython moves its pending tasks to the interpreter's task list. Only that list finds the
-    # leaf task here, so a wrong interpreter-list offset loses it even when the thread-list offset is right.
+    # When a thread exits, CPython moves its pending tasks to the interpreter's task list, so only that list holds the
+    # leaf task here.
     import asyncio
     import os
     import threading
