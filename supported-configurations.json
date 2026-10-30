@@ -6037,6 +6037,14 @@
         "internal": true
       }
     ],
+    "_DD_COVERAGE_INCLUDE_IMPORT_DATA": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
     "_DD_CRASHTRACKING_TEST_TOKEN": [
       {
         "implementation": "A",
