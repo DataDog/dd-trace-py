@@ -1,4 +1,7 @@
 from inspect import unwrap
+from types import TracebackType
+from typing import Any
+from typing import Optional
 import weakref
 
 import flask
@@ -37,6 +40,9 @@ except ImportError:
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace.contrib.internal.flask.request import complete_response
+from ddtrace.contrib.internal.flask.request import prepare_request
+from ddtrace.contrib.internal.flask.request import update_route
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
@@ -113,11 +119,28 @@ werkzeug_version = parse_version(werkzeug_version_str)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
+    _defer_response_lifecycle = True
     _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_call_name = "flask.application"
     _response_call_name = "flask.response"
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
+        event = ctx.get_item("flask_request_event")
+        original_start_response = start_response
+
+        def start_response(
+            status: str,
+            response_headers: list[tuple[str, str]],
+            response_exc_info: Optional[tuple[type[BaseException], BaseException, TracebackType]] = exc_info,
+        ) -> Any:
+            if event is not None:
+                try:
+                    event.response_status_code = int(status.split(" ", 1)[0])
+                    event.response_headers = werkzeug.datastructures.Headers(response_headers)
+                except Exception:
+                    log.debug("Failed to complete Flask response metadata", exc_info=True)
+            return original_start_response(status, response_headers, response_exc_info)
+
         core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
         if not get_blocked():
             core.dispatch("flask.start_response", ("Flask",))
@@ -145,6 +168,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _request_call_modifier(self, ctx, parsed_headers=None):
         environ = ctx.get_item("environ")
+        try:
+            ctx.set_item("flask_request_event", prepare_request(environ, config.flask))
+        except Exception:
+            log.debug("Failed to prepare Flask request metadata", exc_info=True)
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
@@ -485,6 +512,12 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
+    event = core.find_item("flask_request_event")
+    if event is not None:
+        try:
+            complete_response(event, rv, None)
+        except Exception:
+            log.debug("Failed to complete Flask response metadata", exc_info=True)
     if getattr(rv, "is_sequence", False):
         core.dispatch("flask.finalize_request.post", (rv.response, rv.headers))
     return rv
@@ -603,6 +636,12 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 def request_patcher(name):
     @with_tracing_enabled
     def _patched_request(wrapped, instance, args, kwargs):
+        event = core.find_item("flask_request_event")
+        if event is not None:
+            try:
+                update_route(event, flask.request)
+            except Exception:
+                log.debug("Failed to update Flask route metadata", exc_info=True)
         with (
             core.context_with_data(
                 "flask._patched_request",

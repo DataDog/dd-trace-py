@@ -508,12 +508,13 @@ def _on_app_exception(ctx):
     req_span.set_exc_info(*sys.exc_info())
     app_span.set_exc_info(*sys.exc_info())
     app_span.finish()
-    req_span.finish()
+    if not ctx.get_item("defer_response_lifecycle", False):
+        req_span.finish()
 
 
 def _on_request_complete(
     ctx: core.ExecutionContext, closing_iterable: Iterable[Any], app_is_iterator: bool
-) -> _TracedIterable:
+) -> Iterable[Any]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
@@ -537,7 +538,26 @@ def _on_request_complete(
     )
     modifier(resp_span, closing_iterable)
 
+    if ctx.get_item("defer_response_lifecycle", False):
+        ctx.set_item("resp_span", resp_span)
+        return closing_iterable
     return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
+
+
+def _on_wsgi_response_complete(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    """Finish the spans owned by the deferred WSGI response scope."""
+    response_span = ctx.get_item("resp_span")
+    request_span = ctx.get_item("req_span")
+    app_span = ctx.get_item("app_span")
+    error_span = response_span or request_span
+    if exc_info[0] is not None and not issubclass(exc_info[0], StopIteration) and error_span is not None:
+        error_span.set_exc_info(*exc_info)
+    for span in (app_span, response_span, request_span):
+        if span is not None and not span.finished:
+            span.finish()
 
 
 def _on_response_prepared(resp_span, response):
@@ -1853,6 +1873,7 @@ def listen():
     core.on("wsgi.app.exception", _on_app_exception)
     core.on("wsgi.request.complete", _on_request_complete, "traced_iterable")
     core.on("wsgi.response.prepared", _on_response_prepared)
+    core.on("wsgi.response.complete", _on_wsgi_response_complete)
     core.on("flask.start_response.pre", _on_start_response_pre)
     core.on("flask.request_call_modifier", _on_request_span_modifier)
     core.on("flask.request_call_modifier.post", _on_request_span_modifier_post)
