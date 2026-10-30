@@ -983,26 +983,23 @@ class _BaggageHeader:
 
         baggage_data: dict[str, str] = {}
         total_size = 0
-        splitted_header = header_value.split(BAGGAGE_DELIMITER)
+        # One extra character ensures a partial final member exceeds the byte budget.
+        splitted_header = header_value[: DD_TRACE_BAGGAGE_MAX_BYTES + 1].split(
+            BAGGAGE_DELIMITER, DD_TRACE_BAGGAGE_MAX_ITEMS
+        )
         for pair_index, key_value in enumerate(splitted_header):
             if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
-                log.warning(
-                    "Baggage item limit exceeded, dropping excess items, skipped: %d items",
-                    len(splitted_header) - DD_TRACE_BAGGAGE_MAX_ITEMS,
-                )
+                log.warning("Baggage item limit exceeded, dropping excess items")
                 _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
                 break
-            if "=" not in key_value:
-                return _BaggageHeader._record_malformed_and_return_empty()
             base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
             segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
             if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
-                log.warning(
-                    "Baggage header size exceeded, dropping excess items. size would be %d bytes",
-                    total_size + segment_bytes,
-                )
+                log.warning("Baggage header size exceeded, dropping excess items")
                 _BAGGAGE_TRUNCATED_BYTE_COUNT.add()
                 break
+            if "=" not in key_value:
+                return _BaggageHeader._record_malformed_and_return_empty()
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
