@@ -58,7 +58,9 @@ hooks for uWSGI workers forked at the C level, where `os.register_at_fork` hooks
 Every hook delays the moment the forked child becomes ready, and pre-fork servers kill children
 that miss a startup deadline. Process managers such as Celery close inherited file descriptors
 after the at-fork callbacks return, so native workers must not be rebuilt while
-`forksafe.in_child_hook()` is true. Rely on the delayed restart of `PeriodicThread` instead.
+`forksafe.in_child_hook()` is true. The delayed restart of `PeriodicThread` usually avoids this,
+but the delay is a fixed time, not a wait for the hooks to finish (FS-12), so code that rebuilds
+native workers checks `forksafe.in_child_hook()` itself.
 
 ### FS-3 Background work uses ddtrace thread primitives
 
@@ -69,16 +71,34 @@ after the at-fork callbacks return, so native workers must not be rebuilt while
 | One-shot background task | `threads.Thread` |
 | Delayed one-shot callback | `periodic.Timer` |
 
-Only these take part in the fork protocol: they are stopped and joined before the fork and
-restarted afterwards. A raw `threading.Thread` keeps running in the parent during the fork,
-may hold locks the child inherits, and does not exist in the child. Under gevent, a thread
-created through the application's patched `threading` is a greenlet.
+Only these take part in the fork protocol: they are stopped and joined before the fork, and
+periodic workers are restarted afterwards. A one-shot `threads.Thread` is joined to completion
+before the fork and never runs again in either process, so a task that must also run in the
+child has to be started again from an after-in-child hook or the product's restart path.
 
-### FS-4 Locks and process-local primitives
+A raw `threading.Thread` keeps running in the parent during the fork, may hold locks the child
+inherits, and does not exist in the child. Under gevent, a thread created through the
+application's patched `threading` is a greenlet.
 
-- Import `Lock`, `RLock`, `Event` and `SimpleQueue` from `ddtrace.internal.threads`. These are
-  real OS-thread primitives that gevent does not patch. The ast-grep rules
-  `threading-lock-usage` and `threading-module-import` enforce this.
+### FS-4 Application primitives for the application, ddtrace's own for ddtrace
+
+The rule of thumb: code that runs on application threads on the application's behalf uses
+whatever the application uses, including the result of gevent's monkey-patching; internal
+ddtrace usage grabs ddtrace's own primitives.
+
+- Application side: `threads.current_thread()`, `threads.Event()` and `threads.local()` follow
+  the application's `threading` module, patched or not. Use them for state and waits that belong
+  to the application's execution, for example per-request state or the current thread
+  recorded in a snapshot. Under gevent they are per greenlet and yield to the hub.
+- ddtrace side: `threads.Lock`, `threads.RLock`, `threads.SimpleQueue`,
+  `threads.original_Event` and `threads.original_local` are real OS-thread primitives taken
+  before any patching. So are `forksafe.Lock()`, `forksafe.RLock()` and `forksafe.Event()`,
+  which are also reset after a fork. Use them for ddtrace's own state. Anything a ddtrace
+  thread also touches counts as internal, even when application threads use it too (for
+  example the lock around a writer's buffer): a green primitive shared with an OS thread can
+  deadlock, because the greenlet that would release it cannot run.
+- The ast-grep rules `threading-lock-usage` and `threading-module-import` enforce the imports.
+  Whether a call site picked the right side needs review.
 - A lock that must be released in the child is recreated in an after-in-child hook, or created
   with `forksafe.Lock()` / `forksafe.RLock()` / `forksafe.Event()` (a `ResetObject` that is
   replaced after the fork). Never release or clear an inherited lock in the child: the owning
@@ -143,8 +163,10 @@ joined while it is held.
 - `on_shutdown` does not run when a thread is stopped for a fork. Do not rely on it to flush
   before a fork.
 - In the parent, the restart after a fork is delayed (about 100 ms, coalesced over fork
-  storms); in the child it is also delayed until the child hooks are done. Code must not assume
-  a worker is running right after `fork()` returns.
+  storms); in the child it is delayed by the same timer. The delay is a heuristic: it does not
+  wait for the child hooks to finish, so a hook that runs longer than that can see workers
+  restart while it is still running. Code must not assume a worker is running right after
+  `fork()` returns.
 
 ### FS-13 ddtrace threads do not import application-facing stdlib modules
 

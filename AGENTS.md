@@ -33,9 +33,14 @@ Fork safety and background threads:
 - Register fork hooks with `ddtrace.internal.forksafe`, never `os.register_at_fork`. Hooks are
   fast; after-in-child hooks recreate process-local state and never flush or do I/O.
 - Run background work on `periodic.PeriodicService`, `threads.Thread` or `periodic.Timer`,
-  never on `threading.Thread`, `threading.Timer` or executors. Take `Lock`, `RLock`, `Event`
-  and `SimpleQueue` from `ddtrace.internal.threads`; recreate locks in the child rather than
-  releasing inherited ones. Locks taken from weakref/finalizer callbacks are `RLock`s.
+  never on `threading.Thread`, `threading.Timer` or executors. Recreate locks in the child
+  rather than releasing inherited ones. Locks taken from weakref/finalizer callbacks are
+  `RLock`s.
+- Code on application threads acting for the application uses what the application uses,
+  gevent-patched or not (`threads.current_thread()`, `threads.Event()`, `threads.local()`).
+  Internal ddtrace usage, including anything a ddtrace thread also touches, takes ddtrace's own
+  unpatched primitives (`threads.Lock`, `RLock`, `SimpleQueue`, `original_Event`,
+  `original_local`, or the `forksafe` equivalents).
 - ddtrace threads never synchronize with each other, never fork, and bound every blocking
   call in their targets with a timeout. Application threads never wait on a ddtrace thread;
   `awake()` stays non-blocking.
@@ -49,13 +54,15 @@ Layering and imports:
 
 - Dependencies point from products to shared code: `ddtrace/internal` and `ddtrace/contrib` do
   not import products, and products do not import each other, except as listed in
-  `scripts/import-analysis/layers.json`. Invert dependencies with a `Protocol`, callback or
-  core event registered by the product.
+  `scripts/import-analysis/layers.json`. Contrib may import the tracer; tracing never imports
+  contrib (the detector does not catch this one). Invert dependencies with a `Protocol`,
+  callback or core event registered by the product.
 - Do not hide circular imports or layering violations with function-local imports or
   type-checking guards. Fix ownership or dependency direction. Preserve deliberate lazy imports
   for startup cost or gevent compatibility when they are unrelated to a cycle.
 - Shared infrastructure contains no product-specific branches, names or cleanup; the consumer
-  overrides its own hook. Contrib integrations reach products only through core events.
+  overrides its own hook. Contrib integrations reach products other than tracing only through
+  core events.
 - Classify new top-level modules in `layers.json`. New zone exceptions need a stated
   architectural reason for human review.
 

@@ -361,9 +361,11 @@ child, restart is controlled by the `__autorestart__` attribute (default
 Restarts are **asynchronous** on both sides: the after-fork hooks merely call
 `ThreadRestartTimer.set()`, which schedules a deferred restart once no fork has
 happened for about 100 ms. In the parent, the `_after_fork(force=True)` calls
-are coalesced across repeated rapid forks. In the child, the delay keeps
-threads from rebuilding native resources before the process manager has closed
-inherited file descriptors. Periodic workers are therefore not immediately
+are coalesced across repeated rapid forks. In the child, the delay is meant to
+keep threads from rebuilding native resources before the process manager has
+closed inherited file descriptors. It is a fixed time, not a wait for the child
+hooks to finish, so a hook that runs longer than that can see workers restart
+while it is still running. Periodic workers are therefore not immediately
 active after `fork()` returns; components that rely on metrics or flushing
 right after a fork should account for this delay.
 

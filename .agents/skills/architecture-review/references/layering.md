@@ -18,7 +18,8 @@ Apply this checklist when a diff:
 - adds, moves or renames a module or package under `ddtrace/`
 - adds an import that crosses a top-level package boundary (for example
   `ddtrace/internal/** -> ddtrace/appsec/**`, `ddtrace/contrib/** -> ddtrace/llmobs/**`, or
-  `ddtrace/debugging/** -> ddtrace/profiling/**`)
+  `ddtrace/debugging/** -> ddtrace/profiling/**`), including tracing importing contrib
+  (`ddtrace/_trace/**` or `ddtrace/trace/** -> ddtrace/contrib/**`)
 - adds a function-local import or an `if TYPE_CHECKING:` import
 - changes `scripts/import-analysis/layers.json`
 - adds a product name, product attribute or product setting inside `ddtrace/internal/`,
@@ -34,6 +35,7 @@ Any of these blocks the change:
    (LA-3).
 4. A new exception in `layers.json` without an architectural justification for human review
    (LA-7).
+5. Tracing code importing contrib (LA-1). The detector does not report this edge.
 
 ## Rules
 
@@ -42,6 +44,12 @@ Any of these blocks the change:
 - `internal-core` and `contrib` do not import products.
 - Products do not import other products. The exceptions are listed in `layers.json`
   (currently: contrib and CI Visibility may use tracing).
+- Contrib depends on the tracer, not the other way around: integrations import tracing, but
+  `ddtrace/_trace` and `ddtrace/trace` never import contrib. `layers.py` does not flag this
+  edge, because contrib is not a product zone, so check it by hand. Tracing-side code that
+  needs integration-specific values (constants, normalization helpers) gets them from the
+  integration through the event payload or a registration, or the code moves to the
+  integration. `ddtrace/_trace/trace_handlers.py` predates this rule; do not add imports to it.
 - Modules not covered by any zone are foundation code, exempt from both rules. That exemption
   is not a place to move code to so that the detector stops reporting it.
 
@@ -74,8 +82,10 @@ the dependency is on a name or a convention rather than on an import.
 ### LA-5 Integrations and products meet through core events
 
 Contrib patches produce events through `ddtrace.internal.core`; products such as AppSec, IAST
-and AI Guard subscribe while they are enabled. A contrib patch never imports product
-implementation code or requires a product to be enabled. Details:
+and AI Guard subscribe while they are enabled. Tracing is the exception: integrations are built
+on the tracer API, and `layers.json` allows contrib to import it (but not the reverse, LA-1).
+A contrib patch never imports another product's implementation code or requires that product to
+be enabled. Details:
 `.cursor/rules/isolated-responsibility.mdc`.
 
 ### LA-6 Product configuration belongs to the product (target)
