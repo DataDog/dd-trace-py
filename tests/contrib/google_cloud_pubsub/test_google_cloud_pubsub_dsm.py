@@ -58,7 +58,6 @@ class PubSubDSMTest(TracerTestCase):
         finally:
             self.subscriber.close()
             self.publisher.transport.close()
-            self.processor.shutdown(timeout=5)
             unpatch()
         super().tearDown()
 

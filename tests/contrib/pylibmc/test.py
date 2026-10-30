@@ -270,7 +270,7 @@ class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
 
     def get_client(self):
         url = "%s:%s" % (cfg["host"], cfg["port"])
-        client = pylibmc.Client([url])
+        client = pylibmc.Client([url], behaviors={})
         client.flush_all()
 
         return client
