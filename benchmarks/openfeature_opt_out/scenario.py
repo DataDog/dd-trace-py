@@ -1,5 +1,6 @@
 """Full OpenFeature client/provider evaluation, with bounded in-process telemetry."""
 
+import inspect
 import os
 import queue
 from unittest.mock import patch
@@ -54,7 +55,16 @@ class OpenFeatureOptOut(bm.Scenario):
             patch.object(FlagEvaluationWriter, "start", lambda self: None),
             patch("ddtrace.internal.openfeature._provider.start_exposure_writer", lambda: None),
         ):
-            provider = DataDogProvider(enable_evaluation_telemetry_opt_out_parameter=self.enabled)
+            # CI also runs this scenario against the merge-base, which can
+            # predate the constructor option. That baseline always emits.
+            supports_opt_out = (
+                "enable_evaluation_telemetry_opt_out_parameter" in inspect.signature(DataDogProvider).parameters
+            )
+            provider = (
+                DataDogProvider(enable_evaluation_telemetry_opt_out_parameter=self.enabled)
+                if supports_opt_out
+                else DataDogProvider()
+            )
             api.set_provider_and_wait(provider, "benchmark")
             client = api.get_client("benchmark")
             writer = provider._flag_eval_evp_writer
@@ -65,7 +75,7 @@ class OpenFeatureOptOut(bm.Scenario):
             )
             result = client.get_boolean_details("flag", False, subject)
             assert result.value is True and result.error_code is None
-            assert writer._queue.enqueued == int(not (self.enabled and self.opted_out))
+            assert writer._queue.enqueued == int(not (supports_opt_out and self.enabled and self.opted_out))
 
             def evaluate(loops):
                 for _ in range(loops):
