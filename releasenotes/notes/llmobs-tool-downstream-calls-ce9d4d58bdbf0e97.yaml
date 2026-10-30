@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Tool spans now include a summary of the outbound HTTP, database, and gRPC
+    calls made while the tool runs, grouped by endpoint with call counts, error counts, and total
+    duration. URL paths have numeric and UUID segments replaced, and query strings are not recorded.
