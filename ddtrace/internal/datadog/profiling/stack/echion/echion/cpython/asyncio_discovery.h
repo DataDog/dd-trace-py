@@ -8,14 +8,12 @@
 #include <echion/cpython/asyncio_debug.h>
 
 #if PY_VERSION_HEX >= 0x030e0000
-// Finds CPython's AsyncioDebug table through the state of the given _asyncio module and returns its list-head offsets
-// once they are validated against Echion's TaskObj mirror and the calling thread's live list head. Returns no offsets
-// for anything else, with no Python error set.
+// Returns the list-head offsets from the AsyncioDebug table that the given _asyncio module's state points to, once
+// they are validated, or no offsets with no Python error set.
 //
 // Requires an attached thread state. The module may still be executing, in this thread or another: its state is read
-// with the system's memory-read syscall, never dereferenced, and its debug_offsets slot, written last, is validated
-// before use. The reference is borrowed. Runs no Python code, takes no Python locks and never detaches, so it is safe
-// to call while the interpreter may start finalizing.
+// with read_own_memory, and its debug_offsets slot is set last. Runs no Python code and never detaches, so
+// finalization cannot start during the call.
 std::optional<AsyncioOffsets>
 discover_asyncio_offsets(PyObject* asyncio_module);
 #endif

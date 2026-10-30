@@ -2,8 +2,7 @@
 
 CI builds and runs on the same Python release, so profile-based tests pass even when the task-list offsets are wrong
 for other releases. These tests check what asyncio initialization publishes to the sampler, for each order in which
-asyncio, _asyncio and ddtrace can be imported. Importing ddtrace imports asyncio, so each test arranges sys.modules
-before its first ddtrace import.
+asyncio, _asyncio and ddtrace can be imported.
 """
 
 import sys
@@ -377,8 +376,7 @@ def test_asyncio_task_lists_failure_with_a_module_is_logged() -> None:
         import _asyncio as asyncio_c
 
         assert [module for module, _ in calls] == [asyncio_c, asyncio_c], calls
-        # Nothing after the nested asyncio hook call, made while _asyncio was executing; one log after the _asyncio
-        # hook call.
+        # The asyncio hook call during _asyncio's init does not log; the _asyncio hook call logs once.
         assert logs_per_call == [0, 1], logs_per_call
     finally:
         p.stop()
@@ -444,7 +442,6 @@ def test_asyncio_task_lists_found_when_profiling_is_imported_inside_asyncio_c_ho
     def import_profiling(module: object) -> None:
         from ddtrace.profiling import profiler  # noqa: F401
 
-        # Asserted outside the hook, as the import swallows exceptions from hooks.
         imported.append(module.__spec__._initializing)  # type: ignore[attr-defined]
 
     ModuleWatchdog.register_module_hook("_asyncio", import_profiling)
@@ -465,8 +462,8 @@ def test_asyncio_task_lists_found_when_profiling_is_imported_inside_asyncio_c_ho
 
 @pytest.mark.subprocess(err=None)
 def test_asyncio_task_lists_found_when_profiler_starts_inside_a_later_watchdog_asyncio_c_hook() -> None:
-    # The hooks of a second watchdog run after those of the first one, which then has no more hooks to call for
-    # _asyncio, while importlib still reports _asyncio as initializing.
+    # A second ModuleWatchdog's _asyncio hook starts the profiler. By then the first watchdog has already run its
+    # _asyncio hooks, and importlib still reports _asyncio as initializing.
     import sys
 
     from ddtrace.internal.module import ModuleWatchdog
@@ -546,7 +543,6 @@ def test_asyncio_task_lists_found_when_profiling_is_imported_in_another_thread_i
     import _asyncio  # noqa: F401
 
     assert not errors, errors
-    # Asserted outside the hook, as the import swallows exceptions from hooks.
     assert imported == [True], imported
 
     from ddtrace.internal.datadog.profiling.stack import _stack
@@ -656,7 +652,6 @@ def test_asyncio_task_lists_failure_when_profiler_starts_inside_asyncio_c_hook_i
 
         p = profiler.Profiler()
         p.start()
-        # Asserted outside the hook, as the import swallows exceptions from hooks.
         started.append(p)
 
     ModuleWatchdog.register_module_hook("_asyncio", start_profiling)

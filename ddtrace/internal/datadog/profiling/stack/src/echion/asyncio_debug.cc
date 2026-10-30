@@ -1,12 +1,5 @@
 // Validation of CPython's AsyncioDebug table (Python 3.14+), independent of the Python version this is built for.
-//
-// Echion walks two private linked lists of asyncio tasks: one rooted in PyInterpreterState and one in each
-// _PyThreadStateImpl. Their offsets can change between 3.14 patch releases when unrelated fields earlier in those
-// structs change, so a wheel built against one patch release cannot rely on compile-time offsets. CPython's _asyncio
-// module publishes them in a 13-field table, and its module state points to that table. asyncio_discovery.cc finds
-// the pointer; this file reads the table with a syscall, validates it, and checks the offsets against live list
-// heads before anything is published. Every failure returns no offsets, which disables the native task lists but not
-// thread-stack sampling.
+// Every failure returns no offsets, which disables the native task lists but not thread-stack sampling.
 
 #include <echion/cpython/asyncio_debug.h>
 
@@ -18,11 +11,7 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets& offsets)
     // Size of struct llist_node (next and prev pointers), the type of every task_node and asyncio_tasks_head field.
     constexpr uint64_t node_size = 2 * sizeof(uintptr_t);
     constexpr uint64_t max_size = std::numeric_limits<size_t>::max();
-    // A field of the given width and alignment fits in a struct of the given size:
-    // - size >= width comes first, so size - width cannot underflow.
-    // - field <= size - width keeps the whole field inside the struct.
-    // - field % alignment rejects values that cannot be the offset of a field of that type.
-    // - field <= max_size rejects values that do not fit size_t (32-bit builds).
+    // Ordered so size - width cannot underflow. The last check rejects values that do not fit size_t on 32-bit builds.
     const auto valid_field = [](uint64_t size, uint64_t field, uint64_t width, uint64_t alignment) {
         return size >= width && field <= size - width && field % alignment == 0 && field <= max_size;
     };
@@ -67,8 +56,6 @@ read_asyncio_debug_offsets_at(uintptr_t table_address,
     }
 
     auto offsets = parse_asyncio_debug_offsets(table);
-    // Task unwinding reads TaskObj through Echion's compile-time mirror. A runtime whose table disagrees with it would
-    // make the list walkers misread every task, so such a table is rejected along with its list-head offsets.
     if (!offsets || offsets->task_layout != expected_task_layout) {
         return std::nullopt;
     }

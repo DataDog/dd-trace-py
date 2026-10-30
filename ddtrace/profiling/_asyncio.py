@@ -30,8 +30,7 @@ log = get_logger(__name__)
 
 ASYNCIO_IMPORTED: bool = False
 
-# The _asyncio module once it has finished executing. On Python 3.14+ its state points to CPython's AsyncioDebug
-# table, where native code reads the asyncio task-list offsets, and that pointer is set only at the end of its init.
+# The _asyncio module once it has finished executing.
 _C_ASYNCIO: typing.Optional[ModuleType] = None
 # True once the asyncio hook has initialized native asyncio support, so the _asyncio hook knows to call it again.
 _NATIVE_ASYNCIO_INIT: bool = False
@@ -170,8 +169,8 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
 
     if pending is not None:
         # The module may not have finished executing yet, for example because it imported asyncio from its own init.
-        # Our _asyncio hook tries again once it has, if importlib still has that hook to call. Otherwise, setting an
-        # event loop does.
+        # Our _asyncio hook tries again when the import finishes, if ModuleWatchdog still calls it. Otherwise, setting
+        # an event loop does.
         return
 
     _LOGGED_NO_TASK_LISTS = True
@@ -400,8 +399,8 @@ def _on_c_asyncio_imported(asyncio_c: typing.Optional[ModuleType]) -> None:
     # A None entry in sys.modules marks _asyncio as unavailable.
     if not isinstance(asyncio_c, ModuleType):
         return
-    # At registration, a module still initializing may still be executing, possibly on another thread, so it is tried
-    # but not kept.
+    # At registration, a module still initializing may still be executing, possibly on another thread, so it is passed
+    # to native code but not cached in _C_ASYNCIO.
     if not (_C_ASYNCIO_HOOK_REGISTRATION_THREAD == ddtrace_threading.get_ident() and _is_initializing(asyncio_c)):
         _C_ASYNCIO = asyncio_c
     if _NATIVE_ASYNCIO_INIT:

@@ -134,10 +134,8 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
 // mach_vm_read_overwrite on macOS). Returns false, without faulting, when any part of the range is unreadable.
 // Addresses are integers because callers take them from memory that has not been validated yet.
 //
-// Unlike copy_memory, this never goes through safe_copy: the sampler switches safe_copy between strategies while it
-// runs, and its safe_memcpy strategy depends on a signal handler that faulthandler and crashtracking swap out while
-// the sampler, but not a caller on another thread, is paused. A syscall read is also free of C++ data races on memory
-// other threads write.
+// Unlike copy_memory, this never uses safe_memcpy, whose signal handler faulthandler and crashtracking can swap out
+// while another thread is reading.
 bool
 read_own_memory(uintptr_t address, void* buffer, size_t size);
 

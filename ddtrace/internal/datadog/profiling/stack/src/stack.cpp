@@ -17,9 +17,7 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
-#include <atomic>
 #include <cmath>
-#include <cstdint>
 #include <string_view>
 #include <utility>
 
@@ -361,15 +359,6 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
-// Where the asyncio task-list head offsets in use came from. Reported by _asyncio_task_lists for tests.
-enum class AsyncioOffsetsSource : std::uint8_t
-{
-    None,
-    RuntimeTable,
-};
-
-static std::atomic<AsyncioOffsetsSource> g_asyncio_offsets_source{ AsyncioOffsetsSource::None };
-
 // Returns whether the native asyncio task lists can be walked. Always true before Python 3.14, which has no such
 // lists. On 3.14+, the head offsets come from CPython's AsyncioDebug table, found through the state of the _asyncio
 // module passed as the optional third argument, and stay published for the process lifetime once found.
@@ -389,11 +378,10 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     auto& echion = Sampler::get().get_echion();
     bool native_task_lists =
       echion.asyncio_thread_tasks_head_offset() != 0 && echion.asyncio_interpreter_tasks_head_offset() != 0;
-    // Discovery never detaches, so this check cannot go stale.
+    // Discovery keeps the thread attached, so finalization cannot start before it returns.
     if (!native_task_lists && asyncio_c != Py_None && !Py_IsFinalizing()) {
         if (auto offsets = discover_asyncio_offsets(asyncio_c)) {
             echion.set_asyncio_offsets(*offsets);
-            g_asyncio_offsets_source.store(AsyncioOffsetsSource::RuntimeTable, std::memory_order_relaxed);
             native_task_lists = true;
         }
     }
@@ -406,18 +394,18 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     return PyBool_FromLong(native_task_lists);
 }
 
-// Test hook: (interpreter list-head offset, thread list-head offset, source) as published to the sampler.
+// Test hook: (interpreter list-head offset, thread list-head offset, source) as published to the sampler. Only
+// discovery publishes offsets in the extension, so non-zero offsets came from the runtime table.
 static PyObject*
 stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     auto& echion = Sampler::get().get_echion();
-    const char* source = g_asyncio_offsets_source.load(std::memory_order_relaxed) == AsyncioOffsetsSource::RuntimeTable
-                           ? "runtime-table"
-                           : "none";
+    const size_t interpreter_head = echion.asyncio_interpreter_tasks_head_offset();
+    const size_t thread_head = echion.asyncio_thread_tasks_head_offset();
     return Py_BuildValue("(nns)",
-                         static_cast<Py_ssize_t>(echion.asyncio_interpreter_tasks_head_offset()),
-                         static_cast<Py_ssize_t>(echion.asyncio_thread_tasks_head_offset()),
-                         source);
+                         static_cast<Py_ssize_t>(interpreter_head),
+                         static_cast<Py_ssize_t>(thread_head),
+                         interpreter_head != 0 && thread_head != 0 ? "runtime-table" : "none");
 }
 
 static PyObject*

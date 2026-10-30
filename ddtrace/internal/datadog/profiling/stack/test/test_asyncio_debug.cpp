@@ -76,10 +76,6 @@ class AsyncioFakeMemory : public ::testing::Test
 
 } // namespace
 
-// ----------------------------------------------------------------------------
-// Table validation (parse_asyncio_debug_offsets).
-// ----------------------------------------------------------------------------
-
 TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
 {
     auto table = valid_table();
@@ -157,10 +153,6 @@ TEST(AsyncioDebugOffsets, RejectsMisalignedThreadHead)
     EXPECT_FALSE(parse_asyncio_debug_offsets(table));
 }
 
-// ----------------------------------------------------------------------------
-// Reading the table (read_asyncio_debug_offsets_at), against fake memory.
-// ----------------------------------------------------------------------------
-
 TEST_F(AsyncioFakeMemory, ReadsValidTable)
 {
     const auto table = valid_table();
@@ -210,10 +202,6 @@ TEST_F(AsyncioFakeMemory, RejectsTaskLayoutDifferingByOneField)
     layout.size += sizeof(uintptr_t);
     EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout, fake_read));
 }
-
-// ----------------------------------------------------------------------------
-// Live list-head checks, against fake memory.
-// ----------------------------------------------------------------------------
 
 TEST_F(AsyncioFakeMemory, AcceptsEmptyAndTwoNodeLists)
 {
@@ -308,10 +296,6 @@ TEST_F(AsyncioFakeMemory, ChecksThreadHeadAlwaysAndInterpreterHeadWhenGiven)
     EXPECT_FALSE(asyncio_offsets_match_live_heads(overflowing, thread_base, 0, fake_read));
 }
 
-// ----------------------------------------------------------------------------
-// read_own_memory, against real memory.
-// ----------------------------------------------------------------------------
-
 TEST(AsyncioReadOwnMemory, ReadsReadableMemoryAndRejectsUnreadableMemory)
 {
     const uint64_t source[4] = { 1, 2, 3, 4 };
@@ -336,10 +320,6 @@ TEST(AsyncioReadOwnMemory, ReadsReadableMemoryAndRejectsUnreadableMemory)
 
     munmap(pages, 2 * page);
 }
-
-// ----------------------------------------------------------------------------
-// Discovery through the real _asyncio module state (Python 3.14+).
-// ----------------------------------------------------------------------------
 
 #if PY_VERSION_HEX >= 0x030e0000
 namespace {

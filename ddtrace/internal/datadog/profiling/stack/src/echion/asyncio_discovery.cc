@@ -1,11 +1,6 @@
 // Finds CPython's AsyncioDebug table through _asyncio's module state (Python 3.14+).
-//
-// _asyncio keeps a pointer to the table in the last field of its module state (asyncio_state.debug_offsets), so the
-// compiler cannot drop the table. Echion mirrors that struct (AsyncioStateMirror in cpython/tasks.h) the same way it
-// mirrors TaskObj, and checks the mirror's size against the module's m_size before reading the one field it needs.
-// Everything read from the state onwards goes through read_own_memory and is validated in asyncio_debug.cc.
 
-// First, so Python.h is included with Py_BUILD_CORE as the CPython internal headers it pulls in require.
+// Included first: it defines Py_BUILD_CORE before Python.h, which the internal headers below need.
 #include <echion/echion_sampler.h>
 
 #include <echion/cpython/asyncio_discovery.h>
@@ -28,7 +23,6 @@ discover_asyncio_offsets(PyObject* asyncio_module)
     PyModuleDef* def = PyModule_GetDef(asyncio_module);
     if (def == nullptr || def->m_name == nullptr || std::strcmp(def->m_name, "_asyncio") != 0 ||
         def->m_size != static_cast<Py_ssize_t>(sizeof(AsyncioStateMirror))) {
-        PyErr_Clear();
         return std::nullopt;
     }
     // The module's exec sets md_state with a plain store, which another thread can be doing right now on free-threaded
