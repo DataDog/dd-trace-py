@@ -899,9 +899,10 @@ AI Guard
 
    DD_AI_GUARD_MCP_ENABLED:
      type: Boolean
-     default: False
+     default: True
      description: |
-       When set to True and AI Guard is enabled, AI Guard evaluations of remote MCP tools run by the
+       Enabled by default; set to False to stop sending MCP server details and evaluating MCP
+       approval requests. When AI Guard is enabled, evaluations of remote MCP tools run by the
        OpenAI Responses API (tools of type ``mcp``) identify the MCP server each call goes to: its
        configured name, the scheme, host and port of its URL, and the tools called through it.
        Credentials, headers, and the user information, path, query string and fragment of the server

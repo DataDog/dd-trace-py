@@ -240,6 +240,23 @@ def test_responses_stream_flag_off_not_buffered(mock_execute_request, openai_res
     mock_execute_request.assert_called_once()
 
 
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_stream_without_mcp_tools_unchanged_by_default_mcp(
+    mock_execute_request, openai_responses_stream_client
+):
+    """DD_AI_GUARD_MCP_ENABLED is on by default: a stream with only function tools is still unbuffered."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = openai_responses_stream_client.responses.create(
+        model=RESPONSES_MODEL, input="Hello", tools=[{"type": "function", "name": "lookup"}], stream=True
+    )
+    assert not isinstance(stream, BufferedAIGuardStream)
+    assert list(stream)
+
+    mock_execute_request.assert_called_once()
+    assert set(mock_execute_request.call_args.args[1]["data"]["attributes"]) == {"messages", "meta"}
+
+
 @pytest.mark.asyncio
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 async def test_responses_stream_async_flag_off_evaluates_input(

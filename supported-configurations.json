@@ -205,7 +205,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_OPENAI_ENABLED": [

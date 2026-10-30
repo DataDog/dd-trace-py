@@ -116,6 +116,6 @@ class AI_GUARD(metaclass=Constant_Class):
     ENV_OPENAI_ENABLED: Literal["DD_AI_GUARD_OPENAI_ENABLED"] = "DD_AI_GUARD_OPENAI_ENABLED"
     ENV_ANTHROPIC_ENABLED: Literal["DD_AI_GUARD_ANTHROPIC_ENABLED"] = "DD_AI_GUARD_ANTHROPIC_ENABLED"
     ENV_LANGCHAIN_ENABLED: Literal["DD_AI_GUARD_LANGCHAIN_ENABLED"] = "DD_AI_GUARD_LANGCHAIN_ENABLED"
-    # Adds MCP server metadata to evaluations and evaluates MCP approval requests. Off by default
-    # until the AI Guard service validates the mcp_servers field of the evaluate contract.
+    # Adds MCP server metadata to evaluations and evaluates MCP approval requests. On by default;
+    # false keeps MCP tool calls evaluated as ordinary tool calls.
     ENV_MCP_ENABLED: Literal["DD_AI_GUARD_MCP_ENABLED"] = "DD_AI_GUARD_MCP_ENABLED"

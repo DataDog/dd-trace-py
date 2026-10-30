@@ -25,9 +25,11 @@ from ddtrace.aiguard.integrations._openai_responses import _mcp_servers_payload
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
 from ddtrace.aiguard.integrations._openai_responses import may_request_mcp_approval
+from ddtrace.internal.settings.aiguard import AIGuardConfig
 from tests.aiguard.openai._span_helpers import assert_block_emits_both_spans
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
+from tests.utils import override_env
 
 
 RESPONSES_MODEL = "gpt-4o-mini"
@@ -1320,6 +1322,17 @@ def mcp_enabled():
         yield
 
 
+@pytest.fixture
+def mcp_disabled():
+    with override_ai_guard_config(dict(_ai_guard_mcp_enabled=False)):
+        yield
+
+
+def test_mcp_enabled_by_default():
+    with override_env({}, replace_os_env=True):
+        assert AIGuardConfig()._ai_guard_mcp_enabled is True
+
+
 def _evaluated_attributes(mock_execute_request, index=-1):
     return mock_execute_request.call_args_list[index].args[1]["data"]["attributes"]
 
@@ -1400,7 +1413,7 @@ def test_mcp_server_invalid_url_falls_back_to_name():
     assert "url" not in server
 
 
-def test_hosted_mcp_servers_disabled_by_default():
+def test_hosted_mcp_servers_disabled(mcp_disabled):
     assert _hosted_mcp_servers(MCP_TOOLS) is None
 
 
@@ -1530,7 +1543,7 @@ def test_only_referenced_mcp_servers_are_sent(mock_execute_request, mcp_enabled)
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_mcp_disabled_keeps_the_previous_payload(mock_execute_request, stream):
+def test_mcp_disabled_keeps_the_previous_payload(mock_execute_request, mcp_disabled, stream):
     """Without DD_AI_GUARD_MCP_ENABLED, MCP calls are evaluated as ordinary tool calls."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
@@ -1562,7 +1575,7 @@ def test_may_request_mcp_approval(mcp_enabled, tools, expected):
     assert may_request_mcp_approval(tools) is expected
 
 
-def test_may_request_mcp_approval_disabled_by_default():
+def test_may_request_mcp_approval_disabled(mcp_disabled):
     assert may_request_mcp_approval(MCP_TOOLS) is False
 
 
@@ -1694,8 +1707,8 @@ def test_responses_mcp_approval_request_allowed(
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_responses_mcp_approval_request_not_evaluated_by_default(
-    mock_execute_request, openai_responses_mcp_approval_client
+def test_responses_mcp_approval_request_not_evaluated_with_mcp_disabled(
+    mock_execute_request, openai_responses_mcp_approval_client, mcp_disabled
 ):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
@@ -1847,7 +1860,7 @@ def test_rejected_approval_is_not_evaluated(mock_execute_request, mcp_enabled):
 
 
 @patch(EXECUTE_REQUEST)
-def test_approval_continuations_not_checked_with_mcp_disabled(mock_execute_request):
+def test_approval_continuations_not_checked_with_mcp_disabled(mock_execute_request, mcp_disabled):
     mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
 
     _openai_response_create_before(new_ai_guard_client(), _continuation(_approval_request(), _approval_response()))
@@ -2041,7 +2054,7 @@ async def test_responses_mcp_call_async_stream_buffered_allowed(
 
 @patch(EXECUTE_REQUEST)
 def test_responses_mcp_call_stream_buffered_with_mcp_disabled(
-    mock_execute_request, openai_responses_mcp_call_stream_client_buffered
+    mock_execute_request, openai_responses_mcp_call_stream_client_buffered, mcp_disabled
 ):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
