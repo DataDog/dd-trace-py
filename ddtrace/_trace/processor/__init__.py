@@ -316,7 +316,10 @@ def _accepts_keyword(func, name: str) -> bool:
         parameters = inspect.signature(func).parameters
     except (TypeError, ValueError):
         return False
-    return name in parameters or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
+    param = parameters.get(name)
+    if param is not None and param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
+        return True
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
 
 
 # Track telemetry span metrics by span api

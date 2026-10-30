@@ -8,6 +8,7 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
+from ddtrace._trace.processor import _accepts_keyword
 from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
@@ -459,6 +460,21 @@ def test_aggregator_reset_writer_without_signature():
 
     assert isinstance(aggr.writer, LegacyWriter)
     assert aggr.writer is not old_writer
+
+
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (lambda stats_opt_out=None: None, True),
+        (lambda *, stats_opt_out=None: None, True),
+        (lambda **kwargs: None, True),
+        (lambda other=None: None, False),
+        (lambda stats_opt_out=None, /: None, False),
+        (lambda stats_opt_out=None, /, **kwargs: None, True),
+    ],
+)
+def test_accepts_keyword(func, expected):
+    assert _accepts_keyword(func, "stats_opt_out") is expected
 
 
 def test_aggregator_reset_passes_stats_args_to_writer():
