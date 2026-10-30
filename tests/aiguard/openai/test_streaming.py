@@ -263,6 +263,54 @@ def test_async_buffered_stream_without_asyncio_loop_evaluates_inline(decision):
                 _run_without_event_loop(consume(stream))
 
 
+class _FinalMessageStream:
+    """Async stream with an Anthropic-style get_final_message that returns the full response."""
+
+    def __init__(self):
+        self._chunks = iter(["a", "b"])
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration
+
+    async def get_final_message(self):
+        return "full message"
+
+
+@pytest.mark.asyncio
+async def test_async_buffered_stream_concurrent_and_later_callers_share_the_verdict():
+    """A caller arriving during or after a blocking evaluation must not read the exhausted stream unevaluated."""
+    evaluated = []
+
+    def evaluate(response):
+        evaluated.append(response)
+        time.sleep(0.2)
+        # Mirrors the listeners, which skip an empty response.
+        if response:
+            raise AIGuardAbortError(action="DENY", reason="blocked")
+
+    async def consume(stream):
+        return [chunk async for chunk in stream]
+
+    async def final_message_during_evaluation(stream):
+        await asyncio.sleep(0.05)
+        return await stream.get_final_message()
+
+    stream = BufferedAIGuardAsyncStream(_FinalMessageStream(), reconstruct=list, evaluate=evaluate)
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        results = await asyncio.gather(consume(stream), final_message_during_evaluation(stream), return_exceptions=True)
+        assert [type(result) for result in results] == [AIGuardAbortError, AIGuardAbortError]
+        with pytest.raises(AIGuardAbortError):
+            await stream.get_final_message()
+
+    assert evaluated and all(response == ["a", "b"] for response in evaluated)
+
+
 # ---------------------------------------------------------------------------
 # Responses API
 # ---------------------------------------------------------------------------
