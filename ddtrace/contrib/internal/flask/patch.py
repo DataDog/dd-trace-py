@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from collections.abc import Iterable
+from contextvars import copy_context
 from inspect import unwrap
+import sys
 from typing import Any
 import weakref
 
@@ -40,6 +42,7 @@ except ImportError:
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace.contrib.internal.trace_utils import dispatch_wsgi_web_request_starting
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
@@ -49,7 +52,9 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
 
-from .request import run_flask_request
+from ._streaming import FlaskResponseIterable
+from .request import prepare_request
+from .request import record_response
 from .request import update_route
 from .wrappers import _wrap_call_with_tracing_check
 from .wrappers import simple_call_wrapper
@@ -123,7 +128,57 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_call_name = "flask.response"
 
     def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> Iterable[bytes]:
-        return run_flask_request(self, environ, start_response)
+        dispatch_wsgi_web_request_starting(environ)
+        try:
+            event = prepare_request(environ, self._config)
+        except Exception:
+            log.debug("Failed to prepare Flask request metadata", exc_info=True)
+            application: Callable[..., Iterable[bytes]] = self.app
+            return application(environ, start_response)
+
+        scope = core.context_with_event(event, context_name_override="flask.request", dispatch_end_event=False)
+        # Existing child-span and security callbacks consume these aliases. In
+        # particular, security processors read headers/IP synchronously at span start.
+        scope.set_items(
+            {
+                "remote_addr": environ.get("REMOTE_ADDR"),
+                "headers": event.request_headers,
+                "headers_case_sensitive": True,
+                "middleware": self,
+                "middleware_config": self._config,
+                "integration_config": self._config,
+                "environ": environ,
+                "flask_request_event": event,
+                "span_key": "req_span",
+            }
+        )
+
+        def accept_response(status: str, headers: list[tuple[str, str]], exc_info: Any = None) -> Any:
+            result = start_response(status, headers, exc_info)
+            try:
+                record_response(event, status, headers)
+            except Exception:
+                log.debug("Failed to record Flask response metadata", exc_info=True)
+            return result
+
+        execution_context = copy_context()
+
+        def invoke() -> Iterable[bytes]:
+            with scope:
+                try:
+                    try:
+                        response = self._execute_application(scope, accept_response)
+                    finally:
+                        # Security cleanup still runs at application return; tracing
+                        # completion is deferred until the response is exhausted/closed.
+                        core.dispatch("context.ended.wsgi.__call__", (scope, sys.exc_info()))
+                except BaseException:
+                    scope.dispatch_ended_event(*sys.exc_info())
+                    raise
+                streamed_response = FlaskResponseIterable(response, scope, execution_context)
+            return streamed_response
+
+        return execution_context.run(invoke)
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
         update_route(ctx.event, flask.request)

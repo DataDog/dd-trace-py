@@ -1,4 +1,6 @@
-"""Illustrative Flask lifecycle wiring; production also retains security callbacks.
+"""Illustrate the flow inside _FlaskWSGIMiddleware.__call__ with abbreviated inputs.
+
+Production keeps this flow directly in the middleware and retains security callbacks.
 
 The integration signals completion. SpanLifecycleSubscriber owns span creation,
 product lifecycle notifications, and finishing. Importing this draft does not

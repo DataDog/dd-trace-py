@@ -6,12 +6,20 @@ This implementation builds on the product lifecycle hooks and lazy
 shared span lifecycle model, with integration-owned response completion.
 It does not require a shared WSGI lifecycle runner or the Bottle lifecycle branch.
 
+Like Bottle's simplified runner, the integration entry point exposes its execution
+flow without a forwarding helper or optional execution adapter. Flask cannot use
+Bottle's synchronous completion boundary: its request span remains open through
+response iteration and close. The nested invocation exists only to run application
+execution and response iteration in the same copied Context.
+
 Ownership
 ---------
 
-* ``ddtrace/contrib/internal/flask/request.py`` extracts request metadata and opens
-  a typed ``WebFrameworkRequestEvent`` context named ``flask.request``. Response
-  status and headers are recorded after the server accepts them.
+* ``_FlaskWSGIMiddleware.__call__`` in ``ddtrace/contrib/internal/flask/patch.py``
+  owns the request flow directly: prepare metadata, open the typed ``flask.request``
+  context, invoke the application, and hand completion to the response iterable.
+* ``ddtrace/contrib/internal/flask/request.py`` extracts request and route metadata
+  and records response status and headers after the server accepts them.
 * ``ddtrace/contrib/internal/flask/_streaming.py`` observes response iteration,
   exhaustion, errors, and close. It dispatches the deferred context-ended event
   once. It does not create, mutate, or finish spans.
