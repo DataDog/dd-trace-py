@@ -213,6 +213,9 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 # .env file
 .env
 .envrc
+# Local secrets for scripts/gh/create_gh_release.py (Slack webhooks). Never commit.
+.env.local
+scripts/gh/.env.local
 
 *.debug
 *.dSYM/

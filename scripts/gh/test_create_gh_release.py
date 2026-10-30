@@ -13,8 +13,10 @@ Run with:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
+import tempfile
 import textwrap
 from typing import Any
 import unittest
@@ -46,6 +48,7 @@ from create_gh_release import format_notes_for_version  # noqa: E402
 from create_gh_release import format_slack_announce  # noqa: E402
 from create_gh_release import is_rc_version  # noqa: E402
 from create_gh_release import is_stable_version  # noqa: E402
+from create_gh_release import load_local_env  # noqa: E402
 from create_gh_release import resolve_runner_display  # noqa: E402
 from create_gh_release import review_text  # noqa: E402
 from create_gh_release import should_mark_latest  # noqa: E402
@@ -559,6 +562,45 @@ class CiGreenPreflightTests(unittest.TestCase):
             self.assertIn("non-green CI", str(ctx.exception))
         finally:
             mod.run_out = original
+
+
+class LoadLocalEnvTests(unittest.TestCase):
+    def test_missing_file_is_noop(self) -> None:
+        missing: Path = Path(tempfile.mkdtemp()) / "no-such.env"
+        with mock.patch.dict("os.environ", {}, clear=True):
+            load_local_env(missing)
+            self.assertEqual(os.environ.get(SLACK_CHANNEL_PROD_ENV), None)
+
+    def test_loads_key_val_and_skips_comments(self) -> None:
+        tmp: Path = Path(tempfile.mkdtemp()) / ".env.local"
+        tmp.write_text(
+            dedent(
+                f"""
+                # comment
+                {SLACK_CHANNEL_PROD_ENV}=https://example.test/from-file
+                export {SLACK_DM_ENV}="https://example.test/dm"
+                """
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.dict("os.environ", {}, clear=True):
+            load_local_env(tmp)
+            self.assertEqual(os.environ[SLACK_CHANNEL_PROD_ENV], "https://example.test/from-file")
+            self.assertEqual(os.environ[SLACK_DM_ENV], "https://example.test/dm")
+
+    def test_existing_env_wins(self) -> None:
+        tmp: Path = Path(tempfile.mkdtemp()) / ".env.local"
+        tmp.write_text(
+            f"{SLACK_CHANNEL_PROD_ENV}=https://example.test/from-file\n",
+            encoding="utf-8",
+        )
+        with mock.patch.dict(
+            "os.environ",
+            {SLACK_CHANNEL_PROD_ENV: "https://example.test/exported"},
+            clear=True,
+        ):
+            load_local_env(tmp)
+            self.assertEqual(os.environ[SLACK_CHANNEL_PROD_ENV], "https://example.test/exported")
 
 
 if __name__ == "__main__":

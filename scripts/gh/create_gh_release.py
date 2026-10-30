@@ -46,6 +46,11 @@ Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DD_SLACK_USER_BRETT/EMMETT         optional overrides for reviewer @-mentions;
                                      defaults are hardcoded member IDs
 
+Local persistence (no SSM / no export each session): put the vars in
+gitignored ``scripts/gh/.env.local`` (see ``scripts/gh/.env.local.example``).
+``main`` loads that file if present; already-set env vars win. Do not commit
+``.env.local``.
+
 If the channel env var is unset and you pass --slack-channel=prod|guild|test,
 the script falls back to AWS SSM Parameter Store at:
   ci.dd-trace-py.slack-release-webhook-prod
@@ -58,7 +63,8 @@ is env-only (do not commit it); channel webhooks stay env-or-SSM.
 
 Prod webhook setup (if unset): create a Slack Workflow Builder webhook that
 posts to #apm-python-release with a ``text`` variable (message body =
-``{text}`` only), export it as DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL,
+``{text}`` only), put it in ``scripts/gh/.env.local`` as
+DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL (or export the same name),
 and optionally store it at SSM ``ci.dd-trace-py.slack-release-webhook-prod``.
 
 Failure recovery:
@@ -116,6 +122,8 @@ import tomllib
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 PYPROJECT: Path = REPO_ROOT / "pyproject.toml"
 assert PYPROJECT.is_file(), f"REPO_ROOT misconfigured: {PYPROJECT} does not exist"  # nosec B101 — startup invariant; OK to drop under -O
+# Gitignored local secrets (Slack webhooks). See .env.local.example.
+LOCAL_ENV_FILE: Path = Path(__file__).resolve().parent / ".env.local"
 
 # Slack webhook env vars. Channel webhooks: prod (#apm-python-release, default
 # review ping), optional guild (#guild-dd-trace-py), test, plus legacy
@@ -2196,6 +2204,40 @@ def post_webhook(url: str, text: str) -> None:
             raise SystemExit(f"slack webhook returned {resp.status}: {body}")
 
 
+def load_local_env(path: Path = LOCAL_ENV_FILE) -> None:
+    """Load KEY=VAL lines from a gitignored local file into ``os.environ``.
+
+    Missing file is fine. Blank lines and ``#`` comments are skipped. Optional
+    ``export `` prefix is accepted. Already-set non-empty env vars win so an
+    explicit export still overrides the file. Values may be single- or
+    double-quoted.
+    """
+    if not path.is_file():
+        return
+    text: str = path.read_text(encoding="utf-8")
+    for raw_line in text.splitlines():
+        line: str = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+        key: str
+        value: str
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        if not key:
+            continue
+        existing: str = os.environ.get(key, "").strip()
+        if existing:
+            continue
+        os.environ[key] = value
+
+
 def _env_url(*names: str) -> tuple[str, str]:
     """Return ``(url, env_name)`` for the first non-empty env among ``names``.
 
@@ -2471,6 +2513,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[list[str]] = None) -> int:
     global _VERBOSE
+    # Optional gitignored secrets (Slack webhooks) so --slack works without
+    # re-exporting each session. Explicit env still wins over the file.
+    load_local_env()
     parser: argparse.ArgumentParser = build_parser()
     args: argparse.Namespace = parser.parse_args(argv)
     _VERBOSE = bool(getattr(args, "verbose", False))
