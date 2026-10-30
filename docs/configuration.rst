@@ -1052,10 +1052,15 @@ Test Visibility
      default: True
 
      description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog `Test
-        Impact Analysis <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
-        Runner). Setting the variable to ``false`` will skip querying the API and disable code coverage collection and
-        test skipping.
+        Enables the Datadog `Test Impact Analysis
+        <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
+        Runner). Setting the variable to ``false`` disables Test Impact Analysis: test skipping is
+        disabled and the request for skippable tests is not sent. Note that on the pytest Test
+        Optimization plugin the settings API is still queried and code coverage collection is not
+        affected by this variable — coverage collection is controlled by the Test Optimization
+        settings received from the backend. On the legacy ``CIVisibility`` service used by other
+        frameworks, setting the variable to ``false`` also skips querying the API and disables
+        code coverage collection.
 
      version_added:
         v1.13.0:
