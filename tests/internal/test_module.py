@@ -1,3 +1,4 @@
+import importlib
 import json
 import os
 from pathlib import Path
@@ -90,6 +91,54 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     module_watchdog.register_module_hook(module.__name__, hook)
 
     hook.assert_called_once_with(module)
+
+
+def test_name_hook_does_not_resolve_origins(module_watchdog, tmp_path, monkeypatch):
+    name = "watchdog_name_only"
+    (tmp_path / (name + ".py")).write_text("value = 42\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    hook = mock.Mock()
+    module_watchdog.register_module_hook(name, hook)
+
+    try:
+        with mock.patch("ddtrace.internal.module.origin", wraps=origin) as resolve_origin:
+            module = importlib.import_module(name)
+        hook.assert_called_once_with(module)
+        resolve_origin.assert_not_called()
+        assert module.value == 42
+    finally:
+        sys.modules.pop(name, None)
+
+
+def test_origin_hook_after_name_only_import(module_watchdog, tmp_path, monkeypatch):
+    name = "watchdog_late_origin"
+    path = tmp_path / (name + ".py")
+    path.write_text("value = 42\n")
+    alias = tmp_path / "alias.py"
+    alias.symlink_to(path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    name_hook = mock.Mock()
+    origin_hook = mock.Mock()
+    module_watchdog.register_module_hook(name, name_hook)
+
+    try:
+        module = importlib.import_module(name)
+        module_watchdog.register_origin_hook(alias, origin_hook)
+        origin_hook.assert_called_once_with(module)
+        assert module_watchdog.get_by_origin(path) is module
+
+        importlib.reload(module)
+        assert origin_hook.call_count == 2
+        assert name_hook.call_count == 2
+
+        del sys.modules[name]
+        replacement = importlib.import_module(name)
+        assert replacement is not module
+        assert module_watchdog.get_by_origin(alias) is replacement
+        assert origin_hook.call_count == 3
+        assert name_hook.call_count == 3
+    finally:
+        sys.modules.pop(name, None)
 
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
