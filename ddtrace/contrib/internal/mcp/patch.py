@@ -52,7 +52,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"mcp": ">=1.10.0"}
+    return {"mcp": ">=1.10.0,<2"}
 
 
 MCP_VERSION = parse_version(get_version())
