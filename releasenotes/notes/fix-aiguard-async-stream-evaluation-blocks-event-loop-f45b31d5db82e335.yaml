@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where evaluating async streamed OpenAI, Anthropic, or LangChain responses, or
+    single-prompt async LangChain calls, with ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true`` blocked
+    the asyncio event loop, stalling other tasks until the evaluation completed.

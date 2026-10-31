@@ -1,8 +1,14 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
 import pytest
 
 from ddtrace.appsec._iast._constants import IAST
+from ddtrace.appsec._iast._iast_env import _get_iast_env
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import get_hash_object_tracking_len
 from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP
@@ -10,6 +16,16 @@ from ddtrace.ext import SpanTypes
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+@pytest.fixture
+def processor_iast_context(iast_context_defaults, request):
+    if getattr(request, "param", False):
+        return  # Keep the helper environment to exercise rejected admission.
+    # The taint fixture starts analysis on a synthetic span. Let the processor
+    # admit and own the actual request under test instead.
+    environment = _get_iast_env()
+    _iast_finish_request(environment.span)
 
 
 def traced_function(tracer, sampling_rate="100"):
@@ -29,7 +45,7 @@ def traced_function(tracer, sampling_rate="100"):
     return span
 
 
-def test_appsec_iast_processor(iast_context_defaults, tracer):
+def test_appsec_iast_processor(processor_iast_context, tracer):
     """
     test_appsec_iast_processor.
     This test throws  'finished span not connected to a trace' log error
@@ -45,7 +61,7 @@ def test_appsec_iast_processor(iast_context_defaults, tracer):
 
 
 @pytest.mark.parametrize("sampling_rate", ["0.0", "0.5", "1.0"])
-def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults, sampling_rate, tracer):
+def test_appsec_iast_processor_ensure_span_is_manual_keep(processor_iast_context, sampling_rate, tracer):
     """
     test_appsec_iast_processor_ensure_span_is_manual_keep.
     This test throws  'finished span not connected to a trace' log error
@@ -63,8 +79,10 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults,
         assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
-@pytest.mark.parametrize("sampling_rate", ["0.0", "100"])
-def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sampling_rate, tracer):
+@pytest.mark.parametrize(
+    "sampling_rate,processor_iast_context", [("0.0", True), ("100", False)], indirect=["processor_iast_context"]
+)
+def test_appsec_iast_processor_ensure_span_is_sampled(processor_iast_context, sampling_rate, tracer):
     """
     test_appsec_iast_processor_ensure_span_is_manual_keep.
     This test throws  'finished span not connected to a trace' log error
@@ -92,3 +110,28 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
             assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
             assert span.get_metric(IAST.ENABLED) == 1.0
         assert get_hash_object_tracking_len() == 0
+
+
+def test_concurrent_web_spans_release_their_native_contexts(processor_iast_context, tracer):
+    first_started, second_started, first_finished = Event(), Event(), Event()
+    baseline = debug_context_array_free_slots_number()
+
+    def request(first):
+        if not first:
+            assert first_started.wait(timeout=5)
+        with tracer.trace("request", span_type=SpanTypes.WEB):
+            if first:
+                first_started.set()
+                assert second_started.wait(timeout=5)
+            else:
+                assert debug_context_array_free_slots_number() == baseline - 2
+                second_started.set()
+                assert first_finished.wait(timeout=5)
+        if first:
+            first_finished.set()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(request, first) for first in (True, False)]
+        for future in futures:
+            future.result(timeout=10)
+    assert debug_context_array_free_slots_number() == baseline

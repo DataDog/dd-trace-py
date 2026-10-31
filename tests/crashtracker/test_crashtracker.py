@@ -396,6 +396,96 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
         assert not any(service.encode() in msg["body"] for msg in client.crash_messages())
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"})
+def test_crashtracker_preload_starts_before_products() -> None:
+    # A native crash during the startup of a product is reported only if the
+    # crashtracker is already running.
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.internal.products import manager
+
+    started_before_products: list[bool] = []
+    manager.run_protocol = lambda: started_before_products.append(crashtracking.is_started())
+
+    import ddtrace.bootstrap.preload  # noqa: F401
+
+    assert started_before_products == [True]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"}, err=None)
+def test_crashtracker_preload_panic_does_not_block_products() -> None:
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.internal.products import manager
+
+    class PanicException(BaseException):
+        pass
+
+    # is_panic_exception matches on the module and class name of pyo3_runtime.PanicException.
+    PanicException.__module__ = "pyo3_runtime"
+
+    def crashtracker_init(*args: object, **kwargs: object) -> None:
+        raise PanicException("crashtracker_init panicked")
+
+    crashtracking.crashtracker_init = crashtracker_init
+
+    run_protocol_calls: list[bool] = []
+    manager.run_protocol = lambda: run_protocol_calls.append(True)
+
+    import ddtrace.bootstrap.preload  # noqa: F401
+
+    assert not crashtracking.is_started()
+    assert run_protocol_calls == [True]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_CRASHTRACKING_ENABLED": "true"}, err=None)
+def test_crashtracker_start_failure_reinstalls_segv_handler() -> None:
+    import sys
+    import types
+
+    from ddtrace.internal.core import crashtracking
+
+    class PanicException(BaseException):
+        pass
+
+    # is_panic_exception matches on the module and class name of pyo3_runtime.PanicException.
+    PanicException.__module__ = "pyo3_runtime"
+
+    calls: list[str] = []
+    stack_mod = types.ModuleType("ddtrace.internal.datadog.profiling.stack")
+    stack_mod.uninstall_segv_handler = lambda: calls.append("uninstall")  # type: ignore[attr-defined]
+    stack_mod.reinstall_segv_handler = lambda: calls.append("reinstall")  # type: ignore[attr-defined]
+    sys.modules["ddtrace.internal.datadog.profiling.stack"] = stack_mod
+
+    for exc_type in (RuntimeError, PanicException):
+
+        def crashtracker_init(*args: object, **kwargs: object) -> None:
+            raise exc_type("crashtracker_init failed")
+
+        crashtracking.crashtracker_init = crashtracker_init
+        calls.clear()
+
+        assert crashtracking.start() is False
+        assert calls == ["uninstall", "reinstall"], (exc_type, calls)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_start_propagates_base_exception() -> None:
+    import pytest
+
+    from ddtrace.internal.core import crashtracking
+
+    def crashtracker_init(*args: object, **kwargs: object) -> None:
+        raise KeyboardInterrupt()
+
+    crashtracking.crashtracker_init = crashtracker_init
+
+    with pytest.raises(KeyboardInterrupt):
+        crashtracking.start()
+
+
 auto_code = """
 import warnings
 # This test logs the following warning in py3.12:

@@ -37,8 +37,10 @@ class SpanLinks
   public:
     static SpanLinks& get_instance()
     {
-        static SpanLinks instance;
-        return instance;
+        // uWSGI may call exit without running the atexit hooks that stop the sampler.
+        // Making this a raw pointer prevents crashes at exit.
+        static SpanLinks* const instance = new SpanLinks();
+        return *instance;
     }
 
     // Delete Copy constructor and assignment operator to prevent copies

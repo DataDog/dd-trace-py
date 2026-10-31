@@ -1,9 +1,10 @@
 """Bootstrapping code that is run when using `ddtrace.profiling.auto`."""
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.profiling import lifecycle
 from ddtrace.internal.settings.profiling import _is_platform_supported
+from ddtrace.internal.settings.profiling import config as profiling_config
 import ddtrace.profiling as profiling
-from ddtrace.profiling import bootstrap
 
 
 LOG = get_logger(__name__)
@@ -20,13 +21,30 @@ def start_profiler() -> None:
 
     from ddtrace.profiling import profiler
 
-    if hasattr(bootstrap, "profiler"):
-        bootstrap.profiler.stop()  # pyright: ignore[reportAttributeAccessIssue, reportCallIssue]
+    with lifecycle.lock:
+        lifecycle.stop_profiler()
 
-    # Export the profiler so we can introspect it if needed
-    profiler_instance = profiler.Profiler()
-    bootstrap.profiler = profiler_instance
-    bootstrap.profiler.start()
+        # The Profiler can be enabled but all Collectors disabled.
+        # A profiler without collectors would still upload empty profiles.
+        if not any(
+            (
+                profiling_config.stack.enabled,
+                profiling_config.memory.enabled,
+                profiling_config.lock.enabled,
+                profiling_config.exception.enabled,
+                profiling_config.pytorch.enabled,
+                # Native heap does not use a collector, but is also started by the
+                # Profiler object, so for the time being we include it here.
+                profiling_config.native_heap.enabled,
+            )
+        ):
+            LOG.debug("[profiling] No collector is enabled, not starting the profiler")
+            return
+
+        # Export the profiler so we can introspect it if needed
+        new_profiler = profiler.Profiler()
+        lifecycle.set_profiler(new_profiler)
+        new_profiler.start()
 
 
 _platform_unsupported_msg, _platform_is_supported = _is_platform_supported()

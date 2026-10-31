@@ -6,6 +6,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -33,6 +35,8 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 OPENAI_LLM_OPERATIONS = ("completion", "chat", "response", "decision")
+DECISION_PROVIDER_TAG = "decision_provider"
+OPENAI_DECISION_PROVIDER = "openai"
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -125,6 +129,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_name=model_name,
             model_provider=model_provider,
             metrics=metrics,
+            tags={DECISION_PROVIDER_TAG: OPENAI_DECISION_PROVIDER} if operation == "decision" else None,
         )
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
@@ -322,6 +327,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             cache_write_tokens = _get_attr(prompt_tokens_details, "cache_write_tokens", None)
             if cache_write_tokens is not None:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+            cache_write_tokens_details = _get_attr(prompt_tokens_details, "cache_write_tokens_details", None)
+            if cache_write_tokens_details:
+                ttl_30m_tokens = _get_attr(cache_write_tokens_details, "ttl_30m_tokens", None)
+                if ttl_30m_tokens is not None:
+                    metrics[CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY] = ttl_30m_tokens
+                ttl_12h_tokens = _get_attr(cache_write_tokens_details, "ttl_12h_tokens", None)
+                if ttl_12h_tokens is not None:
+                    metrics[CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY] = ttl_12h_tokens
             # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
             reasoning_output_tokens_details = _get_attr(token_usage, "completion_tokens_details", {}) or _get_attr(
                 token_usage, "output_tokens_details", {}

@@ -2,13 +2,16 @@
 
 import importlib.util
 import io
+import json
 import pathlib
+import shlex
 import subprocess
 import sys
 import types
 from unittest import mock
 
 import pytest
+import yaml
 
 
 _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gitlab_config.py"
@@ -100,7 +103,8 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
         )
 
 
-def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
+@pytest.mark.parametrize("retry_policy", [None, ".retry_on_infrastructure_or_service_failure"])
+def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod, retry_policy):
     output = io.StringIO()
     ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
     metadata = {
@@ -117,7 +121,7 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
         suite="tracer",
         stage="core",
         clean_name="tracer",
-        config={"env": {}},
+        config={"env": {}, "retry_policy": retry_policy},
         environments=[("env123", "3.12")],
         k=1,
         metadata=metadata,
@@ -125,10 +129,57 @@ def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     )
 
     content = output.getvalue()
-    assert "extends: .ddtest_plan" in content
-    assert "extends: .ddtest_run" in content
+    for base in (".ddtest_plan", ".ddtest_run"):
+        extends = f"[{base}, {retry_policy}]" if retry_policy else base
+        assert f"extends: {extends}" in content
     assert "DDTEST_COMMAND_env123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
     assert "DDTEST_ENV_env123: PYTHONOPTIMIZE=1" in content
+
+
+@pytest.mark.parametrize("main", [False, True])
+def test_azure_suites_retry_infrastructure_or_service_failures(gen_gitlab_config_mod, main):
+    root = _SCRIPT_PATH.parents[1]
+    policies = yaml.safe_load((root / ".gitlab/retry-policies.yml").read_text())
+    if main:
+        policies.update(yaml.safe_load((root / ".gitlab/retry-policies-main.yml").read_text()))
+    assert "exit_codes" not in policies[".retry_on_infrastructure_failure"]["retry"]
+
+    suites = yaml.safe_load((root / "tests/contrib/suitespec.yml").read_text())["suites"]
+    azure_suites = {name: config for name, config in suites.items() if name.startswith("azure_")}
+    assert len(azure_suites) == 8
+    for name, suite in azure_suites.items():
+        suite.pop("matrix")
+        with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value="wait.txt"):
+            config = str(gen_gitlab_config_mod.JobSpec(name=name, stage="contrib", **suite))
+        assert "  extends: [.test_base_snapshot, .retry_on_infrastructure_or_service_failure]" in config
+        assert "  retry:" not in config
+        policy = policies[suite["retry_policy"]]
+        assert policy["extends"] == ".retry_on_infrastructure_failure"
+        assert policy["variables"]["FF_USE_NEW_BASH_EVAL_STRATEGY"] == "true"
+        retry = {**policies[policy["extends"]]["retry"], **policy["retry"]}
+        assert retry == {
+            **policies[".retry_on_infrastructure_failure"]["retry"],
+            "max": 2,
+            "exit_codes": [75],
+        }
+        assert "script_failure" not in retry["when"]
+
+
+@pytest.mark.parametrize("use_policy, expected_status", [(False, 1), (True, 75)])
+def test_service_retry_policy_preserves_bash_exit_status(use_policy, expected_status):
+    root = _SCRIPT_PATH.parents[1]
+    policies = yaml.safe_load((root / ".gitlab/retry-policies.yml").read_text())
+    variables = policies[".retry_on_infrastructure_or_service_failure"].get("variables", {}) if use_policy else {}
+    command = shlex.join([sys.executable, "-c", "raise SystemExit(75)"])
+    evaluation = f"eval {shlex.quote(command)}"
+    # GitLab Runner's new strategy evaluates the command in an explicit subshell.
+    if variables.get("FF_USE_NEW_BASH_EVAL_STRATEGY") == "true":
+        evaluation = f"({evaluation})"
+    script = f"set -eo pipefail\n: | {evaluation}\nexit 0\n"
+
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+
+    assert result.returncode == expected_status, result.stderr
 
 
 def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):
@@ -226,3 +277,92 @@ def test_client_library_services_wait_in_the_client_environment(gen_gitlab_confi
         "--with-requirements tests/requirements_locks/wait.txt --no-progress "
         f"python tests/wait-for-services.py {' '.join(services)}"
     ) in command
+
+
+def test_prechecks_job_runs_checks_in_parallel(gen_gitlab_config_mod, monkeypatch, tmp_path):
+    """The prechecks job must feed every selected check to the parallel runner."""
+    # Stub needs_testrun: its real module needs uv-script dependencies (lxml,
+    # vcrpy, ...) that are not installed in the test environment.
+    fake_needs_testrun = types.ModuleType("needs_testrun")
+    fake_needs_testrun.pr_matches_patterns = lambda patterns: True
+    monkeypatch.setitem(sys.modules, "needs_testrun", fake_needs_testrun)
+
+    tests_gen = tmp_path / "tests-gen.yml"
+    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tests_gen)
+
+    gen_gitlab_config_mod.gen_pre_checks()
+
+    out = tests_gen.read_text()
+    assert "scripts/lint prepare" in out
+    assert "scripts/run-parallel-prechecks.py - <<'EOF'" in out
+    for name, command in (
+        ("Style", "scripts/lint style"),
+        ("Typing", "scripts/lint typing"),
+        ("Spelling", "scripts/lint spelling"),
+        ("Security", "scripts/lint security"),
+    ):
+        expected = json.dumps({"name": name, "command": command})
+        assert f"      {expected}\n" in out
+    # Checks must not be emitted as sequential script steps anymore.
+    assert "section_0" not in out
+
+
+def test_run_parallel_prechecks_reports_each_result(tmp_path):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(
+        json.dumps({"name": "Passing", "command": "echo ok"})
+        + "\n"
+        + json.dumps({"name": "Failing", "command": "echo oops >&2; exit 3"})
+        + "\n"
+    )
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 1
+    assert "Passing: PASS" in proc.stdout
+    assert "Failing: FAIL" in proc.stdout
+    assert "oops" in proc.stdout
+    assert proc.stdout.index("Passing: PASS") < proc.stdout.index("Failing: FAIL")
+    # Both checks must appear in the summary table.
+    assert "  FAIL" in proc.stdout
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "not json",
+        '"just a string"',
+        '{"name": "Missing command"}',
+        '{"name": "", "command": "true"}',
+        '{"name": "Extra key", "command": "true", "timeout": 60}',
+    ],
+)
+def test_run_parallel_prechecks_rejects_malformed_lines(tmp_path, line):
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(line + "\n")
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 2
+    assert "malformed check line" in proc.stderr
+
+
+def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
+    """Two checks that wait for each other's sentinel file can only pass in parallel."""
+    script = _SCRIPT_PATH.parents[1] / "scripts" / "run-parallel-prechecks.py"
+    wait_for = 'touch "{d}/{name}"; for _ in $(seq 50); do [ -e "{d}/{other}" ] && exit 0; sleep 0.1; done; exit 1'
+    checks = tmp_path / "checks.jsonl"
+    checks.write_text(
+        json.dumps({"name": "First", "command": wait_for.format(d=tmp_path, name="a", other="b")})
+        + "\n"
+        + json.dumps({"name": "Second", "command": wait_for.format(d=tmp_path, name="b", other="a")})
+        + "\n"
+    )
+
+    proc = subprocess.run([sys.executable, str(script), str(checks)], capture_output=True, text=True, timeout=60)
+
+    assert proc.returncode == 0
+    assert "First: PASS" in proc.stdout
+    assert "Second: PASS" in proc.stdout

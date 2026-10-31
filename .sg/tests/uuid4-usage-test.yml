@@ -1,0 +1,15 @@
+id: uuid4-usage
+valid:
+  - from ddtrace.internal.native import uuid4
+  - from ddtrace.internal.native import uuid4; uuid4()
+  - from uuid import UUID
+  - import uuid; uuid.UUID(value)
+  - from uuidx import uuid4
+
+invalid:
+  - import uuid; uuid.uuid4()
+  - import uuid; str(uuid.uuid4())
+  - import uuid; uuid.uuid4().hex
+  - from uuid import uuid4
+  - from uuid import UUID, uuid4
+  - from uuid import uuid4 as make_id

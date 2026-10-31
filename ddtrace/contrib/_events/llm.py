@@ -19,14 +19,6 @@ if TYPE_CHECKING:
 
 class LlmEvents(Enum):
     LLM_REQUEST = "llm.request"
-    # Dispatched by LlmTracingSubscriber with the ExecutionContext so products can
-    # take part in the span lifecycle without the contrib importing them:
-    # SPAN_STARTING fires before the span is created (the only point where
-    # event.span_type can still change), SPAN_STARTED right after, and
-    # SPAN_FINISHING before the span is finished.
-    SPAN_STARTING = "llm.request.span_starting"
-    SPAN_STARTED = "llm.request.span_started"
-    SPAN_FINISHING = "llm.request.span_finishing"
 
 
 @dataclass
@@ -43,7 +35,7 @@ class LlmRequestEvent(TracingEvent):
 
     provider: str = event_field()
     model: Optional[str] = event_field(default=None)
-    # Integrations that have moved to LlmEvents subscribers leave this unset.
+    # Integrations that have moved to SpanLifecycleEvents subscribers leave this unset.
     llmobs_integration: Optional[BaseLLMIntegration] = event_field(default=None)
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)

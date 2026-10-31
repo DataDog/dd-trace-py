@@ -90,8 +90,16 @@ class ElasticsearchPatchTest(TracerTestCase):
 
         es = self._get_es()
         config = self._get_es_config()
-        wait_for_es(config["host"], config["port"])
-        self.create_index(es)
+        # A probe can pass before index creation times out. Retry setup before patching the client.
+        # Index creation permits an existing index, so a request can be repeated after a timeout.
+        for attempt in range(3):
+            wait_for_es(config["host"], config["port"])
+            try:
+                self.create_index(es)
+                break
+            except (elasticsearch.ConnectionError, elasticsearch.ConnectionTimeout):
+                if attempt == 2:
+                    raise
 
         patch()
 
