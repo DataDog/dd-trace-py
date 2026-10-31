@@ -1048,7 +1048,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def shutdown_exporter(self) -> None:
         """Tear down the native exporter without going through ``stop()``."""
-        self._shutdown_exporter(self._exporter)
+        if self._writer_lock is None:
+            self._shutdown_exporter(self._exporter)
+            return
+        with self._exporter_lock:
+            if self._discarded_by_refresh:
+                self._drop_exporter()
+            else:
+                # Refresh can close the gate after this check. Current libdatadog cannot
+                # cancel native shutdown, so a racing shutdown may still flush old stats.
+                self._shutdown_exporter(self._exporter)
 
     def _drop_exporter(self) -> None:
         with self._exporter_lock:
@@ -1084,6 +1093,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if not exporter_dropped and not self._discarded_by_refresh:
                 self.shutdown_exporter()
 
+        return self._recreate(appsec_enabled, llmobs_enabled, compute_stats_enabled, stats_opt_out)
+
+    def _recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
+    ) -> "NativeWriter":
+        """Build a replacement without stopping this writer."""
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         agentless_stats_endpoint = self._agentless_stats_endpoint
         otlp_metrics_endpoint = self._otlp_metrics_endpoint
@@ -1426,7 +1445,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             self.periodic()
         finally:
-            self._shutdown_exporter(self._exporter)
+            self.shutdown_exporter()
 
 
 def _use_log_writer() -> bool:

@@ -38,6 +38,7 @@ from ddtrace.internal.threads import RLock
 from ddtrace.internal.threads import local
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -375,6 +376,8 @@ class SpanAggregator(SpanProcessor):
         self._lock = forksafe.RLock() if in_aws_lambda_microvm() else RLock()
         # A sync-mode writer whose send was deferred until the finishing thread releases its locks.
         self._pending_sync_flush = local()
+        # Keep detached writers visible until their flush finishes or a refresh discards them.
+        self._retired_writers: set[NativeWriter] = set()
         super().__init__()
 
     def __repr__(self) -> str:
@@ -668,6 +671,23 @@ class SpanAggregator(SpanProcessor):
             )
         return True
 
+    def _finish_retired_writer(self, writer: NativeWriter, flush: bool) -> None:
+        try:
+            if flush:
+                writer.flush_queue()
+        finally:
+            # Joining outside the identity lock also lets a periodic flush finish a payload
+            # it already removed from the encoder. A refresh can still discard this writer.
+            try:
+                writer.stop()
+            except ServiceStatusError:
+                # The writer's periodic service may never have started. Recheck the discard
+                # gate under the exporter lock before choosing shutdown or drop.
+                writer.shutdown_exporter()
+            # Retain the writer if teardown fails, so a later refresh can still discard it.
+            with self._lock:
+                self._retired_writers.discard(writer)
+
     def reset(
         self,
         user_processors: Optional[list[TraceProcessor]] = None,
@@ -690,11 +710,11 @@ class SpanAggregator(SpanProcessor):
         if flush_writer is None:
             flush_writer = not reset_buffer
 
+        retired_writer: Optional[NativeWriter] = None
         if self._identity_refresh_enabled:
-            # Serialize every writer swap with identity refresh so a concurrent reset cannot
-            # install a writer built for the previous runtime ID.
+            # Only construction/publication needs the identity lock; teardown can wait on I/O.
             with self._lock:
-                self._reset_writer(
+                retired_writer = self._reset_writer(
                     appsec_enabled,
                     llmobs_enabled,
                     compute_stats,
@@ -724,6 +744,9 @@ class SpanAggregator(SpanProcessor):
         if user_processors is not None:
             self.user_processors = user_processors
 
+        if retired_writer is not None:
+            self._finish_retired_writer(retired_writer, flush_writer)
+
     def _reset_writer(
         self,
         appsec_enabled: Optional[bool],
@@ -733,7 +756,7 @@ class SpanAggregator(SpanProcessor):
         reset_buffer: bool,
         flush_writer: bool,
         drop_buffered_traces: bool,
-    ) -> None:
+    ) -> Optional[NativeWriter]:
         # Only explicit MicroVM refreshes use discard-and-recreate semantics.
         if drop_buffered_traces and not flush_writer and self._identity_refresh_enabled:
             # The MicroVM-only branch guarantees that the identity is initialized. The refresh callback
@@ -742,6 +765,9 @@ class SpanAggregator(SpanProcessor):
             self._runtime_identity = (generation, get_runtime_id())
             if reset_buffer:
                 self.reset_trace_buffer_after_fork()
+            for writer in self._retired_writers:
+                writer.drop_buffered_traces()
+            self._retired_writers.clear()
             self.writer.drop_buffered_traces()
             self.writer = self.writer.recreate(
                 appsec_enabled=appsec_enabled,
@@ -749,7 +775,18 @@ class SpanAggregator(SpanProcessor):
                 compute_stats_enabled=compute_stats,
                 stats_opt_out=apm_opt_out,
             )
-            return
+            return None
+
+        if self._identity_refresh_enabled and flush_writer and isinstance(self.writer, NativeWriter):
+            old_writer = self.writer
+            # Construction can fail: leave the installed writer and its gates intact in that case.
+            replacement = old_writer._recreate(appsec_enabled, llmobs_enabled, compute_stats, apm_opt_out)
+            self._retired_writers.add(old_writer)
+            self.writer = replacement
+            self._runtime_identity = (cast(tuple[int, str], self._runtime_identity)[0], get_runtime_id())
+            if reset_buffer:
+                self.reset_trace_buffer_after_fork()
+            return old_writer
 
         if flush_writer:
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
@@ -772,6 +809,7 @@ class SpanAggregator(SpanProcessor):
         # Useful when forking to prevent sending duplicate spans from parent and child processes.
         if reset_buffer:
             self.reset_trace_buffer_after_fork()
+        return None
 
     def reset_trace_buffer_after_fork(self) -> None:
         """Discard inherited traces without touching the fork-unsafe writer."""

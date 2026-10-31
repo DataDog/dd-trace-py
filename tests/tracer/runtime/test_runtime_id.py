@@ -1063,6 +1063,363 @@ def test_tracer_microvm_identity_refresh_serializes_writer_recreation_with_confi
         tracer.shutdown()
 
 
+@pytest.mark.subprocess(
+    env={
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+    },
+    err=None,
+)
+def test_microvm_reconfiguration_flush_does_not_block_tracing_or_refresh():
+    import threading
+    from unittest import mock
+
+    from ddtrace._trace.processor import TraceProcessor
+    from ddtrace._trace.tracer import Tracer
+    import ddtrace.internal._runtime_id as runtime_impl
+    from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import Span
+
+    send_started = threading.Event()
+    release_send = threading.Event()
+    span_finished = threading.Event()
+    refresh_finished = threading.Event()
+    errors = []
+    finished_spans = []
+
+    class TaggingProcessor(TraceProcessor):
+        def __init__(self, tag):
+            self.tag = tag
+
+        def process_trace(self, trace):
+            trace[0].set_tag("test.processor", self.tag)
+            return trace
+
+    old_processor = TaggingProcessor("old")
+    new_processor = TaggingProcessor("new")
+
+    def stuck_send(payload):
+        send_started.set()
+        assert release_send.wait(timeout=10)
+        return "{}"
+
+    def finish_span():
+        span = tracer.trace("during-configure")
+        span.finish()
+        finished_spans.append(span)
+        span_finished.set()
+
+    def refresh_identity():
+        tracer._refresh_runtime_identity(runtime_impl.get_runtime_id())
+        refresh_finished.set()
+
+    def configure():
+        try:
+            tracer.configure(trace_processors=[new_processor], compute_stats_enabled=True)
+        except BaseException as error:
+            errors.append(error)
+
+    with (
+        mock.patch.object(NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=lambda _: "{}")),
+        mock.patch(
+            "ddtrace._trace.processor.create_trace_writer", side_effect=lambda **_: NativeWriter("http://dne:1234")
+        ),
+        mock.patch("ddtrace._trace.tracer.store_metadata"),
+    ):
+        tracer = Tracer()
+        aggregator = tracer._span_aggregator
+        aggregator.user_processors = [old_processor]
+        old_writer = aggregator.writer
+        old_exporter = old_writer._exporter
+        old_exporter.send = mock.Mock(side_effect=stuck_send)
+        old_writer._clients[0].encoder.put([Span("before-configure")])
+        configure_thread = threading.Thread(target=configure)
+        span_thread = threading.Thread(target=finish_span)
+        refresh_thread = threading.Thread(target=refresh_identity)
+        try:
+            configure_thread.start()
+            assert send_started.wait(timeout=5)
+            span_thread.start()
+            span_thread.join(timeout=1)
+            assert not span_thread.is_alive(), "configuration flush blocked span start/finish"
+            assert span_finished.is_set()
+            assert finished_spans[0].get_tag("test.processor") == "new"
+            assert aggregator.sampling_processor._compute_stats_enabled is True
+            assert aggregator.writer is not old_writer
+            assert old_writer in aggregator._retired_writers
+
+            runtime_impl._refresh_runtime_id()
+            refresh_thread.start()
+            refresh_thread.join(timeout=1)
+            assert not refresh_thread.is_alive(), "configuration flush blocked identity refresh"
+            assert refresh_finished.is_set()
+            assert old_writer._discarded_by_refresh
+            old_exporter.shutdown.assert_not_called()
+
+            release_send.set()
+            configure_thread.join(timeout=5)
+            assert not configure_thread.is_alive()
+            assert not errors
+            assert not aggregator._retired_writers
+            old_exporter.send.assert_called_once()
+            old_exporter.drop.assert_called_once()
+            old_exporter.shutdown.assert_not_called()
+        finally:
+            release_send.set()
+            configure_thread.join(timeout=5)
+            for thread in (span_thread, refresh_thread):
+                if thread.ident is not None:
+                    thread.join(timeout=5)
+            tracer.shutdown()
+
+
+@pytest.mark.subprocess(
+    env={
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+    },
+    err=None,
+)
+def test_microvm_reconfiguration_preserves_traces_and_keeps_writer_on_build_failure():
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal import runtime
+    from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import Span
+
+    with (
+        mock.patch.object(
+            NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=mock.Mock(return_value="{}"))
+        ),
+        mock.patch("ddtrace._trace.tracer.store_metadata"),
+    ):
+        tracer = Tracer()
+        aggregator = tracer._span_aggregator
+        old_writer = aggregator.writer
+        old_exporter = old_writer._exporter
+        try:
+            old_writer._clients[0].encoder.put([Span("before-configure")])
+            with mock.patch.object(old_writer, "_recreate", side_effect=RuntimeError("build failed")):
+                try:
+                    tracer.configure(trace_processors=[])
+                except RuntimeError as error:
+                    assert str(error) == "build failed"
+                else:
+                    raise AssertionError("configuration should fail")
+            assert aggregator.writer is old_writer
+            assert old_writer._accepting_writes
+            assert not aggregator._retired_writers
+            old_exporter.send.assert_not_called()
+            old_exporter.shutdown.assert_not_called()
+
+            tracer.configure(trace_processors=[])
+            assert aggregator.writer is not old_writer
+            assert not aggregator._retired_writers
+            old_exporter.send.assert_called_once()
+            old_exporter.drop.assert_not_called()
+            old_exporter.shutdown.assert_called_once_with(3_000_000_000)
+
+            failed_writer = aggregator.writer
+            replacement_processor = mock.Mock()
+            replacement_processor.process_trace.side_effect = lambda trace: trace
+            replacement_processors = [replacement_processor]
+            with mock.patch.object(failed_writer, "stop", side_effect=RuntimeError("stop failed")):
+                try:
+                    tracer.configure(trace_processors=replacement_processors, compute_stats_enabled=True)
+                except RuntimeError as error:
+                    assert str(error) == "stop failed"
+                else:
+                    raise AssertionError("teardown should fail")
+            assert aggregator.user_processors is replacement_processors
+            assert aggregator.sampling_processor._compute_stats_enabled is True
+            assert aggregator.writer._compute_stats_enabled is True
+            assert failed_writer in aggregator._retired_writers
+            tracer._refresh_runtime_identity(runtime.get_runtime_id())
+            assert failed_writer._discarded_by_refresh
+            assert not aggregator._retired_writers
+        finally:
+            tracer.shutdown()
+
+
+@pytest.mark.subprocess(
+    env={
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+    },
+    err=None,
+)
+def test_microvm_reconfiguration_joins_detached_sender_outside_identity_lock():
+    import threading
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    import ddtrace.internal._runtime_id as runtime_impl
+    from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import Span
+
+    for refresh in (False, True):
+        payload_encoded = threading.Event()
+        release_send = threading.Event()
+        stop_started = threading.Event()
+        errors = []
+
+        def send_payload(*args, **kwargs):
+            payload_encoded.set()
+            assert release_send.wait(timeout=10)
+            return original_send(*args, **kwargs)
+
+        def stop():
+            stop_started.set()
+            original_stop()
+
+        def configure():
+            try:
+                tracer.configure(trace_processors=[])
+            except BaseException as error:
+                errors.append(error)
+
+        with (
+            mock.patch.object(
+                NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=mock.Mock(return_value="{}"))
+            ),
+            mock.patch("ddtrace._trace.tracer.store_metadata"),
+        ):
+            tracer = Tracer()
+            aggregator = tracer._span_aggregator
+            old_writer = aggregator.writer
+            old_writer.interval = 0.01
+            old_exporter = old_writer._exporter
+            original_send = old_writer._send_payload
+            original_stop = old_writer.stop
+            old_writer._clients[0].encoder.put([Span("already-encoded")])
+            configure_thread = threading.Thread(target=configure)
+            span_thread = threading.Thread(target=lambda: tracer.trace("during-stop").finish())
+            refresh_thread = threading.Thread(
+                target=lambda: tracer._refresh_runtime_identity(runtime_impl.get_runtime_id())
+            )
+            with (
+                mock.patch.object(old_writer, "_send_payload", side_effect=send_payload),
+                mock.patch.object(old_writer, "stop", side_effect=stop),
+            ):
+                try:
+                    old_writer.start()
+                    assert payload_encoded.wait(timeout=5)
+                    configure_thread.start()
+                    assert stop_started.wait(timeout=5)
+                    assert old_writer in aggregator._retired_writers
+                    assert configure_thread.is_alive()
+
+                    span_thread.start()
+                    span_thread.join(timeout=1)
+                    assert not span_thread.is_alive(), "joining the old sender blocked tracing"
+
+                    if refresh:
+                        runtime_impl._refresh_runtime_id()
+                        refresh_thread.start()
+                        refresh_thread.join(timeout=1)
+                        assert not refresh_thread.is_alive(), "joining the old sender blocked refresh"
+                        assert old_writer._discarded_by_refresh
+
+                    release_send.set()
+                    configure_thread.join(timeout=5)
+                    old_writer.join(timeout=5)
+                    assert not configure_thread.is_alive()
+                    assert not errors
+                    assert not aggregator._retired_writers
+                    assert old_exporter.send.call_count == (0 if refresh else 1)
+                    if refresh:
+                        old_exporter.drop.assert_called_once()
+                        old_exporter.shutdown.assert_not_called()
+                    else:
+                        old_exporter.drop.assert_not_called()
+                        old_exporter.shutdown.assert_called_once_with(3_000_000_000)
+                finally:
+                    release_send.set()
+                    if configure_thread.ident is not None:
+                        configure_thread.join(timeout=5)
+                    for thread in (span_thread, refresh_thread):
+                        if thread.ident is not None:
+                            thread.join(timeout=5)
+                    old_writer.join(timeout=5)
+                    tracer.shutdown()
+
+
+@pytest.mark.subprocess(
+    env={
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
+    },
+    err=None,
+)
+def test_microvm_retired_native_shutdown_does_not_hold_identity_lock():
+    """Use a yielding shutdown stub to check lock ownership. The real native binding may hold the GIL."""
+    import threading
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    import ddtrace.internal._runtime_id as runtime_impl
+    from ddtrace.internal.writer import NativeWriter
+
+    shutdown_started = threading.Event()
+    release_shutdown = threading.Event()
+    errors = []
+
+    def shutdown(timeout):
+        shutdown_started.set()
+        assert release_shutdown.wait(timeout=10)
+
+    def configure():
+        try:
+            tracer.configure(trace_processors=[])
+        except BaseException as error:
+            errors.append(error)
+
+    with (
+        mock.patch.object(NativeWriter, "_create_exporter", side_effect=lambda: mock.Mock(send=lambda _: "{}")),
+        mock.patch("ddtrace._trace.tracer.store_metadata"),
+    ):
+        tracer = Tracer()
+        aggregator = tracer._span_aggregator
+        old_writer = aggregator.writer
+        old_exporter = old_writer._exporter
+        old_exporter.shutdown.side_effect = shutdown
+        configure_thread = threading.Thread(target=configure)
+        span_thread = threading.Thread(target=lambda: tracer.trace("during-shutdown").finish())
+        refresh_thread = threading.Thread(
+            target=lambda: tracer._refresh_runtime_identity(runtime_impl.get_runtime_id())
+        )
+        try:
+            configure_thread.start()
+            assert shutdown_started.wait(timeout=5)
+            assert old_writer in aggregator._retired_writers
+
+            span_thread.start()
+            span_thread.join(timeout=1)
+            assert not span_thread.is_alive(), "native shutdown blocked tracing"
+
+            runtime_impl._refresh_runtime_id()
+            refresh_thread.start()
+            refresh_thread.join(timeout=1)
+            assert not refresh_thread.is_alive(), "native shutdown blocked refresh"
+            assert old_writer._discarded_by_refresh
+            assert configure_thread.is_alive()
+
+            release_shutdown.set()
+            configure_thread.join(timeout=5)
+            assert not configure_thread.is_alive()
+            assert not errors
+            assert not aggregator._retired_writers
+            old_exporter.shutdown.assert_called_once_with(3_000_000_000)
+        finally:
+            release_shutdown.set()
+            configure_thread.join(timeout=5)
+            for thread in (span_thread, refresh_thread):
+                if thread.ident is not None:
+                    thread.join(timeout=5)
+            tracer.shutdown()
+
+
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
 def test_tracer_microvm_send_stuck_in_retries_does_not_block_spans_or_refresh():
     """A send stuck in retries must not block tracing on other threads or the /run refresh.
