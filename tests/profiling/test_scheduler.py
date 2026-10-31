@@ -52,6 +52,8 @@ def test_flush_calls_malloc_trim_after_upload(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
     monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    monkeypatch.setattr(scheduler, "_malloc_trim_upload_count", 0)
+    monkeypatch.setattr(scheduler, "_malloc_trim_last_rss_bytes", None)
     with mock.patch.object(ddup, "upload", fake_upload):
         scheduler.Scheduler().flush()
 
@@ -67,10 +69,93 @@ def test_flush_trims_after_upload_failure(monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
     monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    monkeypatch.setattr(scheduler, "_malloc_trim_upload_count", 0)
+    monkeypatch.setattr(scheduler, "_malloc_trim_last_rss_bytes", None)
     with mock.patch.object(ddup, "upload", side_effect=RuntimeError("upload failed")):
         scheduler.Scheduler().flush()
 
     assert trim_calls == [0]
+
+
+def test_malloc_trim_pad_passed_through(monkeypatch: pytest.MonkeyPatch) -> None:
+    trim_calls: list[int] = []
+
+    def fake_trim(pad: int) -> int:
+        trim_calls.append(pad)
+        return 1
+
+    monkeypatch.setenv("_DD_PROFILING_MALLOC_TRIM_PAD", "65536")
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    monkeypatch.setattr(scheduler, "_malloc_trim_upload_count", 0)
+    monkeypatch.setattr(scheduler, "_malloc_trim_last_rss_bytes", None)
+    monkeypatch.setattr(scheduler, "_read_rss_bytes", lambda: None)
+    with mock.patch.object(ddup, "upload"):
+        scheduler.Scheduler().flush()
+
+    assert trim_calls == [65536]
+
+
+def test_malloc_trim_every_n_skips(monkeypatch: pytest.MonkeyPatch) -> None:
+    trim_calls: list[int] = []
+
+    def fake_trim(pad: int) -> int:
+        trim_calls.append(pad)
+        return 1
+
+    monkeypatch.setenv("_DD_PROFILING_MALLOC_TRIM_EVERY", "3")
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    monkeypatch.setattr(scheduler, "_malloc_trim_upload_count", 0)
+    monkeypatch.setattr(scheduler, "_malloc_trim_last_rss_bytes", None)
+    monkeypatch.setattr(scheduler, "_read_rss_bytes", lambda: None)
+    with mock.patch.object(ddup, "upload"):
+        for _ in range(5):
+            scheduler.Scheduler().flush()
+
+    # Uploads 1 and 2 skip; 3 and (after reset count continues) 6 would trim —
+    # with 5 flushes, only upload 3 trims.
+    assert trim_calls == [0]
+    assert scheduler._malloc_trim_upload_count == 5
+
+
+def test_malloc_trim_rss_growth_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    trim_calls: list[int] = []
+    # Per-flush rss_before, plus rss_after after each trim:
+    # flush1 before/after 100MB (baseline), flush2 before 120MB (skip),
+    # flush3 before/after 180MB (trim).
+    mb: int = 1024 * 1024
+    rss_values: list[t.Optional[int]] = [
+        100 * mb,
+        100 * mb,
+        120 * mb,
+        180 * mb,
+        180 * mb,
+    ]
+    rss_idx: list[int] = [0]
+
+    def fake_trim(pad: int) -> int:
+        trim_calls.append(pad)
+        return 1
+
+    def fake_rss() -> t.Optional[int]:
+        idx: int = rss_idx[0]
+        value: t.Optional[int] = rss_values[idx] if idx < len(rss_values) else rss_values[-1]
+        rss_idx[0] = idx + 1
+        return value
+
+    monkeypatch.setenv("_DD_PROFILING_MALLOC_TRIM_RSS_GROWTH_MB", "64")
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    monkeypatch.setattr(scheduler, "_malloc_trim_upload_count", 0)
+    monkeypatch.setattr(scheduler, "_malloc_trim_last_rss_bytes", None)
+    monkeypatch.setattr(scheduler, "_read_rss_bytes", fake_rss)
+    with mock.patch.object(ddup, "upload"):
+        for _ in range(3):
+            scheduler.Scheduler().flush()
+
+    # First upload: no prior RSS baseline, so trim. Second: growth 20 MB < 64. Third: 80 MB.
+    assert trim_calls == [0, 0]
 
 
 def test_load_malloc_trim_missing_symbol_is_none(monkeypatch: pytest.MonkeyPatch) -> None:

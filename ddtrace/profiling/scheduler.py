@@ -1,4 +1,5 @@
 import ctypes
+import os
 import time
 from typing import Any
 from typing import Callable
@@ -12,6 +13,7 @@ from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.profiling import config
 
 
@@ -20,6 +22,10 @@ LOG = get_logger(__name__)
 _UNSET: object = object()
 # Unset until first lookup; then a libc malloc_trim, or None if missing.
 _malloc_trim_fn: Union[Callable[[int], int], None, object] = _UNSET
+# Upload counter for _DD_PROFILING_MALLOC_TRIM_EVERY (undocumented experiment knob).
+_malloc_trim_upload_count: int = 0
+# RSS (bytes) recorded after the last successful trim; used by RSS-growth gate.
+_malloc_trim_last_rss_bytes: Optional[int] = None
 
 
 def _load_malloc_trim() -> Optional[Callable[[int], int]]:
@@ -43,6 +49,31 @@ def _get_malloc_trim() -> Optional[Callable[[int], int]]:
     return _malloc_trim_fn  # type: ignore[return-value]
 
 
+def _read_rss_bytes() -> Optional[int]:
+    """Resident set size from /proc/self/statm, or None when unavailable."""
+    try:
+        with open("/proc/self/statm", encoding="utf-8") as f:
+            fields: list[str] = f.read().split()
+        if len(fields) < 2:
+            return None
+        pages: int = int(fields[1])
+        page_size: int = os.sysconf("SC_PAGESIZE")
+        return pages * page_size
+    except (OSError, ValueError):
+        return None
+
+
+def _env_int(name: str, default: int) -> int:
+    """Parse an undocumented integer env var; fall back to default on bad input."""
+    raw: Optional[str] = env.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 def _maybe_malloc_trim() -> None:
     """Return unused glibc heap pages after a profile upload (scheduler thread)."""
     if not config.malloc_trim_enabled:
@@ -50,10 +81,48 @@ def _maybe_malloc_trim() -> None:
     malloc_trim: Optional[Callable[[int], int]] = _get_malloc_trim()
     if malloc_trim is None:
         return
+
+    global _malloc_trim_upload_count, _malloc_trim_last_rss_bytes
+
+    every: int = _env_int("_DD_PROFILING_MALLOC_TRIM_EVERY", 1)
+    if every < 1:
+        every = 1
+    _malloc_trim_upload_count += 1
+    if _malloc_trim_upload_count % every != 0:
+        return
+
+    rss_growth_mb: int = _env_int("_DD_PROFILING_MALLOC_TRIM_RSS_GROWTH_MB", 0)
+    rss_before: Optional[int] = _read_rss_bytes()
+    if rss_growth_mb > 0 and rss_before is not None and _malloc_trim_last_rss_bytes is not None:
+        growth_bytes: int = rss_before - _malloc_trim_last_rss_bytes
+        if growth_bytes < rss_growth_mb * 1024 * 1024:
+            return
+
+    pad: int = _env_int("_DD_PROFILING_MALLOC_TRIM_PAD", 0)
+    if pad < 0:
+        pad = 0
+
+    start_ns: int = time.monotonic_ns()
     try:
-        malloc_trim(0)
+        ret: int = malloc_trim(pad)
     except Exception:
         LOG.debug("[profiling] malloc_trim failed", exc_info=True)
+        return
+    duration_ns: int = time.monotonic_ns() - start_ns
+    rss_after: Optional[int] = _read_rss_bytes()
+    if rss_after is not None:
+        _malloc_trim_last_rss_bytes = rss_after
+    elif rss_before is not None:
+        _malloc_trim_last_rss_bytes = rss_before
+
+    LOG.debug(
+        "[profiling] malloc_trim pad=%d ret=%d duration_ns=%d rss_before=%s rss_after=%s",
+        pad,
+        ret,
+        duration_ns,
+        rss_before,
+        rss_after,
+    )
 
 
 class Scheduler(periodic.PeriodicService):
