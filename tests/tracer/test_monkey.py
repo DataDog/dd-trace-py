@@ -99,7 +99,11 @@ class TestPatching(SubprocessTestCase):
 
         del sqlite3.connect
 
-        _monkey.patch(raise_errors=False, sqlite3=True)
+        with self.assertLogs("ddtrace._monkey", level="ERROR") as logs:
+            _monkey.patch(raise_errors=False, sqlite3=True)
+        assert len(logs.records) == 1
+        assert logs.records[0].getMessage().startswith("failed to enable ddtrace support for sqlite3:")
+        assert "connect" in logs.records[0].getMessage()
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SAFE_INSTRUMENTATION_ENABLED="true"))
     def test_patch_guardrails_with_unsupported_integration_version(self):
@@ -111,9 +115,15 @@ class TestPatching(SubprocessTestCase):
             ) as mock_add_integration:
                 import ddtrace
 
-                _monkey._patch_all()
+                with self.assertLogs("ddtrace._monkey", level="ERROR") as logs:
+                    _monkey._patch_all()
 
                 fastapi_supported_version = ddtrace.contrib.internal.fastapi.patch._supported_versions().get("fastapi")
+                assert [record.getMessage() for record in logs.records] == [
+                    "failed to enable ddtrace support for fastapi: "
+                    "Skipped patching 'fastapi' integration, installed version: 0.0.0 is not compatible "
+                    f"with integration support spec: {fastapi_supported_version}."
+                ]
 
                 mock_add_integration.assert_any_call(
                     "fastapi",

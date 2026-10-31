@@ -1,3 +1,5 @@
+import warnings
+
 from flask import Flask
 
 from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
@@ -324,7 +326,10 @@ class TestFlaskCacheSchematization(TracerTestCase):
         super().setUp()
 
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache()
+        with warnings.catch_warnings(record=True) as recorded:
+            Cache = get_traced_cache()
+        for warning in recorded:
+            assert str(warning.message).startswith("Importing flask.ext.cache is deprecated")
         app = Flask(__name__)
         self.cache = Cache(app, config={"CACHE_TYPE": "simple"})
 

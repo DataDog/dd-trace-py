@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.internal.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.utils import assert_is_measured
 
 from ..config import MONGO_CONFIG
@@ -55,7 +54,6 @@ class TestAsyncPymongo(AsyncioTestCase):
         super().tearDown()
         unpatch()
 
-    @mark_asyncio
     async def test_async_insert_find(self) -> None:
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
@@ -109,7 +107,6 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="full",
@@ -145,7 +142,6 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @mark_asyncio
     async def test_async_mongodb_obfuscation_disabled_find_operation(self):
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
@@ -166,7 +162,6 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @mark_asyncio
     async def test_async_update(self):
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
@@ -186,7 +181,6 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @mark_asyncio
     async def test_async_delete(self):
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
@@ -211,7 +205,6 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @mark_asyncio
     async def test_async_rowcount(self):
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:
@@ -233,7 +226,6 @@ class TestAsyncPymongo(AsyncioTestCase):
             await client.close()
             await asyncio.sleep(0.1)
 
-    @mark_asyncio
     async def test_async_span_parenting(self):
         from ddtrace.contrib.internal.pymongo.utils import _CHECKOUT_FN_NAME
 

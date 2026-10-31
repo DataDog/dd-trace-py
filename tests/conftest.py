@@ -66,7 +66,6 @@ from tests.process import PythonProcess
 from tests.process import check_scenario_outcome
 from tests.process import run_process
 from tests.utils import TracerSpanContainer
-from tests.utils import call_program
 from tests.utils import request_token
 from tests.utils import scoped_tracer
 from tests.utils import snapshot_context as _snapshot_context
@@ -286,20 +285,9 @@ def clear_context_after_every_test():
 
 
 def create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir):
-    # Create a test dir named `ddtrace_subprocess_dir` that will be used by the tracers
-    # inferred path service name as a fallback to DD_SERVICE
-    ddtrace_dir = tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
-    if not ddtrace_dir.exists():
-        ddtrace_dir.mkdir()
-
-    # Check for __init__.py and create it if it doesn't exist
-    # The first dir without an init file aka 'ddtrace_subprocess_dir' will be our service name
-    init_file = ddtrace_dir.join("__init__.py")
-    if not init_file.exists():
-        init_file.write("")  # Create an empty __init__.py file
-
-    pyfile = ddtrace_dir.join("test.py")
-    return pyfile
+    runner = PythonProcess(Path(str(tmpdir)) / DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
+    path = runner._source("")
+    return tmpdir.join(DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME, path.name)
 
 
 @pytest.fixture
@@ -317,23 +305,13 @@ def ddtrace_tmp_path(tmp_path):
 
 
 @pytest.fixture
-def run_python_code_in_subprocess(tmpdir):
-    def _run(code, **kwargs):
-        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
-        pyfile.write(code)
-        return call_program(sys.executable, str(pyfile), **kwargs)
-
-    yield _run
+def run_python_code_in_subprocess(python_process):
+    return python_process
 
 
 @pytest.fixture
-def ddtrace_run_python_code_in_subprocess(tmpdir):
-    def _run(code, **kwargs):
-        pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
-        pyfile.write(code)
-        return call_program(DDTRACE_RUN, sys.executable, str(pyfile), **kwargs)
-
-    yield _run
+def ddtrace_run_python_code_in_subprocess(python_process):
+    return functools.partial(python_process, ddtrace_run=True)
 
 
 @pytest.fixture
@@ -448,7 +426,7 @@ def run_function_from_file(item, params=None):
 
     args = [sys.executable]
 
-    timeout = marker.kwargs.get("timeout", DEFAULT_TIMEOUT if isinstance(item, ClassSubprocessItem) else None)
+    timeout = marker.kwargs.get("timeout", DEFAULT_TIMEOUT)
     check_logs = marker.kwargs.get("check_logs", True)
 
     # Add ddtrace-run prefix in ddtrace-run mode
@@ -500,8 +478,7 @@ def run_function_from_file(item, params=None):
         args.extend(marker.kwargs.get("args", []))
         out: Union[bytes, str]
         err: Union[bytes, str]
-        runner = run_process if isinstance(item, ClassSubprocessItem) else call_program
-        result = runner(*args, env=env, cwd=cwd, timeout=timeout)
+        result = run_process(*args, env=env, cwd=cwd, timeout=timeout)
         out, err, status, _ = result
         if isinstance(item, ClassSubprocessItem):
             check_scenario_outcome(result)
