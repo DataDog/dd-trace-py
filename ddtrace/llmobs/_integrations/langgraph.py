@@ -58,7 +58,9 @@ class LangGraphIntegration(BaseLLMIntegration):
     ) -> Span:
         span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 
-        if instance:
+        # Only read back in _llmobs_set_tags; storing the graph otherwise keeps it (and, through
+        # contexts captured by its pooled connections, this span) alive for the life of the process.
+        if instance and submit_to_llmobs and self.llmobs_enabled:
             self._graph_spans_to_graph_instances[span] = instance
 
         # Stamp agent name at start so children resolve the correct pagent_name.
@@ -107,7 +109,9 @@ class LangGraphIntegration(BaseLLMIntegration):
         span_kind = "task"
         if operation == "graph":
             span_kind = "agent"
-            agent = self._graph_spans_to_graph_instances[span]
+            # Pop: the graph can reference this span through captured contexts, which would otherwise
+            # prevent the weak key from ever being collected.
+            agent = self._graph_spans_to_graph_instances.pop(span, None)
             agent_manifest = self._get_agent_manifest(agent, args, config)
 
         _annotate_llmobs_span_data(

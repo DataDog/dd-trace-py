@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
+from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_output
@@ -356,6 +357,14 @@ class TestLangGraphLLMObs:
         graph_span = _find_span_by_name(spans, "LangGraph")
         assert graph_span is not None
         assert graph_span.error == 0
+
+    def test_graph_instance_released_after_span_finish(self, langgraph_llmobs, test_spans, simple_graph):
+        """The span -> graph entry is consumed when the graph span is tagged, not kept for the span's lifetime."""
+        simple_graph.invoke({"a_list": [], "which": "a"})
+        spans = _collect_spans(test_spans)  # keep the spans alive so weak entries can't vanish on their own
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        assert get_llmobs_metadata(graph_span).get("_dd", {}).get("agent_manifest", {}).get("framework") == "LangGraph"
+        assert len(LangGraphIntegration._graph_spans_to_graph_instances) == 0
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_simple_graph(
