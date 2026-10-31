@@ -211,13 +211,18 @@ class _ImportHookChainedLoader:
 
     def call_back(self, module: ModuleType) -> None:
         # Restore the original loader, if possible. Some specs might be native
-        # and won't support attribute assignment.
+        # and won't support attribute assignment. Only restore loaders that
+        # still point to us, since the wrapped loader might have replaced them
+        # during execution (e.g. importlib.util.LazyLoader).
         try:
-            module.__loader__ = self.loader
+            if object.__getattribute__(module, "__loader__") is self:
+                module.__loader__ = self.loader
         except (AttributeError, TypeError):
             pass
         try:
-            object.__getattribute__(module, "spec").loader = self.loader
+            spec = object.__getattribute__(module, "__spec__")
+            if spec.loader is self:
+                spec.loader = self.loader
         except (AttributeError, TypeError):
             pass
 
