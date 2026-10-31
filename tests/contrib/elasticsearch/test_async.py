@@ -1,8 +1,5 @@
 import os
-import subprocess
-import sys
 
-from tests.conftest import create_ddtrace_subprocess_dir_and_return_test_pyfile
 from tests.utils import snapshot
 
 
@@ -38,9 +35,7 @@ asyncio.run(main())
 """
 
 
-def do_test(tmpdir, es_module, async_class):
-    f = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
-    f.write(code % {"module": es_module, "class": async_class})
+def do_test(python_process, tmpdir, es_module, async_class):
     env = os.environ.copy()
     # ddtrace-run patches sqlite3 which is used by coverage to store coverage
     # results. This generates sqlite3 spans during the test run which interfere
@@ -51,29 +46,24 @@ def do_test(tmpdir, es_module, async_class):
             "DD_TRACE_AIOHTTP_ENABLED": "false",
         }
     )
-    p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, str(f)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=env,
+    result = python_process(
+        code % {"module": es_module, "class": async_class}, ddtrace_run=True, cwd=str(tmpdir), env=env
     )
-    stdout, stderr = p.communicate()
-    assert stderr == b"", stderr
-    assert stdout == b"", stdout
-    assert p.returncode == 0
+    result.check_returncode()
+    assert result.stderr == b"", result.stderr
+    assert result.stdout == b"", result.stdout
 
 
 @snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
-def test_elasticsearch(tmpdir):
-    do_test(tmpdir, "elasticsearch", "AsyncElasticsearch")
+def test_elasticsearch(python_process, tmpdir):
+    do_test(python_process, tmpdir, "elasticsearch", "AsyncElasticsearch")
 
 
 @snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
-def test_elasticsearch7(tmpdir):
-    do_test(tmpdir, "elasticsearch7", "AsyncElasticsearch")
+def test_elasticsearch7(python_process, tmpdir):
+    do_test(python_process, tmpdir, "elasticsearch7", "AsyncElasticsearch")
 
 
 @snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
-def test_opensearch(tmpdir):
-    do_test(tmpdir, "opensearchpy", "AsyncOpenSearch")
+def test_opensearch(python_process, tmpdir):
+    do_test(python_process, tmpdir, "opensearchpy", "AsyncOpenSearch")

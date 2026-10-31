@@ -165,7 +165,7 @@ async def test_parenting(patched_conn):
 
 
 @pytest.mark.snapshot()
-def test_configure_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
+def test_configure_service_name_env_v0(python_process):
     code = """
 import asyncio
 import sys
@@ -188,13 +188,13 @@ asyncio.run(test())
     env = os.environ.copy()
     env["DD_ASYNCPG_SERVICE"] = "global-service-name"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, err
     assert err == b""
 
 
 @pytest.mark.snapshot()
-def test_configure_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
+def test_configure_service_name_env_v1(python_process):
     code = """
 import asyncio
 import sys
@@ -217,13 +217,13 @@ asyncio.run(test())
     env = os.environ.copy()
     env["DD_ASYNCPG_SERVICE"] = "global-service-name"
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, err
     assert err == b""
 
 
 @pytest.mark.snapshot()
-def test_unspecified_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
+def test_unspecified_service_name_env_v0(python_process):
     code = """
 import asyncio
 import sys
@@ -245,13 +245,13 @@ asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v0"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, err
     assert err == b""
 
 
 @pytest.mark.snapshot()
-def test_unspecified_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
+def test_unspecified_service_name_env_v1(python_process):
     code = """
 import asyncio
 import sys
@@ -273,14 +273,14 @@ asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, err
     assert err == b""
 
 
 @pytest.mark.snapshot()
 @pytest.mark.parametrize("version", ("v0", "v1"))
-def test_span_name_by_schema(ddtrace_run_python_code_in_subprocess, version):
+def test_span_name_by_schema(python_process, version):
     code = """
 import asyncio
 import sys
@@ -302,7 +302,7 @@ asyncio.run(test())
     """
     env = os.environ.copy()
     env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = version
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, err
     assert err == b""
 
@@ -458,7 +458,7 @@ class AsyncPgTestCase(AsyncioTestCase):
 
         unpatch()
 
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @pytest.mark.subprocess(env=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
         conn = await self._get_conn()
 
@@ -471,12 +471,9 @@ class AsyncPgTestCase(AsyncioTestCase):
 
         assert query_span.get_tag("_dd.dbm_trace_injected") == "true"
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
+    @pytest.mark.subprocess(
+        env=dict(
+            DD_DBM_PROPAGATION_MODE="service", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
         )
     )
     async def test_asyncpg_dbm_propagation_comment_with_global_service_name_configured(self):
@@ -506,8 +503,8 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",
@@ -542,8 +539,8 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
             )
 
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",

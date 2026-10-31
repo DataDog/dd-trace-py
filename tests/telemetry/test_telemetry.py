@@ -43,7 +43,7 @@ def _no_inherited_api_key(monkeypatch):
     monkeypatch.delenv("DD_API_KEY", raising=False)
 
 
-def test_enable(test_agent_session, run_python_code_in_subprocess):
+def test_enable(test_agent_session, python_process):
     code = """
 import ddtrace # enables telemetry
 
@@ -53,23 +53,23 @@ from ddtrace.internal.telemetry import telemetry_writer
 assert telemetry_writer._worker is not None
 """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    stdout, stderr, status, _ = python_process(code)
 
     assert status == 0, stderr
     assert stdout == b"", stderr
     assert stderr == b""
 
 
-def test_enable_with_short_heartbeat_does_not_race_imports(test_agent_session, run_python_code_in_subprocess):
+def test_enable_with_short_heartbeat_does_not_race_imports(test_agent_session, python_process):
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "0.00001"
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = python_process("import ddtrace", env=env)
 
     assert status == 0, stderr
 
 
-def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
+def test_enable_fork(test_agent_session, python_process):
     """assert app-started/app-closing events are only sent in parent process"""
     from ddtrace.internal.telemetry.writer import get_runtime_id
 
@@ -97,7 +97,7 @@ else:
     """
     env = os.environ.copy()
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    stdout, stderr, status, _ = python_process(code, env=env)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -123,7 +123,7 @@ else:
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
-def test_metric_collection_after_fork(test_agent_session, run_python_code_in_subprocess):
+def test_metric_collection_after_fork(test_agent_session, python_process):
     code = """
 import warnings
 
@@ -150,7 +150,7 @@ if pid == 0:
 os.waitpid(pid, 0)
 """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    stdout, stderr, status, _ = python_process(code)
 
     assert status == 0, stderr
     assert stderr == b"", stderr
@@ -180,7 +180,7 @@ os.waitpid(pid, 0)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
-def test_metric_collection_after_native_fork(test_agent_session, run_python_code_in_subprocess):
+def test_metric_collection_after_native_fork(test_agent_session, python_process):
     """Native forks that bypass Python hooks restart metric collection in the child."""
     code = """
 import ctypes
@@ -240,7 +240,7 @@ while True:
 assert os.waitstatus_to_exitcode(status) == 0
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = python_process(code)
 
     assert status == 0, stderr
     child_metrics = [
@@ -255,7 +255,7 @@ assert os.waitstatus_to_exitcode(status) == 0
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires native atfork handlers")
-def test_native_atfork_does_not_start_runtime_before_exec(run_python_code_in_subprocess):
+def test_native_atfork_does_not_start_runtime_before_exec(python_process):
     """Fork-exec children must not start Tokio before exec closes inherited descriptors."""
     code = """
 import subprocess
@@ -276,14 +276,14 @@ for _ in range(64):
     assert result.stderr == b"", result.stderr
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = python_process(code)
 
     assert status == 0, stderr
     assert stderr == b"", stderr
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
-def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subprocess):
+def test_rebuild_telemetry_worker_after_fork_fd_close(python_process):
     """Celery beat closes inherited FDs after Python at-fork hooks return.
 
     Rebuilding the native telemetry worker must not unpark the inherited Tokio
@@ -328,13 +328,13 @@ _, status = os.waitpid(pid, 0)
 assert os.waitstatus_to_exitcode(status) == 0
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = python_process(code)
 
     assert status == 0, stderr
     assert b"panic" not in stderr.lower(), stderr
 
 
-def test_trace_exporter_propagates_telemetry_runtime_restart_errors(run_python_code_in_subprocess):
+def test_trace_exporter_propagates_telemetry_runtime_restart_errors(python_process):
     """An exporter must not retain a telemetry handle when its runtime cannot restart."""
     code = """
 import ddtrace
@@ -359,7 +359,7 @@ finally:
     runtime.allow_after_fork_child()
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = python_process(code)
 
     assert status == 0, stderr
     assert stderr == b"", stderr
@@ -380,7 +380,7 @@ def _subprocess_lineage(test_agent_session):
     return lineage
 
 
-def test_enable_subprocess_exec_suppresses_app_started(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_enable_subprocess_exec_suppresses_app_started(test_agent_session, python_process):
     """A child process spawned via subprocess.run must not re-emit app-started.
 
     ``subprocess.Popen.__init__`` is patched to inject the session-lineage env vars
@@ -395,7 +395,7 @@ subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
 """
     env = os.environ.copy()
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     # The session also contains the in-process telemetry_writer fixture's app-started and the rootless
@@ -410,7 +410,7 @@ subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
     assert child_app_started == [], child_app_started
 
 
-def test_enable_subprocess_exec_suppresses_app_closing(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_enable_subprocess_exec_suppresses_app_closing(test_agent_session, python_process):
     """A child process spawned via subprocess.run must not emit app-closing (only the root does).
 
     The native worker is built with emit_app_lifecycle=False in non-root processes, so even the
@@ -424,7 +424,7 @@ subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
 """
     env = os.environ.copy()
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     lineage = _subprocess_lineage(test_agent_session)
@@ -436,7 +436,7 @@ subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
     assert child_app_closing == [], child_app_closing
 
 
-def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
+def test_enable_fork_heartbeat(test_agent_session, python_process):
     """
     assert app-heartbeat events are also sent in forked processes since otherwise the dependency collection
     would be lost in pre-fork models after one hour.
@@ -469,7 +469,7 @@ else:
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
     # Prevents dependencies loaded event from being generated
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "0.2"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -479,7 +479,7 @@ else:
     assert len(app_heartbeats) > 1, app_heartbeats
 
 
-def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
+def test_heartbeat_interval_configuration(python_process):
     """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
     code = """
 import warnings
@@ -498,14 +498,14 @@ assert telemetry_writer._worker is not None
 
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env)
     assert status == 0, stderr
     assert stderr == b""
 
 
-def test_logs_after_fork(run_python_code_in_subprocess):
+def test_logs_after_fork(python_process):
     # Regression test: telemetry writer should not log an error when a process forks
-    _, err, status, _ = run_python_code_in_subprocess(
+    _, err, status, _ = python_process(
         """
 import warnings
 # This test logs the following warning in py3.12:
@@ -524,7 +524,7 @@ os.fork()
     assert err == b"", err
 
 
-def test_app_started_error_handled_exception(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_error_handled_exception(test_agent_session, python_process):
     code = """
 import logging
 logging.basicConfig()
@@ -545,7 +545,7 @@ tracer.trace("hello").finish()
 from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.periodic(force_flush=True)
 """
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = python_process(code)
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
@@ -561,8 +561,8 @@ telemetry_writer.periodic(force_flush=True)
     _assert_ddtrace_stack_trace(error_log["stack_trace"], "in on_span_finish", "spans = tp.process_trace(spans) or []")
 
 
-def test_register_telemetry_excepthook_after_another_hook(test_agent_session, run_python_code_in_subprocess):
-    out, stderr, status, _ = run_python_code_in_subprocess(
+def test_register_telemetry_excepthook_after_another_hook(test_agent_session, python_process):
+    out, stderr, status, _ = python_process(
         """
 import sys
 
@@ -595,7 +595,7 @@ raise Exception('bad_code')
     assert len(logs_event) == 0
 
 
-def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
+def test_handled_integration_error(test_agent_session, python_process):
     code = """
 import logging
 logging.basicConfig()
@@ -610,7 +610,7 @@ patch(raise_errors=False, sqlite3=True)
 """
 
     env = os.environ.copy()
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env)
 
     assert status == 0, stderr
     assert b"failed to enable ddtrace support for sqlite3" in stderr
@@ -636,7 +636,7 @@ patch(raise_errors=False, sqlite3=True)
     )
 
 
-def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_unhandled_integration_error(test_agent_session, python_process):
     code = """
 import flask
 f = flask.Flask("hi")
@@ -645,7 +645,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    _, stderr, status, _ = python_process(code, ddtrace_run=True)
 
     assert status == 1, stderr
 
@@ -694,7 +694,7 @@ f.wsgi_app()
     assert error_metric["tags"] == ["integration_name:flask", "error_type:valueerror"]
 
 
-def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_with_install_metrics(test_agent_session, python_process):
     env = os.environ.copy()
     env.update(
         {
@@ -704,7 +704,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
         }
     )
     # Generate a trace to trigger app-started event
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = python_process("import ddtrace", env=env)
     assert status == 0, stderr
 
     # The in-process telemetry_writer fixture also emits an app-started into the session, but only
@@ -721,7 +721,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
     }
 
 
-def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_in_subprocess):
+def test_instrumentation_telemetry_disabled(test_agent_session, python_process):
     """Ensure no telemetry events are sent by a subprocess when telemetry is disabled.
 
     The in-process ``telemetry_writer`` fixture (a dependency of ``test_agent_session``) is itself
@@ -741,7 +741,7 @@ from ddtrace.trace import tracer
 import sys
 assert "ddtrace.internal.telemetry" in sys.modules
 """
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env)
 
     assert status == 0, stderr
     assert stderr == b""
@@ -774,16 +774,14 @@ def test_installed_excepthook():
     assert sys.excepthook.__name__ == "_ddtrace_excepthook"
 
 
-def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subprocess):
+def test_telemetry_multiple_sources(test_agent_session, python_process):
     """Test that a config is submitted for multiple sources with increasing seq_id"""
 
     env = os.environ.copy()
     env["OTEL_TRACES_EXPORTER"] = "none"
     env["DD_TRACE_ENABLED"] = "false"
 
-    _, err, status, _ = run_python_code_in_subprocess(
-        "from ddtrace import config; config._tracing_enabled = True", env=env
-    )
+    _, err, status, _ = python_process("from ddtrace import config; config._tracing_enabled = True", env=env)
     assert status == 0, err
 
     configs = test_agent_session.get_configurations(name="DD_TRACE_ENABLED", remove_seq_id=False, effective=False)
@@ -809,7 +807,7 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     assert sorted_configs[3]["origin"] == "code"
 
 
-def test_session_id_headers_across_forks(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_session_id_headers_across_forks(test_agent_session, python_process):
     """Verify session ID headers are correct across a parent -> child -> grandchild fork tree."""
     code = """
 import os
@@ -841,7 +839,7 @@ else:
 
     from ddtrace.internal.telemetry.writer import get_runtime_id
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
     # One representative request per process. The test agent records header names lowercased, so
@@ -891,7 +889,7 @@ else:
 
 
 @pytest.mark.parametrize("collect_dependencies", [True, False])
-def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_in_subprocess, test_agent_session):
+def test_extended_heartbeat_sent(collect_dependencies, python_process, test_agent_session):
     """Assert at least one extended heartbeat is sent when the extended heartbeat interval has elapsed."""
 
     env = os.environ.copy()
@@ -916,7 +914,7 @@ telemetry_writer.periodic(force_flush=True)
 time.sleep(1.5)
 """
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
     # Dynamic Instrumentation (unrelated to telemetry) prints an "Unsupported Datadog agent ...
     # upgrade to version 7.49.0 or later" warning to stderr when the agent is older than 7.49.0
@@ -979,7 +977,7 @@ time.sleep(1.5)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
-def test_concurrent_metric_collection_after_native_fork(test_agent_session, run_python_code_in_subprocess):
+def test_concurrent_metric_collection_after_native_fork(test_agent_session, python_process):
     """Concurrent child operations wait for the native runtime restart to finish."""
     code = """
 import ctypes
@@ -1048,7 +1046,7 @@ while True:
 assert os.waitstatus_to_exitcode(status) == 0
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = python_process(code)
 
     assert status == 0, stderr
     child_metrics = [

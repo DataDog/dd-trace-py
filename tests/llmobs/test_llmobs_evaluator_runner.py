@@ -97,7 +97,7 @@ def test_evaluator_runner_multiple_evaluators(llmobs, mock_llmobs_eval_metric_wr
 
 
 @pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
-def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+def test_evaluator_runner_on_exit(mock_writer_logs, python_process):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
@@ -105,7 +105,7 @@ def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subproces
     env.update(
         {"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "0.01", "_DD_LLMOBS_WRITER_INTERVAL": "0.01"}
     )
-    out, err, status, pid = run_python_code_in_subprocess(
+    out, err, status, _ = python_process(
         """
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner

@@ -63,7 +63,7 @@ def test_connect_traced():
 @pytest.mark.snapshot(
     token="tests.contrib.psycopg.test_psycopg_snapshot.test_connect_traced_via_env", wait_for_num_traces=1
 )
-def test_connect_traced_via_env(run_python_code_in_subprocess):
+def test_connect_traced_via_env(python_process):
     """When explicitly enabled, we trace psycopg.connect method"""
 
     code = """
@@ -82,6 +82,6 @@ assert conn
 
     env = os.environ.copy()
     env["DD_PSYCOPG_TRACE_CONNECT"] = "true"
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env)
     assert status == 0, err
     assert out == b"", err

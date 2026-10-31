@@ -370,7 +370,7 @@ class TestVertica(TracerTestCase):
         assert spans[1].name == "vertica.query"
         assert spans[1].resource == "COMMIT;"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         """
         v0 (default): When a user specifies a service for the app
@@ -390,7 +390,7 @@ class TestVertica(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -410,7 +410,7 @@ class TestVertica(TracerTestCase):
         span = spans[0]
         assert span.service == "vertica"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -430,7 +430,7 @@ class TestVertica(TracerTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0(self):
         """
         v1: When a service is unspecified, vertica
@@ -446,7 +446,7 @@ class TestVertica(TracerTestCase):
         span = spans[0]
         assert span.service == "vertica"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         """
         v1: When a service is unspecified, vertica
@@ -462,7 +462,7 @@ class TestVertica(TracerTestCase):
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0(self):
         """
         v0: Vertica has several different names for operations, including 'fetchall, 'fetchone', and 'query'
@@ -505,7 +505,7 @@ class TestVertica(TracerTestCase):
         assert spans[3].name == "vertica.fetchone"
         assert spans[4].name == "vertica.fetchall"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1(self):
         """
         v1: Vertica should use 'query' for all operation names

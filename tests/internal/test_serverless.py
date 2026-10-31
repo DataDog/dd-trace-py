@@ -87,7 +87,7 @@ expanded_blocklist = (
         ("ddtrace.contrib.internal.requests", standard_blocklist),
     ],
 )
-def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
+def test_slow_imports(package, blocklist, python_process):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
@@ -118,7 +118,7 @@ sys.meta_path = [BlockListFinder()] + sys.meta_path
 import {package}
 """
 
-    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    stderr, stdout, status, _ = python_process(code, env=env)
     assert stdout.decode() == ""
     assert stderr.decode() == ""
     assert status == 0
@@ -153,7 +153,7 @@ import {package}
         ("ddtrace.trace", "tracer"),
     ],
 )
-def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
+def test_serverless_imports(from_, import_, python_process):
     # datadog-lambda-python imports a bunch of packages from ddtrace.  This
     # test ensures that none of those imports break.  If this test fails, then
     # either you will need to retain the import that was removed or you must
@@ -171,7 +171,7 @@ def test_serverless_imports(from_, import_, run_python_code_in_subprocess):
 
     code = f"from {from_} import {import_}"
 
-    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    stderr, stdout, status, _ = python_process(code, env=env)
     assert stdout.decode() == ""
     assert stderr.decode() == ""
     assert status == 0

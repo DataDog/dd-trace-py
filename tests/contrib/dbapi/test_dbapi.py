@@ -38,7 +38,7 @@ class TestTracedCursor(TracerTestCase):
 
             getattr(self.cursor, method).assert_not_called()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @pytest.mark.subprocess(env=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
@@ -50,12 +50,9 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor.execute("SELECT * FROM db;")
         cursor.execute.assert_called_once_with("SELECT * FROM db;")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
+    @pytest.mark.subprocess(
+        env=dict(
+            DD_DBM_PROPAGATION_MODE="service", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
         )
     )
     def test_cursor_execute_with_dbm_injection(self):
@@ -368,12 +365,9 @@ class TestFetchTracedCursor(TracerTestCase):
         assert len(spans) == 1
         self.reset()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="full",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
+    @pytest.mark.subprocess(
+        env=dict(
+            DD_DBM_PROPAGATION_MODE="full", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
         )
     )
     def test_cursor_execute_fetch_with_dbm_injection(self):

@@ -335,7 +335,7 @@ async def test_user_specified_service(tracer, test_spans):
         ("mysvc", "v1", "mysvc", "aws.{}.request"),
     ],
 )
-def test_schematized_env_specified_service(ddtrace_run_python_code_in_subprocess, schema_params):
+def test_schematized_env_specified_service(python_process, schema_params):
     """
     v0: use 'aws.<INTEGRATION>" for service name
     v1: use the env-specified service (if specified) else internal.schema.DEFAULT_SPAN_SERVICE_NAME
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service_name
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, _, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out.decode()
 
 

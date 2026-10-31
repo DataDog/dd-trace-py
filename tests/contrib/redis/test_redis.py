@@ -97,21 +97,21 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "redis"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
     def test_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0_schema(self):
         us = self.r.get("cheese")
         assert us is None
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.name == "redis.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1_schema(self):
         us = self.r.get("cheese")
         assert us is None
@@ -351,7 +351,7 @@ class TestRedisPatch(TracerTestCase):
         for command in multi_key_get_commands:
             self.command_test_rowcount(command, 0, expect_result=False)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         from ddtrace import config
 
@@ -361,7 +361,7 @@ class TestRedisPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "redis"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         from ddtrace import config
 
@@ -371,7 +371,7 @@ class TestRedisPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "redis"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         from ddtrace import config
 
@@ -381,9 +381,7 @@ class TestRedisPatch(TracerTestCase):
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_REDIS_SERVICE="myredis", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_REDIS_SERVICE="myredis", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_env_user_specified_redis_service_v0(self):
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET")
@@ -397,10 +395,8 @@ class TestRedisPatch(TracerTestCase):
             span = find_redis_span(self.get_spans(), resource="GET")
             assert span.service == "cfg-redis", span.service
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
-        )
+    @pytest.mark.subprocess(
+        env=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-specified-redis-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     def test_service_precedence_v0(self):
         self.r.get("cheese")
@@ -488,8 +484,8 @@ class TestRedisPatchSnapshot(TracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_user_specified_service")
     def test_user_specified_service(self):
         from ddtrace import config
 
@@ -497,8 +493,8 @@ class TestRedisPatchSnapshot(TracerTestCase):
 
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myredis"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_REDIS_SERVICE="myredis"))
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_env_user_specified_redis_service")
     def test_env_user_specified_redis_service(self):
         self.r.get("cheese")
 
@@ -511,16 +507,16 @@ class TestRedisPatchSnapshot(TracerTestCase):
         self.reset()
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_service_precedence")
     def test_service_precedence(self):
         self.r.get("cheese")
 
         self.reset()
         self.r.get("cheese")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_CMD_MAX_LENGTH="10"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_REDIS_CMD_MAX_LENGTH="10"))
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_custom_cmd_length_env")
     def test_custom_cmd_length_env(self):
         self.r.get("here-is-a-long-key-name")
 
@@ -529,8 +525,8 @@ class TestRedisPatchSnapshot(TracerTestCase):
         with self.override_config("redis", dict(cmd_max_length=7)):
             self.r.get("here-is-a-long-key-name")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
-    @snapshot()
+    @pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+    @snapshot(token_override="tests.contrib.redis.test_redis.test_full_command_in_resource_env")
     def test_full_command_in_resource_env(self):
         self.r.get("put_key_in_resource")
         p = self.r.pipeline(transaction=False)

@@ -1536,13 +1536,13 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
         )
 
 
-def test_project_name_set(run_python_code_in_subprocess):
+def test_project_name_set(python_process):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
     env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
-    out, err, status, pid = run_python_code_in_subprocess(
+    _, err, status, _ = python_process(
         """
 from ddtrace.llmobs import LLMObs
 
@@ -1554,7 +1554,7 @@ assert LLMObs._project_name == "test-project-123"
     assert status == 0, err
 
 
-def test_project_name_set_env(ddtrace_run_python_code_in_subprocess):
+def test_project_name_set_env(python_process):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
@@ -1567,18 +1567,19 @@ def test_project_name_set_env(ddtrace_run_python_code_in_subprocess):
             "DD_LLMOBS_ENABLED": "1",
         }
     )
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    _, err, status, _ = python_process(
         """
 from ddtrace.llmobs import LLMObs
 
 assert LLMObs._project_name == "test-project-123"
 """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
 
 
-def test_project_name_not_set_env(ddtrace_run_python_code_in_subprocess):
+def test_project_name_not_set_env(python_process):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
@@ -1590,7 +1591,7 @@ def test_project_name_not_set_env(ddtrace_run_python_code_in_subprocess):
             "DD_LLMOBS_ENABLED": "1",
         }
     )
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+    _, err, status, _ = python_process(
         """
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -1598,6 +1599,7 @@ from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 assert LLMObs._project_name == DEFAULT_PROJECT_NAME
 """,
         env=env,
+        ddtrace_run=True,
     )
     assert status == 0, err
 

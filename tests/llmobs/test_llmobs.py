@@ -264,7 +264,7 @@ class TestLLMIOProcessing:
         # Kept: payload is intact for export.
         assert get_llmobs_input_messages(keep_span) == [{"content": "keep me", "role": ""}]
 
-    def test_ddtrace_run_register_processor(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
+    def test_ddtrace_run_register_processor(self, python_process, llmobs_backend):
         """Users using ddtrace-run can register a processor to be called on each LLMObs span."""
         env = os.environ.copy()
         env["DD_LLMOBS_ML_APP"] = "test-ml-app"
@@ -273,7 +273,7 @@ class TestLLMIOProcessing:
         env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
         env["DD_TRACE_ENABLED"] = "0"
         env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
-        out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        out, err, status, _ = python_process(
             dedent(
                 """
             from ddtrace.llmobs import LLMObs
@@ -311,6 +311,7 @@ class TestLLMIOProcessing:
             """
             ),
             env=env,
+            ddtrace_run=True,
         )
         assert out == b""
         assert status == 0, err
@@ -517,7 +518,7 @@ class TestLLMIOProcessing:
             llmobs.annotate(span, input_data="value", metadata={"keep": "ok"})
         assert get_llmobs_metadata(span) == {}
 
-    def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
+    def test_processor_error_is_logged(self, python_process, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
         env = os.environ.copy()
         env["DD_LLMOBS_ML_APP"] = "test-ml-app"
@@ -526,7 +527,7 @@ class TestLLMIOProcessing:
         env["DD_TRACE_ENABLED"] = "0"
         env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
         env["DD_TRACE_LOGGING_RATE"] = "0"
-        out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        out, err, status, _ = python_process(
             dedent(
                 """
             from ddtrace.llmobs import LLMObs
@@ -547,6 +548,7 @@ class TestLLMIOProcessing:
             """
             ),
             env=env,
+            ddtrace_run=True,
         )
         assert status == 0, err
         assert b"something bad happened" in err

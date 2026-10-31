@@ -190,8 +190,8 @@ class BotocoreTest(TracerTestCase):
         assert span.name == "ec2.command"
         assert span.span_type == "http"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_ec2_call_default(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
@@ -202,8 +202,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_ec2_call_v0(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
@@ -214,8 +214,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_ec2_call_v1(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
@@ -226,8 +226,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
         assert span.name == "aws.ec2.request"
 
+    @pytest.mark.subprocess(env=dict())
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_ec2_call_default(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
@@ -238,8 +238,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_ec2_call_v0(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
@@ -250,8 +250,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.ec2", f"Expected 'aws.ec2' but got {span.service}"
         assert span.name == "ec2.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_ec2
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_ec2_call_v1(self):
         ec2 = self.session.create_client("ec2", region_name="us-west-2")
 
@@ -595,8 +595,8 @@ class BotocoreTest(TracerTestCase):
                 ),
             ]
 
+    @pytest.mark.subprocess(env=dict(DD_BOTOCORE_SERVICE="botocore"))
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_SERVICE="botocore"))
     def test_service_name_override(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
@@ -625,8 +625,8 @@ class BotocoreTest(TracerTestCase):
 
         assert span.service == "boto-service.s3", f"Expected 'boto-service.s3' but got {span.service}"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
@@ -638,8 +638,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.s3", f"Expected 'aws.s3' but got {span.service}"
         assert span.name == "s3.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_s3_client_v0(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
@@ -651,8 +651,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.s3", f"Expected 'aws.s3' but got {span.service}"
         assert span.name == "s3.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_s3_client_v1(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
@@ -664,8 +664,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
         assert span.name == "aws.s3.request"
 
+    @pytest.mark.subprocess(env=dict())
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_s3_client_default(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
@@ -677,8 +677,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.s3"
         assert span.name == "s3.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_s3_client_v0(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
@@ -690,8 +690,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.s3"
         assert span.name == "s3.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_s3_client_v1(self):
         s3 = self.session.create_client("s3", region_name="us-west-2")
 
@@ -1064,8 +1064,8 @@ class BotocoreTest(TracerTestCase):
         trace_in_message = "MessageAttributes" in response["Messages"][0]
         assert trace_in_message is False
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_sqs_client_default(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
@@ -1085,8 +1085,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].service == "aws.sqs"
         assert spans[2].name == "sqs.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_sqs_client_v0(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
@@ -1106,8 +1106,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].service == "aws.sqs"
         assert spans[2].name == "sqs.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_sqs_client_v1(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
@@ -1127,8 +1127,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].service == "mysvc"
         assert spans[2].name == "aws.sqs.receive"
 
+    @pytest.mark.subprocess(env=dict())
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_sqs_client_default(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
@@ -1148,8 +1148,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].service == "aws.sqs"
         assert spans[2].name == "sqs.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_sqs_client_v0(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
@@ -1169,8 +1169,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].service == "aws.sqs"
         assert spans[2].name == "sqs.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_sqs_client_v1(self):
         self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
         self.sqs_client.send_message_batch(
@@ -1451,8 +1451,8 @@ class BotocoreTest(TracerTestCase):
         assert_is_measured(span)
         lamb.delete_function(FunctionName="black-sabbath")
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
@@ -1469,12 +1469,10 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.lambda"
         assert spans[1].name == "lambda.command"
 
-    @mock_lambda
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", endpoint_url="http://localhost:4566"
-        )
+    @pytest.mark.subprocess(
+        env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", endpoint_url="http://localhost:4566")
     )
+    @mock_lambda
     def test_schematized_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
@@ -1491,8 +1489,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.lambda"
         assert spans[1].name == "lambda.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
@@ -1509,8 +1507,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "mysvc"
         assert spans[1].name == "aws.lambda.invoke"
 
+    @pytest.mark.subprocess(env=dict())
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_lambda_client_default(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
@@ -1527,8 +1525,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.lambda"
         assert spans[1].name == "lambda.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_lambda_client_v0(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
@@ -1545,8 +1543,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.lambda"
         assert spans[1].name == "lambda.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_lambda
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_lambda_client_v1(self):
         # DEV: No lambda params tagged so we only check no ClientContext
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
@@ -1726,8 +1724,8 @@ class BotocoreTest(TracerTestCase):
         # checking for protection on sts against security leak
         assert span.get_tag("params") is None
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_kms_client_default(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
@@ -1740,8 +1738,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.kms"
         assert span.name == "kms.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_kms_client_v0(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
@@ -1754,8 +1752,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.kms"
         assert span.name == "kms.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_kms_client_v1(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
@@ -1768,8 +1766,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "mysvc"
         assert span.name == "aws.kms.request"
 
+    @pytest.mark.subprocess(env=dict())
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_kms_client_default(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
@@ -1782,8 +1780,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.kms"
         assert span.name == "kms.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_kms_client_v0(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
@@ -1796,8 +1794,8 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.kms"
         assert span.name == "kms.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_kms
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_kms_client_v1(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
 
@@ -1870,23 +1868,23 @@ class BotocoreTest(TracerTestCase):
         assert put_record_batch_span.get_tag("aws.operation") == "PutRecordBatch"
         assert put_record_batch_span.get_tag("params.Records") is None
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="true"))
+    @pytest.mark.subprocess(env=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="true"))
     def test_distributed_tracing_env_override(self):
         assert config.botocore.distributed_tracing is True
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"))
+    @pytest.mark.subprocess(env=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"))
     def test_distributed_tracing_env_override_false(self):
         assert config.botocore.distributed_tracing is False
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
+    @pytest.mark.subprocess(env=dict(DD_BOTOCORE_PROPAGATION_ENABLED="true"))
     def test_propagation_enabled_env_override(self):
         assert config.botocore.propagation_enabled is True
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_PROPAGATION_ENABLED="false"))
+    @pytest.mark.subprocess(env=dict(DD_BOTOCORE_PROPAGATION_ENABLED="false"))
     def test_propagation_enabled_env_override_false(self):
         assert config.botocore.propagation_enabled is False
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"))
+    @pytest.mark.subprocess(env=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"))
     def test_invoke_legacy_context_env_override(self):
         assert config.botocore.invoke_with_legacy_context is True
 
@@ -1915,49 +1913,49 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1, f"Expected 1 span, found {len(spans)}"
         return spans[0]
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_sns_client_default(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_sns_client_v0(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_sns_client_v1(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "mysvc"
         assert span.name == "aws.sns.send", span.name
 
+    @pytest.mark.subprocess(env=dict())
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_sns_client_default(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_sns_client_v0(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == "aws.sns"
         assert span.name == "sns.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_sns
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_sns_client_v1(self):
         span = self._test_sns(use_default_tracer=True)
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
@@ -2812,8 +2810,8 @@ class BotocoreTest(TracerTestCase):
         decoded_record_data = self._test_kinesis_put_records_trace_injection("json_string", records)
         assert decoded_record_data.endswith("\n")
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_kinesis_client_default(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -2833,8 +2831,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.kinesis"
         assert spans[1].name == "kinesis.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_kinesis_client_v0(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -2853,8 +2851,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.kinesis"
         assert spans[1].name == "kinesis.command"
 
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_kinesis_client_v1(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -2873,8 +2871,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "mysvc"
         assert spans[1].name == "aws.kinesis.send"
 
+    @pytest.mark.subprocess(env=dict())
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_kinesis_client_default(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -2893,8 +2891,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.kinesis"
         assert spans[1].name == "kinesis.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_kinesis_client_v0(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -2913,8 +2911,8 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].service == "aws.kinesis"
         assert spans[1].name == "kinesis.command"
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_kinesis_client_v1(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
         stream_name = "test"
@@ -2981,7 +2979,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.SecretString") is None
             assert span.get_tag("params.SecretBinary") is None
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_schematized_secretsmanager_default(self):
         from moto import mock_secretsmanager
 
@@ -2998,7 +2996,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_secretsmanager_v0(self):
         from moto import mock_secretsmanager
 
@@ -3015,7 +3013,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_secretsmanager_v1(self):
         from moto import mock_secretsmanager
 
@@ -3032,7 +3030,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "mysvc"
             assert span.name == "aws.secretsmanager.request"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @pytest.mark.subprocess(env=dict())
     def test_schematized_unspecified_service_secretsmanager_default(self):
         from moto import mock_secretsmanager
 
@@ -3049,7 +3047,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_secretsmanager_v0(self):
         from moto import mock_secretsmanager
 
@@ -3066,7 +3064,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.secretsmanager"
             assert span.name == "secretsmanager.command"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_secretsmanager_v1(self):
         from moto import mock_secretsmanager
 
@@ -3427,8 +3425,8 @@ class BotocoreTest(TracerTestCase):
                 client.put_records(StreamName=stream_name, Records=data)
 
     # Peer service tests
+    @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     @mock_sqs
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_sqs_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for SQS when running in AWS Lambda"""
         sqs = self.session.create_client("sqs", region_name="us-east-1")
@@ -3441,8 +3439,8 @@ class BotocoreTest(TracerTestCase):
         # Should have peer.service set to sqs hostname
         assert span.get_tag("peer.service") == "sqs.us-east-1.amazonaws.com"
 
+    @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     @mock_s3
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_s3_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for S3 when running in AWS Lambda"""
         s3 = self.session.create_client("s3", region_name="us-east-1")
@@ -3456,8 +3454,8 @@ class BotocoreTest(TracerTestCase):
         # Should have peer.service set to bucket-specific hostname
         assert span.get_tag("peer.service") == "test-bucket.s3.us-east-1.amazonaws.com"
 
+    @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     @mock_dynamodb
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_dynamodb_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for DynamoDB when running in AWS Lambda"""
         dynamodb = self.session.create_client("dynamodb", region_name="us-west-2")
@@ -3470,8 +3468,8 @@ class BotocoreTest(TracerTestCase):
         # Should have peer.service set to dynamodb hostname
         assert span.get_tag("peer.service") == "dynamodb.us-west-2.amazonaws.com"
 
+    @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     @mock_kinesis
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_kinesis_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for Kinesis when running in AWS Lambda"""
         kinesis = self.session.create_client("kinesis", region_name="us-east-1")
@@ -3484,8 +3482,8 @@ class BotocoreTest(TracerTestCase):
         # Should have peer.service set to kinesis hostname
         assert span.get_tag("peer.service") == "kinesis.us-east-1.amazonaws.com"
 
+    @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     @mock_sns
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_sns_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for SNS when running in AWS Lambda"""
         sns = self.session.create_client("sns", region_name="us-west-2")
@@ -3498,8 +3496,8 @@ class BotocoreTest(TracerTestCase):
         # Should have peer.service set to sns hostname
         assert span.get_tag("peer.service") == "sns.us-west-2.amazonaws.com"
 
+    @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     @mock_events
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_eventbridge_client_peer_service_in_lambda(self):
         """Test that peer.service tag is set for EventBridge when running in AWS Lambda"""
         events = self.session.create_client("events", region_name="us-east-1")

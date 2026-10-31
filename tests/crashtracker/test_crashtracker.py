@@ -355,13 +355,13 @@ sys.exit(-1)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
+def test_crashtracker_preload_default(python_process):
     # Call the program
     service = "test_crashtracker_preload_default"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
-        stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(preload_code, env=env, ddtrace_run=True)
 
         # Check for expected exit condition
         assert not stdout
@@ -377,14 +377,14 @@ def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
+def test_crashtracker_preload_disabled(python_process):
     # Call the program
     service = "test_crashtracker_preload_disabled"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
         env["DD_CRASHTRACKING_ENABLED"] = "false"
-        stdout, stderr, exitcode, _ = ddtrace_run_python_code_in_subprocess(preload_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(preload_code, env=env, ddtrace_run=True)
 
         # Check for expected exit condition
         assert not stdout
@@ -500,13 +500,13 @@ sys.exit(-1)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_auto_default(run_python_code_in_subprocess):
+def test_crashtracker_auto_default(python_process):
     # Call the program
     service = "test_crashtracker_auto_default"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -522,7 +522,7 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
+def test_crashtracker_auto_nostack(python_process):
     import json
 
     # Call the program
@@ -531,7 +531,7 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
         env = os.environ.copy()
         env["DD_SERVICE"] = service
         env["DD_CRASHTRACKING_STACKTRACE_RESOLVER"] = "none"
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -554,14 +554,14 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
+def test_crashtracker_auto_disabled(python_process):
     # Call the program
     service = "test_crashtracker_auto_disabled"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
         env["DD_CRASHTRACKING_ENABLED"] = "false"
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -575,14 +575,14 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
-def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
+def test_crashtracker_runtime_stacktrace_required(python_process):
     import json
 
     service = "test_crashtracker_runtime_stacktrace_required"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -639,12 +639,12 @@ sys.exit(-1)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_all_threads(run_python_code_in_subprocess):
+def test_crashtracker_all_threads(python_process):
     service = "test_crashtracker_all_threads"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(code_all_threads, env=env)
+        stdout, stderr, exitcode, _ = python_process(code_all_threads, env=env)
 
         assert not stdout
         assert not stderr
@@ -708,14 +708,14 @@ sys.exit(-1)
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.skipif(not shutil.which("g++"), reason="g++ required to compile the native extension")
-def test_crashtracker_native_extension_crash(run_python_code_in_subprocess):
+def test_crashtracker_native_extension_crash(python_process):
     import json
 
     service = "test_crashtracker_native_extension_crash"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(_native_extension_crash_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(_native_extension_crash_code, env=env)
 
         assert not stdout
         assert not stderr
@@ -733,7 +733,7 @@ def test_crashtracker_native_extension_crash(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
+def test_crashtracker_user_tags_envvar(python_process):
     # Call the program
     service = "test_crashtracker_user_tags_envvar"
     with utils.with_test_agent() as client:
@@ -747,7 +747,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
             tag_prefix + "_tag2": "quartz_chert",
         }
         env["DD_CRASHTRACKING_TAGS"] = ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(auto_code, env=env)
 
         # Check for expected exit condition
         assert not stdout
@@ -767,7 +767,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
+def test_crashtracker_set_tag_profiler_config(snapshot_context, python_process):
     from ddtrace.internal.settings.profiling import config as profiling_config
     from ddtrace.internal.settings.profiling import config_str
 
@@ -776,7 +776,7 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         env = os.environ.copy()
         env["DD_SERVICE"] = service
         env["DD_PROFILING_ENABLED"] = "1"
-        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+        stdout, stderr, exitcode, _ = python_process(auto_code, env=env)
 
         assert not stdout
         assert not stderr
@@ -1136,14 +1136,14 @@ raise CustomError("crashtracker_unhandled_test_message")
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
+def test_crashtracker_unhandled_exception(python_process):
     import json
 
     service = "test_crashtracker_unhandled_exception"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_SERVICE"] = service
-        _stdout, stderr, exitcode, _ = run_python_code_in_subprocess(unhandled_exception_code, env=env)
+        _stdout, stderr, exitcode, _ = python_process(unhandled_exception_code, env=env)
 
         # The process should exit with code 1, not a signal
         assert exitcode == 1

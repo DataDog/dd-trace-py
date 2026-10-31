@@ -302,7 +302,7 @@ class TestMolten(TracerTestCase):
         spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default_schema(self):
         """
         default: When a service name is specified by the user
@@ -313,7 +313,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0_schema(self):
         """
         v0: When a service name is specified by the user
@@ -324,7 +324,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1_schema(self):
         """
         v1: When a service name is specified by the user
@@ -335,7 +335,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "mysvc", f"Expected 'mysvc' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_unspecified_service_default_schema(self):
         """
         default: When a service name is not specified by the user
@@ -346,7 +346,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "molten", f"Expected 'molten' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0_schema(self):
         """
         v0: When a service name is not specified by the user
@@ -357,7 +357,7 @@ class TestMolten(TracerTestCase):
         for span in spans:
             assert span.service == "molten", f"Expected 'molten' but got {span.service}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1_schema(self):
         """
         v1: When a service name is not specified by the user
@@ -370,7 +370,7 @@ class TestMolten(TracerTestCase):
                 f"Expected '{DEFAULT_SPAN_SERVICE_NAME}' but got {span.service}"
             )
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_schematized_operation_name_default(self):
         """
         v0: The molten span name should be "request.span"
@@ -380,7 +380,7 @@ class TestMolten(TracerTestCase):
         root_span = spans[0]
         assert root_span.name == "molten.request", f"Expected 'molten.request' but got {root_span.name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
         """
         v0: The molten span name should be "request.span"
@@ -390,7 +390,7 @@ class TestMolten(TracerTestCase):
         root_span = spans[0]
         assert root_span.name == "molten.request", f"Expected 'molten.request' but got {root_span.name}"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
         """
         v1: The molten span name should be "http.server.request"

@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from tests.utils import call_program
+from tests.process import run_process
 
 
 @pytest.mark.skip(reason="FIXME: make the flaky Celery gevent startup check deterministic")
@@ -21,7 +21,7 @@ def test_django_celery_gevent_startup():
     about Django settings.
     """
     try:
-        out, err, retcode, _ = call_program(
+        out, err, retcode, _ = run_process(
             "ddtrace-run",
             "celery",
             "-A",

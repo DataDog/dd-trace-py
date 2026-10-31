@@ -243,7 +243,7 @@ def test_snowflake_executemany_accepts_command_keyword(client):
         ("mysvc", "v1"),
     ],
 )
-def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
+def test_schematization(python_process, service_schema):
     service, schema = service_schema
     code = """
 import pytest
@@ -276,6 +276,6 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
     env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     env["DD_TRACE_BOTOCORE_ENABLED"] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()

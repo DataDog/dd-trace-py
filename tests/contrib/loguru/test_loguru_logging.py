@@ -107,7 +107,7 @@ def test_log_no_trace(captured_logs):
     _test_logging(captured_logs, None, config.env, config.service, config.version)
 
 
-def test_log_with_default_sink(ddtrace_run_python_code_in_subprocess):
+def test_log_with_default_sink(python_process):
     code = """
 from loguru import logger
 from ddtrace.trace import tracer
@@ -118,7 +118,7 @@ with tracer.trace("test.logging") as span:
 
     env = os.environ.copy()
     env.update(dict(LOGURU_SERIALIZE="1", DD_LOGS_INJECTION="1", DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"))
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
 
     assert status == 0, err + out
 
@@ -132,7 +132,7 @@ with tracer.trace("test.logging") as span:
     assert result["record"]["extra"]["dd.version"] == "vv"
 
 
-def test_log_with_default_sink_and_configure(ddtrace_run_python_code_in_subprocess):
+def test_log_with_default_sink_and_configure(python_process):
     code = """
 from loguru import logger
 from ddtrace.trace import tracer
@@ -145,7 +145,7 @@ with tracer.trace("test.logging") as span:
 
     env = os.environ.copy()
     env.update(dict(LOGURU_SERIALIZE="1", DD_LOGS_INJECTION="1", DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"))
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
 
     assert status == 0, err + out
 
