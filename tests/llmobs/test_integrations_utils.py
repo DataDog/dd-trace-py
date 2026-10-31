@@ -2077,3 +2077,52 @@ class TestOpenAIServerToolUsageMetrics:
     def test_tool_usage_without_web_search_count_falls_back(self, tool_usage):
         resp = {"output": [_web_search_call(), _web_search_call(action_type="open_page")], "tool_usage": tool_usage}
         assert get_openai_server_tool_usage_metrics(resp) == {"web_search_count": 1}
+
+
+def _refusal_chunk(refusal=None, content=None, finish_reason=None):
+    return SimpleNamespace(
+        index=0,
+        finish_reason=finish_reason,
+        delta=SimpleNamespace(role="assistant", content=content, refusal=refusal, tool_calls=None, function_call=None),
+    )
+
+
+def _output_messages_of_chat(kwargs, messages):
+    from unittest import mock
+
+    with mock.patch("ddtrace.llmobs._integrations.utils._annotate_llmobs_span_data") as annotate:
+        openai_set_meta_tags_from_chat(mock.MagicMock(), kwargs, messages)
+    return annotate.call_args_list[-1].kwargs["output_messages"]
+
+
+def test_openai_chat_refusal_is_the_output_message():
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    role="assistant", content=None, refusal="I can't help with that.", tool_calls=None
+                ),
+            )
+        ]
+    )
+    output = _output_messages_of_chat({"messages": [{"role": "user", "content": "hi"}]}, response)
+    assert output[0]["content"] == "I can't help with that."
+
+
+def test_openai_streamed_chat_refusal_is_the_output_message():
+    chunks = [
+        _refusal_chunk(refusal="I can't "),
+        _refusal_chunk(refusal="help with that."),
+        _refusal_chunk(finish_reason="stop"),
+    ]
+    message = openai_construct_message_from_streamed_chunks(chunks)
+    assert message["refusal"] == "I can't help with that."
+    output = _output_messages_of_chat({"messages": [{"role": "user", "content": "hi"}]}, [message])
+    assert output[0]["content"] == "I can't help with that."
+
+
+def test_openai_streamed_chat_without_refusal_has_no_refusal_key():
+    message = openai_construct_message_from_streamed_chunks([_refusal_chunk(content="hello", finish_reason="stop")])
+    assert message["content"] == "hello"
+    assert "refusal" not in message
