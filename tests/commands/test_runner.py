@@ -353,6 +353,25 @@ def test_launcher_resolves_package_without_importing_it(tmp_path):
     subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, capture_output=True)
 
 
+def test_launcher_consumes_bootstrap_marker():
+    result = subprocess.run(
+        ["ddtrace-run", sys.executable, "-c", "import os; assert '_DDTRACE_RUN' not in os.environ"],
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_launcher_does_not_run_application_after_import_failure():
+    result = subprocess.run(
+        ["ddtrace-run", sys.executable, "-c", "print('application ran')"],
+        env=dict(os.environ, DD_TRACE_LOG_FILE_LEVEL="UNKNOWN"),
+        capture_output=True,
+    )
+    assert result.returncode == 1, result.stderr
+    assert b"ValueError" in result.stderr
+    assert result.stdout == b""
+
+
 def test_return_code():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE

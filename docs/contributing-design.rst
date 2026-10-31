@@ -54,6 +54,9 @@ The ``ddtrace-run`` console script uses the standalone ``_ddtrace_run`` module s
 does not initialize ``ddtrace`` before replacing itself with the application process. Keep its
 normal execution path limited to standard-library imports. Tracer configuration is resolved by
 the application bootstrap; diagnostic options such as ``--info`` may initialize the library.
+The launcher sets the private ``_DDTRACE_RUN`` marker, which bootstrap consumes before importing
+``ddtrace``. An import failure on this path still terminates the application, preserving the
+launcher's behavior without changing other bootstrap entrypoints.
 
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
 These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, etc. Before starting these Products,

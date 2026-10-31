@@ -152,6 +152,7 @@ def main() -> None:
         )
 
     try:
+        env["_DDTRACE_RUN"] = "true"
         os.execl(executable, executable, *args.command[1:])
     except PermissionError:
         print("ddtrace-run: permission error while launching '%s'" % executable)
