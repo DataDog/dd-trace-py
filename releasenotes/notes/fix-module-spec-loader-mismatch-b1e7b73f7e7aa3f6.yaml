@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where modules imported after ddtrace is loaded have a
+    ``__loader__`` that differs from ``__spec__.loader``. On Python 3.15 this causes a
+    ``DeprecationWarning`` when formatting tracebacks, which fails code run with
+    ``-W error`` (for example, pytest).

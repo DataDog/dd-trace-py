@@ -217,7 +217,7 @@ class _ImportHookChainedLoader:
         except (AttributeError, TypeError):
             pass
         try:
-            object.__getattribute__(module, "spec").loader = self.loader
+            object.__getattribute__(module, "__spec__").loader = self.loader
         except (AttributeError, TypeError):
             pass
 

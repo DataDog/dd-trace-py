@@ -542,6 +542,40 @@ def test_module_watchdog_does_not_rewrap_get_code():
 
 
 @pytest.mark.subprocess
+def test_module_watchdog_restores_spec_loader():
+    """Ensures that __loader__ and __spec__.loader agree for modules imported after the watchdog is installed"""
+    from pathlib import Path
+    import sys
+    import tempfile
+    import traceback
+    import warnings
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    ModuleWatchdog.install()
+
+    directory = Path(tempfile.mkdtemp())
+    (directory / "spec_loader_victim.py").write_text("def fail():\n    raise RuntimeError('boom')\n")
+    sys.path.insert(0, str(directory))
+
+    import spec_loader_victim
+
+    from tests.internal import namespace_test
+
+    for module in (spec_loader_victim, namespace_test):
+        assert module.__loader__ is module.__spec__.loader, module
+
+    # Python 3.15+ emits a DeprecationWarning when formatting a traceback
+    # frame from a module whose loaders disagree.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        try:
+            spec_loader_victim.fail()
+        except RuntimeError:
+            traceback.format_exc()
+
+
+@pytest.mark.subprocess
 def test_module_watchdog_reloads_dont_cause_errors():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
