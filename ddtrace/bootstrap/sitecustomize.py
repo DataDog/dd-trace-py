@@ -14,14 +14,27 @@ Add all monkey-patching that needs to run by default here
 # to allow injecting a custom sitecustomize.py file into the Python process to
 # perform the correct initialisation for the library. All the actual
 # initialisation logic should be placed in preload.py.
-import ddtrace  # isort:skip
 import os  # noqa:F401
 import sys
 
-import ddtrace.bootstrap.cloning as cloning
-from ddtrace.internal.logger import get_logger  # noqa:F401
-from ddtrace.internal.settings import env
-from ddtrace.internal.telemetry import telemetry_writer
+
+# Read the launcher marker before importing any ddtrace modules.
+_ddtrace_run = os.environ.pop("_DDTRACE_RUN", None) == "true"  # ast-grep-ignore: os-environ-fix-access
+try:
+    import ddtrace  # isort:skip
+except Exception:
+    if not _ddtrace_run:
+        raise
+    # Preserve the launcher's fatal import errors instead of letting site swallow them.
+    import traceback
+
+    traceback.print_exc()
+    raise SystemExit(1)
+
+import ddtrace.bootstrap.cloning as cloning  # noqa: E402
+from ddtrace.internal.logger import get_logger  # noqa: E402,F401
+from ddtrace.internal.settings import env  # noqa: E402
+from ddtrace.internal.telemetry import telemetry_writer  # noqa: E402
 
 
 log = get_logger(__name__)

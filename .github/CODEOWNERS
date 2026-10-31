@@ -99,6 +99,7 @@ ddtrace/_logger.py                  @DataDog/python-guild  @DataDog/apm-core-pyt
 ddtrace/auto.py                     @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/bootstrap/                  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/commands/                   @DataDog/python-guild  @DataDog/apm-core-python
+/_ddtrace_run.py                    @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/__init__.py                 @DataDog/python-guild
