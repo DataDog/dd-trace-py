@@ -3,6 +3,7 @@ import contextvars
 import functools
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 import aws_durable_execution_sdk_python
 from aws_durable_execution_sdk_python import execution
@@ -170,7 +171,7 @@ def _is_top_level_for_span(operation_executor: OperationExecutor):
     )
 
 
-def _current_event():
+def _current_event() -> Optional[core.Event]:
     """Return the active core event, or None when the current context has no event."""
     try:
         return core.current.event

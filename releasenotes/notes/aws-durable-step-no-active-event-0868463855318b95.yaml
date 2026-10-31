@@ -1,6 +1,5 @@
 ---
 fixes:
   - |
-    aws_durable_execution_sdk_python: Fixes an issue where durable operations such as ``ctx.step`` failed with
-    ``AttributeError: ExecutionContext has no event``, which caused later durable executions in a warm
-    Lambda container to fail.
+    aws_durable_execution_sdk_python: Fixes an issue where durable operations such as ``ctx.step`` fail
+    before running when a later durable execution is served by the same warm Lambda container.
