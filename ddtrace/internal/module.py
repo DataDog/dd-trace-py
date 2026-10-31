@@ -552,6 +552,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         # but the WeakValueDictionary causes an ignored exception on shutdown
         # because the pathlib module is being garbage collected.
         self._om: t.Optional[t.MutableMapping[str, ModuleType]] = None
+        self._track_origins = False
         # _pre_exec_module_hooks is a set of tuples (condition, hook) instead
         # of a list to ensure that no hook is duplicated
         self._pre_exec_module_hooks: set[tuple[PreExecHookCond, PreExecHookType]] = set()
@@ -559,6 +560,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
     @property
     def _origin_map(self) -> t.MutableMapping[str, ModuleType]:
+        self._track_origins = True
+
         def modules_with_origin(modules: t.Iterable[ModuleType]) -> t.MutableMapping[str, ModuleType]:
             result: t.MutableMapping[str, ModuleType] = wvdict()
 
@@ -591,10 +594,12 @@ class ModuleWatchdog(BaseModuleWatchdog):
         return self._om
 
     def after_import(self, module: ModuleType) -> None:
-        module_path = origin(module)
-        path = str(module_path) if module_path is not None else None
-        if path is not None:
-            self._origin_map[path] = module
+        path = None
+        if self._track_origins:
+            module_path = origin(module)
+            path = str(module_path) if module_path is not None else None
+            if path is not None:
+                self._origin_map[path] = module
 
         # Collect all hooks by module origin and name
         hooks = []
