@@ -1972,6 +1972,7 @@ print(f"INFO: building package '{PACKAGE_NAME}'")
 
 interpose_sccache()
 setup(
+    py_modules=["_ddtrace_run"],
     name="ddtrace",
     packages=find_packages(
         exclude=[

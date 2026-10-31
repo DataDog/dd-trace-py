@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 
 import pytest
 
@@ -286,6 +287,70 @@ def test_executable_no_perms():
 def test_command_flags():
     out = subprocess.check_output(["ddtrace-run", "python", "-c", "print('test!')"])
     assert out.strip() == b"test!"
+
+
+@pytest.mark.parametrize("flags", [[], ["--debug"], ["--profiling"]])
+def test_launcher_does_not_initialize_ddtrace(flags):
+    code = textwrap.dedent(
+        """
+        import importlib.metadata
+        import os
+        import sys
+
+        entrypoint = next(
+            ep for ep in importlib.metadata.distribution("ddtrace").entry_points
+            if ep.group == "console_scripts" and ep.name == "ddtrace-run"
+        )
+        main = entrypoint.load()
+        flags = sys.argv[1:]
+        os.environ["PYTHONPATH"] = "existing-path"
+        sys.argv = ["ddtrace-run"] + flags + [sys.executable, "-c", "pass", "--version"]
+
+        def exec_application(executable, *args):
+            assert not any(name == "ddtrace" or name.startswith("ddtrace.") for name in sys.modules)
+            assert executable == sys.executable
+            assert args == (sys.executable, "-c", "pass", "--version")
+            bootstrap, previous = os.environ["PYTHONPATH"].split(os.pathsep, 1)
+            assert os.path.isfile(os.path.join(bootstrap, "sitecustomize.py"))
+            assert previous == "existing-path"
+            if "--debug" in flags:
+                assert os.environ["DD_TRACE_DEBUG"] == "true"
+            if "--profiling" in flags:
+                assert os.environ["DD_PROFILING_ENABLED"] == "true"
+            raise SystemExit(0)
+
+        os.execl = exec_application
+        main()
+        """
+    )
+    subprocess.run([sys.executable, "-c", code, *flags], check=True, capture_output=True)
+
+
+def test_launcher_resolves_package_without_importing_it(tmp_path):
+    package = tmp_path / "ddtrace"
+    package.mkdir()
+    (package / "__init__.py").write_text("raise AssertionError('launcher imported ddtrace')\n")
+    code = textwrap.dedent(
+        """
+        import os
+        import sys
+        import _ddtrace_run
+
+        package_root = sys.argv[1]
+        sys.path.insert(0, package_root)
+        sys.argv = ["ddtrace-run", sys.executable, "-c", "pass"]
+
+        def exec_application(*args):
+            assert os.environ["PYTHONPATH"].split(os.pathsep)[0] == os.path.join(
+                package_root, "ddtrace", "bootstrap"
+            )
+            raise SystemExit(0)
+
+        os.execl = exec_application
+        _ddtrace_run.main()
+        """
+    )
+    subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, capture_output=True)
 
 
 def test_return_code():

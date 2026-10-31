@@ -50,6 +50,11 @@ Step 1: Bootstrap
 The autoinstrumentation entrypoint is ``import ddtrace.bootstrap.sitecustomize``. This can be done in user code, either directly or via
 ``import ddtrace.auto``, or behind the scenes by ``ddtrace-run``.
 
+The ``ddtrace-run`` console script uses the standalone ``_ddtrace_run`` module so the launcher
+does not initialize ``ddtrace`` before replacing itself with the application process. Keep its
+normal execution path limited to standard-library imports. Tracer configuration is resolved by
+the application bootstrap; diagnostic options such as ``--info`` may initialize the library.
+
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
 These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, etc. Before starting these Products,
 some setup has to happen, especially the execution of preexisting PEP648 ``sitecustomize`` scripts to maintain

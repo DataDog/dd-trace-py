@@ -1,0 +1,3 @@
+other:
+  - |
+    perf: Reduces application startup time when using ``ddtrace-run``.
