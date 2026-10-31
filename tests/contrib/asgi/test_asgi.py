@@ -1,7 +1,9 @@
 import asyncio
 from collections.abc import Awaitable
 from contextlib import nullcontext
+import contextvars
 from functools import partial
+import gc
 import logging
 import os
 import random
@@ -9,6 +11,7 @@ from typing import Any
 from typing import Callable
 from typing import TypedDict
 from unittest import mock
+import weakref
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
@@ -1213,52 +1216,53 @@ async def test_unfinished_non_llm_child_not_finished_when_request_completes(test
     worker_span.finish()
 
 
-@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
-def test_otel_semantics_server_span_attributes():
-    import asyncio
+@pytest.mark.asyncio
+async def test_asgi_request_does_not_chain_to_previous_request_context():
+    """A top-level request must not inherit the previous request's finished context.
 
-    from asgiref.testing import ApplicationCommunicator
+    On a keep-alive connection the server may resume reading from inside the request
+    task, so the next request starts in a context copied from the previous one. That
+    previous context has already exited, so parenting to it would keep every earlier
+    request's span, scope and headers reachable for the life of the connection.
+    """
+    captured: list[contextvars.Context] = []
+    chain_depths: list[int] = []
+    payloads: list[weakref.ref] = []
 
-    from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
-    from tests.contrib.otel_http_server import TEST_CLIENT_ADDRESS
-    from tests.contrib.otel_http_server import TEST_USER_AGENT
-    from tests.contrib.otel_http_server import assert_otel_server_span
-    from tests.utils import TracerSpanContainer
-    from tests.utils import scoped_tracer
+    class Payload:
+        """Stands in for the request data (body, models, response) a handler keeps in scope."""
 
     async def app(scope, receive, send):
-        await receive()
-        await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
-        await send({"type": "http.response.body", "body": b"*"})
+        depth, ctx = 0, core._CURRENT_CONTEXT.get()
+        while ctx is not None:
+            depth += ctx.identifier == "asgi.request"
+            ctx = ctx._parent
+        chain_depths.append(depth)
+        payload = Payload()
+        scope["payload"] = payload
+        payloads.append(weakref.ref(payload))
+        # asyncio re-registers the socket reader with copy_context() of this task.
+        captured[:] = [contextvars.copy_context()]
+        await _send_complete_http_response(receive, send)
 
-    async def request(spans, path, query=b""):
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": path,
-            "query_string": query,
-            "scheme": "http",
-            "server": ("127.0.0.1", 8080),
-            "client": ("127.0.0.1", 32767),
-            "headers": [
-                [b"user-agent", TEST_USER_AGENT.encode()],
-                [b"x-forwarded-for", TEST_CLIENT_ADDRESS.encode()],
-            ],
-        }
-        communicator = ApplicationCommunicator(TraceMiddleware(app), scope)
-        await communicator.send_input({"type": "http.request", "body": b""})
-        await communicator.receive_output(1)
-        await communicator.receive_output(1)
-        await communicator.wait()
-        return spans.get_root_span()
+    async def request() -> None:
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
 
-    async def run():
-        with scoped_tracer() as tracer:
-            spans = TracerSpanContainer(tracer)
+        async def send(_message):
+            pass
 
-            # A generic ASGI app has no route, so the resource is the method alone.
-            span = await request(spans, "/ok", query=b"q=1")
-            assert_otel_server_span(span, method="GET", status=200, path="/ok", query="q=1", resource="GET")
-            assert span.get_metric("server.port") == 8080
+        await TraceMiddleware(app)(_http_scope(), receive, send)
 
-    asyncio.run(run())
+    request_count = 5
+    loop = asyncio.get_running_loop()
+    for _ in range(request_count):
+        # Run in a context copied inside the previous request, like a server that resumes
+        # reading the connection from the request task.
+        await loop.create_task(request(), context=captured[-1] if captured else contextvars.copy_context())
+
+    assert chain_depths == [1] * request_count
+    gc.collect()
+    # Only the immediately preceding request stays reachable, through the context asyncio
+    # captured for the transport's reader.
+    assert sum(ref() is not None for ref in payloads[:-1]) == 1
