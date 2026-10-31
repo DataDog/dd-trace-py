@@ -1027,6 +1027,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         non-fatal too. Anything else still propagates.
         """
         with self._exporter_lock:
+            # A MicroVM writer that reset() replaced shuts down outside the span lock, so a refresh can close
+            # its gate first, even during the final flush. shutdown() would flush stats from before the refresh;
+            # the refresh, the finishing sender or __del__() drops the exporter instead.
+            if self._discarded_by_refresh:
+                return
             try:
                 exporter.shutdown(3_000_000_000)
             except Exception:
@@ -1084,6 +1089,21 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if not exporter_dropped and not self._discarded_by_refresh:
                 self.shutdown_exporter()
 
+        return self._recreate_without_stopping(
+            appsec_enabled=appsec_enabled,
+            llmobs_enabled=llmobs_enabled,
+            compute_stats_enabled=compute_stats_enabled,
+            stats_opt_out=stats_opt_out,
+        )
+
+    def _recreate_without_stopping(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
+    ) -> "NativeWriter":
+        """Build a writer with this writer's settings, leaving this one running."""
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         agentless_stats_endpoint = self._agentless_stats_endpoint
         otlp_metrics_endpoint = self._otlp_metrics_endpoint
