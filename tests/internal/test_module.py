@@ -576,6 +576,38 @@ def test_module_watchdog_restores_spec_loader():
 
 
 @pytest.mark.subprocess
+def test_module_watchdog_preserves_lazy_loader_changes():
+    """Ensures that loader changes made by a wrapped LazyLoader are not undone after import"""
+    import importlib.machinery
+    import importlib.util
+    from pathlib import Path
+    import sys
+    import tempfile
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    ModuleWatchdog.install()
+
+    directory = Path(tempfile.mkdtemp())
+    (directory / "lazy_loader_victim.py").write_text("VALUE = 42\n")
+
+    class LazyFinder:
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname != "lazy_loader_victim":
+                return None
+            spec = importlib.machinery.PathFinder.find_spec(fullname, [str(directory)])
+            spec.loader = importlib.util.LazyLoader(spec.loader)
+            return spec
+
+    sys.meta_path.append(LazyFinder())
+
+    import lazy_loader_victim
+
+    assert lazy_loader_victim.VALUE == 42
+    assert lazy_loader_victim.__loader__ is lazy_loader_victim.__spec__.loader
+
+
+@pytest.mark.subprocess
 def test_module_watchdog_reloads_dont_cause_errors():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
