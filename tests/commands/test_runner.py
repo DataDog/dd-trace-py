@@ -348,7 +348,7 @@ def test_launcher_resolves_package_without_importing_it(tmp_path):
 
         def exec_application(*args):
             assert os.environ["PYTHONPATH"].split(os.pathsep)[0] == os.path.join(
-                package_root, "ddtrace", "bootstrap", "_run"
+                package_root, "ddtrace", "bootstrap"
             )
             raise SystemExit(0)
 
@@ -388,15 +388,16 @@ def test_manual_bootstrap_preserves_import_failure_behavior():
     assert result.stdout.strip() == b"application ran"
 
 
-def test_launcher_does_not_run_application_after_import_failure():
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_launcher_runs_application_after_import_failure(exit_code):
     result = subprocess.run(
-        ["ddtrace-run", sys.executable, "-c", "print('application ran')"],
+        ["ddtrace-run", sys.executable, "-c", f"import sys; print('application ran'); sys.exit({exit_code})"],
         env=dict(os.environ, DD_TRACE_LOG_FILE_LEVEL="UNKNOWN"),
         capture_output=True,
     )
-    assert result.returncode == 1, result.stderr
+    assert result.returncode == exit_code, result.stderr
     assert b"ValueError" in result.stderr
-    assert result.stdout == b""
+    assert result.stdout.strip() == b"application ran"
 
 
 def test_return_code():
