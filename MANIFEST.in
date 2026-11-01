@@ -1,5 +1,6 @@
 graft cmake
 graft ddtrace
+graft ddtrace_commands
 graft src
 
 recursive-exclude ddtrace *.manifest.yaml

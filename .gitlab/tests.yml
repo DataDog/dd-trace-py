@@ -72,11 +72,11 @@ extract_test_artifacts:
     - !reference [.testrunner, before_script]
     - |
       # The native IAST suite compiles repository C++ sources and does not import ddtrace.
-      # Other test jobs remove the checkout package so Python imports use the wheel.
+      # Other test jobs remove the checkout packages so Python imports use the wheel.
       if [[ "${TEST_SUITE:-}" != "appsec::appsec_iast_native" ]]; then
-        rm -r "$CI_PROJECT_DIR/ddtrace"
+        rm -r "$CI_PROJECT_DIR/ddtrace" "$CI_PROJECT_DIR/ddtrace_commands"
       fi
-    # Keep repository test helpers importable; ddtrace itself resolves from the installed wheel.
+    # Keep repository test helpers importable; library packages resolve from the installed wheel.
     - export PYTHONPATH="$CI_PROJECT_DIR"
     - unset DD_SERVICE
     - unset DD_ENV

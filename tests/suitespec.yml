@@ -26,7 +26,7 @@ components:
     - setup.cfg
     - pyproject.toml
   bootstrap:
-    - _ddtrace_run.py
+    - ddtrace_commands/*
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py

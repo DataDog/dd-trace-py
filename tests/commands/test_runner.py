@@ -340,7 +340,7 @@ def test_launcher_resolves_package_without_importing_it(tmp_path):
         """
         import os
         import sys
-        import _ddtrace_run
+        from ddtrace_commands import ddtrace_run
 
         package_root = sys.argv[1]
         sys.path.insert(0, package_root)
@@ -353,7 +353,7 @@ def test_launcher_resolves_package_without_importing_it(tmp_path):
             raise SystemExit(0)
 
         os.execl = exec_application
-        _ddtrace_run.main()
+        ddtrace_run.main()
         """
     )
     subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, capture_output=True)
