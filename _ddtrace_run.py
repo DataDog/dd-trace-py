@@ -109,7 +109,7 @@ def _prepare_env(parser: argparse.ArgumentParser) -> argparse.Namespace:
     root_dir = os.path.dirname(spec.origin)
     log.debug("ddtrace root: %s", root_dir)
 
-    bootstrap_dir = os.path.join(root_dir, "bootstrap")
+    bootstrap_dir = os.path.join(root_dir, "bootstrap", "_run")
     log.debug("ddtrace bootstrap: %s", bootstrap_dir)
 
     _add_bootstrap_to_pythonpath(bootstrap_dir)
@@ -152,7 +152,6 @@ def main() -> None:
         )
 
     try:
-        env["_DDTRACE_RUN"] = "true"
         os.execl(executable, executable, *args.command[1:])
     except PermissionError:
         print("ddtrace-run: permission error while launching '%s'" % executable)

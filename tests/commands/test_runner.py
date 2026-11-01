@@ -304,6 +304,8 @@ def test_launcher_does_not_initialize_ddtrace(flags):
         main = entrypoint.load()
         flags = sys.argv[1:]
         os.environ["PYTHONPATH"] = "existing-path"
+        os.environ["DD_TRACE_DEBUG"] = "false"
+        original_env = os.environ.copy()
         sys.argv = ["ddtrace-run"] + flags + [sys.executable, "-c", "pass", "--version"]
 
         def exec_application(executable, *args):
@@ -313,10 +315,14 @@ def test_launcher_does_not_initialize_ddtrace(flags):
             bootstrap, previous = os.environ["PYTHONPATH"].split(os.pathsep, 1)
             assert os.path.isfile(os.path.join(bootstrap, "sitecustomize.py"))
             assert previous == "existing-path"
+            expected_env = dict(original_env, PYTHONPATH=os.environ["PYTHONPATH"])
             if "--debug" in flags:
+                expected_env["DD_TRACE_DEBUG"] = "true"
                 assert os.environ["DD_TRACE_DEBUG"] == "true"
             if "--profiling" in flags:
+                expected_env["DD_PROFILING_ENABLED"] = "true"
                 assert os.environ["DD_PROFILING_ENABLED"] == "true"
+            assert dict(os.environ) == expected_env
             raise SystemExit(0)
 
         os.execl = exec_application
@@ -342,7 +348,7 @@ def test_launcher_resolves_package_without_importing_it(tmp_path):
 
         def exec_application(*args):
             assert os.environ["PYTHONPATH"].split(os.pathsep)[0] == os.path.join(
-                package_root, "ddtrace", "bootstrap"
+                package_root, "ddtrace", "bootstrap", "_run"
             )
             raise SystemExit(0)
 
@@ -353,12 +359,33 @@ def test_launcher_resolves_package_without_importing_it(tmp_path):
     subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, capture_output=True)
 
 
-def test_launcher_consumes_bootstrap_marker():
+def test_launcher_bootstrap_is_inherited_by_child_processes():
+    code = "import sys; assert sys.modules['ddtrace.bootstrap.sitecustomize'].loaded"
     result = subprocess.run(
-        ["ddtrace-run", sys.executable, "-c", "import os; assert '_DDTRACE_RUN' not in os.environ"],
+        [
+            "ddtrace-run",
+            sys.executable,
+            "-c",
+            f"import subprocess, sys; {code}; subprocess.run([sys.executable, '-c', {code!r}], check=True)",
+        ],
         capture_output=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_manual_bootstrap_preserves_import_failure_behavior():
+    result = subprocess.run(
+        [sys.executable, "-c", "print('application ran')"],
+        env=dict(
+            os.environ,
+            DD_TRACE_LOG_FILE_LEVEL="UNKNOWN",
+            PYTHONPATH=os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap"),
+        ),
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert b"ValueError" in result.stderr
+    assert result.stdout.strip() == b"application ran"
 
 
 def test_launcher_does_not_run_application_after_import_failure():
