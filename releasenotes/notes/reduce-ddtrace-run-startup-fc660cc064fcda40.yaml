@@ -3,6 +3,5 @@ other:
     perf: Reduces application startup time when using ``ddtrace-run``.
 fixes:
   - |
-    tracing: Fixes an issue where ``ddtrace-run`` prevents an application from starting
-    when importing ddtrace raises an exception, such as an invalid ``DD_TRACE_LOG_FILE_LEVEL``.
-    The error is reported and application startup continues.
+    tracing: Fixes an issue where ddtrace import errors prevent applications launched with
+    ``ddtrace-run`` from starting. Errors are reported and application startup continues.
