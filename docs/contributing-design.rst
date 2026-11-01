@@ -50,11 +50,9 @@ Step 1: Bootstrap
 The autoinstrumentation entrypoint is ``import ddtrace.bootstrap.sitecustomize``. This can be done in user code, either directly or via
 ``import ddtrace.auto``, or behind the scenes by ``ddtrace-run``.
 
-The lightweight ``ddtrace_commands.ddtrace_run`` launcher initializes ddtrace only in the application
-process, avoiding duplicate initialization and reducing startup time.
-
-If the initial ddtrace import raises an ordinary exception during bootstrap, Python reports the error
-and continues application startup. Instrumentation may be unavailable or partially initialized.
+Keep the normal launch path in ``ddtrace_commands.ddtrace_run`` limited to standard-library imports.
+Perform ddtrace initialization in the application bootstrap. Report ordinary initialization errors
+without preventing the application from starting.
 
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
 These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, etc. Before starting these Products,
