@@ -2,6 +2,7 @@ import os
 import time
 from unittest import mock
 
+import crewai
 from crewai import Agent
 from crewai import Crew
 from crewai import Flow
@@ -18,6 +19,7 @@ import vcr
 
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.crewai.utils import budget_text
 from tests.contrib.crewai.utils import fun_fact_text
@@ -26,10 +28,25 @@ from tests.contrib.crewai.utils import welcome_email_text
 from tests.utils import override_global_config
 
 
+CASSETTE_DIR = os.path.join(os.path.dirname(__file__), "cassettes")
+# crewai>=1.0 uses native function calling and structured planner output, so these interactions are recorded
+# separately for it; crewai<1.0 replays the original recordings.
+V1_CASSETTES = {"test_crew_with_tool.yaml", "test_crew_with_async_tasks.yaml", "test_hierarchical_crew.yaml"}
+CREWAI_V1 = parse_version(getattr(crewai, "__version__", "0.0.0")) >= (1, 0, 0)
+
+
+def _cassette_path(path):
+    name = os.path.basename(path)
+    if CREWAI_V1 and name in V1_CASSETTES:
+        return os.path.join(CASSETTE_DIR, "v1", name)
+    return path
+
+
 @pytest.fixture
 def request_vcr():
     yield vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes"),
+        cassette_library_dir=CASSETTE_DIR,
+        path_transformer=_cassette_path,
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-api-key", "api-key"],
@@ -40,7 +57,7 @@ def request_vcr():
 
 
 @tool("Average Calculator")
-def calculate_average_tool(entries: list) -> float:
+def calculate_average_tool(entries: list[float]) -> float:
     """This tool returns the average of a list of numbers."""
     return sum(entries) / len(entries)
 
@@ -161,7 +178,7 @@ def hierarchical_crew(crewai):
         agents=[analytics_agent, recommender_agent],
         tasks=[data_analysis_task, recommend_task],
         process=Process.hierarchical,
-        manager_llm="gpt-4o",
+        manager_llm="gpt-4o-mini",
         planning=True,
     )
 
@@ -335,6 +352,9 @@ def router_flow_async(crewai):
 @pytest.fixture
 def crewai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
+    # crewai telemetry exports from a background thread. VCR sends ignored-host requests with all of its patches
+    # removed process-wide, so that export can let a concurrent LLM call escape the cassette.
+    monkeypatch.setenv("CREWAI_DISABLE_TELEMETRY", "true")
     patch()
     import crewai
 

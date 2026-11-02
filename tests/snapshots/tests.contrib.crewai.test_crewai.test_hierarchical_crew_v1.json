@@ -1,0 +1,182 @@
+[[
+  {
+    "name": "CrewAI Crew",
+    "service": "tests.contrib.crewai",
+    "resource": "Crew Kickoff",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6ae8e4f000000000",
+      "_dd.sdk.otlp_export": "false",
+      "_dd.svc_src": "datadog",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
+      "language": "python",
+      "runtime-id": "24b44c1492c047d8af70dc79552d9a6b"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 14458039726,
+    "start": 1793647856056009141
+  },
+     {
+       "name": "crewai.request",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "datadog"
+       },
+       "metrics": {
+         "_dd.llmobs.enabled": 0.0,
+         "_dd.measured": 1.0
+       },
+       "duration": 7436999531,
+       "start": 1793647856188535090
+     },
+        {
+          "name": "Task Execution Planner",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.svc_src": "datadog"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 0.0,
+            "_dd.measured": 1.0
+          },
+          "duration": 7434436355,
+          "start": 1793647856189053746
+        },
+     {
+       "name": "Calculate participants' average ages",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "datadog"
+       },
+       "metrics": {
+         "_dd.llmobs.enabled": 0.0,
+         "_dd.measured": 1.0
+       },
+       "duration": 5352063610,
+       "start": 1793647863662360476
+     },
+        {
+          "name": "Crew Manager",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.svc_src": "datadog"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 0.0,
+            "_dd.measured": 1.0
+          },
+          "duration": 5348365987,
+          "start": 1793647863662724651
+        },
+           {
+             "name": "Delegate work to coworker",
+             "service": "tests.contrib.crewai",
+             "resource": "CrewAI Tool",
+             "trace_id": 0,
+             "span_id": 8,
+             "parent_id": 6,
+             "type": "",
+             "error": 0,
+             "meta": {
+               "_dd.svc_src": "datadog"
+             },
+             "metrics": {
+               "_dd.llmobs.enabled": 0.0,
+               "_dd.measured": 1.0
+             },
+             "duration": 1271778020,
+             "start": 1793647864951452132
+           },
+              {
+                "name": "Python Data Analyst",
+                "service": "tests.contrib.crewai",
+                "resource": "CrewAI Agent",
+                "trace_id": 0,
+                "span_id": 9,
+                "parent_id": 8,
+                "type": "",
+                "error": 0,
+                "meta": {
+                  "_dd.svc_src": "datadog"
+                },
+                "metrics": {
+                  "_dd.llmobs.enabled": 0.0,
+                  "_dd.measured": 1.0
+                },
+                "duration": 1271321380,
+                "start": 1793647864951835811
+              },
+     {
+       "name": "Recommend fun activities",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "datadog"
+       },
+       "metrics": {
+         "_dd.llmobs.enabled": 0.0,
+         "_dd.measured": 1.0
+       },
+       "duration": 1473556282,
+       "start": 1793647869024691972
+     },
+        {
+          "name": "Crew Manager",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 4,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.svc_src": "datadog"
+          },
+          "metrics": {
+            "_dd.llmobs.enabled": 0.0,
+            "_dd.measured": 1.0
+          },
+          "duration": 1470046609,
+          "start": 1793647869025032984
+        }]]
