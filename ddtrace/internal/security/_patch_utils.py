@@ -58,7 +58,7 @@ def get_caller_frame_info() -> tuple[Optional[str], Optional[int], Optional[str]
     """
     global _get_info_frame
     if _get_info_frame is None:
-        from ddtrace.appsec._shared._stacktrace import get_info_frame
+        from ddtrace.internal.security._stacktrace import get_info_frame
 
         _get_info_frame = get_info_frame
     frame_info = _get_info_frame()

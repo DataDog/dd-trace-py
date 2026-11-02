@@ -33,6 +33,8 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.inferred_spans import is_inferred_span
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.security._context import _ASM_CONTEXT
+from ddtrace.internal.security._context import get_entry_span as get_entry_span
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
@@ -75,7 +77,6 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 
-_ASM_CONTEXT: Literal["_asm_env"] = "_asm_env"
 _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
 _TELEMETRY: Literal["telemetry"] = "telemetry"
 API_SEC_CALLBACK: Optional[Callable[["ASM_Environment"], None]] = None
@@ -162,17 +163,6 @@ def get_blocked() -> Optional[Block_config]:
     if env is None:
         return None
     return env.blocked or None
-
-
-def get_entry_span() -> Optional[SpanData]:
-    env = _get_asm_context()
-    if env is None:
-        span = span_bus.get_span()
-        if span:
-            return span._service_entry_span
-        else:
-            return span_bus.get_root_span()
-    return env.entry_span
 
 
 KNUTH_FACTOR: int = 11400714819323199488

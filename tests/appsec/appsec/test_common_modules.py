@@ -20,14 +20,14 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS

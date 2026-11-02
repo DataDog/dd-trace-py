@@ -38,6 +38,45 @@ alongside ``--ddtrace`` or by adding this to your configuration::
    for more details.
 
 
+Test automation exclusions
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use pytest markers to exclude tests from Datadog automation::
+
+    import pytest
+
+    @pytest.mark.dd_prevent_failure_suppression
+    @pytest.mark.dd_no_auto_retry
+    def test_critical_behavior():
+        assert check_critical_behavior()
+
+``dd_prevent_failure_suppression`` overrides Datadog quarantine and disabling. It
+does not disable retries or change pytest expected-failure behavior.
+``dd_no_auto_retry`` excludes Datadog Auto Test Retries, Early Flake Detection,
+and Attempt to Fix; explicit retries from pytest retry plugins remain available.
+Both markers preserve developer skips, filters, and Test Impact Analysis selection.
+Backend management assignments remain reported when their execution policy is overridden.
+
+The markers follow normal pytest scoping: apply them to a function or class, set
+``pytestmark`` at module scope, or mark an individual parameter case::
+
+    @pytest.mark.parametrize("value", [
+        pytest.param(1, marks=pytest.mark.dd_no_auto_retry),
+        2,
+    ])
+    def test_parameter(value):
+        assert check_value(value)
+
+A marker on a parameterized function applies to every case. Aliases of the same
+function share its markers; use separate test declarations or parameter markers
+when different tests need different policies. The markers do not wrap or replace
+test functions and can be combined with Hypothesis decorators.
+
+With ``pytest-xdist``, a worker crash is retried only after that worker confirms its
+exclusion declarations reached shared storage. An unrelated replacement worker
+still collecting tests does not block retries. If the crashed worker could not
+publish its exclusions, its crash remains final.
+
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 

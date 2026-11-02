@@ -6,8 +6,6 @@ from typing import Any
 from typing import Optional
 import zlib
 
-from ddtrace.appsec._constants import STACK_TRACE
-from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
@@ -15,6 +13,8 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.appsec._iast_context import is_iast_request_enabled
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._constants import STACK_TRACE
+from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
