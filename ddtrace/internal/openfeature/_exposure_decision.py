@@ -29,6 +29,10 @@ class FlagMetadata(dict[str, typing.Any]):
         self._dd_exposure_decision: typing.Optional[ExposureDecision] = None
         self._dd_evaluation_context: typing.Optional[EvaluationContext] = None
 
+    def __reduce__(self) -> tuple[typing.Any, ...]:
+        # Copies and pickles are plain dicts: the decision holds the cache and its lock.
+        return (dict, (dict(self),))
+
 
 class ExposureDecision:
     """Check and record an exposure once, after the evaluation has succeeded."""

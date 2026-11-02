@@ -1,7 +1,9 @@
 """Split features in flag metadata, the shared exposure decision and ExposureHook."""
 
+import copy
 import json
 import logging
+import pickle
 from unittest import mock
 
 from openfeature import api
@@ -318,6 +320,25 @@ class TestExposureDecision:
         assert writer.enqueue.call_count == 1
         assert outer.flag_metadata["__dd_exposure_cache_hit"] is True
         assert sorted(e.should_send for e in evaluations) == [False, True]
+
+    def test_details_can_be_deep_copied_and_pickled(self, provider, writer, evaluations):
+        copies = []
+
+        class CopyingHook(Hook):
+            def after(self, hook_context, details, hints):
+                copies.append(copy.deepcopy(details))
+                copies.append(pickle.loads(pickle.dumps(details)))
+
+        process_ffe_configuration(_config())
+        api.add_hooks([CopyingHook()])
+
+        details = _evaluate()
+
+        assert (details.value, details.error_code) == ("on", None)
+        assert [type(c.flag_metadata) for c in copies] == [dict, dict]
+        assert copies[0].flag_metadata["__dd_exposure_cache_hit"] is False
+        assert [e.should_send for e in evaluations] == [True]
+        assert writer.enqueue.call_count == 1
 
     def test_exposure_features_reach_the_exposure_event_but_not_the_cache(self, provider, writer):
         process_ffe_configuration(_config([{"key": "k", "value": "v1", "destinations": ["EXPOSURE"]}]))
