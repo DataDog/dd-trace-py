@@ -94,8 +94,10 @@ current signatures and defaults.
 inspect GitHub/git state, do every dd-trace-py-side step they can, and stop at a reviewed
 draft GitHub release. Always-draft (publishing requires a maintainer). Default `--slack`
 target is `#apm-python-release` via an Incoming Webhook (`hooks.slack.com/services/...` in
-`DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` or SSM `ci.dd-trace-py.slack-release-webhook-prod`;
-not Workflow Builder `triggers/` URLs). See `scripts/gh/create_gh_release.py --help`
+`DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` or SSM `ci.dd-trace-py.slack-release-webhook-prod`).
+Workflow `triggers/` URLs get a structured-field interim POST (see
+`scripts/gh/SLACK_WORKFLOW_INTERIM.md`); freeform mrkdwn on triggers/ is refused. Prefer
+`services/` for correct formatting. See `scripts/gh/create_gh_release.py --help`
 and `.agents/skills/release/SKILL.md`.
 
 Tests live in `scripts/gh/test_create_gh_release.py`. GitLab `prechecks` runs them when

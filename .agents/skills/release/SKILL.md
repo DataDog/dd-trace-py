@@ -28,12 +28,12 @@ Building blocks (`bump-rc`, `ensure-branch`, `draft-release`) are also available
 2. Report the gate plainly to the human. Do not invent workarounds past tag rulesets, reviews, or auth.
 3. Prefer `--dry-run` first when inspecting live GitHub state without creating remotes/PRs/drafts.
 4. Never publish a GitHub release. Never push release branches or tags unless the human explicitly asks in that message. The script stops at a **draft**.
-5. Never post to Slack as the user unless they explicitly ask in that message. Default public ping is `#apm-python-release` via `--slack` (needs an **Incoming Webhook** `hooks.slack.com/services/...` in `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` or SSM `ci.dd-trace-py.slack-release-webhook-prod`; legacy env `DD_RELEASE_SLACK_WEBHOOK_URL_PROD` still works). Do **not** use Workflow Builder `hooks.slack.com/triggers/...` — mrkdwn shows as literals. `--slack-channel guild` is an optional escape hatch. `--test-dm` needs `DDTRACE_RELEASE_DM_URL` (DM only). Prefer printing the review text and stopping when unsure.
+5. Never post to Slack as the user unless they explicitly ask in that message. Default public ping is `#apm-python-release` via `--slack` (prefer **Incoming Webhook** `hooks.slack.com/services/...` in `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` or SSM `ci.dd-trace-py.slack-release-webhook-prod`; legacy env `DD_RELEASE_SLACK_WEBHOOK_URL_PROD` still works). Workflow `triggers/` is interim-only: script POSTs structured fields after the Workflow is rebuilt (`scripts/gh/SLACK_WORKFLOW_INTERIM.md`); freeform mrkdwn on triggers/ is refused. `--slack-channel guild` is an optional escape hatch. `--test-dm` needs `DDTRACE_RELEASE_DM_URL` (DM only). Prefer printing the review text and stopping when unsure.
 6. `dogfood` and `experiment` are **not implemented** yet — print the checklist the script emits and stop.
 
 ## Slack announce (when the human asks)
 
-Webhook must be Incoming Webhook (`services/`), not Workflow trigger (`triggers/`). See `scripts/gh/.env.local.example`.
+Prefer Incoming Webhook (`services/`). Workflow `triggers/` needs a rebuilt structured Workflow — see `scripts/gh/SLACK_WORKFLOW_INTERIM.md` and `.env.local.example`.
 
 ```bash
 # DM-only dry path (Vlad webhook; no channel post)
