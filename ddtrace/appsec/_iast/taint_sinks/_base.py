@@ -55,9 +55,10 @@ class VulnerabilityBase:
     secure_mark = 0
 
     @staticmethod
-    def has_quota():
+    def has_quota() -> bool:
         if context := _get_iast_env():
-            return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
+            max_vulnerabilities: int = asm_config._iast_max_vulnerabilities_per_requests
+            return context.vulnerability_budget < max_vulnerabilities
         return False
 
     @classmethod
@@ -108,7 +109,7 @@ class VulnerabilityBase:
     def _create_evidence_and_report(
         cls,
         vulnerability_type: str,
-        evidence_value: TEXT_TYPES = "",
+        evidence_value: Optional[TEXT_TYPES] = "",
         dialect: Optional[str] = None,
         file_name: Optional[str] = None,
         line_number: Optional[int] = None,
@@ -129,7 +130,7 @@ class VulnerabilityBase:
         )
 
     @classmethod
-    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> bool:
+    def report(cls, evidence_value: Optional[TEXT_TYPES] = "", dialect: Optional[str] = None) -> Optional[bool]:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         result = False
         if should_process_vulnerability(cls.vulnerability_type):
