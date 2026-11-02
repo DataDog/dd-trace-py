@@ -21,6 +21,7 @@ from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferr
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
+from tests.utils import register_tracing_subscribers
 from tests.utils import snapshot
 
 from .web import StubApp
@@ -584,6 +585,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
         )
 
     def setUp(self):
+        register_tracing_subscribers()
         config.cherrypy.http.trace_headers(["Host", "my-header"])
         self.traced_app = TraceMiddleware(
             cherrypy,

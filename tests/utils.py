@@ -368,16 +368,20 @@ def override_http_config(integration, values):
             setattr(options, key, value)
 
 
+def register_tracing_subscribers() -> None:
+    """Initialize tracing listeners for tests that do not run product startup."""
+    from ddtrace._trace.product import subscriber_bundles
+
+    for bundle in subscriber_bundles:
+        bundle.register()
+
+
 @contextlib.contextmanager
 def scoped_tracer(use_dummy_writer=True):
     """Provides a test-scoped global tracer with no configuration leaks."""
-    from ddtrace._trace.product import subscriber_bundles
-
-    # In-process integration tests explicitly enable the tracing product's listeners.
     # Subprocess tests exercise the actual bootstrap paths independently.
     if ddtrace.tracer.enabled:
-        for bundle in subscriber_bundles:
-            bundle.register()
+        register_tracing_subscribers()
     try:
         if use_dummy_writer:
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())

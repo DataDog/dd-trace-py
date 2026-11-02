@@ -2,6 +2,7 @@ import pytest
 
 from ddtrace.contrib.internal.aiohttp_jinja2.patch import patch
 from ddtrace.contrib.internal.aiohttp_jinja2.patch import unpatch
+from tests.contrib.aiohttp.conftest import aiohttp_tracing_subscribers  # noqa:F401
 from tests.contrib.aiohttp.conftest import app  # noqa:F401
 from tests.contrib.aiohttp.conftest import patched_app  # noqa:F401
 from tests.contrib.aiohttp.conftest import untraced_app  # noqa:F401
