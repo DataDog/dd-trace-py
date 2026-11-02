@@ -298,6 +298,16 @@ def test_skipped_stop_does_not_pair_with_a_later_stop() -> None:
     assert monitor.snapshot_and_reset().n_pauses == 0
 
 
+def test_pause_clock_matches_platform() -> None:
+    """Windows keeps wall time; elsewhere the collecting thread's CPU time.
+
+    The GIL-wait exclusion test below only covers the thread-time path. This
+    pins the platform choice so the Windows branch is not untested.
+    """
+    expected: object = time.monotonic_ns if sys.platform == "win32" else time.thread_time_ns
+    assert gc_monitor._pause_clock_ns is expected
+
+
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Windows pause clock stays wall time (thread time is too coarse)",

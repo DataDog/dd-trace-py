@@ -2,5 +2,4 @@
 fixes:
   - |
     tracing: Fixes ``runtime.python.gc.pause.time`` and ``runtime.python.gc.pause.max``
-    counting time that other threads ran during a garbage collection as pause time,
-    which could report pauses of several seconds.
+    overcounting GC pause time when other threads held the GIL during a collection.
