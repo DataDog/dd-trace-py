@@ -109,7 +109,7 @@ class VulnerabilityBase:
     def _create_evidence_and_report(
         cls,
         vulnerability_type: str,
-        evidence_value: Optional[TEXT_TYPES] = "",
+        evidence_value: Optional[TEXT_TYPES] = None,
         dialect: Optional[str] = None,
         file_name: Optional[str] = None,
         line_number: Optional[int] = None,
@@ -123,14 +123,15 @@ class VulnerabilityBase:
                 evidence_value = evidence_value.decode("utf-8", "ignore")
             evidence = Evidence(value=evidence_value, dialect=dialect)
         else:
-            log.debug("Unexpected evidence_value type: %s", type(evidence_value))
+            if evidence_value is not None:
+                log.debug("Unexpected evidence_value type: %s", type(evidence_value))
             evidence = Evidence(value="", dialect=dialect)
         return cls._prepare_report(
             vulnerability_type, evidence, file_name, line_number, function_name, class_name, *args, **kwargs
         )
 
     @classmethod
-    def report(cls, evidence_value: Optional[TEXT_TYPES] = "", dialect: Optional[str] = None) -> Optional[bool]:
+    def report(cls, evidence_value: Optional[TEXT_TYPES] = None, dialect: Optional[str] = None) -> Optional[bool]:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         result = False
         if should_process_vulnerability(cls.vulnerability_type):
