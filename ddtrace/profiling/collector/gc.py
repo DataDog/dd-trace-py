@@ -37,8 +37,9 @@ class GCCollector(collector.Collector):
     Data emitted:
     - GC time samples (push_gctime) attributed to synthetic gc.collect[gen=N]
       frames. These appear as libdatadog gc-time / gc-samples (GC Time view).
-      Window totals are pushed with count=1 because push_gctime multiplies
-      ns*count (same as walltime).
+      The window sum is pushed with count=1 (push_gctime multiplies ns*count,
+      same as walltime), then remaining pause counts are added with zero
+      duration so gc-samples matches the pause count.
     - A gc.config snapshot sample per flush carrying the interval's explicit
       gc.collect() tally in the native gc-samples field.
 
@@ -111,8 +112,14 @@ class GCCollector(collector.Collector):
         # old patch in the chain as a pass-through. Restart re-activates counting
         # without wrapping again (that would cycle through the old bound method).
         if self._patch_active:
-            with self._lock:
-                self._explicit_count += 1
+            # Skip the counter if snapshot() already holds the lock. Waiting
+            # would deadlock when a signal handler or debugger calls
+            # gc.collect on this same thread. Always forward to the original.
+            if self._lock.acquire(False):
+                try:
+                    self._explicit_count += 1
+                finally:
+                    self._lock.release()
         return self._orig_collect(generation)
 
     def _on_pause(self, gen: int, pause_ns: int) -> None:
@@ -135,7 +142,12 @@ class GCCollector(collector.Collector):
     def snapshot(self) -> None:  # type: ignore[override]
         # Copy primitives, then clear, then allocate. A reentrant GC callback
         # during SampleHandle construction must land in the next window.
-        with self._lock:
+        # Skip this interval if a pause listener or patched collect already
+        # holds the lock. Waiting would hang shutdown when a signal interrupts
+        # the main thread mid-_on_pause / _patched_collect.
+        if not self._lock.acquire(False):
+            return
+        try:
             c0: int = self._pause_count[0]
             c1: int = self._pause_count[1]
             c2: int = self._pause_count[2]
@@ -150,6 +162,8 @@ class GCCollector(collector.Collector):
             self._pause_total_ns[1] = 0
             self._pause_total_ns[2] = 0
             self._explicit_count = 0
+        finally:
+            self._lock.release()
 
         pause_count: tuple[int, int, int] = (c0, c1, c2)
         pause_total_ns: tuple[int, int, int] = (t0, t1, t2)
@@ -158,9 +172,13 @@ class GCCollector(collector.Collector):
             if n == 0:
                 continue
             pause_handle: ddup.SampleHandle = ddup.SampleHandle()
-            # count=1: pause_total_ns is already the window sum; push_gctime
-            # multiplies ns*count (same contract as push_walltime).
+            # pause_total_ns is already the window sum; push_gctime multiplies
+            # ns*count (same contract as push_walltime), so pass count=1 for
+            # the duration, then add the remaining pause counts with zero
+            # duration so gc-samples matches n.
             pause_handle.push_gctime(pause_total_ns[gen], 1)
+            if n > 1:
+                pause_handle.push_gctime(0, n - 1)
             pause_handle.push_frame(_GEN_NAMES[gen], _GC_FILE, 0, gen)
             pause_handle.push_monotonic_ns(time.monotonic_ns())
             pause_handle.flush_sample()

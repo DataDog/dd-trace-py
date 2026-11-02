@@ -202,6 +202,36 @@ def test_on_pause_skips_when_lock_held() -> None:
         col._lock.release()
 
 
+def test_patched_collect_skips_counter_when_lock_held() -> None:
+    """Reentrant gc.collect while snapshot holds the lock must still collect."""
+    col: GCCollector = _make_isolated_collector()
+    col._patch_active = True
+    col._orig_collect = gc.collect
+    assert col._lock.acquire(False)
+    try:
+        collected: int = col._patched_collect()
+        assert isinstance(collected, int)
+        assert col._explicit_count == 0
+    finally:
+        col._lock.release()
+
+
+def test_snapshot_skips_when_lock_held() -> None:
+    """Snapshot must not wait if a pause listener already holds the lock."""
+    col: GCCollector = _make_isolated_collector()
+    col._pause_count[0] = 1
+    col._pause_total_ns[0] = 1000
+    assert col._lock.acquire(False)
+    try:
+        with mock.patch.object(gc_collector, "ddup") as mock_ddup:
+            col.snapshot()
+            mock_ddup.SampleHandle.assert_not_called()
+        assert col._pause_count[0] == 1
+        assert col._pause_total_ns[0] == 1000
+    finally:
+        col._lock.release()
+
+
 def test_patch_active_set_before_collect_replacement() -> None:
     """_patch_active must be True before gc.collect is published on first start."""
     import inspect
@@ -244,7 +274,7 @@ def test_patch_active_set_before_collect_replacement() -> None:
 
 
 def test_snapshot_gctime_equals_total_pause_ns() -> None:
-    """Emitted gc-time must be the window sum, not sum * pause count."""
+    """Emitted gc-time must be the window sum, and gc-samples the pause count."""
     col: GCCollector = _make_isolated_collector()
     total_ns: int = 1_000_000
     pause_count: int = 5
@@ -263,11 +293,8 @@ def test_snapshot_gctime_equals_total_pause_ns() -> None:
         col.snapshot()
 
     pause_handle: mock.MagicMock = handles[0]
-    pause_ns: int
-    count: int
-    pause_ns, count = pause_handle.push_gctime.call_args[0]
-    assert pause_ns == total_ns
-    assert count == 1
+    gctime_calls: list[tuple[int, int]] = [c.args for c in pause_handle.push_gctime.call_args_list]
+    assert gctime_calls == [(total_ns, 1), (0, pause_count - 1)]
     pause_handle.push_walltime.assert_not_called()
 
 
