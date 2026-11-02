@@ -18,6 +18,35 @@ from tests.debugging.mocking import MockSignalUploader
 from tests.utils import TracerTestCase
 
 
+def test_entry_span_probe_initialized_once():
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from time import sleep
+    from unittest.mock import patch
+
+    from ddtrace.debugging._origin._span_snapshot import EntrySpanProbe
+    from ddtrace.debugging._origin.span import EntrySpanLocation
+
+    location = EntrySpanLocation("view", 1, __file__, __name__)
+    barrier = Barrier(8)
+    build = EntrySpanProbe.build
+
+    def slow_build(**kwargs):
+        sleep(0.01)
+        return build(**kwargs)
+
+    def read_probe(_):
+        barrier.wait(timeout=5)
+        return location.probe
+
+    with patch.object(EntrySpanProbe, "build", side_effect=slow_build) as builder:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            probes = list(pool.map(read_probe, range(8)))
+
+    builder.assert_called_once()
+    assert all(probe is probes[0] for probe in probes)
+
+
 class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
     __uploader__ = MockSignalUploader
 

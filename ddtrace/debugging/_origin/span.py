@@ -23,6 +23,7 @@ if t.TYPE_CHECKING:
 
 
 log = get_logger(__name__)
+_probe_lock = RLock()
 
 
 @dataclass
@@ -38,7 +39,9 @@ class EntrySpanLocation:
         if self._probe is None:
             from ddtrace.debugging._origin._span_snapshot import EntrySpanProbe
 
-            self._probe = EntrySpanProbe.build(name=self.name, module=self.module, function=self.name)
+            with _probe_lock:
+                if self._probe is None:
+                    self._probe = EntrySpanProbe.build(name=self.name, module=self.module, function=self.name)
         return self._probe
 
 
