@@ -852,6 +852,33 @@ def test_start_profiler_with_only_native_heap_enabled(
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
 
 
+def test_start_profiler_with_only_gc_enabled(
+    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]]
+) -> None:
+    # Importing sitecustomize starts a profiler, so it is imported once Profiler is replaced.
+    from ddtrace.profiling.bootstrap import sitecustomize
+
+    with lifecycle.lock:
+        lifecycle.stop_profiler()
+        created_profilers.clear()
+
+    for setting in (
+        profiling_config.stack,
+        profiling_config.memory,
+        profiling_config.lock,
+        profiling_config.exception,
+        profiling_config.pytorch,
+        profiling_config.native_heap,
+    ):
+        monkeypatch.setattr(setting, "enabled", False)
+    monkeypatch.setattr(profiling_config.gc, "enabled", True)
+
+    sitecustomize.start_profiler()
+
+    assert created_profilers == [{}]
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
+
+
 def test_product_activated_when_profiling_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     from ddtrace.internal.profiling import product
 
