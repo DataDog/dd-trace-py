@@ -50,10 +50,15 @@ def _maybe_malloc_trim() -> None:
     malloc_trim: Optional[Callable[[int], int]] = _get_malloc_trim()
     if malloc_trim is None:
         return
+    start_ns: int = time.monotonic_ns()
     try:
-        malloc_trim(0)
+        ret: int = malloc_trim(0)
     except Exception:
         LOG.debug("[profiling] malloc_trim failed", exc_info=True)
+        return
+    duration_ns: int = time.monotonic_ns() - start_ns
+    # Duration and return value are what we need later to decide default-on.
+    LOG.debug("[profiling] malloc_trim ret=%d duration_ns=%d", ret, duration_ns)
 
 
 class Scheduler(periodic.PeriodicService):

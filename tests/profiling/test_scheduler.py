@@ -83,6 +83,41 @@ def test_load_malloc_trim_missing_symbol_is_none(monkeypatch: pytest.MonkeyPatch
         assert scheduler._get_malloc_trim() is None
 
 
+def test_maybe_malloc_trim_logs_duration_and_return(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def fake_trim(pad: int) -> int:
+        assert pad == 0
+        return 1
+
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.profiling.scheduler"):
+        scheduler._maybe_malloc_trim()
+
+    matching: list[str] = [
+        r.message for r in caplog.records if "malloc_trim ret=" in r.message and "duration_ns=" in r.message
+    ]
+    assert len(matching) == 1
+    assert "ret=1" in matching[0]
+    assert "duration_ns=" in matching[0]
+
+
+def test_maybe_malloc_trim_failure_skips_duration_log(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def fake_trim(pad: int) -> int:
+        raise RuntimeError("trim boom")
+
+    monkeypatch.setattr(profiling_config, "malloc_trim_enabled", True)
+    monkeypatch.setattr(scheduler, "_malloc_trim_fn", fake_trim)
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.profiling.scheduler"):
+        scheduler._maybe_malloc_trim()
+
+    assert any("malloc_trim failed" in r.message for r in caplog.records)
+    assert not any("duration_ns=" in r.message for r in caplog.records)
+
+
 def test_exporter_failure(caplog: pytest.LogCaptureFixture) -> None:
     s = scheduler.Scheduler()
 
