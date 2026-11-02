@@ -612,6 +612,7 @@ class DataDogProvider(AbstractProvider):
                     allocation_key=details.allocation_key,
                     evaluation_context=evaluation_context,
                     serial_id=details.serial_id,
+                    has_split_features=details.features is not None,
                 )
             else:
                 logger.debug(
@@ -668,6 +669,7 @@ class DataDogProvider(AbstractProvider):
         allocation_key: typing.Optional[str],
         evaluation_context: typing.Optional[EvaluationContext],
         serial_id: typing.Optional[int] = None,
+        has_split_features: bool = False,
     ) -> None:
         """
         Stamp a provisional exposure-cache verdict and attach the pending decision.
@@ -687,9 +689,10 @@ class DataDogProvider(AbstractProvider):
             if not exposure_event:
                 return
             # Features stay off the cache value: a features change alone is not a new exposure.
-            features = features_with_prefix(flag_metadata, METADATA_EXPOSURE_FEATURE_PREFIX)
-            if features:
-                exposure_event["features"] = features
+            if has_split_features:
+                features = features_with_prefix(flag_metadata, METADATA_EXPOSURE_FEATURE_PREFIX)
+                if features:
+                    exposure_event["features"] = features
             decision = ExposureDecision(
                 self._exposure_cache,
                 self._exposure_cache_lock,
