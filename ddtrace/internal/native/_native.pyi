@@ -1008,12 +1008,10 @@ class SerializationError(Exception):
     ...
 
 class ffe:
+    """Native Feature Flags and Experimentation module."""
+
     @staticmethod
     def get_evaluator_capabilities() -> list[str]: ...
-
-    """
-    Native Feature Flags and Experimentation module.
-    """
 
     class FlagType(Enum):
         String = ...

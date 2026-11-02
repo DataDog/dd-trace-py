@@ -234,6 +234,7 @@ def test_api_key_header_present_and_absent(harness):
         ((), None),
         (("unknown-feature-v1",), None),
         (("dependent-flag-variant-key-v1",), "dependent-flag-variant-key-v1"),
+        (["unknown-feature-v1", "dependent-flag-variant-key-v1"], "dependent-flag-variant-key-v1"),
     ],
 )
 def test_evaluator_capability_header_on_initial_and_conditional_requests(harness, monkeypatch, capabilities, expected):
