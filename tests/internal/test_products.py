@@ -302,6 +302,33 @@ def test_load_products_no_dist_attribute_untrusted_module():
     assert "evil" not in manager.__products__
 
 
+def test_load_products_reads_shared_dist_metadata_once():
+    """Entry points of one distribution share its dist object; METADATA is parsed once for all of them."""
+
+    class CountingDist:
+        reads = 0
+
+        @property
+        def metadata(self):
+            CountingDist.reads += 1
+            return {"Name": "ddtrace"}
+
+    dist = CountingDist()
+    eps = []
+    for name in ("tracer", "appsec", "llmobs"):
+        ep = _make_entry_point(name, "ddtrace", f"ddtrace.{name}.product", BaseProduct())
+        ep.dist = dist
+        eps.append(ep)
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with patch("ddtrace.internal.products.get_product_entry_points", return_value=eps):
+        manager._load_products()
+
+    assert set(manager.__products__) == {"tracer", "appsec", "llmobs"}
+    assert CountingDist.reads == 1
+
+
 def test_product_manager_is_enabled():
     class DisabledProduct(BaseProduct):
         def enabled(self) -> bool:

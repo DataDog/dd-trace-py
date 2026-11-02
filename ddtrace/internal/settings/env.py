@@ -104,6 +104,12 @@ class EnvConfig(MutableMapping[str, str]):
     def __len__(self) -> int:
         return sum(1 for _ in self)
 
+    def __bool__(self) -> bool:
+        # Without this, truth testing falls back to __len__ and walks the whole environment. That
+        # happens for every config object, since envier evaluates `source or os.environ` on the
+        # ChainMap that holds this mapping.
+        return any(True for _ in self)
+
     def copy(self) -> dict[str, str]:
         return dict(self)
 

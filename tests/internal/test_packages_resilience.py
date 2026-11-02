@@ -388,3 +388,90 @@ def test_filename_to_package_does_not_attribute_editable_source_root_to_dependen
 
     _p._is_install_root.cache_clear()
     _p.filename_to_package.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "six.py",
+        "foo",
+        "foo.pyc",
+        "foo.pth",
+        "_foo.cpython-313-x86_64-linux-gnu.so",
+        "foo/__init__.py",
+        "foo/bar/baz.py",
+        "foo//bar.py",
+        "foo/./bar.py",
+        "foo/.hidden",
+        "foo/",
+        "./foo/bar.py",
+        "/abs/foo/bar.py",
+        "../../bin/foo",
+        "foo-1.0.dist-info/RECORD",
+        "foo\\bar.py",
+    ],
+)
+def test_record_path_toplevel_name_matches_package_path(path: str) -> None:
+    """The string fast path must agree with the PackagePath-based inference it replaces."""
+    import importlib.metadata as importlib_metadata
+
+    from ddtrace.internal import packages as _p
+
+    assert _p._record_path_toplevel_name(path) == _p._get_toplevel_name(importlib_metadata.PackagePath(path))
+
+
+def test_packages_distributions_matches_stdlib(isolated_metadata_path: Path) -> None:
+    """When every listed file exists, the vendored mapping is the one importlib.metadata computes."""
+    import importlib.metadata as importlib_metadata
+
+    from ddtrace.internal import packages as _p
+
+    (isolated_metadata_path / "regular").mkdir()
+    (isolated_metadata_path / "regular" / "__init__.py").write_text("")
+    (isolated_metadata_path / "flat.py").write_text("")
+    (isolated_metadata_path / "_ext.cpython-313-x86_64-linux-gnu.so").write_text("")
+    di = _write_dist_info(isolated_metadata_path, "inferred-pkg", "1.0")
+    (di / "RECORD").write_text(
+        "regular/__init__.py,,\n"
+        "flat.py,,\n"
+        "_ext.cpython-313-x86_64-linux-gnu.so,,\n"
+        "inferred_pkg-1.0.dist-info/RECORD,,\n"
+    )
+    declared = _write_dist_info(isolated_metadata_path, "declared-pkg", "1.0")
+    (declared / "top_level.txt").write_text("declared\n")
+
+    expected = {k: sorted(v) for k, v in importlib_metadata.packages_distributions().items()}
+    assert {k: sorted(v) for k, v in _p._packages_distributions().items()} == expected
+    assert expected["regular"] == ["inferred-pkg"]
+
+
+def test_packages_distributions_does_not_stat_listed_files(
+    isolated_metadata_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Top-level names come from the RECORD listing alone; checking each file on disk is what made
+    startup slow in large environments.
+    """
+    from ddtrace.internal import packages as _p
+
+    di = _write_dist_info(isolated_metadata_path, "listed-pkg", "1.0")
+    (di / "RECORD").write_text("listed/__init__.py,,\nlisted/mod.py,,\n")
+
+    def _fail(*args, **kwargs):
+        raise AssertionError("listed files must not be checked on disk")
+
+    monkeypatch.setattr(Path, "exists", _fail)
+
+    assert _p._packages_distributions() == {"listed": ["listed-pkg"]}
+
+
+def test_packages_distributions_skips_bad_dist(
+    isolated_metadata_path: Path, reset_packages_caches, strict_metadata_getitem
+) -> None:
+    """A malformed dist is skipped instead of failing the whole mapping."""
+    from ddtrace.internal import packages as _p
+
+    good = _write_dist_info(isolated_metadata_path, "good-pkg", "1.0")
+    (good / "RECORD").write_text("good/__init__.py,,\n")
+    _write_dist_info(isolated_metadata_path, "broken-pkg", "2.0", metadata_body="Metadata-Version: 2.1\nVersion: 2.0\n")
+
+    assert _p._packages_distributions() == {"good": ["good-pkg"]}

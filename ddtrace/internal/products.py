@@ -63,6 +63,10 @@ class ProductManager:
         self._failed: set[str] = set()
 
     def _load_products(self) -> None:
+        # Entry points of the same distribution share one dist object, and every metadata access
+        # re-reads and parses METADATA, so resolve each distribution name only once.
+        dist_names: dict[int, t.Optional[str]] = {}
+
         for product_plugin in get_product_entry_points():
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
@@ -86,7 +90,9 @@ class ProductManager:
             if not hasattr(product_plugin, "dist") or dist is None:
                 trusted_dist = True
             else:
-                dist_name = dist.metadata["Name"]
+                if (dist_key := id(dist)) not in dist_names:
+                    dist_names[dist_key] = dist.metadata["Name"]
+                dist_name = dist_names[dist_key]
                 trusted_dist = dist_name is not None and dist_name.lower() in _TRUSTED_PRODUCT_DISTRIBUTIONS
             trusted_module = any(module_path.startswith(p) for p in _TRUSTED_PRODUCT_MODULE_PREFIXES)
             if not (trusted_dist and trusted_module):

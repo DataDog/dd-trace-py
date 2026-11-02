@@ -164,6 +164,19 @@ def test_len_and_iter_match_visible_environ():
     assert set(dd_environ) == set(visible_environ)
 
 
+def test_bool_matches_visible_environ(monkeypatch):
+    for key in list(os.environ):
+        monkeypatch.delenv(key)
+    assert not dd_environ
+
+    # Empty OTEL_* values are hidden, so they do not make the mapping truthy.
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "")
+    assert not dd_environ
+
+    monkeypatch.setenv("DD_SERVICE", "svc")
+    assert dd_environ
+
+
 def test_copy_returns_plain_dict():
     snapshot = dd_environ.copy()
     assert isinstance(snapshot, dict)

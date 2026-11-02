@@ -81,13 +81,12 @@ def get_package_distributions() -> t.Mapping[str, list[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        import importlib.metadata as importlib_metadata
-
-        # Prefer the official API if available, otherwise fallback to the vendored version
-        if hasattr(importlib_metadata, "packages_distributions"):
-            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
-        else:
-            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+        # The vendored version is used even when importlib.metadata.packages_distributions exists. On
+        # Python >= 3.12 the stdlib one stats every file listed in every RECORD (Distribution.files
+        # skips missing files), which costs hundreds of milliseconds at startup in large environments.
+        # It also raises as a whole on a single malformed distribution, which left this cache empty
+        # and repeated the full scan for every imported module.
+        _PACKAGE_DISTRIBUTIONS = _packages_distributions()
     return _PACKAGE_DISTRIBUTIONS
 
 
@@ -575,8 +574,46 @@ def _get_toplevel_name(name) -> str:
     )
 
 
+def _record_path_toplevel_name(path: str) -> str:
+    """Same result as _get_toplevel_name(PackagePath(path)), using plain string operations.
+
+    Building a PackagePath for every installed file dominates the cost of the inference, so the
+    common shapes of RECORD entries are handled directly and anything unusual (absolute paths,
+    "." segments, trailing slashes) goes through PackagePath.
+    """
+    top, sep, rest = path.partition("/")
+    if not sep:
+        # A single component, e.g. "six.py": PackagePath would not alter it.
+        if top and top != ".":
+            return inspect.getmodulename(top) or top
+    elif top and top != "." and rest and rest[0] not in "/.":
+        return top
+
+    import importlib.metadata as importlib_metadata
+
+    return _get_toplevel_name(importlib_metadata.PackagePath(path))
+
+
+def _listed_file_toplevel_names(dist) -> t.Iterable[str]:
+    """Top-level names of the files a distribution lists, without checking that they exist.
+
+    Since Python 3.12, Distribution.files stats every listed file to drop missing ones, which is one
+    syscall per installed file. Inferring importable names only needs the listing, as on Python 3.10
+    and 3.11.
+    """
+    record = dist.read_text("RECORD")
+    if record is None:
+        # egg-info listings hold paths relative to the egg-info directory that need resolving; leave
+        # those to importlib.metadata.
+        return map(_get_toplevel_name, _always_iterable(dist.files))
+
+    import csv
+
+    return (_record_path_toplevel_name(row[0]) for row in csv.reader(record.splitlines()) if row and row[0])
+
+
 def _top_level_inferred(dist):
-    opt_names = set(map(_get_toplevel_name, _always_iterable(dist.files)))
+    opt_names = set(_listed_file_toplevel_names(dist))
 
     def importable_name(name):
         return "." not in name
