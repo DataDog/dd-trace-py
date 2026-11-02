@@ -66,9 +66,12 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.internal.utils.formats import safe_load_json
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -81,8 +84,6 @@ from ddtrace.llmobs._integrations.audio_utils import g711_variant
 from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
@@ -1149,6 +1150,25 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
         total_tokens = input_tokens + output_tokens  # mirror the chat/responses fallback
     if total_tokens is not None:
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+
+    # Modality and cached counts are subsets of the totals, not additional tokens.
+    # Preserve missing fields: an unknown cached-audio split is not zero audio.
+    input_details = _get_attr(usage, "input_token_details", None)
+    output_details = _get_attr(usage, "output_token_details", None)
+    cached_details = _get_attr(input_details, "cached_tokens_details", None)
+    for key, value in (
+        (CACHE_READ_INPUT_TOKENS_METRIC_KEY, _get_attr(input_details, "cached_tokens", None)),
+        ("input_audio_tokens", _get_attr(input_details, "audio_tokens", None)),
+        ("input_text_tokens", _get_attr(input_details, "text_tokens", None)),
+        ("input_image_tokens", _get_attr(input_details, "image_tokens", None)),
+        ("output_audio_tokens", _get_attr(output_details, "audio_tokens", None)),
+        ("output_text_tokens", _get_attr(output_details, "text_tokens", None)),
+        ("cache_audio_read_tokens", _get_attr(cached_details, "audio_tokens", None)),
+        ("cache_text_read_tokens", _get_attr(cached_details, "text_tokens", None)),
+        ("cache_image_read_tokens", _get_attr(cached_details, "image_tokens", None)),
+    ):
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            metrics[key] = value
     return metrics or None
 
 

@@ -80,11 +80,14 @@ class StringTable
         return table_.size();
     }
 
-    StringTable()
+    StringTable() { add_sentinels(); }
+
+    // Drops every cached string except the sentinels. Callers must not hold references returned by lookup().
+    void clear()
     {
-        table_.emplace(0, "");
-        table_.emplace(INVALID, "<invalid>");
-        table_.emplace(UNKNOWN, "<unknown>");
+        const std::lock_guard<std::mutex> lock(table_lock);
+        table_.clear();
+        add_sentinels();
     }
 
     void postfork_child()
@@ -97,12 +100,17 @@ class StringTable
         // Use placement-new to reconstruct the map without inspecting its contents.
         new (&table_) Map();
         // Restore sentinel entries expected by the rest of the code.
+        add_sentinels();
+    }
+
+  private:
+    void add_sentinels()
+    {
         table_.emplace(0, "");
         table_.emplace(INVALID, "<invalid>");
         table_.emplace(UNKNOWN, "<unknown>");
     }
 
-  private:
     Map table_;
     mutable std::mutex table_lock;
 };

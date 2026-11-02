@@ -39,9 +39,40 @@ HOOK_FRAME_DEPTH: int = 3 if is_at_least_py(3, 15) else 1
 
 
 if is_at_least_py(3, 15):
+    import dis
+
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
-    from ddtrace.internal.utils.inspection import linenos
+
+    def _effective_line(code: CodeType, line: int) -> "int | None":
+        """Find the line to register a hook on for the given requested line.
+
+        A function's declaration line (and, for a decorated function, the
+        lines of its decorators) has no executable code of its own, so
+        redirect it to the function's first real line. Returns None if the
+        line does not belong to the function at all, or if the function has
+        no line past its declaration (e.g. def f(): return 42).
+
+        One-line functions are rejected because CPython 3.13+ does not emit a
+        LINE event for the line of the RESUME instruction unless PY_START is
+        also monitored for the code object, so a hook there would never fire.
+        See README.md in this package.
+        """
+        if line < code.co_firstlineno:
+            return None
+
+        # The declaration line (and, for a decorated function, its decorators)
+        # has no bytecode of its own; stop at the first real line to redirect
+        # such a request to it.
+        for _, lineno in dis.findlinestarts(code):
+            if lineno != code.co_firstlineno:
+                if line < lineno:
+                    line = lineno
+                break
+        else:
+            return None
+
+        return line if any(lineno == line for _, lineno in dis.findlinestarts(code)) else None
 
     class _LineHookHandler(_monitoring.MonitoringEventHandler):
         """Per-code-object handler that dispatches line hooks via sys.monitoring."""
@@ -98,7 +129,6 @@ if is_at_least_py(3, 15):
             )
             return list(hooks)
 
-        valid_lines: set[int] = linenos(code)
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
@@ -110,10 +140,11 @@ if is_at_least_py(3, 15):
                 new_handler = False
 
             for hook, line, arg in hooks:
-                if line not in valid_lines:
+                effective_line = _effective_line(code, line)
+                if effective_line is None:
                     failed.append((hook, line, arg))
                     continue
-                handler.add(line, hook, arg)
+                handler.add(effective_line, hook, arg)
 
             if not handler.is_empty:
                 if new_handler:
@@ -174,9 +205,13 @@ if is_at_least_py(3, 15):
                 return list(hooks)
 
             for hook, line, arg in hooks:
-                before: int = len(handler._hooks.get(line, ()))
-                handler.remove(line, hook, arg)
-                if len(handler._hooks.get(line, ())) == before:
+                effective_line = _effective_line(code, line)
+                if effective_line is None:
+                    failed.append((hook, line, arg))
+                    continue
+                before: int = len(handler._hooks.get(effective_line, ()))
+                handler.remove(effective_line, hook, arg)
+                if len(handler._hooks.get(effective_line, ())) == before:
                     failed.append((hook, line, arg))
 
             if handler.is_empty:
@@ -270,6 +305,18 @@ else:
         identifier for the hook itself. This should be kept in case the hook needs
         to be removed.
         """
+        if lineno < code.first_lineno:
+            raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
+
+        # The declaration line (and, for a decorated function, its decorators)
+        # has no bytecode of its own; stop at the first real line to redirect
+        # such a request to it.
+        for item in code:
+            if isinstance(item, Instr) and item.lineno is not None and item.lineno != code.first_lineno:
+                if lineno < item.lineno:
+                    lineno = item.lineno
+                break
+
         # DEV: In general there are no guarantees for bytecode to be "linear",
         # meaning that a line number can occur multiple times. We need to find all
         # occurrences and inject the hook at each of them. An example of when this
@@ -322,6 +369,18 @@ else:
         The hook is identified by its argument. This ensures that only the right
         hook is ejected.
         """
+        if line < code.first_lineno:
+            raise InvalidLine("Line %d does not contain a hook" % line)
+
+        # The declaration line (and, for a decorated function, its decorators)
+        # has no bytecode of its own; stop at the first real line to redirect
+        # such a request to it.
+        for item in code:
+            if isinstance(item, Instr) and item.lineno is not None and item.lineno != code.first_lineno:
+                if line < item.lineno:
+                    line = item.lineno
+                break
+
         locs: deque[int] = deque()
         for i, item in enumerate(code):
             if not isinstance(item, Instr):

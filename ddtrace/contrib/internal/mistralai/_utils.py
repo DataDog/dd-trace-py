@@ -4,7 +4,7 @@ from typing import Optional
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.internal.utils.formats import _get_attr
 
 
 def _accumulate_tool_calls(tool_calls_map: dict[int, dict[str, Any]], tool_calls: list[Any]) -> None:

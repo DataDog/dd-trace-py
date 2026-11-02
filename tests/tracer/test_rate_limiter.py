@@ -30,9 +30,9 @@ def test_rate_limiter_rate_limit_0(time_window):
     assert limiter.max_tokens == 0
 
     now_ns = time.monotonic_ns()
-    for i in nanoseconds(10000, time_window):
-        # Make sure the time is different for every check
-        with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=now_ns + i):
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns") as clock:
+        for i in nanoseconds(10000, time_window):
+            clock.return_value = now_ns + i
             assert limiter.is_allowed() is False
 
 
@@ -44,9 +44,9 @@ def test_rate_limiter_rate_limit_negative(time_window):
     assert limiter.max_tokens == -1
 
     now_ns = time.monotonic_ns()
-    for i in nanoseconds(10000, time_window):
-        # Make sure the time is different for every check
-        with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=now_ns + i):
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns") as clock:
+        for i in nanoseconds(10000, time_window):
+            clock.return_value = now_ns + i
             assert limiter.is_allowed() is True
 
 
@@ -99,10 +99,9 @@ def test_rate_limiter_is_allowed_small_gaps(time_window):
     now_ns = time.monotonic_ns()
     gap = 1e9 / 100
     # Keep incrementing by a gap to keep us at our rate limit
-    for i in nanoseconds(10000, time_window):
-        # Keep the same timeframe
-        time_ns = now_ns + (gap * i)
-        with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=time_ns):
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns") as clock:
+        for i in nanoseconds(10000, time_window):
+            clock.return_value = now_ns + (gap * i)
             assert limiter.is_allowed() is True
 
 

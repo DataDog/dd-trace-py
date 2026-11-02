@@ -1,0 +1,5 @@
+---
+security:
+  - |
+    internal: HTTPS connections made by ddtrace's native components now reject certificate chains
+    that pass through a small set of intermediate certificate authorities distrusted due to security concerns.

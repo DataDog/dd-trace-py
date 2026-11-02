@@ -1,10 +1,10 @@
 import os
-import signal
 import subprocess
 
 import pytest
 from sanic import __version__ as sanic_version
 
+from tests.utils import terminate_process_group
 from tests.webclient import Client
 
 
@@ -21,22 +21,18 @@ def sanic_client():
     env["SANIC_PORT"] = str(SERVER_PORT)
     args = ["ddtrace-run", "python", RUN_SERVER_PY]
     subp = subprocess.Popen(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env, preexec_fn=os.setsid
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env, start_new_session=True
     )
     client = Client(f"http://0.0.0.0:{SERVER_PORT}")
-    client.wait(path="/hello")
     try:
-        yield client
-    finally:
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
-        # sanic server can spawn child processes, ensure child process are killed
-        os.killpg(os.getpgid(subp.pid), signal.SIGTERM)
+        client.wait(path="/hello")
         try:
-            # Give the server 3 seconds to shutdown, then kill it
-            subp.wait(3)
-        except subprocess.TimeoutExpired:
-            subp.kill()
+            yield client
+        finally:
+            resp = client.get_ignored("/shutdown-tracer", timeout=10)
+            assert resp.status_code == 200
+    finally:
+        terminate_process_group(subp)
 
 
 @pytest.mark.snapshot(

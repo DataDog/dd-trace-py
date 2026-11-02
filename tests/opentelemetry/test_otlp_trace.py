@@ -1,4 +1,70 @@
+import importlib.util
+
 import pytest
+
+
+requires_grpc_test_server = pytest.mark.skipif(
+    importlib.util.find_spec("grpc") is None,
+    reason="The gRPC test receiver is not available in this environment",
+)
+
+
+@requires_grpc_test_server
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "grpc",
+        "DD_TRACE_SAMPLE_RATE": "1",
+    }
+)
+def test_otlp_traces_sent_via_grpc():
+    from tests.opentelemetry.utils import capture_otlp_traces
+
+    with capture_otlp_traces("grpc") as requests:
+        from ddtrace.trace import tracer
+
+        with tracer.trace("test-span", service="test-svc"):
+            with tracer.trace("test-child", service="test-svc"):
+                pass
+        tracer.flush()
+
+    spans = [
+        span
+        for request in requests
+        for resource_spans in request.resource_spans
+        for scope_spans in resource_spans.scope_spans
+        for span in scope_spans.spans
+    ]
+    assert {span.name for span in spans} == {"test-span", "test-child"}
+
+
+@requires_grpc_test_server
+@pytest.mark.subprocess(
+    env={
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS": "X-Test-Header=value",
+        "DD_TRACE_SAMPLE_RATE": "1",
+    }
+)
+def test_otlp_traces_sent_via_grpc_with_global_protocol():
+    from tests.opentelemetry.utils import capture_otlp_traces
+
+    with capture_otlp_traces("grpc") as requests:
+        from ddtrace.trace import tracer
+
+        with tracer.trace("global-grpc-span", service="test-svc"):
+            pass
+        tracer.flush()
+
+    spans = [
+        span
+        for request in requests
+        for resource_spans in request.resource_spans
+        for scope_spans in resource_spans.scope_spans
+        for span in scope_spans.spans
+    ]
+    assert {span.name for span in spans} == {"global-grpc-span"}
 
 
 @pytest.mark.subprocess(
@@ -90,12 +156,17 @@ def test_otlp_traces_sent_via_http():
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
         # Note: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL is intentionally NOT set. The native
         # trace-metrics exporter is HTTP/JSON only and derives an HTTP /v1/metrics endpoint
         # regardless of the configured metrics protocol.
         "DD_SERVICE": "test-svc",
-    }
+    },
+    parametrize={
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": ["false", "true"],
+        "DD_METRICS_OTEL_ENABLED": ["false", "true"],
+    },
 )
 def test_otlp_trace_metrics_exported_via_http():
     """End-to-end: libdatadog computes span stats and exports the traces.span.sdk.metrics.duration histogram.

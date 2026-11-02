@@ -1,4 +1,6 @@
 import gc
+import os
+import shutil
 from unittest import mock
 import weakref
 
@@ -8,9 +10,33 @@ import torch
 from ddtrace.contrib.internal.vllm.patch import patch
 from ddtrace.contrib.internal.vllm.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from tests.contrib.vllm._tiny_models import MODELS_DIR
+from tests.contrib.vllm._tiny_models import TINY_BERT
+from tests.contrib.vllm._tiny_models import TINY_OPT
+from tests.contrib.vllm._tiny_models import TINY_RERANKER
+from tests.contrib.vllm._tiny_models import write_models
 from tests.utils import override_global_config
 
 from ._utils import shutdown_cached_llms
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _tiny_models():
+    """Write the tiny models, and keep the vLLM engine off the Hugging Face Hub.
+
+    The models are local directories, so vLLM reads them from disk. HF_HUB_OFFLINE is a guard: the vLLM engine
+    core subprocess inherits it, and any Hub call fails at once instead of being sent. Anonymous Hub requests
+    from CI are rate limited.
+    """
+    previous = os.environ.get("HF_HUB_OFFLINE")
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    write_models()
+    yield
+    shutil.rmtree(MODELS_DIR, ignore_errors=True)
+    if previous is None:
+        os.environ.pop("HF_HUB_OFFLINE", None)
+    else:
+        os.environ["HF_HUB_OFFLINE"] = previous
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -96,8 +122,8 @@ def vllm_llmobs(tracer, monkeypatch):
 
 
 @pytest.fixture(scope="module")
-def opt_125m_llm(_require_gpu_module):
-    """Cached facebook/opt-125m LLM for text generation tests."""
+def tiny_opt_llm(_require_gpu_module):
+    """Cached tiny OPT LLM for text generation tests."""
     # Ensure patching happens before LLM creation
     from ddtrace.contrib.internal.vllm.patch import patch
 
@@ -107,9 +133,11 @@ def opt_125m_llm(_require_gpu_module):
     from vllm.distributed import cleanup_dist_env_and_memory
 
     llm = vllm.LLM(
-        model="facebook/opt-125m",
-        max_model_len=256,
+        model=TINY_OPT,
+        # The tokenizer makes one token for each byte, so prompts have more tokens than with a real tokenizer.
+        max_model_len=512,
         enforce_eager=True,
+        load_format="dummy",
         gpu_memory_utilization=0.1,
     )
     yield weakref.proxy(llm)
@@ -118,8 +146,8 @@ def opt_125m_llm(_require_gpu_module):
 
 
 @pytest.fixture(scope="module")
-def e5_small_llm(_require_gpu_module):
-    """Cached intfloat/e5-small LLM for embedding tests."""
+def tiny_bert_llm(_require_gpu_module):
+    """Cached tiny BERT LLM for embedding tests."""
     # Ensure patching happens before LLM creation
     from ddtrace.contrib.internal.vllm.patch import patch
 
@@ -129,10 +157,11 @@ def e5_small_llm(_require_gpu_module):
     from vllm.distributed import cleanup_dist_env_and_memory
 
     llm = vllm.LLM(
-        model="intfloat/e5-small",
+        model=TINY_BERT,
         runner="pooling",
         max_model_len=256,
         enforce_eager=True,
+        load_format="dummy",
         trust_remote_code=True,
         gpu_memory_utilization=0.1,
     )
@@ -142,8 +171,8 @@ def e5_small_llm(_require_gpu_module):
 
 
 @pytest.fixture(scope="module")
-def bge_reranker_llm(_require_gpu_module):
-    """Cached BAAI/bge-reranker-v2-m3 LLM for classification/ranking tests."""
+def tiny_reranker_llm(_require_gpu_module):
+    """Cached tiny XLM-RoBERTa reranker LLM for classification/ranking tests."""
     # Ensure patching happens before LLM creation
     from ddtrace.contrib.internal.vllm.patch import patch
 
@@ -153,10 +182,11 @@ def bge_reranker_llm(_require_gpu_module):
     from vllm.distributed import cleanup_dist_env_and_memory
 
     llm = vllm.LLM(
-        model="BAAI/bge-reranker-v2-m3",
+        model=TINY_RERANKER,
         runner="pooling",
         max_model_len=256,
         enforce_eager=True,
+        load_format="dummy",
         trust_remote_code=True,
         gpu_memory_utilization=0.1,
     )

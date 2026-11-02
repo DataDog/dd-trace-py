@@ -256,13 +256,6 @@ class AnnotationContext:
         self._deregister_annotator()
 
 
-def _get_attr(o: object, attr: str, default: object):
-    # Convenience method to get an attribute from an object or dict
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    return getattr(o, attr, default)
-
-
 def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
     """Return the nearest LLMObs-type ancestor span of a given span."""
     parent = span._parent
@@ -350,14 +343,6 @@ def safe_json(obj, ensure_ascii=True):
         )
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
-
-
-def safe_load_json(value: str):
-    try:
-        loaded_value = json.loads(value)
-    except (json.JSONDecodeError, TypeError):
-        loaded_value = {"value": str(value)}
-    return loaded_value
 
 
 def load_data_value(value):

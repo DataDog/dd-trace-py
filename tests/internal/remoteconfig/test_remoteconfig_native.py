@@ -24,7 +24,6 @@ from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
-from ddtrace.internal.service import ServiceStatus
 
 
 HERE = os.path.dirname(__file__)
@@ -32,6 +31,7 @@ RESPONSES = json.load(open(os.path.join(HERE, "rc_mocked_responses_asm_features.
 
 BASE_PATH = "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"
 SECOND_PATH = "datadog/2/ASM_FEATURES/ASM_FEATURES-second/config"
+THIRD_PATH = "datadog/2/ASM_FEATURES/ASM_FEATURES-third/config"
 
 
 class _Sink(RCCallback):
@@ -147,6 +147,83 @@ def test_no_delta_on_unchanged_repoll():
     assert len(sink.batches[0]) == 1
 
 
+def test_new_native_client_removes_configs_missing_from_its_first_poll():
+    # A rebuilt native client (e.g. when switching to the intake) starts with no
+    # state, so its first poll carries additions only. Configs applied through
+    # the previous client that it no longer reports must still be removed.
+    with _MockAgent([RESPONSES[4]]) as agent:
+        client, sink = _client(agent.url)
+        assert client.request() is True
+    assert sorted(p.path for p in sink.last) == sorted([BASE_PATH, SECOND_PATH])
+
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client._native = None
+        client.agent_url = agent.url
+        assert client.request() is True
+        assert [(p.path, p.content is None) for p in sink.last] == [(SECOND_PATH, True), (BASE_PATH, False)]
+
+        assert client.request() is True
+
+    # Only the first delivery of a new client is reconciled.
+    assert len(sink.batches) == 2
+
+
+def test_new_native_client_keeps_configs_on_empty_first_reply():
+    # An empty reply means that nothing changed, not that there are no configs,
+    # so it must not reconcile the configs applied through the previous client.
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client, sink = _client(agent.url)
+        assert client.request() is True
+    assert [p.path for p in sink.last] == [BASE_PATH]
+
+    with _MockAgent([{}, RESPONSES[1]]) as agent:
+        client._native = None
+        client.agent_url = agent.url
+        assert client.request() is True
+        assert len(sink.batches) == 1
+        assert BASE_PATH in client._applied
+
+        # The first reply with content is still reconciled.
+        assert client.request() is True
+    assert [(p.path, p.content is None) for p in sink.last] == [(BASE_PATH, False)]
+
+
+def test_new_native_client_keeps_configs_with_malformed_content():
+    # A config that a rebuilt client reports with invalid content is still
+    # there, so the last valid one is kept, like on any other update.
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client, sink = _client(agent.url)
+        assert client.request() is True
+    assert [p.path for p in sink.last] == [BASE_PATH]
+
+    with _MockAgent([_malformed_response()]) as agent:
+        client._native = None
+        client.agent_url = agent.url
+        assert client.request() is True
+
+    assert all(p.path != BASE_PATH for batch in sink.batches[1:] for p in batch)
+    assert BASE_PATH in client._applied
+
+
+def test_native_poll_returns_a_list_when_nothing_changed():
+    # Test harnesses outside this repository drive the native client directly
+    # and iterate over what poll() returns, so it must stay a list even when
+    # the agent replies that nothing changed. fetch() is the one returning None.
+    with _MockAgent([{}, RESPONSES[1], {}]) as agent:
+        client, sink = _client(agent.url)
+        native = client.ensure_native()
+        products = list(client._enabled_products)
+
+        assert native.poll(products, []) == []
+
+        changes = native.poll(products, [])
+        client._dispatch_to_products(client._build_payloads(changes))
+        assert [change.path for change in changes] == [BASE_PATH]
+        assert [p.path for p in sink.last] == [BASE_PATH]
+
+        assert native.fetch(products, []) is None
+
+
 def test_enabled_products_reported_to_agent():
     with _MockAgent([RESPONSES[1]]) as agent:
         client, _ = _client(agent.url)
@@ -155,140 +232,6 @@ def test_enabled_products_reported_to_agent():
     assert agent.requests, "agent received no request"
     products = agent.requests[0]["client"]["products"]
     assert "ASM_FEATURES" in products
-
-
-def test_remoteconfig_product_defers_start_until_all_products_registered(monkeypatch):
-    from ddtrace.internal.remoteconfig import worker as worker_module
-    from ddtrace.internal.remoteconfig.products import client as product
-    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
-    from tests.utils import override_global_config
-
-    poller = RemoteConfigPoller()
-    started_with_products = []
-    startup_events = []
-
-    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
-    monkeypatch.setattr(poller._client, "ensure_native", lambda: startup_events.append("native"))
-    monkeypatch.setattr(
-        worker_module.forksafe,
-        "register_before_fork",
-        lambda hook: startup_events.append("before-fork"),
-    )
-
-    def capture_start():
-        startup_events.append("poller")
-        started_with_products.extend(poller._client._enabled_products)
-        poller.status = ServiceStatus.RUNNING
-
-    def register_agent_config():
-        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
-        poller.enable_product(RemoteConfigProduct.AgentConfig)
-
-    monkeypatch.setattr(poller, "start", capture_start)
-    monkeypatch.setattr(product, "_register_rc_products", register_agent_config)
-
-    with override_global_config(dict(_remote_config_enabled=True)):
-        product.start()
-        poller.register_callback(RemoteConfigProduct.FfeFlags, _Sink())
-        poller.enable_product(RemoteConfigProduct.FfeFlags)
-
-        assert poller.status == ServiceStatus.STOPPED
-        assert started_with_products == []
-        assert startup_events == ["native", "before-fork"]
-
-        product.post_start()
-    assert startup_events == ["native", "before-fork", "poller"]
-    assert set(started_with_products) == {
-        RemoteConfigProduct.AgentConfig,
-        RemoteConfigProduct.FfeFlags,
-    }
-
-
-def test_start_deferred_does_not_start_without_barrier(monkeypatch):
-    from ddtrace.internal.remoteconfig import worker as worker_module
-    from ddtrace.internal.remoteconfig.products import client as product
-    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
-    from tests.utils import override_global_config
-
-    poller = RemoteConfigPoller()
-    starts = []
-    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
-    monkeypatch.setattr(poller, "start", lambda: starts.append(1))
-
-    with override_global_config(dict(_remote_config_enabled=True)):
-        product.post_start()
-    assert starts == []
-
-
-def test_remoteconfig_product_start_failure_cleans_up_deferred_state(monkeypatch):
-    from ddtrace.internal.remoteconfig import worker as worker_module
-    from ddtrace.internal.remoteconfig.products import client as product
-    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
-    from tests.utils import override_global_config
-
-    poller = RemoteConfigPoller()
-    fork_events = []
-    starts = []
-    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
-    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
-    monkeypatch.setattr(worker_module.forksafe, "register_before_fork", lambda hook: fork_events.append("register"))
-    monkeypatch.setattr(worker_module.forksafe, "unregister_before_fork", lambda hook: fork_events.append("unregister"))
-    monkeypatch.setattr(poller, "start", lambda: starts.append(1))
-
-    def fail_after_partial_registration():
-        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
-        poller.enable_product(RemoteConfigProduct.AgentConfig)
-        raise RuntimeError("registration failed")
-
-    monkeypatch.setattr(product, "_register_rc_products", fail_after_partial_registration)
-
-    with override_global_config(dict(_remote_config_enabled=True)):
-        with pytest.raises(RuntimeError, match="registration failed"):
-            product.start()
-
-        assert starts == []
-        assert poller._client._product_callbacks == {}
-        assert poller._client._enabled_products == set()
-        assert poller._start_deferred is False
-        assert poller._before_fork_registered is False
-        assert fork_events == ["register", "unregister"]
-
-        assert poller.enable() is True
-
-    assert starts == [1]
-
-
-def test_remoteconfig_product_post_start_failure_cleans_up_deferred_state(monkeypatch):
-    from ddtrace.internal.remoteconfig import worker as worker_module
-    from ddtrace.internal.remoteconfig.products import client as product
-    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
-    from tests.utils import override_global_config
-
-    poller = RemoteConfigPoller()
-    fork_events = []
-    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
-    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
-    monkeypatch.setattr(worker_module.forksafe, "register_before_fork", lambda hook: fork_events.append("register"))
-    monkeypatch.setattr(worker_module.forksafe, "unregister_before_fork", lambda hook: fork_events.append("unregister"))
-
-    def fail_start():
-        raise RuntimeError("poller start failed")
-
-    monkeypatch.setattr(poller, "start", fail_start)
-
-    with override_global_config(dict(_remote_config_enabled=True)):
-        poller.defer_start()
-        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
-        poller.enable_product(RemoteConfigProduct.AgentConfig)
-
-        with pytest.raises(RuntimeError, match="poller start failed"):
-            product.post_start()
-
-    assert poller._client._product_callbacks == {}
-    assert poller._client._enabled_products == set()
-    assert poller._start_deferred is False
-    assert poller._before_fork_registered is False
-    assert fork_events == ["register", "unregister"]
 
 
 def test_capabilities_reported_to_agent():
@@ -457,6 +400,136 @@ def test_fork_broadcast():
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_fork_removes_configs_deleted_before_first_read():
+    # The child inherits the callback state of the origin, but its reader starts
+    # from scratch and reports the active configs as additions only. A config
+    # the origin removed after the fork, but before the child's first read, must
+    # still be removed in the child.
+    with _MockAgent([RESPONSES[4], RESPONSES[5]]) as agent:
+        client, _ = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+        go_read, go_write = os.pipe()
+        read_fd, write_fd = os.pipe()
+        pid = os.fork()
+        if pid == 0:  # child
+            os.close(go_write)
+            os.close(read_fd)
+            try:
+                os.read(go_read, 1)
+                sink = _Sink()
+                client._product_callbacks[RemoteConfigProduct.AsmFeatures] = sink
+                reader = client.make_reader()
+                client.dispatch_native_changes(reader.read(client.enabled_product_names()))
+                msg = ",".join("%s:%d" % (p.path, p.content is None) for p in sink.last)
+                os.write(write_fd, msg.encode())
+            finally:
+                os.close(write_fd)
+                os._exit(0)
+
+        os.close(go_read)
+        os.close(write_fd)
+        assert client.request() is True  # base + third: second removed after the fork
+        os.write(go_write, b"x")
+        os.close(go_write)
+        out = os.read(read_fd, 4096).decode()
+        os.close(read_fd)
+        os.waitpid(pid, 0)
+
+    removals, additions = [], []
+    for entry in out.split(","):
+        path, removed = entry.rsplit(":", 1)
+        (removals if removed == "1" else additions).append(path)
+    assert removals == [SECOND_PATH]
+    assert sorted(additions) == sorted([BASE_PATH, THIRD_PATH])
+    # Removals are delivered first.
+    assert out.startswith(SECOND_PATH)
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_fork_removes_configs_deleted_while_product_disabled():
+    # The child's first read withholds the configs of a disabled product, so it
+    # cannot tell which of them were removed. That must be settled once the
+    # product is enabled, or a config removed meanwhile would stay applied.
+    with _MockAgent([RESPONSES[4], RESPONSES[5]]) as agent:
+        client, _ = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+        go_read, go_write = os.pipe()
+        read_fd, write_fd = os.pipe()
+        pid = os.fork()
+        if pid == 0:  # child
+            os.close(go_write)
+            os.close(read_fd)
+            try:
+                os.read(go_read, 1)
+                sink = _Sink()
+                client._product_callbacks[RemoteConfigProduct.AsmFeatures] = sink
+                client.disable_product(RemoteConfigProduct.AsmFeatures)
+                reader = client.make_reader()
+                client.dispatch_native_changes(reader.read(client.enabled_product_names()))
+                client.enable_product(RemoteConfigProduct.AsmFeatures)
+                client.dispatch_native_changes(reader.read(client.enabled_product_names()))
+                msg = ",".join("%s:%d" % (p.path, p.content is None) for p in sink.last)
+                os.write(write_fd, msg.encode())
+            finally:
+                os.close(write_fd)
+                os._exit(0)
+
+        os.close(go_read)
+        os.close(write_fd)
+        assert client.request() is True  # base + third: second removed after the fork
+        os.write(go_write, b"x")
+        os.close(go_write)
+        out = os.read(read_fd, 4096).decode()
+        os.close(read_fd)
+        os.waitpid(pid, 0)
+
+    removals, additions = [], []
+    for entry in out.split(","):
+        path, removed = entry.rsplit(":", 1)
+        (removals if removed == "1" else additions).append(path)
+    assert removals == [SECOND_PATH]
+    assert sorted(additions) == sorted([BASE_PATH, THIRD_PATH])
+
+
+def test_reader_changes_reconciled_against_products_they_were_read_for():
+    # A product enabled after a read but before its changes are dispatched has
+    # its configs missing from them. They must not be taken for removals.
+    with _MockAgent([RESPONSES[4]]) as agent:
+        client, sink = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+    reader = client.make_reader()
+    client.dispatch_native_changes(reader.read([]), [])
+    assert all(p.content is not None for batch in sink.batches for p in batch)
+
+    names = client.enabled_product_names()
+    client.dispatch_native_changes(reader.read(names), names)
+    assert sorted((p.path, p.content is None) for p in sink.last) == [(BASE_PATH, False), (SECOND_PATH, False)]
+
+
+def test_failed_reader_read_is_not_reconciled():
+    # A reader that cannot read a consistent snapshot (e.g. during a compaction)
+    # returns None, which must not pass for a snapshot without any config.
+    with _MockAgent([RESPONSES[4]]) as agent:
+        client, sink = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True  # base + second
+
+    reader = client.make_reader()
+    names = client.enabled_product_names()
+    client.dispatch_native_changes(None, names)
+    assert all(p.content is not None for batch in sink.batches for p in batch)
+
+    client.dispatch_native_changes(reader.read(names), names)
+    assert sorted((p.path, p.content is None) for p in sink.last) == [(BASE_PATH, False), (SECOND_PATH, False)]
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
 def test_fork_of_fork_broadcast():
     # A grandchild (a fork of an already-forked consumer) must still receive the
     # full active snapshot. The intermediate child consumed the snapshot into its
@@ -554,6 +627,105 @@ def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
         assert poller.enable() is True
 
     assert order == ["native", "before_fork", "start"], order
+
+
+def test_poller_skips_requests_without_enabled_products():
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+
+    requests = []
+    poller = RemoteConfigPoller()
+    poller._state = lambda: requests.append(1)
+
+    poller.periodic()
+    assert requests == []
+
+    poller.enable_product(RemoteConfigProduct.AsmFeatures)
+    poller._products_enabled_at -= poller._PRODUCT_COLLECTION_WINDOW
+    poller.periodic()
+    assert requests == [1]
+
+
+def test_product_enablements_are_collected_into_one_request():
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+
+    poller = RemoteConfigPoller()
+    window = poller._PRODUCT_COLLECTION_WINDOW
+    requests = []
+    poller._state = lambda: requests.append(set(poller._client._enabled_products))
+
+    burst = {RemoteConfigProduct.AgentConfig, RemoteConfigProduct.AsmFeatures, RemoteConfigProduct.ApmTracing}
+    for product in burst:
+        poller.enable_product(product)
+
+    # While products are being enabled, the poller comes back when the window
+    # closes rather than requesting them.
+    poller.periodic()
+    assert requests == []
+    assert 0 < poller.interval <= window
+
+    poller._products_enabled_at -= window
+    poller.periodic()
+    assert requests == [burst]
+    assert poller.interval == poller._poll_interval
+
+    # A wake-up with no new product, like the ones caused by the products
+    # enabled while collecting, does not repeat the request, and neither does
+    # enabling a product that is already enabled.
+    poller.periodic()
+    poller.enable_product(RemoteConfigProduct.AsmFeatures)
+    poller.periodic()
+    assert requests == [burst]
+
+    # The regular poll does.
+    poller._last_request -= poller._poll_interval
+    poller.periodic()
+    assert requests == [burst] * 2
+
+
+def test_remoteconfig_product_start_failure_disables_the_poller(monkeypatch):
+    # The product manager only marks a product that fails to start as failed,
+    # so the remote configuration product must not leave the poller running.
+    from ddtrace.internal.remoteconfig import worker as worker_module
+    from ddtrace.internal.remoteconfig.products import client as product
+    from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+    from ddtrace.internal.service import ServiceStatus
+    from tests.utils import override_global_config
+
+    poller = RemoteConfigPoller()
+    fork_events = []
+    starts = []
+    monkeypatch.setattr(worker_module, "remoteconfig_poller", poller)
+    monkeypatch.setattr(poller._client, "ensure_native", lambda: None)
+    monkeypatch.setattr(worker_module.forksafe, "register_before_fork", lambda hook: fork_events.append("register"))
+    monkeypatch.setattr(worker_module.forksafe, "unregister_before_fork", lambda hook: fork_events.append("unregister"))
+
+    def start():
+        starts.append(1)
+        poller.status = ServiceStatus.RUNNING
+
+    monkeypatch.setattr(poller, "start", start)
+
+    def fail_after_partial_registration():
+        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
+        poller.enable_product(RemoteConfigProduct.AgentConfig)
+        raise RuntimeError("registration failed")
+
+    monkeypatch.setattr(product, "_register_rc_products", fail_after_partial_registration)
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        with pytest.raises(RuntimeError, match="registration failed"):
+            product.start()
+
+        assert poller.status == ServiceStatus.STOPPED
+        assert poller._client._product_callbacks == {}
+        assert poller._client._enabled_products == set()
+        assert poller._before_fork_registered is False
+        assert fork_events == ["register", "unregister"]
+
+        # A later registration can start the poller again.
+        assert poller.enable() is True
+
+    assert starts == [1, 1]
 
 
 @contextlib.contextmanager
@@ -687,48 +859,6 @@ def test_switch_to_agentless_keeps_products_and_capabilities(monkeypatch):
         assert poller._client.id == client_id
         assert set(poller._client._enabled_products) == products
         assert list(poller._client._capability_values) == capabilities
-
-
-def test_switch_to_agentless_does_not_release_startup_barrier(monkeypatch):
-    from ddtrace.internal.remoteconfig import worker as worker_mod
-    from tests.utils import override_global_config
-
-    poller = worker_mod.RemoteConfigPoller()
-    starts = []
-    monkeypatch.setattr(poller._client, "ensure_native", lambda: object())
-    monkeypatch.setattr(worker_mod.forksafe, "register_before_fork", lambda hook: None)
-
-    def capture_start():
-        starts.append((poller._client.agentless, set(poller._client._enabled_products)))
-        poller.status = ServiceStatus.RUNNING
-
-    monkeypatch.setattr(poller, "start", capture_start)
-
-    with (
-        _agentless_settings(DD_AGENTLESS_ENABLED="false"),
-        override_global_config(dict(_remote_config_enabled=True, _dd_api_key="a-late-api-key")),
-    ):
-        poller.defer_start()
-        poller.register_callback(RemoteConfigProduct.AgentConfig, _Sink())
-        poller.enable_product(RemoteConfigProduct.AgentConfig)
-
-        assert poller.switch_to_agentless() is True
-
-        poller.register_callback(RemoteConfigProduct.FfeFlags, _Sink())
-        poller.enable_product(RemoteConfigProduct.FfeFlags)
-        assert starts == []
-
-        assert poller.start_deferred() is True
-
-    assert starts == [
-        (
-            True,
-            {
-                RemoteConfigProduct.AgentConfig,
-                RemoteConfigProduct.FfeFlags,
-            },
-        )
-    ]
 
 
 def test_switch_to_agentless_is_a_noop_when_already_agentless(monkeypatch):

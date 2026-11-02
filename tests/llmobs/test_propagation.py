@@ -1180,3 +1180,12 @@ def test_inject_agent_attribution_still_set_for_child_inside_agent(llmobs):
     tags_header = headers.get("x-datadog-tags", "")
     assert f"_dd.p.llmobs_pagent_span_id={agent_span.span_id}" in tags_header
     assert "_dd.p.llmobs_pagent_name=triage" in tags_header
+
+
+@pytest.mark.parametrize("trace_id", [None, _DECIMAL_TRACE_ID])
+def test_distributed_context_keeps_application_without_apm_parent(llmobs, trace_id):
+    ctx = _make_upstream_llmobs_context(trace_id)
+    ctx._meta[PROPAGATED_ML_APP_KEY] = "remote-app"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("detached-child") as span:
+        assert get_llmobs_ml_app(span) == "remote-app"

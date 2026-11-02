@@ -110,7 +110,7 @@ class TorchProfilerCollector(MLProfilerCollector):
 
 
 def _handle_torch_trace(prof: Any) -> None:
-    LOG.debug("_handle_torch_trace called")
+    LOG.debug("[profiling] _handle_torch_trace called")
     events = prof.events()
     if not events:
         return
@@ -120,7 +120,7 @@ def _handle_torch_trace(prof: Any) -> None:
 
     # Subsample events if we exceed the limit
     if num_events > events_limit:
-        LOG.debug("Dropped events. events_limit %d, len(events): %d", events_limit, num_events)
+        LOG.debug("[profiling] Dropped events. events_limit %d, len(events): %d", events_limit, num_events)
         events = random.sample(events, events_limit)  # nosec: used for sampling, not security
 
     # Determine which attributes to use once (avoid per-event getattr checks).
@@ -197,7 +197,7 @@ def _handle_torch_trace(prof: Any) -> None:
 
         if not data_added:
             if empty_events_count % 1000 == 0:
-                LOG.debug("%d events with no data to record: %s", empty_events_count, e)
+                LOG.debug("[profiling] %d events with no data to record: %s", empty_events_count, e)
             empty_events_count += 1
             continue
 

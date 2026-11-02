@@ -10,11 +10,11 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
+from ddtrace.internal.inferred_spans import is_inferred_span as is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
@@ -448,7 +448,3 @@ def unpatching_popen() -> typing.Iterator[None]:
         else:
             # If it was False, keep it False (normal production scenario)
             asm_config._bypass_instrumentation_for_waf = False
-
-
-def is_inferred_span(span: SpanData) -> bool:
-    return span.name in INFERRED_SPAN_NAMES

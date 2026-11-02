@@ -7,7 +7,11 @@ import subprocess
 import sys
 from typing import Optional
 
+from aiohttp import ClientError
+from aiohttp import ClientSession
+from aiohttp import ClientTimeout
 from aiohttp import web
+from yarl import URL
 
 from ddtrace import config
 import ddtrace.constants
@@ -194,6 +198,9 @@ async def _ssrf(param: str, urlname: str) -> str:
         import requests
 
         return f"Url: {requests.get(urlname, timeout=0.5).text}"
+    if param.startswith("url_aiohttp"):
+        async with ClientSession() as session, session.get(urlname, timeout=ClientTimeout(total=0.5)) as response:
+            return f"Url: {await response.text()}"
     if param.startswith("url_httpx2_async"):
         import httpx2
 
@@ -394,6 +401,99 @@ async def redirect_httpx_async(request: web.Request) -> web.Response:
     return web.json_response(payload)
 
 
+async def redirect_aiohttp(request: web.Request) -> web.Response:
+    route = request.match_info["route"]
+    try:
+        async with ClientSession(timeout=ClientTimeout(total=DOWNSTREAM_HTTP_TIMEOUT)) as session:
+            if request.method == "POST":
+                response = await session.post(
+                    _downstream_url(request),
+                    data=await request.read(),
+                    headers={"Content-Type": "application/json", "TagRoute": route},
+                )
+            else:
+                response = await session.get(_downstream_url(request), headers={"TagRoute": route})
+            async with response:
+                if request.query.get("stream"):
+                    body = b"".join([chunk async for chunk in response.content.iter_any()])
+                    payload = {"payload": body.decode("utf-8", errors="replace")}
+                else:
+                    payload = {"payload": await response.text()}
+    except Exception as e:
+        payload = {"error": repr(e)}
+    return web.json_response(payload)
+
+
+_STORED_RESPONSES: list = []
+
+
+async def chunked_json(request: web.Request) -> web.StreamResponse:
+    response = web.StreamResponse(headers={"Content-Type": "application/json"})
+    response.enable_chunked_encoding()
+    await response.prepare(request)
+    await response.write(b'{"payload": "api10-response-body"}')
+    await response.write_eof()
+    return response
+
+
+async def aiohttp_client_case(request: web.Request) -> web.Response:
+    case = request.match_info["case"]
+    target = f"http://127.0.0.1:{request.match_info['port']}/response-body"
+
+    async def failover(req, handler):
+        try:
+            return await handler(req)
+        except ClientError:
+            req.url = URL(target)
+            req.update_host(req.url)
+            return await handler(req)
+
+    async def nested(req, handler):
+        async with req.session.get(target, middlewares=()) as response:
+            await response.read()
+        return await handler(req)
+
+    if case == "read":
+        session, response = _STORED_RESPONSES.pop()
+        async with session:
+            try:
+                return _html(await response.text())
+            except (ClientError, asyncio.TimeoutError) as e:
+                return _html(repr(e), 502)
+    middlewares = {"failover": (failover,), "nested": (nested,)}.get(case)
+    timeout = (
+        ClientTimeout(total=None, sock_connect=DOWNSTREAM_HTTP_TIMEOUT, sock_read=DOWNSTREAM_HTTP_TIMEOUT)
+        if case == "store"
+        else ClientTimeout(total=DOWNSTREAM_HTTP_TIMEOUT)
+    )
+    session: Optional[ClientSession] = ClientSession(
+        timeout=timeout, **({"middlewares": middlewares} if middlewares else {})
+    )
+    url = {"failover": "http://127.0.0.1:1/", "chunked": f"http://127.0.0.1:{request.url.port}/chunked_json/"}
+    try:
+        response = await session.get(url.get(case, target))
+        if case == "store":
+            _STORED_RESPONSES.append((session, response))
+            session = None
+            return _html("stored")
+        return _html(await response.text())
+    except (ClientError, asyncio.TimeoutError) as e:
+        return _html(repr(e), 502)
+    finally:
+        if session is not None:
+            await session.close()
+
+
+async def aiohttp_proxy(request: web.Request) -> web.Response:
+    proxy = f"http://127.0.0.1:{request.match_info['port']}"
+    try:
+        async with ClientSession(timeout=ClientTimeout(total=DOWNSTREAM_HTTP_TIMEOUT)) as session:
+            async with session.get("https://www.datadoghq.com/", proxy=proxy) as response:
+                return _html(f"status {response.status}")
+    except Exception as e:
+        return _html(f"error {e.__class__.__name__}")
+
+
 async def exception_group_block(request: web.Request) -> web.Response:
     """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
     if sys.version_info < (3, 11) or request.query.get("block") != "true":
@@ -480,6 +580,10 @@ def get_app() -> web.Application:
         (r"/redirect_httpx2/{route}/{port:\d+}", redirect_httpx, ("GET", "POST")),
         (r"/redirect_httpx_async/{route}/{port:\d+}", redirect_httpx_async, ("GET", "POST")),
         (r"/redirect_httpx2_async/{route}/{port:\d+}", redirect_httpx_async, ("GET", "POST")),
+        (r"/redirect_aiohttp/{route}/{port:\d+}", redirect_aiohttp, ("GET", "POST")),
+        (r"/aiohttp_proxy/{port:\d+}", aiohttp_proxy, ("GET",)),
+        (r"/aiohttp_client/{case}/{port:\d+}", aiohttp_client_case, ("GET",)),
+        (r"/chunked_json/", chunked_json, ("GET",)),
         ("/exception-group-block", exception_group_block, ("GET",)),
         ("/login/", login, ("GET",)),
         ("/login_sdk/", login_sdk, ("GET",)),

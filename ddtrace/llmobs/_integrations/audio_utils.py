@@ -14,7 +14,7 @@ from typing import Union
 import wave
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs.types import AudioPart
 
 

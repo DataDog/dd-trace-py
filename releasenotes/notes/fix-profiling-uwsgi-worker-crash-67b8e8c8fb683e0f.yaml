@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash under uWSGI on Python 3.12+ when the application is loaded in
+    the master process without the ``lazy-apps``, ``py-call-uwsgi-fork-hooks`` or ``py-call-osafterfork``
+    option. Native frame attribution and exception profiling are now disabled in these workers. Enable
+    ``lazy-apps`` or ``py-call-uwsgi-fork-hooks`` to keep them.

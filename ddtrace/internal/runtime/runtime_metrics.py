@@ -14,6 +14,7 @@ from ddtrace.vendor.dogstatsd.base import ENTITY_ID_TAG_NAME
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
+from ..serverless import in_aws_lambda_microvm
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
 from .metric_collectors import GCRuntimeMetricCollector
@@ -89,17 +90,17 @@ class RuntimeWorker(periodic.PeriodicService):
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
+        # A MicroVM /run transition rotates the runtime ID mid-process without a fork, so MicroVMs
+        # tagging runtime-id re-read their platform tags on every flush. Everyone else keeps a single
+        # identity for their lifetime and keeps the cached tags.
+        self._identity_refresh_enabled = in_aws_lambda_microvm() and config._runtime_metrics_runtime_id_enabled
         if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in config._experimental_features_enabled:
             # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)
             self.send_metric = self._dogstatsd_client.gauge
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
-        if config._runtime_metrics_runtime_id_enabled:
-            # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
-            self._platform_tags = self._format_tags(PlatformTagsV2())
-        else:
-            self._platform_tags = self._format_tags(PlatformTags())
+        self._platform_tags = self._collect_platform_tags()
 
         self._process_tags: list[str] = list(ProcessTags())
         # Only dd.internal.entity_id needs preserving here: service/env/version are already
@@ -150,7 +151,12 @@ class RuntimeWorker(periodic.PeriodicService):
         self._runtime_metrics.stop()
 
     def flush(self) -> None:
-        # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
+        if self._identity_refresh_enabled:
+            # PlatformTagsV2 reads the current runtime ID, which a MicroVM /run refresh rotates.
+            self._platform_tags = self._collect_platform_tags()
+        self._flush_unlocked(self._runtime_metrics)
+
+    def _flush_unlocked(self, runtime_metrics) -> None:
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
         # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
         # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
@@ -159,9 +165,14 @@ class RuntimeWorker(periodic.PeriodicService):
         self._dogstatsd_client.constant_tags = constant_tags
 
         with self._dogstatsd_client:
-            for key, value in self._runtime_metrics:
+            for key, value in runtime_metrics:
                 log.debug("Sending ddtrace runtime metric %s:%s", key, value)
                 self.send_metric(key, value)
+
+    def _collect_platform_tags(self) -> list[str]:
+        if config._runtime_metrics_runtime_id_enabled:
+            return self._format_tags(PlatformTagsV2())
+        return self._format_tags(PlatformTags())
 
     def _format_tags(self, tags: RuntimeCollectorsIterable) -> list[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]

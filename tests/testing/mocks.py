@@ -47,6 +47,22 @@ from ddtrace.testing.internal.writer import TestOptWriter
 from tests.utils import reinitialize_agentless_config
 
 
+@contextlib.contextmanager
+def mock_test_environment(test_env: dict[str, str]) -> t.Iterator[None]:
+    """Patch the environment and its cached agentless settings for a test."""
+    from ddtrace.internal.settings._agentless import config as agentless_config
+
+    # NOTE: Preserve the exact singleton state: callers may have applied runtime or stable-config
+    # overrides that cannot be reconstructed from the ambient environment.
+    original_agentless_config_state = agentless_config.__dict__
+    with patch.dict(os.environ, test_env):
+        try:
+            reinitialize_agentless_config()
+            yield
+        finally:
+            agentless_config.__dict__ = original_agentless_config_state
+
+
 def get_mock_git_instance() -> Mock:
     mock_git_instance = Mock()
     mock_git_instance.get_latest_commits.return_value = []
@@ -217,12 +233,6 @@ class SessionManagerMockBuilder:
                 "1" if self._itr_skipping_level == ITRSkippingLevel.SUITE else "0"
             )
 
-        from ddtrace.internal.settings._agentless import config as agentless_config
-
-        # NOTE: Preserve the exact singleton state: callers may have applied runtime or stable-config
-        # overrides that cannot be reconstructed from the ambient environment.
-        original_agentless_config_state = agentless_config.__dict__
-
         with patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
             # Configure API client mock
             mock_client = Mock()
@@ -235,31 +245,21 @@ class SessionManagerMockBuilder:
             mock_client.configuration_errors = {}
             mock_api_client.return_value = mock_client
 
-            try:
-                with (
-                    patch(
-                        "ddtrace.testing.internal.session_manager.get_env_tags",
-                        return_value=effective_env_tags,
-                    ),
-                    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-                    patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
-                    patch.dict(os.environ, effective_env),
-                ):
-                    # The agentless settings resolve once at import, so refresh them against the
-                    # environment just patched in -- SessionManager picks its backend connector from
-                    # them during __init__.
-                    reinitialize_agentless_config()
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.get_env_tags",
+                    return_value=effective_env_tags,
+                ),
+                patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+                patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
+                mock_test_environment(effective_env),
+            ):
+                # Create session manager
+                test_session = MockDefaults.test_session()
+                session_manager = SessionManager(session=test_session)
+                session_manager.skippable_items = self._skippable_items
 
-                    # Create session manager
-                    test_session = MockDefaults.test_session()
-                    session_manager = SessionManager(session=test_session)
-                    session_manager.skippable_items = self._skippable_items
-
-                    return session_manager
-            finally:
-                # patch.dict has put os.environ back. Restore the exact object state that preceded
-                # this helper rather than re-reading process-global configuration.
-                agentless_config.__dict__ = original_agentless_config_state
+                return session_manager
 
 
 class TestMockBuilder:
@@ -343,6 +343,7 @@ class PytestItemMockBuilder:
         mock_item = Mock()
         mock_item.nodeid = self._nodeid
         mock_item.add_marker = Mock()
+        mock_item.get_closest_marker.return_value = None
         mock_item.reportinfo.return_value = self._location
         mock_item.path = self._path
         mock_item.path.absolute.return_value.parent = Path(self._location[0]).parent

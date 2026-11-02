@@ -78,7 +78,7 @@ jobs:
       run: |
         set -euo pipefail
         cd "$(mktemp -d)"
-        curl -sSL -o crane.tar.gz "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
+        curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o crane.tar.gz "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
         echo "${CRANE_SHA256}  crane.tar.gz" | sha256sum -c -
         tar -xzf crane.tar.gz crane
         sudo mv crane /usr/local/bin/crane

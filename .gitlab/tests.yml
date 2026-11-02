@@ -63,6 +63,11 @@ extract_test_artifacts:
   needs: [prechecks]
   services:
     - !reference [.services, ddagent]
+  variables:
+    # uv hardlinks files from its cache into a venv only when the cache and the venv
+    # are on the same filesystem. The default cache is in the home directory, which is
+    # not on the filesystem of the checkout, so uv copies every file into each venv.
+    UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
   before_script:
     - !reference [.testrunner, before_script]
     - |
@@ -85,11 +90,13 @@ extract_test_artifacts:
         echo "No test environments found for ${TEST_SUITE}"
         exit 1
       fi
+      # Use one run-tests process for the shard because each run-tests start parses every suitespec file.
+      venv_args=()
       for environment_hash in "${environment_hashes[@]}"
       do
-        echo "Running test environment: ${environment_hash}"
-        scripts/run-tests --venv "${environment_hash}" -- --ddtrace
+        venv_args+=(--venv "${environment_hash}")
       done
+      scripts/run-tests "${venv_args[@]}" -- --ddtrace
       ./scripts/check-diff "tests/requirements_locks/" \
         "Changes detected in test dependency locks. Run scripts/test-requirements lock and commit the result."
       ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
