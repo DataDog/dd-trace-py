@@ -244,6 +244,14 @@ def mock_response_mcp_tool_call():
     )
 
 
+# Vector store holding company_holiday_policy.txt, used when recording the server-side tool cassettes.
+SERVER_TOOL_VECTOR_STORE = "vs_6ad78e87f86c81919869cc0910d08328"
+SERVER_TOOL_PROMPT = (
+    "Use web search to find the latest released version of the Python package requests on PyPI, "
+    "and use file search to find our company's holiday policy."
+)
+
+
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.

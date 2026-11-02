@@ -6,12 +6,12 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
-from ddtrace.contrib.internal.stream_handler import StreamHandler
-from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import StreamHandler
+from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 if TYPE_CHECKING:

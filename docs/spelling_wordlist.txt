@@ -59,6 +59,7 @@ cassandra
 cattrs
 cetera
 CGroup
+cgroup
 cgroups
 cmake
 cherrypy
@@ -194,6 +195,7 @@ libclang
 libdatadog
 libddwaf
 libFuzzer
+lication
 lifecycle
 linters
 litellm
@@ -364,6 +366,7 @@ unobfuscated
 unpatch
 unpatched
 unregister
+unschedulable
 unshallow
 unvendored
 unversioned

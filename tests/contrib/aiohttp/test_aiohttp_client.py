@@ -7,6 +7,7 @@ from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info
 from ddtrace.contrib.internal.aiohttp.patch import patch
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 from ..config import HTTPBIN_CONFIG
@@ -81,6 +82,21 @@ async def test_500_request(snapshot_context):
         async with aiohttp.ClientSession() as session:
             async with session.get(URL_500) as resp:
                 assert resp.status == 500
+
+
+@pytest.mark.asyncio
+async def test_resource_with_otel_semantics(test_spans):
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(URL_200) as resp:
+                assert resp.status == 200
+
+    span = test_spans.find_span(name="aiohttp.request")
+    assert span.resource == "GET"
+    assert span.get_tag("http.request.method") == "GET"
+    assert span.get_tag("url.full") == URL_200
+    assert span.get_tag("http.method") is None
+    assert span.get_tag("http.url") is None
 
 
 @pytest.mark.asyncio

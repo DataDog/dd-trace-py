@@ -16,23 +16,11 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
-
-# Server config
-config._add(
-    "aiohttp",
-    dict(
-        distributed_tracing=True,
-        disable_stream_timing_for_mem_leak=asbool(
-            _get_config("DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK", default=False)
-        ),
-    ),
-)
 
 config._add(
     "aiohttp_client",

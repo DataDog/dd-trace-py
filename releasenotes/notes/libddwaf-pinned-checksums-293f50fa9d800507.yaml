@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    AAP: Fixes an issue where building ddtrace from source with Python optimizations enabled (``-O`` or
+    ``PYTHONOPTIMIZE``) skipped the integrity check of the downloaded libddwaf library. The library is now checked
+    against checksums pinned in ddtrace rather than ones downloaded alongside it.

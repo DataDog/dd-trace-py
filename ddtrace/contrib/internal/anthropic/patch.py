@@ -6,12 +6,15 @@ import anthropic
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.anthropic._constants import COMPONENT
+from ddtrace.contrib.internal.anthropic._constants import TAG_MODEL
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
@@ -33,9 +36,6 @@ def _supported_versions() -> dict[str, str]:
 
 config._add("anthropic", {})
 
-# LLMObs subscribes to LlmEvents for this component; see ddtrace/llmobs/_contrib/anthropic.
-COMPONENT = "anthropic"
-
 
 def _request_event(func: Callable[..., Any], instance: Any, kwargs: Any) -> LlmRequestEvent:
     model = kwargs.get("model", "")
@@ -46,7 +46,7 @@ def _request_event(func: Callable[..., Any], instance: Any, kwargs: Any) -> LlmR
         resource=f"{instance.__class__.__name__}.{func.__name__}",
         provider="anthropic",
         model=model,
-        tags={"anthropic.request.model": model},
+        tags={TAG_MODEL: model},
         submit_to_llmobs=True,
         request_kwargs=kwargs,
         instance=instance,
@@ -136,6 +136,7 @@ def patch() -> None:
     # Notify AI Guard (and any other plugin) that wrapping is complete so they
     # can install their own outermost wrappers on the same targets.
     core.dispatch("anthropic.patch", tuple())
+    integration_hooks.on_patch("anthropic")
 
 
 def unpatch() -> None:
@@ -146,6 +147,7 @@ def unpatch() -> None:
     # Notify AI Guard first so it can peel its outermost wrappers before the
     # contrib's own unwrap calls restore the layer below.
     core.dispatch("anthropic.unpatch", tuple())
+    integration_hooks.on_unpatch("anthropic")
 
     unwrap(anthropic.resources.messages.Messages, "create")
     unwrap(anthropic.resources.messages.Messages, "stream")

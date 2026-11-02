@@ -1,7 +1,6 @@
 //! Native Remote Config client.
 //!
-//! Wraps libdatadog's single-target [`SingleChangesFetcher`] and exposes it to
-//! Python.
+//! Wraps libdatadog's single-target [`SingleFetcher`] and exposes it to Python.
 //!
 //! Single-process: `poll()` fetches and returns the per-poll changes directly;
 //! the storage keeps the config files in-process.
@@ -19,9 +18,9 @@ use std::time::Duration;
 use libdd_capabilities_impl::{HttpClientCapability, NativeCapabilities};
 use libdd_common::{parse_uri, Endpoint};
 use libdd_remote_config::fetch::{
-    AgentlessConfig, ConfigApplyState, ConfigInvariants, ConfigOptions, SingleChangesFetcher,
+    AgentlessConfig, ConfigApplyState, ConfigInvariants, ConfigOptions, SingleFetcher,
 };
-use libdd_remote_config::file_change_tracker::{Change, FilePath};
+use libdd_remote_config::file_change_tracker::{Change, ChangeTracker, FilePath, UpdatedFiles};
 use libdd_remote_config::{
     RemoteConfigCapabilities as RemoteConfigCapabilitiesNative, RemoteConfigPath,
     RemoteConfigProduct as RemoteConfigProductNative, Target,
@@ -33,7 +32,7 @@ use pyo3::types::PyBytes;
 
 use native_proc_macro::ConvertToPyO3Enum;
 
-use crate::rc_shm::{ShmReader, ShmStorage};
+use crate::rc_shm::{ShmFile, ShmReader, ShmStorage};
 use crate::shared_runtime::SharedRuntimePy;
 
 #[pyclass(eq, hash, frozen, from_py_object)]
@@ -99,7 +98,10 @@ fn tags_from(pairs: Option<Vec<(String, String)>>) -> Vec<String> {
 }
 
 struct Inner {
-    fetcher: SingleChangesFetcher<ShmStorage, NativeCapabilities>,
+    fetcher: SingleFetcher<ShmStorage, NativeCapabilities>,
+    // Kept apart from the fetcher, rather than in a `SingleChangesFetcher`, to
+    // tell an empty "nothing changed" reply apart from a reply without configs.
+    changes: ChangeTracker<ShmFile>,
     capabilities: HashSet<RemoteConfigCapabilitiesNative>,
 }
 
@@ -229,11 +231,11 @@ impl RemoteConfigClient {
         );
 
         // The fetcher owns the storage; it's reached later via
-        // `fetcher.fetcher.file_storage()`.
+        // `fetcher.file_storage()`.
         let storage = ShmStorage::new();
-        let http = NativeCapabilities::new_without_connection_pooling();
+        let http = NativeCapabilities::new_periodic();
         let fetcher = if is_agentless {
-            rt.block_on(SingleChangesFetcher::new(
+            rt.block_on(SingleFetcher::new(
                 storage, target, runtime_id, options, http,
             ))
             .map_err(|e| PyRuntimeError::new_err(format!("remote config runtime error: {e}")))?
@@ -241,13 +243,14 @@ impl RemoteConfigClient {
                 PyRuntimeError::new_err(format!("failed to create the remote config client: {e}"))
             })?
         } else {
-            SingleChangesFetcher::new_no_agentless(storage, target, runtime_id, options, http)
+            SingleFetcher::new_no_agentless(storage, target, runtime_id, options, http)
         }
         .with_client_id(client_id);
 
         Ok(RemoteConfigClient {
             inner: Mutex::new(Inner {
                 fetcher,
+                changes: ChangeTracker::default(),
                 capabilities: HashSet::new(),
             }),
             runtime: rt,
@@ -285,13 +288,9 @@ impl RemoteConfigClient {
         );
     }
 
-    /// Perform a single fetch against the agent and return the per-poll changes.
-    ///
-    /// `products` (enabled products) and `extra_services` (runtime-discovered
-    /// services) are the per-poll inputs that change at runtime; they — and the
-    /// capabilities accumulated via `add_capabilities` — are pushed to the fetcher
-    /// before fetching. When broadcast is enabled, the fetch updates the SHM
-    /// storage in place (store/update/remove) and wakes waiting readers.
+    /// Like [`fetch`](Self::fetch), but returns no changes, rather than `None`,
+    /// when the agent replied that nothing changed. Kept for the callers that
+    /// expect a list, such as test harnesses outside this repository.
     #[pyo3(signature = (products, extra_services))]
     fn poll(
         &self,
@@ -299,11 +298,34 @@ impl RemoteConfigClient {
         products: Vec<RemoteConfigProduct>,
         extra_services: Vec<String>,
     ) -> PyResult<Vec<ChangeRecord>> {
+        Ok(self
+            .fetch(py, products, extra_services)?
+            .unwrap_or_default())
+    }
+
+    /// Perform a single fetch against the agent and return the per-poll changes.
+    ///
+    /// Returns `None` when the agent replied that nothing changed. This tells
+    /// such a reply apart from one without any configs, which removes them all.
+    ///
+    /// `products` (enabled products) and `extra_services` (runtime-discovered
+    /// services) are the per-poll inputs that change at runtime; they — and the
+    /// capabilities accumulated via `add_capabilities` — are pushed to the fetcher
+    /// before fetching. When broadcast is enabled, the fetch updates the SHM
+    /// storage in place (store/update/remove) and wakes waiting readers.
+    #[pyo3(signature = (products, extra_services))]
+    fn fetch(
+        &self,
+        py: Python<'_>,
+        products: Vec<RemoteConfigProduct>,
+        extra_services: Vec<String>,
+    ) -> PyResult<Option<Vec<ChangeRecord>>> {
         // Unwrap the PyO3 mirror to the libdatadog enum before releasing the GIL.
         let products: Vec<RemoteConfigProductNative> =
             products.into_iter().map(Into::into).collect();
-        let result: Result<Vec<ChangeRecord>, String> = py.detach(move || {
-            let mut inner = self.lock();
+        let result: Result<Option<Vec<ChangeRecord>>, String> = py.detach(move || {
+            let mut guard = self.lock();
+            let inner = &mut *guard;
 
             let rc_capabilities: Vec<RemoteConfigCapabilitiesNative> =
                 inner.capabilities.iter().copied().collect();
@@ -312,20 +334,20 @@ impl RemoteConfigClient {
                 .set_product_capabilities(products, rc_capabilities);
             inner.fetcher.set_extra_services(extra_services);
 
-            let changes = match self
-                .runtime
-                .block_on(inner.fetcher.fetch_changes::<Vec<u8>>())
-            {
-                Ok(Ok(changes)) => changes,
+            let files = match self.runtime.block_on(inner.fetcher.fetch_once()) {
+                Ok(Ok(Some(files))) => files,
+                Ok(Ok(None)) => return Ok(None),
                 Ok(Err(e)) => return Err(format!("remote config fetch error: {e}")),
                 Err(e) => return Err(format!("remote config runtime error: {e}")),
             };
+            let updated = inner.fetcher.file_storage().updated();
+            let changes = inner.changes.get_changes::<Vec<u8>>(files, updated);
 
             // Build the delta records for the origin's own dispatch (ChangeTracker
             // already orders removals first). `store`/`update` updated the SHM as a
             // side effect of the fetch; removals aren't a `FileStorage` hook, so we
             // drive them here from the delta. Content is read back from the storage.
-            let storage = inner.fetcher.fetcher.file_storage();
+            let storage = inner.fetcher.file_storage();
             let mut records = Vec::with_capacity(changes.len());
             for change in &changes {
                 match change {
@@ -341,7 +363,7 @@ impl RemoteConfigClient {
                     }
                 }
             }
-            Ok(records)
+            Ok(Some(records))
         });
 
         result.map_err(PyRuntimeError::new_err)
@@ -358,7 +380,7 @@ impl RemoteConfigClient {
             Some(msg) => ConfigApplyState::Error(msg),
             None => ConfigApplyState::Acknowledged,
         };
-        self.lock().fetcher.fetcher.set_config_state(&rcp, state);
+        self.lock().fetcher.set_config_state(&rcp, state);
         Ok(())
     }
 
@@ -381,7 +403,6 @@ impl RemoteConfigClient {
     fn enable_shared_memory(&self) -> PyResult<()> {
         self.lock()
             .fetcher
-            .fetcher
             .file_storage()
             .enable_shared_memory()
             .map_err(|e| {
@@ -395,7 +416,6 @@ impl RemoteConfigClient {
     fn make_reader(&self) -> PyResult<RemoteConfigReader> {
         let (manifest_handle, contents_handle) = self
             .lock()
-            .fetcher
             .fetcher
             .file_storage()
             .take_handles()
@@ -429,13 +449,19 @@ impl RemoteConfigReader {
 
     /// Read the latest published state and return the changes since the last read
     /// (removals first, then adds/updates). An empty list means nothing changed (a
-    /// bare poll tick → the caller runs periodic work only).
+    /// bare poll tick → the caller runs periodic work only). `None` means no
+    /// consistent snapshot could be read (e.g. a compaction was in progress); the
+    /// next read diffs against the same state.
     ///
     /// `enabled_products` is the set of product names the caller currently
     /// subscribes to; configs for other products are withheld from the active set
     /// so they are (re-)emitted once their product is enabled.
     #[pyo3(signature = (enabled_products))]
-    fn read(&self, py: Python<'_>, enabled_products: Vec<String>) -> PyResult<Vec<ChangeRecord>> {
+    fn read(
+        &self,
+        py: Python<'_>,
+        enabled_products: Vec<String>,
+    ) -> PyResult<Option<Vec<ChangeRecord>>> {
         let enabled: HashSet<String> = enabled_products.into_iter().collect();
         let changes = py.detach(move || {
             let mut reader = self.reader.lock().unwrap_or_else(|e| e.into_inner());

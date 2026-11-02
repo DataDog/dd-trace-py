@@ -273,6 +273,9 @@ class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInter
         client_call_details: aio.ClientCallDetails,
         request: RequestType,
     ) -> Union[aio.UnaryUnaryCall, ResponseType]:
+        if utils.is_otlp_export(client_call_details.method):
+            return await continuation(client_call_details, request)
+
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_UNARY,
             client_call_details,

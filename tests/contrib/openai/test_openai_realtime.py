@@ -605,6 +605,89 @@ def test_realtime_state_usage_total_tokens_fallback():
     assert integration.responses[0]["metrics"] == {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
 
 
+@pytest.mark.parametrize("value", [0, 2, None, -1, True, False, 1.5, "2"])
+def test_realtime_usage_named_counts(value):
+    details = {
+        "input_token_details": {
+            "text_tokens": value,
+            "image_tokens": value,
+            "cached_tokens_details": {"text_tokens": value, "image_tokens": value},
+        },
+        "output_token_details": {"text_tokens": value},
+    }
+    expected = {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
+    if type(value) is int and value >= 0:
+        expected.update(
+            {
+                key: value
+                for key in (
+                    "input_text_tokens",
+                    "input_image_tokens",
+                    "output_text_tokens",
+                    "cache_text_read_tokens",
+                    "cache_image_read_tokens",
+                )
+            }
+        )
+    assert _realtime._usage_metrics({"input_tokens": 4, "output_tokens": 6, **details}) == expected
+
+
+@pytest.mark.parametrize(
+    "details, expected",
+    [
+        ({}, {}),
+        ({"input_token_details": None, "output_token_details": None}, {}),
+        (
+            {"input_token_details": {"audio_tokens": 4, "cached_tokens": 3}},
+            {"input_audio_tokens": 4, "cache_read_input_tokens": 3},
+        ),
+        (
+            {
+                "input_token_details": {
+                    "audio_tokens": 0,
+                    "cached_tokens": 0,
+                    "cached_tokens_details": {"audio_tokens": 0},
+                },
+                "output_token_details": {"audio_tokens": 0},
+            },
+            {
+                "input_audio_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "output_audio_tokens": 0,
+            },
+        ),
+        (
+            {
+                "input_token_details": {
+                    "audio_tokens": -1,
+                    "cached_tokens": True,
+                    "cached_tokens_details": {"audio_tokens": "3"},
+                },
+                "output_token_details": {"audio_tokens": 1.5},
+            },
+            {},
+        ),
+    ],
+)
+def test_realtime_usage_preserves_missing_and_zero_audio_counts(details, expected):
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(id="r1", status="completed", usage={"input_tokens": 4, "output_tokens": 6, **details}),
+        )
+    )
+    assert integration.responses[0]["metrics"] == {
+        "input_tokens": 4,
+        "output_tokens": 6,
+        "total_tokens": 10,
+        **expected,
+    }
+
+
 # ---- speech-window timing (server VAD, continuously streaming client) ----
 
 # One mic block: 10 ms of PCM16 mono @ 24 kHz (48 bytes/ms).
@@ -1197,7 +1280,19 @@ def _server_messages():
                     "id": "resp_1",
                     "model": "gpt-realtime-2025",
                     "status": "completed",
-                    "usage": {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+                    "usage": {
+                        "input_tokens": 5000,
+                        "output_tokens": 1300,
+                        "total_tokens": 6300,
+                        "input_token_details": {
+                            "text_tokens": 200,
+                            "audio_tokens": 4800,
+                            "cached_tokens": 4000,
+                            "image_tokens": 0,
+                            "cached_tokens_details": {"text_tokens": 100, "audio_tokens": 3900, "image_tokens": 0},
+                        },
+                        "output_token_details": {"text_tokens": 100, "audio_tokens": 1200},
+                    },
                 },
             }
         ),
@@ -1256,7 +1351,20 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
             }
         ],
         output_messages=[{"role": "assistant", "content": "It's noon."}],
-        metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+        metrics={
+            "input_tokens": 5000,
+            "output_tokens": 1300,
+            "total_tokens": 6300,
+            "input_audio_tokens": 4800,
+            "output_audio_tokens": 1200,
+            "cache_read_input_tokens": 4000,
+            "cache_audio_read_tokens": 3900,
+            "input_text_tokens": 200,
+            "input_image_tokens": 0,
+            "output_text_tokens": 100,
+            "cache_text_read_tokens": 100,
+            "cache_image_read_tokens": 0,
+        },
         # session config rides on each turn span as metadata now.
         metadata={"voice": "alloy", "output_audio_format": "audio/pcm", "input_audio_format": "audio/pcm"},
     )
@@ -1419,7 +1527,20 @@ async def test_realtime_async_integration_spans(openai, openai_llmobs, test_span
         parent_id=str(spans["createRealtimeTurn"].span_id),
         model_name="gpt-realtime-2025",
         output_messages=[{"role": "assistant", "content": "It's noon."}],
-        metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+        metrics={
+            "input_tokens": 5000,
+            "output_tokens": 1300,
+            "total_tokens": 6300,
+            "input_audio_tokens": 4800,
+            "output_audio_tokens": 1200,
+            "cache_read_input_tokens": 4000,
+            "cache_audio_read_tokens": 3900,
+            "input_text_tokens": 200,
+            "input_image_tokens": 0,
+            "output_text_tokens": 100,
+            "cache_text_read_tokens": 100,
+            "cache_image_read_tokens": 0,
+        },
     )
     assert data.get("session_id")
 

@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: Fixes an issue where AWS Lambda invocations without an HTTP URL
+    are assigned an HTTP endpoint when trace resource renaming is enabled.

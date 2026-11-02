@@ -583,7 +583,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         t = fn_task.delay()
         assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-        traces = self.pop_traces()
+        traces = self.pop_traces_until(expected_traces=2 if self.ASYNC_USE_CELERY_FIXTURES else 1)
 
         if self.ASYNC_USE_CELERY_FIXTURES:
             assert len(traces) == 2

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where ``LLMJudge`` with the ``anthropic`` provider raised
+    ``TypeError: Object of type method is not JSON serializable`` when the model returned a thinking block
+    before the text block (for example, Claude models with adaptive thinking). The judge now reads the first text block
+    in the response.

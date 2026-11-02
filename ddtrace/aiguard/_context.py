@@ -2,10 +2,12 @@
 
 When a framework integration (e.g. LangChain, Strands) is already evaluating
 messages through AI Guard, provider-level integrations (e.g. OpenAI) must
-skip their own evaluation to avoid double-scanning. The framework calls
-``set_aiguard_context_active()`` around its dispatch + LLM call block and
-the provider listener calls ``is_aiguard_context_active()`` to decide
-whether to short-circuit
+skip their own evaluation to avoid double-scanning. The framework claims the
+context around its model call and the provider listener calls
+is_aiguard_context_active() to decide whether to short-circuit.
+
+A claim is a shared object, so a release from another asyncio task (whose
+Context is a copy) is seen by the task that claimed it.
 """
 
 from collections.abc import Iterator
@@ -14,64 +16,50 @@ import contextvars
 from typing import Optional
 
 
-_AI_GUARD_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar("ai_guard_active_depth", default=0)
+class _Claim:
+    """One framework claim; every copy of the Context shares this object."""
+
+    __slots__ = ("released",)
+
+    def __init__(self) -> None:
+        self.released = False
+
+
+_CLAIMS: contextvars.ContextVar[tuple[_Claim, ...]] = contextvars.ContextVar("ai_guard_claims", default=())
 
 
 def is_aiguard_context_active() -> bool:
-    """Return ``True`` if a framework-level AI Guard evaluation is in progress."""
-    return _AI_GUARD_DEPTH.get() > 0
+    """Return True if a framework-level AI Guard evaluation is in progress."""
+    for claim in _CLAIMS.get():
+        if not claim.released:
+            return True
+    return False
 
 
-def set_aiguard_context_active() -> contextvars.Token[int]:
-    """Mark the current execution context as already under AI Guard evaluation.
-
-    Returns an opaque :class:`contextvars.Token` to pair with
-    :func:`reset_aiguard_context_active`. Nested set / reset pairs increment
-    and decrement the same depth counter, so reads return ``True`` until every
-    set is matched by a reset.
-    """
-    return _AI_GUARD_DEPTH.set(_AI_GUARD_DEPTH.get() + 1)
+def set_aiguard_context_active() -> _Claim:
+    """Mark the current execution context as under AI Guard evaluation; return the handle that releases it."""
+    claim = _Claim()
+    # Drop claims released from another context: that release could not prune this context's copy.
+    _CLAIMS.set(tuple(c for c in _CLAIMS.get() if not c.released) + (claim,))
+    return claim
 
 
-def reset_aiguard_context_active(token: Optional[contextvars.Token[int]]) -> None:
-    """Restore the depth counter to its value before the matching ``set``.
-
-    A ``None`` token is a defensive no-op (e.g. cleanup paths that may run
-    without a prior ``set``).
-    """
-    if token is None:
+def reset_aiguard_context_active(claim: Optional[_Claim]) -> None:
+    """Release claim, from any context. None is a no-op, and other claims stay held."""
+    if claim is None:
         return
-    _AI_GUARD_DEPTH.reset(token)
-
-
-def reset_aiguard_context_active_current() -> None:
-    """Tokenless companion to :func:`reset_aiguard_context_active`.
-
-    Decrements the depth counter for the current context. Used when the
-    original token is not accessible — e.g. a framework's ``.after``
-    listener releasing the counter that the matching ``.before`` listener
-    bumped, since the dispatch infrastructure does not thread the token
-    through to the after-event.
-
-    Safe to call when the counter is already zero (no-op): the ``.after``
-    event may fire without a matching ``.before`` if dispatch is
-    reconfigured at runtime.
-    """
-    depth = _AI_GUARD_DEPTH.get()
-    if depth > 0:
-        _AI_GUARD_DEPTH.set(depth - 1)
+    claim.released = True
+    claims = _CLAIMS.get()
+    live = tuple(c for c in claims if not c.released)
+    if len(live) != len(claims):
+        _CLAIMS.set(live)
 
 
 @contextlib.contextmanager
 def aiguard_context() -> Iterator[None]:
-    """Mark the current task as under AI Guard evaluation for the block's duration.
-
-    Framework integrations (LangChain, Strands) wrap their dispatch + LLM
-    call block with this so nested provider-level integrations (e.g. OpenAI)
-    skip their own evaluation.
-    """
-    token = set_aiguard_context_active()
+    """Mark the current task as under AI Guard evaluation for the block's duration."""
+    claim = set_aiguard_context_active()
     try:
         yield
     finally:
-        reset_aiguard_context_active(token)
+        reset_aiguard_context_active(claim)

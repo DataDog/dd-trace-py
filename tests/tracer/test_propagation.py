@@ -98,6 +98,38 @@ def test_inject_deep_child_propagates_trace_level_tags(tracer):  # noqa: F811
                 assert "_dd.p.other=value" in tags
 
 
+def test_inject_tracestate_dd_member_within_256_chars(tracer):  # noqa: F811
+    """The injected dd= list-member, including the "dd=" prefix, ";" separators and the
+    "p:" field added at injection, must not exceed 256 characters.
+    """
+    meta = {
+        "_dd.p.llmobs_parent_id": "10707708093473052057",
+        "_dd.p.llmobs_trace_id": "141883241939442010658227520463581072062",
+        "_dd.p.llmobs_ml_app": "datasciencetiger",
+        "_dd.p.llmobs_sid": "11a0eec0-ad0a-4f4d-8ae8-7f358ed1b153",
+        "_dd.p.llmobs_sr": "1",
+        "_dd.p.llmobs_sd": "1",
+        "_dd.p.llmobs_pagent_span_id": "14260131734498464268",
+        "_dd.p.llmobs_pagent_name": "datasciencetiger-orchestrator",
+    }
+    ctx = Context(trace_id=1234, sampling_priority=1, dd_origin="rum", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        dd_members = [m for m in headers[_HTTP_HEADER_TRACESTATE].split(",") if m.startswith("dd=")]
+        assert len(dd_members) == 1
+        dd_member = dd_members[0]
+        assert len(dd_member) <= 256, dd_member
+        assert dd_member.startswith(f"dd=p:{span.span_id:016x};s:1;o:rum;")
+        # Only whole tags are dropped, never truncated
+        for tag in dd_member[len("dd=") :].split(";"):
+            if tag.startswith("t.llmobs_"):
+                key, _, value = tag.partition(":")
+                assert meta[key.replace("t.", "_dd.p.", 1)] == value
+
+
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")

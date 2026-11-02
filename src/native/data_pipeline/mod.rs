@@ -202,12 +202,10 @@ impl TraceExporterBuilderPy {
     fn enable_telemetry(
         mut slf: PyRefMut<'_, Self>,
         heartbeat_ms: u64,
-        runtime_id: String,
         debug_enabled: bool,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_telemetry(TelemetryConfig {
             heartbeat: heartbeat_ms,
-            runtime_id: Some(runtime_id),
             debug_enabled,
         });
         Ok(slf.into())
@@ -272,8 +270,8 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    /// Select the OTLP export protocol: `http/json` or `http/protobuf`. Any other value raises
-    /// `ValueError`.
+    /// Select the OTLP export protocol: `grpc`, `http/json`, or `http/protobuf`. Any other value
+    /// raises `ValueError`.
     fn set_otlp_protocol(mut slf: PyRefMut<'_, Self>, protocol: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_protocol(
             protocol

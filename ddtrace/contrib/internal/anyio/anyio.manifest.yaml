@@ -1,0 +1,11 @@
+_v: 1
+name: anyio
+display_name: AnyIO
+description: Instruments AnyIO worker-thread execution of synchronous callables, publishing trace context switches so native
+  consumers observe the active trace context when native context watching is unavailable.
+packages:
+- name: anyio
+category:
+- task.execution
+systems: []
+creation_date: '2026-09-10'

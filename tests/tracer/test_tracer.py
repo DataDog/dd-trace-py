@@ -30,6 +30,8 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
@@ -843,6 +845,80 @@ class TracerTestCases(TracerTestCase):
         recreate.assert_not_called()
         assert self.tracer._span_aggregator.writer is writer
         assert not self.tracer._new_process
+
+    def test_tracer_shutdown_waits_for_in_flight_post_fork_writer_recreation(self):
+        self.tracer._child_after_fork()
+        aggregator = self.tracer._span_aggregator
+        inherited_writer = aggregator.writer
+        recreate_entered = threading.Event()
+        release_recreate = threading.Event()
+        stopped_writers = []
+        recreate = self.tracer._recreate
+        stop_aggregator = aggregator.shutdown
+
+        def blocking_recreate(*args, **kwargs):
+            recreate_entered.set()
+            assert release_recreate.wait(timeout=2)
+            recreate(*args, **kwargs)
+
+        def recording_shutdown(timeout):
+            stopped_writers.append(aggregator.writer)
+            stop_aggregator(timeout)
+
+        with (
+            mock.patch.object(self.tracer, "_recreate", side_effect=blocking_recreate),
+            mock.patch.object(aggregator, "shutdown", side_effect=recording_shutdown),
+        ):
+            rebuild = threading.Thread(target=self.tracer._ensure_post_fork_writer)
+            rebuild.start()
+            assert recreate_entered.wait(timeout=2)
+
+            shutdown = threading.Thread(target=self.tracer.shutdown)
+            shutdown.start()
+            shutdown.join(timeout=0.2)
+            # Stopping the inherited writer now would leave the rebuilt one running.
+            assert shutdown.is_alive()
+
+            release_recreate.set()
+            rebuild.join(timeout=2)
+            shutdown.join(timeout=2)
+
+        assert not rebuild.is_alive()
+        assert not shutdown.is_alive()
+        assert stopped_writers == [aggregator.writer]
+        assert aggregator.writer is not inherited_writer
+
+    def test_tracer_shutdown_timeout_does_not_bound_post_fork_wait_outside_microvm(self):
+        # Only MicroVM bounds this wait by the shutdown timeout; elsewhere shutdown still waits out the rebuild.
+        self.tracer._child_after_fork()
+        recreate_entered = threading.Event()
+        release_recreate = threading.Event()
+        recreate = self.tracer._recreate
+
+        def blocking_recreate(*args, **kwargs):
+            recreate_entered.set()
+            assert release_recreate.wait(timeout=2)
+            recreate(*args, **kwargs)
+
+        with (
+            mock.patch("ddtrace._trace.tracer.in_aws_lambda_microvm", return_value=False),
+            mock.patch.object(self.tracer, "_recreate", side_effect=blocking_recreate),
+        ):
+            rebuild = threading.Thread(target=self.tracer._ensure_post_fork_writer)
+            rebuild.start()
+            assert recreate_entered.wait(timeout=2)
+
+            shutdown = threading.Thread(target=self.tracer.shutdown, kwargs={"timeout": 0.01})
+            shutdown.start()
+            shutdown.join(timeout=0.2)
+            assert shutdown.is_alive()
+
+            release_recreate.set()
+            rebuild.join(timeout=2)
+            shutdown.join(timeout=2)
+
+        assert not rebuild.is_alive()
+        assert not shutdown.is_alive()
 
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
@@ -2266,3 +2342,54 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None
+
+
+@pytest.mark.parametrize("initial_compute_stats", [True, False])
+@pytest.mark.parametrize("stats_while_opted_out", [None, True, False])
+@pytest.mark.parametrize("compute_stats_enabled", [None, True, False])
+def test_standalone_shadows_compute_stats(tracer, initial_compute_stats, stats_while_opted_out, compute_stats_enabled):
+    """Opting out must not rewrite the user's stats preference.
+
+    Standalone mode shadows the setting in the writer and processors via their
+    opt-out flags, so stats resume as soon as APM tracing is re-enabled.
+    """
+    with mock.patch.object(config, "_trace_compute_stats", initial_compute_stats):
+        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
+            try:
+                tracer.configure(appsec_enabled=True, iast_enabled=False, apm_tracing_disabled=True)
+                # The preference is untouched while opted out; the writer and
+                # processors carry the opt-out shadow instead.
+                assert config._trace_compute_stats is initial_compute_stats
+                aggr = tracer._span_aggregator
+                assert aggr.tags_processor.apm_opt_out is True
+                inner_writer = aggr.writer._inner_writer
+                assert inner_writer._compute_stats_enabled is initial_compute_stats
+                assert inner_writer._stats_opt_out is True
+
+                tracer.configure(appsec_enabled=True)
+                assert config._trace_compute_stats is initial_compute_stats
+
+                # Explicit stats updates while opted out set the preference.
+                if stats_while_opted_out is not None:
+                    tracer.configure(appsec_enabled=True, compute_stats_enabled=stats_while_opted_out)
+                    assert config._trace_compute_stats is stats_while_opted_out
+
+                tracer.configure(appsec_enabled=False, compute_stats_enabled=compute_stats_enabled)
+                expected_stats = initial_compute_stats
+                if stats_while_opted_out is not None:
+                    expected_stats = stats_while_opted_out
+                if compute_stats_enabled is not None:
+                    expected_stats = compute_stats_enabled
+                assert config._trace_compute_stats is expected_stats
+                # Leaving standalone mode lifts the shadow: the writer computes
+                # stats again iff the preference says so.
+                aggr = tracer._span_aggregator
+                assert aggr.tags_processor.apm_opt_out is False
+                inner_writer = aggr.writer._inner_writer
+                assert inner_writer._compute_stats_enabled is expected_stats
+                assert inner_writer._stats_opt_out is False
+
+                tracer.configure(trace_processors=[])
+                assert config._trace_compute_stats is expected_stats
+            finally:
+                tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)

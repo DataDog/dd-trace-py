@@ -4,15 +4,20 @@ from ddtrace.internal.settings.asm import config
 requires = ["remote-configuration"]
 
 
-def post_preload():
+def post_preload() -> None:
     pass
 
 
-def enabled():
-    return config._asm_enabled or config._asm_can_be_enabled or config._asm_rc_enabled
+def enabled() -> bool:
+    return bool(config._asm_enabled or config._asm_can_be_enabled or config._asm_rc_enabled)
 
 
-def start():
+def activated() -> bool:
+    # Eligibility for remote activation starts the lifecycle but does not make AppSec active.
+    return bool(config._asm_enabled)
+
+
+def start() -> None:
     if config._asm_enabled or config._asm_can_be_enabled:
         # The product owns common-patch setup for both static and remote activation.
         from ddtrace.appsec._listeners import load_common_appsec_modules
@@ -31,11 +36,11 @@ def start():
         load_appsec(reconfigure_tracer=False)
 
 
-def restart(join=False):
+def restart(join: bool = False) -> None:
     pass
 
 
-def stop(join=False):
+def stop(join: bool = False) -> None:
     pass
 
 

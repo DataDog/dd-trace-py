@@ -44,9 +44,11 @@ from ._native import generate_128bit_trace_id  # noqa: F401
 from ._native import logger  # noqa: F401
 from ._native import process_metrics  # noqa: F401
 from ._native import rand64bits  # noqa: F401
+from ._native import scan_distributions  # noqa: F401
 from ._native import seed  # noqa: F401
 from ._native import store_metadata  # noqa: F401
 from ._native import total_memory_bytes  # noqa: F401
+from ._native import uuid4  # noqa: F401
 
 
 try:

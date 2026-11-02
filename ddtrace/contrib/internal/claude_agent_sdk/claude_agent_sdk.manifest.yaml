@@ -1,0 +1,12 @@
+_v: 1
+name: claude_agent_sdk
+display_name: Claude Agent SDK
+description: Instruments Claude Agent SDK queries and streamed sessions, capturing agent, model-turn, step, and tool execution
+  telemetry.
+packages:
+- name: claude-agent-sdk
+category:
+- gen_ai
+systems:
+- anthropic
+creation_date: '2026-02-17'

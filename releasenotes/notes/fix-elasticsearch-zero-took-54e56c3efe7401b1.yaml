@@ -1,0 +1,4 @@
+fixes:
+  - |
+    elasticsearch: Fixes an issue where the Elasticsearch request duration metric is
+    missing from spans when Elasticsearch reports a duration of zero milliseconds.

@@ -1,4 +1,5 @@
 from functools import wraps
+import time
 
 import celery
 import pytest
@@ -94,3 +95,13 @@ class CeleryBaseTestCase(TracerTestCase):
 
     def assert_items_equal(self, a, b):
         return self.assertCountEqual(a, b)
+
+    def pop_traces_until(self, expected_traces, timeout=10.0, interval=0.1):
+        traces = []
+        deadline = time.monotonic() + timeout
+        while len(traces) < expected_traces and time.monotonic() < deadline:
+            traces.extend(self.pop_traces())
+            if len(traces) < expected_traces:
+                time.sleep(interval)
+        traces.extend(self.pop_traces())
+        return traces

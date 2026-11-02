@@ -1,20 +1,14 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
-from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
-from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import BaseStreamHandler
+from ddtrace.internal.utils.streaming import StreamHandler
 
 
 log = get_logger(__name__)
-
-
-def _get_attr(o: object, attr: str, default: Any) -> Any:
-    # Streamed chunks may be SDK objects or plain dicts.
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    return getattr(o, attr, default)
 
 
 # Duplicated from ddtrace.llmobs._integrations.mistralai_utils.extract_provider (and

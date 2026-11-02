@@ -1,0 +1,12 @@
+_v: 1
+name: aiohttp_jinja2
+display_name: aiohttp-jinja2
+description: Instruments aiohttp-jinja2 template rendering, recording the resolved template path and any rendering errors
+  on the resulting span.
+packages:
+- name: aiohttp-jinja2
+- name: aiohttp_jinja2
+category:
+- template.render
+systems: []
+creation_date: '2017-02-01'

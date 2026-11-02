@@ -2,10 +2,10 @@
 import contextlib
 from types import FunctionType
 from typing import Any
+from typing import AsyncContextManager
+from typing import AsyncGenerator
 
 import pymongo
-from pymongo.asynchronous.pool import AsyncConnection
-from pymongo.asynchronous.server import Server as AsyncServer
 
 # project
 from ddtrace.ext import db
@@ -16,6 +16,7 @@ from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.trace import tracer
 
 from .client import datadog_trace_operation
+from .client import parse_bulk_write_command
 from .client import parse_socket_command_spec
 from .client import parse_socket_write_command_msg
 from .client import trace_cmd
@@ -29,6 +30,16 @@ log = get_logger(__name__)
 
 
 VERSION = pymongo.version_tuple
+
+
+if VERSION >= (4, 18):
+    from pymongo.asynchronous.command_runner import run_bulk_write_command as async_run_bulk_write_command
+    from pymongo.asynchronous.cursor_base import _AsyncCursorBase
+    from pymongo.asynchronous.pool import AsyncConnection
+    from pymongo.asynchronous.pool import Pool as AsyncPool
+else:
+    from pymongo.asynchronous.pool import AsyncConnection
+    from pymongo.asynchronous.server import Server as AsyncServer
 
 
 async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -45,7 +56,9 @@ async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, 
         return process_server_operation_result(span, operation, result)
 
 
-async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+async def trace_async_server_checkout(
+    func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> AsyncContextManager[Any]:
     """Wrapper for AsyncServer.checkout to trace socket checkout.
 
     AsyncServer.checkout() returns an async context manager. We wrap it to add tracing.
@@ -53,14 +66,35 @@ async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...],
     instance = get_argument_value(args, kwargs, 0, "self")
 
     # Call the original async function which returns an async context manager
-    cm = await func(*args, **kwargs)
+    cm: AsyncContextManager[Any] = await func(*args, **kwargs)
 
+    return _trace_async_checkout_context_manager(cm, instance)
+
+
+def trace_async_pool_checkout(
+    func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> AsyncContextManager[Any]:
+    """Wrapper for AsyncPool.checkout to trace socket checkout."""
+    instance = get_argument_value(args, kwargs, 0, "self")
+
+    # Call the original function which returns an async context manager
+    cm: AsyncContextManager[Any] = func(*args, **kwargs)
+
+    # SDAM pools serve background topology monitoring, so their checkouts are not application operations.
+    if getattr(instance, "is_sdam", False):
+        return cm
+
+    return _trace_async_checkout_context_manager(cm, instance)
+
+
+def _trace_async_checkout_context_manager(cm: AsyncContextManager[Any], instance: Any) -> AsyncContextManager[Any]:
+    """Wrap an async checkout context manager with tracing."""
     if not tracer.enabled:
         # Return the original context manager unchanged
         return cm
 
     @contextlib.asynccontextmanager
-    async def traced_cm():
+    async def traced_cm() -> AsyncGenerator[Any, None]:
         with create_checkout_span() as span:
             async with cm as sock_info:
                 setup_checkout_span_tags(span, sock_info, instance)
@@ -102,6 +136,24 @@ async def trace_async_socket_write_command(func: FunctionType, args: tuple[Any, 
         return result
 
 
+async def trace_async_bulk_write_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Trace acknowledged bulk writes through PyMongo 4.18's command runner."""
+    if kwargs.get("unacknowledged", False):
+        return await func(*args, **kwargs)
+
+    parsed = parse_bulk_write_command(args, kwargs)
+    if parsed is None:
+        return await func(*args, **kwargs)
+
+    socket_instance, cmd = parsed
+    async with async_trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        result = await func(*args, **kwargs)
+        result_docs = result[0] if result else None
+        if result_docs:
+            s._set_attribute(db.ROWCOUNT, result_docs[0].get("n", -1))
+        return result
+
+
 _ASYNC_MIN_VERSION = (4, 12)
 
 
@@ -117,17 +169,35 @@ def patch_pymongo_async_modules():
     """Patch asynchronous pymongo modules."""
     if not _check_async_support():
         return
-    _w(AsyncServer.run_operation, trace_async_server_run_operation)
-    _w(AsyncServer.checkout, trace_async_server_checkout)
+
+    if VERSION >= (4, 18):
+        _w(_AsyncCursorBase._run_with_conn, trace_async_server_run_operation)
+        _w(AsyncPool.checkout, trace_async_pool_checkout)
+    else:
+        _w(AsyncServer.run_operation, trace_async_server_run_operation)
+        _w(AsyncServer.checkout, trace_async_server_checkout)
+
     _w(AsyncConnection.command, trace_async_socket_command)
-    _w(AsyncConnection.write_command, trace_async_socket_write_command)
+    if VERSION >= (4, 18):
+        _w(async_run_bulk_write_command, trace_async_bulk_write_command)
+    else:
+        _w(AsyncConnection.write_command, trace_async_socket_write_command)
 
 
 def unpatch_pymongo_async_modules():
     """Unpatch asynchronous pymongo modules."""
     if not _check_async_support():
         return
-    _u(AsyncServer.run_operation, trace_async_server_run_operation)
-    _u(AsyncServer.checkout, trace_async_server_checkout)
+
+    if VERSION >= (4, 18):
+        _u(_AsyncCursorBase._run_with_conn, trace_async_server_run_operation)
+        _u(AsyncPool.checkout, trace_async_pool_checkout)
+    else:
+        _u(AsyncServer.run_operation, trace_async_server_run_operation)
+        _u(AsyncServer.checkout, trace_async_server_checkout)
+
     _u(AsyncConnection.command, trace_async_socket_command)
-    _u(AsyncConnection.write_command, trace_async_socket_write_command)
+    if VERSION >= (4, 18):
+        _u(async_run_bulk_write_command, trace_async_bulk_write_command)
+    else:
+        _u(AsyncConnection.write_command, trace_async_socket_write_command)

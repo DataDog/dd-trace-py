@@ -17,33 +17,42 @@ class TestAsyncConcurrency(TornadoTestCase):
     Ensure that application instrumentation doesn't break asynchronous concurrency.
     """
 
-    @gen_test
+    @gen_test(timeout=30)
     def test_concurrent_requests(self):
         REQUESTS_NUMBER = 25
         responses = []
+        failures = []
 
         # the application must handle concurrent calls
         def make_requests():
             # use a blocking HTTP client (we're in another thread)
-            http_client = httpclient.HTTPClient()
-            url = self.get_url("/nested/")
-            response = http_client.fetch(url)
-            responses.append(response)
-            assert 200 == response.code
-            assert "OK" == response.body.decode("utf-8")
-            # freeing file descriptors
-            http_client.close()
+            http_client = None
+            try:
+                http_client = httpclient.HTTPClient()
+                url = self.get_url("/nested/")
+                response = http_client.fetch(url)
+                assert 200 == response.code
+                assert "OK" == response.body.decode("utf-8")
+                responses.append(response)
+            except Exception as exc:
+                failures.append(exc)
+            finally:
+                # freeing file descriptors
+                if http_client is not None:
+                    http_client.close()
 
         # blocking call executed in different threads
         threads = [threading.Thread(target=make_requests) for _ in range(REQUESTS_NUMBER)]
         for t in threads:
             t.start()
 
-        while len(responses) < REQUESTS_NUMBER:
+        while len(responses) + len(failures) < REQUESTS_NUMBER:
             yield web.compat.sleep(0.001)
 
         for t in threads:
             t.join()
+
+        assert not failures
 
         # the trace is created
         traces = self.pop_traces()

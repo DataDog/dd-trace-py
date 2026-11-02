@@ -3,6 +3,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -11,7 +12,6 @@ from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -135,6 +135,11 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
 
     usage = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
+
+    # total_token_count includes tool-use prompt tokens, so count them as input
+    tool_use_tokens = _get_attr(usage_metadata, "tool_use_prompt_token_count", None)
+    if input_tokens is not None or tool_use_tokens is not None:
+        input_tokens = (input_tokens or 0) + (tool_use_tokens or 0)
 
     candidates_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
     thought_tokens = _get_attr(usage_metadata, "thoughts_token_count", None)

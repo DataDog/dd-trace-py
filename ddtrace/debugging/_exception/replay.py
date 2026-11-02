@@ -1,32 +1,49 @@
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from threading import current_thread
 from types import FrameType
 from types import TracebackType
 import typing as t
-import uuid
 
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._session import Session
+from ddtrace.debugging._signal.model import TraceContextProtocol
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings._config import config as global_config
 from ddtrace.internal.settings.exception_replay import config
+from ddtrace.internal.threads import current_thread
 from ddtrace.internal.utils.time import HourGlass
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
+
+
+class SpanProtocol(t.Protocol):
+    """Structural stand-in for ddtrace.trace.Span, so this module does not need to import from the tracing
+    product.
+    """
+
+    @property
+    def _local_root(self) -> "SpanProtocol": ...
+
+    def get_tag(self, key: str) -> t.Optional[str]: ...
+
+    def get_metric(self, key: str) -> t.Optional[NumericType]: ...
+
+    def _set_attribute(self, key: str, value: t.Union[str, int, float]) -> None: ...
+
 
 GLOBAL_RATE_LIMITER = RateLimiter(
     limit_rate=1,  # one trace per second
@@ -113,7 +130,7 @@ def limit_exception(exc_ident: int) -> bool:
 
 def unwind_exception_chain(
     exc: t.Optional[BaseException], tb: t.Optional[TracebackType]
-) -> tuple[ExceptionChain, t.Optional[uuid.UUID]]:
+) -> tuple[ExceptionChain, t.Optional[str]]:
     """Unwind the exception chain and assign it an ID.
 
     The chain goes from "cause to effect", meaning that every cause for an
@@ -145,7 +162,7 @@ def unwind_exception_chain(
         try:
             exc_id = exc._dd_exc_id  # type: ignore[attr-defined]
         except AttributeError:
-            exc._dd_exc_id = exc_id = uuid.uuid4()  # type: ignore[attr-defined]
+            exc._dd_exc_id = exc_id = uuid4()  # type: ignore[attr-defined]
 
     return chain, exc_id
 
@@ -185,16 +202,20 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[tup
 
 
 class SpanExceptionProbe(LogLineProbe):
+    def is_sampled(self) -> bool:
+        # Exception replay snapshots are not coordinated with Live Debugger
+        # probes. They have their own rate limiting.
+        return False
+
     @classmethod
-    def build(cls, exc_id: uuid.UUID, frame: FrameType) -> "SpanExceptionProbe":
-        _exc_id = str(exc_id)
+    def build(cls, exc_id: str, frame: FrameType) -> "SpanExceptionProbe":
         filename = frame.f_code.co_filename
         line = frame.f_lineno
         name = frame.f_code.co_name
-        message = f"exception info for {name}, in {filename}, line {line} (exception ID {_exc_id})"
+        message = f"exception info for {name}, in {filename}, line {line} (exception ID {exc_id})"
 
         return cls(
-            probe_id=_exc_id,
+            probe_id=uuid4(),
             version=0,
             tags={},
             source_file=filename,
@@ -214,16 +235,16 @@ class SpanExceptionProbe(LogLineProbe):
 class SpanExceptionSnapshot(Snapshot):
     __type__ = "snapshot"
 
-    exc_id: t.Optional[uuid.UUID] = None
+    exc_id: t.Optional[str] = None
 
     @property
     def data(self) -> dict[str, t.Any]:
         data = super().data
-        data.update({"exceptionId": str(self.exc_id)})
+        data.update({"exceptionId": self.exc_id})
         return data
 
 
-def can_capture(span: Span) -> bool:
+def can_capture(span: SpanProtocol) -> bool:
     # We determine if we should capture the exception information from the span
     # by looking at its local root. If we have budget to capture, we mark the
     # root as "info captured" and return True. If we don't have budget, we mark
@@ -253,7 +274,7 @@ def can_capture(span: Span) -> bool:
     raise ValueError(msg)
 
 
-def get_snapshot_count(span: Span) -> int:
+def get_snapshot_count(span: SpanProtocol) -> int:
     root = span._local_root
     if root is None:
         return 0  # type: ignore[unreachable]
@@ -271,9 +292,9 @@ class SpanExceptionHandler:
 
     def _attach_tb_frame_snapshot_to_span(
         self,
-        span: Span,
+        span: SpanProtocol,
         tb: TracebackType,
-        exc_id: uuid.UUID,
+        exc_id: str,
         seq_nr: int = 1,
         only_user_code: bool = True,
         cached_only: bool = False,
@@ -297,7 +318,7 @@ class SpanExceptionHandler:
                     probe=SpanExceptionProbe.build(exc_id, frame),
                     frame=frame,
                     thread=current_thread(),
-                    trace_context=span,
+                    trace_context=t.cast(TraceContextProtocol, span),
                     exc_id=exc_id,
                 )
 
@@ -326,7 +347,11 @@ class SpanExceptionHandler:
             return False
 
     def on_span_exception(
-        self, span: Span, _exc_type: type[BaseException], exc: BaseException, traceback: t.Optional[TracebackType]
+        self,
+        span: SpanProtocol,
+        _exc_type: type[BaseException],
+        exc: BaseException,
+        traceback: t.Optional[TracebackType],
     ) -> None:
         if span.get_tag(DEBUG_INFO_TAG) == "true" or not can_capture(span):
             # Debug info for span already captured or no budget to capture
@@ -375,7 +400,7 @@ class SpanExceptionHandler:
         if frames_captured:
             span._set_attribute(DEBUG_INFO_TAG, "true")
             span._set_attribute(EXCEPTION_HASH_TAG, str(exc_ident))
-            span._set_attribute(EXCEPTION_ID_TAG, str(exc_id))
+            span._set_attribute(EXCEPTION_ID_TAG, exc_id)
 
             # Update the snapshot count
             root = span._local_root

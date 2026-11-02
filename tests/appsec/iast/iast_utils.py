@@ -14,14 +14,14 @@ from hypothesis.strategies import builds
 from hypothesis.strategies import one_of
 from hypothesis.strategies import text
 
-from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 

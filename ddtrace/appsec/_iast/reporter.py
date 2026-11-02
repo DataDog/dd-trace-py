@@ -6,8 +6,6 @@ from typing import Any
 from typing import Optional
 import zlib
 
-from ddtrace.appsec._constants import STACK_TRACE
-from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
@@ -15,6 +13,8 @@ from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.appsec._iast_context import is_iast_request_enabled
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._constants import STACK_TRACE
+from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -194,96 +194,6 @@ class IastSpanReporter(NotNoneDictable):
             vulnerability.location.stackId = None
         else:
             vulnerability.location.stackId = self.stacktrace_id
-
-    def _merge_json(self, json_str: str) -> None:
-        """
-        Merges the current IAST span reporter with another IAST span reporter from a JSON string.
-
-        Args:
-        - json_str (str): JSON string.
-        """
-        other = IastSpanReporter()
-        other.stacktrace_id = self.stacktrace_id
-        other._from_dict(json.loads(json_str))
-        self._merge(other)
-        self.stacktrace_id = other.stacktrace_id
-
-    def _merge_dict(self, data: dict[str, Any]) -> None:
-        """
-        Merges the current IAST span reporter with another IAST span reporter from a dictionary.
-
-        Args:
-        - data (dict[str, Any]): dictionary.
-        """
-        other = IastSpanReporter()
-        other.stacktrace_id = self.stacktrace_id
-        other._from_dict(data)
-        self._merge(other)
-        self.stacktrace_id = other.stacktrace_id
-
-    def _merge(self, other: "IastSpanReporter") -> None:
-        """
-        Merges the current IAST span reporter with another IAST span reporter.
-
-        Args:
-        - other (IastSpanReporter): IAST span reporter to merge.
-        """
-        len_previous_sources = len(self.sources)
-        self.sources = self.sources + other.sources
-        self._update_vulnerabilities(other, len_previous_sources)
-
-    def _update_vulnerabilities(self, other: "IastSpanReporter", offset: int):
-        for vuln in other.vulnerabilities:
-            if (
-                hasattr(vuln, "evidence")
-                and hasattr(vuln.evidence, "valueParts")
-                and vuln.evidence.valueParts is not None
-            ):
-                for part in vuln.evidence.valueParts:
-                    if "source" in part:
-                        part["source"] = part["source"] + offset
-            self.vulnerabilities.add(vuln)
-
-    def _from_dict(self, data: dict[str, Any]):
-        """Initializes the IAST span reporter from a dictionary."""
-        from ._taint_tracking import str_to_origin
-
-        self.sources = []
-        for i in data["sources"]:
-            source = Source(
-                origin=str_to_origin(i["origin"]),
-                name=i["name"],
-            )
-            if "value" in i:
-                source.value = i["value"]
-            if "redacted" in i:
-                source.redacted = i["redacted"]
-            if "pattern" in i:
-                source.pattern = i["pattern"]
-            self.sources.append(source)
-
-        self.vulnerabilities = set()
-        for i in data["vulnerabilities"]:
-            evidence = Evidence()
-            if "ranges" in i["evidence"]:
-                evidence._ranges = i["evidence"]["ranges"]
-            if "value" in i["evidence"]:
-                evidence.value = _truncate_evidence_value(i["evidence"]["value"])
-            if "valueParts" in i["evidence"]:
-                evidence.valueParts = i["evidence"]["valueParts"]
-            if "dialect" in i["evidence"]:
-                evidence.dialect = i["evidence"]["dialect"]
-            self._append_vulnerability(
-                Vulnerability(
-                    type=i["type"],
-                    evidence=evidence,
-                    location=Location(
-                        spanId=i["location"]["spanId"],
-                        path=i["location"]["path"],
-                        line=i["location"]["line"],
-                    ),
-                )
-            )
 
     def _to_dict(self):
         return {

@@ -1,0 +1,4 @@
+fixes:
+  - |
+    CI Visibility: Fixes excessive CPU usage that could slow down or time out test
+    jobs when Code Coverage is enabled with pytest-xdist.

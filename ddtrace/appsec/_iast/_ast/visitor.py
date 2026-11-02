@@ -8,7 +8,7 @@ from typing import Any
 
 from ddtrace.internal.compat import is_at_least_py
 
-from ..._constants import IAST
+from .._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_COMMAND_INJECTION_FUNCTIONS
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS

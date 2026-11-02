@@ -17,7 +17,7 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8001/status/200",
-      "http.useragent": "python-httpx2/2.12.0",
+      "http.useragent": "python-httpx2/x.xx.x",
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "96e260e256e246d68e8ee177a5e32db7",

@@ -1,5 +1,7 @@
+import asyncio
 import json
 
+import httpx
 import pytest
 
 from tests.contrib.mistralai.utils import CHAT_TOOLS
@@ -252,3 +254,35 @@ async def test_mistralai_chat_stream_with_tools_async(mistral_client):
         **FULL_CHAT_REQUEST_KWARGS,
     ):
         pass
+
+
+def test_stream_creation_base_exception(mistral_client, test_spans, monkeypatch):
+    def interrupted_send(*args, **kwargs):
+        raise KeyboardInterrupt("stream interrupted")
+
+    monkeypatch.setattr(httpx.Client, "send", interrupted_send)
+    with pytest.raises(KeyboardInterrupt, match="stream interrupted"):
+        mistral_client.chat.stream(
+            model="mistral-large-latest", messages=[{"role": "user", "content": "Why is the sky blue?"}]
+        )
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "builtins.KeyboardInterrupt"
+
+
+async def test_async_stream_creation_cancelled(mistral_client, test_spans, monkeypatch):
+    async def cancelled_send(*args, **kwargs):
+        raise asyncio.CancelledError("stream cancelled")
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", cancelled_send)
+    with pytest.raises(asyncio.CancelledError, match="stream cancelled"):
+        await mistral_client.chat.stream_async(
+            model="mistral-large-latest", messages=[{"role": "user", "content": "Why is the sky blue?"}]
+        )
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "asyncio.exceptions.CancelledError"

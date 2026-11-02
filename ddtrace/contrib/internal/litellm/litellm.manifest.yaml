@@ -1,0 +1,11 @@
+_v: 1
+name: litellm
+display_name: LiteLLM
+description: Instruments synchronous and asynchronous LiteLLM chat and text completion calls, including router operations
+  and streamed model responses.
+packages:
+- name: litellm
+category:
+- gen_ai
+systems: []
+creation_date: '2025-04-07'

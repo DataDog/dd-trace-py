@@ -8,6 +8,8 @@ is synchronized with IAST evidence redaction, addressing the issue described in:
 
 import re
 
+import pytest
+
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import SensitiveHandler
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
@@ -21,6 +23,8 @@ from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.ssrf import SSRF
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import UnvalidatedRedirect
+from ddtrace.internal.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.utils import override_global_config
 
 
 class TestSensitiveHandlerQueryStringSync:
@@ -228,31 +232,60 @@ class TestUnvalidatedRedirectQueryStringSync:
 class TestURLSensitiveAnalyzerQueryString:
     """Test URL sensitive analyzer with query string pattern matching."""
 
-    def test_url_analyzer_applies_query_string_pattern(self, iast_context_defaults):
+    @pytest.mark.parametrize(
+        "query, expected, regex",
+        (
+            ("password=secret123&api_key=abc123&id=456", ["password=secret123", "api_key=abc123"], None),
+            ("jwt=eyJa.eyJb", ["eyJa.eyJb"], None),
+            ("jwt=eyJa.eyJb", ["eyJa.eyJb"], DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT.encode("ascii")),
+            ("eyJa.eyJb", ["eyJa.eyJb"], None),
+            ("a=1&eyJa.eyJb", ["eyJa.eyJb"], None),
+            ("x=%22eyJa.eyJb", ["eyJa.eyJb"], None),
+            ("🙂eyJa.eyJb", ["eyJa.eyJb"], None),
+            ("q=café&eyJa.eyJb&password=sécret", ["eyJa.eyJb", "password=sécret"], None),
+            ("password=sécret&eyJa.eyJb", ["password=sécret", "eyJa.eyJb"], None),
+            ("🙂&password=secrèt", ["password=secrèt"], None),
+            ("password=secret123", ["password=secret123"], rb"(password)=[^&]+"),
+            ("q=🙂&password=sécret", ["password=sécret"], rb"(password)=[^&]+"),
+        ),
+    )
+    def test_url_analyzer_applies_query_string_pattern(self, iast_context_defaults, query, expected, regex):
         """Test that URL analyzer applies query string pattern to URLs."""
+        from ddtrace.appsec._iast._evidence_redaction.url_sensitive_analyzer import find_query_string_matches
         from ddtrace.appsec._iast._evidence_redaction.url_sensitive_analyzer import url_sensitive_analyzer
         from ddtrace.internal.settings._config import config
 
         # Create evidence with URL containing sensitive query params
         class MockEvidence:
-            value = "https://api.example.com/data?password=secret123&api_key=abc123&id=456"
+            value = "https://api.example.com/data?" + query
 
         evidence = MockEvidence()
 
         # Get patterns
         name_pattern = re.compile(r"(?i)password|api_key", re.IGNORECASE | re.MULTILINE)
         value_pattern = re.compile(r"secret", re.IGNORECASE | re.MULTILINE)
-        query_string_pattern = config._obfuscation_query_string_pattern
-
-        # Call analyzer
-        ranges = url_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_pattern)
+        overrides = {"_obfuscation_query_string_pattern": re.compile(regex)} if regex is not None else {}
+        with override_global_config(overrides):
+            query_string_pattern = config._obfuscation_query_string_pattern
+            # Call analyzer
+            ranges = url_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_pattern)
+            query_ranges = []
+            find_query_string_matches(query_ranges, evidence, query_string_pattern)
+            assert [evidence.value[r["start"] : r["end"]] for r in query_ranges] == expected
+            redacted = SensitiveHandler().to_redacted_json(evidence.value, query_ranges.copy(), [], [])
+            expected_value = evidence.value
+            for secret in expected:
+                expected_value = expected_value.replace(secret, "<redacted>")
+            assert (
+                "".join(part.get("value", "<redacted>") for part in redacted["redacted_value_parts"]) == expected_value
+            )
 
         # Should have ranges for both query fragment matching and query string pattern matching
         assert len(ranges) > 0
 
         # Verify ranges cover sensitive parts
         assert any(
-            evidence.value[r["start"] : r["end"]] in ["secret123", "abc123", "password=secret123"]
+            evidence.value[r["start"] : r["end"]] in expected
             for r in ranges
             if r["start"] < len(evidence.value) and r["end"] <= len(evidence.value)
         )

@@ -28,7 +28,7 @@ from tests.openfeature.config_helpers import create_config
 from tests.openfeature.config_helpers import create_string_flag
 
 
-def _decode_delta_varint(encoded: str) -> set:
+def _decode_delta_varint(encoded: str) -> set[int]:
     """Decode side of the frozen contract -- mirrors the L2 codec
     (system-tests/.../test_ffe/utils.py). Used only as the round-trip oracle.
     """
@@ -779,10 +779,11 @@ class TestRealProviderIntegration:
 
         from ddtrace.internal.openfeature._native import process_ffe_configuration
         from ddtrace.openfeature import DataDogProvider
+        from tests.openfeature.conftest import set_openfeature_provider
 
         process_ffe_configuration(config)
         provider = DataDogProvider(initialization_timeout=0.1)
-        api.set_provider(provider)
+        set_openfeature_provider(provider)
         return provider, api.get_client()
 
     def test_provider_hook_is_wired_into_client(self, both_gates_on):

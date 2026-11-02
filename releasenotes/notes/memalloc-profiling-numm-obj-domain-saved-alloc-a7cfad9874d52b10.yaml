@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Profiling: A crash that could happen at exit when using memory profiling has been fixed.

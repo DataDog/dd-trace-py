@@ -2,6 +2,8 @@
 Some utils used by the dogtrace kombu integration
 """
 
+from typing import Any
+
 from ddtrace.ext import kombu as kombux
 from ddtrace.ext import net
 
@@ -13,13 +15,19 @@ PUBLISH_EXCHANGE_IDX = 9
 HEADER_POS = 4
 
 
-def extract_conn_tags(connection):
+def extract_conn_tags(connection: Any) -> dict[str, Any]:
     """Transform kombu conn info into dogtrace metas"""
     try:
         host, port = connection.host.split(":")
+        # _set_attribute preserves value types; normalize the port to keep it a metric.
+        port_value: Any = port
+        try:
+            port_value = int(port)
+        except ValueError:
+            pass
         return {
             net.TARGET_HOST: host,
-            net.TARGET_PORT: port,
+            net.TARGET_PORT: port_value,
             kombux.VHOST: connection.virtual_host,
         }
     except AttributeError:

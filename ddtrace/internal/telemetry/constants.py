@@ -20,7 +20,7 @@ class TELEMETRY_NAMESPACE(Enum):
     AI_GUARD = "ai_guard"
     DD_TRACE_API = "ddtraceapi"
     PROFILER = "profilers"
-    DEBUGGER = "live_debugger"
+    DEBUGGER = "debugger"
 
 
 class TELEMETRY_EVENT_TYPE(Enum):

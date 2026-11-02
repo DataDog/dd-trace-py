@@ -1,16 +1,11 @@
-from ddtrace.llmobs._contrib.mistralai.subscribers import LLMObsMistralAISpanFinishingSubscriber
-from ddtrace.llmobs._contrib.mistralai.subscribers import LLMObsMistralAISpanStartedSubscriber
-from ddtrace.llmobs._contrib.mistralai.subscribers import LLMObsMistralAISpanStartingSubscriber
+from ddtrace.llmobs._contrib._subscribers import register
+from ddtrace.llmobs._contrib._subscribers import unregister
+from ddtrace.llmobs._integrations.mistralai import MistralAIIntegration
 
 
 def listen() -> None:
-    LLMObsMistralAISpanStartingSubscriber.register()
-    LLMObsMistralAISpanStartedSubscriber.register()
-    LLMObsMistralAISpanFinishingSubscriber.register()
+    register("mistralai", MistralAIIntegration)
 
 
 def unlisten() -> None:
-    LLMObsMistralAISpanStartingSubscriber.unregister()
-    LLMObsMistralAISpanStartedSubscriber.unregister()
-    LLMObsMistralAISpanFinishingSubscriber.unregister()
-    LLMObsMistralAISpanStartingSubscriber.forget_integration()
+    unregister("mistralai")

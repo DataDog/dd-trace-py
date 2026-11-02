@@ -2,7 +2,7 @@ import os
 
 import psycopg
 import psycopg2
-import pymysql
+import pymysql  # type: ignore[import-untyped]
 
 
 POSTGRES_HOST = os.getenv("TEST_POSTGRES_HOST", "127.0.0.1")

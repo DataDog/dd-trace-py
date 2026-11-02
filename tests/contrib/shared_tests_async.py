@@ -1,4 +1,24 @@
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.internal import core
 from tests.utils import TracerSpanContainer
+
+
+async def _test_byte_query_event(cursor, codec, span_name_prefix):
+    """Byte queries are sent with the connection encoding that decodes them."""
+    value = "€" if codec == "cp1252" else "é"
+    query = f"SELECT '{value}'".encode(codec)
+    events = []
+
+    def listener(event):
+        events.append((event.query, event.span_name_prefix, str(event.query, event.get_encoding())))
+
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        await cursor.execute(query)
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+    assert (await cursor.fetchall())[0][0] == value
+    assert events == [(query, span_name_prefix, f"SELECT '{value}'")]
 
 
 # DBM Shared Tests

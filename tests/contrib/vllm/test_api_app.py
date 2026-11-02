@@ -11,13 +11,36 @@ from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.propagation.http import HTTPPropagator
+from tests.contrib.vllm._tiny_models import HIDDEN_SIZE
+from tests.contrib.vllm._tiny_models import TINY_BERT
+from tests.contrib.vllm._tiny_models import TINY_OPT
 from tests.llmobs._utils import assert_llmobs_span_data
 
 from .api_app import app
+from .api_app import build_rag_prompt
 
 
 IGNORE_FIELDS = [
+    "meta_struct",
     "meta._dd.p.llmobs_trace_id",
+    "meta.llmobs_parent_id",
+    "meta.llmobs_trace_id",
+    "meta._dd.svc_src",
+    "meta._dd.tags.process",
+    "meta._dd.llmobs.artificial_gen_ai_tags",
+    "meta.gen_ai.application.name",
+    "meta.gen_ai.operation.name",
+    "meta.gen_ai.provider.name",
+    "meta.gen_ai.request.model",
+    # vLLM reports the model directory, which is a temporary directory, as the model name.
+    "meta._dd.llmobs.model_name",
+    "meta.vllm.request.model",
+    "metrics._dd.llmobs.input_tokens",
+    "metrics._dd.llmobs.output_tokens",
+    "metrics._dd.llmobs.total_tokens",
+    "metrics.gen_ai.usage.input_tokens",
+    "metrics.gen_ai.usage.output_tokens",
+    "metrics.gen_ai.usage.total_tokens",
     "metrics.vllm.latency.ttft",
     "metrics.vllm.latency.queue",
     "metrics.vllm.latency.prefill",
@@ -79,9 +102,9 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(span),
             span_kind="embedding",
-            model_name="intfloat/e5-small-v2",
+            model_name=TINY_BERT,
             model_provider="vllm",
-            metadata={"embedding_dim": 384, "num_cached_tokens": 0},
+            metadata={"embedding_dim": HIDDEN_SIZE, "num_cached_tokens": 0},
             metrics={
                 "output_tokens": 0,
                 "time_to_first_token": mock.ANY,
@@ -95,13 +118,15 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
         metrics = get_llmobs_metrics(span) or {}
         assert metrics.get("input_tokens", 0) > 0
 
-    # Verify generation span has correct structure
+    # Verify generation span has correct structure. The weights are random, so the retrieved document can be
+    # either document. The prompt has one token for each byte, plus the </s> BOS token.
+    rag_prompt = build_rag_prompt(res.json()["retrieved_document"], payload["query"])
     gen_span = generation_spans[0]
     assert gen_span.trace_id == parent_span.trace_id
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(gen_span),
         span_kind="llm",
-        model_name="facebook/opt-125m",
+        model_name=TINY_OPT,
         model_provider="vllm",
         metadata={
             "temperature": 0.8,
@@ -111,7 +136,7 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
             "num_cached_tokens": 0,
         },
         metrics={
-            "input_tokens": 27,
+            "input_tokens": len(rag_prompt.encode()) + 1,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,

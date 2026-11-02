@@ -6,7 +6,6 @@ from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 
@@ -63,7 +62,7 @@ class LLMObsTraceProcessor(TracingProcessor):
             [],
             {"oai_trace": trace_adapter},
         )
-        self._integration.llmobs_traces.pop(format_trace_id(trace_root_span.trace_id), None)
+        self._integration.llmobs_traces.pop(trace_adapter.trace_id, None)
         trace_root_span.finish()
 
     def on_span_end(self, span: OaiSpan[Any]) -> None:

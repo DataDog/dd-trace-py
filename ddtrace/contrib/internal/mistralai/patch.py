@@ -14,21 +14,21 @@ from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import extract_provider
-from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 config._add("mistralai", {})  # type: ignore[no-untyped-call]
 
-# LLMObs subscribes to LlmEvents for this component; see ddtrace/llmobs/_contrib/mistralai.
+# LLMObs subscribes to shared lifecycle events for this component; see ddtrace/llmobs/_contrib/mistralai.
 COMPONENT = "mistralai"
 
-# APM tags owned by this integration. ddtrace.llmobs._integrations.mistralai no longer
-# writes them, so they must stay in sync with the snapshot expectations here.
+# Keep APM model/provider tags available even without LLMObs subscriber hooks.
 MODEL_TAG = "mistralai.request.model"
 PROVIDER_TAG = "mistralai.request.provider"
 
@@ -121,7 +121,7 @@ def traced_generate_stream(
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
-        except Exception:
+        except BaseException:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         handler = MistralAIStreamHandler(  # type: ignore[no-untyped-call]
@@ -140,7 +140,7 @@ async def traced_async_generate_stream(
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
-        except Exception:
+        except BaseException:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         handler = MistralAIAsyncStreamHandler(  # type: ignore[no-untyped-call]
@@ -188,9 +188,9 @@ def patch() -> None:
     wrap("mistralai.client.embeddings", "Embeddings.create", traced_embed_generate)
     wrap("mistralai.client.embeddings", "Embeddings.create_async", async_traced_embed_generate)
 
-    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # Let products (LLMObs) attach their shared lifecycle subscribers without this
     # module importing them.
-    core.dispatch("mistralai.patch", tuple())
+    integration_hooks.on_patch(COMPONENT)
 
 
 def unpatch() -> None:
@@ -199,7 +199,7 @@ def unpatch() -> None:
 
     client._datadog_patch = False
 
-    core.dispatch("mistralai.unpatch", tuple())
+    integration_hooks.on_unpatch(COMPONENT)
 
     unwrap(client.chat.Chat, "complete")
     unwrap(client.chat.Chat, "complete_async")

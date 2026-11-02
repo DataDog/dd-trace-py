@@ -11,12 +11,12 @@ from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
 from ddtrace.internal import core
-from ddtrace.internal.appsec.prototypes import SpanProtocol
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 def _on_lambda_start_request(
-    span: SpanProtocol,
+    span: SpanData,
     request_headers: dict[str, str],
     request_ip: Optional[str],
     body: Optional[str],
@@ -54,7 +54,7 @@ def _on_lambda_start_request(
 
 
 def _on_lambda_start_response(
-    span: SpanProtocol,
+    span: SpanData,
     status_code: str,
     response_headers: Mapping[str, object],
 ) -> None:

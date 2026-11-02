@@ -1,16 +1,11 @@
-from ddtrace.llmobs._contrib.llama_index.subscribers import LLMObsLlamaIndexSpanFinishingSubscriber
-from ddtrace.llmobs._contrib.llama_index.subscribers import LLMObsLlamaIndexSpanStartedSubscriber
-from ddtrace.llmobs._contrib.llama_index.subscribers import LLMObsLlamaIndexSpanStartingSubscriber
+from ddtrace.llmobs._contrib._subscribers import register
+from ddtrace.llmobs._contrib._subscribers import unregister
+from ddtrace.llmobs._integrations.llama_index import LlamaIndexIntegration
 
 
 def listen() -> None:
-    LLMObsLlamaIndexSpanStartingSubscriber.register()
-    LLMObsLlamaIndexSpanStartedSubscriber.register()
-    LLMObsLlamaIndexSpanFinishingSubscriber.register()
+    register("llama_index", LlamaIndexIntegration)
 
 
 def unlisten() -> None:
-    LLMObsLlamaIndexSpanStartingSubscriber.unregister()
-    LLMObsLlamaIndexSpanStartedSubscriber.unregister()
-    LLMObsLlamaIndexSpanFinishingSubscriber.unregister()
-    LLMObsLlamaIndexSpanStartingSubscriber.forget_integration()
+    unregister("llama_index")

@@ -42,7 +42,7 @@ jobs:
           rst2html CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: ./.github/actions/upload-artifact
         with:
           name: changelog
           path: |

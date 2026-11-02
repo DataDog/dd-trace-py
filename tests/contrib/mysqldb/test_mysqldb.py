@@ -1,3 +1,4 @@
+from contextlib import closing
 from unittest import mock
 
 import MySQLdb
@@ -429,7 +430,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def tearDown(self):
         super().tearDown()
 
-    def _connect_with_kwargs(self):
+    def _connect_with_kwargs(self, **kwargs):
         return MySQLdb.Connect(
             **{
                 "host": MYSQL_CONFIG["host"],
@@ -437,7 +438,8 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                 "passwd": MYSQL_CONFIG["password"],
                 "db": MYSQL_CONFIG["database"],
                 "port": MYSQL_CONFIG["port"],
-            }
+            },
+            **kwargs,
         )
 
     def _get_conn(self):
@@ -457,6 +459,11 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             )
             self.conn.ping()
         return self.conn
+
+    def test_byte_query_uses_connection_encoding(self):
+        for charset, codec in (("utf8mb4", "utf-8"), ("latin1", "latin-1")):
+            with closing(self._connect_with_kwargs(charset=charset)) as conn:
+                shared_tests._test_byte_query_event(conn.cursor(), codec, "mysql")
 
     def test_patch_unpatch(self):
         unpatch()

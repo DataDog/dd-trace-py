@@ -38,7 +38,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         super().__init__(integration_config)
         # a map of openai span ids to the corresponding llm obs span
         self.oai_to_llmobs_span: weakref.WeakValueDictionary[str, Span] = weakref.WeakValueDictionary()
-        # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
+        # a map of OpenAI trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
 
@@ -60,7 +60,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         )
         if oai_trace:
             self.oai_to_llmobs_span[oai_trace.trace_id] = llmobs_span
-            self.llmobs_traces[format_trace_id(llmobs_span.trace_id)] = LLMObsTraceInfo(
+            self.llmobs_traces[oai_trace.trace_id] = LLMObsTraceInfo(
                 span_id=str(llmobs_span.span_id),
                 trace_id=format_trace_id(llmobs_span.trace_id),
             )
@@ -275,19 +275,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         Returns:
             The trace info if found, None otherwise.
         """
-        key = None
-        if isinstance(oai_trace_or_span, OaiSpanAdapter):
-            key = oai_trace_or_span.span_id
-        elif isinstance(oai_trace_or_span, OaiTraceAdapter):
-            key = oai_trace_or_span.trace_id
-        else:
+        if not isinstance(oai_trace_or_span, (OaiSpanAdapter, OaiTraceAdapter)):
             return None
 
-        llmobs_span = self.oai_to_llmobs_span.get(key)
-        if not llmobs_span:
-            return None
-
-        return self.llmobs_traces.get(format_trace_id(llmobs_span.trace_id))
+        return self.llmobs_traces.get(oai_trace_or_span.trace_id)
 
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()

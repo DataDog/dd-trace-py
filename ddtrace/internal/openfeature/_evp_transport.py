@@ -275,9 +275,13 @@ class FeatureFlagEVPRouteSelector:
         except Exception as error:
             fallback = route.fallback
             if fallback is not None and _is_definitive_pre_send_failure(error):
+                log.debug("Feature Flagging EVP: no bytes sent; retrying this batch through direct intake")
                 self._activate_direct(route, fallback)
                 return send_once(fallback)
             if fallback is not None and _is_ambiguous_io_failure(error):
+                log.debug(
+                    "Feature Flagging EVP: delivery unknown; not replaying this batch; future batches use direct intake"
+                )
                 # The receiver may have accepted this batch. Mark this failure as terminal
                 # for callers with same-batch retries; only later route snapshots may use
                 # direct intake.
@@ -294,10 +298,12 @@ class FeatureFlagEVPRouteSelector:
         if route.agentless_local:
             if status in DIRECT_RETRY_STATUSES:
                 if route.fallback is not None:
+                    log.debug("Feature Flagging EVP: HTTP %s; retrying this batch through direct intake", status)
                     self._activate_direct(route, route.fallback)
                     return send_once(route.fallback)
                 self._mark_unavailable(route)
             elif status in (403, 429) or (status is not None and 500 <= status < 600):
+                log.debug("Feature Flagging EVP: HTTP %s; not replaying this batch to avoid duplicate delivery", status)
                 # The local relay may already have accepted this batch, so do not replay
                 # it. Route only later batch snapshots directly, or enter the bounded
                 # unavailable state when direct delivery is not configured.

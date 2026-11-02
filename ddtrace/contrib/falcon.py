@@ -19,6 +19,14 @@ You can also use the autopatching functionality::
 To disable distributed tracing when using autopatching, set the
 ``DD_FALCON_DISTRIBUTED_TRACING`` environment variable to ``False``.
 
+The falcon integration only traces WSGI applications. To trace a ``falcon.asgi.App``,
+wrap it with the :ref:`ASGI middleware <asgi>`::
+
+    import falcon.asgi
+    from ddtrace.contrib.asgi import TraceMiddleware
+
+    app = TraceMiddleware(falcon.asgi.App())
+
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
 

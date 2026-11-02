@@ -1,4 +1,4 @@
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -11,7 +11,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._patch_utils import get_caller_frame_info
+from ddtrace.internal.security._patch_utils import get_caller_frame_info
 from ddtrace.internal.settings.asm import config as asm_config
 
 

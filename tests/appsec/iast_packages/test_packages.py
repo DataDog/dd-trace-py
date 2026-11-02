@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.iast_packages import clonevirtualenv
 from tests.utils import DDTRACE_PATH
@@ -478,7 +478,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "lxml",
-        "6.0.2",
+        "6.1.3" if PYTHON_VERSION >= (3, 15) else "6.0.2",
         "<root><element>foobar</element></root>",
         "Element text: foobar",
         "",
@@ -537,7 +537,9 @@ _PACKAGES = [
     #     "specifier": ">=1.0.0", "version": "1.2.3"},
     #     "",
     # ),
-    PackageForTesting("pandas", "2.3.3", "foobar", "Written value: foobar", ""),
+    PackageForTesting(
+        "pandas", "3.1.0" if PYTHON_VERSION >= (3, 15) else "2.3.3", "foobar", "Written value: foobar", ""
+    ),
     PackageForTesting(
         "platformdirs",
         "4.2.2",
@@ -568,18 +570,18 @@ _PACKAGES = [
     ),
     ## Skip due to pygments added to the denylist
     # PackageForTesting("pycparser", "2.22", "", "", ""),
-    # Pydantic fails for py314 installation with error: failed to run custom build command for `pyo3-ffi v0.21.1`
+    # Pydantic 2.14 adds Python 3.15 support; preserve the older baseline on earlier interpreters.
     PackageForTesting(
         "pydantic",
-        "2.12.5",
+        "2.14.1" if PYTHON_VERSION >= (3, 15) else "2.12.5",
         '{"name": "foobar", "description": "A test item"}',
         "Validated item: name=foobar, description=A test item",
         "",
     ),
-    # Pydantic fails for py314 installation with error: failed to run custom build command for `pyo3-ffi v0.21.1`
+    # Keep this pin aligned with the pydantic-core version required by Pydantic above.
     PackageForTesting(
         "pydantic-core",
-        "2.41.5",
+        "2.50.1" if PYTHON_VERSION >= (3, 15) else "2.41.5",
         "",
         "",
         "",
@@ -760,7 +762,7 @@ _PACKAGES = [
     ## Skip due to typing-extensions added to the denylist
     PackageForTesting(
         "typing-extensions",
-        "4.11.0",
+        "4.16.0" if PYTHON_VERSION >= (3, 15) else "4.11.0",
         "",
         "",
         "",
@@ -857,7 +859,7 @@ _PACKAGES = [
     # ),
     PackageForTesting(
         "scipy",
-        "1.16.3",
+        "1.18.1" if PYTHON_VERSION >= (3, 15) else "1.16.3",
         "1,2,3,4,5",
         "Mean: 3.0, Standard Deviation: 1.581",
         "",
@@ -899,7 +901,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "grpcio",
-        "1.76.0",
+        "1.84.1" if PYTHON_VERSION >= (3, 15) else "1.76.0",
         "",
         "",
         "",
@@ -1144,7 +1146,7 @@ def test_packages_patched(package):
     if package.test_import:
         # TODO: create fixtures with exported patched code and compare it with the generated in the test
         # (only for non-latest versions)
-        with override_env({IAST.ENV: "true"}):
+        with override_env({"DD_IAST_ENABLED": "true"}):
             # 1. Try with the specified version
             cmdlist = [
                 python_bin,

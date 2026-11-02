@@ -42,8 +42,12 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     if path.is_file():
         return path.resolve()
 
-    for relpath in (path.relative_to(_) for _ in reversed(path.parents)):
-        if (resolved_path := _resolve(relpath)) is not None:
+    # Stripping successive leading components is just successive suffixes of the
+    # parts, and avoids building a path object per ancestor. The anchor is never a
+    # candidate, which is why an absolute path starts one component in.
+    parts = path.parts
+    for start in range(1 if path.anchor else 0, len(parts)):
+        if (resolved_path := _resolve(Path(*parts[start:]))) is not None:
             return resolved_path
 
     return None
@@ -104,7 +108,8 @@ class Probe(abc.ABC):
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
 
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
+        """Whether this probe takes part in coordinated sampling."""
         return False
 
     def __hash__(self) -> int:
@@ -288,13 +293,13 @@ class LogProbeMixin(AbstractProbeMixIn):
 
 @dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    def is_global_rate_limited(self) -> bool:
+    def is_sampled(self) -> bool:
         return self.take_snapshot or bool(self.capture_expressions)
 
 
