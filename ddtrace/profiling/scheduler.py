@@ -106,8 +106,7 @@ class Scheduler(periodic.PeriodicService):
         finally:
             self._last_export = time.time_ns()
             # After the upload, not during the request: encoding a profile
-            # leaves freed pages in glibc arenas. protobuf used to return
-            # those as a side effect; we only do it when the flag is on.
+            # leaves freed pages in glibc arenas. Only when the flag is on.
             _maybe_malloc_trim()
 
     def periodic(self) -> None:
