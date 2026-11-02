@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal import service
+from ddtrace.internal.datadog.profiling import code_provenance
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.profiling import scheduler
@@ -54,6 +55,67 @@ def test_periodic_survives_export_failure() -> None:
         s.start()
         try:
             assert exported_again.wait(30), "scheduler stopped exporting after %d attempt(s)" % len(attempts)
+        finally:
+            s.stop()
+            s.join()
+
+
+def test_start_builds_code_provenance_in_background() -> None:
+    build_started: threading.Event = threading.Event()
+    release_build: threading.Event = threading.Event()
+    build_finished: threading.Event = threading.Event()
+    build_thread_ids: list[int] = []
+
+    def slow_build() -> None:
+        build_thread_ids.append(threading.get_ident())
+        build_started.set()
+        try:
+            release_build.wait(5)
+        finally:
+            build_finished.set()
+
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = True
+    with mock.patch.object(code_provenance, "get_code_provenance_file", slow_build):
+        s.start()
+        try:
+            assert build_started.wait(30), "code provenance was not built on start"
+            assert build_thread_ids != [threading.get_ident()], "start waited for the code provenance build"
+            assert s.status == service.ServiceStatus.RUNNING
+        finally:
+            release_build.set()
+            s.stop()
+            s.join()
+            assert build_finished.wait(30)
+
+    assert len(build_thread_ids) == 1
+
+
+def test_start_skips_code_provenance_build_when_disabled() -> None:
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = False
+    with mock.patch.object(code_provenance, "get_code_provenance_file") as build:
+        s.start()
+        s.stop()
+        s.join()
+
+    build.assert_not_called()
+
+
+def test_start_survives_code_provenance_build_failure() -> None:
+    build_done: threading.Event = threading.Event()
+
+    def failing_build() -> None:
+        build_done.set()
+        raise RuntimeError("LOL")
+
+    s: scheduler.Scheduler = scheduler.Scheduler()
+    s._enable_code_provenance = True
+    with mock.patch.object(code_provenance, "get_code_provenance_file", failing_build):
+        s.start()
+        try:
+            assert build_done.wait(30)
+            assert s.status == service.ServiceStatus.RUNNING
         finally:
             s.stop()
             s.join()
