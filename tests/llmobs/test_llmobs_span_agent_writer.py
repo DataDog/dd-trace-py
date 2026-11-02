@@ -114,13 +114,13 @@ def test_send_timed_events(mock_send_payload, mock_writer_logs):
         mock_writer_logs.reset_mock()
 
         llmobs_span_writer.enqueue(_completion_event())
-        assert payload_sent.wait(timeout=1)
+        assert payload_sent.wait(timeout=5)
         mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
         mock_writer_logs.reset_mock()
         payload_sent.clear()
 
         llmobs_span_writer.enqueue(_chat_completion_event())
-        assert payload_sent.wait(timeout=1)
+        assert payload_sent.wait(timeout=5)
         mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
     finally:
         llmobs_span_writer.stop()

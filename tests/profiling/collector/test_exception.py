@@ -302,6 +302,26 @@ def test_exception_monitoring_unavailable_raises_collector_unavailable():
 
 
 @pytest.mark.subprocess(out=None, err=None)
+def test_exception_skipped_in_uwsgi_worker_without_fork_hooks():
+    """The collector does not enable sys.monitoring in a uWSGI worker forked without the Python fork hooks."""
+    from unittest import mock
+
+    from ddtrace.internal import monitoring
+    from ddtrace.profiling.collector import exception
+
+    collector_instance = exception.ExceptionCollector(sampling_interval=1)
+    with (
+        mock.patch("ddtrace.internal.uwsgi.forked_without_fork_hooks", return_value=True),
+        mock.patch.object(monitoring, "register_global") as register_global,
+    ):
+        collector_instance.start()
+
+    register_global.assert_not_called()
+    assert monitoring._global_raise_handler is None
+    collector_instance.stop()
+
+
+@pytest.mark.subprocess(out=None, err=None)
 def test_exception_second_collector_start_is_rejected():
     """A second collector cannot run alongside the active one or clear its state.
 
