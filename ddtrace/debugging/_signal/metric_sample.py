@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
+import math
 from types import FrameType
 from typing import Any
 from typing import Optional
@@ -61,6 +62,10 @@ class MetricSample(LogSignal):
                 self._record_evaluation_error(
                     probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
                 )
+                return
+            if not math.isfinite(value):
+                # The statsd counter raises on these in int(), after this returns, which would drop the signal.
+                self._record_evaluation_error(probe.value.dsl, f"Value is not finite: {value}", SignalState.EVAL_ERROR)
                 return
 
         # TODO[perf]: We know the tags in advance so we can avoid the

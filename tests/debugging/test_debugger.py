@@ -1068,6 +1068,8 @@ class _FloatRaises:
         ({"ref": "bar"}, "customer-secret", "Value is not a number: str"),
         ({"ref": "bar"}, 10**400, "Value is not a number: int"),
         ({"ref": "bar"}, _FloatRaises(), "Value is not a number: _FloatRaises"),
+        ({"ref": "bar"}, float("nan"), "Value is not finite: nan"),
+        ({"ref": "bar"}, float("-inf"), "Value is not finite: -inf"),
     ],
 )
 def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, arg, message):
