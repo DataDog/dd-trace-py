@@ -1802,11 +1802,14 @@
         "default": "true"
       }
     ],
-    "DD_FFE_INTAKE_ENABLED": [
+    "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "aliases": [
+          "DD_FFE_INTAKE_ENABLED"
+        ]
       }
     ],
     "DD_FFE_INTAKE_HEARTBEAT_INTERVAL": [

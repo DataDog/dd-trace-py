@@ -6,8 +6,11 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 log = get_logger(__name__)
@@ -77,10 +80,10 @@ class OpenFeatureConfig(DDConfig):
         default=True,
     )
 
-    # Feature flag exposure intake configuration
-    ffe_intake_enabled = DDConfig.var(
+    # Sends exposure events to Datadog. DD_FFE_INTAKE_ENABLED is a deprecated alias.
+    exposures_datadog_logging_enabled = DDConfig.var(
         bool,
-        "DD_FFE_INTAKE_ENABLED",
+        "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED",
         default=True,
     )
 
@@ -153,7 +156,7 @@ class OpenFeatureConfig(DDConfig):
         "experimental_flagging_provider_enabled",
         "experimental_flagging_provider_span_enrichment_enabled",
         "flagging_evaluation_counts_enabled",
-        "ffe_intake_enabled",
+        "exposures_datadog_logging_enabled",
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
         "feature_flags_enabled",
@@ -202,3 +205,12 @@ def resolve_configuration_source(ffe_config: OpenFeatureConfig) -> str:
 
 # Global config instance
 config = OpenFeatureConfig()
+
+if "DD_FFE_INTAKE_ENABLED" in env:
+    deprecate(
+        "DD_FFE_INTAKE_ENABLED is deprecated",
+        message="Use DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED instead. When both are set, "
+        "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED takes precedence.",
+        removal_version="5.0.0",
+        category=DDTraceDeprecationWarning,
+    )
