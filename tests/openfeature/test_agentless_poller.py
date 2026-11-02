@@ -255,6 +255,21 @@ def test_missing_native_capability_reporter_omits_header(harness, monkeypatch):
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
 
 
+def test_raising_capability_reporter_advertises_nothing(harness, monkeypatch):
+    def boom():
+        raise RuntimeError("reporter failed")
+
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=boom))
+    src = harness([_FakeResponse(200, _ufc_body())])
+    # Exercise startup diagnostics and one poll without scheduling another poll in a worker.
+    monkeypatch.setattr(source_mod.PeriodicService, "_start_service", lambda self: None)
+    src._start_service()
+    src.periodic()
+    assert len(src._requests) == 1
+    assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
+    assert len(src._applied) == 1
+
+
 def test_linked_evaluator_advertises_dependent_flags():
     assert native_mod.ffe.get_evaluator_capabilities() == ["dependent-flag-variant-key-v1"]
     assert "dependent-flag-variant-key-v1" in native_mod.get_evaluator_capabilities()
@@ -444,7 +459,18 @@ def test_debug_logs_malformed_payload_reason(harness, caplog):
     ],
     ids=["managed", "custom"],
 )
-def test_debug_logs_effective_settings_on_start(harness, caplog, endpoint, api_key, requested_env, api_key_header):
+@pytest.mark.parametrize(
+    "capabilities,capabilities_header",
+    [
+        ((), "not sent"),
+        (("unknown-feature-v1",), "not sent"),
+        (("dependent-flag-variant-key-v1",), "dependent-flag-variant-key-v1"),
+    ],
+)
+def test_debug_logs_effective_settings_on_start(
+    harness, caplog, monkeypatch, endpoint, api_key, requested_env, api_key_header, capabilities, capabilities_header
+):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
     src = harness([_FakeResponse(304)], api_key=api_key, env="prod", endpoint=endpoint)
     with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
         src.start()
@@ -453,7 +479,8 @@ def test_debug_logs_effective_settings_on_start(harness, caplog, endpoint, api_k
 
     assert (
         f"Feature Flags: agentless configuration source settings: sdk_env=prod, requested_env={requested_env}, "
-        f"DD-API-KEY header {api_key_header}, poll interval 30.0s, request timeout 5.0s"
+        f"DD-API-KEY header {api_key_header}, capabilities header {capabilities_header}, "
+        "poll interval 30.0s, request timeout 5.0s"
     ) in _debug_messages(caplog)
     assert "secret" not in caplog.text
 

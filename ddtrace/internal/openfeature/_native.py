@@ -31,7 +31,14 @@ def get_evaluator_capabilities() -> tuple[str, ...]:
     UFC features. Transport support alone never implies evaluator support.
     """
     reporter = getattr(ffe, "get_evaluator_capabilities", None)
-    return tuple(reporter()) if reporter is not None else ()
+    if reporter is None:
+        return ()
+    try:
+        return tuple(reporter())
+    except Exception:
+        # Capability discovery must not prevent either source from loading configuration.
+        log.debug("Feature Flags: evaluator capability reporter failed; advertising no capabilities", exc_info=True)
+        return ()
 
 
 def process_ffe_configuration(config: Any) -> bool:

@@ -4,6 +4,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.openfeature import _native
 from ddtrace.internal.openfeature import _remoteconfiguration
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
@@ -48,6 +49,22 @@ def test_enable_rc_advertises_only_supported_evaluator_capabilities(has_rc_capab
         _remoteconfiguration.FFE_FLAGS_PRODUCT,
         _remoteconfiguration._featureflag_rc_callback,
         capabilities=expected,
+    )
+    poller.enable_product.assert_called_once_with(_remoteconfiguration.FFE_FLAGS_PRODUCT)
+
+
+def test_raising_capability_reporter_keeps_rc_enabled():
+    reporter = mock.Mock(side_effect=RuntimeError("reporter failed"))
+    with (
+        mock.patch.object(_native, "ffe", SimpleNamespace(get_evaluator_capabilities=reporter)),
+        mock.patch.object(_remoteconfiguration, "remoteconfig_poller") as poller,
+    ):
+        _remoteconfiguration.enable_featureflags_rc()
+
+    poller.register_callback.assert_called_once_with(
+        _remoteconfiguration.FFE_FLAGS_PRODUCT,
+        _remoteconfiguration._featureflag_rc_callback,
+        capabilities=[_remoteconfiguration.RemoteConfigCapabilities.FfeFlagConfigurationRules],
     )
     poller.enable_product.assert_called_once_with(_remoteconfiguration.FFE_FLAGS_PRODUCT)
 

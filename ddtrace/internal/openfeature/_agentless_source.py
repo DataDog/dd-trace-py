@@ -90,6 +90,13 @@ def _describe_error(error: BaseException) -> str:
     return f"{name}: {message}" if message else name
 
 
+def _capabilities_header() -> Optional[str]:
+    """Return the capability header value, or None when nothing may be advertised."""
+    if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
+        return DEPENDENT_FLAG_VARIANT_KEY_V1
+    return None
+
+
 def _is_retryable_status(status: Optional[int]) -> bool:
     if status is None:
         return True
@@ -180,10 +187,11 @@ class AgentlessConfigurationSource(PeriodicService):
         self._stopping = False
         log.debug(
             "Feature Flags: agentless configuration source settings: sdk_env=%s, requested_env=%s, "
-            "DD-API-KEY header %s, poll interval %.1fs, request timeout %.1fs",
+            "DD-API-KEY header %s, capabilities header %s, poll interval %.1fs, request timeout %.1fs",
             self._env or "unset",
             self._requested_env or "not sent",
             "sent" if self._api_key else "not sent",
+            _capabilities_header() or "not sent",
             self.interval,
             self._request_timeout,
         )
@@ -317,8 +325,9 @@ class AgentlessConfigurationSource(PeriodicService):
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
-        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-            headers["X-DD-FEATURE-FLAGS-CAPABILITIES"] = DEPENDENT_FLAG_VARIANT_KEY_V1
+        capabilities = _capabilities_header()
+        if capabilities:
+            headers["X-DD-FEATURE-FLAGS-CAPABILITIES"] = capabilities
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
         if self._etag:
