@@ -546,6 +546,10 @@ class TraceMiddleware:
                     core.dispatch("asgi.finalize_response", (content, None))
                 try:
                     return await send(message)
+                except BaseException:
+                    # This send runs inside the blocking handler, outside the request's exception handlers.
+                    span.set_exc_info(*sys.exc_info())
+                    raise
                 finally:
                     trace_utils.set_http_meta(
                         span, self.integration_config, status_code=status, response_headers=dict(headers)
