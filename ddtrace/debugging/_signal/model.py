@@ -57,6 +57,7 @@ class SignalState(str, Enum):
     SKIP_BUDGET = "SKIP_BUDGET"
     SKIP_CAPPED = "SKIP_CAPPED"
     COND_ERROR = "COND_ERROR"
+    EVAL_ERROR = "EVAL_ERROR"
     DONE = "DONE"
 
 
@@ -108,7 +109,6 @@ class Signal(abc.ABC):
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
     _eval_duration_ms: Optional[float] = field(default=None, init=False, repr=False)
-    error_kind: str = field(default="condition", init=False, repr=False)
 
     def __post_init__(self) -> None:
         probe = self.probe
@@ -158,15 +158,14 @@ class Signal(abc.ABC):
         self.state = SignalState.SKIP_COND
         return False
 
-    def _record_evaluation_error(self, expr: str, message: str, kind: str = "condition") -> None:
+    def _record_evaluation_error(self, expr: str, message: str, state: SignalState = SignalState.COND_ERROR) -> None:
         probe = cast(ProbeConditionMixin, self.probe)
         self.errors.append(EvaluationError(expr=expr, message=message))
-        self.error_kind = kind
         if probe.condition_error_limiter.limit() is RateLimitExceeded:
             probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
             self.state = SignalState.SKIP_COND_ERROR
         else:
-            self.state = SignalState.COND_ERROR
+            self.state = state
 
     def _session_check(self) -> bool:
         # Check that we emit signals from probes with a session ID only if the

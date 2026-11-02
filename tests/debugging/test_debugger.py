@@ -786,7 +786,7 @@ def test_debugger_metric_probe_value_error_reported(mock_metrics, stuff, value, 
         (payload,) = d.uploader.wait_for_payloads()
 
         assert not mock_metrics.gauge.mock_calls
-        assert d.signal_state_counter[SignalState.COND_ERROR] == 1
+        assert d.signal_state_counter[SignalState.EVAL_ERROR] == 1
         assert d.signal_state_counter[SignalState.SKIP_COND_ERROR] == 99
         assert SignalState.DONE not in d.signal_state_counter
         (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
@@ -815,7 +815,7 @@ def test_debugger_metric_function_probe_value_error_reported(mock_metrics, stuff
         (payload,) = d.uploader.wait_for_payloads()
 
         assert not mock_metrics.gauge.mock_calls
-        assert d.signal_state_counter[SignalState.COND_ERROR] == 1
+        assert d.signal_state_counter[SignalState.EVAL_ERROR] == 1
         (error,) = payload["debugger"]["snapshot"]["evaluationErrors"]
         assert error["expr"] == "arg.x"
 

@@ -17,6 +17,9 @@ from ddtrace.internal.logger import get_logger
 CaptorType = Callable[[list[tuple[str, Any]], list[tuple[str, Any]], ExcInfoType, int], Any]
 
 log = get_logger(__name__)
+
+_EVAL_ERROR_KINDS = {SignalState.COND_ERROR: "condition", SignalState.EVAL_ERROR: "value"}
+
 meter = metrics.get_meter("signal.collector")
 
 
@@ -59,10 +62,10 @@ class SignalCollector:
                 "dynamic_instrumentation.guardrails.events.skipped",
                 tags={"reason": "evaluationErrorThrottled", "probe_type": type(signal.probe).__name__},
             )
-        elif signal.state is SignalState.COND_ERROR:
+        elif signal.state in _EVAL_ERROR_KINDS:
             meter.increment(
                 "dynamic_instrumentation.guardrails.evaluation.errors",
-                tags={"probe_type": type(signal.probe).__name__, "error_kind": signal.error_kind},
+                tags={"probe_type": type(signal.probe).__name__, "error_kind": _EVAL_ERROR_KINDS[signal.state]},
             )
         elif signal.state is SignalState.SKIP_RATE_GLOBAL:
             meter.increment(
@@ -110,7 +113,7 @@ class SignalCollector:
 
         if (
             isinstance(signal, LogSignal)
-            and signal.state in {SignalState.DONE, SignalState.COND_ERROR}
+            and signal.state in {SignalState.DONE, SignalState.COND_ERROR, SignalState.EVAL_ERROR}
             and signal.has_message()
         ):
             log.debug("Enqueueing signal %s", signal)

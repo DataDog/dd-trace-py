@@ -15,6 +15,7 @@ from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._safety import safe_qualname
 from ddtrace.debugging._signal.log import LogSignal
+from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
@@ -51,14 +52,14 @@ class MetricSample(LogSignal):
             try:
                 raw = probe.value(scope)
             except DDExpressionEvaluationError as e:
-                self._record_evaluation_error(e.dsl, e.error, kind="value")
+                self._record_evaluation_error(e.dsl, e.error, SignalState.EVAL_ERROR)
                 return
             try:
                 value = float(raw)
             except Exception:
                 # Name only the type: the value itself may be sensitive and has not been redacted.
                 self._record_evaluation_error(
-                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", kind="value"
+                    probe.value.dsl, f"Value is not a number: {safe_qualname(type(raw))}", SignalState.EVAL_ERROR
                 )
                 return
 
