@@ -29,6 +29,12 @@ void
 Datadog::SampleManager::add_type(unsigned int type)
 {
     auto& state = ProfilerState::get();
+    // Profile columns are fixed in one_time_init. ORing a type after that
+    // leaves the new ValueIndex slots at 0, so GC writes land in the CPU-time
+    // column. Refuse late additions; enable GC on the first start instead.
+    if (state.is_initialized()) {
+        return;
+    }
     state.type_mask = static_cast<SampleType>((state.type_mask | type) & SampleType::Known);
 }
 
