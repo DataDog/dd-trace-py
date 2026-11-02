@@ -291,3 +291,12 @@ experiments:
           - name: startup-ddtrace_run_runtime_metrics
             thresholds:
               - execution_time < 10000 ms
+          - name: startup-baseline_flask_requests
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_auto_flask_requests
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_flask_requests
+            thresholds:
+              - execution_time < 10000 ms

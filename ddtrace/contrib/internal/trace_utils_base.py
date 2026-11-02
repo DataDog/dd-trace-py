@@ -1,5 +1,4 @@
 from collections.abc import Mapping
-import re
 from typing import Any
 from typing import Optional
 
@@ -19,60 +18,13 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.http import normalize_header_name
+from ddtrace.internal.utils.http import NORMALIZE_PATTERN as NORMALIZE_PATTERN
+from ddtrace.internal.utils.http import _get_header_value_case_insensitive as _get_header_value_case_insensitive
+from ddtrace.internal.utils.http import _normalize_tag_name as _normalize_tag_name
+from ddtrace.internal.utils.http import _normalized_header_name as _normalized_header_name
 
 
 log = get_logger(__name__)
-
-NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
-
-
-@cached()
-def _normalized_header_name(header_name: str) -> str:
-    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
-
-
-def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
-    """
-    Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
-    'http.request.headers.content_type'. Rules applied actual header name are:
-    - any letter is converted to lowercase
-    - any digit is left unchanged
-    - any block of any length of different ASCII chars is converted to a single underscore '_'
-    :param request_or_response: The context of the headers: request|response
-    :param header_name: The header's name
-    :type header_name: str
-    :rtype: str
-    """
-    # Looking at:
-    #   - http://www.iana.org/assignments/message-headers/message-headers.xhtml
-    #   - https://tools.ietf.org/html/rfc6648
-    # and for consistency with other language integrations seems safe to assume the following algorithm for header
-    # names normalization:
-    #   - any letter is converted to lowercase
-    #   - any digit is left unchanged
-    #   - any block of any length of different ASCII chars is converted to a single underscore '_'
-    normalized_name = _normalized_header_name(header_name)
-    return f"http.{request_or_response}.headers.{normalized_name}"
-
-
-def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:
-    """
-    Get a header in a case insensitive way. This function is meant for frameworks
-    like Django < 2.2 that don't store the headers in a case insensitive mapping.
-    """
-    # just in case we are lucky
-    shortcut_value = headers.get(keyname)
-    if shortcut_value is not None:
-        return shortcut_value
-
-    for key, value in headers.items():
-        if key.lower().replace("_", "-") == keyname:
-            return value
-
-    return None
-
 
 # Possible User Agent header.
 USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")

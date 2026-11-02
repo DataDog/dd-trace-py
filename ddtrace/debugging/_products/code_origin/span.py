@@ -1,7 +1,9 @@
 from functools import partial
+import sys
 from types import FunctionType
 from types import MethodType
 import typing as t
+import weakref
 
 import ddtrace.internal.core as core
 from ddtrace.internal.logger import get_logger
@@ -9,9 +11,13 @@ from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.products import manager as product_manager
 from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.settings.code_origin import config
+from ddtrace.internal.threads import RLock
 
 
 log = get_logger(__name__)
+
+_pending: "weakref.WeakSet[FunctionType]" = weakref.WeakSet()
+_lock = RLock()
 
 CO_ENABLED = "DD_CODE_ORIGIN_FOR_SPANS_ENABLED"
 DI_PRODUCT_KEY = "dynamic-instrumentation"
@@ -26,9 +32,13 @@ for core_event in ("service_entrypoint.patch", "tracer.wrap"):
 
     @partial(core.on, core_event)
     def _(f: t.Union[FunctionType, MethodType]) -> None:
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+        with _lock:
+            if "ddtrace.debugging._origin.span" in sys.modules:
+                from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
-        SpanCodeOriginProcessorEntry.instrument_view(f)
+                SpanCodeOriginProcessorEntry.instrument_view(f)
+            elif isinstance(f, (FunctionType, MethodType)):
+                _pending.add(t.cast(FunctionType, f.__func__ if isinstance(f, MethodType) else f))
 
 
 def post_preload() -> None:
@@ -38,7 +48,11 @@ def post_preload() -> None:
 def start() -> None:
     from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
-    SpanCodeOriginProcessorEntry.enable()
+    with _lock:
+        SpanCodeOriginProcessorEntry.enable()
+        for f in list(_pending):
+            SpanCodeOriginProcessorEntry.instrument_view(f)
+        _pending.clear()
 
 
 def enabled() -> bool:
@@ -53,9 +67,10 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+    if "ddtrace.debugging._origin.span" in sys.modules:
+        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
-    SpanCodeOriginProcessorEntry.disable()
+        SpanCodeOriginProcessorEntry.disable()
 
 
 APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableCodeOrigin,)

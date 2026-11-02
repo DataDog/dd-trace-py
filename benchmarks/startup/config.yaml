@@ -6,6 +6,7 @@ baseline: &defaults
   import_ddtrace_auto: false
   import_flask: false
   import_django: false
+  flask_requests: 0
 baseline_flask:
   <<: *defaults
   import_flask: true
@@ -60,3 +61,17 @@ ddtrace_run_runtime_metrics:
   <<: *defaults
   env: {"DD_RUNTIME_METRICS_ENABLED": "true"}
   ddtrace_run: true
+baseline_flask_requests:
+  <<: *defaults
+  import_flask: true
+  flask_requests: 10
+import_ddtrace_auto_flask_requests:
+  <<: *defaults
+  import_ddtrace_auto: true
+  import_flask: true
+  flask_requests: 10
+ddtrace_run_flask_requests:
+  <<: *defaults
+  ddtrace_run: true
+  import_flask: true
+  flask_requests: 10

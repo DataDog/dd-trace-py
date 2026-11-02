@@ -72,6 +72,16 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Disabled product imports
+
+Keep product entry points and their parent packages lightweight. Load product implementations
+only for activation or explicit SDK use. Remote configuration callbacks must process configuration
+precedence and removals without importing an inactive implementation for unrelated updates.
+
+Keep only the early hooks needed to preserve activation after application imports. Fork and
+shutdown hooks must not initialize an inactive product. Test disabled products through requests,
+remote configuration updates, fork, and shutdown, as well as initial bootstrap.
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from

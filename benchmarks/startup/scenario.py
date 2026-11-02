@@ -13,6 +13,7 @@ class Startup(bm.Scenario):
     import_django: bool
     send_span: bool
     env: str
+    flask_requests: int = 0
 
     # Not helpful for subprocess benchmarks
     cprofile_loops: int = 0
@@ -29,14 +30,23 @@ class Startup(bm.Scenario):
         if self.import_ddtrace_auto:
             commands.append("import ddtrace.auto")
 
-        # Always do this last, we want to import/patch ddtrace first
-        # DEV: We don't need to create/start an app, we just want to see the impact on import time
-        #      with and without patching. We have other benchmarks to test overhead of requests.
+        # Import frameworks after instrumentation.
         if self.import_flask:
             commands.append("import flask")
         if self.import_django:
             # `import django` doesn't really do anything, `django.core.management` is what `manage.py` uses
             commands.append("import django.core.management")
+
+        if self.flask_requests:
+            commands.extend(
+                [
+                    "app = flask.Flask(__name__)",
+                    "app.add_url_rule('/', 'index', lambda: 'ok')",
+                    "client = app.test_client()",
+                    f"responses = [client.get('/') for _ in range({self.flask_requests})]",
+                    "assert all(response.status_code == 200 for response in responses)",
+                ]
+            )
 
         if self.send_span:
             commands.append("from ddtrace.trace import tracer")

@@ -1,3 +1,4 @@
+import sys
 from typing import Any
 
 from ddtrace.internal.native import RemoteConfigCapabilities
@@ -40,9 +41,10 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    from ddtrace.debugging import DynamicInstrumentation
+    if "ddtrace.debugging._debugger" in sys.modules:
+        from ddtrace.debugging import DynamicInstrumentation
 
-    DynamicInstrumentation.disable(join=join)
+        DynamicInstrumentation.disable(join=join)
 
 
 APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableDynamicInstrumentation,)

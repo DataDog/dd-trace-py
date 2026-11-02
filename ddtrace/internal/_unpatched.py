@@ -18,8 +18,11 @@ threading_Event = _threading.Event
 
 
 previous_loaded_modules = frozenset(sys.modules.keys())
-from subprocess import Popen as unpatched_Popen  # noqa # nosec B404
+import subprocess as unpatched_subprocess  # noqa # nosec B404
+
+unpatched_Popen = unpatched_subprocess.Popen
 from os import close as unpatched_close  # noqa: F401, E402
+
 
 loaded_modules = frozenset(sys.modules.keys())
 for module in previous_loaded_modules - loaded_modules:

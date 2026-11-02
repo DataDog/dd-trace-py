@@ -10,13 +10,13 @@ import os
 import random
 import re
 from shutil import which
-import subprocess
 from tempfile import TemporaryDirectory
 from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
+from ddtrace.internal._unpatched import unpatched_subprocess as subprocess
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cached

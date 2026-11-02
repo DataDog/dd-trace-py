@@ -1,3 +1,5 @@
+import sys
+
 from ddtrace.internal.settings.live_debugging import config
 
 
@@ -26,6 +28,7 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    from ddtrace.debugging._live import disable
+    if "ddtrace.debugging._live" in sys.modules:
+        from ddtrace.debugging._live import disable
 
-    disable()
+        disable()

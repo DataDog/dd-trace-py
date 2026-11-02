@@ -5,6 +5,7 @@ that operators can enable/disable LLMObs and set the ml_app name at runtime
 without restarting the service.
 """
 
+import sys
 import typing as t
 
 from ddtrace.internal.logger import get_logger
@@ -66,8 +67,6 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
     Config values are written via the standard remote_config source so they
     participate in the normal config precedence chain.
     """
-    from ddtrace.llmobs import LLMObs
-
     llmobs_config = lib_config.get("llmobs") or {}
 
     enabled_config = dd_config._config["_llmobs_enabled"]
@@ -75,6 +74,12 @@ def apm_tracing_rc(lib_config: dict, dd_config: t.Any) -> None:
 
     ml_app_config = dd_config._config["_llmobs_ml_app"]
     ml_app_config.set_value(llmobs_config.get("ml_app_name"), "remote_config")
+
+    implementation = sys.modules.get("ddtrace.llmobs._llmobs")
+    if not enabled_config.value() and implementation is None:
+        return
+
+    from ddtrace.llmobs import LLMObs
 
     if enabled_config.value() and not LLMObs.enabled:
         log.debug("Enabling LLMObs via Remote Config (ml_app=%r)", ml_app_config.value())

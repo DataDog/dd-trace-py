@@ -677,3 +677,34 @@ def multipart(parts: list[FormData]) -> tuple[bytes, dict]:
     headers, _, body = msg.as_bytes(policy=HTTP).partition(b"\r\n\r\n")
 
     return body, dict(_.split(": ") for _ in headers.decode().splitlines())
+
+
+NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
+
+
+@cached()
+def _normalized_header_name(header_name: str) -> str:
+    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+
+
+def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
+    """Return the normalized HTTP request or response header tag name."""
+    normalized_name = _normalized_header_name(header_name)
+    return f"http.{request_or_response}.headers.{normalized_name}"
+
+
+def _get_header_value_case_insensitive(headers: Mapping[str, str], keyname: str) -> Optional[str]:
+    """
+    Get a header in a case insensitive way. This function is meant for frameworks
+    like Django < 2.2 that don't store the headers in a case insensitive mapping.
+    """
+    # just in case we are lucky
+    shortcut_value = headers.get(keyname)
+    if shortcut_value is not None:
+        return shortcut_value
+
+    for key, value in headers.items():
+        if key.lower().replace("_", "-") == keyname:
+            return value
+
+    return None

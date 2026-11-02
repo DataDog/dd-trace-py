@@ -1,0 +1,4 @@
+other:
+  - |
+    perf: Reduces startup overhead when optional products are disabled and avoids
+    loading their implementations during ordinary requests, fork, and shutdown.

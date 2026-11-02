@@ -13,7 +13,7 @@ from ddtrace.debugging import _sampling
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._exception.replay import SpanExceptionProbe
 from ddtrace.debugging._exception.replay import SpanExceptionSnapshot
-from ddtrace.debugging._origin.span import EntrySpanProbe
+from ddtrace.debugging._origin._span_snapshot import EntrySpanProbe
 from ddtrace.debugging._sampling import DebuggerSampler
 from ddtrace.debugging._sampling import Decision
 from ddtrace.debugging._signal.model import SignalState

@@ -23,7 +23,6 @@ from ddtrace.appsec._metrics import set_waf_request_metrics
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
-from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
@@ -37,6 +36,7 @@ from ddtrace.internal.security._context import _ASM_CONTEXT
 from ddtrace.internal.security._context import get_entry_span as get_entry_span
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.http import _normalize_tag_name
 
 
 if TYPE_CHECKING:

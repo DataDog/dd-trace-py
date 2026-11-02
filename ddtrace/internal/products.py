@@ -146,6 +146,8 @@ class ProductManager:
     def before_fork(self) -> None:
         for name, product in self.products:
             try:
+                if not product.enabled():
+                    continue
                 if (hook := getattr(product, "before_fork", None)) is None:
                     continue
                 hook()
@@ -168,6 +170,8 @@ class ProductManager:
                 continue
 
             try:
+                if not product.enabled():
+                    continue
                 product.restart(join=join)
                 log.debug("Restarted product '%s'", name)
             except Exception:

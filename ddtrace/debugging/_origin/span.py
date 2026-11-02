@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 from time import monotonic_ns
 from types import FunctionType
@@ -7,56 +8,21 @@ import typing as t
 import weakref
 
 import ddtrace
-from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
-from ddtrace.debugging._probe.model import LiteralTemplateSegment
-from ddtrace.debugging._probe.model import LogFunctionProbe
-from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._session import Session
-from ddtrace.debugging._signal.model import TraceContextProtocol
-from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.debugging._uploader import SignalUploader
-from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import uuid4
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.threads import RLock
-from ddtrace.internal.threads import current_thread
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
+if t.TYPE_CHECKING:
+    from ddtrace.debugging._origin._span_snapshot import EntrySpanProbe
+    from ddtrace.debugging._uploader import SignalUploader
+
+
 log = get_logger(__name__)
-
-
-@dataclass
-class EntrySpanProbe(LogFunctionProbe):
-    __span_class__ = "entry"
-
-    def is_sampled(self) -> bool:
-        # Code origin snapshots are not coordinated with Live Debugger probes.
-        return False
-
-    @classmethod
-    def build(cls, name: str, module: str, function: str) -> "EntrySpanProbe":
-        message = f"{cls.__span_class__} span info for {name}, in {module}, in function {function}"
-
-        return cls(
-            probe_id=uuid4(),
-            version=0,
-            tags={},
-            module=module,
-            func_qname=function,
-            evaluate_at=ProbeEvalTiming.ENTRY,
-            template=message,
-            segments=[LiteralTemplateSegment(message)],
-            take_snapshot=True,
-            capture_expressions=[],
-            limits=DEFAULT_CAPTURE_LIMITS,
-            condition=None,
-            condition_error_rate=0.0,
-            rate=float("inf"),
-        )
 
 
 @dataclass
@@ -65,7 +31,15 @@ class EntrySpanLocation:
     line: int
     file: str
     module: str
-    probe: EntrySpanProbe
+    _probe: t.Optional["EntrySpanProbe"] = field(default=None, repr=False)
+
+    @property
+    def probe(self) -> "EntrySpanProbe":
+        if self._probe is None:
+            from ddtrace.debugging._origin._span_snapshot import EntrySpanProbe
+
+            self._probe = EntrySpanProbe.build(name=self.name, module=self.module, function=self.name)
+        return self._probe
 
 
 class EntrySpanWrappingContext(LazyWrappingContext):
@@ -79,7 +53,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
     __enabled__ = False
     __priority__ = 199
 
-    def __init__(self, uploader: type[SignalUploader], f: FunctionType) -> None:
+    def __init__(self, uploader: t.Callable[[], t.Optional[type["SignalUploader"]]], f: FunctionType) -> None:
         super().__init__(f)
 
         self.uploader = uploader
@@ -92,7 +66,6 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             line=f.__code__.co_firstlineno,
             file=filename,
             module=module,
-            probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
         )
 
     def __enter__(self) -> "EntrySpanWrappingContext":
@@ -140,25 +113,12 @@ class EntrySpanWrappingContext(LazyWrappingContext):
                 # Context was not opened
                 return
 
-            # Create a snapshot
-            snapshot = Snapshot(
-                probe=self.location.probe,
-                frame=self.__frame__,
-                thread=current_thread(),
-                trace_context=t.cast(TraceContextProtocol, root),
-            )
+            from ddtrace.debugging._origin._span_snapshot import capture_snapshot
 
-            # Capture on entry
-            snapshot.do_enter()
-
-            # Correlate the snapshot with the span
-            root._set_attribute("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
-            span._set_attribute("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
-
-            snapshot.do_exit(retval, exc_info, monotonic_ns() - start_time)
-
-            if (collector := self.uploader.get_collector()) is not None:
-                collector.push(snapshot)
+            if (uploader := self.uploader()) is not None:
+                capture_snapshot(
+                    self.location.probe, self.__frame__, root, span, start_time, retval, exc_info, uploader
+                )
 
     def __return__(self, retval: t.Any) -> t.Any:
         self._close_signal(retval=retval)
@@ -175,7 +135,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
 
 
 class SpanCodeOriginProcessorEntry:
-    __uploader__ = SignalUploader
+    __uploader__: t.Optional[type["SignalUploader"]] = None
     __context_wrapper__ = EntrySpanWrappingContext
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
@@ -204,7 +164,20 @@ class SpanCodeOriginProcessorEntry:
         _f = t.cast(FunctionType, f)
         if not EntrySpanWrappingContext.is_wrapped(_f):
             log.debug("Lazy wrapping entrypoint %r for code origin", f)
-            EntrySpanWrappingContext(cls.__uploader__, _f).wrap()
+            EntrySpanWrappingContext(cls._snapshot_uploader, _f).wrap()
+
+    @classmethod
+    def _snapshot_uploader(cls) -> t.Optional[type["SignalUploader"]]:
+        from ddtrace.debugging._uploader import SignalUploader
+        from ddtrace.debugging._uploader import UploaderProduct
+
+        with cls._lock:
+            if cls._instance is None:
+                return None
+            if cls.__uploader__ is None:
+                cls.__uploader__ = SignalUploader
+            cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
+            return cls.__uploader__
 
     @classmethod
     def enable(cls) -> None:
@@ -219,8 +192,8 @@ class SpanCodeOriginProcessorEntry:
             for f in pending:
                 cls.instrument_view(f)
 
-        # Register code origin for span with the snapshot uploader
-        cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
+        if cls.__uploader__ is not None:
+            cls._snapshot_uploader()
 
         # Enable the context wrapper
         cls.__context_wrapper__.__enabled__ = True
@@ -235,8 +208,10 @@ class SpanCodeOriginProcessorEntry:
         # Disable the context wrapper
         cls.__context_wrapper__.__enabled__ = False
 
-        # Unregister code origin for span with the snapshot uploader
-        cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
+        if cls.__uploader__ is not None:
+            from ddtrace.debugging._uploader import UploaderProduct
+
+            cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
 
         cls._instance = None
 

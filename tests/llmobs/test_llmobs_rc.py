@@ -1,6 +1,34 @@
 import pytest
 
 
+@pytest.mark.subprocess(
+    env={"DD_LLMOBS_ENABLED": None, "DD_API_KEY": "0" * 32, "DD_TRACE_AGENT_URL": "http://127.0.0.1:1"},
+    err=None,
+)
+def test_rc_cold_activation_and_removal():
+    import sys
+
+    from ddtrace import config
+    import ddtrace.auto  # noqa: F401
+    from ddtrace.llmobs._product import apm_tracing_rc
+
+    assert "ddtrace.llmobs._llmobs" not in sys.modules
+    apm_tracing_rc({"llmobs": {"enabled": True, "ml_app_name": "startup-test"}}, config)
+    from ddtrace.llmobs import LLMObs
+
+    assert LLMObs.enabled
+    with LLMObs.task(name="remote-enabled"):
+        pass
+    apm_tracing_rc({}, config)
+    assert not LLMObs.enabled
+    assert not config._llmobs_enabled
+
+    LLMObs.enable(ml_app="manual-test", agentless_enabled=True)
+    apm_tracing_rc({}, config)
+    assert LLMObs.enabled
+    LLMObs.disable()
+
+
 @pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
 def test_rc_enables_llmobs_and_sets_ml_app():
     """RC payload with llmobs.enabled=true sets config and calls LLMObs.enable()."""

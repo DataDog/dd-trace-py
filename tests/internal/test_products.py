@@ -107,6 +107,187 @@ def test_product_manager_start():
     assert a.started
 
 
+def test_disabled_product_fork_hooks_are_not_called():
+    class Disabled(BaseProduct):
+        def enabled(self) -> bool:
+            return False
+
+        def before_fork(self) -> None:
+            raise AssertionError("Inactive product initialized before fork")
+
+    product = Disabled()
+    manager = ProductManagerTest({"disabled": product})
+    manager.before_fork()
+    manager.restart_products()
+    assert not product.restarted
+
+
+@pytest.mark.subprocess(
+    parametrize={"DD_REMOTE_CONFIGURATION_ENABLED": ["true", "false"]},
+    env={
+        "DD_TRACE_AGENT_URL": "http://127.0.0.1:1",
+        "DD_LLMOBS_ENABLED": None,
+        "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "true",
+    },
+    err=None,
+    timeout=60,
+)
+def test_disabled_products_stay_unloaded_through_lifecycle():
+    import os
+    import sys
+
+    from ddtrace import config
+    from ddtrace import tracer
+    import ddtrace.auto  # noqa: F401
+    from ddtrace.internal import core
+    from ddtrace.internal.products import manager
+    from ddtrace.llmobs._product import apm_tracing_rc
+
+    forbidden = (
+        "ddtrace.llmobs._llmobs",
+        "ddtrace.llmobs._experiment",
+        "ddtrace.llmobs._evaluators",
+        "ddtrace.debugging._debugger",
+        "ddtrace.debugging._probe.remoteconfig",
+        "ddtrace.debugging._origin._span_snapshot",
+        "ddtrace.debugging._uploader",
+        "ddtrace.internal.symbol_db.symbols",
+    )
+
+    def check():
+        assert not set(forbidden).intersection(sys.modules), set(forbidden).intersection(sys.modules)
+
+    def view():
+        return 42
+
+    check()
+    core.dispatch("service_entrypoint.patch", (view,))
+    for _ in range(3):
+        with tracer.trace("request") as span:
+            assert view() == 42
+            assert span.get_tag("_dd.code_origin.type") == "entry"
+    check()
+    apm_tracing_rc({"tracing_sampling_rate": 0.5}, config)
+    apm_tracing_rc({"llmobs": {"enabled": False}}, config)
+    apm_tracing_rc({}, config)
+    check()
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+
+    for content in ({}, {"upload_symbols": False}):
+        _rc_callback([Payload(ConfigMetadata("test", "symdb", None, 0, 0), "test", content)])
+    check()
+    child = os.fork()
+    if child == 0:
+        try:
+            check()
+        except AssertionError:
+            os._exit(1)
+        os._exit(0)
+    _, status = os.waitpid(child, 0)
+    assert status == 0
+    check()
+    manager.exit_products()
+    check()
+
+
+@pytest.mark.subprocess(env={"DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false"}, err=None)
+def test_disabled_product_code_origin_preserves_early_views():
+    import sys
+    import weakref
+
+    import ddtrace.auto  # noqa: F401
+    from ddtrace.debugging._products.code_origin import span as product
+    from ddtrace.internal import core
+
+    def view():
+        return 42
+
+    core.dispatch("service_entrypoint.patch", (view,))
+    assert "ddtrace.debugging._origin.span" not in sys.modules
+    assert view in product._pending
+
+    def temporary():
+        pass
+
+    reference = weakref.ref(temporary)
+    core.dispatch("service_entrypoint.patch", (temporary,))
+    del temporary
+    assert reference() is None
+    product.start()
+    from ddtrace.debugging._origin.span import EntrySpanWrappingContext
+
+    assert EntrySpanWrappingContext.is_wrapped(view)
+    assert not product._pending
+    assert view() == 42
+    product.stop()
+
+
+@pytest.mark.subprocess(
+    env={"DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "true", "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "true"},
+    err=None,
+    timeout=60,
+)
+def test_code_origin_snapshot_on_background_thread():
+    import sys
+
+    from ddtrace import tracer
+    import ddtrace.auto  # noqa: F401
+    from ddtrace.debugging._session import Session
+    from ddtrace.internal import core
+    from ddtrace.internal.threads import Thread
+
+    assert "threading" not in sys.modules
+    assert "ddtrace.debugging._origin._span_snapshot" not in sys.modules
+    errors = []
+
+    def view():
+        return 42
+
+    core.dispatch("service_entrypoint.patch", (view,))
+
+    def capture():
+        try:
+            with tracer.trace("request") as span:
+                Session(ident="startup-test", level=2).link_to_trace()
+                assert view() == 42
+                assert span.get_tag("_dd.code_origin.frames.0.snapshot_id")
+        except Exception as error:
+            errors.append(error)
+
+    worker = Thread(capture, name="snapshot-test")
+    worker.start()
+    worker.join()
+    assert not errors
+    assert "ddtrace.debugging._origin._span_snapshot" in sys.modules
+    assert "threading" not in sys.modules
+
+
+@pytest.mark.subprocess
+def test_lazy_product_exports_preserve_public_objects():
+    import importlib
+    import sys
+
+    import ddtrace.llmobs as sdk
+    import ddtrace.llmobs._evaluators as evaluators
+
+    assert "ddtrace.llmobs._llmobs" not in sys.modules
+    assert "ddtrace.llmobs._experiment" not in sys.modules
+    for package in (sdk, evaluators):
+        assert set(package.__all__).issubset(dir(package))
+        for name, module in package._EXPORTS.items():
+            value = getattr(package, name)
+            assert value is getattr(importlib.import_module(module), name)
+            assert package.__dict__[name] is value
+        try:
+            package.nonexistent_export
+        except AttributeError:
+            pass
+        else:
+            raise AssertionError("Unknown exports must raise AttributeError")
+
+
 @pytest.mark.subprocess
 def test_product_manager_restart():
     import os

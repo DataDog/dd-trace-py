@@ -67,3 +67,8 @@ workflow; LLMObs lifecycle and extraction details belong in that skill.
 | `ddtrace/internal/core/events.py` | Event + event_field() primitives |
 | `tests/*/suitespec.yml` | Test environment matrix |
 | `scripts/run-tests` | Test execution interface |
+
+## Shared HTTP helpers
+
+Use `ddtrace.internal.utils.http` for header lookup and header-tag normalization in optional products.
+The aliases in `ddtrace.contrib.internal.trace_utils_base` remain available to integrations.

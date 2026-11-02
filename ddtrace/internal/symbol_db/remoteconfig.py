@@ -1,4 +1,5 @@
 import os
+import sys
 import typing as t
 
 from ddtrace.internal._runtime_id import get_ancestor_runtime_id
@@ -10,7 +11,6 @@ from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
 
 log = get_logger(__name__)
@@ -32,6 +32,11 @@ class SymbolDatabaseCallback(RCCallback):
         Args:
             payloads: Sequence of configuration payloads to process
         """
+        uploader = None
+        if "ddtrace.internal.symbol_db.symbols" in sys.modules:
+            from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+            uploader = SymbolDatabaseUploader
         with shared_pid_file.lock_exclusive() as f:
             pid = str(os.getpid())
             pids = set(shared_pid_file.peekall_unlocked(f))
@@ -48,8 +53,8 @@ class SymbolDatabaseCallback(RCCallback):
                 remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggingSymbolDb)
                 remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
 
-                if SymbolDatabaseUploader.is_installed():
-                    SymbolDatabaseUploader.uninstall()
+                if uploader is not None and uploader.is_installed():
+                    uploader.uninstall()
 
                 return
 
@@ -66,22 +71,25 @@ class SymbolDatabaseCallback(RCCallback):
                 continue
 
             if upload_symbols:
+                from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+                uploader = SymbolDatabaseUploader
                 log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
-                if not SymbolDatabaseUploader.is_installed():
+                if not uploader.is_installed():
                     try:
-                        SymbolDatabaseUploader.install()
+                        uploader.install()
                         log.debug("[PID %d] SymDB: Symbol DB uploader installed", os.getpid())
                     except Exception:
                         log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)
                         remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebuggingSymbolDb)
                         remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebuggingSymbolDb)
                 else:
-                    SymbolDatabaseUploader.update()
+                    uploader.update()
             else:
                 log.debug("[PID %d] SymDB: Symbol DB RCM shutdown signal received", os.getpid())
-                if SymbolDatabaseUploader.is_installed():
+                if uploader is not None and uploader.is_installed():
                     try:
-                        SymbolDatabaseUploader.uninstall()
+                        uploader.uninstall()
                         log.debug("[PID %d] SymDB: Symbol DB uploader uninstalled", os.getpid())
                     except Exception:
                         log.error("[PID %d] SymDB: Failed to uninstall Symbol DB uploader", os.getpid(), exc_info=True)
@@ -92,3 +100,11 @@ class SymbolDatabaseCallback(RCCallback):
 
 # Keep the old name for compatibility but mark as deprecated
 _rc_callback = SymbolDatabaseCallback()
+
+
+def __getattr__(name: str) -> t.Any:
+    if name != "SymbolDatabaseUploader":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    return SymbolDatabaseUploader

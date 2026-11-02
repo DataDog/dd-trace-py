@@ -1,3 +1,4 @@
+import sys
 from typing import Any
 
 from ddtrace.debugging._config import er_config as config
@@ -29,9 +30,10 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    from ddtrace.debugging._exception.replay import SpanExceptionHandler
+    if "ddtrace.debugging._exception.replay" in sys.modules:
+        from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
-    SpanExceptionHandler.disable()
+        SpanExceptionHandler.disable()
 
 
 APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableExceptionReplay,)
