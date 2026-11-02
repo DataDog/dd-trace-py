@@ -131,7 +131,7 @@ class VulnerabilityBase:
         )
 
     @classmethod
-    def report(cls, evidence_value: Optional[TEXT_TYPES] = None, dialect: Optional[str] = None) -> Optional[bool]:
+    def report(cls, evidence_value: Optional[TEXT_TYPES] = None, dialect: Optional[str] = None) -> bool:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         result = False
         if should_process_vulnerability(cls.vulnerability_type):
@@ -146,8 +146,7 @@ class VulnerabilityBase:
             result = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
             )
-            # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
-            # we need to restore the quota
+            # Restore the quota when deduplication prevents reporting a vulnerability.
             if not result:
                 rollback_quota(cls.vulnerability_type)
         return result
