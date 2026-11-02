@@ -3,7 +3,7 @@ import contextlib
 import gc
 import sys
 import threading
-import types
+import time
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import gc_monitor
@@ -235,7 +235,7 @@ def test_snapshot_never_splits_a_pause(monkeypatch) -> None:
     reads and the reset must not vanish or pair a new maximum with an old total.
     """
     clock: list[int] = [0]
-    monkeypatch.setattr(gc_monitor, "time", types.SimpleNamespace(monotonic_ns=lambda: clock[0]))
+    monkeypatch.setattr(gc_monitor, "_pause_clock_ns", lambda: clock[0])
     snapshot_code = GCPauseMonitor.snapshot_and_reset.__code__
     previous_trace = sys.gettrace()
     target: int = 0
@@ -294,3 +294,47 @@ def test_skipped_stop_does_not_pair_with_a_later_stop() -> None:
     monitor._on_gc("stop", {"generation": 0})
 
     assert monitor.snapshot_and_reset().n_pauses == 0
+
+
+def test_pause_excludes_time_other_threads_run() -> None:
+    """Time that another thread runs during a collection is not a stop-the-world pause.
+
+    Python code inside a collection (gc.callbacks, finalizers) can hand the GIL to
+    another thread, which keeps it for as long as it runs. Wall time between start
+    and stop would report all of that as one pause.
+    """
+    other_ran_ns: int = 200_000_000
+    go: threading.Event = threading.Event()
+    other_done: threading.Event = threading.Event()
+
+    def other_thread() -> None:
+        go.wait()
+        deadline: int = time.monotonic_ns() + other_ran_ns
+        while time.monotonic_ns() < deadline:
+            pass
+        other_done.set()
+
+    def hand_off_gil(phase: str, info: dict[str, int]) -> None:
+        if phase == "start" and not other_done.is_set():
+            go.set()
+            other_done.wait(timeout=5)
+
+    thread: threading.Thread = threading.Thread(target=other_thread, daemon=True)
+    thread.start()
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    monitor.acquire()
+    # After the monitor's hook, so the hand-off lands between its start and stop.
+    gc.callbacks.append(hand_off_gil)
+    try:
+        monitor.snapshot_and_reset()
+        gc.collect()
+        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
+    finally:
+        gc.callbacks.remove(hand_off_gil)
+        monitor.release()
+        go.set()
+        thread.join(timeout=5)
+
+    assert other_done.is_set()
+    assert snap.n_pauses >= 1
+    assert snap.max_ns < other_ran_ns // 2, snap
