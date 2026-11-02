@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 
 import django
@@ -10,6 +11,14 @@ from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
+
+
+@pytest.mark.parametrize("server_time", [datetime(2026, 3, 8, 2, 30), datetime(2026, 11, 1, 1, 30)])
+def test_error_report_during_dst_transition(client, mocker, server_time):
+    # These naive times are nonexistent or ambiguous in Django's default America/Chicago timezone.
+    mocker.patch("django.views.debug.timezone.now", return_value=server_time)
+    response = client.get("/users/")
+    assert response.status_code == 500
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
