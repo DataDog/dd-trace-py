@@ -1,3 +1,4 @@
+from contextvars import Context
 import time
 from unittest import mock
 
@@ -208,6 +209,35 @@ def test_timed_redacted_expression_nested_keeps_outer_deadline():
         assert get_eval_deadline() == outer_deadline
     finally:
         set_eval_deadline(None)
+
+
+def test_timed_redacted_expression_deadline_is_per_context():
+    """The deadline does not leak into an evaluation running in another
+    context, e.g. another greenlet that user code called by the expression
+    switches to, nor does that evaluation change it.
+    """
+    expr = DDTimedRedactedExpression.compile(
+        {"dsl": "small", "json": {"any": [{"ref": "small"}, {"eq": [{"ref": "@it"}, -1]}]}}
+    )
+    seen = []
+
+    class _Switching:
+        def __iter__(self):
+            outer = get_eval_deadline()
+            # Let the outer deadline expire, then run another evaluation in a
+            # fresh context, like a greenlet switch would.
+            time.sleep(0.002)
+            seen.append(Context().run(lambda: (get_eval_deadline(), expr.eval({"small": range(1000)}))))
+            assert get_eval_deadline() == outer
+            yield 0
+
+    with mock.patch.object(config, "evaluation_timeout_ms", 1):
+        with pytest.raises(EvaluationTimeoutError):
+            expr.eval({"small": _Switching()})
+
+    # The other evaluation saw no deadline and got its own full budget.
+    assert seen == [(None, False)]
+    assert get_eval_deadline() is None
 
 
 def test_timed_redacted_expression_disabled_when_timeout_not_positive():

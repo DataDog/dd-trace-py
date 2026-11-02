@@ -28,12 +28,12 @@ from collections.abc import Collection
 from collections.abc import Iterable
 from collections.abc import Iterator
 from collections.abc import Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import chain
 from itertools import islice
 import re
-import threading
 from time import perf_counter_ns
 from types import FunctionType
 from typing import Any
@@ -70,23 +70,20 @@ class EvaluationTimeoutError(TimeoutError):
     """Raised when an expression evaluation exceeds its deadline."""
 
 
-# Deadline (in perf_counter_ns) of the expression evaluation running on this
-# thread, or None.
-class _EvalDeadline(threading.local):
-    # Class-level default: a missing per-thread attribute would otherwise
-    # make every first read on a thread go through AttributeError.
-    ns: Optional[int] = None
-
-
-_eval_deadline = _EvalDeadline()
+# Deadline (in perf_counter_ns) of the expression evaluation running in this
+# context, or None. A context variable rather than a thread-local so that it is
+# also per greenlet: user code called by an expression can switch greenlets
+# mid-evaluation, and a thread-local would then leak the deadline into
+# evaluations running in other greenlets on the same thread.
+_eval_deadline: ContextVar[Optional[int]] = ContextVar("_eval_deadline", default=None)
 
 
 def get_eval_deadline() -> Optional[int]:
-    return _eval_deadline.ns
+    return _eval_deadline.get()
 
 
 def set_eval_deadline(deadline_ns: Optional[int]) -> None:
-    _eval_deadline.ns = deadline_ns
+    _eval_deadline.set(deadline_ns)
 
 
 # Chunks are sized at runtime so that the deadline is checked about every
