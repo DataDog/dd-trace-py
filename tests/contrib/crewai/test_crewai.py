@@ -1,4 +1,14 @@
+from crewai import Crew
+from crewai import Flow
+from crewai.tools import BaseTool
+from crewai.tools import tool
 import pytest
+
+
+# Crew.akickoff runs tasks, agents and tools with native async methods instead of a worker thread.
+requires_native_async = pytest.mark.skipif(
+    not hasattr(Crew, "akickoff"), reason="Crew.akickoff is not available in this crewai version"
+)
 
 
 @pytest.mark.snapshot
@@ -127,3 +137,85 @@ def test_complex_flow(crewai, complex_flow):
 @pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow")
 async def test_complex_flow_async(crewai, complex_flow_async):
     await complex_flow_async.kickoff_async(inputs={"continent": "North America"})
+
+
+@requires_native_async
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+async def test_basic_crew_akickoff(crewai, basic_crew, request_vcr):
+    with request_vcr.use_cassette("test_basic_crew.yaml"):
+        await basic_crew.akickoff(inputs={"topic": "AI"})
+
+
+@requires_native_async
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_tool")
+async def test_crew_with_tool_akickoff(crewai, tool_crew, request_vcr):
+    with request_vcr.use_cassette("test_crew_with_tool.yaml"):
+        await tool_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+
+
+@requires_native_async
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks")
+async def test_crew_with_async_tasks_akickoff(crewai, async_exec_crew, request_vcr):
+    with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
+        await async_exec_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+
+
+@pytest.mark.skipif(not hasattr(Flow, "akickoff"), reason="Flow.akickoff is not available")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+async def test_simple_flow_akickoff(crewai, simple_flow_async):
+    await simple_flow_async.akickoff(inputs={"continent": "North America"})
+
+
+@tool("Sum Calculator")
+def sum_tool(entries: list) -> float:
+    """This tool returns the sum of a list of numbers."""
+    return sum(entries)
+
+
+class MaxTool(BaseTool):
+    name: str = "Max Calculator"
+    description: str = "This tool returns the largest of a list of numbers."
+
+    def _run(self, entries: list) -> float:
+        return max(entries)
+
+
+class FailingTool(BaseTool):
+    name: str = "Failing Calculator"
+    description: str = "This tool always fails."
+
+    def _run(self, entries: list) -> float:
+        raise ValueError("calculation failed")
+
+
+# crewai>=1.0 executes native (function calling) tool calls through Tool.run / BaseTool.run.
+@pytest.mark.snapshot
+def test_tool_run(crewai):
+    assert sum_tool.run(entries=[10, 12, 14]) == 36
+    assert MaxTool().run(entries=[10, 12, 14]) == 14
+
+
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
+def test_tool_run_error(crewai):
+    with pytest.raises(ValueError):
+        FailingTool().run(entries=[10, 12, 14])
+
+
+@pytest.mark.snapshot
+async def test_tool_ainvoke(crewai):
+    assert await MaxTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]}) == 14
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_tool_run_error", ignores=["meta.error.stack"])
+async def test_tool_ainvoke_error(crewai):
+    with pytest.raises(ValueError):
+        await FailingTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]})
+
+
+@pytest.mark.skipif(not hasattr(Flow, "astream"), reason="Flow streaming is not available")
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+async def test_simple_flow_stream(crewai, simple_flow_async):
+    simple_flow_async.stream = True
+    session = await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
+    async for _ in session:
+        pass

@@ -311,7 +311,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         span_links = (
             self._flow_span_to_method_to_span_dict.get(span._parent, {}).get(span.name, {}).get("span_links", [])
         )
-        if span.name in getattr(flow_instance, "_start_methods", []) and span._parent is not None:
+        if span.name in _get_flow_start_methods(flow_instance) and span._parent is not None:
             span_links.append(
                 _SpanLink(
                     span_id=str(span._parent.span_id),
@@ -320,7 +320,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 )
             )
 
-        if span.name in getattr(flow_instance, "_routers", []):
+        if span.name in _get_flow_routers(flow_instance):
             # For router methods the downstream trigger is the router's result, not the method name.
             # We store the span info keyed by that result so it can be linked to future listener spans.
             span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(str(response), {})
@@ -360,11 +360,11 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         flow_methods_to_spans = self._flow_span_to_method_to_span_dict.get(flow_span, {})
         trigger_span_dict = flow_methods_to_spans.get(trigger_method)
-        if not trigger_span_dict or trigger_method in getattr(flow_instance, "_routers", []):
+        if not trigger_span_dict or trigger_method in _get_flow_routers(flow_instance):
             # For router methods the downstream trigger listens for the router's result, not the router method name
             # Skip if trigger_method represents a router method name instead of the router's results
             return
-        listeners = getattr(flow_instance, "_listeners", {})
+        listeners = _get_flow_listeners(flow_instance)
         triggered = False
         for listener_name, (condition_type, listener_triggers) in listeners.items():
             if trigger_method not in listener_triggers:
@@ -508,6 +508,47 @@ def _extract_tool_description_field(tool_description: str):
     if len(fields) == 1:
         return tool_description
     return fields[-1]
+
+
+def _get_flow_start_methods(flow_instance) -> list[str]:
+    if hasattr(flow_instance, "_start_methods"):
+        return list(flow_instance._start_methods)
+    # crewai>=1.0 derives flow structure from a static flow definition
+    start_method_names = getattr(flow_instance, "_start_method_names", None)
+    return [str(name) for name in start_method_names()] if callable(start_method_names) else []
+
+
+def _get_flow_routers(flow_instance) -> set[str]:
+    if hasattr(flow_instance, "_routers"):
+        return set(flow_instance._routers)
+    methods = getattr(getattr(flow_instance, "_definition", None), "methods", None) or {}
+    return {str(name) for name, definition in methods.items() if getattr(definition, "router", False)}
+
+
+def _get_flow_listeners(flow_instance) -> dict[str, tuple[str, list[str]]]:
+    """Return listeners as {listener_name: (condition_type, trigger_methods)}, the format used by crewai<1.0."""
+    if hasattr(flow_instance, "_listeners"):
+        return dict(flow_instance._listeners)
+    listener_methods = getattr(flow_instance, "_listener_methods", None)
+    if not callable(listener_methods):
+        return {}
+    listeners = {}
+    for listener_name, _, condition in listener_methods():
+        if isinstance(condition, str):
+            listeners[str(listener_name)] = ("OR", [condition])
+        elif isinstance(condition, dict):
+            condition_type = "AND" if "and" in condition else "OR"
+            listeners[str(listener_name)] = (condition_type, _get_flow_condition_triggers(condition))
+    return listeners
+
+
+def _get_flow_condition_triggers(condition) -> list[str]:
+    if isinstance(condition, str):
+        return [condition]
+    triggers = []
+    for branch in condition.get("and", condition.get("or", [])):
+        triggers.extend(_get_flow_condition_triggers(branch))
+    return triggers
 
 
 def _get_crew_id(span, operation):

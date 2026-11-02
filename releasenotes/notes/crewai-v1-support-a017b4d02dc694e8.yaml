@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    crewai: Adds tracing for crews started with ``Crew.akickoff()``, including their tasks, agents, and tools.
+fixes:
+  - |
+    crewai: Fixes an issue where tool spans were missing, extra spans were emitted for CrewAI's internal agent
+    executor, and flow method outputs and span links were incorrect when using ``crewai>=1.0``.

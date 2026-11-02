@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "Failing Calculator",
+    "service": "tests.contrib.crewai",
+    "resource": "CrewAI Tool",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6ae8d56800000000",
+      "_dd.sdk.otlp_export": "false",
+      "_dd.svc_src": "datadog",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
+      "error.message": "calculation failed",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/crewai/patch.py\", line 222, in traced_base_tool_run\n    result = func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.cache/test-environments/e7af43c888f8/lib/python3.12/site-packages/crewai/tools/base_tool.py\", line 365, in run\n    result = self._run(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/crewai/test_crewai.py\", line 188, in _run\n    raise ValueError(\"calculation failed\")\nValueError: calculation failed\n",
+      "error.type": "builtins.ValueError",
+      "language": "python",
+      "runtime-id": "1d6be00dd0b344549f459fbf058511e8"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 0.75,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 801599,
+    "start": 1793643880223046316
+  }]]

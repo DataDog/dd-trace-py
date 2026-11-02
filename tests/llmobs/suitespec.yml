@@ -439,7 +439,7 @@ suites:
           dependencies: [pytest-asyncio, openai, 'crewai~=0.102.0', 'vcrpy==7.0.0']
         - name: crewai
           python: ['3.10', '3.11', '3.12']
-          dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==7.0.0']
+          dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==8.3.0']
   openai_agents:
     venvs_per_job: 5
     paths:

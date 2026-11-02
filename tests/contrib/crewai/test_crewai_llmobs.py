@@ -2,6 +2,7 @@ import json
 from unittest import mock
 
 import crewai
+import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -14,7 +15,16 @@ from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
+try:
+    from crewai.constants import DEFAULT_LLM_MODEL
+except ImportError:  # crewai<1.0
+    from crewai.cli.constants import DEFAULT_LLM_MODEL
+
+
 CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
+requires_native_async = pytest.mark.skipif(
+    not hasattr(crewai.Crew, "akickoff"), reason="Crew.akickoff is not available in this crewai version"
+)
 
 
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
@@ -25,7 +35,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "backstory": "You're a seasoned researcher with a knack for uncovering the latest developments in AI. "
         "Known for your ability to find the most relevant information and present it in a clear "
         "and concise manner.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -39,7 +49,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "backstory": "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
         "complex data into clear and concise reports, making it easy for others to understand and act on the "
         "information you provide.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -51,7 +61,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "name": "Python Data Analyst",
         "goal": "Analyze data and provide insights using Python",
         "backstory": "You are an experienced data analyst with strong Python skills.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -69,7 +79,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "name": "Tour Guide",
         "goal": "Recommend fun activities for a group of humans.",
         "backstory": "You are a tour guide with a passion for finding the best activities for groups of people.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -490,3 +500,112 @@ async def test_router_flow_async(crewai, router_flow_async, crewai_llmobs, test_
     spans = _ordered_spans(test_spans)
     _assert_router_flow_events(spans)
     _assert_router_flow_links(spans)
+
+
+@requires_native_async
+async def test_basic_crew_akickoff(crewai, basic_crew, request_vcr, crewai_llmobs, test_spans):
+    with request_vcr.use_cassette("test_basic_crew.yaml"):
+        await basic_crew.akickoff(inputs={"topic": "AI"})
+    spans = _ordered_spans(test_spans)
+    _assert_basic_crew_events(spans)
+    _assert_basic_crew_links(spans)
+
+
+@requires_native_async
+async def test_crew_with_tool_akickoff(crewai, tool_crew, request_vcr, crewai_llmobs, test_spans):
+    with request_vcr.use_cassette("test_crew_with_tool.yaml"):
+        await tool_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+    spans = _ordered_spans(test_spans)
+    _assert_tool_crew_events(spans)
+    _assert_tool_crew_links(spans)
+
+
+@requires_native_async
+async def test_async_crew_akickoff(crewai, async_exec_crew, request_vcr, crewai_llmobs, test_spans):
+    with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
+        await async_exec_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+    spans = _ordered_spans(test_spans)
+    _assert_async_crew_events(spans)
+    _assert_async_crew_links(spans)
+
+
+@pytest.mark.skipif(not hasattr(crewai.Flow, "akickoff"), reason="Flow.akickoff is not available")
+async def test_simple_flow_akickoff(crewai, simple_flow_async, crewai_llmobs, test_spans):
+    await simple_flow_async.akickoff(inputs={"continent": "North America"})
+    spans = _ordered_spans(test_spans)
+    _assert_simple_flow_events(spans)
+    _assert_simple_flow_links(spans)
+
+
+def test_tool_run(crewai, crewai_llmobs, test_spans):
+    from crewai.tools import BaseTool
+
+    class MaxTool(BaseTool):
+        name: str = "Max Calculator"
+        description: str = "This tool returns the largest of a list of numbers."
+
+        def _run(self, entries: list) -> float:
+            return max(entries)
+
+    MaxTool().run(entries=[10, 12, 14])
+    spans = _ordered_spans(test_spans)
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="tool",
+        name="Max Calculator",
+        input_value=json.dumps({"entries": [10, 12, 14]}),
+        output_value="14",
+        metadata={"description": "This tool returns the largest of a list of numbers."},
+        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
+    )
+
+
+def test_tool_run_error(crewai, crewai_llmobs, test_spans):
+    from crewai.tools import BaseTool
+
+    class FailingTool(BaseTool):
+        name: str = "Failing Calculator"
+        description: str = "This tool always fails."
+
+        def _run(self, entries: list) -> float:
+            raise ValueError("calculation failed")
+
+    with pytest.raises(ValueError):
+        FailingTool().run(entries=[10, 12, 14])
+    spans = _ordered_spans(test_spans)
+    assert len(spans) == 1
+    assert spans[0].error == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="tool",
+        name="Failing Calculator",
+        input_value=json.dumps({"entries": [10, 12, 14]}),
+        error=mock.ANY,
+        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
+    )
+
+
+async def test_tool_ainvoke_error(crewai, crewai_llmobs, test_spans):
+    from crewai.tools import BaseTool
+
+    class FailingTool(BaseTool):
+        name: str = "Failing Calculator"
+        description: str = "This tool always fails."
+
+        def _run(self, entries: list) -> float:
+            raise ValueError("calculation failed")
+
+    with pytest.raises(ValueError):
+        await FailingTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]})
+    spans = _ordered_spans(test_spans)
+    assert len(spans) == 1
+    assert spans[0].error == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="tool",
+        name="Failing Calculator",
+        input_value=json.dumps({"entries": [10, 12, 14]}),
+        error=mock.ANY,
+        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
+    )
