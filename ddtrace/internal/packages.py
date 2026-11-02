@@ -7,6 +7,7 @@ import inspect
 import logging
 import os
 from pathlib import Path
+import re
 import sys
 import sysconfig
 from types import ModuleType
@@ -14,6 +15,8 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.module import origin
+from ddtrace.internal.native import list_distributions
+from ddtrace.internal.native import read_distribution
 from ddtrace.internal.native import scan_distributions
 from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings.third_party import config as tp_config
@@ -118,12 +121,11 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
 @cached(maxsize=1024)
 def get_version_for_package(name: str) -> str:
     """returns the version of a package"""
-    import importlib.metadata as importlib_metadata
-
     try:
-        return importlib_metadata.version(name)
+        dist = _find_distribution(name)
     except Exception:
         return ""
+    return (dist[1] or "") if dist is not None else ""
 
 
 @cached(maxsize=256)
@@ -420,6 +422,9 @@ class _Installed:
 _INSTALLED: t.Optional[_Installed] = None
 # (mtime, records) per sys.path entry, so only new or changed entries are rescanned.
 _ENTRY_RECORDS: dict[str, tuple[t.Optional[int], list[_DistributionRecord]]] = {}
+# (mtime, metadata directories by normalized name) per sys.path entry, for lookups by
+# name: like importlib, list an entry again only when its mtime changes.
+_ENTRY_INDEX: dict[str, tuple[t.Optional[int], dict[str, list[str]]]] = {}
 # Fork-safe, as lazy scans run on threads that may fork; reentrant, so a stray
 # re-entry repeats work rather than deadlocks.
 _INSTALLED_DISTRIBUTIONS_LOCK = forksafe.RLock()
@@ -441,6 +446,7 @@ def _reset_installed_distributions() -> None:
     with _INSTALLED_DISTRIBUTIONS_LOCK:
         _INSTALLED = None
         _ENTRY_RECORDS.clear()
+    _ENTRY_INDEX.clear()
     _PREFETCH_THREAD = None
     _PREFETCH_DONE.clear()
 
@@ -483,10 +489,13 @@ def _meta_path_layout() -> tuple[t.Any, ...]:
     return tuple(layout)
 
 
-def _cache_key() -> _CacheKey:
+def _sys_path_entries() -> t.Iterable[str]:
     # A repeated entry would list its distributions twice.
-    entries = dict.fromkeys(_resolve_entry(e) for e in sys.path if isinstance(e, str))
-    return tuple((entry, _mtime(entry)) for entry in entries), _meta_path_layout()
+    return dict.fromkeys(_resolve_entry(e) for e in sys.path if isinstance(e, str))
+
+
+def _cache_key() -> _CacheKey:
+    return tuple((entry, _mtime(entry)) for entry in _sys_path_entries()), _meta_path_layout()
 
 
 def _installed(check: bool = True) -> _Installed:
@@ -574,6 +583,8 @@ def _clear_lookup_caches() -> None:
         _is_user_code_str,
         _shipped_distributions,
         _is_regular_package,
+        get_version_for_package,
+        is_distribution_available,
     ):
         lookup.cache_clear()
 
@@ -658,6 +669,63 @@ def _meta_path_segments(layout: tuple[t.Any, ...], warn: _WarnBadDist) -> list[t
         except Exception as exc:
             warn(finder, exc)
     return segments
+
+
+_NAME_SEPARATORS = re.compile(r"[-_.]+")
+
+
+def _entry_index(entry: str) -> t.Optional[dict[str, list[str]]]:
+    """The metadata directories under entry by normalized name; None if it could not be listed."""
+    mtime = _mtime(entry)
+    cached = _ENTRY_INDEX.get(entry)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    try:
+        listing = list_distributions(entry)
+    except Exception as exc:
+        # Not cached, so the next lookup tries again.
+        _warn_bad_dist(entry, exc)
+        return None
+    index: dict[str, list[str]] = {}
+    for normalized, directory in listing:
+        index.setdefault(normalized, []).append(directory)
+    # Races only repeat the listing: the last writer wins with an equally valid index.
+    _ENTRY_INDEX[entry] = (mtime, index)
+    return index
+
+
+def _find_distribution(name: str) -> t.Optional[tuple[str, t.Optional[str]]]:
+    """The first distribution called name in importlib discovery order, as (name, version).
+
+    Unlike the maps, this needs no full scan: it reads only the metadata of the
+    matches, from listings cached per sys.path entry. Only custom finders go
+    through importlib.metadata, which they need anyway.
+    """
+    # importlib's Prepared.normalize, with the underscores of the native listing.
+    normalized = _NAME_SEPARATORS.sub("_", name).lower()
+    for finder in _meta_path_layout():
+        if finder is None:
+            for entry in _sys_path_entries():
+                index = _entry_index(entry)
+                for directory in index.get(normalized, ()) if index is not None else ():
+                    try:
+                        dist = read_distribution(entry, directory)
+                    except Exception as exc:
+                        _warn_bad_dist(os.path.join(entry, directory), exc)
+                        continue
+                    if dist is not None:
+                        return dist
+            continue
+        # Imported lazily: IAST drops importlib.metadata after boot, for gevent.
+        import importlib.metadata as importlib_metadata
+
+        try:
+            context = importlib_metadata.DistributionFinder.Context(name=name)
+            for found in getattr(finder, "find_distributions")(context):
+                return found.metadata["Name"] or name, found.version
+        except Exception as exc:
+            _warn_bad_dist(finder, exc)
+    return None
 
 
 def _distribution_records(
@@ -821,14 +889,7 @@ def _is_user_code_str(path: str) -> bool:
 @cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    import importlib.metadata as importlib_metadata
-
-    try:
-        importlib_metadata.distribution(name)
-    except importlib_metadata.PackageNotFoundError:
-        return False
-
-    return True
+    return _find_distribution(name) is not None
 
 
 # ----
