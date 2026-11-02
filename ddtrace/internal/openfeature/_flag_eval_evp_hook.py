@@ -11,6 +11,7 @@ Hook design:
 """
 
 import time
+from types import MappingProxyType
 import typing
 
 from openfeature.flag_evaluation import FlagEvaluationDetails
@@ -27,9 +28,14 @@ from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWr
 from ddtrace.internal.openfeature._flagevaluation_writer import _count_metric
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
+from ddtrace.internal.openfeature._split_features import METADATA_EVALUATION_FEATURE_PREFIX
+from ddtrace.internal.openfeature._split_features import METADATA_HAS_EVALUATION_FEATURES
+from ddtrace.internal.openfeature._split_features import features_with_prefix
 
 
 logger = get_logger(__name__)
+
+_EMPTY_FEATURES: typing.Mapping[str, typing.Any] = MappingProxyType({})
 
 
 class FlagEvalEVPHook(Hook):
@@ -125,6 +131,9 @@ class FlagEvalEVPHook(Hook):
                 eval_time_ms=eval_time_ms,
                 observe_full_evaluation_data=observe_full_evaluation_data,
                 error_code=error_code,
+                features=features_with_prefix(metadata, METADATA_EVALUATION_FEATURE_PREFIX)
+                if metadata.get(METADATA_HAS_EVALUATION_FEATURES) is True
+                else _EMPTY_FEATURES,
             )
 
             self._writer.enqueue(event)

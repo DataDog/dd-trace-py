@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    openfeature: Adds ``ddtrace.openfeature.ExposureHook``, an OpenFeature hook that passes each
+    completed flag evaluation to a callback with the Datadog exposure decision (``should_send``,
+    ``is_exposure``, ``is_cache_hit``) and the selected split's features, such as ``holdout.key``,
+    so applications can record exposures in their own data store. The callback still runs when
+    ``DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED`` is ``false``.
+fixes:
+  - |
+    openfeature: Fixes an issue where an exposure was sent to Datadog for an evaluation that a
+    later OpenFeature ``after`` hook turned into an error. Exposures are now sent only for
+    evaluations made through an OpenFeature client, after all hooks succeed.

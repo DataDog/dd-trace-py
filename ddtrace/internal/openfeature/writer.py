@@ -60,6 +60,7 @@ class ExposureEvent(_RequiredExposureEvent, total=False):
     """
 
     serial_id: int
+    features: dict[str, Union[str, float, bool]]
 
 
 class GeoContext(TypedDict, total=False):
