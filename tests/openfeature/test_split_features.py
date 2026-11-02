@@ -497,3 +497,20 @@ class TestEvaluationCountFeatures:
         rows = self._rows([{"allocation_key": "alloc", "__dd_feature.hook_only": "h"}])
 
         assert "features" not in rows[0]
+
+
+# The interpreter warns about forking a multi-threaded process.
+@pytest.mark.subprocess(err=None)
+def test_exposure_cache_lock_is_released_in_a_forked_child():
+    import os
+
+    from ddtrace.openfeature import DataDogProvider
+
+    lock = DataDogProvider()._exposure_cache_lock
+    lock.acquire()
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0 if lock.acquire(timeout=1) else 1)
+    _, status = os.waitpid(pid, 0)
+
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0

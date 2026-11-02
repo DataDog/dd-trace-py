@@ -28,6 +28,7 @@ from openfeature.hook import HookHints
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _FfeSnapshot
@@ -69,7 +70,6 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import Event
-from ddtrace.internal.threads import Lock
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -165,7 +165,7 @@ class DataDogProvider(AbstractProvider):
         # change it while the allocation and variant stay the same, and that must be sent.
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
         self._exposure_cache: LRUCache[ExposureCacheKey, ExposureCacheValue] = LRUCache(maxsize=65536)
-        self._exposure_cache_lock = Lock()
+        self._exposure_cache_lock = forksafe.Lock()
         self._exposure_logging_hook = ExposureLoggingHook()
 
         # Master gate: the resolved configuration source (stable kill switch +
