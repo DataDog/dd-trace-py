@@ -53,8 +53,41 @@ def test_stop_preserves_later_gc_collect_wrapper() -> None:
     try:
         col.stop()
         assert gc.collect is later_wrapper
+        # Restart must not re-wrap the later wrapper (that cycles through the
+        # old bound _patched_collect and raises RecursionError on collect).
+        col.start()
+        try:
+            collected: int = gc.collect()
+            assert isinstance(collected, int)
+            assert col._explicit_count == 1
+        finally:
+            col.stop()
+        assert gc.collect is later_wrapper
     finally:
         gc.collect = orig
+
+
+def test_stop_removes_pause_listener() -> None:
+    from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+    from ddtrace.internal.runtime.gc_monitor import PauseListener
+    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+
+    monitor: GCPauseMonitor = gc_pause_monitor()
+    col: GCCollector = GCCollector()
+    col.start()
+    listener: PauseListener | None = col._pause_listener
+    assert listener is not None
+    assert listener in monitor._listeners
+    col.stop()
+    assert listener not in monitor._listeners
+    # Restart must not leave a duplicate listener behind.
+    col.start()
+    try:
+        assert monitor._listeners.count(col._pause_listener) == 1
+    finally:
+        col.stop()
+    assert col._pause_listener is None
+    assert all(item is not listener for item in monitor._listeners)
 
 
 def test_reset_after_fork_clears_in_flight_state() -> None:

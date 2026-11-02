@@ -10,6 +10,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+from ddtrace.internal.runtime.gc_monitor import PauseListener
 from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
 from ddtrace.profiling import collector
 
@@ -49,7 +50,9 @@ class GCCollector(collector.Collector):
     _pause_total_ns: list[int]
     _explicit_count: int
     _orig_collect: Callable[..., int]
-    _installed_collect: Callable[..., int]
+    _installed_collect: Optional[Callable[..., int]]
+    _patch_active: bool
+    _pause_listener: Optional[PauseListener]
     _monitor: Optional[GCPauseMonitor]
 
     def _start_service(self) -> None:
@@ -57,26 +60,36 @@ class GCCollector(collector.Collector):
         self._pause_count = [0] * _GEN_COUNT
         self._pause_total_ns = [0] * _GEN_COUNT
         self._explicit_count = 0
-        self._orig_collect = gc.collect
-        # Bound-method lookups allocate a new object each time; keep the
-        # installed callable so teardown can identity-check it.
-        self._installed_collect = self._patched_collect
-        gc.collect = self._installed_collect
+        # Bound-method lookups allocate a new object each time; cache once so
+        # teardown can identity-check the installed callable and so
+        # remove_listener finds the same object add_listener registered.
+        installed: Optional[Callable[..., int]] = getattr(self, "_installed_collect", None)
+        if installed is None:
+            self._orig_collect = gc.collect
+            self._installed_collect = self._patched_collect
+            gc.collect = self._installed_collect
+        self._patch_active = True
+        self._pause_listener = self._on_pause
         self._monitor = gc_pause_monitor()
-        self._monitor.add_listener(self._on_pause)
+        self._monitor.add_listener(self._pause_listener)
         self._monitor.acquire()
         forksafe.register(self._reset_after_fork)
         LOG.debug("GCCollector started")
 
     def _stop_service(self) -> None:
+        self._patch_active = False
         monitor: Optional[GCPauseMonitor] = self._monitor
-        if monitor is not None:
-            monitor.remove_listener(self._on_pause)
+        pause_listener: Optional[PauseListener] = getattr(self, "_pause_listener", None)
+        if monitor is not None and pause_listener is not None:
+            monitor.remove_listener(pause_listener)
             monitor.release()
             self._monitor = None
+            self._pause_listener = None
         forksafe.unregister(self._reset_after_fork)
-        if gc.collect is self._installed_collect:
+        installed: Optional[Callable[..., int]] = getattr(self, "_installed_collect", None)
+        if installed is not None and gc.collect is installed:
             gc.collect = self._orig_collect
+            self._installed_collect = None
         LOG.debug("GCCollector stopped")
 
     def _reset_after_fork(self) -> None:
@@ -92,8 +105,12 @@ class GCCollector(collector.Collector):
         self._explicit_count = 0
 
     def _patched_collect(self, generation: int = 2) -> int:
-        with self._lock:
-            self._explicit_count += 1
+        # When stop cannot unwrap because a later wrapper sits on top, keep the
+        # old patch in the chain as a pass-through. Restart re-activates counting
+        # without wrapping again (that would cycle through the old bound method).
+        if self._patch_active:
+            with self._lock:
+                self._explicit_count += 1
         return self._orig_collect(generation)
 
     def _on_pause(self, gen: int, pause_ns: int) -> None:
