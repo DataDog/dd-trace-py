@@ -5,6 +5,7 @@ from threading import Event
 
 import pytest
 
+from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import _get_iast_env
@@ -20,8 +21,10 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.security._constants import STACK_TRACE
+from ddtrace.propagation.http import HTTPPropagator
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -147,11 +150,18 @@ def test_concurrent_web_spans_release_their_native_contexts(processor_iast_conte
 
 
 @pytest.mark.parametrize("metastruct", [False, True])
-def test_iast_report_identity_matches_analysis_owner(processor_iast_context, tracer, metastruct):
-    with override_global_config(dict(_use_metastruct_for_iast=metastruct)):
+@pytest.mark.parametrize("aiguard_retained", [False, True])
+def test_iast_report_identity_matches_analysis_owner(
+    processor_iast_context, tracer, test_spans, metastruct, aiguard_retained
+):
+    with override_global_config(dict(_use_metastruct_for_iast=metastruct, _propagation_style_inject=["datadog"])):
         tracer.configure(iast_enabled=True)
         baseline = debug_context_array_free_slots_number()
         with tracer.trace("upstream", service="upstream") as upstream:
+            if aiguard_retained:
+                _aiguard_manual_keep(upstream)
+                assert upstream.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == f"-{SamplingMechanism.AI_GUARD}"
+                assert upstream.get_tag(TRACE_SOURCE_PROPAGATION_KEY) == "20"
             with tracer.trace("entry", service="local", span_type=SpanTypes.WEB) as entry:
                 with tracer.trace("request", service="local", span_type=SpanTypes.WEB) as request:
                     child = traced_function(tracer)
@@ -166,12 +176,20 @@ def test_iast_report_identity_matches_analysis_owner(processor_iast_context, tra
             assert entry.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") > 0
             assert upstream.context.sampling_priority == USER_KEEP
             assert upstream.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == f"-{SamplingMechanism.APPSEC}"
+            headers = {}
+            HTTPPropagator.inject(entry.context, headers)
+            trace_source = "22" if aiguard_retained else "02"
+            assert headers["x-datadog-sampling-priority"] == str(USER_KEEP)
+            assert {"_dd.p.dm=-5", f"_dd.p.ts={trace_source}"} <= set(headers["x-datadog-tags"].split(","))
             for span in (upstream, request, child):
                 assert load_iast_report(span) is None
+                assert span._get_struct_tag(STACK_TRACE.TAG) is None
                 assert span.get_metric(IAST.ENABLED) is None
             assert _get_iast_env() is None
             assert debug_context_array_free_slots_number() == baseline
-        assert upstream.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == f"-{SamplingMechanism.APPSEC}"
+        exported_root = next(span for span in test_spans.get_spans() if span.span_id == upstream.span_id)
+        assert exported_root.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == f"-{SamplingMechanism.APPSEC}"
+        assert exported_root.get_tag(TRACE_SOURCE_PROPAGATION_KEY) == trace_source
 
 
 @pytest.mark.parametrize("parent_kind", ["custom", "finished_request", "inferred_proxy"])

@@ -87,6 +87,8 @@ def test_appsec_sampling_mechanism_published_before_injection(child_span):
     assert headers["x-datadog-sampling-priority"] == str(USER_KEEP)
     assert "_dd.p.dm=-5" in headers["x-datadog-tags"].split(",")
     assert root.context._meta["_dd.p.dm"] == "-5"
+    assert root._get_str_attribute("_dd.p.dm") == "-5"
+    assert root._get_str_attribute("_dd.p.ts") == "02"
     assert span._get_str_attribute("_dd.p.dm") == "-5"
 
 
