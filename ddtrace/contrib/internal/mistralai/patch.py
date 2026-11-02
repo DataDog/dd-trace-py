@@ -116,18 +116,18 @@ def traced_generate_stream(
 ) -> Any:
     event = _request_event(func, instance, kwargs, "llm")
     # dispatch_end_event=False defers the ended event until the stream handler calls
-    # ctx.dispatch_ended_event() in finalize_stream(). Errors before the stream exists
+    # ctx.dispatch_ended_event() in finalize_stream(). Errors before the wrapped stream is returned
     # must dispatch it manually so the span finishes with the error info.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
+            handler = MistralAIStreamHandler(  # type: ignore[no-untyped-call]
+                None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
+            )
+            return make_traced_stream(resp, handler)
         except BaseException:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        handler = MistralAIStreamHandler(  # type: ignore[no-untyped-call]
-            None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
-        )
-        return make_traced_stream(resp, handler)
 
 
 async def traced_async_generate_stream(
@@ -140,13 +140,13 @@ async def traced_async_generate_stream(
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
+            handler = MistralAIAsyncStreamHandler(  # type: ignore[no-untyped-call]
+                None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
+            )
+            return make_traced_stream(resp, handler)
         except BaseException:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        handler = MistralAIAsyncStreamHandler(  # type: ignore[no-untyped-call]
-            None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
-        )
-        return make_traced_stream(resp, handler)
 
 
 def traced_embed_generate(

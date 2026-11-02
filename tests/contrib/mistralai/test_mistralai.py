@@ -4,6 +4,8 @@ import json
 import httpx
 import pytest
 
+from ddtrace.contrib.internal.mistralai.patch import traced_async_generate_stream
+from ddtrace.contrib.internal.mistralai.patch import traced_generate_stream
 from tests.contrib.mistralai.utils import CHAT_TOOLS
 from tests.contrib.mistralai.utils import FULL_CHAT_REQUEST_KWARGS
 from tests.contrib.mistralai.utils import FULL_EMBED_REQUEST_KWARGS
@@ -286,3 +288,45 @@ async def test_async_stream_creation_cancelled(mistral_client, test_spans, monke
     assert len(spans) == 1
     assert spans[0].finished
     assert spans[0].get_tag("error.type") == "asyncio.exceptions.CancelledError"
+
+
+@pytest.mark.parametrize("target", ["MistralAIStreamHandler", "make_traced_stream"])
+def test_stream_wrapping_error_finishes_span(mistral_client, test_spans, monkeypatch, target):
+    error = RuntimeError("stream wrapping failed")
+
+    def stream(**kwargs):
+        return object()
+
+    def fail(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr("ddtrace.contrib.internal.mistralai.patch." + target, fail)
+    with pytest.raises(RuntimeError) as exc:
+        traced_generate_stream(stream, mistral_client.chat, (), {"model": "mistral-large-latest"})
+
+    assert exc.value is error
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "builtins.RuntimeError"
+
+
+@pytest.mark.parametrize("target", ["MistralAIAsyncStreamHandler", "make_traced_stream"])
+async def test_async_stream_wrapping_error_finishes_span(mistral_client, test_spans, monkeypatch, target):
+    error = RuntimeError("stream wrapping failed")
+
+    async def stream(**kwargs):
+        return object()
+
+    def fail(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr("ddtrace.contrib.internal.mistralai.patch." + target, fail)
+    with pytest.raises(RuntimeError) as exc:
+        await traced_async_generate_stream(stream, mistral_client.chat, (), {"model": "mistral-large-latest"})
+
+    assert exc.value is error
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert spans[0].get_tag("error.type") == "builtins.RuntimeError"
