@@ -19,6 +19,7 @@ from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import SERVER_TOOL_PROMPT
 from tests.contrib.openai.utils import SERVER_TOOL_VECTOR_STORE
@@ -483,6 +484,7 @@ class TestLLMObsOpenaiV1:
             metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+        assert "decision_provider" not in get_llmobs_tags(spans[0])
 
     def test_chat_completion_multimodal_content(self, openai, openai_llmobs, test_spans):
         """Multimodal content renders as readable text, and input audio is captured as audio_parts."""
@@ -2507,7 +2509,12 @@ MUL: "*"
                 "cache_write_input_tokens": 0,
                 "reasoning_output_tokens": 0,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
         )
         assert "decisions" not in get_llmobs_metadata(spans[0])
 
@@ -2545,7 +2552,12 @@ MUL: "*"
             model_provider="openai",
             input_messages=[{"content": DECISION_INPUT, "role": "user"}],
             metadata={"questions": DECISION_QUESTIONS},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
         )
 
     @pytest.mark.skipif(
@@ -2569,7 +2581,12 @@ MUL: "*"
             output_messages=[{"content": ""}],
             metadata={"questions": DECISION_QUESTIONS},
             error=mock.ANY,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
         )
         assert spans[0].error == 1
 

@@ -35,6 +35,8 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 OPENAI_LLM_OPERATIONS = ("completion", "chat", "response", "decision")
+DECISION_PROVIDER_TAG = "decision_provider"
+OPENAI_DECISION_PROVIDER = "openai"
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -127,6 +129,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_name=model_name,
             model_provider=model_provider,
             metrics=metrics,
+            tags={DECISION_PROVIDER_TAG: OPENAI_DECISION_PROVIDER} if operation == "decision" else None,
         )
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)

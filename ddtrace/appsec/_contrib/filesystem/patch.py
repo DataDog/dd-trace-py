@@ -7,11 +7,11 @@ from typing import Union
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 
 
 class _OpenCallable(Protocol):

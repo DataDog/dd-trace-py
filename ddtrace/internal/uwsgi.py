@@ -1,3 +1,4 @@
+import os
 from typing import Callable
 from typing import Optional
 
@@ -39,6 +40,35 @@ def should_register_atexit() -> bool:
         return True
 
 
+def forked_without_fork_hooks() -> bool:
+    """Check if the uwsgi master forked this process without running the Python fork hooks.
+
+    Without lazy-apps, py-call-uwsgi-fork-hooks or py-call-osafterfork, uwsgi forks its workers with
+    a raw fork() call, so PyOS_AfterFork_Child does not run in them. The interpreter of the worker
+    then still lists the thread states of the other threads of the master. These threads do not
+    exist in the worker, and the threads that the worker starts reuse their stacks. CPython APIs
+    that walk the frames of every thread state, such as sys.monitoring.set_events and
+    sys.monitoring.restart_events, read this memory and can crash.
+    """
+    try:
+        import uwsgi
+    except ImportError:
+        return False
+
+    try:
+        masterpid = uwsgi.masterpid()
+        opt = uwsgi.opt
+    except AttributeError:
+        return False
+
+    return (
+        masterpid != 0
+        and os.getppid() == masterpid
+        and not (opt.get("lazy-apps") or opt.get("lazy"))
+        and not (opt.get("py-call-uwsgi-fork-hooks") or opt.get("py-call-osafterfork"))
+    )
+
+
 def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:
     """Check whetever uwsgi is running and what needs to be done.
 
@@ -76,15 +106,20 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
     # (uwsgi.has_threads), which is already required above.
     fork_hooks_active = bool(uwsgi.opt.get("py-call-uwsgi-fork-hooks"))
 
-    # If uwsgi has more than one process, it is running in prefork operational mode: uwsgi is going to fork multiple
-    # sub-processes.
+    # If uwsgi has more than one process, or a master process (which forks its workers, even if there is only one),
+    # it is running in prefork operational mode: uwsgi is going to fork sub-processes.
     # If lazy-app is enabled, then the app is loaded in each subprocess independently. This is fine.
     # If py-call-uwsgi-fork-hooks is enabled (see above), regular fork-safety handling applies. This is fine.
     # Otherwise, the app will be loaded in the master process, and uwsgi will `fork()` abruptly, bypassing Python
     # sanity checks. We need to handle this case properly.
     # The proper way to handle that is to allow to register a callback function to run in the subprocess at their
     # startup, and warn the caller that this is the master process and that (probably) nothing should be done.
-    if uwsgi.numproc > 1 and not uwsgi.opt.get("lazy-apps") and not fork_hooks_active and uwsgi.worker_id() == 0:
+    if (
+        (uwsgi.numproc > 1 or uwsgi.opt.get("master"))
+        and not uwsgi.opt.get("lazy-apps")
+        and not fork_hooks_active
+        and uwsgi.worker_id() == 0
+    ):
         if not uwsgi.opt.get("master"):
             # Having multiple workers without the master process is not supported here: we rely on
             # uwsgidecorators.postfork to run our callback in each worker, and uwsgidecorators itself

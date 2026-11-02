@@ -1,4 +1,5 @@
-# 3p
+from typing import Any
+from typing import Callable
 
 import aiopg.connection
 import psycopg2.extensions
@@ -6,6 +7,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.aiopg.connection import AIOTracedConnection
+from ddtrace.contrib.internal.aiopg.connection import _wrap_context_manager
 from ddtrace.contrib.internal.psycopg.connection import patch_conn as psycopg_patch_conn
 from ddtrace.contrib.internal.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.internal.psycopg.extensions import _unpatch_extensions
@@ -30,28 +32,29 @@ def _supported_versions() -> dict[str, str]:
     return {"aiopg": ">=0.16.0"}
 
 
-def patch():
-    """Patch monkey patches psycopg's connection function
-    so that the connection's functions are traced.
-    """
+def patch() -> None:
+    """Trace aiopg connections while preserving their context managers."""
     if getattr(aiopg, "_datadog_patch", False):
         return
     aiopg._datadog_patch = True
 
-    wrapt.wrap_function_wrapper(aiopg.connection, "connect", patched_connect)
+    for module in (aiopg, aiopg.connection, aiopg.pool):
+        wrapt.wrap_function_wrapper(module, "connect", patched_connect)
     _patch_extensions(_aiopg_extensions)  # do this early just in case
 
 
-def unpatch():
+def unpatch() -> None:
     if getattr(aiopg, "_datadog_patch", False):
         aiopg._datadog_patch = False
-        _u(aiopg.connection, "connect")
+        for module in (aiopg, aiopg.connection, aiopg.pool):
+            _u(module, "connect")
         _unpatch_extensions(_aiopg_extensions)
 
 
-async def patched_connect(connect_func, _, args, kwargs):
-    conn = await connect_func(*args, **kwargs)
-    return psycopg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
+def patched_connect(connect_func: Callable[..., Any], _: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    return _wrap_context_manager(
+        connect_func(*args, **kwargs), lambda conn: psycopg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
+    )
 
 
 def _extensions_register_type(func, _, args, kwargs):
