@@ -329,19 +329,17 @@ async def test_basic_asgi(scope, test_spans):
     _check_span_tags(scope, request_span)
 
 
-def test_otel_semantics_does_not_replace_resource_with_404():
+def test_otel_semantics_does_not_replace_resource_with_404(tracer):
     from ddtrace._trace.otel.http.resource import INSTRUMENTATION_HTTP_RESOURCE
     from ddtrace.ext import SpanTypes
-    from ddtrace.trace import tracer
 
     middleware = TraceMiddleware(basic_app)
-    span = tracer.start_span("asgi.request", resource="GET /items/{id}", span_type=SpanTypes.WEB, activate=False)
-    span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
-
     with (
+        tracer.start_span("asgi.request", resource="GET /items/{id}", span_type=SpanTypes.WEB, activate=False) as span,
         override_global_config(dict(_otel_trace_semantics_enabled=True)),
         override_config("asgi", dict(obfuscate_404_resource=True)),
     ):
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
         middleware._handle_http_response(
             {},
             {"type": "http.response.start", "status": 404},
@@ -350,7 +348,7 @@ def test_otel_semantics_does_not_replace_resource_with_404():
             {},
         )
 
-    assert span.resource == "GET /items/{id}"
+        assert span.resource == "GET /items/{id}"
 
 
 @pytest.mark.asyncio
