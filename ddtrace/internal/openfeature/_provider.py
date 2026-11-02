@@ -541,6 +541,7 @@ class DataDogProvider(AbstractProvider):
                 METADATA_OBSERVE_FULL_EVALUATION_DATA: observe_full_evaluation_data,
             }
         )
+        flag_metadata._dd_evaluation_context = evaluation_context
 
         # If provider is not active, return default value
         if not self._active:

@@ -419,6 +419,21 @@ class TestExposureHook:
         assert evaluation.should_send is expected
         assert evaluation.is_cache_hit is False
 
+    def test_callback_gets_the_subject_a_before_hook_set(self, provider, writer, evaluations):
+        class SetSubject(Hook):
+            def before(self, hook_context, hints):
+                return EvaluationContext(targeting_key="from-before-hook", attributes={"tier": "gold"})
+
+        api.add_hooks([SetSubject()])
+        process_ffe_configuration(_config())
+
+        api.get_client().get_string_details("flag", "default", EvaluationContext())
+
+        evaluation = evaluations[0]
+        assert (evaluation.targeting_key, evaluation.should_send) == ("from-before-hook", True)
+        assert evaluation.evaluation_context.attributes == {"tier": "gold"}
+        assert writer.enqueue.call_args[0][0]["subject"]["id"] == "from-before-hook"
+
     def test_rejects_a_non_callable_callback(self):
         with pytest.raises(TypeError):
             ExposureHook(None)

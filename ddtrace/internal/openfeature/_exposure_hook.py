@@ -130,7 +130,10 @@ class ExposureHook(Hook):
             # The provider's own hook normally completes the decision first; this covers
             # wrappers that skip provider hooks, so the callback still reads a final verdict.
             complete_exposure_decision(details)
-            self._callback(ExposureEvaluation(details, hook_context.evaluation_context))
+            evaluation_context = getattr(details.flag_metadata, "_dd_evaluation_context", None)
+            if evaluation_context is None:
+                evaluation_context = hook_context.evaluation_context
+            self._callback(ExposureEvaluation(details, evaluation_context))
         except Exception:
             try:
                 if self._warned:
