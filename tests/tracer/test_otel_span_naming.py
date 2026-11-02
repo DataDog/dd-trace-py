@@ -306,9 +306,6 @@ def test_web_resource_replaced_during_request_is_preserved_at_finish():
     from ddtrace.internal import core
     from ddtrace.internal.settings._config import config
     from ddtrace.internal.span_bus import span_from_context
-    from tests.utils import register_tracing_subscribers
-
-    register_tracing_subscribers()
 
     event = WebFrameworkRequestEvent(
         http_operation="aiohttp.request",
@@ -335,9 +332,6 @@ def _emit_server_trace_sampled_during_client_propagation():
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal import core
     from ddtrace.internal.span_bus import span_from_context
-    from tests.utils import register_tracing_subscribers
-
-    register_tracing_subscribers()
 
     with core.context_with_event(
         WebFrameworkRequestEvent(

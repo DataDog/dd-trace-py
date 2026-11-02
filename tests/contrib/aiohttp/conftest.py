@@ -6,7 +6,6 @@ from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
 from ddtrace.internal.utils import version  # noqa:F401
 from ddtrace.internal.utils.version import parse_version
-from tests.utils import register_tracing_subscribers
 
 from .app.web import setup_app
 
@@ -14,16 +13,10 @@ from .app.web import setup_app
 PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 
 
-@pytest.fixture
-def aiohttp_tracing_subscribers() -> None:
-    # Snapshot tests also need tracing listeners when they do not use test_spans.
-    register_tracing_subscribers()
-
-
 if PYTEST_ASYNCIO_VERSION < (1, 0):
 
     @pytest.fixture
-    async def app(loop, aiohttp_tracing_subscribers):
+    async def app(loop):
         app = setup_app()
         trace_app(app)
         return app
@@ -37,7 +30,7 @@ if PYTEST_ASYNCIO_VERSION < (1, 0):
 else:
 
     @pytest.fixture
-    async def app(aiohttp_tracing_subscribers):
+    async def app():
         app = setup_app()
         trace_app(app)
         return app
