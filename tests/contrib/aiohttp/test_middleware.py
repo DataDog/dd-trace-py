@@ -736,7 +736,7 @@ with patch.object(tracer, "start_span", wraps=tracer.start_span) as start_span:
 """
     env = os.environ.copy()
     env["DD_TRACE_ENABLED"] = str(trace_enabled).lower()
-    env["TEST_EXPECT_TRACING"] = str(trace_enabled and startup != "manual").lower()
+    env["TEST_EXPECT_TRACING"] = str(trace_enabled).lower()
     env["TEST_RESPONSE_KIND"] = response_kind
     if startup == "auto":
         code = "import ddtrace.auto\n" + code
@@ -766,3 +766,51 @@ assert config.aiohttp["disable_stream_timing_for_mem_leak"] is True
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+def test_appsec_blocks_without_tracing(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+import asyncio
+from aiohttp import web
+from aiohttp.test_utils import TestClient, TestServer
+from ddtrace.contrib.aiohttp import trace_app
+from ddtrace.appsec._asm_request_context import get_active_asm_context
+from ddtrace.trace import tracer
+
+calls = []
+contexts = []
+async def handler(request):
+    calls.append(request.path)
+    contexts.append(get_active_asm_context() is not None)
+    return web.Response(text="ok")
+
+async def main():
+    app = web.Application()
+    app.router.add_get("/", handler)
+    trace_app(app)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/?attack=xtrace")
+        assert response.status == 403, response.status
+        await response.read()
+        response = await client.get("/")
+        assert response.status == 200, response.status
+        assert await response.text() == "ok"
+    assert calls == ["/"]
+    assert contexts == [True]
+    assert tracer.current_span() is None
+    assert get_active_asm_context() is None
+
+asyncio.run(main())
+"""
+    from tests.appsec import rules
+
+    env = os.environ.copy()
+    env.update(
+        DD_APPSEC_ENABLED="true",
+        DD_APM_TRACING_ENABLED="false",
+        DD_TRACE_ENABLED="false",
+        DD_APPSEC_RULES=rules.RULES_SRB,
+    )
+    out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())

@@ -1,10 +1,5 @@
-upgrade:
-  - |
-    tracing: Initialize tracing with ``ddtrace-run`` or ``import ddtrace.auto``
-    before enabling aiohttp, Bottle, CherryPy, Falcon, Molten, Pyramid, or Sanic
-    server instrumentation. Importing an integration alone no longer enables its
-    request tracing.
 features:
   - |
     aiohttp: With ``DD_TRACE_ENABLED=false``, server instrumentation continues
-    to run request lifecycle hooks without creating request spans.
+    to run request lifecycle hooks without creating request spans, except when
+    standalone security requires a request span for processing.

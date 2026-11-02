@@ -43,12 +43,9 @@ Server
 Enabling
 ~~~~~~~~
 
-Initialize tracing with :ref:`ddtrace-run<ddtracerun>` or
-:ref:`import ddtrace.auto<ddtraceauto>`. Automatic instrumentation is not available
-for the server; the provided ``trace_app`` function must also be used. The example
-below uses ``ddtrace.auto``; omit that import when using ``ddtrace-run``::
+Automatic instrumentation is not available for the server. Use the provided
+``trace_app`` function to enable server tracing::
 
-    import ddtrace.auto  # initialize tracing before importing the application
     from aiohttp import web
     from ddtrace.contrib.aiohttp import trace_app
 

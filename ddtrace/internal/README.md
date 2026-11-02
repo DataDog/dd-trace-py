@@ -112,12 +112,13 @@ imports an unused module.
 
 Tracing declares its web framework bundle in `ddtrace._trace.product.subscriber_bundles`.
 The product manager registers it after tracing starts. Importing
-`ddtrace._trace.subscribers` does not register the web framework subscriber. Initialize
-tracing with `ddtrace-run` or `import ddtrace.auto` before using web integration APIs
-that depend on this bundle. With `DD_TRACE_ENABLED=false`, the manager skips the
-tracing bundle. Aiohttp still emits request lifecycle events and completes requests
-without creating request spans. Other subscriber families continue to register
-automatically.
+`ddtrace._trace.subscribers` also registers it for public integration APIs and
+configurations that skip tracing product startup. Registration is idempotent.
+Span-dependent integrations retain their request span creation and completion
+listeners. Aiohttp records its tracing decision on each request event and can emit
+metadata-only lifecycle events with `DD_TRACE_ENABLED=false`. Standalone security
+still creates the request span needed for AppSec processing. Other subscriber
+families continue to register automatically.
 
 The `subscriber_bundles` attribute is optional and defaults to no bundles; products
 need no registration or unregistration hooks. Only declare bundles whose lifetime the

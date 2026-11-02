@@ -41,6 +41,11 @@ Lifecycle dispatch must not depend on a tracing span being present: with tracing
 disabled, other products can still consume the same events. Do not call
 `span_from_context()` simply to check whether a request can be finalized, since it
 creates a fallback span when no tracing subscriber is registered.
+For span-independent web integrations, capture `is_tracing_enabled()` in the request
+event's `tracing_enabled` field at entry, as aiohttp does. This accounts for
+standalone security, which still needs request spans when tracing is disabled.
+Existing span-dependent integrations retain the default and direct subscriber
+registration until their lifecycle can run without spans.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
