@@ -60,6 +60,9 @@ class GCCollector(collector.Collector):
         self._pause_count = [0] * _GEN_COUNT
         self._pause_total_ns = [0] * _GEN_COUNT
         self._explicit_count = 0
+        # Set before publishing gc.collect so a concurrent/reentrant caller
+        # into _patched_collect never sees a missing attribute.
+        self._patch_active = True
         # Bound-method lookups allocate a new object each time; cache once so
         # teardown can identity-check the installed callable and so
         # remove_listener finds the same object add_listener registered.
@@ -68,7 +71,6 @@ class GCCollector(collector.Collector):
             self._orig_collect = gc.collect
             self._installed_collect = self._patched_collect
             gc.collect = self._installed_collect
-        self._patch_active = True
         self._pause_listener = self._on_pause
         self._monitor = gc_pause_monitor()
         self._monitor.add_listener(self._pause_listener)
@@ -119,9 +121,16 @@ class GCCollector(collector.Collector):
             return
         if pause_ns < 0:
             return
-        with self._lock:
+        # Skip when snapshot() already holds the lock. Waiting would block
+        # forever if GC re-entered on this same thread (same as
+        # GCPauseMonitor._on_gc).
+        if not self._lock.acquire(False):
+            return
+        try:
             self._pause_count[gen] += 1
             self._pause_total_ns[gen] += pause_ns
+        finally:
+            self._lock.release()
 
     def snapshot(self) -> None:  # type: ignore[override]
         # Copy primitives, then clear, then allocate. A reentrant GC callback
