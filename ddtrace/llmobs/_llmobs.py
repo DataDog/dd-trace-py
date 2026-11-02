@@ -736,9 +736,9 @@ class LLMObs(Service):
 
     def _propagated_llmobs_parent_id(self) -> Optional[str]:
         """LLMObs parent ID carried by the active context, e.g. in a thread-pool worker."""
-        active = self._llmobs_context_provider.active()
-        if isinstance(active, Context):
-            return active._meta.get(PROPAGATED_PARENT_ID_KEY)
+        active_ctx = self._llmobs_context_provider.active()
+        if isinstance(active_ctx, Context):
+            return active_ctx._meta.get(PROPAGATED_PARENT_ID_KEY)
         return None
 
     def _enrich_with_http_client_ip(self, span: Span) -> None:
