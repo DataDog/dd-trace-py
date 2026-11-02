@@ -371,6 +371,13 @@ def override_http_config(integration, values):
 @contextlib.contextmanager
 def scoped_tracer(use_dummy_writer=True):
     """Provides a test-scoped global tracer with no configuration leaks."""
+    from ddtrace._trace.product import subscriber_bundles
+
+    # In-process integration tests explicitly enable the tracing product's listeners.
+    # Subprocess tests exercise the actual bootstrap paths independently.
+    if ddtrace.tracer.enabled:
+        for bundle in subscriber_bundles:
+            bundle.register()
     try:
         if use_dummy_writer:
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())

@@ -180,7 +180,7 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
 
 
 @pytest.mark.subprocess
-def test_direct_integration_import_registers_web_subscribers() -> None:
+def test_direct_integration_import_does_not_register_web_subscribers() -> None:
     import sys
 
     import ddtrace.contrib  # noqa: F401
@@ -189,8 +189,8 @@ def test_direct_integration_import_registers_web_subscribers() -> None:
 
     assert manager._products is None
     assert "ddtrace._trace.product" not in sys.modules
-    assert core.has_listeners("context.started.web.request")
-    assert core.has_listeners("context.ended.web.request")
+    assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.ended.web.request")
 
 
 @pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])

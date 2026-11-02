@@ -3,7 +3,6 @@ import os
 import pytest
 import pytest_asyncio
 
-from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import ERROR_MSG
@@ -13,6 +12,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
 from ddtrace.internal.otel_semantics import http as otel_http
+from ddtrace.internal.rate_sampler import RateSampler
 from ddtrace.internal.utils.version import parse_version
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -640,19 +640,72 @@ async def test_inferred_spans_api_gateway(
             )
 
 
-@pytest.mark.parametrize("ddtrace_run", [False, True])
-def test_trace_app_without_patch(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, ddtrace_run):
+@pytest.mark.parametrize("startup", ["manual", "auto", "ddtrace-run"])
+@pytest.mark.parametrize("trace_enabled", [True, False])
+@pytest.mark.parametrize("response_kind", ["response", "http_error", "stream"])
+def test_trace_app_without_patch(
+    run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, startup, trace_enabled, response_kind
+):
     code = """
 import asyncio
+import os
+from unittest.mock import patch
 
 from aiohttp import web
 from aiohttp.test_utils import TestClient
 from aiohttp.test_utils import TestServer
 
 from ddtrace.contrib.aiohttp import trace_app
+from ddtrace.contrib.internal.aiohttp.middlewares import REQUEST_CONTEXT_KEY
+from ddtrace.internal import core
+from ddtrace.trace import tracer
+
+
+expect_tracing = os.environ["TEST_EXPECT_TRACING"] == "true"
+response_kind = os.environ["TEST_RESPONSE_KIND"]
+expected_status = 500 if response_kind == "http_error" else 200
+lifecycle = []
+request_spans = []
+
+
+def on_started(ctx):
+    lifecycle.append(("started", id(ctx)))
+    span = ctx.get_item("_inner_span")
+    if expect_tracing:
+        assert span is not None
+        request_spans.append(span)
+    else:
+        assert span is None
+
+
+def on_ended(ctx, exc_info):
+    lifecycle.append(("ended", id(ctx)))
+    assert ctx.event.response_status_code == expected_status
+    assert ctx.event.resource == "GET /"
+    assert bool(exc_info[1]) == (response_kind == "http_error")
+
+
+core.on("context.started.web.request", on_started)
+core.on("context.ended.web.request", on_ended)
 
 
 async def handler(request):
+    span = tracer.current_span()
+    if expect_tracing:
+        assert span is not None
+        assert span.name == "aiohttp.request", span.name
+        assert request[REQUEST_CONTEXT_KEY] is span.context
+    else:
+        assert span is None
+        assert request[REQUEST_CONTEXT_KEY] is None
+    if response_kind == "http_error":
+        raise web.HTTPInternalServerError(text="error")
+    if response_kind == "stream":
+        response = web.StreamResponse()
+        await response.prepare(request)
+        await response.write(b"ok")
+        await response.write_eof()
+        return response
     return web.Response(text="ok")
 
 
@@ -662,15 +715,32 @@ async def main():
     trace_app(app)
     async with TestClient(TestServer(app)) as client:
         response = await client.get("/")
-        assert response.status == 200, response.status
-        assert await response.text() == "ok"
+        assert response.status == expected_status, response.status
+        assert await response.text() == ("error" if response_kind == "http_error" else "ok")
+    assert len(lifecycle) == 2, lifecycle
+    assert lifecycle[0][0] == "started", lifecycle
+    assert lifecycle[1] == ("ended", lifecycle[0][1]), lifecycle
+    if expect_tracing:
+        assert len(request_spans) == 1
+        span = request_spans[0]
+        assert span.finished
+        assert span.error == (response_kind == "http_error")
+        if response_kind == "http_error":
+            assert span.get_tag("error.type").endswith("HTTPInternalServerError")
 
 
-asyncio.run(main())
+with patch.object(tracer, "start_span", wraps=tracer.start_span) as start_span:
+    asyncio.run(main())
+    if not expect_tracing:
+        start_span.assert_not_called()
 """
     env = os.environ.copy()
-    if ddtrace_run:
-        env["DD_TRACE_ENABLED"] = "false"
+    env["DD_TRACE_ENABLED"] = str(trace_enabled).lower()
+    env["TEST_EXPECT_TRACING"] = str(trace_enabled and startup != "manual").lower()
+    env["TEST_RESPONSE_KIND"] = response_kind
+    if startup == "auto":
+        code = "import ddtrace.auto\n" + code
+    if startup == "ddtrace-run":
         out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     else:
         out, err, status, _ = run_python_code_in_subprocess(code, env=env)
