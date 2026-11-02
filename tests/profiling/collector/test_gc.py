@@ -190,6 +190,59 @@ def test_on_pause_records_pause_gctime() -> None:
     config_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
 
 
+def test_on_pause_skips_when_lock_held() -> None:
+    """Reentrant pause while snapshot holds the lock must not block forever."""
+    col: GCCollector = _make_isolated_collector()
+    assert col._lock.acquire(False)
+    try:
+        col._on_pause(0, 1000)
+        assert col._pause_count == [0, 0, 0]
+        assert col._pause_total_ns == [0, 0, 0]
+    finally:
+        col._lock.release()
+
+
+def test_patch_active_set_before_collect_replacement() -> None:
+    """_patch_active must be True before gc.collect is published on first start."""
+    import inspect
+
+    src: str = inspect.getsource(GCCollector._start_service)
+    active_pos: int = src.index("self._patch_active = True")
+    publish_pos: int = src.index("gc.collect = self._installed_collect")
+    assert active_pos < publish_pos
+
+    orig: Callable[..., int] = gc.collect
+    col: GCCollector = GCCollector()
+    active_at_publish: list[bool] = []
+
+    class _CollectModule:
+        """Proxy so assigning gc.collect records _patch_active at publish time."""
+
+        def __init__(self, real_gc: object) -> None:
+            self._real_gc: object = real_gc
+
+        def __getattr__(self, name: str) -> object:
+            return getattr(self._real_gc, name)
+
+        def __setattr__(self, name: str, value: object) -> None:
+            if name.startswith("_"):
+                object.__setattr__(self, name, value)
+                return
+            if name == "collect":
+                active_at_publish.append(getattr(col, "_patch_active", False))
+            setattr(self._real_gc, name, value)
+
+    try:
+        with mock.patch.object(gc_collector, "gc", _CollectModule(gc)):
+            col.start()
+        assert active_at_publish == [True]
+        assert col._patch_active is True
+        assert gc.collect is col._installed_collect
+    finally:
+        col.stop()
+        gc.collect = orig
+
+
 def test_snapshot_gctime_equals_total_pause_ns() -> None:
     """Emitted gc-time must be the window sum, not sum * pause count."""
     col: GCCollector = _make_isolated_collector()
