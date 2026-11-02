@@ -1,6 +1,12 @@
+from datetime import datetime
 import os
 
 import django
+from django.conf import settings
+from django.test.utils import override_settings
+from django.utils import timezone
+from django.utils.dateformat import format as date_format
+from django.utils.timezone import get_default_timezone
 import pytest
 
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -10,6 +16,30 @@ from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
+
+
+@pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
+def test_dst_fall_back_ambiguous_local_time_formats() -> None:
+    # Django's 500 log-email templates format "now" with |date "r". With USE_TZ off,
+    # that is a naive wall-clock stamp make_aware'd in TIME_ZONE. Under pytz,
+    # America/Chicago raises AmbiguousTimeError for 01:xx on US fall-back night;
+    # UTC has no DST, so the same stamp formats cleanly. zoneinfo (Django 4+) does
+    # not raise on ambiguous times, so we also pin TIME_ZONE=UTC explicitly.
+    ambiguous_local: datetime = datetime(2026, 11, 1, 1, 51, 26, 582942)
+
+    assert settings.TIME_ZONE == "UTC"
+    formatted: str = date_format(ambiguous_local, "r")
+    assert formatted
+
+    # Confirm Chicago still blows up on pytz Django (2.2/3.2 in this suite). Without
+    # this, removing TIME_ZONE=UTC would leave Django 4 rows green forever.
+    if django.VERSION < (4, 0):
+        with override_settings(TIME_ZONE="America/Chicago"):
+            get_default_timezone.cache_clear()
+            with pytest.raises(Exception) as exc_info:
+                timezone.make_aware(ambiguous_local, get_default_timezone())
+            assert type(exc_info.value).__name__ == "AmbiguousTimeError"
+        get_default_timezone.cache_clear()
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
