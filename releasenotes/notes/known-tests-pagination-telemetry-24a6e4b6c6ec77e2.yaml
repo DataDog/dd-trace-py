@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    CI visibility: Adds diagnostic telemetry for the number of pages and time
+    needed to retrieve known tests.
