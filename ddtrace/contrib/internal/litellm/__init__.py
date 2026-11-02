@@ -103,7 +103,9 @@ against its budgets. The two cost metrics describe the same spend and are never 
 
    A comma-separated list of the optional tags to add. Each can raise the number of series.
 
-   - ``user``: ``user.id``, the user who owns the proxy key.
+   - ``user``: ``user.id``, the person the call was made for: the email of the proxy key's owner, else the
+     request's end user. A key owned by a service account or a team has no ``user.id``; its ``key_alias``
+     identifies the caller.
    - ``team``: ``trajectory.team.id``, the team of the proxy key.
    - ``key_alias``: ``trajectory.gateway.key.alias``, the alias of the proxy key. Keys and key hashes are never sent.
    - ``route``: ``trajectory.gateway.route``, the model group the client asked for.

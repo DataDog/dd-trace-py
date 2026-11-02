@@ -41,7 +41,7 @@ metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics
 pytestmark = pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 
 LITELLM_VERSION = tuple(int(part) for part in importlib.metadata.version("litellm").split(".")[:2])
-ALICE = {"user.id": "user-alice", "trajectory.team.id": "team-ml", "trajectory.gateway.key.alias": "alice-key"}
+ALICE = {"user.id": "alice@example.com", "trajectory.team.id": "team-ml", "trajectory.gateway.key.alias": "alice-key"}
 ACCOUNT = "trajectory.request.provider_account_id"
 PROJECT = "trajectory.request.project_id"
 KEY_ID = "trajectory.request.api_key_id"
@@ -298,7 +298,8 @@ def test_proxy_metrics_over_otlp_and_dogstatsd(gateway, tmp_path):
     assert export.total("gen_ai.client.inference.usage.output_tokens", **claude_chat) > 0
 
     # A gateway cache hit: one provider attempt for two requests, and a charge of exactly zero for the hit.
-    bob = {"user.id": "user-bob"}
+    # Bob's key has an owner user id but no owner email, so its calls carry no user.id: they are told apart by team.
+    bob = {"trajectory.team.id": "team-web", "user.id": None}
     assert export.count("gen_ai.client.inference.duration", **bob) == 1
     assert [p for p in gateway.provider_requests if p[1] == "gpt-4o-mini" and not p[2]].__len__() >= 1
     hits = export.series(
@@ -388,7 +389,7 @@ def check_provider_ids(export):
     # Chat, streamed or not: every series carries the ids from the provider's headers, and the key id the
     # operator declared, and the token and cost counters the served tier: from the response, or from the stream's
     # chunks, as a stream's assembled response has none.
-    gpt = {"trajectory.gateway.route": "gpt-4o-mini", "user.id": "user-alice"}
+    gpt = {"trajectory.gateway.route": "gpt-4o-mini", "user.id": "alice@example.com"}
     for name in (
         "gen_ai.client.inference.duration",
         input_tokens,

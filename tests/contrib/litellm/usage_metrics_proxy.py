@@ -40,7 +40,12 @@ ANTHROPIC_OUTPUT = 5
 
 # Fake virtual keys of the proxy, and the identity each carries.
 KEYS = {
-    "sk-alice-0001": {"user_id": "user-alice", "team_id": "team-ml", "key_alias": "alice-key"},
+    "sk-alice-0001": {
+        "user_id": "user-alice",
+        "user_email": "alice@example.com",
+        "team_id": "team-ml",
+        "key_alias": "alice-key",
+    },
     "sk-bob-0002": {"user_id": "user-bob", "team_id": "team-web"},
 }
 PROVIDER_KEYS = ("fake-openai-key", "fake-anthropic-key")

@@ -148,7 +148,8 @@ def test_recorded_identity_and_models():
     # The model the provider streamed back, not the route.
     assert attempt["request_model"] == "gpt-4o-mini"
     assert attempt["response_model"] == "gpt-4o-mini-2024-07-18"
-    assert attributes["user.id"] == "user-alice"
+    # The recorded key has an owner user id but no owner email: no user.id.
+    assert "user.id" not in attributes
     assert attributes["trajectory.team.id"] == "team-ml"
     assert attributes["trajectory.gateway.key.alias"] == "alice-key"
     assert attributes["trajectory.gateway.route"] == "gpt-4o-mini"

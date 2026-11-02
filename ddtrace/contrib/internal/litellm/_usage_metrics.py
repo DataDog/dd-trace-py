@@ -119,13 +119,15 @@ _PROVIDERS = {
     "moonshot": "moonshot_ai",
 }
 
-# Opt-in tags: (configuration name) -> (attribute, LiteLLM metadata key).
+# Opt-in tags: (configuration name) -> (attribute, LiteLLM metadata keys, the first one set wins). user.id is only
+# ever a person: the email of the key's owner, else the end user the request was made for; never the key owner's user
+# id, which can be a service account or a team. A non-human caller is told apart by its key alias.
 _OPT_IN_METADATA_TAGS = {
-    "user": ("user.id", "user_api_key_user_id"),
-    "team": ("trajectory.team.id", "user_api_key_team_id"),
-    "key_alias": ("trajectory.gateway.key.alias", "user_api_key_alias"),
+    "user": ("user.id", ("user_api_key_user_email", "user_api_key_end_user_id")),
+    "team": ("trajectory.team.id", ("user_api_key_team_id",)),
+    "key_alias": ("trajectory.gateway.key.alias", ("user_api_key_alias",)),
 }
-_IDENTITY_KEYS = tuple(key for _, key in _OPT_IN_METADATA_TAGS.values())
+_IDENTITY_KEYS = tuple(key for _, keys in _OPT_IN_METADATA_TAGS.values() for key in keys)
 
 PROVIDER_ACCOUNT_ID = "trajectory.request.provider_account_id"
 PROJECT_ID = "trajectory.request.project_id"
@@ -979,9 +981,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
     ) -> dict[str, str]:
         attributes = dict(self._resource)
         attributes.update(provider_ids or {})
-        for tag, (attribute, key) in _OPT_IN_METADATA_TAGS.items():
-            value = metadata.get(key)
-            if tag in self._tags and isinstance(value, str) and value:
+        for tag, (attribute, keys) in _OPT_IN_METADATA_TAGS.items():
+            if tag not in self._tags:
+                continue
+            value = next((metadata[key] for key in keys if isinstance(metadata.get(key), str) and metadata[key]), None)
+            if value is not None:
                 attributes[attribute] = value
         if "route" in self._tags and isinstance(route, str) and route:
             attributes["trajectory.gateway.route"] = route
@@ -1307,7 +1311,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
 
 def _key_identity(user_api_key_dict: Any) -> dict[str, Any]:
     return {
-        "user_api_key_user_id": getattr(user_api_key_dict, "user_id", None),
+        "user_api_key_user_email": getattr(user_api_key_dict, "user_email", None),
+        "user_api_key_end_user_id": getattr(user_api_key_dict, "end_user_id", None),
         "user_api_key_team_id": getattr(user_api_key_dict, "team_id", None),
         "user_api_key_alias": getattr(user_api_key_dict, "key_alias", None),
     }

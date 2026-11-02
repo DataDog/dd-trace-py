@@ -5,6 +5,7 @@ import json
 import os
 import threading
 import time
+from types import SimpleNamespace
 
 import litellm
 import pytest
@@ -59,6 +60,7 @@ PLACEHOLDER_USAGE = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens":
 
 IDENTITY = {
     "user_api_key_user_id": "user-alice",
+    "user_api_key_user_email": "alice@example.com",
     "user_api_key_team_id": "team-ml",
     "user_api_key_alias": "alice-key",
 }
@@ -94,6 +96,8 @@ class NativeWriter(RecordingWriter):
 
 class UserAPIKeyAuth:
     user_id = "user-alice"
+    user_email = "alice@example.com"
+    end_user_id = None
     team_id = "team-ml"
     key_alias = "alice-key"
 
@@ -105,17 +109,28 @@ def run(coroutine):
 class Proxy:
     """Drives a UsageMetricsLogger with the hook sequence a LiteLLM proxy produces for one client request."""
 
-    def __init__(self, logger, call_id="call-1", route="gpt", call_type="acompletion", stream=False):
+    def __init__(self, logger, call_id="call-1", route="gpt", call_type="acompletion", stream=False, identity=IDENTITY):
         self.logger = logger
         self.call_id = call_id
         self.route = route
         self.call_type = call_type
         self.stream = stream
         self.attempt_start = None
+        self.identity = identity
+
+    def key(self):
+        """The proxy's view of the caller's key, from the same identity as the request metadata."""
+        return SimpleNamespace(
+            user_id=self.identity.get("user_api_key_user_id"),
+            user_email=self.identity.get("user_api_key_user_email"),
+            end_user_id=self.identity.get("user_api_key_end_user_id"),
+            team_id=self.identity.get("user_api_key_team_id"),
+            key_alias=self.identity.get("user_api_key_alias"),
+        )
 
     def start(self):
         data = {"litellm_call_id": self.call_id, "model": self.route, "stream": self.stream}
-        run(self.logger.async_pre_call_hook(UserAPIKeyAuth(), None, data, self.call_type))
+        run(self.logger.async_pre_call_hook(self.key(), None, data, self.call_type))
 
     def attempt(
         self, start, model_group=None, provider="openai", model="gpt-4o-mini", model_id="deployment-1", model_info=None
@@ -143,7 +158,7 @@ class Proxy:
         )
 
     def attempt_failed(self, exception):
-        request_data = {"litellm_call_id": self.call_id, "metadata": dict(IDENTITY)}
+        request_data = {"litellm_call_id": self.call_id, "metadata": dict(self.identity)}
         run(self.logger.async_post_call_failure_deployment_hook(request_data, exception, self.call_type))
 
     def kwargs(
@@ -160,7 +175,7 @@ class Proxy:
         payload = {
             "cache_hit": cache_hit,
             "response_cost": cost,
-            "metadata": dict(IDENTITY, usage_object=usage),
+            "metadata": dict(self.identity, usage_object=usage),
             "error_information": {"error_class": error_class} if error_class else None,
         }
         payload.update(payload_extra or {})
@@ -172,7 +187,7 @@ class Proxy:
             "api_call_start_time": self.attempt_start,
             "completion_start_time": at(first_chunk) if first_chunk is not None else None,
             "original_response": json.dumps({"model": "gpt-4o-mini-2024-07-18"}) if not self.stream else None,
-            "litellm_params": {"metadata": dict(IDENTITY, original_model_group=self.route)},
+            "litellm_params": {"metadata": dict(self.identity, original_model_group=self.route)},
             "standard_logging_object": payload,
         }
         kwargs.update(kwargs_extra or {})
@@ -187,7 +202,7 @@ class Proxy:
 
     def failed(self, exception, **request_data):
         request_data["litellm_call_id"] = self.call_id
-        run(self.logger.async_post_call_failure_hook(request_data, exception, UserAPIKeyAuth()))
+        run(self.logger.async_post_call_failure_hook(request_data, exception, self.key()))
 
 
 @pytest.fixture
@@ -783,7 +798,7 @@ def test_opt_in_tags(writer):
     proxy.succeeded(0.1)
     expected = {
         "service.name": "gateway",
-        "user.id": "user-alice",
+        "user.id": "alice@example.com",
         "trajectory.team.id": "team-ml",
         "trajectory.gateway.key.alias": "alice-key",
         "trajectory.gateway.route": "gpt",
@@ -792,6 +807,31 @@ def test_opt_in_tags(writer):
     }
     for _, _, attributes in writer.records:
         assert attributes == expected
+
+
+@pytest.mark.parametrize(
+    "identity, user",
+    [
+        # The key owner's user id alone can be a service account or a team: never a user.id.
+        ({"user_api_key_user_id": "svc-batch", "user_api_key_alias": "batch-key"}, None),
+        # The end user the request was made for, when the key has no owner email.
+        ({"user_api_key_user_id": "svc-batch", "user_api_key_end_user_id": "bob@example.com"}, "bob@example.com"),
+        # The key owner's email comes first.
+        (
+            {"user_api_key_user_email": "alice@example.com", "user_api_key_end_user_id": "bob@example.com"},
+            "alice@example.com",
+        ),
+    ],
+)
+def test_user_id_is_only_a_person(writer, identity, user):
+    logger = UsageMetricsLogger(writer, frozenset({"user", "key_alias"}), None, {})
+    proxy = Proxy(logger, identity=identity)
+    proxy.start()
+    proxy.attempt(0)
+    proxy.succeeded(0.1)
+    for _, _, attributes in writer.records:
+        assert attributes.get("user.id") == user
+        assert attributes.get("trajectory.gateway.key.alias") == identity.get("user_api_key_alias")
 
 
 def test_calls_outside_a_proxy_request_are_not_recorded(logger, writer):
