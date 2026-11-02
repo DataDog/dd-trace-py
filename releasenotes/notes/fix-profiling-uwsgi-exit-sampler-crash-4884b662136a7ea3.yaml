@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash that can happen when a uWSGI process exits while the stack profiler is running,
+    for example a worker started with ``--lazy-apps --skip-atexit`` or a ``--master`` process with
+    ``--py-call-uwsgi-fork-hooks``.
