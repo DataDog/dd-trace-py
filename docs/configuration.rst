@@ -602,6 +602,9 @@ Trace Context propagation
 Metrics
 -------
 
+When exporting traces over OTLP, the tracing library delegates APM RED metrics
+computation to the OpenTelemetry Collector or Datadog intake by default.
+
 .. ddtrace-configuration-options::
 
    DD_RUNTIME_METRICS_ENABLED:

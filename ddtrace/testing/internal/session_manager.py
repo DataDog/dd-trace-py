@@ -691,19 +691,43 @@ class SessionManager:
         finally:
             lock_file.close()
 
-    def _update_pr_merge_base(self, git: Git) -> None:
+    def _update_pr_merge_base(self, git: Git, quiet: bool = False) -> str:
         """Compute PULL_REQUEST_BASE_BRANCH_SHA via git merge-base if not already set.
 
-        Called from upload_git_data() after any unshallowing so the commits are
-        guaranteed to be present in the local history.
+        Returns the merge-base stored by this call, or an empty string when nothing
+        was computed (already set, missing SHAs, or the merge-base command failed).
+
+        Called from upload_git_data() before and after any unshallowing. The first
+        attempt uses the local history only, and on shallow clones its result is
+        provisional: git treats shallow boundary commits as roots, so merge-base
+        can return an older ancestor while the true merge-base is hidden behind a
+        truncated parent. It is therefore only a fallback for when the fetch fails,
+        and it is replaced by a recomputation after a successful fetch. quiet=True
+        keeps the expected local failure on shallow clones at debug level; the
+        post-fetch retry keeps the default warning.
         """
         if self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA):
-            return
+            return ""
         base_sha = self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA)
         head_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA)
         if base_sha and head_sha:
-            if merge_base := git.get_merge_base(base_sha, head_sha):
+            if merge_base := git.get_merge_base(base_sha, head_sha, warn=not quiet):
                 self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = merge_base
+                return merge_base
+        return ""
+
+    def _pr_merge_base_missing(self) -> bool:
+        """Return True when the PR merge-base is computable (both SHAs set) but not resolved.
+
+        Only a preexisting value (e.g. user-supplied DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA)
+        counts as resolved. A merge-base computed from a shallow graph does not: git
+        treats shallow boundary commits as roots, so it may be an older ancestor while
+        the true merge-base is hidden. Callers must therefore capture this before any
+        local computation, whose stored value would make it return False.
+        """
+        return not self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) and all(
+            self.env_tags.get(tag) for tag in (GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA, GitTag.COMMIT_HEAD_SHA)
+        )
 
     def upload_git_data(self) -> None:
         # NOTE: In manifest mode (Bazel sandbox), git commands are unavailable
@@ -765,31 +789,56 @@ class SessionManager:
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
-            log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-            unshallow_successful = git.try_all_unshallow_repository_methods()
-            if unshallow_successful:
-                if len(commits_not_in_backend) > 0:
-                    log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
-                    latest_commits = git.get_latest_commits()
-                    backend_commits = self.api_client.get_known_commits(latest_commits)
-                    if backend_commits is None:
-                        log.warning("search_commits failed after unshallow, aborting git metadata upload")
-                        TelemetryAPI.get().record_git_pack_data(0, 0)
-                        return
+        is_shallow = git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0)
+        # Whether the PR merge-base still needs resolving, captured before the
+        # local attempt below: a shallow-graph result is provisional and does not
+        # resolve it (see _update_pr_merge_base).
+        merge_base_needed = self._pr_merge_base_missing()
 
-                    commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
-            elif len(commits_not_in_backend) > 0:
-                log.warning("Failed to unshallow repository, continuing to send pack data")
+        # Attempt the merge-base from the local history first. On non-shallow
+        # repositories this is authoritative. On shallow clones it is at best a
+        # provisional value kept only as a fallback for when the fetch below
+        # fails; a successful fetch replaces it with a recomputation over the
+        # extended history. Failing locally on a shallow clone is expected, so
+        # the attempt stays quiet (debug level).
+        local_merge_base = self._update_pr_merge_base(git, quiet=is_shallow)
 
-        # Compute the true PR merge-base now that the repo has been unshallowed (if needed).
-        # This is done here rather than at env_tags collection time because on shallow clones the
-        # required commits are only available after the fetch above completes.
-        # Must run before the early-return below so sessions where all commits are already
-        # known to the backend still populate git.pull_request.base_branch_sha.
-        self._update_pr_merge_base(git)
+        # Only unshallow when there is work that needs the extra history: commits
+        # missing from the backend, or a PR merge-base that is not resolved by a
+        # preexisting (user-supplied) value. When the backend already knows every
+        # commit and the merge-base is resolved (or not applicable), the fetch is
+        # skipped entirely, matching the behavior of the other CI Visibility tracers.
+        if is_shallow:
+            if commits_not_in_backend or merge_base_needed:
+                log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+                unshallow_successful = git.try_all_unshallow_repository_methods()
+                if unshallow_successful:
+                    # Recompute the merge-base over the extended history. The local
+                    # attempt above ran on the truncated shallow graph and may have
+                    # returned an older ancestor than the true merge-base, so replace
+                    # the value it stored (user-supplied values are never cleared).
+                    if local_merge_base and (
+                        self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) == local_merge_base
+                    ):
+                        del self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA]
+                    self._update_pr_merge_base(git)
 
-        if len(commits_not_in_backend) == 0:
+                    if commits_not_in_backend:
+                        log.debug(
+                            "Unshallow successful, getting latest commits from backend based on unshallowed commits"
+                        )
+                        latest_commits = git.get_latest_commits()
+                        backend_commits = self.api_client.get_known_commits(latest_commits)
+                        if backend_commits is None:
+                            log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                            TelemetryAPI.get().record_git_pack_data(0, 0)
+                            return
+
+                        commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+                elif commits_not_in_backend:
+                    log.warning("Failed to unshallow repository, continuing to send pack data")
+
+        if not commits_not_in_backend:
             log.debug("All latest commits found in backend, skipping metadata upload")
             self._mark_upload_done()
             return

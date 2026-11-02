@@ -55,9 +55,10 @@ class VulnerabilityBase:
     secure_mark = 0
 
     @staticmethod
-    def has_quota():
+    def has_quota() -> bool:
         if context := _get_iast_env():
-            return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
+            max_vulnerabilities: int = asm_config._iast_max_vulnerabilities_per_requests
+            return context.vulnerability_budget < max_vulnerabilities
         return False
 
     @classmethod
@@ -108,7 +109,7 @@ class VulnerabilityBase:
     def _create_evidence_and_report(
         cls,
         vulnerability_type: str,
-        evidence_value: TEXT_TYPES = "",
+        evidence_value: Optional[TEXT_TYPES] = None,
         dialect: Optional[str] = None,
         file_name: Optional[str] = None,
         line_number: Optional[int] = None,
@@ -122,14 +123,15 @@ class VulnerabilityBase:
                 evidence_value = evidence_value.decode("utf-8", "ignore")
             evidence = Evidence(value=evidence_value, dialect=dialect)
         else:
-            log.debug("Unexpected evidence_value type: %s", type(evidence_value))
+            if evidence_value is not None:
+                log.debug("Unexpected evidence_value type: %s", type(evidence_value))
             evidence = Evidence(value="", dialect=dialect)
         return cls._prepare_report(
             vulnerability_type, evidence, file_name, line_number, function_name, class_name, *args, **kwargs
         )
 
     @classmethod
-    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> bool:
+    def report(cls, evidence_value: Optional[TEXT_TYPES] = None, dialect: Optional[str] = None) -> bool:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         result = False
         if should_process_vulnerability(cls.vulnerability_type):
@@ -144,8 +146,7 @@ class VulnerabilityBase:
             result = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
             )
-            # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
-            # we need to restore the quota
+            # Restore the quota when deduplication prevents reporting a vulnerability.
             if not result:
                 rollback_quota(cls.vulnerability_type)
         return result
