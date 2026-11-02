@@ -477,6 +477,57 @@ def test_unknown_setting_is_ignored() -> None:
     assert merged["settings"] == remoteconfig._settings_from_env()
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+def test_reference_chains_sets_gc_settings(enabled: bool) -> None:
+    merged = remoteconfig._merge_configs(
+        [
+            _profiling_content({"env": ENV}, {"referenceChains": not enabled}),
+            _profiling_content({"service": SERVICE}, {"referenceChains": enabled}),
+        ]
+    )
+
+    assert merged["settings"]["gc.enabled"] is enabled
+    assert merged["settings"]["gc.referrers_enabled"] is enabled
+
+
+def test_unset_reference_chains_keeps_gc_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(profiling_config.gc.parsed, "enabled", True)
+    monkeypatch.setattr(profiling_config.gc.parsed, "referrers_enabled", False)
+
+    merged = remoteconfig._merge_configs([_profiling_content({"env": ENV}, {"cpuTime": True})])
+
+    assert merged["settings"]["gc.enabled"] is True
+    assert merged["settings"]["gc.referrers_enabled"] is False
+
+
+def test_gc_settings_cannot_be_set_through_payload_settings() -> None:
+    merged = remoteconfig._merge_configs([_profiling_content({"env": ENV}, {}, {"gc.referrers_enabled": True})])
+
+    assert merged["settings"] == remoteconfig._settings_from_env()
+
+
+def test_reference_chains_change_restarts_profiler(restart_profiler: _Recorder) -> None:
+    callback = remoteconfig.ProfilingRCCallback()
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "referenceChains": False}))])
+
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "referenceChains": True}))])
+
+    assert len(restart_profiler.calls) == 2
+    assert restart_profiler.calls[0] == restart_profiler.calls[1]
+    assert restart_profiler.settings[-1]["gc.enabled"] is True
+    assert restart_profiler.settings[-1]["gc.referrers_enabled"] is True
+
+
+def test_restart_profiler_applies_reference_chains(created_profilers: list[dict[str, bool]]) -> None:
+    settings = {**remoteconfig._settings_from_env(), "gc.enabled": True, "gc.referrers_enabled": True}
+
+    remoteconfig._restart_profiler(_collectors(stack=True), settings)
+
+    assert profiling_config.gc.enabled is True
+    assert profiling_config.gc.referrers_enabled is True
+    assert bootstrap.profiler.settings == settings
+
+
 def test_settings_change_restarts_profiler(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
     callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}))])
@@ -608,7 +659,7 @@ def created_profilers(monkeypatch: pytest.MonkeyPatch) -> t.Iterator[list[dict[s
     monkeypatch.setattr(profiler_module, "Profiler", FakeProfiler)
     monkeypatch.delattr(bootstrap, "profiler", raising=False)
     # Restore the settings and collectors _restart_profiler applies to profiling_config.
-    for path in [*(path for path, _ in remoteconfig._SETTINGS.values()), *remoteconfig._COLLECTOR_ARGUMENTS.values()]:
+    for path in [*remoteconfig._SETTING_PATHS.values(), *remoteconfig._COLLECTOR_ARGUMENTS.values()]:
         owner, name = remoteconfig._setting_owner(path)
         monkeypatch.setattr(owner, name, getattr(owner, name))
     yield created
