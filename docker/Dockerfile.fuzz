@@ -41,6 +41,8 @@ RUN set -eu; \
       fi; \
       cp "$("$python" -c 'import certifi; print(certifi.where())')" \
         "$("$python" -c 'import pathlib, pip; print(pathlib.Path(pip.__file__).parent / "_vendor/certifi/cacert.pem")')"; \
+      # venv bootstraps pip from the bundled ensurepip wheel, so patch its vendored bundle too.
+      "$python" -c 'import certifi,glob,os,shutil,sysconfig,zipfile;p=open(certifi.where(),"rb").read();f=lambda w:(lambda zi,zo:([zo.writestr(i,p if i.filename.endswith("pip/_vendor/certifi/cacert.pem") else zi.read(i.filename)) for i in zi.infolist()],zi.close(),zo.close(),shutil.move(w+".tmp",w)))(zipfile.ZipFile(w),zipfile.ZipFile(w+".tmp","w",zipfile.ZIP_DEFLATED));[f(w) for w in glob.glob(os.path.join(sysconfig.get_paths()["stdlib"],"ensurepip","_bundled","pip-*.whl"))]'; \
     done; \
     find /tmp -maxdepth 1 -type f -name 'tmp*cacert.pem' -delete
 
