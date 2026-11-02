@@ -2,6 +2,7 @@
 
 import typing
 
+from openfeature.evaluation_context import EvaluationContext
 from openfeature.flag_evaluation import FlagEvaluationDetails
 
 from ddtrace.internal.openfeature.writer import ExposureEvent
@@ -14,17 +15,19 @@ ExposureCacheValue = tuple[typing.Optional[str], typing.Optional[str], typing.Op
 
 
 class FlagMetadata(dict[str, typing.Any]):
-    """Flag metadata that carries the pending exposure decision of its evaluation.
+    """Flag metadata that carries the pending exposure decision and the evaluated context.
 
     The OpenFeature SDK hands the provider's metadata object to every hook unchanged, so
-    the decision travels with it without becoming a metadata entry.
+    both travel with it without becoming metadata entries. The SDK does not write the
+    context returned by before hooks back into the hook context, so hooks need this one.
     """
 
-    __slots__ = ("_dd_exposure_decision",)
+    __slots__ = ("_dd_exposure_decision", "_dd_evaluation_context")
 
     def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         super().__init__(*args, **kwargs)
         self._dd_exposure_decision: typing.Optional[ExposureDecision] = None
+        self._dd_evaluation_context: typing.Optional[EvaluationContext] = None
 
 
 class ExposureDecision:
