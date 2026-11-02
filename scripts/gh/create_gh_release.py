@@ -30,7 +30,7 @@ Usage:
                                    [--allow-version-mismatch] [--allow-ci-failure]
                                    [--wait-ci|--no-wait-ci] [--ci-wait-timeout SECS]
                                    [--slack] [--slack-channel prod|guild|test|auto]
-                                   [--no-slack-precheck] [--test-dm]
+                                   [--slack-precheck] [--test-dm]
                                    [--dry-run] [--verbose]
 
 CI wait (patch / rc / final / draft-release):
@@ -42,8 +42,8 @@ CI wait (patch / rc / final / draft-release):
 
 Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL
-                                     webhook bound to #apm-python-release
-                                     (default --slack target for review pings)
+                                     Incoming Webhook URL for #apm-python-release
+                                     (hooks.slack.com/services/...; default --slack)
   DDTRACE_RELEASE_DM_URL             required for --test-dm (personal DM webhook;
                                      secret; not committed; no SSM path yet)
   DDTRACE_RELEASE_GUILD_CHANNEL_URL  optional escape hatch for --slack-channel=guild
@@ -53,6 +53,9 @@ Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DD_RELEASE_SLACK_WEBHOOK_URL       legacy single-channel fallback
   DD_SLACK_USER_BRETT/EMMETT         optional overrides for reviewer @-mentions;
                                      defaults are hardcoded member IDs
+  DDTRACE_RELEASE_ALLOW_WORKFLOW_TRIGGER
+                                     set to 1 only to force-post through a
+                                     Workflow Builder triggers/ URL (broken mrkdwn)
 
 Local persistence (no SSM / no export each session): put the vars in
 gitignored ``scripts/gh/.env.local`` (see ``scripts/gh/.env.local.example``).
@@ -69,11 +72,15 @@ repo for release secrets (see .gitlab/release.yml). Requires AWS credentials
 to be available (e.g. via aws-vault or your usual SSO flow). The DM webhook
 is env-only (do not commit it); channel webhooks stay env-or-SSM.
 
-Prod webhook setup (if unset): create a Slack Workflow Builder webhook that
-posts to #apm-python-release with a ``text`` variable (message body =
-``{text}`` only), put it in ``scripts/gh/.env.local`` as
+Prod webhook setup (if unset): create a Slack **Incoming Webhook**
+(hooks.slack.com/services/...) for #apm-python-release — not a Workflow
+Builder "From a webhook" trigger (hooks.slack.com/triggers/...). Incoming
+Webhooks render ``{"text": "<mrkdwn>"}`` correctly (*bold*, <url|label>,
+<@UID>). Put the URL in ``scripts/gh/.env.local`` as
 DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL (or export the same name),
 and optionally store it at SSM ``ci.dd-trace-py.slack-release-webhook-prod``.
+Workflow Builder "Send a message" inserts variables as plain/rich-text, so
+mrkdwn from this script shows up as literal asterisks and angle brackets.
 
 Failure recovery:
   Push succeeded but `gh pr create` failed (bump-rc):
@@ -94,10 +101,12 @@ Failure recovery:
       git checkout main && git branch -D <X.Y>   # then re-run ensure-branch
 
 Gotchas:
-  - Slack Workflow Builder webhook with renamed `text` variable: the post
-    succeeds at the HTTP layer but the message body comes through empty
-    or templated. The --slack-precheck handshake (default: on) catches
-    most cases by sending a sentinel first.
+  - Workflow Builder triggers/ URLs (hooks.slack.com/triggers/...): HTTP
+    succeeds but Slack shows raw mrkdwn. The script refuses those URLs
+    unless DDTRACE_RELEASE_ALLOW_WORKFLOW_TRIGGER=1. Switch to Incoming
+    Webhook (services/).
+  - Optional ``--slack-precheck`` sends a short connectivity ping before
+    the real announce (off by default — avoid dual channel noise).
   - Hardcoded Brett/Emmett member IDs (or DD_SLACK_USER_* overrides) that
     go stale render as broken mentions like `<@U_OLD>` with no error.
     Refresh the constants from Slack profile when reviewers change.
@@ -178,12 +187,16 @@ SLACK_CHANNEL_GUILD_NAME: str = "guild-dd-trace-py"
 # back to SSM when the corresponding env var is unset, so a freshly-set-up
 # release engineer with AWS creds (and no other config) can run the script
 # without manually exporting webhook URLs. DM webhook has no SSM path yet
-# (env-only; do not commit the secret URL). Prod SSM may need to be created
-# once a Workflow Builder webhook for #apm-python-release exists.
+# (env-only; do not commit the secret URL). Prod SSM should store an Incoming
+# Webhook (hooks.slack.com/services/...) for #apm-python-release — not a
+# Workflow Builder triggers/ URL (those break mrkdwn).
 SSM_REGION: str = "us-east-1"
 SSM_SLACK_WEBHOOK_PROD: str = "ci.dd-trace-py.slack-release-webhook-prod"
 SSM_SLACK_WEBHOOK_GUILD: str = "ci.dd-trace-py.slack-release-webhook-guild"
 SSM_SLACK_WEBHOOK_TEST: str = "ci.dd-trace-py.slack-release-webhook-test"
+# Escape hatch when debugging connectivity against a Workflow triggers/ URL.
+# Default refuse: Workflow "Send a message" does not render mrkdwn.
+SLACK_ALLOW_WORKFLOW_TRIGGER_ENV: str = "DDTRACE_RELEASE_ALLOW_WORKFLOW_TRIGGER"
 
 # Required on every `gh release create`. Prerelease / latest are asserted
 # separately from the version kind — see ``build_gh_release_args``.
@@ -1423,7 +1436,7 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
                 draft_url=existing_draft_url,
                 test_dm=bool(args.test_dm),
                 channel=str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
-                precheck=bool(getattr(args, "slack_precheck", True)),
+                precheck=bool(getattr(args, "slack_precheck", False)),
             )
         return 0
 
@@ -1481,7 +1494,7 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
             draft_url=url,
             test_dm=bool(args.test_dm),
             channel=str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
-            precheck=bool(getattr(args, "slack_precheck", True)),
+            precheck=bool(getattr(args, "slack_precheck", False)),
         )
     return 0
 
@@ -2312,7 +2325,7 @@ def cmd_rc(args: argparse.Namespace) -> int:
                     draft_url=url,
                     test_dm=bool(args.test_dm),
                     channel=str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
-                    precheck=bool(getattr(args, "slack_precheck", True)),
+                    precheck=bool(getattr(args, "slack_precheck", False)),
                 )
             raise WaitingOn(f"existing draft for v{version}: {url} — announced; waiting on publish")
         raise WaitingOn(f"existing draft for v{version}: {url} — review/publish or delete before re-drafting")
@@ -2569,7 +2582,7 @@ def _slack_flag_values(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "slack": bool(getattr(args, "slack", False)),
         "slack_channel": str(getattr(args, "slack_channel", SLACK_CHANNEL_DEFAULT)),
-        "slack_precheck": bool(getattr(args, "slack_precheck", True)),
+        "slack_precheck": bool(getattr(args, "slack_precheck", False)),
         "test_dm": bool(getattr(args, "test_dm", False)),
     }
 
@@ -2622,7 +2635,49 @@ def print_slack_announce_preview(
     print("----- END SLACK MESSAGE -----")
 
 
+def is_workflow_trigger_url(url: str) -> bool:
+    """True for Workflow Builder webhook triggers (hooks.slack.com/triggers/...)."""
+    return "hooks.slack.com/triggers/" in url
+
+
+def is_incoming_webhook_url(url: str) -> bool:
+    """True for classic Incoming Webhooks (hooks.slack.com/services/...)."""
+    return "hooks.slack.com/services/" in url
+
+
+def refuse_workflow_trigger_unless_allowed(url: str) -> None:
+    """Exit if ``url`` is a Workflow triggers/ endpoint without the escape hatch.
+
+    Workflow Builder "Send a message" inserts the ``text`` variable as
+    plain/rich-text, so mrkdwn from ``format_slack_announce`` shows up as
+    literal ``*bold*``, ``<url|label>``, and ``<@UID>``. Incoming Webhooks
+    (services/) render the same payload correctly.
+    """
+    if not is_workflow_trigger_url(url):
+        return
+    allow: str = os.environ.get(SLACK_ALLOW_WORKFLOW_TRIGGER_ENV, "").strip()
+    if allow in ("1", "true", "yes"):
+        print(
+            "warning: posting to Workflow Builder triggers/ URL "
+            "(mrkdwn will likely show as literals; prefer Incoming Webhook "
+            "hooks.slack.com/services/...)",
+            file=sys.stderr,
+        )
+        return
+    raise SystemExit(
+        "Refusing to post: URL is a Slack Workflow Builder trigger "
+        "(hooks.slack.com/triggers/...). Those insert `text` as plain/rich-text "
+        "and break mrkdwn (*bold*, <url|label>, <@UID>). "
+        "Create an Incoming Webhook (hooks.slack.com/services/...) for "
+        f"#{SLACK_CHANNEL_PROD_NAME}, put it in scripts/gh/.env.local as "
+        f"{SLACK_CHANNEL_PROD_ENV}, then re-run --slack. "
+        f"Override with {SLACK_ALLOW_WORKFLOW_TRIGGER_ENV}=1 only for "
+        "connectivity debugging (still broken formatting)."
+    )
+
+
 def post_webhook(url: str, text: str) -> None:
+    refuse_workflow_trigger_unless_allowed(url)
     payload: bytes = json.dumps({"text": text}).encode("utf-8")
     req: urllib.request.Request = urllib.request.Request(
         url,
@@ -2725,9 +2780,10 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
                 f"(or legacy {SLACK_CHANNEL_PROD_ENV_LEGACY}) or SSM "
                 f"{SSM_SLACK_WEBHOOK_PROD} (webhook posting to "
                 f"#{SLACK_CHANNEL_PROD_NAME} / <#{SLACK_CHANNEL_PROD_ID}>). "
-                "Create a Workflow Builder webhook with a `text` variable bound "
-                f"to #{SLACK_CHANNEL_PROD_NAME}, then export the URL or store it "
-                f"in SSM. Underlying error: {exc}"
+                "Create a Slack Incoming Webhook (hooks.slack.com/services/...) "
+                f"for #{SLACK_CHANNEL_PROD_NAME}, then export the URL or store it "
+                f"in SSM. Do not use Workflow Builder triggers/ URLs (broken "
+                f"mrkdwn). Underlying error: {exc}"
             ) from exc
     if channel == "guild":
         if guild_url:
@@ -2742,9 +2798,10 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
                 f"--slack-channel=guild needs {SLACK_CHANNEL_GUILD_ENV} or SSM "
                 f"{SSM_SLACK_WEBHOOK_GUILD} (webhook posting to "
                 f"#{SLACK_CHANNEL_GUILD_NAME} / <#{SLACK_CHANNEL_GUILD_ID}>). "
-                "Create a Workflow Builder webhook with a `text` variable bound "
-                f"to #{SLACK_CHANNEL_GUILD_NAME}, then export the URL or store it "
-                f"in SSM. Underlying error: {exc}"
+                "Create a Slack Incoming Webhook (hooks.slack.com/services/...) "
+                f"for #{SLACK_CHANNEL_GUILD_NAME}, then export the URL or store it "
+                f"in SSM. Do not use Workflow Builder triggers/ URLs (broken "
+                f"mrkdwn). Underlying error: {exc}"
             ) from exc
     if channel == "test":
         if test_url:
@@ -2769,7 +2826,7 @@ def resolve_channel_webhook(channel: str) -> tuple[str, str]:
 
 
 def notify_slack(
-    version: str, target_sha: str, draft_url: str, test_dm: bool, channel: str, precheck: bool = True
+    version: str, target_sha: str, draft_url: str, test_dm: bool, channel: str, precheck: bool = False
 ) -> None:
     text: str = format_slack_announce(version, target_sha, draft_url)
     dm_url: str
@@ -2793,12 +2850,13 @@ def notify_slack(
     channel_env: str
     channel_url, channel_env = resolve_channel_webhook(channel)
     if precheck:
-        # Sentinel post: catches misconfigured Workflow Builder webhooks (renamed
-        # `text` variable, deleted workflow, revoked URL) before we send the real
-        # announcement that's harder to retract.
+        # Optional connectivity ping (off by default). Useful when debugging a
+        # new Incoming Webhook; keep off for normal announces to avoid dual posts.
         post_webhook(channel_url, "[ping] release-script connectivity check")
     post_webhook(channel_url, text)
     print(f"posted to release channel via {channel_env}")
+    if is_incoming_webhook_url(channel_url):
+        print("(Incoming Webhook — mrkdwn should render)")
     if dm_url:
         post_webhook(dm_url, f"(runner copy) {text}")
         print(f"sent runner-copy DM via {dm_env}")
@@ -2887,14 +2945,19 @@ def _add_slack_flags(sp: argparse.ArgumentParser) -> None:
         ),
     )
     sp.add_argument(
+        "--slack-precheck",
+        dest="slack_precheck",
+        action="store_true",
+        default=False,
+        help=(
+            "also post a short connectivity ping before the real announcement (default: off — one channel message only)"
+        ),
+    )
+    sp.add_argument(
         "--no-slack-precheck",
         dest="slack_precheck",
         action="store_false",
-        default=True,
-        help=(
-            "skip the connectivity-check ping that's sent to Slack before the "
-            "real announcement (default: precheck enabled)"
-        ),
+        help="explicit no-op: precheck is already off by default",
     )
     sp.add_argument("--test-dm", action="store_true", help="DM the runner only (no channel post)")
 

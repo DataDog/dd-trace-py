@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from create_gh_release import _GH_RELEASE_REQUIRED_FLAGS  # noqa: E402
 from create_gh_release import _RELEASE_SCRIPT_BRANCH_URL  # noqa: E402
+from create_gh_release import SLACK_ALLOW_WORKFLOW_TRIGGER_ENV  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_DEFAULT  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_GUILD_ENV  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_PROD_ENV  # noqa: E402
@@ -52,10 +53,13 @@ from create_gh_release import format_included_since_section  # noqa: E402
 from create_gh_release import format_notes_for_version  # noqa: E402
 from create_gh_release import format_slack_announce  # noqa: E402
 from create_gh_release import generated_by_pr_line  # noqa: E402
+from create_gh_release import is_incoming_webhook_url  # noqa: E402
 from create_gh_release import is_rc_version  # noqa: E402
 from create_gh_release import is_stable_version  # noqa: E402
+from create_gh_release import is_workflow_trigger_url  # noqa: E402
 from create_gh_release import load_local_env  # noqa: E402
 from create_gh_release import print_slack_announce_preview  # noqa: E402
+from create_gh_release import refuse_workflow_trigger_unless_allowed  # noqa: E402
 from create_gh_release import resolve_runner_display  # noqa: E402
 from create_gh_release import review_text  # noqa: E402
 from create_gh_release import should_mark_latest  # noqa: E402
@@ -240,7 +244,7 @@ class SlackDefaultsTests(unittest.TestCase):
     def test_intent_commands_accept_slack_flags(self) -> None:
         parser = build_parser()
         for argv in (
-            ["patch", "1", "--branch", "4.16", "--test-dm", "--no-slack-precheck"],
+            ["patch", "1", "--branch", "4.16", "--test-dm", "--slack-precheck"],
             ["rc", "--slack", "--slack-channel", "prod"],
             ["final", "4.17", "--slack", "--test-dm"],
             ["draft-release", "--test-dm"],
@@ -257,6 +261,30 @@ class SlackDefaultsTests(unittest.TestCase):
         ns = parser.parse_args(["rc", "--slack"])
         self.assertEqual(ns.slack_channel, "prod")
         self.assertEqual(ns.slack_channel, SLACK_CHANNEL_DEFAULT)
+
+    def test_slack_precheck_defaults_off(self) -> None:
+        parser = build_parser()
+        ns = parser.parse_args(["rc", "--slack"])
+        self.assertFalse(ns.slack_precheck)
+        ns_on = parser.parse_args(["rc", "--slack", "--slack-precheck"])
+        self.assertTrue(ns_on.slack_precheck)
+
+    def test_webhook_url_kind_helpers(self) -> None:
+        self.assertTrue(is_workflow_trigger_url("https://hooks.slack.com/triggers/T/1/x"))
+        self.assertFalse(is_workflow_trigger_url("https://hooks.slack.com/services/T/B/x"))
+        self.assertTrue(is_incoming_webhook_url("https://hooks.slack.com/services/T/B/x"))
+        self.assertFalse(is_incoming_webhook_url("https://hooks.slack.com/triggers/T/1/x"))
+
+    def test_refuse_workflow_trigger_url(self) -> None:
+        trigger: str = "https://hooks.slack.com/triggers/T/1/secret"
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with self.assertRaises(SystemExit) as ctx:
+                refuse_workflow_trigger_unless_allowed(trigger)
+            self.assertIn("Incoming Webhook", str(ctx.exception))
+            self.assertIn("triggers/", str(ctx.exception))
+        with mock.patch.dict("os.environ", {SLACK_ALLOW_WORKFLOW_TRIGGER_ENV: "1"}, clear=True):
+            refuse_workflow_trigger_unless_allowed(trigger)
+        refuse_workflow_trigger_unless_allowed("https://hooks.slack.com/services/T/B/x")
 
     def test_format_slack_announce_template(self) -> None:
         with mock.patch.dict("os.environ", {}, clear=True):
@@ -522,6 +550,53 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(url, "https://example.test/prod")
         self.assertIn("*Draft release*", body)
         self.assertNotIn("[TEST]", body)
+        self.assertNotIn("[ping]", body)
+
+    def test_notify_slack_prod_precheck_optional(self) -> None:
+        import create_gh_release as mod
+
+        posted: list[tuple[str, str]] = []
+
+        def fake_post(url: str, text: str) -> None:
+            posted.append((url, text))
+
+        with mock.patch.dict(
+            "os.environ",
+            {SLACK_CHANNEL_PROD_ENV: "https://hooks.slack.com/services/T/B/x"},
+            clear=True,
+        ):
+            with mock.patch.object(mod, "post_webhook", fake_post):
+                with mock.patch.object(mod, "resolve_runner_display", return_value=_FAKE_RUNNER):
+                    mod.notify_slack(
+                        version="4.17.0",
+                        target_sha="cafebabe",
+                        draft_url="https://example/final",
+                        test_dm=False,
+                        channel="prod",
+                        precheck=True,
+                    )
+        self.assertEqual(len(posted), 2)
+        self.assertEqual(posted[0][1], "[ping] release-script connectivity check")
+        self.assertIn("*Draft release*", posted[1][1])
+
+    def test_notify_slack_refuses_workflow_trigger(self) -> None:
+        import create_gh_release as mod
+
+        with mock.patch.dict(
+            "os.environ",
+            {SLACK_CHANNEL_PROD_ENV: "https://hooks.slack.com/triggers/T/1/x"},
+            clear=True,
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                mod.notify_slack(
+                    version="4.17.0",
+                    target_sha="cafebabe",
+                    draft_url="https://example/final",
+                    test_dm=False,
+                    channel="prod",
+                    precheck=False,
+                )
+            self.assertIn("Incoming Webhook", str(ctx.exception))
 
     def test_notify_slack_prod_legacy_env(self) -> None:
         import create_gh_release as mod
