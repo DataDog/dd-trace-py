@@ -270,6 +270,22 @@ def test_usage_fields_treat_placeholders_as_unknown():
     }
 
 
+def test_usage_fields_keep_native_anthropic_usage_served_from_cache():
+    # Native Anthropic usage leaves cache reads out of input_tokens: a stream that ended before any output, with its
+    # input wholly read from cache, reads zero input and zero output but was billed for the cache read.
+    usage = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 2048, "cache_creation_input_tokens": 0}
+    assert usage_fields(usage, embeddings=False) == {
+        "input_tokens": 0,
+        "input_basis": "excludes_cache",
+        "output_tokens": 0,
+        "output_basis": "includes_reasoning",
+        "cache_read_input_tokens": 2048,
+        "cache_write_input_tokens": 0,
+    }
+    # With no cache count set, all zeros is still the placeholder.
+    assert usage_fields({"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0}, embeddings=False) == {}
+
+
 def test_successful_call(logger, writer):
     proxy = Proxy(logger)
     proxy.start()

@@ -251,7 +251,10 @@ def usage_fields(usage: Any, embeddings: bool, modality: bool = True) -> dict[st
             _count(_get(usage, "cache_creation_input_tokens")) is not None
         ):
             input_basis = "excludes_cache"
-    if not input_tokens and not output_tokens:
+    # All zeros is LiteLLM's placeholder for unknown usage, unless a cache count is set: the native Anthropic shape
+    # leaves cache reads and writes out of its input count, so input served wholly from cache reads zero.
+    cache_counts = (_get(usage, "cache_read_input_tokens"), _get(usage, "cache_creation_input_tokens"))
+    if not input_tokens and not output_tokens and not any(_count(count) for count in cache_counts):
         return {}
     fields: dict[str, Any] = {"input_tokens": input_tokens, "input_basis": input_basis}
     if not embeddings:
