@@ -17,6 +17,7 @@ SITE_ID = 1
 SECRET_KEY = "not_very_secret_in_tests"
 USE_I18N = True
 USE_L10N = True
+TIME_ZONE = "UTC"
 STATIC_URL = "/static/"
 ROOT_URLCONF = "tests.contrib.djangorestframework.app.views"
 
