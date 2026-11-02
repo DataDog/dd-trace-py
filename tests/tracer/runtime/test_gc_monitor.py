@@ -5,6 +5,8 @@ import sys
 import threading
 import time
 
+import pytest
+
 from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import gc_monitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
@@ -296,6 +298,10 @@ def test_skipped_stop_does_not_pair_with_a_later_stop() -> None:
     assert monitor.snapshot_and_reset().n_pauses == 0
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows pause clock stays wall time (thread time is too coarse)",
+)
 def test_pause_excludes_time_other_threads_run() -> None:
     """Time that another thread runs during a collection is not a stop-the-world pause.
 
