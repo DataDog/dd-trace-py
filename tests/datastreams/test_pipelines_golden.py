@@ -12,6 +12,7 @@ import time
 
 import msgpack
 
+from ddtrace.internal.datastreams import current_message
 from ddtrace.internal.datastreams import pipelines
 from ddtrace.internal.settings._config import config
 
@@ -28,19 +29,22 @@ def record_golden_events(reporter):
     """The fixed event sequence encoded in the golden fixture (T-6)."""
     # produce without a consume parent: source link
     reporter.on_produce("kafka", "cluster-a", "orders")
-    with reporter.on_consume("kafka", "cluster-a", "payments", "billing"):
-        reporter.on_produce("sqs", "", "invoices")
-    # the scope exited, so this produce is another source link to the same side
+    reporter.set_current_consume("kafka", "cluster-a", "payments", "billing")
     reporter.on_produce("sqs", "", "invoices")
-    # set_current_consume keeps the context until replaced (consumer-hook variant)
+    # no consume since: still in the payments context, so the identical link is
+    # interned once - [consume, out] appears a single time in the report
+    reporter.on_produce("sqs", "", "invoices")
+    # the next consume replaces the context
     reporter.set_current_consume("pubsub", "", "telemetry", "sub-1")
     reporter.on_produce("kinesis", "", "streams-1")
-    # a recorded side that is entered and exited again
-    with reporter.on_consume("eventbridge", "", "bus-1", ""):
-        pass
+    # a consume side with no outgoing link: a sink
+    reporter.set_current_consume("eventbridge", "", "bus-1", "")
 
 
 def build_golden_report(service=GOLDEN_SERVICE, env=GOLDEN_ENV):
+    # a golden report always simulates a fresh process: no inherited consume
+    # context in the shared current-message slot
+    current_message.clear_current_message()
     reporter = pipelines.PipelinesReporter(clock=FakeClock())
     record_golden_events(reporter)
     return reporter.take_report(service, env)
@@ -67,22 +71,22 @@ def test_t6_one_report_per_window_injected_clock():
     reporter = pipelines.PipelinesReporter(interval=300.0, clock=clock)
     reporter.on_produce("kafka", "", "orders")
     # the window has not elapsed yet
-    assert reporter.take_due_report("svc", "") is None
+    assert reporter.take_report("svc", "", due=True) is None
     clock.advance(299.9)
-    assert reporter.take_due_report("svc", "") is None
+    assert reporter.take_report("svc", "", due=True) is None
     clock.advance(0.1)
-    report = reporter.take_due_report("svc", "")
+    report = reporter.take_report("svc", "", due=True)
     assert report is not None
     assert report["sides"] == [["produce", "kafka", "", "orders", ""]]
     # the window was taken: nothing left to report
-    assert reporter.take_due_report("svc", "") is None
+    assert reporter.take_report("svc", "", due=True) is None
     # an empty window produces no report
     clock.advance(300.0)
-    assert reporter.take_due_report("svc", "") is None
+    assert reporter.take_report("svc", "", due=True) is None
     # ... but the next window with traffic does
     reporter.set_current_consume("sqs", "", "queue", "group")
     clock.advance(300.0)
-    report = reporter.take_due_report("svc", "")
+    report = reporter.take_report("svc", "", due=True)
     assert report is not None
     assert report["sides"] == [["consume", "sqs", "", "queue", "group"]]
 
@@ -94,10 +98,11 @@ def test_t6_background_thread_flushes_one_report_per_window():
     reporter = pipelines.PipelinesReporter(interval=0.05, clock=time.monotonic)
     sent = []
     flusher = pipelines._StandaloneFlusher(reporter)
-    flusher._send = sent.append
+    flusher._post = sent.append  # type: ignore[method-assign]
     flusher.start()
     try:
         reporter.on_produce("kafka", "", "orders")
+        # note: _post receives the envelope bytes, already gzip-compressed
         deadline = time.monotonic() + 5.0
         while not sent and time.monotonic() < deadline:
             time.sleep(0.01)

@@ -14,6 +14,7 @@ from unittest import mock
 import msgpack
 
 import ddtrace
+from ddtrace.internal.datastreams import current_message
 from ddtrace.internal.datastreams import pipelines
 from ddtrace.internal.datastreams import processor as processor_module
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
@@ -62,6 +63,8 @@ def test_t8_dsm_off_envelope_and_post():
     twin = pipelines.PipelinesReporter(clock=FakeClock())
     record_golden_events(twin)
     expected_report = twin.take_report(flush_service, flush_env)
+    # the twin left its consume context in the shared current-message slot
+    current_message.clear_current_message()
 
     reporter = pipelines.PipelinesReporter(clock=FakeClock())
     record_golden_events(reporter)
@@ -69,7 +72,7 @@ def test_t8_dsm_off_envelope_and_post():
     conn = mock.Mock()
     conn.getresponse.return_value.status = 200
     try:
-        with mock.patch.object(pipelines, "get_connection", return_value=conn):
+        with mock.patch.object(pipelines.transport, "get_connection", return_value=conn):
             flusher.flush_once(force=True)
 
         assert conn.request.call_count == 1
@@ -172,6 +175,7 @@ threads_before = threading.active_count()
 names_before = sorted(t.name for t in threading.enumerate())
 atexit_before = atexit._ncallbacks()
 
+from ddtrace.internal.datastreams import current_message
 from ddtrace.internal.datastreams import pipelines
 
 reporter = pipelines.get_pipelines_reporter()
@@ -239,6 +243,7 @@ def test_t12_fork_child_gets_fresh_window(run_python_code_in_subprocess):
     code = """
 import os
 
+from ddtrace.internal.datastreams import current_message
 from ddtrace.internal.datastreams import pipelines
 
 reporter = pipelines.get_pipelines_reporter()

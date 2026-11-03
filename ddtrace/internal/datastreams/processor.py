@@ -17,18 +17,17 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datastreams import current_message
+from ddtrace.internal.datastreams import transport
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
 from .._encoding import packb
-from ..agent import get_connection
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -264,26 +263,18 @@ class DataStreamsProcessor(PeriodicService):
 
     def _flush_stats(self, payload: bytes) -> None:
         try:
-            conn = get_connection(self._agent_url, self._timeout)
-            conn.request("POST", self._endpoint, payload, self._headers)
-            resp = conn.getresponse()
-        except Exception:
+            transport.post(
+                self._agent_url,
+                self._endpoint,
+                payload,
+                self._headers,
+                self._timeout,
+                what="data stream stats",
+                unsupported_feature="data streams monitoring",
+            )
+        except transport.TransportError:
             log.debug("failed to submit pathway stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             raise
-        else:
-            if resp.status == 404:
-                log.error("Datadog agent does not support data streams monitoring. Upgrade to 7.34+")
-                return
-            elif resp.status >= 400:
-                log.error(
-                    "failed to send data stream stats payload, %s (%s) (%s) response from Datadog agent at %s",
-                    resp.status,
-                    resp.reason,
-                    resp.read(),
-                    self._agent_endpoint,
-                )
-            else:
-                log.debug("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
 
     def periodic(self) -> None:
         with self._lock:
@@ -547,7 +538,7 @@ def _due_pipelines_report(service: str) -> Optional[bytes]:
         reporter = get_pipelines_reporter()
         if reporter is None:
             return None
-        report = reporter.take_due_report(service, compat.ensure_text(config.env or ""))
+        report = reporter.take_report(service, compat.ensure_text(config.env or ""), due=True)
         if report is None:
             return None
         return packb(report)

@@ -195,17 +195,18 @@ def test_produce_on_other_thread_is_source(fresh_reporter):
     assert report["links"] == [[-1, produce_idx]]
 
 
-def test_produce_after_consumed_context_exited_is_source(fresh_reporter):
-    # T-4: producing after the consumed context was explicitly exited via the
-    # context manager records a source link.
-    with fresh_reporter.on_consume("kafka", "cluster-1", "in-topic", "g1"):
-        pass
+def test_produce_after_context_replaced_by_next_consume_links_to_new_consume(fresh_reporter):
+    # T-4: the context lives until the next consume replaces it (classic DSM's
+    # rule, no clear path), so the produce links to the replacing consume.
+    fresh_reporter.set_current_consume("kafka", "cluster-1", "in-topic", "g1")
+    _dispatch_consume(FakeConsumer(cluster_id="cluster-1", group_id="g2"), FakeMessage("in-topic-2"))
     _dispatch_produce(FakeProducer(), "out-topic", cluster_id="cluster-1")
 
     report = fresh_reporter.take_report("svc", "env")
-    assert ["consume", "kafka", "cluster-1", "in-topic", "g1"] in report["sides"]
+    assert ["consume", "kafka", "cluster-1", "in-topic-2", "g2"] in report["sides"]
+    consume_idx = report["sides"].index(["consume", "kafka", "cluster-1", "in-topic-2", "g2"])
     produce_idx = report["sides"].index(["produce", "kafka", "cluster-1", "out-topic", ""])
-    assert report["links"] == [[-1, produce_idx]]
+    assert report["links"] == [[consume_idx, produce_idx]]
 
 
 def test_handlers_noop_when_pipelines_disabled(monkeypatch):
