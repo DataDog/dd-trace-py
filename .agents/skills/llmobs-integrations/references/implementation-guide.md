@@ -141,6 +141,8 @@ Oversized inline media makes `_writer._truncate_span_event` blank the span's ent
 
 Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `get_metadata_from_kwargs()` and provider-specific helpers in `ddtrace/llmobs/_integrations/utils.py` when they apply. They filter provider sentinel defaults such as OpenAI `Omit`/`NotGiven`, serialize SDK objects through `load_data_value()`, and keep metadata limited to supported fields. `_annotate_llmobs_span_data()` coerces metadata keys to strings, but integrations should still avoid sending noisy or high-cardinality raw objects.
 
+Never copy tool configurations verbatim either: hosted MCP tools carry credentials in `headers`, `authorization` and the server URL (userinfo, path, query). Record them through `safe_mcp_tool_config()` in `ddtrace/llmobs/_integrations/utils.py`, which keeps only non-secret fields and the URL origin.
+
 ### Token Field Mapping
 
 | Library | Input | Output | Cache Fields |

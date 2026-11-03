@@ -18,6 +18,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace.llmobs._integrations.utils import safe_mcp_tool_config
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -394,7 +395,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                     tool_dict["tool_config"] = tool.tool_config
             elif tool_name == "hosted_mcp":
                 if hasattr(tool, "tool_config"):
-                    tool_dict["tool_config"] = tool.tool_config
+                    tool_dict["tool_config"] = safe_mcp_tool_config(tool.tool_config)
                 if hasattr(tool, "on_approval_request"):
                     tool_dict["on_approval_request"] = tool.on_approval_request
             elif tool_name == "image_generation":

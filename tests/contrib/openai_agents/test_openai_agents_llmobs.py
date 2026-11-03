@@ -1,11 +1,21 @@
 import asyncio
+import json
 from typing import Optional
 from unittest import mock
 
 import openai
 import pytest
 
+
+try:
+    from openai.types.responses.tool import Mcp
+except ImportError:  # openai versions without hosted MCP tools
+    Mcp = None
+
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
+from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
+from ddtrace.llmobs._integrations.utils import safe_mcp_tool_config
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
@@ -808,3 +818,79 @@ async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
             args=(simple_agent,),
             kwargs={"input": "What is the capital of France?"},
         )
+
+
+# Fake values shaped like real credentials. Prefixes are split so secret scanners do not flag them.
+_MCP_PASSWORD = "Tr0ub4dor-3xample!"
+_MCP_PATH_TOKEN = "NGQ3ZTk1YjItOGM0MS00ZTFhLWI2ZDMtOWYyYTdjMWU1ZDQ4"
+_MCP_QUERY_KEY = "sk" + "-proj-" + "Zt8yQm3vLk2pW9xRn5bC7dF1gHj4sA6eUo0iTqYwErT"
+_MCP_HEADER_TOKEN = "xo" + "xb-" + "1234567890123-4567890123456-Hq7Lm2Xw9Rt4Yb8Nc3Vd6Js1"
+_MCP_OAUTH_TOKEN = "ya" + "29." + "a0AfB_byC7kq2ZxW9mLpT4vNbY8cHdF3sJ6aQe1uXo0iR"
+_MCP_CREDENTIALS = (_MCP_PASSWORD, _MCP_PATH_TOKEN, _MCP_QUERY_KEY, _MCP_HEADER_TOKEN, _MCP_OAUTH_TOKEN, "/api/mcp/s/")
+_LEAKY_MCP_TOOL_CONFIG = {
+    "type": "mcp",
+    "server_label": "zapier",
+    "server_description": "Zapier actions",
+    "server_url": f"https://svc:{_MCP_PASSWORD}@MCP.Zapier.com:443/api/mcp/s/{_MCP_PATH_TOKEN}/mcp?api_key={_MCP_QUERY_KEY}#x",
+    "headers": {"Authorization": f"Bearer {_MCP_HEADER_TOKEN}", "Cookie": "sessionid=8f2b"},
+    "authorization": _MCP_OAUTH_TOKEN,
+    "require_approval": "never",
+    "allowed_tools": ["send_email"],
+}
+_SAFE_MCP_TOOL_CONFIG = {
+    "type": "mcp",
+    "server_label": "zapier",
+    "server_description": "Zapier actions",
+    "server_url": "https://mcp.zapier.com",
+    "require_approval": "never",
+    "allowed_tools": ["send_email"],
+}
+
+
+def _assert_no_mcp_credentials(recorded):
+    serialized = json.dumps(recorded, default=str)
+    for credential in _MCP_CREDENTIALS + ("sessionid",):
+        assert credential not in serialized
+
+
+def test_agent_manifest_keeps_only_the_safe_view_of_hosted_mcp_tools(agents):
+    """A HostedMCPTool config is the application's own, so nothing redacts its credentials upstream."""
+    agent = agents.Agent(
+        name="mcp agent",
+        tools=[agents.HostedMCPTool(tool_config=dict(_LEAKY_MCP_TOOL_CONFIG))],
+    )
+
+    (tool,) = OpenAIAgentsIntegration._extract_tools_from_agent(None, agent)
+
+    assert tool["name"] == "hosted_mcp"
+    assert tool["tool_config"] == _SAFE_MCP_TOOL_CONFIG
+    _assert_no_mcp_credentials(tool)
+
+
+@pytest.mark.skipif(Mcp is None, reason="openai has no hosted MCP tool type")
+def test_response_metadata_keeps_only_the_safe_view_of_hosted_mcp_tools():
+    """OpenAI echoes response.tools with header values redacted but server_url verbatim."""
+    echoed = dict(_LEAKY_MCP_TOOL_CONFIG, headers={"Authorization": "<redacted>"}, authorization=None)
+    function_tool = {"type": "function", "name": "lookup", "parameters": {"type": "object"}, "strict": True}
+    response = mock.Mock(spec=["tools"], tools=[Mcp.model_validate(echoed), function_tool])
+    span = mock.Mock(span_data=mock.Mock(type="response", response=response))
+
+    metadata = OaiSpanAdapter(span).llmobs_metadata
+
+    assert metadata["tools"] == [_SAFE_MCP_TOOL_CONFIG, function_tool]
+    _assert_no_mcp_credentials(metadata)
+
+
+@pytest.mark.parametrize(
+    "server_url,expected",
+    [
+        (None, None),
+        ("not a url", None),
+        ("https://mcp.example.com:notaport/mcp", None),
+    ],
+)
+def test_safe_mcp_tool_config_omits_unusable_urls(server_url, expected):
+    safe = safe_mcp_tool_config({"type": "mcp", "server_label": "x", "server_url": server_url})
+
+    assert safe.get("server_url") == expected
+    assert safe["server_label"] == "x"
