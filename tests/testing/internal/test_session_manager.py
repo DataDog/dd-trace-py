@@ -1424,7 +1424,45 @@ class TestUnshallowMarker:
     def test_no_marker_returns_false(self, tmp_path) -> None:
         (tmp_path / ".testoptimization" / "git").mkdir(parents=True)
         sm = self._make_sm(tmp_path, head_sha="head-sha")
+        git = self._make_mock_git()
+        assert sm._read_unshallow_done(git) is False
+        git.get_commit_sha.assert_not_called()
+        git.get_shallow_boundary.assert_not_called()
+
+    @pytest.mark.parametrize("boundary", [[[]], [{}], [None], [1], "boundary-1", None])
+    def test_invalid_boundary_returns_false(self, tmp_path, boundary) -> None:
+        import json
+
+        self._write_marker(tmp_path)
+        sm = self._make_sm(tmp_path)
+        marker = sm._unshallow_done_path()
+        marker.write_text(json.dumps({"head_sha": "head-sha", "shallow_boundary": boundary}))
         assert sm._read_unshallow_done(self._make_mock_git()) is False
+
+    def test_marker_tracks_real_git_history(self, git_repo) -> None:
+        from pathlib import Path
+
+        from ddtrace.testing.internal.git import Git
+
+        workspace = Path(git_repo)
+        git = Git(cwd=git_repo)
+        head = git.get_commit_sha()
+        parent = git._git_output(["rev-parse", "HEAD^"])
+        shallow = workspace / ".git" / "shallow"
+        shallow.write_text(parent + "\n")
+        sm = self._make_sm(workspace)
+        sm._mark_unshallow_done(git)
+
+        # A new session can reuse the marker while the fetched history remains.
+        sm = self._make_sm(workspace)
+        assert sm._read_unshallow_done(git) is True
+        assert git._git_output(["rev-list", "--count", "HEAD"]) == "2"
+
+        # Re-shallowing preserves HEAD but hides the parent from traversal.
+        shallow.write_text(head + "\n")
+        assert git.get_commit_sha() == head
+        assert git._git_output(["rev-list", "--count", "HEAD"]) == "1"
+        assert sm._read_unshallow_done(git) is False
 
     def test_matching_marker_returns_true(self, tmp_path) -> None:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
@@ -1688,7 +1726,7 @@ class TestUnshallowMarker:
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
 
     def test_upload_git_data_fetches_again_when_reshallowed(self, tmp_path) -> None:
-        """Same HEAD but a re-truncated history: the recorded commit count rejects the marker."""
+        """Same HEAD but a re-truncated history: the recorded boundary rejects the marker."""
         from ddtrace.testing.internal.git import GitTag
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")

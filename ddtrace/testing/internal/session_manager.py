@@ -609,40 +609,20 @@ class SessionManager:
             log.debug("Could not write git upload sentinel %s: %s", sentinel, e)
 
     def _unshallow_done_path(self) -> t.Optional[Path]:
-        """Return the path to the unshallow-done marker, or None if unavailable.
-
-        The marker lives inside the ``.testoptimization/git/`` directory at the
-        workspace root — the same ``.testoptimization`` tree used for the
-        manifest/HTTP cache and by other CI Visibility tracers such as
-        datadog-ci (Ruby) — so it is scoped to one repo checkout and shared by
-        every pytest command run against that checkout in the CI instance.
-        """
+        """Return the checkout's persistent fetch marker path, or None if unavailable."""
         workspace_path = getattr(self, "workspace_path", None)
         if workspace_path is None:
             return None
         return Path(workspace_path) / TEST_OPTIMIZATION_DIR / TEST_OPTIMIZATION_GIT_DIR / _UNSHALLOW_DONE_FILENAME
 
     def _read_unshallow_done(self, git: Git) -> bool:
-        """Return True if a previous session already ran the unshallow fetch for this HEAD.
+        """Return whether a previous fetch's HEAD and shallow boundary still match.
 
-        The marker is keyed to the repository's local HEAD (``git rev-parse
-        HEAD``), not the CI-provider commit SHA: the fetch deepens the *local*
-        history, so the local HEAD is the right identity for it. It is honored
-        only when the shallow boundary still equals the one the fetch produced:
-        a reachable-commit count alone is not a faithful signal on merge
-        checkouts, where re-shallowing one side of the history while deepening
-        the other can leave HEAD unchanged and even increase the count while
-        ancestry needed for the merge-base is gone. Any boundary change —
-        re-shallowing, further deepening by other tooling — rejects the marker,
-        which costs at most a redundant, idempotent fetch. Anything else is
-        treated as "not done" so the normal fetch path runs.
+        Use the local HEAD because CI providers can report a different source SHA.
+        Any boundary change invalidates the marker, including re-shallowing one
+        parent of a merge while deepening another. Unknown or malformed state is
+        a cache miss; the marker has no TTL because it describes local Git history.
         """
-        head_sha = git.get_commit_sha()
-        if not isinstance(head_sha, str) or not head_sha:
-            return False
-        boundary = git.get_shallow_boundary()
-        if boundary is None:
-            return False
         marker = self._unshallow_done_path()
         if marker is None:
             return False
@@ -650,14 +630,15 @@ class SessionManager:
             data = json.loads(marker.read_text())
         except (OSError, ValueError):
             return False
-        if not isinstance(data, dict) or data.get("head_sha") != head_sha:
+        if not isinstance(data, dict):
             return False
-        recorded = data.get("shallow_boundary")
-        # Markers written before the boundary was recorded are not honored: the
-        # history state they were written against is unknown.
-        if not isinstance(recorded, list):
+        head_sha = git.get_commit_sha()
+        if not isinstance(head_sha, str) or not head_sha or data.get("head_sha") != head_sha:
             return False
-        return set(recorded) == boundary
+        boundary = git.get_shallow_boundary()
+        # Compare the canonical JSON list directly: malformed nested values must
+        # be a cache miss rather than raising when converted to a set.
+        return boundary is not None and data.get("shallow_boundary") == sorted(boundary)
 
     def _mark_unshallow_done(self, git: Git) -> None:
         """Persist the unshallow-done marker so follow-up sessions skip the fetch."""

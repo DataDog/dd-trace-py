@@ -1103,6 +1103,17 @@ class TestGitUnshallowLock:
 class TestGitShallowBoundary:
     """Tests for Git.get_shallow_boundary (marker validation input)."""
 
+    @pytest.mark.parametrize(
+        "error", [PermissionError(), IsADirectoryError(), UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid")]
+    )
+    def test_unreadable_boundary_is_unknown(self, tmp_path, error) -> None:
+        git = Git(cwd=str(tmp_path))
+        with (
+            patch.object(git, "_git_output", return_value=".git/shallow"),
+            patch("pathlib.Path.read_text", side_effect=error),
+        ):
+            assert git.get_shallow_boundary() is None
+
     @patch("shutil.which")
     def test_resolves_relative_git_path(self, mock_which: Mock, tmp_path) -> None:
         """``--git-path`` can return a path relative to the subprocess cwd; it is resolved."""
