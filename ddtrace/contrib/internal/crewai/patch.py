@@ -48,27 +48,29 @@ def _start_span(integration, instance, operation):
             planning=getattr(instance, "planning", False),
         )
     if operation == "task":
+        # Set by traced_task_execute_async to parent spans run in a worker thread; only this span uses it.
+        ctx = getattr(instance, "_ddtrace_ctx", None)
+        if ctx:
+            delattr(instance, "_ddtrace_ctx")
         return integration.trace(
             "CrewAI Task",
             span_name=getattr(instance, "name", ""),
             operation="task",
             instance_id=instance.id,
             submit_to_llmobs=True,
-            _ddtrace_ctx=getattr(instance, "_ddtrace_ctx", None),
+            _ddtrace_ctx=ctx,
         )
     if operation == "agent":
         return integration.trace(
             "CrewAI Agent", span_name=getattr(instance, "role", ""), operation="agent", submit_to_llmobs=True
         )
+    # operation == "tool"
     return integration.trace(
         "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
     )
 
 
 def _finish_span(integration, span, instance, args, kwargs, result, operation):
-    # Only tasks carry _ddtrace_ctx, set by traced_task_execute_async to parent spans run in a worker thread.
-    if getattr(instance, "_ddtrace_ctx", None):
-        delattr(instance, "_ddtrace_ctx")
     kwargs["_dd.instance"] = instance
     integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation=operation)
     span.finish()
@@ -202,8 +204,6 @@ async def traced_flow_method(func, instance, args, kwargs):
 def patched_find_triggered_methods(func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
     result = func(*args, **kwargs)
-    if _is_internal_flow(instance):
-        return result
     current_span = tracer.current_span()
     integration.llmobs_set_span_links_on_flow(current_span, args, kwargs, instance)
     return result
@@ -261,7 +261,7 @@ def unpatch():
         unwrap(crewai.Task, "_execute_core")
         unwrap(crewai.Flow, "_execute_method")
         unwrap(crewai.Flow, "_find_triggered_methods")
-    except AttributeError:
+    except (AttributeError, KeyError):
         pass
     if CREWAI_VERSION >= (1, 7, 0):
         unwrap(crewai.Crew, "akickoff")

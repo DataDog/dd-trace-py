@@ -1,7 +1,7 @@
-from ddtrace.contrib.internal.crewai.patch import CREWAI_VERSION
 from ddtrace.contrib.internal.crewai.patch import get_version
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
+from tests.contrib.crewai.utils import CREWAI_VERSION
 from tests.contrib.patch import PatchTestCase
 
 
