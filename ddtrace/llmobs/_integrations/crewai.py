@@ -43,10 +43,10 @@ class CrewAIIntegration(BaseLLMIntegration):
     _planning_crew_ids: list[str] = []  # list of crew IDs that correspond to planning crew instances
     _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, dict[str, dict[str, Any]]] = WeakKeyDictionary()
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
-            tracer.context_provider.activate(tracer_ctx)  # type: ignore[arg-type]
+            tracer.context_provider.activate(tracer_ctx)
             if self.llmobs_enabled and llmobs_ctx:
                 core.dispatch("threading.execution", (llmobs_ctx,))
 
@@ -79,7 +79,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
         return "agent" if kwargs.get("operation") == "agent" else None
 
-    def _get_current_ctx(self):
+    def _get_current_ctx(self) -> tuple[Any, Any]:
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
         curr_trace_ctx = tracer.current_trace_context()
         if self.llmobs_enabled:
@@ -337,7 +337,9 @@ class CrewAIIntegration(BaseLLMIntegration):
         )
         return
 
-    def llmobs_set_span_links_on_flow(self, flow_span, args, kwargs, flow_instance):
+    def llmobs_set_span_links_on_flow(
+        self, flow_span: Optional[Span], args: Any, kwargs: Any, flow_instance: Any
+    ) -> None:
         if not self.llmobs_enabled:
             return
         try:
