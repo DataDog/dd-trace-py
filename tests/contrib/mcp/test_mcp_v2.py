@@ -226,3 +226,26 @@ def test_server_constructed_before_patch(mcp_llmobs, test_spans):
 
     spans = _pop_spans(test_spans)
     assert len([span for span in spans if span.resource == "server_tool_call"]) == 2
+
+
+def test_tool_call_cancelled(mcp_llmobs, test_spans):
+    """A client tool call cancelled before the server responds keeps its LLMObs span kind."""
+    import anyio
+    from mcp.client.session import ClientSession
+    from mcp.shared.message import SessionMessage
+
+    async def run():
+        client_write, server_read = anyio.create_memory_object_stream[SessionMessage | Exception](10)
+        server_write, client_read = anyio.create_memory_object_stream[SessionMessage | Exception](10)
+        async with server_read, server_write, ClientSession(client_read, client_write) as session:
+            # Nothing serves the other end of the streams, so the call is still waiting when cancelled
+            with anyio.move_on_after(0.1):
+                await session.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+
+    asyncio.run(run())
+
+    client_span = _only(_pop_spans(test_spans), "client_tool_call")
+    assert client_span.error
+    assert client_span.get_tag("error.type") == "asyncio.exceptions.CancelledError"
+    assert get_llmobs_span_kind(client_span) == "tool"
+    assert get_llmobs_span_name(client_span) == "MCP Client Tool Call: calculator"

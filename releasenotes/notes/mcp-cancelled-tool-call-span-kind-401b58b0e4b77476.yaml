@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability, mcp: Fixes an issue where an MCP client tool call cancelled before the server
+    responded, or a client session that failed to start, was dropped from LLM Observability with the
+    error log ``missing span kind in span context``. The MCP transports cancel in-flight tool calls this
+    way when a request fails, for example on an HTTP 5xx response. These spans are now submitted as
+    errored ``tool`` and ``workflow`` spans.

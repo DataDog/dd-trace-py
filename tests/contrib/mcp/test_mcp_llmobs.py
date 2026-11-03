@@ -6,6 +6,8 @@ import os
 from textwrap import dedent
 from unittest import mock
 
+import pytest
+
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
@@ -565,4 +567,61 @@ def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
 
     assert call_order == ["func", "llmobs_set_tags"], (
         f"llmobs_set_tags must run after func (in finally block), not before it. Actual call order: {call_order}"
+    )
+
+
+def test_llmobs_client_tool_call_cancelled(mcp_setup, mcp_llmobs, test_spans):
+    """Regression: a client tool call cancelled before the server responds keeps its LLMObs span kind.
+
+    Cancellation raises a BaseException, which skipped the tagging in ``except Exception`` and got the
+    span dropped as "missing span kind". The MCP transports cancel in-flight calls this way when a
+    request fails (e.g. streamable HTTP's task group on a 5xx).
+    """
+    import anyio
+    from mcp.client.session import ClientSession
+
+    async def run():
+        client_write, server_read = anyio.create_memory_object_stream(10)
+        server_write, client_read = anyio.create_memory_object_stream(10)
+        async with server_read, server_write, ClientSession(client_read, client_write) as session:
+            # Nothing serves the other end of the streams, so the call is still waiting when cancelled
+            with anyio.move_on_after(0.1):
+                await session.call_tool("calculator", {"operation": "add", "a": 1, "b": 2})
+
+    asyncio.run(run())
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    client_span = next(span for span in spans if span.resource == "client_tool_call")
+    assert client_span.error
+    assert client_span.get_tag("error.type") == "asyncio.exceptions.CancelledError"
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(client_span),
+        span_kind="tool",
+        name="MCP Client Tool Call: calculator",
+        input_value=json.dumps({"operation": "add", "a": 1, "b": 2}, sort_keys=True),
+        error={"message": mock.ANY, "type": "asyncio.exceptions.CancelledError", "stack": mock.ANY},
+    )
+
+
+def test_llmobs_client_session_enter_error(mcp_setup, mcp_llmobs, test_spans):
+    """__aexit__ never runs when __aenter__ fails, so the session span is tagged and finished there."""
+    from ddtrace.contrib.internal.mcp.patch import traced_client_session_aenter
+
+    class ClientSession:
+        pass
+
+    async def failing_aenter():
+        raise RuntimeError("connection failed")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(traced_client_session_aenter(failing_aenter, ClientSession(), (), {}))
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    session_span = next(span for span in spans if span.resource == "ClientSession")
+    assert session_span.error
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(session_span),
+        span_kind="workflow",
+        name="MCP Client Session",
+        error={"message": "connection failed", "type": "builtins.RuntimeError", "stack": mock.ANY},
     )

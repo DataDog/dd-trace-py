@@ -86,7 +86,9 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
         )
 
         return result
-    except Exception:
+    except BaseException:
+        # Not just Exception: a call cancelled mid-flight (e.g. by the transport's task group when a
+        # request fails) must still get its LLMObs span kind, or LLMObs drops the span.
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )
@@ -127,8 +129,10 @@ async def traced_client_session_aenter(func, instance, args: tuple, kwargs: dict
     setattr(instance, "_dd_span", span)
     try:
         return await func(*args, **kwargs)
-    except Exception:
+    except BaseException:
+        # __aexit__ never runs when __aenter__ fails, so the span is tagged and finished here
         span.set_exc_info(*sys.exc_info())
+        _llmobs_set_session_tags(integration, span, instance)
         span.finish()
         raise
 
@@ -145,17 +149,21 @@ async def traced_client_session_aexit(func, instance, args: tuple, kwargs: dict)
         raise
     finally:
         if span:
-            integration.llmobs_set_tags(
-                span,
-                args=[],
-                kwargs=dict(
-                    read_stream=_get_attr(instance, "_read_stream", None),
-                    write_stream=_get_attr(instance, "_write_stream", None),
-                ),
-                response=None,
-                operation="session",
-            )
+            _llmobs_set_session_tags(integration, span, instance)
             span.finish()
+
+
+def _llmobs_set_session_tags(integration: MCPIntegration, span: Span, instance) -> None:
+    integration.llmobs_set_tags(
+        span,
+        args=[],
+        kwargs=dict(
+            read_stream=_get_attr(instance, "_read_stream", None),
+            write_stream=_get_attr(instance, "_write_stream", None),
+        ),
+        response=None,
+        operation="session",
+    )
 
 
 def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
