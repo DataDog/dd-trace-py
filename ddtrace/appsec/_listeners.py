@@ -67,6 +67,7 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
         return
 
     AppSecSpanProcessor.disable()
+    appsec_product_subscribers.unregister()
 
     if asm_config._api_security_active:
         from ddtrace.appsec._api_security.api_manager import APIManager
@@ -159,4 +160,3 @@ def _asm_switch_state() -> None:
         load_appsec()
     elif "ddtrace.appsec._processor" in sys.modules:
         disable_appsec()
-        appsec_product_subscribers.unregister()

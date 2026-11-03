@@ -280,17 +280,14 @@ def override_global_config(values: dict[str, Any]):
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
     from ddtrace.appsec._listeners import disable_appsec
-    from ddtrace.internal.appsec import product as appsec_product
 
     # disable_appsec() clears _asm_enabled, so read it first.
     asm_enabled = asm_config._asm_enabled
     disable_appsec()
-    appsec_product.unregister_subscribers()
     if asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
         load_appsec()
-        appsec_product.register_subscribers()
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor

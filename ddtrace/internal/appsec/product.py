@@ -37,20 +37,12 @@ def start() -> None:
         load_appsec(reconfigure_tracer=False)
 
 
-def register_subscribers() -> None:
-    product_subscribers.register()
-
-
-def unregister_subscribers() -> None:
-    product_subscribers.unregister()
-
-
 def restart(join: bool = False) -> None:
     pass
 
 
 def stop(join: bool = False) -> None:
-    pass
+    product_subscribers.unregister()
 
 
 def _disable_asm() -> None:
@@ -60,7 +52,6 @@ def _disable_asm() -> None:
         from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 
         disable_appsec(reconfigure_tracer=True)
-        unregister_subscribers()
         if not config._asm_enabled:
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
 
