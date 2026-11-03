@@ -1042,14 +1042,7 @@ class HTTPPropagator:
         injection_context = trace_info.context if isinstance(trace_info, Span) else trace_info
 
         # Find root span for sampling decisions
-        if injection_context.sampling_priority is not None:
-            return injection_context
-        elif core_tracer is None:
-            # This should never happen, tracer should be initialized before headers can be injected.
-            log.error(
-                "No tracer found and injection context %s has no sampling priority, skipping sampling",
-                injection_context,
-            )
+        if injection_context.sampling_priority is not None or core_tracer is None:
             return injection_context
 
         sampling_span: Optional[Span] = None
