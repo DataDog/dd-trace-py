@@ -16,8 +16,9 @@ document applies them to the demo resources (`pipelines-demo/setup/`).
 ## Notation
 
 - **Sides** are the 5-tuples recorded in `DdPipelinesReportV1`:
-  `(direction, queue_type, cluster, topic, group)` — direction `0` = produce,
-  `1` = consume; `group` is `""` where the system has no consumer group.
+  `(direction, queue_type, cluster, topic, group)` — direction is the string
+  `"produce"` or `"consume"`; `group` is `""` where the system has no consumer
+  group.
 - **Links** are `[in_side, out_side]` indices into that report's sides;
   `in_side = -1` means the produce is a **source** (no consumed-message
   context on the producing thread).
@@ -28,11 +29,11 @@ document applies them to the demo resources (`pipelines-demo/setup/`).
 - All demo apps run with **DSM OFF** (`DD_DATA_STREAMS_ENABLED` unset) and
   `DD_ENV=demo`; reports therefore come from the new
   `DD_DATA_STREAMS_PIPELINES_ENABLED` feature alone.
-- Kafka in the demo is one broker reached at `localhost:9092`; all Kafka
-  sides below use `cluster = "localhost:9092"` (bootstrap servers / cluster id
-  when known — whatever the hook records is identical on both sides of every
-  link because both come from the same broker, so the pipelines are unchanged
-  even if the exact cluster value differs, including `""`).
+- Kafka in the demo is one broker; all Kafka sides use the cluster id the
+  patch resolves via `list_topics` (shown below as `cluster=localhost:9092`
+  for readability — the literal value is the resolved cluster id, or `""`
+  when unknown; it is identical on both sides of every link, and a clusterless
+  side still matches on `(queue_type, topic)`).
 
 Unless stated otherwise every app sends/consumes `MSGS=3` messages and exits,
 so each process emits exactly one report window (plus the atexit flush).
@@ -107,7 +108,8 @@ left at its default (`true`), and `DD_TRACE_AGENT_URL=http://localhost:8126`
 messaging emits one `DdPipelinesReportV1` per window (the demo uses
 `DD_DATA_STREAMS_PIPELINES_INTERVAL=5` and the atexit flush).
 
-Below, `k` abbreviates the Kafka cluster value `localhost:9092`. Sides are
+Below, `k` abbreviates the Kafka cluster id the patch resolves (the literal
+string; `""` when unknown). Sides are
 `(direction, queue_type, cluster, topic, group)`; links are indices into that
 report's own sides.
 
