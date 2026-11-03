@@ -8,13 +8,16 @@ the pathway parent); the pipelines reporter (DSM2-531) stores the current
 consume side here (the consume hooks write it, ``on_produce`` reads it as the
 link parent). One slot serves the DSM-on and the pipelines-on cases, so the
 two features' in-process context rules cannot diverge.
+
+The rule is classic DSM's, exactly: the current message is **replaced by the
+next consume on the thread** and is never cleared otherwise. There is no
+scope-exit clear path.
 """
 
 from __future__ import annotations
 
 import threading
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Optional
 
 
@@ -30,8 +33,8 @@ class CurrentMessageContext:
     ``decode_pathway``/``new_pathway``, and advanced in place by
     ``DataStreamsCtx.set_checkpoint`` on every produce). ``pipelines_side`` is
     the pipelines reporter's current consume side key (set by the consume
-    hooks, read at produce time). Both fields follow the same replace-on-next-
-    consume rule.
+    hooks, read at produce time). Both fields follow the same
+    replace-on-next-consume rule.
     """
 
     __slots__ = ("dsm_ctx", "pipelines_side")
@@ -67,13 +70,6 @@ def set_pipelines_side(side: "SideKey") -> None:
     _ensure_current_message().pipelines_side = side
 
 
-def clear_pipelines_side(side: "SideKey") -> None:
-    """Clear the current pipelines side, only if it is still the current one (ConsumeScope exit)."""
-    message = get_current_message()
-    if message is not None and message.pipelines_side == side:
-        message.pipelines_side = None
-
-
 def reset_pipelines_side() -> None:
     """Unconditionally clear the pipelines side (forked child, fresh window)."""
     message = get_current_message()
@@ -101,7 +97,3 @@ def current_pipelines_side() -> Optional["SideKey"]:
     """The current pipelines consume side, or ``None`` (PipelinesReporter.on_produce links to this)."""
     message = get_current_message()
     return message.pipelines_side if message is not None else None
-
-
-def _peek_any() -> Any:  # pragma: no cover - test helper
-    return getattr(_local, "value", None)

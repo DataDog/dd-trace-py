@@ -7,12 +7,10 @@ The pinned public recording API (see the issue's PLAN doc):
   when ``DD_DATA_STREAMS_PIPELINES_ENABLED`` is false or APM tracing is off.
 * ``PipelinesReporter.set_current_consume(queue_type, cluster, topic, group)``
   records a consume side and makes it the current consumed-message context for
-  the thread, until replaced by the next consume on that thread. Consumer hooks
-  use this variant because message processing happens after the instrumented
-  call returns, so a context manager cannot span it.
-* ``PipelinesReporter.on_consume(queue_type, cluster, topic, group)`` returns a
-  context manager: enter = ``set_current_consume`` (replacing any previous
-  scope), exit = clear, only if it is still the current one.
+  the thread, until replaced by the next consume on that thread. This is the
+  only consume entry point: the in-process rule is classic DSM's exactly —
+  replace on next consume, never cleared otherwise (there is no scope-exit
+  path).
 * ``PipelinesReporter.on_produce(queue_type, cluster, topic)`` records a produce
   side and links it to the thread's current consume scope, or records a source
   link (``in_side = -1``) when there is none. The cluster is the Kafka cluster
@@ -20,9 +18,10 @@ The pinned public recording API (see the issue's PLAN doc):
   ``list_topics``), or ``""`` when unknown — never raw bootstrap servers,
   which vary per client config; the backend matches clusterless sides on
   ``(queue_type, topic)``.
-* ``PipelinesReporter.take_report(service, env)`` builds the
-  ``DdPipelinesReportV1`` dict for the current window and resets it; the flush
-  paths use ``take_due_report`` so at most one report leaves per window.
+* ``PipelinesReporter.take_report(service, env, due=False)`` builds the
+  ``DdPipelinesReportV1`` dict for the current window and resets it; with
+  ``due=True`` only when the flush window elapsed, so at most one report leaves
+  per window.
 
 No message ids, no context propagation, no stats: only which topics the service
 reads and writes, and which produced message was made in the context of a
@@ -59,13 +58,12 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.utils import _human_size
 from ddtrace.version import __version__
 
 from .._encoding import packb
-from ..agent import get_connection
 from ..hostname import get_hostname
 from . import current_message
+from . import transport
 
 
 log = get_logger(__name__)
@@ -118,86 +116,36 @@ def _report_fits(report: dict[str, Any]) -> bool:
 def _trim_report_to_size_cap(report: dict[str, Any]) -> tuple[int, int]:
     """Trim report in place to MAX_REPORT_BYTES; return (dropped_links, dropped_sides).
 
-    Links are dropped first (from the tail of the sorted list), then sides (from
-    the tail), and links that referenced dropped sides go with them. Both stages
-    bisect for the largest prefix that fits, so the result is deterministic.
+    Rarely hit (needs 256/1024 entries with long names): drop links from the
+    tail first, then sides, and with a dropped side every link that referenced
+    it. Deterministic — the lists are sorted, so the tail is the highest
+    indices. The last side always stays, so the report is never empty.
     """
     if _report_fits(report):
         return 0, 0
 
-    links = report["links"]
-
-    def size_with_links(kept: list[list[int]]) -> bool:
-        trimmed = dict(report)
-        trimmed["links"] = kept
-        return _report_fits(trimmed)
-
-    lo, hi = 0, len(links)
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if size_with_links(links[:mid]):
-            lo = mid
-        else:
-            hi = mid - 1
-    dropped_links = len(links) - lo
-    links = links[:lo]
-    report["links"] = links
-
-    if _report_fits(report):
-        return dropped_links, 0
-
-    sides = report["sides"]
-
-    def size_with_sides(kept: list[list[Any]]) -> bool:
-        trimmed = dict(report)
-        trimmed["sides"] = kept
-        trimmed["links"] = [lnk for lnk in links if lnk[1] < len(kept) and (lnk[0] < 0 or lnk[0] < len(kept))]
-        return _report_fits(trimmed)
-
-    lo, hi = 0, len(sides)
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if size_with_sides(sides[:mid]):
-            lo = mid
-        else:
-            hi = mid - 1
-    dropped_sides = len(sides) - lo
-    sides = sides[:lo]
-    kept_links = [lnk for lnk in links if lnk[1] < lo and (lnk[0] < 0 or lnk[0] < lo)]
-    dropped_links += len(links) - len(kept_links)
-    report["sides"] = sides
-    report["links"] = kept_links
+    dropped_links = 0
+    dropped_sides = 0
+    while not _report_fits(report):
+        if report["links"]:
+            report["links"].pop()
+            dropped_links += 1
+            continue
+        if len(report["sides"]) <= 1:
+            break  # a single pathological side stays; the agent caps it at intake
+        report["sides"].pop()
+        dropped_sides += 1
+        n = len(report["sides"])
+        kept = [lnk for lnk in report["links"] if lnk[0] < n and lnk[1] < n]
+        dropped_links += len(report["links"]) - len(kept)
+        report["links"] = kept
     return dropped_links, dropped_sides
-
-
-class ConsumeScope:
-    """Marks a consumed message as the current in-process context on a thread.
-
-    Usable as a context manager. Enter replaces any previous scope on the
-    thread; exit clears the scope only if it is still the current one (a newer
-    scope entered in between wins and stays current).
-    """
-
-    __slots__ = ("_reporter", "_side_key")
-
-    def __init__(self, reporter: PipelinesReporter, side_key: Optional[SideKey]) -> None:
-        self._reporter = reporter
-        self._side_key = side_key
-
-    def __enter__(self) -> ConsumeScope:
-        if self._side_key is not None:
-            self._reporter._set_current_consume_key(self._side_key)
-        return self
-
-    def __exit__(self, *exc: Any) -> None:
-        if self._side_key is not None:
-            self._reporter._clear_current_consume_key(self._side_key)
 
 
 class PipelinesReporter:
     """Records topic sides and in-process links for the current window.
 
-    The hot path (on_consume/on_produce/set_current_consume) is one lock
+    The hot path (set_current_consume/on_produce) is one lock
     acquisition with interned dict lookups per message: repeated sides and links
     intern to existing entries, so per-window memory is bounded by
     MAX_SIDES/MAX_LINKS.
@@ -227,23 +175,13 @@ class PipelinesReporter:
 
     # -- public recording API (hot path; never raises) ---------------------
 
-    def on_consume(self, queue_type: str, cluster: str, topic: str, group: str) -> ConsumeScope:
-        try:
-            side_key = (_CONSUME, queue_type or "", cluster or "", topic or "", group or "")
-            with self._lock:
-                recorded = self._intern_side(side_key) is not None
-            if recorded:
-                self._on_traffic()
-            return ConsumeScope(self, side_key)
-        except Exception:  # noqa: BLE001 - T-13: never raise into the application
-            log.debug("pipelines: failed to record consume side", exc_info=True)
-            return ConsumeScope(self, None)
-
     def set_current_consume(self, queue_type: str, cluster: str, topic: str, group: str) -> None:
         """Record a consume side and make it the thread's current context until replaced.
 
-        Consumer hooks use this: message processing happens after the
-        instrumented call returns, so a context manager cannot span it.
+        The only consume entry point, and the in-process rule classic DSM uses:
+        the current message is replaced by the next consume on the thread and
+        never cleared otherwise. Consumer hooks call this at consume time —
+        message processing happens after the instrumented call returns.
         """
         try:
             side_key = (_CONSUME, queue_type or "", cluster or "", topic or "", group or "")
@@ -277,39 +215,26 @@ class PipelinesReporter:
 
     # -- report taking ------------------------------------------------------
 
-    def take_report(self, service: str, env: str) -> Optional[dict[str, Any]]:
+    def take_report(self, service: str, env: str, due: bool = False) -> Optional[dict[str, Any]]:
         """Build the ``DdPipelinesReportV1`` dict and reset the window.
 
-        Returns ``None`` when no side was seen in the window. Deterministic:
-        sides sorted, then links sorted by their indices into the sorted sides.
-        The 60 KiB report cap is enforced here by dropping links first, then
-        sides, from the tail (drops counted).
+        Returns ``None`` when no side was seen in the window (or, with
+        ``due=True``, when the flush window has not elapsed yet — one report
+        per window, and the window rolls whether or not traffic was seen).
+        Deterministic: sides sorted, then links sorted by their indices into
+        the sorted sides. The 60 KiB report cap is enforced here by dropping
+        links first, then sides, from the tail (drops counted).
         """
         try:
             with self._lock:
+                if due:
+                    now = self._clock()
+                    if now - self._window_start < self._interval:
+                        return None
+                    self._window_start = now
                 return self._take_report_locked(service, env)
         except Exception:  # noqa: BLE001 - never raise into the application
             log.debug("pipelines: failed to build the window report", exc_info=True)
-            self._reset_window()
-            return None
-
-    def take_due_report(self, service: str, env: str) -> Optional[dict[str, Any]]:
-        """Like take_report, but only when the flush window elapsed.
-
-        One report per window: the window rolls whether or not traffic was seen,
-        and a report is only produced when at least one side was recorded in it.
-        """
-        try:
-            with self._lock:
-                now = self._clock()
-                if now - self._window_start < self._interval:
-                    return None
-                self._window_start = now
-                if not self._saw_traffic:
-                    return None
-                return self._take_report_locked(service, env)
-        except Exception:  # noqa: BLE001
-            log.debug("pipelines: failed to take the due window report", exc_info=True)
             self._reset_window()
             return None
 
@@ -357,9 +282,6 @@ class PipelinesReporter:
 
     def _set_current_consume_key(self, side_key: SideKey) -> None:
         current_message.set_pipelines_side(side_key)
-
-    def _clear_current_consume_key(self, side_key: SideKey) -> None:
-        current_message.clear_pipelines_side(side_key)
 
     def _take_report_locked(self, service: str, env: str) -> Optional[dict[str, Any]]:
         self._window_start = self._clock()
@@ -482,10 +404,7 @@ class _StandaloneFlusher:
         """
         service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         env = compat.ensure_text(config.env or "")
-        if force:
-            report = self._reporter.take_report(service, env)
-        else:
-            report = self._reporter.take_due_report(service, env)
+        report = self._reporter.take_report(service, env, due=not force)
         if report is None:
             return
         raw_payload: dict[str, Any] = {
@@ -503,31 +422,27 @@ class _StandaloneFlusher:
             raw_payload["ProcessTags"] = p_tags
         # The report key must be the LAST key of the payload (golden value).
         raw_payload[REPORT_PAYLOAD_KEY] = packb(report)
-        self._send(gzip.compress(packb(raw_payload), 1))
+        self._post(gzip.compress(packb(raw_payload), 1))
 
-    def _send(self, payload: bytes) -> None:
+    def _post(self, payload: bytes) -> None:
+        """POST the payload via the shared transport; connection failures are
+        logged and swallowed (the flush thread must never die; the next window
+        retries)."""
         try:
-            conn = get_connection(self._agent_url, self._timeout)
-            conn.request("POST", PIPELINES_STATS_ENDPOINT, payload, self._headers)
-            resp = conn.getresponse()
-        except Exception:
+            transport.post(
+                self._agent_url,
+                PIPELINES_STATS_ENDPOINT,
+                payload,
+                self._headers,
+                self._timeout,
+                what="pipelines report",
+                unsupported_feature="pipeline stats",
+                ok_noun="pipelines report",
+            )
+        except transport.TransportError:
             log.debug(
                 "failed to submit pipelines report to the Datadog agent at %s", self._agent_endpoint, exc_info=True
             )
-        else:
-            if resp.status == 404:
-                log.error("Datadog agent does not support pipeline stats. Upgrade to 7.34+")
-            elif resp.status >= 400:
-                log.error(
-                    "failed to send pipelines report payload, %s (%s) (%s) response from Datadog agent at %s",
-                    resp.status,
-                    resp.reason,
-                    resp.read(),
-                    self._agent_endpoint,
-                )
-            else:
-                log.debug("sent %s pipelines report to %s", _human_size(len(payload)), self._agent_endpoint)
-
 
 # -- process-level lifecycle --------------------------------------------------
 
