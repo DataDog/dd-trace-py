@@ -17,6 +17,13 @@ def sum_tool(entries: list[float]) -> float:
     return sum(entries)
 
 
+# The argument is named "input" on purpose: it must not be mistaken for CrewStructuredTool.invoke's input envelope.
+@tool("Translator")
+def translate_tool(input: str, language: str) -> str:  # noqa: A002
+    """This tool translates the input into the given language."""
+    return f"{input} ({language})"
+
+
 class MaxTool(BaseTool):
     name: str = "Max Calculator"
     description: str = "This tool returns the largest of a list of numbers."

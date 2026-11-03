@@ -43,7 +43,7 @@ def _start_span(integration: CrewAIIntegration, instance: Any, operation: str) -
         return integration.trace(
             "CrewAI Agent", span_name=getattr(instance, "role", ""), operation="agent", submit_to_llmobs=True
         )
-    # operation == "tool"
+    # operation is "tool" or "tool_invoke"
     return integration.trace(
         "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
     )
@@ -99,12 +99,17 @@ def traced_agent_execute(func: Callable[..., Any], instance: Any, args: Any, kwa
     return trace_call(func, instance, args, kwargs, "agent")
 
 
-def traced_tool_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+def traced_tool_run(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     return trace_call(func, instance, args, kwargs, "tool")
 
 
-async def traced_tool_acall(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    return await atrace_call(func, instance, args, kwargs, "tool")
+# CrewStructuredTool.invoke/ainvoke take the tool arguments as one input argument, unlike BaseTool.run and Tool.run.
+def traced_tool_invoke(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    return trace_call(func, instance, args, kwargs, "tool_invoke")
+
+
+async def traced_tool_ainvoke(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    return await atrace_call(func, instance, args, kwargs, "tool_invoke")
 
 
 def traced_task_execute_async(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:

@@ -9,8 +9,9 @@ from ddtrace.contrib.internal.crewai.utils import traced_agent_execute
 from ddtrace.contrib.internal.crewai.utils import traced_task_execute
 from ddtrace.contrib.internal.crewai.utils import traced_task_execute_async
 from ddtrace.contrib.internal.crewai.utils import traced_task_get_context
-from ddtrace.contrib.internal.crewai.utils import traced_tool_acall
-from ddtrace.contrib.internal.crewai.utils import traced_tool_call
+from ddtrace.contrib.internal.crewai.utils import traced_tool_ainvoke
+from ddtrace.contrib.internal.crewai.utils import traced_tool_invoke
+from ddtrace.contrib.internal.crewai.utils import traced_tool_run
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
@@ -42,9 +43,9 @@ def patch():
 
     wrap(crewai, "Task.execute_async", traced_task_execute_async)
     wrap(crewai, "Agent.execute_task", traced_agent_execute)
-    wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_call)
-    wrap(crewai.tools.structured_tool, "CrewStructuredTool.ainvoke", traced_tool_acall)
-    wrap(crewai.tools.base_tool, "BaseTool.run", traced_tool_call)
+    wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_invoke)
+    wrap(crewai.tools.structured_tool, "CrewStructuredTool.ainvoke", traced_tool_ainvoke)
+    wrap(crewai.tools.base_tool, "BaseTool.run", traced_tool_run)
     wrap(crewai, "Task._execute_core", traced_task_execute)
     wrap(crewai, "Crew._get_context", traced_task_get_context)
     wrap(crewai, "Flow._find_triggered_methods", patched_find_triggered_methods)

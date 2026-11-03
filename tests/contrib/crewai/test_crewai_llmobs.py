@@ -4,6 +4,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.llmobs._integrations.crewai import _listener_condition
+from ddtrace.llmobs._integrations.crewai import _satisfying_methods
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
@@ -14,6 +15,7 @@ from tests.contrib.crewai.utils import FailingTool
 from tests.contrib.crewai.utils import MaxTool
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.contrib.crewai.utils import requires_akickoff
+from tests.contrib.crewai.utils import translate_tool
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -532,14 +534,64 @@ async def test_router_flow_async(crewai, router_flow_async, crewai_llmobs, test_
     [
         (("AND", ["a", "b"]), ("AND", ["a", "b"])),
         ("a", ("OR", ["a"])),
-        ({"type": "AND", "conditions": ["a", {"type": "OR", "conditions": ["b", "c"]}]}, ("AND", ["a", "b", "c"])),
-        ({"and": ["a", {"or": ["b", "c"]}]}, ("AND", ["a", "b", "c"])),
+        (
+            {"type": "AND", "conditions": ["a", {"type": "OR", "conditions": ["b", "c"]}]},
+            ("AND", ["a", ("OR", ["b", "c"])]),
+        ),
+        ({"and": ["a", {"or": ["b", "c"]}]}, ("AND", ["a", ("OR", ["b", "c"])])),
         ({"or": ["a", "b"]}, ("OR", ["a", "b"])),
     ],
     ids=["tuple", "method_name", "type_conditions", "and_dict", "or_dict"],
 )
 def test_listener_condition(condition, expected):
     assert _listener_condition(condition) == expected
+
+
+@pytest.mark.parametrize(
+    "ran,trigger_method,expected",
+    [
+        ({"a"}, "a", None),
+        ({"a", "b"}, "b", ["a", "b"]),
+        ({"a", "c"}, "c", ["a", "c"]),
+        ({"a", "b", "c"}, "c", ["a", "c"]),
+    ],
+    ids=["and_waits", "or_branch_b", "or_branch_c", "or_prefers_trigger"],
+)
+def test_satisfying_methods(ran, trigger_method, expected):
+    assert _satisfying_methods(("AND", ["a", ("OR", ["b", "c"])]), ran, trigger_method) == expected
+
+
+@pytest.mark.skipif(CREWAI_VERSION < (1, 0, 0), reason="nested and_/or_ conditions require crewai>=1.0")
+def test_nested_condition_flow(crewai, crewai_llmobs, test_spans):
+    from crewai import Flow
+    from crewai.flow.flow import and_
+    from crewai.flow.flow import listen
+    from crewai.flow.flow import or_
+    from crewai.flow.flow import start
+
+    class NestedFlow(Flow[dict]):
+        @start()
+        def a(self):
+            return "a"
+
+        @listen(a)
+        def b(self):
+            return "b"
+
+        # Never runs, so the listener below is triggered by a and b only.
+        @listen("unused")
+        def c(self):
+            return "c"
+
+        @listen(and_(a, or_(b, c)))
+        def joined(self):
+            return "joined"
+
+    NestedFlow().kickoff()
+    spans = {span.name: span for span in test_spans.pop()}
+    assert "c" not in spans
+    _assert_span_link(spans["a"], spans["joined"], "output", "input")
+    _assert_span_link(spans["b"], spans["joined"], "output", "input")
 
 
 @requires_akickoff
@@ -601,6 +653,15 @@ def test_tool_run(crewai, crewai_llmobs, test_spans):
         output_value="14",
         metadata={"description": "This tool returns the largest of a list of numbers."},
         tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
+    )
+
+
+def test_tool_run_keeps_all_arguments(crewai, crewai_llmobs, test_spans):
+    # Native tool calls pass every tool argument as a keyword, so one named "input" is not the whole input.
+    assert translate_tool.run(input="hello", language="en") == "hello (en)"
+    spans = _ordered_spans(test_spans)
+    assert _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["value"] == json.dumps(
+        {"input": "hello", "language": "en"}
     )
 
 

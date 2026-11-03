@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.crewai.utils import atrace_call
 from ddtrace.contrib.internal.crewai.utils import trace_call
 from ddtrace.contrib.internal.crewai.utils import traced_flow_kickoff
 from ddtrace.contrib.internal.crewai.utils import traced_flow_method
-from ddtrace.contrib.internal.crewai.utils import traced_tool_call
+from ddtrace.contrib.internal.crewai.utils import traced_tool_run
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
@@ -80,7 +80,7 @@ def patch() -> None:
         wrap(crewai, "Crew.akickoff", traced_akickoff)
         wrap(crewai, "Task._aexecute_core", traced_task_aexecute)
         wrap(crewai, "Agent.aexecute_task", traced_agent_aexecute)
-        wrap(crewai.tools.base_tool, "Tool.run", traced_tool_call)
+        wrap(crewai.tools.base_tool, "Tool.run", traced_tool_run)
 
 
 def unpatch() -> None:
