@@ -25,9 +25,12 @@ def test_logger_import_and_setup_do_not_start_telemetry(telemetry):
         import sys
         from ddtrace._logger import configure_ddtrace_logger
         assert 'ddtrace.internal.native' not in sys.modules
-        assert not logging.getLogger('ddtrace').handlers
+        handlers = list(logging.getLogger('ddtrace').handlers)
+        assert len(handlers) == 1
         configure_ddtrace_logger()
-        assert logging.getLogger('ddtrace').handlers
+        assert logging.getLogger('ddtrace').handlers == handlers
+        assert 'ddtrace.internal.native' not in sys.modules
+        assert 'ddtrace.internal.forksafe' not in sys.modules
         assert 'ddtrace.internal.telemetry' not in sys.modules
         assert 'ddtrace.internal.settings._config' not in sys.modules
         assert 'ddtrace.trace' not in sys.modules
@@ -36,38 +39,37 @@ def test_logger_import_and_setup_do_not_start_telemetry(telemetry):
     )
 
 
-@pytest.mark.parametrize("telemetry_first", [False, True])
-def test_logging_configuration_preserves_sources(tmp_path, telemetry_first):
+@pytest.mark.parametrize("level", [None, "WARNING"])
+@pytest.mark.parametrize("fleet_enabled", [False, True])
+def test_logging_configuration_ignores_stable_configs(tmp_path, level, fleet_enabled):
     local = tmp_path / "local.yaml"
     fleet = tmp_path / "fleet.yaml"
     local.write_text('apm_configuration_default:\n  DD_TRACE_LOG_LEVEL: "INFO"\n')
-    fleet.write_text('config_id: "logging-config"\napm_configuration_default:\n  DD_TRACE_LOG_LEVEL: "ERROR"\n')
+    if fleet_enabled:
+        fleet.write_text('config_id: "logging-config"\napm_configuration_default:\n  DD_TRACE_LOG_LEVEL: "ERROR"\n')
     run(
         f"""
         import logging
-        from unittest.mock import Mock
-        from ddtrace._logger import configure_ddtrace_logger
-        from ddtrace.internal.settings._read_config import set_configuration_reporter
-        report = Mock()
-        if {telemetry_first}:
-            set_configuration_reporter(report)
-        configure_ddtrace_logger()
-        assert logging.getLogger('ddtrace').level == logging.ERROR
-        if not {telemetry_first}:
-            set_configuration_reporter(report)
-        records = [c.args for c in report.call_args_list if c.args[0] == 'DD_TRACE_LOG_LEVEL']
-        assert records == [
-            ('DD_TRACE_LOG_LEVEL', None, 'default'),
-            ('DD_TRACE_LOG_LEVEL', 'WARNING', 'env_var'),
-            ('DD_TRACE_LOG_LEVEL', 'ERROR', 'fleet_stable_config', 'logging-config'),
-        ], records
-        report.reset_mock()
-        configure_ddtrace_logger()
-        report.assert_not_called()
+        import os
+        import sys
+        os.environ.pop('DD_TRACE_LOG_LEVEL', None)
+        level = {level!r}
+        if level is not None:
+            os.environ['DD_TRACE_LOG_LEVEL'] = {level!r}
+        import ddtrace
+        from ddtrace._logger import _configurations
+        assert logging.getLogger('ddtrace').level == {"logging.WARNING" if level else "logging.NOTSET"}
+        assert _configurations['DD_TRACE_LOG_LEVEL'] == ({level!r}, {"env_var" if level else "default"!r})
+        assert 'ddtrace.internal.native' not in sys.modules
+        from ddtrace.internal.settings._core import FLEET_CONFIG, LOCAL_CONFIG
+        if {fleet_enabled}:
+            assert FLEET_CONFIG['DD_TRACE_LOG_LEVEL'] == 'ERROR'
+        else:
+            assert LOCAL_CONFIG['DD_TRACE_LOG_LEVEL'] == 'INFO'
+        assert logging.getLogger('ddtrace').level == {"logging.WARNING" if level else "logging.NOTSET"}
     """,
         _DD_SC_LOCAL_FILE_OVERRIDE=str(local),
         _DD_SC_MANAGED_FILE_OVERRIDE=str(fleet),
-        DD_TRACE_LOG_LEVEL="WARNING",
         DD_TRACE_DEBUG="false",
     )
 
@@ -75,17 +77,43 @@ def test_logging_configuration_preserves_sources(tmp_path, telemetry_first):
 def test_logging_configuration_is_replayed_to_telemetry():
     run(
         """
-        from unittest.mock import patch
-        from ddtrace._logger import configure_ddtrace_logger
-        configure_ddtrace_logger()
-        from ddtrace.internal.telemetry import telemetry_writer
-        from ddtrace.internal.settings._read_config import _pending_configurations, record_configuration
-        assert not _pending_configurations
-        with patch.object(telemetry_writer, 'add_configuration') as report:
-            record_configuration('DD_TRACE_LOG_LEVEL', 'INFO', 'env_var')
-            report.assert_called_once_with('DD_TRACE_LOG_LEVEL', 'INFO', 'env_var')
+        import sys
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        import ddtrace
+        writer = Mock()
+        sys.modules['ddtrace.internal.telemetry.noop_writer'] = SimpleNamespace(
+            NoOpTelemetryWriter=Mock(return_value=writer)
+        )
+        assert 'ddtrace.internal.telemetry' not in sys.modules
+        import ddtrace.internal.telemetry
+        writer.add_configuration.assert_any_call('DD_TRACE_LOG_LEVEL', 'INFO', 'env_var')
+        writer.add_configuration.assert_any_call('_DD_NATIVE_LOGGING_BACKEND', None, 'default')
     """,
+        DD_TRACE_LOG_LEVEL="INFO",
+        DD_TRACE_DEBUG="false",
         DD_INSTRUMENTATION_TELEMETRY_ENABLED="false",
+    )
+
+
+def test_native_logging_waits_for_native_import(tmp_path):
+    logfile = tmp_path / "native.log"
+    run(
+        f"""
+        import sys
+        from pathlib import Path
+        import ddtrace
+        assert 'ddtrace.internal.native' not in sys.modules
+        assert not Path({str(logfile)!r}).exists()
+        from ddtrace.internal.native import logger
+        logger.log('warning', 'native logging enabled')
+        logger.disable('file')
+        assert 'native logging enabled' in Path({str(logfile)!r}).read_text()
+        assert 'ddtrace.internal.telemetry' not in sys.modules
+        assert 'ddtrace.trace' not in sys.modules
+    """,
+        _DD_NATIVE_LOGGING_BACKEND="file",
+        _DD_NATIVE_LOGGING_FILE_PATH=str(logfile),
     )
 
 
@@ -183,12 +211,16 @@ def test_python_version_warning(version, message):
 
 
 @pytest.mark.parametrize("telemetry", ["true", "false"])
-def test_core_import_does_not_configure_logging(telemetry):
+def test_core_import_does_not_reconfigure_logging(telemetry):
     run(
         """
         import sys
+        import logging
+        import ddtrace
+        handlers = list(logging.getLogger('ddtrace').handlers)
         import ddtrace.internal.core
-        assert 'ddtrace._logger' not in sys.modules
+        assert logging.getLogger('ddtrace').handlers[:len(handlers)] == handlers
+        assert sum(type(h) is logging.StreamHandler for h in logging.getLogger('ddtrace').handlers) == 1
         assert 'ddtrace.trace' not in sys.modules
     """,
         DD_INSTRUMENTATION_TELEMETRY_ENABLED=telemetry,
@@ -204,26 +236,6 @@ def test_package_import_checks_python_version():
             importlib.reload(ddtrace)
             check.assert_called_once_with()
     """)
-
-
-def test_local_logging_configuration_without_fleet_override(tmp_path):
-    local = tmp_path / "local.yaml"
-    local.write_text('apm_configuration_default:\n  DD_TRACE_LOG_LEVEL: "ERROR"\n')
-    run(
-        """
-        import logging
-        import os
-        os.environ.pop('DD_TRACE_LOG_LEVEL', None)
-        from ddtrace._logger import configure_ddtrace_logger
-        configure_ddtrace_logger()
-        assert logging.getLogger('ddtrace').level == logging.ERROR
-        from ddtrace.internal.settings._read_config import _pending_configurations
-        assert ('DD_TRACE_LOG_LEVEL', 'ERROR', 'local_stable_config') in _pending_configurations
-    """,
-        _DD_SC_LOCAL_FILE_OVERRIDE=str(local),
-        _DD_SC_MANAGED_FILE_OVERRIDE=str(tmp_path / "missing.yaml"),
-        DD_TRACE_DEBUG="false",
-    )
 
 
 def test_auto_continues_when_logger_import_fails():

@@ -1340,6 +1340,9 @@ Logs
      description: |
          Enables debug logging in the tracer.
 
+         Library logger settings (``DD_TRACE_DEBUG``, ``DD_TRACE_LOG_*``, and ``_DD_NATIVE_LOGGING_*``)
+         use environment variables only; fleet and local stable configuration do not apply.
+
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
 
          Takes precedence over ``DD_TRACE_LOG_LEVEL``.

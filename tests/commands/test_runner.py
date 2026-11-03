@@ -310,7 +310,7 @@ def test_launcher_does_not_initialize_ddtrace(flags):
 
         def exec_application(executable, *args):
             assert {name for name in sys.modules if name == "ddtrace" or name.startswith("ddtrace.")} == {
-                "ddtrace", "ddtrace.commands", "ddtrace.commands.ddtrace_run",
+                "ddtrace", "ddtrace._logger", "ddtrace.commands", "ddtrace.commands.ddtrace_run",
                 "ddtrace.internal", "ddtrace.internal._unpatched",
                 "ddtrace.internal.utils", "ddtrace.internal.utils.deprecations"
             }
@@ -345,7 +345,7 @@ def test_launcher_imports_without_native_extensions():
 
         class BlockRuntime(importlib.abc.MetaPathFinder):
             def find_spec(self, fullname, path=None, target=None):
-                if fullname.startswith(("ddtrace.internal.native", "ddtrace.internal.settings", "ddtrace._logger")):
+                if fullname.startswith(("ddtrace.internal.native", "ddtrace.internal.settings")):
                     raise ImportError("runtime unavailable")
 
         sys.meta_path.insert(0, BlockRuntime())
@@ -748,8 +748,8 @@ before = sys.excepthook
 import ddtrace
 assert sys.excepthook is before
 assert {name for name in sys.modules if name.startswith("ddtrace.")} == {
-    "ddtrace.internal", "ddtrace.internal._unpatched",
-                "ddtrace.internal.utils", "ddtrace.internal.utils.deprecations"
+    "ddtrace._logger", "ddtrace.internal", "ddtrace.internal._unpatched",
+    "ddtrace.internal.utils", "ddtrace.internal.utils.deprecations"
 }
 assert "tracer" in dir(ddtrace)
 assert "config" in dir(ddtrace)

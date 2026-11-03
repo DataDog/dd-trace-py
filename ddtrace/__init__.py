@@ -18,6 +18,16 @@ import ddtrace.internal._unpatched  # noqa: E402, F401, isort:skip
 from ddtrace.internal.utils.deprecations import check_supported_python_version as _check_supported_python_version
 
 
+try:
+    from ddtrace._logger import configure_ddtrace_logger as _configure_ddtrace_logger
+
+    _configure_ddtrace_logger()
+except Exception:
+    import logging as _logging
+
+    _logging.getLogger(__name__).warning("Failed to configure ddtrace logging", exc_info=True)
+
+
 _check_supported_python_version()
 
 __all__ = ["__version__", "patch", "patch_all", "config", "DDTraceDeprecationWarning"]
@@ -49,11 +59,6 @@ def __getattr__(name):
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     from importlib import import_module
-
-    if name == "config":
-        from ddtrace._logger import configure_ddtrace_logger
-
-        configure_ddtrace_logger()
 
     module_name, attr_name = _EXPORTS[name]
     module = import_module(module_name)

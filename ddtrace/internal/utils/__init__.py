@@ -121,17 +121,3 @@ def _human_size(nbytes: float) -> str:
         i += 1
     f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
     return "%s%s" % (f, suffixes[i])
-
-
-def asbool(value: Union[str, bool, None]) -> bool:
-    """Convert the given String to a boolean object.
-
-    Accepted values are `True` and `1`.
-    """
-    if value is None:
-        return False
-
-    if isinstance(value, bool):
-        return value
-
-    return value.lower() in ("true", "1")

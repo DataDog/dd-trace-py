@@ -1,8 +1,3 @@
-# ruff: noqa: E402
-from ddtrace._logger import configure_ddtrace_logger  # isort:skip
-
-configure_ddtrace_logger()
-
 from collections.abc import Callable
 import importlib
 from pathlib import Path

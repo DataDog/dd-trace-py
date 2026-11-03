@@ -2262,7 +2262,7 @@ def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writ
     sensitive_name = "DD_TEST_SYNTHETIC_SENSITIVE_GET_CONFIG_SETTING"
     monkeypatch.setenv(sensitive_name, "leaked_value")
     with mock.patch(
-        "ddtrace.internal.settings._read_config.SENSITIVE_CONFIGURATIONS",
+        "ddtrace.internal.telemetry.SENSITIVE_CONFIGURATIONS",
         frozenset({sensitive_name}),
     ):
         assert ddtrace.internal.telemetry.get_config(sensitive_name, "default_value") == "leaked_value"

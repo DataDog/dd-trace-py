@@ -1,16 +1,11 @@
 import logging
-from os import path
+import os
 import sys
+from typing import Any
 from typing import Optional
 
-from ddtrace.internal.forksafe import RLock
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings._read_config import record_configuration
-from ddtrace.internal.settings._read_config import resolve_config
-from ddtrace.internal.utils import asbool
 
-
-log = get_logger(__name__)
+log = logging.getLogger(__name__)
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
@@ -19,16 +14,17 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 _configured = False
-_configuration_lock = RLock()
+_configurations: dict[str, tuple[object, str]] = {}
 
 
-def get_config(name, default=None, modifier=None, report_telemetry=True):
-    return resolve_config(
-        name,
-        default,
-        modifier,
-        report_configuration=record_configuration if report_telemetry else None,
-    )
+def _get_env(name, default=None, modifier=None):
+    """Read logger settings without importing ddtrace configuration."""
+    value = os.environ.get(name, default)  # ast-grep-ignore: os-environ-fix-access
+    source = "env_var" if name in os.environ else "default"  # ast-grep-ignore: os-environ-fix-access
+    if modifier is not None and source == "env_var":
+        value = modifier(value)
+    _configurations[name] = (value, source)
+    return value
 
 
 def configure_ddtrace_logger() -> None:
@@ -61,20 +57,17 @@ def configure_ddtrace_logger() -> None:
 
     """
     global _configured
-    with _configuration_lock:
-        if _configured:
-            return
-        ddtrace_logger = logging.getLogger("ddtrace")
-        try:
-            if get_config("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
-                ddtrace_logger.addHandler(logging.StreamHandler())
-            _configure_ddtrace_debug_logger(ddtrace_logger)
-            _configure_ddtrace_file_logger(ddtrace_logger)
-            # Configure native logging after Python handlers are ready.
-            _configure_ddtrace_native_logger(ddtrace_logger)
-        except Exception:
-            log.warning("Failed to configure ddtrace logging", exc_info=True)
-        _configured = True
+    if _configured:
+        return
+    _configured = True
+    ddtrace_logger = logging.getLogger("ddtrace")
+    try:
+        if _get_env("DD_TRACE_LOG_STREAM_HANDLER", True, lambda value: value.lower() in ("true", "1")):
+            ddtrace_logger.addHandler(logging.StreamHandler())
+        _configure_ddtrace_debug_logger(ddtrace_logger)
+        _configure_ddtrace_file_logger(ddtrace_logger)
+    except Exception:
+        log.warning("Failed to configure ddtrace logging", exc_info=True)
 
 
 def _configure_ddtrace_debug_logger(logger):
@@ -86,8 +79,8 @@ def _configure_ddtrace_debug_logger(logger):
     does not imply DD_TRACE_DEBUG is enabled.
     """
     # reading the values of the two possible debug settings so they can be displayed in telemetry/debug logs
-    trace_debug = get_config("DD_TRACE_DEBUG", False, asbool)
-    log_level = get_config("DD_TRACE_LOG_LEVEL")
+    trace_debug = _get_env("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
+    log_level = _get_env("DD_TRACE_LOG_LEVEL")
 
     if trace_debug:
         logger.setLevel(logging.DEBUG)
@@ -107,7 +100,7 @@ def _configure_ddtrace_debug_logger(logger):
 
 
 def _configure_ddtrace_file_logger(logger):
-    log_file_level = get_config("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
+    log_file_level = _get_env("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
     except AttributeError:
@@ -115,8 +108,8 @@ def _configure_ddtrace_file_logger(logger):
             "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
             log_file_level,
         )
-    max_file_bytes = get_config("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES, int)
-    log_path = get_config("DD_TRACE_LOG_FILE")
+    max_file_bytes = _get_env("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES, int)
+    log_path = _get_env("DD_TRACE_LOG_FILE")
     _add_file_handler(logger=logger, log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes)
 
 
@@ -130,7 +123,7 @@ def _add_file_handler(
 ):
     ddtrace_file_handler = None
     if log_path is not None:
-        log_path = path.abspath(log_path)
+        log_path = os.path.abspath(log_path)
         num_backup = 1
         from logging.handlers import RotatingFileHandler
 
@@ -176,26 +169,23 @@ def _emits_to_stderr(logger: logging.Logger) -> bool:
     return False
 
 
-def _configure_ddtrace_native_logger(py_logger: logging.Logger):
+def _configure_ddtrace_native_logger(native_logger: Any) -> None:
+    py_logger = logging.getLogger("ddtrace")
     try:
-        trace_debug = get_config("DD_TRACE_DEBUG", False, asbool)
+        trace_debug = _get_env("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
         default_backend = "stderr" if trace_debug and _emits_to_stderr(py_logger) else None
-        backend = get_config("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
+        backend = _get_env("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
         if not backend:
             return
         kwargs = {"output": backend}
         if backend == "file":
-            kwargs["path"] = get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log", report_telemetry=True)
-            kwargs["max_size_bytes"] = get_config(
-                "_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int, report_telemetry=True
-            )
-            kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
+            kwargs["path"] = _get_env("_DD_NATIVE_LOGGING_FILE_PATH", "native.log")
+            kwargs["max_size_bytes"] = _get_env("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
+            kwargs["max_files"] = _get_env("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
 
-        from ddtrace.internal.native._native import logger
-
-        logger.configure(**kwargs)
+        native_logger.configure(**kwargs)
         # "info" instead of "debug" to avoid flooding by default
         default_log_level = "info" if trace_debug else "warning"
-        logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level, report_telemetry=True))
+        native_logger.set_log_level(_get_env("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)

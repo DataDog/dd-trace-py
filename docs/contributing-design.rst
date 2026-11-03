@@ -58,8 +58,8 @@ Set ``_DD_GLOBAL_TRACER_INIT=false`` before starting Python to detect imports of
 root-level exports scheduled for removal in v5.0. Import values from their defining modules.
 Import submodules explicitly, for example ``from ddtrace import trace`` or ``import ddtrace.trace``.
 
-Configure logging before bootstrap imports, manual SDK initialization, or the first access to ``ddtrace.config``.
-Logging configuration reads must not start telemetry; report recorded logging configuration when telemetry starts.
+Configure Python logging once in ``ddtrace.__init__`` using only the standard library and environment variables.
+Configure native logging when the native module loads. Report logging configuration when telemetry starts.
 Initialize enabled Data Streams handlers from preload and manual patching, independently of ``ddtrace.trace``.
 
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.

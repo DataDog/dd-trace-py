@@ -3,12 +3,12 @@ import logging
 from typing import Any
 from typing import Optional
 from typing import TypeVar
+from typing import Union
 
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
 from ddtrace.internal.native._native import is_sequence  # noqa: F401
 from ddtrace.internal.settings import env
-from ddtrace.internal.utils import asbool as asbool
 
 from ..compat import ensure_text
 
@@ -61,6 +61,20 @@ def deep_getattr(obj: Any, attr_string: str, default: Optional[Any] = None) -> O
             return default
 
     return obj
+
+
+def asbool(value: Union[str, bool, None]) -> bool:
+    """Convert the given String to a boolean object.
+
+    Accepted values are `True` and `1`.
+    """
+    if value is None:
+        return False
+
+    if isinstance(value, bool):
+        return value
+
+    return value.lower() in ("true", "1")
 
 
 def parse_tags_str(tags_str: Optional[str], sep: Optional[str] = None) -> dict[str, str]:

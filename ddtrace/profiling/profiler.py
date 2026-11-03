@@ -10,7 +10,6 @@ from typing import cast
 
 import ddtrace
 from ddtrace import config
-from ddtrace._logger import configure_ddtrace_logger
 from ddtrace.internal import atexit
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
@@ -54,7 +53,6 @@ class Profiler:
 
     def start(self) -> None:
         """Start the profiler."""
-        configure_ddtrace_logger()
         with Profiler._active_lock:
             active = Profiler._active_instance
             if active is not None and active is not self and active._profiler.status == service.ServiceStatus.RUNNING:

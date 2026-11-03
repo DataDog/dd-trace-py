@@ -24,10 +24,8 @@ log = logging.getLogger(__name__)
 
 
 try:
-    from ddtrace._logger import configure_ddtrace_logger
     from ddtrace.internal.logger import get_logger
 
-    configure_ddtrace_logger()
     log = get_logger(__name__)
 
     import ddtrace.bootstrap.cloning as cloning
