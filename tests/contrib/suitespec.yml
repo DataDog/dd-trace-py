@@ -1250,6 +1250,7 @@ suites:
       - '@contrib'
       - '@falcon'
       - tests/contrib/falcon/*
+      - tests/snapshots/tests.contrib.falcon.*
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/falcon

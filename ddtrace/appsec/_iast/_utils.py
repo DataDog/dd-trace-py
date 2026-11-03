@@ -1,7 +1,10 @@
+from typing import Hashable
+from typing import Sequence
+
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-def _get_source_index(sources: list, source) -> int:
+def _get_source_index(sources: Sequence[Hashable], source: Hashable) -> int:
     i = 0
     for source_ in sources:
         if hash(source_) == hash(source):
@@ -10,9 +13,11 @@ def _get_source_index(sources: list, source) -> int:
     return -1
 
 
-def _is_iast_debug_enabled():
-    return asm_config._iast_debug
+def _is_iast_debug_enabled() -> bool:
+    enabled: bool = asm_config._iast_debug
+    return enabled
 
 
-def _is_iast_propagation_debug_enabled():
-    return asm_config._iast_propagation_debug
+def _is_iast_propagation_debug_enabled() -> bool:
+    enabled: bool = asm_config._iast_propagation_debug
+    return enabled
