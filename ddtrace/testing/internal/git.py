@@ -250,16 +250,26 @@ class Git:
     def get_shallow_boundary(self) -> t.Optional[set[str]]:
         """Return the set of shallow-boundary commit SHAs (empty when the repo is not shallow).
 
-        The boundary is the set of commits listed in the git dir's ``shallow``
-        file — the grafted roots below which history is hidden. Returns None
-        when the git directory cannot be resolved, so callers can treat that as
-        "unknown" and take the safe path.
+        The boundary is the set of commits listed in the ``shallow`` file — the
+        grafted roots below which history is hidden. The file is resolved with
+        ``git rev-parse --git-path shallow`` because in a linked worktree the
+        shallow file lives in the *common* git directory rather than in the
+        worktree-private one that ``--absolute-git-dir`` would report; git
+        performs that private-vs-common resolution itself. The returned path
+        can be relative to the subprocess working directory, so it is resolved
+        against this instance's cwd. Returns None when the path cannot be
+        resolved, so callers can treat that as "unknown" and take the safe
+        path.
         """
-        git_dir = self._git_output(["rev-parse", "--absolute-git-dir"])
-        if not git_dir:
+        shallow_path = self._git_output(["rev-parse", "--git-path", "shallow"])
+        if not shallow_path:
             return None
+        path = Path(shallow_path)
+        if not path.is_absolute():
+            base = self.cwd if self.cwd is not None else os.getcwd()
+            path = Path(base) / path
         try:
-            content = (Path(git_dir) / "shallow").read_text()
+            content = path.read_text()
         except OSError:
             return set()
         return {line.strip() for line in content.splitlines() if line.strip()}

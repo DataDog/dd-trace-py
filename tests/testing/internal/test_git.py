@@ -1098,3 +1098,55 @@ class TestGitUnshallowLock:
         assert result.return_code == 0
         assert len(lock_entered) == 1
         mock_call.assert_not_called(), "no fetch needed — repo was unshallowed by peer before we got the lock"
+
+
+class TestGitShallowBoundary:
+    """Tests for Git.get_shallow_boundary (marker validation input)."""
+
+    @patch("shutil.which")
+    def test_resolves_relative_git_path(self, mock_which: Mock, tmp_path) -> None:
+        """``--git-path`` can return a path relative to the subprocess cwd; it is resolved."""
+        mock_which.return_value = "/usr/bin/git"
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "shallow").write_text("boundary-1\nboundary-2\n")
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=".git/shallow") as mock_git_output:
+            assert git.get_shallow_boundary() == {"boundary-1", "boundary-2"}
+
+        mock_git_output.assert_called_once_with(["rev-parse", "--git-path", "shallow"])
+
+    @patch("shutil.which")
+    def test_absolute_path_used_as_is(self, mock_which: Mock, tmp_path) -> None:
+        """Absolute ``--git-path`` output (e.g. a linked worktree's common dir) is used as-is.
+
+        Linked worktrees keep ``shallow`` in the *common* git directory while
+        ``--absolute-git-dir`` points at the worktree-private one, which is why
+        the boundary must be resolved through ``--git-path``.
+        """
+        mock_which.return_value = "/usr/bin/git"
+        common = tmp_path / "common.git"
+        common.mkdir()
+        (common / "shallow").write_text("boundary-1\n")
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=str(common / "shallow")):
+            assert git.get_shallow_boundary() == {"boundary-1"}
+
+    @patch("shutil.which")
+    def test_empty_when_not_shallow(self, mock_which: Mock, tmp_path) -> None:
+        """A missing shallow file (repo not shallow) is an empty boundary."""
+        mock_which.return_value = "/usr/bin/git"
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=str(tmp_path / ".git" / "shallow")):
+            assert git.get_shallow_boundary() == set()
+
+    @patch("shutil.which")
+    def test_none_when_unresolvable(self, mock_which: Mock, tmp_path) -> None:
+        """When the path cannot be resolved the boundary is unknown (None)."""
+        mock_which.return_value = "/usr/bin/git"
+        git = Git(cwd=str(tmp_path))
+
+        with patch.object(git, "_git_output", return_value=""):
+            assert git.get_shallow_boundary() is None
