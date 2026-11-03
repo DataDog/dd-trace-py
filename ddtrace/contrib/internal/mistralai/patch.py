@@ -13,8 +13,6 @@ from mistralai.client.models.embeddingresponse import EmbeddingResponse
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.mistralai._constants import COMPONENT
-from ddtrace.contrib.internal.mistralai._constants import TAG_MODEL
-from ddtrace.contrib.internal.mistralai._constants import TAG_PROVIDER
 from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import extract_provider
@@ -28,6 +26,13 @@ from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 config._add("mistralai", {})  # type: ignore[no-untyped-call]
+
+# LLMObs subscribes to shared lifecycle events for this component; see ddtrace/llmobs/_contrib/mistralai.
+COMPONENT = "mistralai"
+
+# Keep APM model/provider tags available even without LLMObs subscriber hooks.
+MODEL_TAG = "mistralai.request.model"
+PROVIDER_TAG = "mistralai.request.provider"
 
 
 def _supported_versions() -> dict[str, str]:
@@ -51,14 +56,19 @@ def _kwargs_with_server_url(instance: Chat | Embeddings, kwargs: dict[str, Any])
 
 
 def _request_event(
-    func: Callable[..., Any], instance: Union[Chat, Embeddings], kwargs: dict[str, Any], operation: str
+    func: Callable[..., Any],
+    instance: Chat | Embeddings,
+    kwargs: dict[str, Any],
+    operation: str,
 ) -> LlmRequestEvent:
-    request_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider = extract_provider(request_kwargs)
+    """Build the LlmRequestEvent for a chat or embedding call.
+
+    request_kwargs carries the server_url-enriched kwargs because the LLMObs side
+    re-derives the provider from them at span finish.
+    """
+    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
+    provider = extract_provider(enriched_kwargs)
     model = kwargs.get("model", "")
-    tags = {TAG_PROVIDER: provider}
-    if model is not None:
-        tags[TAG_MODEL] = model
     return LlmRequestEvent(
         component=COMPONENT,
         integration_config=config.mistralai,
@@ -66,9 +76,9 @@ def _request_event(
         resource="%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider,
         model=model,
-        tags=tags,
+        tags={PROVIDER_TAG: provider, MODEL_TAG: model},
         submit_to_llmobs=True,
-        request_kwargs=request_kwargs,
+        request_kwargs=enriched_kwargs,
         instance=instance,
         operation=operation,
     )
@@ -82,8 +92,9 @@ def traced_chat_generate(
 ) -> ChatCompletionResponse:
     event = _request_event(func, instance, kwargs, "llm")
     with core.context_with_event(event):
-        event.response = func(*args, **kwargs)
-        return event.response
+        resp = func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 async def traced_async_chat_generate(
@@ -94,8 +105,9 @@ async def traced_async_chat_generate(
 ) -> ChatCompletionResponse:
     event = _request_event(func, instance, kwargs, "llm")
     with core.context_with_event(event):
-        event.response = await func(*args, **kwargs)
-        return event.response
+        resp = await func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 def traced_generate_stream(
@@ -105,17 +117,19 @@ def traced_generate_stream(
     kwargs: dict[str, Any],
 ) -> Any:
     event = _request_event(func, instance, kwargs, "llm")
-    # The stream handler dispatches the ended event once the stream is consumed or closed.
+    # dispatch_end_event=False defers the ended event until the stream handler calls
+    # ctx.dispatch_ended_event() in finalize_stream(). Errors before the wrapped stream is returned
+    # must dispatch it manually so the span finishes with the error info.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = func(*args, **kwargs)
-        except Exception:
+            handler = MistralAIStreamHandler(  # type: ignore[no-untyped-call]
+                None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
+            )
+            return make_traced_stream(resp, handler)
+        except BaseException:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        handler = MistralAIStreamHandler(  # type: ignore[no-untyped-call]
-            None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
-        )
-        return make_traced_stream(resp, handler)
 
 
 async def traced_async_generate_stream(
@@ -128,13 +142,13 @@ async def traced_async_generate_stream(
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             resp = await func(*args, **kwargs)
-        except Exception:
+            handler = MistralAIAsyncStreamHandler(  # type: ignore[no-untyped-call]
+                None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
+            )
+            return make_traced_stream(resp, handler)
+        except BaseException:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        handler = MistralAIAsyncStreamHandler(  # type: ignore[no-untyped-call]
-            None, span_from_context(ctx), args, event.request_kwargs, ctx=ctx
-        )
-        return make_traced_stream(resp, handler)
 
 
 def traced_embed_generate(
@@ -145,8 +159,9 @@ def traced_embed_generate(
 ) -> EmbeddingResponse:
     event = _request_event(func, instance, kwargs, "embedding")
     with core.context_with_event(event):
-        event.response = func(*args, **kwargs)
-        return event.response
+        resp = func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 async def async_traced_embed_generate(
@@ -157,8 +172,9 @@ async def async_traced_embed_generate(
 ) -> EmbeddingResponse:
     event = _request_event(func, instance, kwargs, "embedding")
     with core.context_with_event(event):
-        event.response = await func(*args, **kwargs)
-        return event.response
+        resp = await func(*args, **kwargs)
+        event.response = resp
+        return resp
 
 
 def patch() -> None:
@@ -174,9 +190,9 @@ def patch() -> None:
     wrap("mistralai.client.embeddings", "Embeddings.create", traced_embed_generate)
     wrap("mistralai.client.embeddings", "Embeddings.create_async", async_traced_embed_generate)
 
-    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # Let products (LLMObs) attach their shared lifecycle subscribers without this
     # module importing them.
-    integration_hooks.on_patch("mistralai")
+    integration_hooks.on_patch(COMPONENT)
 
 
 def unpatch() -> None:
@@ -185,7 +201,7 @@ def unpatch() -> None:
 
     client._datadog_patch = False
 
-    integration_hooks.on_unpatch("mistralai")
+    integration_hooks.on_unpatch(COMPONENT)
 
     unwrap(client.chat.Chat, "complete")
     unwrap(client.chat.Chat, "complete_async")

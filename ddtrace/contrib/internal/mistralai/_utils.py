@@ -4,15 +4,22 @@ from typing import Optional
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import BaseStreamHandler
 from ddtrace.internal.utils.streaming import StreamHandler
 
 
 log = get_logger(__name__)
 
 
+# Duplicated from ddtrace.llmobs._integrations.mistralai_utils.extract_provider (and
+# ddtrace.llmobs._constants.UNKNOWN_MODEL_PROVIDER) so this module does not import LLMObs.
+# The LLMObs side recomputes it at span finish; both copies must agree.
+_UNKNOWN_MODEL_PROVIDER = "unknown"
+
+
 def extract_provider(kwargs: dict[str, Any]) -> str:
     server_url = kwargs.get("server_url") or ""
-    return "mistral" if not server_url or "mistral" in server_url.lower() else "unknown"
+    return "mistral" if not server_url or "mistral" in server_url.lower() else _UNKNOWN_MODEL_PROVIDER
 
 
 def _accumulate_tool_calls(tool_calls_map: dict[int, dict[str, Any]], tool_calls: list[Any]) -> None:
@@ -107,14 +114,19 @@ def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
     return merged_response
 
 
-class BaseMistralAIStreamHandler:
-    """Mixed into StreamHandler/AsyncStreamHandler, which provide chunks and options."""
+class BaseMistralAIStreamHandler(BaseStreamHandler):
+    """Shared finalization for the sync and async MistralAI stream handlers.
 
-    chunks: list[Any]
-    options: dict[str, Any]
+    The handlers only need the context to dispatch the deferred ended event, so the
+    integration slot BaseStreamHandler keeps for other integrations goes unused.
+    """
 
     def finalize_stream(self, exception: Optional[BaseException] = None) -> None:
-        """Build the response from chunks, then dispatch the deferred ended event, which finishes the span."""
+        """Merge the chunks onto the event, then dispatch the deferred ended event.
+
+        The TracingSubscriber's _on_context_ended sets the LLMObs tags (via the
+        SPAN_FINISHING subscriber) and finishes the span.
+        """
         ctx = self.options["ctx"]
         try:
             ctx.event.response = _join_chunks(self.chunks)
