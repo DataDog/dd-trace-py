@@ -57,6 +57,9 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
+    for bundle in subscriber_bundles:
+        bundle.register()
+
 
 def restart(join=False):
     from ddtrace.trace import tracer
@@ -70,6 +73,9 @@ def stop(join=False):
 
     if tracer.enabled:
         tracer.shutdown()
+    # Keep completion listeners available during tracer shutdown.
+    for bundle in subscriber_bundles:
+        bundle.unregister()
 
 
 def skip_exit():

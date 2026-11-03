@@ -194,7 +194,7 @@ def test_direct_integration_import_registers_web_subscribers() -> None:
 
 
 @pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])
-def test_manager_owns_declared_bundle_listeners(monkeypatch: pytest.MonkeyPatch, shutdown: str) -> None:
+def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.MonkeyPatch, shutdown: str) -> None:
     calls: list[str] = []
 
     class RequestSubscriber(ContextSubscriber[RegistrationEvent]):
@@ -220,12 +220,18 @@ def test_manager_owns_declared_bundle_listeners(monkeypatch: pytest.MonkeyPatch,
     product.requires = []
     product.enabled.return_value = True
     product.skip_exit.return_value = False
-    product.subscriber_bundles = (SubscriberBundle(module.__name__, ("RequestSubscriber",)),)
+    bundle = SubscriberBundle(module.__name__, ("RequestSubscriber",))
+    product.start.side_effect = bundle.register
     manager = ProductManager()
     manager._products = [("test", product)]
     context = core.context_with_event(RegistrationEvent())
+
     # stop() drains the active context while its completion listener is still registered.
-    product.stop.side_effect = lambda join=False: context.__exit__(None, None, None)
+    def stop(join=False):
+        context.__exit__(None, None, None)
+        bundle.unregister()
+
+    product.stop.side_effect = stop
     try:
         manager.start_products()
         manager.start_products()
@@ -248,3 +254,32 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
 
     assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
+
+
+@pytest.mark.parametrize("tracing_enabled", [True, False])
+def test_tracing_product_explicitly_manages_bundles(tracing_enabled, monkeypatch):
+    from ddtrace._trace import product
+
+    bundle = Mock(spec=SubscriberBundle)
+    monkeypatch.setattr(product, "subscriber_bundles", (bundle,))
+    with patch("ddtrace.trace.tracer") as tracer:
+        tracer.enabled = tracing_enabled
+        tracer.shutdown.side_effect = lambda: bundle.unregister.assert_not_called()
+        product.start()
+        bundle.register.assert_called_once_with()
+        product.stop()
+        bundle.unregister.assert_called_once_with()
+        assert tracer.shutdown.call_count == int(tracing_enabled)
+
+
+def test_tracing_product_retains_listeners_when_shutdown_fails(monkeypatch):
+    from ddtrace._trace import product
+
+    bundle = Mock(spec=SubscriberBundle)
+    monkeypatch.setattr(product, "subscriber_bundles", (bundle,))
+    with patch("ddtrace.trace.tracer") as tracer:
+        tracer.enabled = True
+        tracer.shutdown.side_effect = RuntimeError("drain failed")
+        with pytest.raises(RuntimeError, match="drain failed"):
+            product.stop()
+        bundle.unregister.assert_not_called()
