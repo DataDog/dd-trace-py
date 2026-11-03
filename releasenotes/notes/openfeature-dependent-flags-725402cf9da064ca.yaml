@@ -4,3 +4,6 @@ features:
     agentless or Agent Remote Configuration delivery. Prerequisites follow the
     authored rule order, and exposure events include only flags that contribute
     to the returned assignment.
+upgrade:
+  - |
+    internal: Building from source now requires Rust 1.91.1 or later.
