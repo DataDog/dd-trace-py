@@ -109,8 +109,9 @@ class Probe(abc.ABC):
             setattr(self, attrib, getattr(other, attrib))
 
         # A new version may fix the expression that tripped the error throttle.
-        if isinstance(self, ProbeConditionMixin):
-            self._error_throttled_until = 0.0
+        probe: Probe = self
+        if isinstance(probe, ProbeConditionMixin):
+            probe._error_throttled_until = 0.0
 
     def is_sampled(self) -> bool:
         """Whether this probe takes part in coordinated sampling."""

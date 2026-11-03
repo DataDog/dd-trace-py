@@ -19,7 +19,7 @@ CaptorType = Callable[[list[tuple[str, Any]], list[tuple[str, Any]], ExcInfoType
 
 log = get_logger(__name__)
 
-_EVAL_ERROR_KINDS = {SignalState.COND_ERROR: "condition", SignalState.EVAL_ERROR: "value"}
+_EVAL_ERROR_KINDS: dict[str, str] = {SignalState.COND_ERROR: "condition", SignalState.EVAL_ERROR: "value"}
 
 meter = metrics.get_meter("signal.collector")
 # Guardrail metrics use the unprefixed names shared by all tracers in the debugger namespace.
