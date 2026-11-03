@@ -371,11 +371,10 @@ requirements_json_test:
 check_requirements_lockfiles:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   script:
-    - pip install toml==0.10.2
     - scripts/test-requirements check
-    - python scripts/requirements_to_csv.py
+    - uv run --no-project --with toml==0.10.2 python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
 check_ci_dependencies:
@@ -390,7 +389,7 @@ check_ci_dependencies:
 check_intersphinx_inventory:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   allow_failure: true
   rules:
     - if: $NIGHTLY_BUILD == "true"
