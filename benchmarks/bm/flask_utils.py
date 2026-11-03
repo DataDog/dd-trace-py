@@ -9,11 +9,6 @@ from flask import render_template_string
 from flask import request
 from flask import stream_with_context
 
-from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
-from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
-from ddtrace.debugging._probe.model import LiteralTemplateSegment
-from ddtrace.debugging._probe.model import LogLineProbe
-
 
 def make_index():
     rand_numbers = [random.random() for _ in range(20)]
@@ -131,6 +126,11 @@ class FlaskScenarioMixin:
 
         if self.debugger_enabled:
             from bm.di_utils import BMDebugger
+
+            from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
+            from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+            from ddtrace.debugging._probe.model import LiteralTemplateSegment
+            from ddtrace.debugging._probe.model import LogLineProbe
 
             BMDebugger.enable()
 
