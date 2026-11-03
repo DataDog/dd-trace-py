@@ -162,7 +162,7 @@ suites:
       variants:
         - name: google_genai
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: [pytest-asyncio, 'google-genai==2.34.0']
+          dependencies: [pytest-asyncio, google-genai]
         - name: google_genai
           python: ['3.9', '3.10']
           dependencies: [pytest-asyncio, google-genai]
