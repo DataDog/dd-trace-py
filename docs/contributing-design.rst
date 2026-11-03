@@ -59,7 +59,8 @@ root-level exports scheduled for removal in v5.0. Import values from their defin
 Import submodules explicitly, for example ``from ddtrace import trace`` or ``import ddtrace.trace``.
 
 Configure Python logging once in ``ddtrace.__init__`` using only the standard library and environment variables.
-Configure native logging when the native module loads. Report logging configuration when telemetry starts.
+Configure native logging from the environment when the native module loads. In ``sitecustomize.py``,
+reconfigure it with ``get_config`` after configuration and telemetry are available; replace the previous output.
 Run the Python-version support check only in ``sitecustomize.py``, for ``ddtrace.auto`` and ``ddtrace-run``.
 Initialize enabled Data Streams handlers from preload and manual patching, independently of ``ddtrace.trace``.
 

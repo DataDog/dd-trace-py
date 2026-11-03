@@ -6,7 +6,6 @@ This starts when instrumentation or configuration requiring telemetry is initial
 
 import typing as t
 
-from ddtrace._logger import _configurations as _logging_configurations
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -132,8 +131,6 @@ else:
     from .noop_writer import NoOpTelemetryWriter as TelemetryWriter  # type: ignore[assignment]
 
 telemetry_writer = TelemetryWriter()
-for _name, (_value, _source) in _logging_configurations.items():
-    telemetry_writer.add_configuration(_name, _value, _source)
 
 
 def report_configuration(config: DDConfig) -> None:

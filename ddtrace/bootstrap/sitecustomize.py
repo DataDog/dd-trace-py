@@ -24,16 +24,22 @@ log = logging.getLogger(__name__)
 
 
 try:
+    from ddtrace._logger import _configure_ddtrace_native_logger
     from ddtrace.internal.logger import get_logger
     from ddtrace.internal.utils.deprecations import check_supported_python_version
 
     log = get_logger(__name__)
     check_supported_python_version()
 
+    from ddtrace.internal.native import logger as native_logger
+    from ddtrace.internal.telemetry import get_config
+    from ddtrace.internal.telemetry import telemetry_writer
+
+    _configure_ddtrace_native_logger(native_logger, config_retriever=get_config)
+
     import ddtrace.bootstrap.cloning as cloning
     import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
     from ddtrace.internal.settings import env
-    from ddtrace.internal.telemetry import telemetry_writer
 
     cloning.cleanup_loaded_modules()
 

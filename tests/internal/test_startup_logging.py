@@ -23,12 +23,8 @@ def test_logger_import_and_setup_do_not_start_telemetry(telemetry):
         """
         import logging
         import sys
-        from ddtrace._logger import configure_ddtrace_logger
-        assert 'ddtrace.internal.native' not in sys.modules
-        handlers = list(logging.getLogger('ddtrace').handlers)
-        assert len(handlers) == 1
-        configure_ddtrace_logger()
-        assert logging.getLogger('ddtrace').handlers == handlers
+        import ddtrace
+        assert len(logging.getLogger('ddtrace').handlers) == 1
         assert 'ddtrace.internal.native' not in sys.modules
         assert 'ddtrace.internal.forksafe' not in sys.modules
         assert 'ddtrace.internal.telemetry' not in sys.modules
@@ -57,9 +53,7 @@ def test_logging_configuration_ignores_stable_configs(tmp_path, level, fleet_ena
         if level is not None:
             os.environ['DD_TRACE_LOG_LEVEL'] = {level!r}
         import ddtrace
-        from ddtrace._logger import _configurations
         assert logging.getLogger('ddtrace').level == {"logging.WARNING" if level else "logging.NOTSET"}
-        assert _configurations['DD_TRACE_LOG_LEVEL'] == ({level!r}, {"env_var" if level else "default"!r})
         assert 'ddtrace.internal.native' not in sys.modules
         from ddtrace.internal.settings._core import FLEET_CONFIG, LOCAL_CONFIG
         if {fleet_enabled}:
@@ -74,25 +68,16 @@ def test_logging_configuration_ignores_stable_configs(tmp_path, level, fleet_ena
     )
 
 
-def test_logging_configuration_is_replayed_to_telemetry():
+def test_bootstrap_uses_full_native_logging_configuration():
     run(
         """
-        import sys
-        from types import SimpleNamespace
-        from unittest.mock import Mock
-        import ddtrace
-        writer = Mock()
-        sys.modules['ddtrace.internal.telemetry.noop_writer'] = SimpleNamespace(
-            NoOpTelemetryWriter=Mock(return_value=writer)
-        )
-        assert 'ddtrace.internal.telemetry' not in sys.modules
-        import ddtrace.internal.telemetry
-        writer.add_configuration.assert_any_call('DD_TRACE_LOG_LEVEL', 'INFO', 'env_var')
-        writer.add_configuration.assert_any_call('_DD_NATIVE_LOGGING_BACKEND', None, 'default')
-    """,
-        DD_TRACE_LOG_LEVEL="INFO",
-        DD_TRACE_DEBUG="false",
-        DD_INSTRUMENTATION_TELEMETRY_ENABLED="false",
+        from unittest.mock import patch
+        from ddtrace.internal.native import logger
+        from ddtrace.internal.telemetry import get_config
+        with patch('ddtrace._logger._configure_ddtrace_native_logger') as configure:
+            import ddtrace.auto
+            configure.assert_called_once_with(logger, config_retriever=get_config)
+    """
     )
 
 
@@ -118,6 +103,85 @@ def test_native_logging_waits_for_native_import(tmp_path):
 
 
 @pytest.mark.parametrize(
+    "initial, replacement",
+    [
+        ("file", "file"),
+        ("file", "stdout"),
+        ("file", "stderr"),
+        ("file", ""),
+        ("stdout", "file"),
+        ("stderr", "file"),
+        ("stdout", "stderr"),
+        ("stderr", "stdout"),
+        ("stderr", ""),
+        ("", "file"),
+        ("", "stderr"),
+        ("stdout", "stdout"),
+    ],
+)
+def test_native_logging_replaces_previous_output(tmp_path, initial, replacement):
+    old_file = tmp_path / "old.log"
+    new_file = tmp_path / "new.log"
+    result = run(
+        f"""
+        from ddtrace._logger import _configure_ddtrace_native_logger
+        from ddtrace.internal.native import logger
+        values = {{
+            'DD_TRACE_DEBUG': 'false',
+            '_DD_NATIVE_LOGGING_BACKEND': {replacement!r},
+            '_DD_NATIVE_LOGGING_FILE_PATH': {str(new_file)!r},
+        }}
+        def retrieve(name, default=None, modifier=None):
+            if name not in values:
+                return default
+            return modifier(values[name]) if modifier else values[name]
+        logger.log('warning', 'before-reconfiguration')
+        for _ in range(2):
+            _configure_ddtrace_native_logger(logger, config_retriever=retrieve)
+        logger.log('warning', 'after-reconfiguration')
+        for output in ('file', 'stderr'):
+            try:
+                logger.disable(output)
+            except ValueError:
+                pass
+    """,
+        DD_TRACE_DEBUG="false",
+        _DD_NATIVE_LOGGING_BACKEND=initial,
+        _DD_NATIVE_LOGGING_FILE_PATH=str(old_file),
+    )
+    outputs = {
+        "stdout": result.stdout.decode(),
+        "stderr": result.stderr.decode(),
+        "file": new_file.read_text() if new_file.exists() else "",
+    }
+    for output, contents in outputs.items():
+        assert contents.count("after-reconfiguration") == int(output == replacement), contents
+    if old_file.exists():
+        assert "after-reconfiguration" not in old_file.read_text()
+    assert "Failed to initialize native logger" not in result.stderr.decode()
+
+
+def test_bootstrap_native_logging_honors_fleet_and_reports_telemetry():
+    result = run(
+        """
+        from unittest.mock import patch
+        from ddtrace.internal import telemetry
+        from ddtrace.internal.native import logger
+        with patch.dict(telemetry.FLEET_CONFIG, {'_DD_NATIVE_LOGGING_BACKEND': 'stdout'}, clear=True):
+            with patch.object(telemetry.telemetry_writer, 'add_configuration') as report:
+                import ddtrace.auto
+                report.assert_any_call('_DD_NATIVE_LOGGING_BACKEND', 'stdout', 'fleet_stable_config', None)
+        logger.log('warning', 'resolved-native-output')
+        logger.disable('stdout')
+    """,
+        DD_TRACE_DEBUG="false",
+        _DD_NATIVE_LOGGING_BACKEND="stderr",
+    )
+    assert result.stdout.count(b"resolved-native-output") == 1
+    assert b"resolved-native-output" not in result.stderr
+
+
+@pytest.mark.parametrize(
     "entrypoint",
     [
         "import ddtrace.auto",
@@ -130,13 +194,13 @@ def test_logger_configured_once_across_entrypoints(tmp_path, entrypoint):
     run(
         f"""
         import logging
-        from concurrent.futures import ThreadPoolExecutor
-        from ddtrace._logger import configure_ddtrace_logger
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            list(pool.map(lambda _: configure_ddtrace_logger(), range(20)))
+        from unittest.mock import patch
+        import ddtrace
         handlers = list(logging.getLogger('ddtrace').handlers)
         assert len(handlers) == 2, handlers
-        {entrypoint}
+        with patch('ddtrace._logger.configure_ddtrace_logger') as configure:
+            {entrypoint}
+            configure.assert_not_called()
         assert logging.getLogger('ddtrace').handlers == handlers
     """,
         DD_TRACE_LOG_FILE=str(tmp_path / "trace.log"),
@@ -157,8 +221,8 @@ def test_invalid_logging_configuration_does_not_abort_setup(entrypoint):
     result = run(
         f"""
         {entrypoint}
-        from ddtrace._logger import _configured
-        assert _configured
+        import logging
+        assert any(type(h) is logging.StreamHandler for h in logging.getLogger('ddtrace').handlers)
     """,
         DD_TRACE_LOG_FILE_LEVEL="INVALID",
     )

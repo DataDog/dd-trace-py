@@ -1,7 +1,7 @@
 other:
   - |
     perf: Reduces the overhead of importing ``ddtrace`` and starting applications with ``ddtrace-run``.
-    Configure library logging with environment variables; fleet and local stable configuration no longer apply to logger settings.
+    Configure Python logging with environment variables; fleet and local stable configuration no longer apply to Python logger settings.
   - |
     perf: Limits Python-version support checks to ``ddtrace-run`` and ``import ddtrace.auto``.
 fixes:

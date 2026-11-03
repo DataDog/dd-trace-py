@@ -14,18 +14,13 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 )
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
-_configured = False
-_configurations: dict[str, tuple[object, str]] = {}
 
 
 def _get_env(name, default=None, modifier=None):
-    """Read logger settings without importing ddtrace configuration."""
-    value = os.environ.get(name, default)  # ast-grep-ignore: os-environ-fix-access
-    source = "env_var" if name in os.environ else "default"  # ast-grep-ignore: os-environ-fix-access
-    if modifier is not None and source == "env_var":
-        value = modifier(value)
-    _configurations[name] = (value, source)
-    return value
+    value = os.environ.get(name)  # ast-grep-ignore: os-environ-fix-access
+    if value is None:
+        return default
+    return modifier(value) if modifier is not None else value
 
 
 def configure_ddtrace_logger() -> None:
@@ -57,10 +52,6 @@ def configure_ddtrace_logger() -> None:
             ie: ``logging.basicConfig()``.
 
     """
-    global _configured
-    if _configured:
-        return
-    _configured = True
     try:
         ddtrace_logger = logging.getLogger("ddtrace")
         if _get_env("DD_TRACE_LOG_STREAM_HANDLER", True, lambda value: value.lower() in ("true", "1")):
@@ -79,7 +70,6 @@ def _configure_ddtrace_debug_logger(logger):
     Note: DD_TRACE_DEBUG=true implies a log level of DEBUG, but DD_TRACE_LOG_LEVEL=DEBUG
     does not imply DD_TRACE_DEBUG is enabled.
     """
-    # reading the values of the two possible debug settings so they can be displayed in telemetry/debug logs
     trace_debug = _get_env("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
     log_level = _get_env("DD_TRACE_LOG_LEVEL")
 
@@ -170,23 +160,32 @@ def _emits_to_stderr(logger: logging.Logger) -> bool:
     return False
 
 
-def _configure_ddtrace_native_logger(logger: Any) -> None:
+def _configure_ddtrace_native_logger(logger: Any, config_retriever=None) -> None:
+    if config_retriever is None:
+        config_retriever = _get_env
     py_logger = logging.getLogger("ddtrace")
     try:
-        trace_debug = _get_env("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
+        trace_debug = config_retriever("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
         default_backend = "stderr" if trace_debug and _emits_to_stderr(py_logger) else None
-        backend = _get_env("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
-        if not backend:
-            return
+        backend = config_retriever("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
         kwargs = {"output": backend}
         if backend == "file":
-            kwargs["path"] = _get_env("_DD_NATIVE_LOGGING_FILE_PATH", "native.log")
-            kwargs["max_size_bytes"] = _get_env("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
-            kwargs["max_files"] = _get_env("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
+            kwargs["path"] = config_retriever("_DD_NATIVE_LOGGING_FILE_PATH", "native.log")
+            kwargs["max_size_bytes"] = config_retriever("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
+            kwargs["max_files"] = config_retriever("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
 
+        # File and console outputs coexist; remove them before replacing the destination.
+        for output in ("file", "stderr"):
+            try:
+                logger.disable(output)
+            except ValueError:
+                # An unused native logger has no outputs to disable.
+                pass
+        if not backend:
+            return
         logger.configure(**kwargs)
         # "info" instead of "debug" to avoid flooding by default
         default_log_level = "info" if trace_debug else "warning"
-        logger.set_log_level(_get_env("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level))
+        logger.set_log_level(config_retriever("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)
