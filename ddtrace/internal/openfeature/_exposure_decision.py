@@ -20,14 +20,12 @@ class FlagMetadata(dict[str, typing.Any]):
     The OpenFeature SDK hands the provider's metadata object to every hook unchanged, so
     both travel with it without becoming metadata entries. The SDK does not write the
     context returned by before hooks back into the hook context, so hooks need this one.
+    The slots are set only when used, so read them with getattr(..., None).
     """
 
     __slots__ = ("_dd_exposure_decision", "_dd_evaluation_context")
-
-    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._dd_exposure_decision: typing.Optional[ExposureDecision] = None
-        self._dd_evaluation_context: typing.Optional[EvaluationContext] = None
+    _dd_exposure_decision: "typing.Optional[ExposureDecision]"
+    _dd_evaluation_context: typing.Optional[EvaluationContext]
 
     def __reduce__(self) -> tuple[typing.Any, ...]:
         # Copies and pickles are plain dicts: the decision holds the cache and its lock.
@@ -55,8 +53,8 @@ class ExposureDecision:
         self.event = event
 
     def is_cache_hit(self) -> bool:
-        with self._lock:
-            return self._cache.get(self._key) == self._value
+        # Provisional, so no lock: complete() checks again under the lock.
+        return self._cache.get(self._key) == self._value
 
     def complete(self, metadata: dict[str, typing.Any]) -> None:
         with self._lock:

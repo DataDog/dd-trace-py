@@ -9,6 +9,7 @@ from collections import OrderedDict
 from collections.abc import MutableMapping
 import time
 import typing
+import weakref
 
 
 if typing.TYPE_CHECKING:
@@ -70,6 +71,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import Event
+from ddtrace.internal.threads import Lock
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -165,7 +167,8 @@ class DataDogProvider(AbstractProvider):
         # change it while the allocation and variant stay the same, and that must be sent.
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
         self._exposure_cache: LRUCache[ExposureCacheKey, ExposureCacheValue] = LRUCache(maxsize=65536)
-        self._exposure_cache_lock = forksafe.Lock()
+        self._exposure_cache_lock = Lock()
+        _providers_with_exposure_cache.add(self)
         self._exposure_logging_hook = ExposureLoggingHook()
 
         # Master gate: the resolved configuration source (stable kill switch +
@@ -535,12 +538,9 @@ class DataDogProvider(AbstractProvider):
         # carries consent from the exact configuration used for resolution;
         # downstream code must never reread live configuration.
         observe_full_evaluation_data = snapshot.observe_full_evaluation_data if snapshot is not None else False
-        flag_metadata = FlagMetadata(
-            {
-                EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000),
-                METADATA_OBSERVE_FULL_EVALUATION_DATA: observe_full_evaluation_data,
-            }
-        )
+        flag_metadata = FlagMetadata()
+        flag_metadata[EVAL_TIMESTAMP_METADATA_KEY] = int(time.time() * 1000)
+        flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] = observe_full_evaluation_data
         flag_metadata._dd_evaluation_context = evaluation_context
 
         # If provider is not active, return default value
@@ -798,6 +798,17 @@ class DataDogProvider(AbstractProvider):
         with self._exposure_cache_lock:
             self._exposure_cache.clear()
         logger.debug("Exposure cache cleared")
+
+
+# A plain lock is much cheaper than forksafe.Lock() on every evaluation, so the provider
+# resets its own lock in a forked child instead.
+_providers_with_exposure_cache: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
+
+
+@forksafe.register
+def _reset_exposure_cache_locks() -> None:
+    for provider in list(_providers_with_exposure_cache):
+        provider._exposure_cache_lock = Lock()
 
 
 class ExposureLoggingHook(Hook):
