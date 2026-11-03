@@ -96,6 +96,8 @@ _RESPONSE_HOOKS = (
 
 _COMPLETION_HOOKS = (_endpoint_hooks._CompletionHook,)
 
+_MODEL_AB_HOOKS = _CHAT_COMPLETION_HOOKS + _RESPONSE_HOOKS + _COMPLETION_HOOKS
+
 
 def patch():
     if getattr(openai, "__datadog_patch", False):
@@ -230,6 +232,9 @@ def traced_completions_with_raw_response_init(func, instance, args, kwargs):
 
 def _traced_endpoint(endpoint_hook, integration, instance, args, kwargs):
     span = integration.trace(endpoint_hook.OPERATION_ID, instance=instance)
+    if endpoint_hook in _MODEL_AB_HOOKS:
+        # Mutates kwargs in place; the caller passes this same dict to the real OpenAI call.
+        integration.apply_model_override(span, kwargs)
     resp, err = None, None
     try:
         # Start the hook

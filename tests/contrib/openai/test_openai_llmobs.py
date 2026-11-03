@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs import _model_ab
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._integrations.utils import _inline_image_budget
 from ddtrace.llmobs._utils import _get_attr
@@ -19,6 +20,7 @@ from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import SERVER_TOOL_PROMPT
 from tests.contrib.openai.utils import SERVER_TOOL_VECTOR_STORE
@@ -38,6 +40,7 @@ from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import assert_llmobs_span_data
 from tests.llmobs.test_prompts import CHAT_PROMPT_RESPONSE
 from tests.llmobs.test_prompts import mock_api
+from tests.utils import override_global_config
 
 
 EXPECTED_TOOL_DEFINITIONS = [
@@ -483,6 +486,38 @@ class TestLLMObsOpenaiV1:
             metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    @pytest.mark.parametrize("ab_enabled", [True, False])
+    def test_chat_completion_model_ab_override(self, openai, openai_llmobs, test_spans, ab_enabled):
+        """An active model A/B assignment rewrites the model on the outgoing request and tags the span."""
+        assignment = _model_ab.Assignment(
+            flag_key="__llmobs__.model.<ml-app-name>",
+            original_model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
+            variant="gpt-4o-mini",
+            allocation="ab-gpt-3.5-turbo",
+        )
+        with override_global_config({"_llmobs_model_ab_enabled": ab_enabled}):
+            with mock.patch.object(_model_ab._manager, "resolve", return_value=assignment):
+                with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion.yaml"):
+                    client = openai.OpenAI()
+                    # Cassette requests are the recorded ones, so capture what the client actually sends.
+                    with mock.patch.object(client._client, "send", wraps=client._client.send) as send:
+                        client.chat.completions.create(
+                            model="gpt-3.5-turbo", messages=multi_message_input, top_p=0.9, n=2, user="ddtrace-test"
+                        )
+
+        sent_model = json.loads(send.call_args[0][0].content)["model"]
+        span = [s for trace in test_spans.pop_traces() for s in trace][0]
+        tags = get_llmobs_tags(span) or {}
+        if ab_enabled:
+            assert sent_model == "gpt-4o-mini"
+            assert span.get_tag("openai.request.model") == "gpt-4o-mini"
+            assert tags["model_ab_variant"] == "gpt-4o-mini"
+            assert tags["model_ab_original_model"] == "gpt-3.5-turbo"
+        else:
+            assert sent_model == "gpt-3.5-turbo"
+            assert not any(k.startswith("model_ab.") for k in tags)
 
     def test_chat_completion_multimodal_content(self, openai, openai_llmobs, test_spans):
         """Multimodal content renders as readable text, and input audio is captured as audio_parts."""
