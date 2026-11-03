@@ -23,21 +23,3 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
       - "9092:9092"
-
-  localstack:
-    image: localstack/localstack:3
-    environment:
-      SERVICES: sqs,sns,kinesis,events
-    ports:
-      - "4566:4566"
-
-  pubsub-emulator:
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk-emulators:latest
-    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
-    ports:
-      - "8085:8085"
-
-  rabbitmq:
-    image: rabbitmq:3
-    ports:
-      - "5672:5672"

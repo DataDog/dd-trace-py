@@ -1,13 +1,17 @@
 # pipelines-demo — automatic DSM pipelines from APM services (DSM2-531)
 
-Local end-to-end demo for the `labbati/pipelines-from-apm-hooks/demo` branch:
-run small messaging apps with **DSM off** (`DD_DATA_STREAMS_ENABLED` unset) and
+Local end-to-end demo for the **Python + Kafka** slice of DSM2-531 (branch
+`labbati/pipelines-from-apm`): run small Kafka apps with **DSM off**
+(`DD_DATA_STREAMS_ENABLED` unset) and
 watch the tracer's `DdPipelinesReportV1` sides/links flow to the tapped agent,
 through the dd-source `dsm-auto-pipelines` harness, and out of the local
 `dsm-api` as auto pipelines.
 
-The exact topologies, expected per-process reports, and expected
-`include_auto=true` output for every demo are in [../PIPELINE_TOPOLOGIES.md](../PIPELINE_TOPOLOGIES.md).
+The exact Kafka topologies, expected per-process reports, and expected
+`include_auto=true` output are in [../PIPELINE_TOPOLOGIES.md](../PIPELINE_TOPOLOGIES.md).
+The other queuing systems (SQS, SNS, Kinesis, EventBridge, Pub/Sub, RabbitMQ)
+and other tracer languages are separate subtasks of DSM2-531 with their own
+demo topologies.
 The cross-repo contract is `/home/bits/DSM/CONTRACT.md` (repo-external).
 
 ## Layout
@@ -15,10 +19,10 @@ The cross-repo contract is `/home/bits/DSM/CONTRACT.md` (repo-external).
 ```
 pipelines-demo/
 ├── apps/            one small app per service; run under ddtrace-run
-├── setup/           per-system setup scripts (create topics/queues/subscriptions)
+├── setup/           setup scripts (create the Kafka topics)
 ├── tap.py           agent stand-in on :8126; saves /v0.1/pipeline_stats payloads
 ├── tap/             (created at runtime) one .bin file per tapped payload
-├── docker-compose.yml  kafka, localstack (sqs/sns/kinesis/events), pubsub emulator, rabbitmq
+├── docker-compose.yml  kafka (+ zookeeper)
 ├── common.py        shared endpoint/env helpers
 └── requirements.txt client libraries for the apps
 ```
@@ -144,13 +148,6 @@ then run the apps with the common env above. Quick reference (all under
 | 2. Kafka star, one group | `setup_kafka.py` | `kafka_src.py` (DD_SERVICE=star-src), `kafka_sink.py` ×3 (DD_SERVICE=star-c1/c2/c3, GROUP=star-group, TOPIC=topic-a) |
 | 3. Kafka star, own groups | `setup_kafka.py` | same, GROUP=star-c1-group/… |
 | 4. Kafka fan-out | `setup_kafka.py` | `kafka_src.py` (DD_SERVICE=fanout-src), `kafka_pipe.py` ×2 (TOPIC_OUT=topic-b/topic-c), `kafka_sink.py` ×2 (TOPIC=topic-b/topic-c) |
-| 5. SQS X-2 | `setup_sqs.py` | `sqs_src.py`, `sqs_pipe.py`, `sqs_sink.py` |
-| 5. SNS → SQS | `setup_sns.py` | `sns_publisher.py`, `sns_subscriber.py` |
-| 5. Kinesis X-2 | `setup_kinesis.py` | `kinesis_src.py`, `kinesis_pipe.py`, `kinesis_sink.py` |
-| 5. EventBridge → SQS | `setup_eventbridge.py` | `eventbridge_publisher.py`, `eventbridge_subscriber.py` |
-| 5. Pub/Sub X-2 | `setup_pubsub.py` | `pubsub_src.py`, `pubsub_pipe.py`, `pubsub_sink.py` |
-| 5. RabbitMQ X-2 | `setup_rabbitmq.py` | `rabbitmq_src.py`, `rabbitmq_pipe.py`, `rabbitmq_sink.py` |
-| 6. Mixed (X-3) | `setup_kafka.py` + `setup_sqs.py` | `kafka_src.py`, `mixed_kafka_sqs_pipe.py`, `sqs_sink.py` (QUEUE=sqs-a) |
 
 ## Notes
 
