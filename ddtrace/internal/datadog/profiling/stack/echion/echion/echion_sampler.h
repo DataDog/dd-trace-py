@@ -46,9 +46,6 @@ class EchionSampler
     // Task Link maps (Task -> Task relationships)
     std::unordered_map<PyObject*, PyObject*> task_link_map_;
     std::unordered_map<PyObject*, PyObject*> weak_task_link_map_;
-    // Weakly linked children that were missing from the last Task snapshot. Always a subset of the
-    // weak_task_link_map_ keys.
-    std::unordered_set<PyObject*> missing_weak_link_children_;
     std::mutex task_link_map_lock_;
 
     // Greenlet maps
@@ -67,6 +64,9 @@ class EchionSampler
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
     std::optional<BoundaryFrame> uvloop_boundary_frame_;
     std::unordered_set<PyObject*> previous_task_objects_;
+    // Weakly linked children that were missing from the last Task snapshot. Always a subset of the
+    // weak_task_link_map_ keys. Guarded by task_link_map_lock_.
+    std::unordered_set<PyObject*> missing_weak_link_children_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
     // (Sampler::sampling_thread) touches this. unwind_frame clears it on
@@ -160,7 +160,7 @@ class EchionSampler
     // missing from one snapshot without having finished: it may have been created and linked after the
     // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
     // would detach it from its parent for the rest of its life.
-    // The caller must hold task_link_map_lock().
+    // The caller must hold task_link_map_lock_.
     void prune_weak_task_links(const std::unordered_set<PyObject*>& live_task_origins)
     {
         for (auto it = weak_task_link_map_.begin(); it != weak_task_link_map_.end();) {
@@ -308,11 +308,11 @@ class EchionSampler
         new (&thread_info_map_) std::unordered_map<uintptr_t, ThreadInfo::Ptr>();
         new (&task_link_map_) std::unordered_map<PyObject*, PyObject*>();
         new (&weak_task_link_map_) std::unordered_map<PyObject*, PyObject*>();
-        new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
         new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
         new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
         new (&previous_task_objects_) std::unordered_set<PyObject*>();
+        new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
 
         asyncio_boundary_frame_.reset();
         uvloop_boundary_frame_.reset();
