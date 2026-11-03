@@ -602,7 +602,9 @@ class DataDogProvider(AbstractProvider):
             # Map native ffe.Reason to OpenFeature Reason
             reason = self._map_reason_to_openfeature(details.reason)
 
-            add_split_features(flag_metadata, details.features)
+            # The native getter builds new tuples on every read.
+            split_features = details.features
+            add_split_features(flag_metadata, split_features)
 
             if details.do_log:
                 self._prepare_exposure_decision(
@@ -612,7 +614,7 @@ class DataDogProvider(AbstractProvider):
                     allocation_key=details.allocation_key,
                     evaluation_context=evaluation_context,
                     serial_id=details.serial_id,
-                    has_split_features=details.features is not None,
+                    has_split_features=split_features is not None,
                 )
             else:
                 logger.debug(
