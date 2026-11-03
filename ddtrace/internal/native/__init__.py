@@ -1,6 +1,9 @@
+import logging
+from typing import Any
+from typing import Callable
 from typing import Optional
 
-from ddtrace._logger import _configure_ddtrace_native_logger
+from ddtrace._logger import _emits_to_stderr
 from ddtrace.internal.settings import env
 
 from ._native import AgentError  # noqa: F401
@@ -52,8 +55,6 @@ from ._native import total_memory_bytes  # noqa: F401
 from ._native import uuid4  # noqa: F401
 
 
-_configure_ddtrace_native_logger(logger)
-
 config.set_raise(env.get("DD_TESTING_RAISE", "false").lower() in ("true", "1"))
 
 
@@ -102,3 +103,25 @@ def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[
         # No logger at this point, so we rely on good old print
         print(f"Failed to load configuration from disk, skipping: {e}")
     return fleet_config, local_config, fleet_config_ids
+
+
+def _configure_ddtrace_native_logger(get_config: Callable[..., Any]) -> None:
+    py_logger = logging.getLogger("ddtrace")
+    try:
+        trace_debug = get_config("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
+        default_backend = "stderr" if trace_debug and _emits_to_stderr(py_logger) else None
+        backend = get_config("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
+        kwargs = {"output": backend}
+        if backend == "file":
+            kwargs["path"] = get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log")
+            kwargs["max_size_bytes"] = get_config("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
+            kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
+
+        if not backend:
+            return
+        logger.configure(**kwargs)
+        # "info" instead of "debug" to avoid flooding by default
+        default_log_level = "info" if trace_debug else "warning"
+        logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level))
+    except Exception:
+        logging.getLogger(__name__).warning("Failed to initialize native logger", exc_info=True)

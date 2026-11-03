@@ -1340,8 +1340,8 @@ Logs
      description: |
          Enables debug logging in the tracer.
 
-         Python logger settings (``DD_TRACE_DEBUG`` and ``DD_TRACE_LOG_*``) use environment variables only.
-         Native logging applies fleet and local stable configuration during ``ddtrace.auto`` or ``ddtrace-run`` setup.
+         Python log levels use environment variables. File logging applies fleet and local stable
+         configuration during ``ddtrace.auto`` or ``ddtrace-run`` setup; native logging uses resolved configuration.
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
 

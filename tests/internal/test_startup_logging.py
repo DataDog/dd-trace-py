@@ -68,34 +68,37 @@ def test_logging_configuration_ignores_stable_configs(tmp_path, level, fleet_ena
     )
 
 
-def test_bootstrap_uses_full_native_logging_configuration():
-    run(
-        """
+def test_bootstrap_uses_full_file_logging_configuration():
+    run("""
         from unittest.mock import patch
-        from ddtrace.internal.native import logger
         from ddtrace.internal.telemetry import get_config
-        with patch('ddtrace._logger._configure_ddtrace_native_logger') as configure:
+        with patch('ddtrace._logger._configure_ddtrace_file_logger') as configure:
             import ddtrace.auto
-            configure.assert_called_once_with(logger, config_retriever=get_config)
-    """
-    )
+            configure.assert_called_once_with(get_config)
+    """)
 
 
-def test_native_logging_waits_for_native_import(tmp_path):
+def test_native_logging_waits_for_configuration(tmp_path):
     logfile = tmp_path / "native.log"
     run(
         f"""
         import sys
         from pathlib import Path
+        from unittest.mock import patch
         import ddtrace
         assert 'ddtrace.internal.native' not in sys.modules
-        assert not Path({str(logfile)!r}).exists()
-        from ddtrace.internal.native import logger
-        logger.log('warning', 'native logging enabled')
-        logger.disable('file')
-        assert 'native logging enabled' in Path({str(logfile)!r}).read_text()
+        from ddtrace.internal import native
         assert 'ddtrace.internal.telemetry' not in sys.modules
-        assert 'ddtrace.trace' not in sys.modules
+        assert not Path({str(logfile)!r}).exists()
+        configure = native._configure_ddtrace_native_logger
+        with patch.object(native, '_configure_ddtrace_native_logger', wraps=configure) as setup:
+            from ddtrace.internal.telemetry import get_config
+            assert 'ddtrace.trace' not in sys.modules
+            import ddtrace.auto
+            setup.assert_called_once_with(get_config)
+        native.logger.log('warning', 'native logging enabled')
+        native.logger.disable('file')
+        assert 'native logging enabled' in Path({str(logfile)!r}).read_text()
     """,
         _DD_NATIVE_LOGGING_BACKEND="file",
         _DD_NATIVE_LOGGING_FILE_PATH=str(logfile),
@@ -103,74 +106,107 @@ def test_native_logging_waits_for_native_import(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "initial, replacement",
-    [
-        ("file", "file"),
-        ("file", "stdout"),
-        ("file", "stderr"),
-        ("file", ""),
-        ("stdout", "file"),
-        ("stderr", "file"),
-        ("stdout", "stderr"),
-        ("stderr", "stdout"),
-        ("stderr", ""),
-        ("", "file"),
-        ("", "stderr"),
-        ("stdout", "stdout"),
-    ],
+    "initial, replacement", [(False, None), (False, "new"), (True, None), (True, "same"), (True, "new")]
 )
-def test_native_logging_replaces_previous_output(tmp_path, initial, replacement):
+def test_file_logging_replaces_previous_handler(tmp_path, initial, replacement):
     old_file = tmp_path / "old.log"
-    new_file = tmp_path / "new.log"
-    result = run(
+    new_file = old_file if replacement == "same" else tmp_path / "new.log"
+    destination = str(new_file) if replacement else None
+    run(
         f"""
-        from ddtrace._logger import _configure_ddtrace_native_logger
-        from ddtrace.internal.native import logger
-        values = {{
-            'DD_TRACE_DEBUG': 'false',
-            '_DD_NATIVE_LOGGING_BACKEND': {replacement!r},
-            '_DD_NATIVE_LOGGING_FILE_PATH': {str(new_file)!r},
-        }}
+        import logging
+        import os
+        if not {initial}:
+            os.environ.pop('DD_TRACE_LOG_FILE', None)
+        from ddtrace._logger import _configure_ddtrace_file_logger
+        logger = logging.getLogger('ddtrace')
+        unrelated = logging.NullHandler()
+        unrelated.set_name('application-handler')
+        logger.addHandler(unrelated)
+        old_handlers = [h for h in logger.handlers if h.name == 'ddtrace_file']
+        values = {{'DD_TRACE_LOG_FILE': {destination!r}, 'DD_TRACE_LOG_FILE_LEVEL': 'ERROR',
+                   'DD_TRACE_LOG_FILE_SIZE_BYTES': '2048'}}
         def retrieve(name, default=None, modifier=None):
-            if name not in values:
-                return default
-            return modifier(values[name]) if modifier else values[name]
-        logger.log('warning', 'before-reconfiguration')
+            value = values.get(name, default)
+            return modifier(value) if modifier else value
+        logger.warning('before-reconfiguration')
         for _ in range(2):
-            _configure_ddtrace_native_logger(logger, config_retriever=retrieve)
-        logger.log('warning', 'after-reconfiguration')
-        for output in ('file', 'stderr'):
-            try:
-                logger.disable(output)
-            except ValueError:
-                pass
+            _configure_ddtrace_file_logger(retrieve)
+        handlers = [h for h in logger.handlers if h.name == 'ddtrace_file']
+        assert len(handlers) == {int(destination is not None)}
+        assert unrelated in logger.handlers
+        assert all(h.stream is None for h in old_handlers)
+        if handlers:
+            assert handlers[0].level == logging.ERROR
+            assert handlers[0].maxBytes == 2048
+            assert handlers[0].baseFilename == {destination!r}
+        logger.warning('filtered-file-message')
+        logger.error('after-reconfiguration')
     """,
         DD_TRACE_DEBUG="false",
-        _DD_NATIVE_LOGGING_BACKEND=initial,
-        _DD_NATIVE_LOGGING_FILE_PATH=str(old_file),
+        DD_TRACE_LOG_LEVEL="WARNING",
+        DD_TRACE_LOG_FILE=str(old_file),
     )
-    outputs = {
-        "stdout": result.stdout.decode(),
-        "stderr": result.stderr.decode(),
-        "file": new_file.read_text() if new_file.exists() else "",
-    }
-    for output, contents in outputs.items():
-        assert contents.count("after-reconfiguration") == int(output == replacement), contents
-    if old_file.exists():
+    contents = new_file.read_text() if new_file.exists() else ""
+    assert contents.count("after-reconfiguration") == int(destination is not None)
+    assert "filtered-file-message" not in contents
+    if old_file != new_file and old_file.exists():
         assert "after-reconfiguration" not in old_file.read_text()
-    assert "Failed to initialize native logger" not in result.stderr.decode()
 
 
-def test_bootstrap_native_logging_honors_fleet_and_reports_telemetry():
+def test_invalid_file_reconfiguration_keeps_existing_handler(tmp_path):
+    logfile = tmp_path / "trace.log"
+    result = run(
+        f"""
+        import logging
+        from ddtrace._logger import _configure_ddtrace_file_logger
+        from ddtrace.internal import telemetry
+        from unittest.mock import patch
+        logger = logging.getLogger('ddtrace')
+        original = next(h for h in logger.handlers if h.name == 'ddtrace_file')
+        with patch.dict(telemetry.FLEET_CONFIG, {{'DD_TRACE_LOG_FILE': {str(tmp_path / "missing" / "bad.log")!r}}}):
+            import ddtrace.auto
+        from ddtrace.bootstrap import sitecustomize
+        assert sitecustomize.loaded
+        assert original in logger.handlers
+        assert not original.stream.closed
+        logger.warning('logging still works')
+    """,
+        DD_TRACE_LOG_FILE=str(logfile),
+    )
+    assert b"Failed to configure ddtrace logging" in result.stderr
+    assert logfile.read_text().count("logging still works") == 1
+
+
+def test_bootstrap_file_logging_honors_fleet_and_reports_telemetry(tmp_path):
+    old_file = tmp_path / "env.log"
+    new_file = tmp_path / "fleet.log"
+    run(
+        f"""
+        import logging
+        from unittest.mock import patch
+        from ddtrace.internal import telemetry
+        with patch.dict(telemetry.FLEET_CONFIG, {{'DD_TRACE_LOG_FILE': {str(new_file)!r}}}, clear=True):
+            with patch.object(telemetry.telemetry_writer, 'add_configuration') as report:
+                import ddtrace.auto
+                report.assert_any_call('DD_TRACE_LOG_FILE', {str(new_file)!r}, 'fleet_stable_config', None)
+        logging.getLogger('ddtrace').warning('resolved-file-output')
+    """,
+        DD_TRACE_DEBUG="false",
+        DD_TRACE_LOG_FILE=str(old_file),
+    )
+    assert new_file.read_text().count("resolved-file-output") == 1
+    assert "resolved-file-output" not in old_file.read_text()
+
+
+def test_native_logging_uses_resolved_configuration():
     result = run(
         """
         from unittest.mock import patch
-        from ddtrace.internal import telemetry
+        from ddtrace.internal.settings import _core
+        with patch.dict(_core.FLEET_CONFIG, {'_DD_NATIVE_LOGGING_BACKEND': 'stdout'}, clear=True):
+            import ddtrace.internal.telemetry
         from ddtrace.internal.native import logger
-        with patch.dict(telemetry.FLEET_CONFIG, {'_DD_NATIVE_LOGGING_BACKEND': 'stdout'}, clear=True):
-            with patch.object(telemetry.telemetry_writer, 'add_configuration') as report:
-                import ddtrace.auto
-                report.assert_any_call('_DD_NATIVE_LOGGING_BACKEND', 'stdout', 'fleet_stable_config', None)
         logger.log('warning', 'resolved-native-output')
         logger.disable('stdout')
     """,
@@ -201,7 +237,10 @@ def test_logger_configured_once_across_entrypoints(tmp_path, entrypoint):
         with patch('ddtrace._logger.configure_ddtrace_logger') as configure:
             {entrypoint}
             configure.assert_not_called()
-        assert logging.getLogger('ddtrace').handlers == handlers
+        current = logging.getLogger('ddtrace').handlers
+        assert sum(type(h) is logging.StreamHandler for h in current) == 1
+        assert handlers[0] in current
+        assert sum(h.name == 'ddtrace_file' for h in current) == 1
     """,
         DD_TRACE_LOG_FILE=str(tmp_path / "trace.log"),
         DD_TRACE_LOG_STREAM_HANDLER="true",
