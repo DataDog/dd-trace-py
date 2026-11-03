@@ -1,16 +1,19 @@
 import json
 from unittest import mock
 
-import crewai
 import pytest
 
-from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.crewai import _listener_condition
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from tests.contrib.crewai.utils import CREWAI_VERSION
+from tests.contrib.crewai.utils import FailingTool
+from tests.contrib.crewai.utils import MaxTool
 from tests.contrib.crewai.utils import fun_fact_text
+from tests.contrib.crewai.utils import requires_akickoff
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -21,17 +24,15 @@ except ImportError:  # crewai<1.0
     from crewai.cli.constants import DEFAULT_LLM_MODEL
 
 
-CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
-# crewai>=1.0 keeps a tool's own description instead of generating one that lists its name and arguments.
+# crewai 1.x keeps a tool's own description instead of generating one that lists its name and arguments.
 AVERAGE_TOOL_DESCRIPTION = (
     "This tool returns the average of a list of numbers."
     if CREWAI_VERSION >= (1, 0, 0)
     else "Tool Name: Average Calculator\nTool Arguments: {'entries': {'description': None, 'type': 'list[float]'}}\n"
     "Tool Description: This tool returns the average of a list of numbers."
 )
-requires_native_async = pytest.mark.skipif(
-    not hasattr(crewai.Crew, "akickoff"), reason="Crew.akickoff is not available in this crewai version"
-)
+
+AGES = {"ages": [10, 12, 14, 16, 18]}
 
 
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
@@ -219,7 +220,7 @@ def _assert_async_crew_links(spans):
 
 def _assert_hierarchical_crew_events(spans):
     if CREWAI_VERSION >= (1, 0, 0):
-        # The crewai>=1.0 recording delegates the first task only, and the coworker answers without its tool.
+        # The crewai 1.x recording delegates only the first task, and the coworker answers without its tool.
         expected_span_kinds = ("workflow", "task", "agent", "task", "agent", "tool", "agent", "task", "agent")
         assert len(spans) == len(expected_span_kinds)
         for span, kind in zip(spans, expected_span_kinds):
@@ -524,34 +525,63 @@ async def test_router_flow_async(crewai, router_flow_async, crewai_llmobs, test_
     _assert_router_flow_links(spans)
 
 
-@requires_native_async
-async def test_basic_crew_akickoff(crewai, basic_crew, request_vcr, crewai_llmobs, test_spans):
-    with request_vcr.use_cassette("test_basic_crew.yaml"):
-        await basic_crew.akickoff(inputs={"topic": "AI"})
+# Only the stored format of the installed crewai version runs through the flow tests above; CI runs crewai 0.102 and
+# the latest 1.x, so the crewai 1.0 to 1.14 format of and_/or_ listeners is covered here.
+@pytest.mark.parametrize(
+    "condition,expected",
+    [
+        (("AND", ["a", "b"]), ("AND", ["a", "b"])),
+        ("a", ("OR", ["a"])),
+        ({"type": "AND", "conditions": ["a", {"type": "OR", "conditions": ["b", "c"]}]}, ("AND", ["a", "b", "c"])),
+        ({"and": ["a", {"or": ["b", "c"]}]}, ("AND", ["a", "b", "c"])),
+        ({"or": ["a", "b"]}, ("OR", ["a", "b"])),
+    ],
+    ids=["tuple", "method_name", "type_conditions", "and_dict", "or_dict"],
+)
+def test_listener_condition(condition, expected):
+    assert _listener_condition(condition) == expected
+
+
+@requires_akickoff
+@pytest.mark.parametrize(
+    "crew_fixture,cassette,inputs,assert_events,assert_links",
+    [
+        ("basic_crew", "test_basic_crew.yaml", {"topic": "AI"}, _assert_basic_crew_events, _assert_basic_crew_links),
+        ("tool_crew", "test_crew_with_tool.yaml", AGES, _assert_tool_crew_events, _assert_tool_crew_links),
+        (
+            "async_exec_crew",
+            "test_crew_with_async_tasks.yaml",
+            AGES,
+            _assert_async_crew_events,
+            _assert_async_crew_links,
+        ),
+    ],
+    ids=["basic", "tool", "async_tasks"],
+)
+async def test_crew_akickoff(
+    crewai, request, request_vcr, crewai_llmobs, test_spans, crew_fixture, cassette, inputs, assert_events, assert_links
+):
+    crew = request.getfixturevalue(crew_fixture)
+    with request_vcr.use_cassette(cassette):
+        await crew.akickoff(inputs=inputs)
     spans = _ordered_spans(test_spans)
-    _assert_basic_crew_events(spans)
-    _assert_basic_crew_links(spans)
+    assert_events(spans)
+    assert_links(spans)
 
 
-@requires_native_async
-async def test_crew_with_tool_akickoff(crewai, tool_crew, request_vcr, crewai_llmobs, test_spans):
-    with request_vcr.use_cassette("test_crew_with_tool.yaml"):
-        await tool_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+@requires_akickoff
+async def test_crew_akickoff_error(crewai, failing_llm_crew, request_vcr, crewai_llmobs, test_spans):
+    with request_vcr.use_cassette("test_crew_akickoff_error.yaml"):
+        with pytest.raises(Exception):
+            await failing_llm_crew.akickoff()
     spans = _ordered_spans(test_spans)
-    _assert_tool_crew_events(spans)
-    _assert_tool_crew_links(spans)
+    assert [span.error for span in spans] == [1, 1, 1]
+    for span, kind in zip(spans, ("workflow", "task", "agent")):
+        assert _get_llmobs_data_metastruct(span)["meta"]["span"]["kind"] == kind
+        assert "Invalid 'temperature'" in _get_llmobs_data_metastruct(span)["meta"]["error"]["message"]
 
 
-@requires_native_async
-async def test_async_crew_akickoff(crewai, async_exec_crew, request_vcr, crewai_llmobs, test_spans):
-    with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
-        await async_exec_crew.akickoff(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = _ordered_spans(test_spans)
-    _assert_async_crew_events(spans)
-    _assert_async_crew_links(spans)
-
-
-@pytest.mark.skipif(not hasattr(crewai.Flow, "akickoff"), reason="Flow.akickoff is not available")
+@requires_akickoff
 async def test_simple_flow_akickoff(crewai, simple_flow_async, crewai_llmobs, test_spans):
     await simple_flow_async.akickoff(inputs={"continent": "North America"})
     spans = _ordered_spans(test_spans)
@@ -560,15 +590,6 @@ async def test_simple_flow_akickoff(crewai, simple_flow_async, crewai_llmobs, te
 
 
 def test_tool_run(crewai, crewai_llmobs, test_spans):
-    from crewai.tools import BaseTool
-
-    class MaxTool(BaseTool):
-        name: str = "Max Calculator"
-        description: str = "This tool returns the largest of a list of numbers."
-
-        def _run(self, entries: list) -> float:
-            return max(entries)
-
     MaxTool().run(entries=[10, 12, 14])
     spans = _ordered_spans(test_spans)
     assert len(spans) == 1
@@ -583,43 +604,13 @@ def test_tool_run(crewai, crewai_llmobs, test_spans):
     )
 
 
-def test_tool_run_error(crewai, crewai_llmobs, test_spans):
-    from crewai.tools import BaseTool
-
-    class FailingTool(BaseTool):
-        name: str = "Failing Calculator"
-        description: str = "This tool always fails."
-
-        def _run(self, entries: list) -> float:
-            raise ValueError("calculation failed")
-
+@pytest.mark.parametrize("use_ainvoke", [False, True], ids=["run", "ainvoke"])
+async def test_tool_error(crewai, crewai_llmobs, test_spans, use_ainvoke):
     with pytest.raises(ValueError):
-        FailingTool().run(entries=[10, 12, 14])
-    spans = _ordered_spans(test_spans)
-    assert len(spans) == 1
-    assert spans[0].error == 1
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[0]),
-        span_kind="tool",
-        name="Failing Calculator",
-        input_value=json.dumps({"entries": [10, 12, 14]}),
-        error=mock.ANY,
-        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
-    )
-
-
-async def test_tool_ainvoke_error(crewai, crewai_llmobs, test_spans):
-    from crewai.tools import BaseTool
-
-    class FailingTool(BaseTool):
-        name: str = "Failing Calculator"
-        description: str = "This tool always fails."
-
-        def _run(self, entries: list) -> float:
-            raise ValueError("calculation failed")
-
-    with pytest.raises(ValueError):
-        await FailingTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]})
+        if use_ainvoke:
+            await FailingTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]})
+        else:
+            FailingTool().run(entries=[10, 12, 14])
     spans = _ordered_spans(test_spans)
     assert len(spans) == 1
     assert spans[0].error == 1

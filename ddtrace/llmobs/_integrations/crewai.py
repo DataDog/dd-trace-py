@@ -220,7 +220,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         tool_instance = kwargs.pop("_dd.instance", None)
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
-        tool_input = kwargs.get("input", "")
+        # CrewStructuredTool.invoke takes input=...; BaseTool.run and Tool.run take the tool arguments themselves.
+        tool_input = kwargs["input"] if "input" in kwargs else (args[0] if args else kwargs)
         _annotate_llmobs_span_data(
             span,
             name=tool_name if tool_name else "CrewAI Tool",
@@ -311,7 +312,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         span_links = (
             self._flow_span_to_method_to_span_dict.get(span._parent, {}).get(span.name, {}).get("span_links", [])
         )
-        if span.name in _get_flow_start_methods(flow_instance) and span._parent is not None:
+        start_methods, routers, _ = _get_flow_structure(flow_instance)
+        if span.name in start_methods and span._parent is not None:
             span_links.append(
                 _SpanLink(
                     span_id=str(span._parent.span_id),
@@ -320,7 +322,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 )
             )
 
-        if span.name in _get_flow_routers(flow_instance):
+        if span.name in routers:
             # For router methods the downstream trigger is the router's result, not the method name.
             # We store the span info keyed by that result so it can be linked to future listener spans.
             span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(str(response), {})
@@ -360,11 +362,11 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         flow_methods_to_spans = self._flow_span_to_method_to_span_dict.get(flow_span, {})
         trigger_span_dict = flow_methods_to_spans.get(trigger_method)
-        if not trigger_span_dict or trigger_method in _get_flow_routers(flow_instance):
+        _, routers, listeners = _get_flow_structure(flow_instance)
+        if not trigger_span_dict or trigger_method in routers:
             # For router methods the downstream trigger listens for the router's result, not the router method name
             # Skip if trigger_method represents a router method name instead of the router's results
             return
-        listeners = _get_flow_listeners(flow_instance)
         triggered = False
         for listener_name, (condition_type, listener_triggers) in listeners.items():
             if trigger_method not in listener_triggers:
@@ -510,45 +512,39 @@ def _extract_tool_description_field(tool_description: str):
     return fields[-1]
 
 
-def _get_flow_start_methods(flow_instance) -> list[str]:
-    if hasattr(flow_instance, "_start_methods"):
-        return list(flow_instance._start_methods)
-    # crewai>=1.0 derives flow structure from a static flow definition
-    start_method_names = getattr(flow_instance, "_start_method_names", None)
-    return [str(name) for name in start_method_names()] if callable(start_method_names) else []
+def _get_flow_structure(flow_instance) -> tuple[list[str], set[str], dict[str, tuple[str, list[str]]]]:
+    """Return a flow's start methods, routers and listeners, as {listener: (condition_type, trigger_methods)}.
 
-
-def _get_flow_routers(flow_instance) -> set[str]:
-    if hasattr(flow_instance, "_routers"):
-        return set(flow_instance._routers)
-    methods = getattr(getattr(flow_instance, "_definition", None), "methods", None) or {}
-    return {str(name) for name, definition in methods.items() if getattr(definition, "router", False)}
-
-
-def _get_flow_listeners(flow_instance) -> dict[str, tuple[str, list[str]]]:
-    """Return listeners as {listener_name: (condition_type, trigger_methods)}, the format used by crewai<1.0."""
+    crewai 1.15.0 replaced Flow._start_methods, _routers and _listeners with a flow definition.
+    """
     if hasattr(flow_instance, "_listeners"):
-        return dict(flow_instance._listeners)
-    listener_methods = getattr(flow_instance, "_listener_methods", None)
-    if not callable(listener_methods):
-        return {}
-    listeners = {}
-    for listener_name, _, condition in listener_methods():
-        if isinstance(condition, str):
-            listeners[str(listener_name)] = ("OR", [condition])
-        elif isinstance(condition, dict):
-            condition_type = "AND" if "and" in condition else "OR"
-            listeners[str(listener_name)] = (condition_type, _get_flow_condition_triggers(condition))
-    return listeners
+        listeners = {name: _listener_condition(condition) for name, condition in flow_instance._listeners.items()}
+        return list(flow_instance._start_methods), set(flow_instance._routers), listeners
+    routers = {name for name, method in flow_instance._definition.methods.items() if method.router}
+    listeners = {name: _listener_condition(condition) for name, _, condition in flow_instance._listener_methods()}
+    return list(flow_instance._start_method_names()), routers, listeners
 
 
-def _get_flow_condition_triggers(condition) -> list[str]:
+def _listener_condition(condition) -> tuple[str, list[str]]:
+    """Convert a stored listen condition to (condition_type, trigger_methods), flattening nested conditions.
+
+    Simple listeners are stored as (condition_type, methods) before crewai 1.15.0 and as a method name since. Listeners
+    using and_/or_ are stored as {"type": "AND"|"OR", "conditions": [...]} in crewai 1.0 to 1.14, and as
+    {"and"|"or": [...]} since crewai 1.15.0.
+    """
+    if isinstance(condition, tuple):
+        return condition
     if isinstance(condition, str):
-        return [condition]
+        return "OR", [condition]
+    if "type" in condition:
+        condition_type, branches = condition["type"], condition["conditions"]
+    else:
+        condition_type = "AND" if "and" in condition else "OR"
+        branches = condition[condition_type.lower()]
     triggers = []
-    for branch in condition.get("and", condition.get("or", [])):
-        triggers.extend(_get_flow_condition_triggers(branch))
-    return triggers
+    for branch in branches:
+        triggers.extend(_listener_condition(branch)[1])
+    return condition_type, triggers
 
 
 def _get_crew_id(span, operation):

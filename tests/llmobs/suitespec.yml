@@ -437,6 +437,7 @@ suites:
         - name: crewai
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, 'crewai~=0.102.0', 'vcrpy==7.0.0']
+        # crewai 1.x resolves aiohttp 3.14, whose streams module no longer has the class vcrpy 7.0.0 patches.
         - name: crewai
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, openai, crewai, 'vcrpy==8.3.0']

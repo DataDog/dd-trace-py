@@ -1,3 +1,31 @@
+import crewai
+from crewai.tools import BaseTool
+import pytest
+
+from ddtrace.internal.utils.version import parse_version
+
+
+CREWAI_VERSION = parse_version(crewai.__version__)
+# crewai 1.7.0 added Crew.akickoff and Flow.akickoff, which run tasks, agents and tools natively async.
+requires_akickoff = pytest.mark.skipif(CREWAI_VERSION < (1, 7, 0), reason="requires crewai>=1.7")
+
+
+class MaxTool(BaseTool):
+    name: str = "Max Calculator"
+    description: str = "This tool returns the largest of a list of numbers."
+
+    def _run(self, entries: list) -> float:
+        return max(entries)
+
+
+class FailingTool(BaseTool):
+    name: str = "Failing Calculator"
+    description: str = "This tool always fails."
+
+    def _run(self, entries: list) -> float:
+        raise ValueError("calculation failed")
+
+
 welcome_email_text = """
 Subject: Welcome to [Your Company Name] – Let’s Start Planning Your Perfect Trip!
 

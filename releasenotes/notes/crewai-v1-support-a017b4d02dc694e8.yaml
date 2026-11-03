@@ -5,4 +5,5 @@ features:
 fixes:
   - |
     crewai: Fixes an issue where tool spans were missing, extra spans were emitted for CrewAI's internal agent
-    executor, and flow method outputs and span links were incorrect when using ``crewai>=1.0``.
+    executor and for streaming or checkpoint-restored kickoffs, and flow method outputs and span links were incorrect
+    when using ``crewai>=1.0``.

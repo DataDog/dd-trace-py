@@ -2,7 +2,7 @@ import os
 import time
 from unittest import mock
 
-import crewai
+from crewai import LLM
 from crewai import Agent
 from crewai import Crew
 from crewai import Flow
@@ -19,8 +19,8 @@ import vcr
 
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from tests.contrib.crewai.utils import CREWAI_VERSION
 from tests.contrib.crewai.utils import budget_text
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.contrib.crewai.utils import itinerary_text
@@ -29,17 +29,13 @@ from tests.utils import override_global_config
 
 
 CASSETTE_DIR = os.path.join(os.path.dirname(__file__), "cassettes")
-# crewai>=1.0 uses native function calling and structured planner output, so these interactions are recorded
-# separately for it; crewai<1.0 replays the original recordings.
-V1_CASSETTES = {"test_crew_with_tool.yaml", "test_crew_with_async_tasks.yaml", "test_hierarchical_crew.yaml"}
-CREWAI_V1 = parse_version(getattr(crewai, "__version__", "0.0.0")) >= (1, 0, 0)
 
 
 def _cassette_path(path):
-    name = os.path.basename(path)
-    if CREWAI_V1 and name in V1_CASSETTES:
-        return os.path.join(CASSETTE_DIR, "v1", name)
-    return path
+    # crewai 1.x makes native function calls and structured planner requests, so interactions whose requests changed
+    # were recorded again under cassettes/v1; crewai<1.0 keeps replaying the original recordings.
+    v1_path = os.path.join(CASSETTE_DIR, "v1", os.path.basename(path))
+    return v1_path if CREWAI_VERSION >= (1, 0, 0) and os.path.exists(v1_path) else path
 
 
 @pytest.fixture
@@ -56,6 +52,7 @@ def request_vcr():
     )
 
 
+# OpenAI's strict function schemas, used by crewai 1.x native tool calls, reject an untyped list argument.
 @tool("Average Calculator")
 def calculate_average_tool(entries: list[float]) -> float:
     """This tool returns the average of a list of numbers."""
@@ -178,9 +175,36 @@ def hierarchical_crew(crewai):
         agents=[analytics_agent, recommender_agent],
         tasks=[data_analysis_task, recommend_task],
         process=Process.hierarchical,
-        manager_llm="gpt-4o-mini",
+        manager_llm="gpt-4o-mini",  # the model the crewai 1.x hierarchical recording was made with
         planning=True,
     )
+
+
+@pytest.fixture
+def failing_llm_crew(crewai):
+    # OpenAI rejects temperature=5, so the recorded LLM call fails; max_retry_limit=0 stops the agent from retrying.
+    agent = Agent(
+        role="Senior Research Scientist",
+        goal="Summarize developments in AI agents",
+        backstory="You're a seasoned researcher.",
+        llm=LLM(model="gpt-4.1-mini", temperature=5),
+        max_retry_limit=0,
+    )
+    task = Task(description="Summarize AI agents in one sentence.", expected_output="One sentence.", agent=agent)
+    yield Crew(agents=[agent], tasks=[task], process=Process.sequential)
+
+
+@pytest.fixture
+def streaming_crew(crewai):
+    # Its own agent, because a streaming kickoff turns on streaming for the LLM of every agent in the crew.
+    agent = Agent(
+        role="Senior Research Scientist",
+        goal="Summarize developments in AI agents",
+        backstory="You're a seasoned researcher.",
+        llm=LLM(model="gpt-4.1-mini"),
+    )
+    task = Task(description="Summarize AI agents in one sentence.", expected_output="One sentence.", agent=agent)
+    yield Crew(agents=[agent], tasks=[task], process=Process.sequential, stream=True)
 
 
 @pytest.fixture

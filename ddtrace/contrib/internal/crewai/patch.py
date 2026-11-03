@@ -1,14 +1,13 @@
-import inspect
 import sys
 
 import crewai
-import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
 from ddtrace.trace import tracer
 
@@ -16,6 +15,8 @@ from ddtrace.trace import tracer
 def get_version() -> str:
     return getattr(crewai, "__version__", "")
 
+
+CREWAI_VERSION = parse_version(get_version())
 
 logger = get_logger(__name__)
 
@@ -27,113 +28,114 @@ def _supported_versions() -> dict[str, str]:
     return {"crewai": ">=0.102"}
 
 
-def _is_streaming(instance) -> bool:
-    """crewai>=1.0 streaming kickoffs return a stream at once and re-enter kickoff with stream=False to do the work.
-
-    Only that inner call is traced, so the span covers the real execution.
+def _reenters_kickoff(instance, args, kwargs) -> bool:
+    """Streaming kickoffs (crewai>=1.6) and checkpoint restores (crewai>=1.15) return after calling kickoff again,
+    with stream=False or on the restored instance. Only that inner call does the work, so the outer one is not traced.
     """
-    return getattr(instance, "stream", False) is True
+    checkpoint = get_argument_value(args, kwargs, 2, "from_checkpoint", optional=True)
+    # `is True`: before crewai 1.6, Flow has no stream field, so a user flow may define its own `stream` member.
+    return getattr(instance, "stream", False) is True or getattr(checkpoint, "restore_from", None) is not None
+
+
+def _start_span(integration, instance, operation):
+    if operation == "crew":
+        return integration.trace(
+            "Crew Kickoff",
+            span_name="CrewAI Crew",
+            submit_to_llmobs=True,
+            operation="crew",
+            instance_id=getattr(instance, "id", ""),
+            planning=getattr(instance, "planning", False),
+        )
+    if operation == "task":
+        return integration.trace(
+            "CrewAI Task",
+            span_name=getattr(instance, "name", ""),
+            operation="task",
+            instance_id=instance.id,
+            submit_to_llmobs=True,
+            _ddtrace_ctx=getattr(instance, "_ddtrace_ctx", None),
+        )
+    if operation == "agent":
+        return integration.trace(
+            "CrewAI Agent", span_name=getattr(instance, "role", ""), operation="agent", submit_to_llmobs=True
+        )
+    return integration.trace(
+        "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
+    )
+
+
+def _finish_span(integration, span, instance, args, kwargs, result, operation):
+    # Only tasks carry _ddtrace_ctx, set by traced_task_execute_async to parent spans run in a worker thread.
+    if getattr(instance, "_ddtrace_ctx", None):
+        delattr(instance, "_ddtrace_ctx")
+    kwargs["_dd.instance"] = instance
+    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation=operation)
+    span.finish()
+
+
+def _trace(func, instance, args, kwargs, operation):
+    integration: CrewAIIntegration = crewai._datadog_integration
+    span = _start_span(integration, instance, operation)
+    result = None
+    try:
+        result = func(*args, **kwargs)
+        return result
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        _finish_span(integration, span, instance, args, kwargs, result, operation)
+
+
+async def _atrace(func, instance, args, kwargs, operation):
+    integration: CrewAIIntegration = crewai._datadog_integration
+    span = _start_span(integration, instance, operation)
+    result = None
+    try:
+        result = await func(*args, **kwargs)
+        return result
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        _finish_span(integration, span, instance, args, kwargs, result, operation)
 
 
 def traced_kickoff(func, instance, args, kwargs):
-    if _is_streaming(instance):
+    if _reenters_kickoff(instance, args, kwargs):
         return func(*args, **kwargs)
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    instance_id = getattr(instance, "id", "")
-    planning_enabled = getattr(instance, "planning", False)
-    span = integration.trace(
-        "Crew Kickoff",
-        span_name="CrewAI Crew",
-        submit_to_llmobs=True,
-        operation="crew",
-        instance_id=instance_id,
-        planning=planning_enabled,
-    )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="crew")
-        span.finish()
-    return result
+    return _trace(func, instance, args, kwargs, "crew")
 
 
 async def traced_akickoff(func, instance, args, kwargs):
-    if _is_streaming(instance):
+    if _reenters_kickoff(instance, args, kwargs):
         return await func(*args, **kwargs)
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    instance_id = getattr(instance, "id", "")
-    planning_enabled = getattr(instance, "planning", False)
-    span = integration.trace(
-        "Crew Kickoff",
-        span_name="CrewAI Crew",
-        submit_to_llmobs=True,
-        operation="crew",
-        instance_id=instance_id,
-        planning=planning_enabled,
-    )
-    try:
-        result = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="crew")
-        span.finish()
-    return result
+    return await _atrace(func, instance, args, kwargs, "crew")
 
 
 def traced_task_execute(func, instance, args, kwargs):
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        "CrewAI Task",
-        span_name=getattr(instance, "name", ""),
-        operation="task",
-        instance_id=instance.id,
-        submit_to_llmobs=True,
-        _ddtrace_ctx=getattr(instance, "_ddtrace_ctx", None),
-    )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if getattr(instance, "_ddtrace_ctx", None):
-            delattr(instance, "_ddtrace_ctx")
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="task")
-        span.finish()
-    return result
+    return _trace(func, instance, args, kwargs, "task")
 
 
 async def traced_task_aexecute(func, instance, args, kwargs):
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        "CrewAI Task",
-        span_name=getattr(instance, "name", ""),
-        operation="task",
-        instance_id=instance.id,
-        submit_to_llmobs=True,
-    )
-    try:
-        result = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="task")
-        span.finish()
-    return result
+    return await _atrace(func, instance, args, kwargs, "task")
+
+
+def traced_agent_execute(func, instance, args, kwargs):
+    return _trace(func, instance, args, kwargs, "agent")
+
+
+async def traced_agent_aexecute(func, instance, args, kwargs):
+    return await _atrace(func, instance, args, kwargs, "agent")
+
+
+def traced_tool_call(func, instance, args, kwargs):
+    return _trace(func, instance, args, kwargs, "tool")
+
+
+async def traced_tool_acall(func, instance, args, kwargs):
+    return await _atrace(func, instance, args, kwargs, "tool")
 
 
 def traced_task_execute_async(func, instance, args, kwargs):
@@ -151,106 +153,16 @@ def traced_task_get_context(func, instance, args, kwargs):
     return result
 
 
-def traced_agent_execute(func, instance, args, kwargs):
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        "CrewAI Agent", span_name=getattr(instance, "role", ""), operation="agent", submit_to_llmobs=True
-    )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="agent")
-        span.finish()
-    return result
-
-
-async def traced_agent_aexecute(func, instance, args, kwargs):
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        "CrewAI Agent", span_name=getattr(instance, "role", ""), operation="agent", submit_to_llmobs=True
-    )
-    try:
-        result = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="agent")
-        span.finish()
-    return result
-
-
-def traced_tool_run(func, instance, args, kwargs):
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
-    )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
-        span.finish()
-    return result
-
-
-async def traced_tool_arun(func, instance, args, kwargs):
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
-    )
-    try:
-        result = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
-        span.finish()
-    return result
-
-
-def traced_base_tool_run(func, instance, args, kwargs):
-    """Trace BaseTool.run, which crewai>=1.0 calls directly for native (function calling) tool calls."""
-    integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
-    )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        tool_input = dict(kwargs) if kwargs or not args else args[0]
-        tag_kwargs = {"input": tool_input, "_dd.instance": instance}
-        integration.llmobs_set_tags(span, args=(), kwargs=tag_kwargs, response=result, operation="tool")
-        span.finish()
-    return result
-
-
 def _is_internal_flow(instance) -> bool:
-    """crewai>=1.0 runs its own agent executor and memory pipelines as Flow subclasses; those are not user flows."""
-    flow_cls = type(instance)
-    return flow_cls is not crewai.Flow and getattr(flow_cls, "__module__", "").startswith("crewai.")
+    """crewai 1.x runs its own agent executor and memory pipelines as Flow subclasses; those are not user flows.
+
+    crewai.Flow itself is defined in a crewai module too, but a user can instantiate it directly.
+    """
+    return type(instance) is not crewai.Flow and type(instance).__module__.startswith("crewai.")
 
 
 async def traced_flow_kickoff(func, instance, args, kwargs):
-    if _is_internal_flow(instance) or _is_streaming(instance):
+    if _is_internal_flow(instance) or _reenters_kickoff(instance, args, kwargs):
         return await func(*args, **kwargs)
     integration: CrewAIIntegration = crewai._datadog_integration
     span_name = getattr(type(instance), "__name__", "CrewAI Flow")
@@ -279,8 +191,8 @@ async def traced_flow_method(func, instance, args, kwargs):
         elif hasattr(flow_state, "model_dump"):
             initial_flow_state = flow_state.model_dump()
         result = await func(*args, **kwargs)
-        # crewai>=1.0 returns (method_result, finished_event_id) from Flow._execute_method
-        method_result = result[0] if _FLOW_EXECUTE_METHOD_RETURNS_EVENT_ID and isinstance(result, tuple) else result
+        # crewai 1.9.0 changed Flow._execute_method to return (method_result, finished_event_id).
+        method_result = result[0] if CREWAI_VERSION >= (1, 9, 0) else result
         kwargs["_dd.instance"] = instance
         kwargs["_dd.initial_flow_state"] = initial_flow_state
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=method_result, operation="flow_method")
@@ -297,46 +209,7 @@ def patched_find_triggered_methods(func, instance, args, kwargs):
     return result
 
 
-def _flow_execute_method_returns_event_id() -> bool:
-    try:
-        return "tuple" in str(inspect.signature(crewai.Flow._execute_method).return_annotation)
-    except (AttributeError, TypeError, ValueError):
-        return False
-
-
-_FLOW_EXECUTE_METHOD_RETURNS_EVENT_ID = False
-
-
-def _defines(cls, name: str) -> bool:
-    # Only wrap methods a class defines itself, so a subclass never re-wraps an inherited (already wrapped) method.
-    return name in getattr(cls, "__dict__", {})
-
-
-def _wrap_get_context():
-    # crewai>=1.0 declares Crew._get_context as a staticmethod; wrapping the bare function would bind it
-    # to the instance.
-    get_context = crewai.Crew.__dict__.get("_get_context")
-    if isinstance(get_context, staticmethod):
-        crewai.Crew._get_context = staticmethod(wrapt.FunctionWrapper(get_context.__func__, traced_task_get_context))
-    else:
-        wrap(crewai, "Crew._get_context", traced_task_get_context)
-
-
-def _unwrap_get_context():
-    get_context = crewai.Crew.__dict__.get("_get_context")
-    if isinstance(get_context, staticmethod):
-        crewai.Crew._get_context = staticmethod(getattr(get_context.__func__, "__wrapped__", get_context.__func__))
-    else:
-        unwrap(crewai.Crew, "_get_context")
-
-
-def _base_tool_classes():
-    base_tool = getattr(crewai.tools, "base_tool", None)
-    return [cls for cls in (getattr(base_tool, "BaseTool", None), getattr(base_tool, "Tool", None)) if cls is not None]
-
-
 def patch():
-    global _FLOW_EXECUTE_METHOD_RETURNS_EVENT_ID
     if getattr(crewai, "_datadog_patch", False):
         return
 
@@ -344,33 +217,29 @@ def patch():
 
     integration: CrewAIIntegration = CrewAIIntegration(integration_config=config.crewai)
     crewai._datadog_integration = integration
-    _FLOW_EXECUTE_METHOD_RETURNS_EVENT_ID = _flow_execute_method_returns_event_id()
 
     wrap(crewai, "Crew.kickoff", traced_kickoff)
     wrap(crewai, "Task.execute_async", traced_task_execute_async)
     wrap(crewai, "Agent.execute_task", traced_agent_execute)
-    wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_run)
+    wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_call)
+    wrap(crewai.tools.structured_tool, "CrewStructuredTool.ainvoke", traced_tool_acall)
+    wrap(crewai.tools.base_tool, "BaseTool.run", traced_tool_call)
     wrap(crewai, "Flow.kickoff_async", traced_flow_kickoff)
     try:
-        _wrap_get_context()
+        wrap(crewai, "Crew._get_context", traced_task_get_context)
         wrap(crewai, "Task._execute_core", traced_task_execute)
         wrap(crewai, "Flow._execute_method", traced_flow_method)
         wrap(crewai, "Flow._find_triggered_methods", patched_find_triggered_methods)
     except AttributeError:
         logger.warning("Failed to patch internal CrewAI methods.")
 
-    # Native async execution paths and native tool calls (crewai>=1.0)
-    if _defines(crewai.Crew, "akickoff"):
+    # crewai 1.7.0 added native async execution (Crew.akickoff) and a Tool.run override that native function
+    # calling calls directly.
+    if CREWAI_VERSION >= (1, 7, 0):
         wrap(crewai, "Crew.akickoff", traced_akickoff)
-    if _defines(crewai.Task, "_aexecute_core"):
         wrap(crewai, "Task._aexecute_core", traced_task_aexecute)
-    if _defines(crewai.Agent, "aexecute_task"):
         wrap(crewai, "Agent.aexecute_task", traced_agent_aexecute)
-    if _defines(crewai.tools.structured_tool.CrewStructuredTool, "ainvoke"):
-        wrap(crewai.tools.structured_tool, "CrewStructuredTool.ainvoke", traced_tool_arun)
-    for tool_cls in _base_tool_classes():
-        if _defines(tool_cls, "run"):
-            wrap(tool_cls, "run", traced_base_tool_run)
+        wrap(crewai.tools.base_tool, "Tool.run", traced_tool_call)
 
 
 def unpatch():
@@ -383,24 +252,21 @@ def unpatch():
     unwrap(crewai.Task, "execute_async")
     unwrap(crewai.Agent, "execute_task")
     unwrap(crewai.tools.structured_tool.CrewStructuredTool, "invoke")
+    unwrap(crewai.tools.structured_tool.CrewStructuredTool, "ainvoke")
+    unwrap(crewai.tools.base_tool.BaseTool, "run")
     unwrap(crewai.Flow, "kickoff_async")
     try:
-        _unwrap_get_context()
+        # unwrap() reads the attribute through the class, which would drop the staticmethod of crewai>=1.7.
+        crewai.Crew._get_context = crewai.Crew.__dict__["_get_context"].__wrapped__
         unwrap(crewai.Task, "_execute_core")
         unwrap(crewai.Flow, "_execute_method")
         unwrap(crewai.Flow, "_find_triggered_methods")
     except AttributeError:
         pass
-    if _defines(crewai.Crew, "akickoff"):
+    if CREWAI_VERSION >= (1, 7, 0):
         unwrap(crewai.Crew, "akickoff")
-    if _defines(crewai.Task, "_aexecute_core"):
         unwrap(crewai.Task, "_aexecute_core")
-    if _defines(crewai.Agent, "aexecute_task"):
         unwrap(crewai.Agent, "aexecute_task")
-    if _defines(crewai.tools.structured_tool.CrewStructuredTool, "ainvoke"):
-        unwrap(crewai.tools.structured_tool.CrewStructuredTool, "ainvoke")
-    for tool_cls in _base_tool_classes():
-        if _defines(tool_cls, "run"):
-            unwrap(tool_cls, "run")
+        unwrap(crewai.tools.base_tool.Tool, "run")
 
     delattr(crewai, "_datadog_integration")
