@@ -1,3 +1,5 @@
+import ddtrace._initialize  # noqa: F401, isort:skip
+
 import sys
 
 from ddtrace._trace.context import Context
@@ -42,3 +44,6 @@ __all__ = [
     "Span",
     "tracer",
 ]
+
+
+import ddtrace.internal.datastreams  # noqa: E402, F401

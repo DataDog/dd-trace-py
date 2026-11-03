@@ -1,6 +1,7 @@
 other:
   - |
-    perf: Reduces application startup time when using ``ddtrace-run``.
+    perf: Reduces the overhead of importing ``ddtrace`` and starting applications with ``ddtrace-run``.
+    Logging and tracer initialization occur when tracing APIs or automatic instrumentation are imported.
 fixes:
   - |
     tracing: Fixes an issue where ddtrace import errors prevent applications launched with

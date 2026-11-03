@@ -29,5 +29,3 @@ The definition of the **internal** interface:
     Any module, function, class or attribute that is contained within an internal module is internal
 
 Internal code may be subject to breaking changes in bug fix and minor releases.
-
-The ``ddtrace_commands`` package is internal to ddtrace and may introduce breaking changes in minor releases.

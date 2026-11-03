@@ -309,7 +309,10 @@ def test_launcher_does_not_initialize_ddtrace(flags):
         sys.argv = ["ddtrace-run"] + flags + [sys.executable, "-c", "pass", "--version"]
 
         def exec_application(executable, *args):
-            assert not any(name == "ddtrace" or name.startswith("ddtrace.") for name in sys.modules)
+            assert {name for name in sys.modules if name == "ddtrace" or name.startswith("ddtrace.")} == {
+                "ddtrace", "ddtrace.commands", "ddtrace.commands.ddtrace_run",
+                "ddtrace.internal", "ddtrace.internal._unpatched"
+            }
             assert executable == sys.executable
             assert args == (sys.executable, "-c", "pass", "--version")
             bootstrap, previous = os.environ["PYTHONPATH"].split(os.pathsep, 1)
@@ -332,31 +335,30 @@ def test_launcher_does_not_initialize_ddtrace(flags):
     subprocess.run([sys.executable, "-c", code, *flags], check=True, capture_output=True)
 
 
-def test_launcher_resolves_package_without_importing_it(tmp_path):
-    package = tmp_path / "ddtrace"
-    package.mkdir()
-    (package / "__init__.py").write_text("raise AssertionError('launcher imported ddtrace')\n")
+def test_launcher_imports_without_native_extensions():
     code = textwrap.dedent(
         """
+        import importlib.abc
         import os
         import sys
-        from ddtrace_commands import ddtrace_run
 
-        package_root = sys.argv[1]
-        sys.path.insert(0, package_root)
+        class BlockRuntime(importlib.abc.MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname.startswith(("ddtrace.internal.native", "ddtrace.internal.settings", "ddtrace._initialize")):
+                    raise ImportError("runtime unavailable")
+
+        sys.meta_path.insert(0, BlockRuntime())
+        from ddtrace.commands import ddtrace_run
         sys.argv = ["ddtrace-run", sys.executable, "-c", "pass"]
 
         def exec_application(*args):
-            assert os.environ["PYTHONPATH"].split(os.pathsep)[0] == os.path.join(
-                package_root, "ddtrace", "bootstrap"
-            )
             raise SystemExit(0)
 
         os.execl = exec_application
         ddtrace_run.main()
         """
     )
-    subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, capture_output=True)
+    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True)
 
 
 def test_launcher_bootstrap_is_inherited_by_child_processes():
@@ -640,11 +642,16 @@ def test_ddtrace_auto_atexit():
 
     registered_funcs = set()
     unregistered_funcs = set()
+    signal_registered_funcs = set()
 
     def mock_register(func):
         if func in registered_funcs:
             raise AssertionError("Duplicate registered function: %s" % func)
         registered_funcs.add(func)
+
+    def mock_signal_register(func):
+        assert func not in signal_registered_funcs
+        signal_registered_funcs.add(func)
 
     def mock_unregister(func):
         if func in unregistered_funcs:
@@ -654,7 +661,7 @@ def test_ddtrace_auto_atexit():
     with (
         patch("ddtrace.internal.atexit.register", side_effect=mock_register),
         patch("ddtrace.internal.atexit.unregister", side_effect=mock_unregister),
-        patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_register),
+        patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_signal_register),
         patch("atexit.register", side_effect=mock_register),
         patch("atexit.unregister", side_effect=mock_unregister),
     ):
@@ -704,3 +711,141 @@ def test_ddtrace_run_sync_sigint():
 
     threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
     time.sleep(10)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "from ddtrace import tracer; from ddtrace.trace import tracer as other; assert tracer is other",
+        "from ddtrace import trace; import ddtrace; assert trace.tracer is ddtrace.tracer",
+        "from ddtrace import version; import ddtrace; assert version.__version__ == ddtrace.__version__",
+        "from ddtrace import constants; import ddtrace.constants; assert constants is ddtrace.constants",
+        "import ddtrace.trace; from ddtrace.trace import tracer; assert ddtrace.trace.tracer is tracer",
+        "import ddtrace; from ddtrace.internal.compat import is_at_least_py; "
+        "assert ddtrace.is_at_least_py is is_at_least_py",
+        "from ddtrace.trace import tracer; import ddtrace; assert ddtrace.tracer is tracer",
+        "from ddtrace import config; from ddtrace.internal.settings._config import config as other; "
+        "assert config is other",
+        "from ddtrace import patch; from ddtrace._monkey import patch as other; assert patch is other",
+        "from ddtrace import *; assert callable(patch); assert callable(patch_all)",
+        "import ddtrace.auto; import ddtrace.bootstrap.sitecustomize as sc; assert sc.loaded",
+    ],
+)
+def test_lazy_public_exports(statement):
+    result = subprocess.run(
+        [sys.executable, "-c", "import faulthandler; faulthandler.dump_traceback_later(10, exit=True); " + statement],
+        capture_output=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_lazy_package_has_no_product_side_effects():
+    code = """
+import sys
+before = sys.excepthook
+import ddtrace
+assert sys.excepthook is before
+assert {name for name in sys.modules if name.startswith("ddtrace.")} == {
+    "ddtrace.internal", "ddtrace.internal._unpatched"
+}
+assert "tracer" in dir(ddtrace)
+assert "config" in dir(ddtrace)
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("flag", ["false", "0", "", "invalid"])
+def test_lazy_root_exports_disabled(flag):
+    code = """
+import sys
+import ddtrace
+for name in ddtrace._EXPORTS:
+    try:
+        getattr(ddtrace, name)
+    except AttributeError:
+        pass
+    else:
+        raise AssertionError(name)
+    try:
+        exec(f"from ddtrace import {name}")
+    except ImportError:
+        pass
+    else:
+        raise AssertionError(name)
+assert "ddtrace.internal.telemetry" not in sys.modules
+assert "ddtrace.trace" not in sys.modules
+from ddtrace import version, constants
+import ddtrace.version
+import ddtrace.constants
+assert version is ddtrace.version
+assert constants is ddtrace.constants
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env=dict(os.environ, _DD_GLOBAL_TRACER_INIT=flag),
+        capture_output=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_lazy_submodules_require_explicit_import():
+    code = """
+import ddtrace
+for name in ("trace", "version", "constants"):
+    assert name not in ddtrace._EXPORTS
+    assert not hasattr(ddtrace, name)
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+
+
+def test_lazy_concurrent_tracer_access():
+    code = """
+import concurrent.futures
+import threading
+import ddtrace
+barrier = threading.Barrier(8)
+def get_tracer(_):
+    barrier.wait()
+    return ddtrace.tracer
+with concurrent.futures.ThreadPoolExecutor(8) as pool:
+    tracers = list(pool.map(get_tracer, range(8)))
+assert all(t is tracers[0] for t in tracers)
+assert tracers[0] is ddtrace.trace.tracer
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+
+
+def test_package_import_preserves_original_open():
+    code = """
+import builtins
+original = builtins.open
+import ddtrace
+def replaced(*args, **kwargs):
+    return original(*args, **kwargs)
+builtins.open = replaced
+from ddtrace.trace import tracer
+from ddtrace.internal._unpatched import unpatched_open
+assert unpatched_open is original
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_configuration_is_read_on_first_access():
+    code = """
+import os
+os.environ["DD_SERVICE"] = "before-import"
+import ddtrace
+os.environ["DD_SERVICE"] = "before-config"
+from ddtrace import config
+assert config.service == "before-config"
+os.environ["DD_SERVICE"] = "after-config"
+assert config.service == "before-config"
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=15)
+    assert result.returncode == 0, result.stderr

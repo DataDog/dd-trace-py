@@ -15,6 +15,7 @@ Add all monkey-patching that needs to run by default here
 # perform the correct initialisation for the library. All the actual
 # initialisation logic should be placed in preload.py.
 import ddtrace  # isort:skip
+import ddtrace._initialize  # noqa: F401, isort:skip
 import os  # noqa:F401
 import sys
 

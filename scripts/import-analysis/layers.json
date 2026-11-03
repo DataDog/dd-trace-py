@@ -58,6 +58,7 @@
     ],
     "top_level": [
       "ddtrace._logger",
+      "ddtrace._initialize",
       "ddtrace._monkey",
       "ddtrace.auto",
       "ddtrace.constants",

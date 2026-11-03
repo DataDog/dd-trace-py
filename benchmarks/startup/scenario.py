@@ -13,6 +13,7 @@ class Startup(bm.Scenario):
     import_django: bool
     send_span: bool
     env: str
+    sdk_action: str
 
     # Not helpful for subprocess benchmarks
     cprofile_loops: int = 0
@@ -37,6 +38,9 @@ class Startup(bm.Scenario):
         if self.import_django:
             # `import django` doesn't really do anything, `django.core.management` is what `manage.py` uses
             commands.append("import django.core.management")
+
+        if self.sdk_action:
+            commands.append(self.sdk_action)
 
         if self.send_span:
             commands.append("from ddtrace.trace import tracer")

@@ -1,6 +1,5 @@
 components:
   bootstrap:
-    - ddtrace_commands/*
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py

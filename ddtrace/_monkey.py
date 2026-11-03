@@ -1,3 +1,5 @@
+import ddtrace._initialize  # noqa: F401, isort:skip
+
 from collections.abc import Callable
 import importlib
 from pathlib import Path

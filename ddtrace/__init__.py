@@ -1,58 +1,56 @@
 import sys
+from typing import TYPE_CHECKING
 
 
-LOADED_MODULES = frozenset(sys.modules.keys())
+if TYPE_CHECKING:
+    from ddtrace._monkey import patch as patch
+    from ddtrace._monkey import patch_all as patch_all
+    from ddtrace.internal.settings._config import config as config
+    from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning as DDTraceDeprecationWarning
+    from ddtrace.trace import tracer as tracer
+    from ddtrace.version import __version__ as __version__
 
 
-# Ensure we capture references to unpatched modules as early as possible
-import ddtrace.internal._unpatched  # noqa
-from ._logger import configure_ddtrace_logger  # noqa: E402
+LOADED_MODULES = frozenset(sys.modules)
 
-# configure ddtrace logger before other modules log
-configure_ddtrace_logger()  # noqa: E402
+import ddtrace.internal._unpatched  # noqa: E402, F401, isort:skip
 
-# Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
-import ddtrace.internal.telemetry  # noqa: E402, F401
+__all__ = ["__version__", "patch", "patch_all", "config", "DDTraceDeprecationWarning"]
 
-from ._monkey import patch  # noqa: E402
-from ._monkey import patch_all  # noqa: E402
-from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
-from .internal.compat import is_at_least_py  # noqa: E402
-from .internal.settings import env  # noqa: E402
-from .internal.settings._config import config  # noqa: E402
-from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .internal.utils.deprecations import deprecate  # noqa: E402
-from .version import __version__  # noqa: E402
-
-
-# TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
-if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
-    from ddtrace.trace import tracer  # noqa: F401
-
-# Initialize DSM support and register DSM handlers (if enabled)
-import ddtrace.internal.datastreams as _  # noqa: E402, F401
+_EXPORTS = {
+    "configure_ddtrace_logger": ("ddtrace._logger", "configure_ddtrace_logger"),
+    "PYTHON_VERSION_INFO": ("ddtrace.internal.compat", "PYTHON_VERSION_INFO"),
+    "is_at_least_py": ("ddtrace.internal.compat", "is_at_least_py"),
+    "env": ("ddtrace.internal.settings", "env"),
+    "deprecate": ("ddtrace.internal.utils.deprecations", "deprecate"),
+    "__version__": ("ddtrace.version", "__version__"),
+    "patch": ("ddtrace._monkey", "patch"),
+    "patch_all": ("ddtrace._monkey", "patch_all"),
+    "config": ("ddtrace.internal.settings._config", "config"),
+    "DDTraceDeprecationWarning": ("ddtrace.internal.utils.deprecations", "DDTraceDeprecationWarning"),
+    "check_supported_python_version": ("ddtrace._initialize", "check_supported_python_version"),
+    # TODO: Remove root-level re-exports in v5.0.
+    "tracer": ("ddtrace.trace", "tracer"),
+}
 
 
-__all__ = [
-    "__version__",
-    "patch",
-    "patch_all",
-    "config",
-    "DDTraceDeprecationWarning",
-]
+def __getattr__(name):
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from ddtrace.internal.settings import env
+
+    if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() not in ("1", "true"):
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from importlib import import_module
+
+    module_name, attr_name = _EXPORTS[name]
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
 
 
-def check_supported_python_version():
-    if not is_at_least_py(3, 10):
-        deprecation_message = (
-            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 5.0.0."
-        )
-        if not is_at_least_py(3, 9):
-            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.0.0."
-        deprecate(
-            (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
-            category=DDTraceDeprecationWarning,
-        )
-
-
-check_supported_python_version()
+def __dir__():
+    return sorted(set(globals()) | set(_EXPORTS))
