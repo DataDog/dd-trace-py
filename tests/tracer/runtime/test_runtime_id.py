@@ -1568,14 +1568,19 @@ def test_asgi_run_hook_keeps_distributed_parent_after_tracer_refresh():
 @pytest.mark.subprocess(
     env={
         "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
-        "_DD_GLOBAL_TRACER_INIT": "false",
+        "_DD_GLOBAL_TRACER_INIT": None,
         "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
     },
     err=None,
 )
 def test_deferred_global_tracer_registers_identity_refresh_callback():
     """An explicitly imported global tracer must refresh after deferred initialization."""
+    import sys
     from unittest import mock
+
+    import ddtrace  # noqa: F401
+
+    assert "ddtrace.trace" not in sys.modules
 
     from ddtrace.contrib._events.web_framework import WebFrameworkEvents
     from ddtrace.internal import core
@@ -1600,12 +1605,17 @@ def test_deferred_global_tracer_registers_identity_refresh_callback():
 
 
 @pytest.mark.subprocess(
-    env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None, "_DD_GLOBAL_TRACER_INIT": "false"},
+    env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None, "_DD_GLOBAL_TRACER_INIT": None},
     err=None,
 )
 def test_deferred_global_tracer_does_not_register_identity_refresh_callback_outside_microvm():
     """Deferred global tracer initialization must not change non-MicroVM refresh behavior."""
+    import sys
     from unittest import mock
+
+    import ddtrace  # noqa: F401
+
+    assert "ddtrace.trace" not in sys.modules
 
     import ddtrace.internal.runtime as runtime
     from ddtrace.trace import tracer
