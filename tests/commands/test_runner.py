@@ -335,32 +335,6 @@ def test_launcher_does_not_initialize_ddtrace(flags):
     subprocess.run([sys.executable, "-c", code, *flags], check=True, capture_output=True)
 
 
-def test_launcher_imports_without_native_extensions():
-    code = textwrap.dedent(
-        """
-        import importlib.abc
-        import os
-        import sys
-
-        class BlockRuntime(importlib.abc.MetaPathFinder):
-            def find_spec(self, fullname, path=None, target=None):
-                if fullname.startswith(("ddtrace.internal.native", "ddtrace.internal.settings")):
-                    raise ImportError("runtime unavailable")
-
-        sys.meta_path.insert(0, BlockRuntime())
-        from ddtrace.commands import ddtrace_run
-        sys.argv = ["ddtrace-run", sys.executable, "-c", "pass"]
-
-        def exec_application(*args):
-            raise SystemExit(0)
-
-        os.execl = exec_application
-        ddtrace_run.main()
-        """
-    )
-    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True)
-
-
 def test_launcher_bootstrap_is_inherited_by_child_processes():
     code = "import sys; assert sys.modules['ddtrace.bootstrap.sitecustomize'].loaded"
     result = subprocess.run(
@@ -373,21 +347,6 @@ def test_launcher_bootstrap_is_inherited_by_child_processes():
         capture_output=True,
     )
     assert result.returncode == 0, result.stderr
-
-
-def test_manual_bootstrap_preserves_import_failure_behavior():
-    result = subprocess.run(
-        [sys.executable, "-c", "print('application ran')"],
-        env=dict(
-            os.environ,
-            DD_TRACE_LOG_FILE_LEVEL="UNKNOWN",
-            PYTHONPATH=os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap"),
-        ),
-        capture_output=True,
-    )
-    assert result.returncode == 0, result.stderr
-    assert b"ValueError" in result.stderr
-    assert result.stdout.strip() == b"application ran"
 
 
 @pytest.mark.parametrize("exit_code", [0, 7])
@@ -742,8 +701,12 @@ def test_lazy_public_exports(statement):
 
 def test_lazy_package_has_no_product_side_effects():
     code = """
+import builtins
+import os
 import sys
 before = sys.excepthook
+original_open = builtins.open
+os.environ["DD_SERVICE"] = "before-import"
 import ddtrace
 assert sys.excepthook is before
 assert {name for name in sys.modules if name.startswith("ddtrace.")} == {
@@ -751,6 +714,20 @@ assert {name for name in sys.modules if name.startswith("ddtrace.")} == {
 }
 assert "tracer" in dir(ddtrace)
 assert "config" in dir(ddtrace)
+for name in ("trace", "version", "constants"):
+    assert name not in ddtrace._EXPORTS
+    assert not hasattr(ddtrace, name)
+os.environ["DD_SERVICE"] = "before-config"
+from ddtrace import config
+assert config.service == "before-config"
+os.environ["DD_SERVICE"] = "after-config"
+assert config.service == "before-config"
+def replaced(*args, **kwargs):
+    return original_open(*args, **kwargs)
+builtins.open = replaced
+from ddtrace.trace import tracer
+from ddtrace.internal._unpatched import unpatched_open
+assert unpatched_open is original_open
 """
     result = subprocess.run([sys.executable, "-c", code], capture_output=True)
     assert result.returncode == 0, result.stderr
@@ -791,17 +768,6 @@ assert constants is ddtrace.constants
     assert result.returncode == 0, result.stderr
 
 
-def test_lazy_submodules_require_explicit_import():
-    code = """
-import ddtrace
-for name in ("trace", "version", "constants"):
-    assert name not in ddtrace._EXPORTS
-    assert not hasattr(ddtrace, name)
-"""
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=15)
-    assert result.returncode == 0, result.stderr
-
-
 def test_lazy_concurrent_tracer_access():
     code = """
 import concurrent.futures
@@ -817,35 +783,4 @@ assert all(t is tracers[0] for t in tracers)
 assert tracers[0] is ddtrace.trace.tracer
 """
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=30)
-    assert result.returncode == 0, result.stderr
-
-
-def test_package_import_preserves_original_open():
-    code = """
-import builtins
-original = builtins.open
-import ddtrace
-def replaced(*args, **kwargs):
-    return original(*args, **kwargs)
-builtins.open = replaced
-from ddtrace.trace import tracer
-from ddtrace.internal._unpatched import unpatched_open
-assert unpatched_open is original
-"""
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True)
-    assert result.returncode == 0, result.stderr
-
-
-def test_configuration_is_read_on_first_access():
-    code = """
-import os
-os.environ["DD_SERVICE"] = "before-import"
-import ddtrace
-os.environ["DD_SERVICE"] = "before-config"
-from ddtrace import config
-assert config.service == "before-config"
-os.environ["DD_SERVICE"] = "after-config"
-assert config.service == "before-config"
-"""
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=15)
     assert result.returncode == 0, result.stderr

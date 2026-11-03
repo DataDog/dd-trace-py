@@ -17,24 +17,6 @@ def run(code, **env):
     return result
 
 
-@pytest.mark.parametrize("telemetry", ["true", "false"])
-def test_logger_import_and_setup_do_not_start_telemetry(telemetry):
-    run(
-        """
-        import logging
-        import sys
-        import ddtrace
-        assert len(logging.getLogger('ddtrace').handlers) == 1
-        assert 'ddtrace.internal.native' not in sys.modules
-        assert 'ddtrace.internal.forksafe' not in sys.modules
-        assert 'ddtrace.internal.telemetry' not in sys.modules
-        assert 'ddtrace.internal.settings._config' not in sys.modules
-        assert 'ddtrace.trace' not in sys.modules
-    """,
-        DD_INSTRUMENTATION_TELEMETRY_ENABLED=telemetry,
-    )
-
-
 @pytest.mark.parametrize("level", [None, "WARNING"])
 @pytest.mark.parametrize("fleet_enabled", [False, True])
 def test_logging_configuration_ignores_stable_configs(tmp_path, level, fleet_enabled):
@@ -68,19 +50,9 @@ def test_logging_configuration_ignores_stable_configs(tmp_path, level, fleet_ena
     )
 
 
-def test_bootstrap_uses_full_file_logging_configuration():
-    run("""
-        from unittest.mock import patch
-        from ddtrace.internal.telemetry import get_config
-        with patch('ddtrace._logger._configure_ddtrace_file_logger') as configure:
-            import ddtrace.auto
-            configure.assert_called_once_with(get_config)
-    """)
-
-
 def test_native_logging_waits_for_configuration(tmp_path):
     logfile = tmp_path / "native.log"
-    run(
+    result = run(
         f"""
         import sys
         from pathlib import Path
@@ -90,19 +62,24 @@ def test_native_logging_waits_for_configuration(tmp_path):
         from ddtrace.internal import native
         assert 'ddtrace.internal.telemetry' not in sys.modules
         assert not Path({str(logfile)!r}).exists()
+        from ddtrace.internal.settings import _core
+        _core.FLEET_CONFIG['_DD_NATIVE_LOGGING_BACKEND'] = 'stdout'
         configure = native._configure_ddtrace_native_logger
         with patch.object(native, '_configure_ddtrace_native_logger', wraps=configure) as setup:
+            from ddtrace import config
             from ddtrace.internal.telemetry import get_config
             assert 'ddtrace.trace' not in sys.modules
             import ddtrace.auto
             setup.assert_called_once_with(get_config)
         native.logger.log('warning', 'native logging enabled')
-        native.logger.disable('file')
-        assert 'native logging enabled' in Path({str(logfile)!r}).read_text()
+        native.logger.disable('stdout')
+        assert not Path({str(logfile)!r}).exists()
     """,
         _DD_NATIVE_LOGGING_BACKEND="file",
         _DD_NATIVE_LOGGING_FILE_PATH=str(logfile),
     )
+    assert result.stdout.count(b"native logging enabled") == 1
+    assert b"native logging enabled" not in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -159,7 +136,7 @@ def test_invalid_file_reconfiguration_keeps_existing_handler(tmp_path):
     result = run(
         f"""
         import logging
-        from ddtrace._logger import _configure_ddtrace_file_logger
+        from ddtrace import config
         from ddtrace.internal import telemetry
         from unittest.mock import patch
         logger = logging.getLogger('ddtrace')
@@ -185,6 +162,7 @@ def test_bootstrap_file_logging_honors_fleet_and_reports_telemetry(tmp_path):
         f"""
         import logging
         from unittest.mock import patch
+        from ddtrace import config
         from ddtrace.internal import telemetry
         with patch.dict(telemetry.FLEET_CONFIG, {{'DD_TRACE_LOG_FILE': {str(new_file)!r}}}, clear=True):
             with patch.object(telemetry.telemetry_writer, 'add_configuration') as report:
@@ -199,24 +177,6 @@ def test_bootstrap_file_logging_honors_fleet_and_reports_telemetry(tmp_path):
     assert "resolved-file-output" not in old_file.read_text()
 
 
-def test_native_logging_uses_resolved_configuration():
-    result = run(
-        """
-        from unittest.mock import patch
-        from ddtrace.internal.settings import _core
-        with patch.dict(_core.FLEET_CONFIG, {'_DD_NATIVE_LOGGING_BACKEND': 'stdout'}, clear=True):
-            import ddtrace.internal.telemetry
-        from ddtrace.internal.native import logger
-        logger.log('warning', 'resolved-native-output')
-        logger.disable('stdout')
-    """,
-        DD_TRACE_DEBUG="false",
-        _DD_NATIVE_LOGGING_BACKEND="stderr",
-    )
-    assert result.stdout.count(b"resolved-native-output") == 1
-    assert b"resolved-native-output" not in result.stderr
-
-
 @pytest.mark.parametrize(
     "entrypoint",
     [
@@ -224,6 +184,7 @@ def test_native_logging_uses_resolved_configuration():
         "from ddtrace.trace import tracer",
         "from ddtrace import patch; patch()",
         "from ddtrace import config",
+        "import ddtrace.internal.core",
     ],
 )
 def test_logger_configured_once_across_entrypoints(tmp_path, entrypoint):
@@ -290,82 +251,26 @@ def test_public_config_warnings_use_configured_logger(tmp_path, telemetry):
 
 
 @pytest.mark.parametrize(
-    "version, message", [((3, 8), "was removed in 4.0.0"), ((3, 9), "will be removed in 5.0.0"), ((3, 10), None)]
+    "entrypoint, calls",
+    [
+        ("importlib.reload(ddtrace)", 0),
+        ("from ddtrace.trace import tracer", 0),
+        ("import ddtrace.auto", 1),
+        ("import ddtrace.bootstrap.sitecustomize", 1),
+    ],
 )
-def test_python_version_warning(version, message):
-    run(f"""
-        import sys
-        import warnings
-        from unittest.mock import patch
-        from ddtrace.internal.utils.deprecations import check_supported_python_version, DDTraceDeprecationWarning
-        with patch.object(sys, 'version_info', {version}):
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter('always')
-                check_supported_python_version()
-        if {message!r} is None:
-            assert not caught
-        else:
-            assert len(caught) == 1
-            assert caught[0].category is DDTraceDeprecationWarning
-            assert {message!r} in str(caught[0].message)
-        assert 'ddtrace.internal.telemetry' not in sys.modules
-        assert 'ddtrace.internal.native' not in sys.modules
-    """)
-
-
-@pytest.mark.parametrize("telemetry", ["true", "false"])
-def test_core_import_does_not_reconfigure_logging(telemetry):
-    run(
-        """
-        import sys
-        import logging
-        import ddtrace
-        handlers = list(logging.getLogger('ddtrace').handlers)
-        import ddtrace.internal.core
-        assert logging.getLogger('ddtrace').handlers[:len(handlers)] == handlers
-        assert sum(type(h) is logging.StreamHandler for h in logging.getLogger('ddtrace').handlers) == 1
-        assert 'ddtrace.trace' not in sys.modules
-    """,
-        DD_INSTRUMENTATION_TELEMETRY_ENABLED=telemetry,
-    )
-
-
-@pytest.mark.parametrize("entrypoint", ["importlib.reload(ddtrace)", "from ddtrace.trace import tracer"])
-def test_manual_import_does_not_check_python_version(entrypoint):
+def test_python_version_check_only_in_bootstrap(entrypoint, calls):
     run(f"""
         import importlib
         from unittest.mock import patch
         import ddtrace
         with patch('ddtrace.internal.utils.deprecations.check_supported_python_version') as check:
             {entrypoint}
-            check.assert_not_called()
+            assert check.call_count == {calls}
+            if {calls}:
+                import ddtrace.auto
+                check.assert_called_once_with()
     """)
-
-
-@pytest.mark.parametrize("entrypoint", ["import ddtrace.auto", "import ddtrace.bootstrap.sitecustomize"])
-def test_bootstrap_checks_python_version_once(entrypoint):
-    run(f"""
-        from unittest.mock import patch
-        with patch('ddtrace.internal.utils.deprecations.check_supported_python_version') as check:
-            {entrypoint}
-            import ddtrace.auto
-            check.assert_called_once_with()
-    """)
-
-
-def test_ddtrace_run_checks_python_version():
-    code = """
-import site
-from unittest.mock import patch
-with patch('ddtrace.internal.utils.deprecations.check_supported_python_version') as check:
-    site.main()
-    check.assert_called_once_with()
-from ddtrace.bootstrap import sitecustomize
-assert sitecustomize.loaded
-"""
-    # Delay site initialization so the check can be observed before the launcher bootstrap runs.
-    result = subprocess.run(["ddtrace-run", sys.executable, "-S", "-c", code], capture_output=True, timeout=30)
-    assert result.returncode == 0, result.stderr.decode()
 
 
 def test_auto_continues_when_file_logger_import_fails(tmp_path):

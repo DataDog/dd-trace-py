@@ -81,7 +81,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
-import ddtrace.trace # enables telemetry
+from ddtrace import config # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 
 
@@ -450,7 +450,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 import time
 
-import ddtrace.trace # enables telemetry
+from ddtrace import config # enables telemetry
 
 # The native worker self-schedules heartbeats off DD_TELEMETRY_HEARTBEAT_INTERVAL (set to a small
 # value below). Fork, then in both parent and child sleep long enough for several auto-heartbeats so
@@ -573,7 +573,7 @@ def pre_ddtrace_exc_hook(exctype, value, traceback):
 
 sys.excepthook = pre_ddtrace_exc_hook
 
-import ddtrace.trace
+from ddtrace import config
 raise Exception('bad_code')
 """
     )
@@ -703,8 +703,8 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
             "DD_INSTRUMENTATION_INSTALL_TIME": "1703188212",
         }
     )
-    # Generate a trace to trigger app-started event
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.trace", env=env)
+    # Initialize configuration to trigger app-started.
+    _, stderr, status, _ = run_python_code_in_subprocess("from ddtrace import config", env=env)
     assert status == 0, stderr
 
     # The in-process telemetry_writer fixture also emits an app-started into the session, but only
@@ -735,7 +735,7 @@ def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
 
     code = """
-from ddtrace.trace import tracer
+from ddtrace import config
 
 # We want to import the telemetry module even when telemetry is disabled.
 import sys
@@ -756,13 +756,10 @@ assert "ddtrace.internal.telemetry" in sys.modules
 def test_installed_excepthook():
     import sys
 
-    original_hook = sys.excepthook
-    import ddtrace  # noqa: F401
+    from ddtrace import config  # noqa: F401
 
-    assert sys.excepthook is original_hook
     # ddtrace installs a single dispatching hook that fans out to registered callbacks
     from ddtrace.internal import excepthook
-    import ddtrace.trace  # noqa: F401
 
     assert sys.excepthook.__name__ == "_ddtrace_excepthook"
 

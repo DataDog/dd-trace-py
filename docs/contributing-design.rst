@@ -50,19 +50,11 @@ Step 1: Bootstrap
 The autoinstrumentation entrypoint is ``import ddtrace.bootstrap.sitecustomize``. This can be done in user code, either directly or via
 ``import ddtrace.auto``, or behind the scenes by ``ddtrace-run``.
 
-Keep the normal launch path in ``ddtrace.commands.ddtrace_run`` limited to standard-library imports.
-Perform ddtrace initialization in the application bootstrap. Report ordinary initialization errors
-without preventing the application from starting.
-
-Set ``_DD_GLOBAL_TRACER_INIT=false`` before starting Python to detect imports of lazy
-root-level exports scheduled for removal in v5.0. Import values from their defining modules.
-Import submodules explicitly, for example ``from ddtrace import trace`` or ``import ddtrace.trace``.
-
-Configure Python logging once in ``ddtrace.__init__`` using only the standard library and environment variables.
-Configure native logging once from the native module after ``get_config`` is available. In ``sitecustomize.py``,
-call ``_configure_ddtrace_file_logger(get_config)`` to replace the initial file handler with resolved settings.
-Run the Python-version support check only in ``sitecustomize.py``, for ``ddtrace.auto`` and ``ddtrace-run``.
-Initialize enabled Data Streams handlers from preload and manual patching, independently of ``ddtrace.trace``.
+Keep package and launcher imports lightweight. Initialize enabled products in bootstrap and report
+setup errors without preventing application startup. Configure Python logging at package import,
+then apply resolved file settings and check Python-version support in ``sitecustomize.py``.
+Set ``_DD_GLOBAL_TRACER_INIT=false`` to detect root-level exports scheduled for removal in v5.0;
+import those values from their defining modules instead.
 
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
 These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, etc. Before starting these Products,
