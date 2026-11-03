@@ -113,3 +113,6 @@ For `curl` calls in CI, use `--fail` and transient retries (`--retry 5 --retry-d
 --retry-connrefused`, or an explicit loop). Download to a file before extracting/executing;
 never pipe retried downloads into `tar`/`sh` or merge stderr into captured responses.
 Status-aware polling and best-effort lookups may use justified alternatives with visible failure handling.
+
+For `gh` calls in GitLab CI, use `gh_retry` from `.gitlab/scripts/gh-retry.sh` unless a polling
+loop already retries the call. Export `GH_TOKEN` instead of `gh auth login`, which calls the API.
