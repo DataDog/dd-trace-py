@@ -95,11 +95,11 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@37382f4551445d7864c7794399be1c28935ebb8a
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@6bcdc71f0db7d262a02541a07546630784e7acdf
     secrets: inherit
     with:
       library: python_lambda
-      ref: '37382f4551445d7864c7794399be1c28935ebb8a'
+      ref: '6bcdc71f0db7d262a02541a07546630784e7acdf'
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
