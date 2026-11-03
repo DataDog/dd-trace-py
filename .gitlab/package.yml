@@ -438,7 +438,9 @@ variables:
 # Runs automatically on releases/RCs, available as manual trigger for other pipelines.
 "upload debug symbols to backend":
   stage: release
-  extends: .ci_utils
+  # TODO: move to .ci_utils once CI_UTILS_IMAGE ships binutils. datadog-ci elf-symbols upload
+  # runs objcopy, which the ci-utils image does not have yet.
+  extends: .testrunner
   needs:
     - job: "build linux"
       artifacts: true
