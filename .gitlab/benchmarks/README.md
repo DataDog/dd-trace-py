@@ -134,7 +134,7 @@ hardware is large enough to swamp the regressions these gates exist to catch.
 |-------|-------|-----|
 | Microbenchmarks | `MICROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py` from the `486234852809` ECR registry | Built from the `dd-trace-py` branch of `benchmarking-platform` and carries the `bp-runner` tooling plus the Python versions the scenarios need. |
 | Microbenchmark wheel builds | `PACKAGE_IMAGE` — `pypa/manylinux2014_x86_64` | `baseline:build` and `candidate` only need a manylinux toolchain, so they use the same image as the release wheel builds instead of the heavier benchmarking image. |
-| Baseline detection | `GITHUB_CLI_IMAGE` — `dd-octo-sts-ci-base` | `baseline:detect` needs `gh` and `dd-octo-sts` to mint a GitHub token, and nothing else. |
+| Baseline detection | `GITHUB_CLI_IMAGE` — `dd-octo-sts-ci-base` | `baseline:detect` needs `dd-octo-sts` to mint a GitHub token, and nothing else. |
 | Macrobenchmarks | `MACROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py-macrobenchmarks` | Separate image because it bundles the Flask and Django applications under test and their load-generation harness. |
 | SLO gates | `benchmarking-platform-tools-ubuntu`, pinned by tag | Supplied by the `benchmarking-platform-tools` template; both pipelines pin a tag as a temporary override. |
 | Serverless | `SLS_CI_IMAGE` — `ci/serverless-tools` | The suite runs entirely in `DataDog/serverless-tools`; this repo only triggers it. |

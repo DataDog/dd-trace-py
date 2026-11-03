@@ -127,12 +127,10 @@ baseline:detect:
     git config --global --add safe.directory ${CI_PROJECT_DIR}
     git remote set-url origin "${GITHUB_REPO_URL}"
 
-    if [ -z ${GH_TOKEN} ]
-    then
-      # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-      gh auth login --with-token < token
-      rm token
+    if [ -z "${GH_TOKEN:-}" ]; then
+      # gh reads GH_TOKEN. Unlike gh auth login, this does not call the GitHub API.
+      GH_TOKEN="$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)"
+      export GH_TOKEN
     fi
 
     # Determine baseline to test against and save env variables into `baseline.env`

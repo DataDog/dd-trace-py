@@ -33,7 +33,6 @@ docker pull "${IMAGE}"
 section_end "docker_pull"
 
 section_start "build_wheel" "Building wheel (${UV_PYTHON}, ${WINDOWS_ARCH})"
-rm -rf "${PROJECT_DIR}/dist"
 
 docker run --rm \
   -v "${PROJECT_DIR_WIN}:C:\\workspace" \
