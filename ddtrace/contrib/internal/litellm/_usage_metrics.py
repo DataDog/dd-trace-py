@@ -638,6 +638,11 @@ def _failure_payload(request_data: dict[str, Any]) -> Optional[dict[str, Any]]:
     return {"response_cost": request_data.get("response_cost"), "metadata": {"usage_object": usage}}
 
 
+# Server-sent events end lines only with CR, LF or CRLF. str.splitlines also splits at characters such as U+2028,
+# which a JSON string can hold unescaped.
+_SSE_LINE_END = re.compile(r"\r\n|\r|\n")
+
+
 def _sse_data(chunks: Any) -> Any:
     """The JSON text of each server-sent event in chunks; a chunk can hold several events, or be one bare event."""
     for chunk in chunks:
@@ -645,7 +650,7 @@ def _sse_data(chunks: Any) -> Any:
             chunk = chunk.decode("utf-8", errors="replace")
         if not isinstance(chunk, str):
             continue
-        for line in chunk.splitlines():
+        for line in _SSE_LINE_END.split(chunk):
             line = line.strip()
             if line.startswith("data:"):
                 line = line[5:].strip()

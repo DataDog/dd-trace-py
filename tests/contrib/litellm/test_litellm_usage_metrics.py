@@ -1341,6 +1341,25 @@ def test_chat_stream_zero_counts(installed, writer, usage_chunk, usage, source):
     assert (attempt.get("input_token_source"), attempt.get("output_token_source")) == (source, source)
 
 
+@pytest.mark.parametrize("separator", ["\u2028", "\u2029", "\u0085"])
+def test_responses_stream_usage_keeps_unicode_line_separators_in_output(separator):
+    # Unescaped in a JSON string, these characters are not SSE line endings: the usage after the output must be read.
+    completed = json.dumps(
+        {
+            "type": "response.completed",
+            "response": {
+                "model": "gpt-4o-mini-2024-07-18",
+                "output": [{"content": [{"text": "first" + separator + "last"}]}],
+                "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
+            },
+        },
+        ensure_ascii=False,
+    )
+    assert separator in completed
+    event = "event: response.completed\r\ndata: " + completed + "\r\n\r\n"
+    assert _usage_metrics.responses_stream_usage(event) == (True, True, True, "gpt-4o-mini-2024-07-18", True)
+
+
 def test_responses_stream_usage_reads_the_raw_events():
     created = 'data: {"type": "response.created", "response": {"model": "gpt-4o-mini-2024-07-18"}}'
     completed = json.dumps(
