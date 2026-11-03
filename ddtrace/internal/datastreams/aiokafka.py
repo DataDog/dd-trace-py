@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 import time
 from types import TracebackType
 from typing import TYPE_CHECKING
