@@ -4,6 +4,7 @@ import sys
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import _resolve_source_file
+from ddtrace.internal.rate_limiter import RateLimitExceeded
 from tests.debugging.utils import create_log_line_probe
 
 
@@ -51,10 +52,13 @@ def test_mutability():
     assert before != after
 
     before._error_throttled_until = 420.0
+    assert before.condition_error_limiter.limit() is not RateLimitExceeded
+    assert before.condition_error_limiter.limit() is RateLimitExceeded
     before.update(after)
 
     assert before == after
     assert before._error_throttled_until == 0.0
+    assert before.condition_error_limiter.limit() is not RateLimitExceeded
 
 
 def test_probe_hash():
