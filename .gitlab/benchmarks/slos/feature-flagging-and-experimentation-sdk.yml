@@ -54,13 +54,13 @@ experiments:
               - execution_time < 0.120 ms
           - name: openfeatureflagevaluation-provider-resolution-split-features-stress
             thresholds:
-              - execution_time < 0.400 ms
+              - execution_time < 0.242 ms
           - name: openfeatureflagevaluation-provider-resolution-split-features-typical
             thresholds:
-              - execution_time < 0.100 ms
+              - execution_time < 0.076 ms
           - name: openfeatureflagevaluation-provider-resolution-stress
             thresholds:
-              - execution_time < 0.380 ms
+              - execution_time < 0.228 ms
           - name: openfeatureflagevaluation-provider-resolution-typical
             thresholds:
-              - execution_time < 0.090 ms
+              - execution_time < 0.060 ms
