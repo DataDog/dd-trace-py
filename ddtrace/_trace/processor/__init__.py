@@ -1,6 +1,5 @@
 import abc
 from collections import defaultdict
-import inspect
 from itertools import chain
 import logging
 from typing import Optional
@@ -39,6 +38,7 @@ from ddtrace.internal.threads import RLock
 from ddtrace.internal.threads import local
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -315,18 +315,6 @@ def _resolve_apm_trace_agentless() -> bool:
         log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
         return False
     return True
-
-
-def _accepts_keyword(func, name: str) -> bool:
-    """Whether func can be called with the keyword argument name."""
-    try:
-        parameters = inspect.signature(func).parameters
-    except (TypeError, ValueError):
-        return False
-    param = parameters.get(name)
-    if param is not None and param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
-        return True
-    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
 
 
 # Track telemetry span metrics by span api
@@ -745,12 +733,16 @@ class SpanAggregator(SpanProcessor):
         compute_stats: Optional[bool],
         apm_opt_out: Optional[bool],
     ) -> None:
-        recreate_kwargs = {"appsec_enabled": appsec_enabled, "llmobs_enabled": llmobs_enabled}
-        # Writers outside ddtrace may still override recreate() without the stats arguments.
-        for name, value in (("compute_stats_enabled", compute_stats), ("stats_opt_out", apm_opt_out)):
-            if value is not None and _accepts_keyword(self.writer.recreate, name):
-                recreate_kwargs[name] = value
-        self.writer = self.writer.recreate(**recreate_kwargs)
+        if isinstance(self.writer, NativeWriter):
+            self.writer = self.writer.recreate(
+                appsec_enabled=appsec_enabled,
+                llmobs_enabled=llmobs_enabled,
+                compute_stats_enabled=compute_stats,
+                stats_opt_out=apm_opt_out,
+            )
+        else:
+            # Only NativeWriter computes stats. Custom writers may override recreate() without the stats arguments.
+            self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
     def _reset_writer(
         self,
