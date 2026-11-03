@@ -12,7 +12,6 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
 | `kind` | `patch release` | Text |
 | `draft_url` | `https://github.com/.../releases/tag/v4.15.8` | Text |
 | `target_sha` | `503be289517c…` | Text |
-| `branch` | `4.15` | Text |
 | `reviewer_brett` | `UD1N1U7JQ` | **User ID** |
 | `reviewer_emmett` | `U04HER8LNAZ` | **User ID** |
 | `runner` | `vlad-scherbich` | Text (GitHub login) |

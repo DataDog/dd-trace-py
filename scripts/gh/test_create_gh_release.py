@@ -346,7 +346,7 @@ class SlackDefaultsTests(unittest.TestCase):
                 )
         self.assertEqual(fields["version"], "4.16.2")
         self.assertEqual(fields["kind"], "patch release")
-        self.assertEqual(fields["branch"], "4.16")
+        self.assertNotIn("branch", fields)
         self.assertEqual(fields["target_sha"], "824a3b275151")
         self.assertEqual(fields["reviewer_brett"], SLACK_USER_BRETT_ID)
         self.assertEqual(fields["reviewer_emmett"], SLACK_USER_EMMETT_ID)

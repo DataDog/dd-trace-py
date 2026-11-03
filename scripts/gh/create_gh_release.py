@@ -2751,7 +2751,6 @@ def format_workflow_trigger_payload(
         "kind": kind,
         "draft_url": draft_url,
         "target_sha": target_sha,
-        "branch": xy_branch_for_version(ver),
         "reviewer_brett": slack_user_id(SLACK_USER_BRETT_ENV, SLACK_USER_BRETT_ID),
         "reviewer_emmett": slack_user_id(SLACK_USER_EMMETT_ENV, SLACK_USER_EMMETT_ID),
         "runner": resolve_runner_plain(),
