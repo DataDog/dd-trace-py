@@ -405,12 +405,10 @@ variables:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script: |
-    if [ -z ${GH_TOKEN} ]
-    then
-      # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-      gh auth login --with-token < token
-      rm token
+    if [ -z "${GH_TOKEN:-}" ]; then
+      # gh reads GH_TOKEN. Unlike gh auth login, this does not call the GitHub API.
+      GH_TOKEN="$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)"
+      export GH_TOKEN
     fi
     # Prevent git operation errors:
     #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...

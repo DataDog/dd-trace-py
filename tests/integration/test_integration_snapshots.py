@@ -392,6 +392,7 @@ except KeyboardInterrupt:
         token=token,
         ignores=["meta._dd.base_service"],
         variants=variants,
+        compute_stats_enabled=compute_stats == "true",
     ):
         # Copy environment INSIDE snapshot_context so it includes the test session token
         env = os.environ.copy()
@@ -399,7 +400,7 @@ except KeyboardInterrupt:
             {
                 "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
                 "DD_TRACE_API_VERSION": api_version,
-                "DD_TRACE_COMPUTE_STATS": compute_stats,
+                "DD_TRACE_STATS_COMPUTATION_ENABLED": compute_stats,
             }
         )
 
