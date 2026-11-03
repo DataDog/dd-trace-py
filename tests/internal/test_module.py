@@ -551,6 +551,7 @@ def test_module_watchdog_restores_spec_loader():
     import warnings
 
     from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.module import _ImportHookChainedLoader
 
     ModuleWatchdog.install()
 
@@ -564,6 +565,7 @@ def test_module_watchdog_restores_spec_loader():
 
     for module in (spec_loader_victim, namespace_test):
         assert module.__loader__ is module.__spec__.loader, module
+        assert not isinstance(module.__loader__, _ImportHookChainedLoader), module
 
     # Python 3.15+ emits a DeprecationWarning when formatting a traceback
     # frame from a module whose loaders disagree.
