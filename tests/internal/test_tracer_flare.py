@@ -712,7 +712,10 @@ def test_multiple_process_success():
     import tempfile
     import time
 
+    from ddtrace._logger import configure_ddtrace_logger
     from ddtrace.internal.flare.flare import Flare
+
+    configure_ddtrace_logger()
 
     TRACE_AGENT_URL = "http://localhost:9126"
     FLARE_REQUEST_DATA = ("1111111", "myhostname", "user.name@datadoghq.com", "d53fc8a4-8820-47a2-aa7d-d565582feb81")
@@ -803,6 +806,10 @@ def test_multiple_process_partial_failure():
     import multiprocessing
     import pathlib
     import tempfile
+
+    from ddtrace._logger import configure_ddtrace_logger
+
+    configure_ddtrace_logger()
 
     TRACE_AGENT_URL = "http://localhost:9126"
     FLARE_REQUEST_DATA = ("1111111", "myhostname", "user.name@datadoghq.com", "d53fc8a4-8820-47a2-aa7d-d565582feb81")

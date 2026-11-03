@@ -7,8 +7,8 @@ from unittest import mock
 
 import pytest
 
-import ddtrace
 from ddtrace.internal import debug
+import ddtrace.trace
 from tests.integration.utils import AGENT_VERSION
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess

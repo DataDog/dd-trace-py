@@ -50,6 +50,11 @@ def __getattr__(name):
 
     from importlib import import_module
 
+    if name == "config":
+        from ddtrace._logger import configure_ddtrace_logger
+
+        configure_ddtrace_logger()
+
     module_name, attr_name = _EXPORTS[name]
     module = import_module(module_name)
     value = getattr(module, attr_name)

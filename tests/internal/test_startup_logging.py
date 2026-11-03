@@ -90,7 +90,13 @@ def test_logging_configuration_is_replayed_to_telemetry():
 
 
 @pytest.mark.parametrize(
-    "entrypoint", ["import ddtrace.auto", "from ddtrace.trace import tracer", "from ddtrace import patch; patch()"]
+    "entrypoint",
+    [
+        "import ddtrace.auto",
+        "from ddtrace.trace import tracer",
+        "from ddtrace import patch; patch()",
+        "from ddtrace import config",
+    ],
 )
 def test_logger_configured_once_across_entrypoints(tmp_path, entrypoint):
     run(
@@ -111,7 +117,13 @@ def test_logger_configured_once_across_entrypoints(tmp_path, entrypoint):
 
 
 @pytest.mark.parametrize(
-    "entrypoint", ["import ddtrace.auto", "from ddtrace.trace import tracer", "from ddtrace import patch; patch()"]
+    "entrypoint",
+    [
+        "import ddtrace.auto",
+        "from ddtrace.trace import tracer",
+        "from ddtrace import patch; patch()",
+        "from ddtrace import config",
+    ],
 )
 def test_invalid_logging_configuration_does_not_abort_setup(entrypoint):
     result = run(
@@ -123,6 +135,27 @@ def test_invalid_logging_configuration_does_not_abort_setup(entrypoint):
         DD_TRACE_LOG_FILE_LEVEL="INVALID",
     )
     assert b"Failed to configure ddtrace logging" in result.stderr
+
+
+@pytest.mark.parametrize("telemetry", ["true", "false"])
+def test_public_config_warnings_use_configured_logger(tmp_path, telemetry):
+    log_file = tmp_path / "trace.log"
+    result = run(
+        """
+        import sys
+        from ddtrace import config
+        assert config._debug_mode is False
+        assert 'ddtrace.trace' not in sys.modules
+    """,
+        DD_TRACE_LOG_FILE=str(log_file),
+        DD_TRACE_LOG_LEVEL="WARNING",
+        DD_TRACE_DEBUG="false",
+        OTEL_LOG_LEVEL="warning",
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED=telemetry,
+    )
+    warning = "Setting OTEL_LOG_LEVEL to warning is not supported by ddtrace, this configuration will be ignored."
+    assert result.stderr.decode().count(warning) == 1
+    assert log_file.read_text().count(warning) == 1
 
 
 @pytest.mark.parametrize(
