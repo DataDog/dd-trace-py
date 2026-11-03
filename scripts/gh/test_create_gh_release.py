@@ -27,7 +27,9 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from create_gh_release import _GH_RELEASE_REQUIRED_FLAGS  # noqa: E402
+from create_gh_release import _RELEASE_SCRIPT_BRANCH_NAME  # noqa: E402
 from create_gh_release import _RELEASE_SCRIPT_BRANCH_URL  # noqa: E402
+from create_gh_release import _RELEASE_SCRIPT_PATH  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_DEFAULT  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_GUILD_ENV  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_PROD_ENV  # noqa: E402
@@ -335,7 +337,7 @@ class SlackDefaultsTests(unittest.TestCase):
 
     def test_format_workflow_trigger_payload_fields(self) -> None:
         with mock.patch.dict("os.environ", {}, clear=True):
-            with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
+            with mock.patch("create_gh_release.resolve_gh_login", return_value="test-runner"):
                 fields: dict[str, str] = format_workflow_trigger_payload(
                     version="4.16.2",
                     target_sha="824a3b275151",
@@ -350,7 +352,29 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(fields["reviewer_emmett"], SLACK_USER_EMMETT_ID)
         self.assertEqual(fields["channel_id"], SLACK_CHANNEL_PROD_ID)
         self.assertEqual(fields["runner"], "test-runner")
+        self.assertEqual(fields["script"], _RELEASE_SCRIPT_PATH)
+        self.assertEqual(fields["script_branch"], _RELEASE_SCRIPT_BRANCH_NAME)
+        self.assertEqual(fields["script_branch_url"], _RELEASE_SCRIPT_BRANCH_URL)
+        self.assertEqual(fields["commands_hint"], "patch / rc / final")
         self.assertTrue(fields["draft_url"].endswith("untagged-c75ab298b627dd470d8f"))
+
+    def test_resolve_gh_login_prefers_personal_on_datadog_repo(self) -> None:
+        import create_gh_release as mod
+
+        mod._RUNNER_LOGIN_CACHE = None
+        mod._RUNNER_DISPLAY_CACHE = None
+        with mock.patch.object(mod, "_gh_api_user_login", side_effect=["vlad-scherbich_ddog", "vlad-scherbich"]):
+            with mock.patch.object(
+                mod,
+                "_gh_auth_logins_github_com",
+                return_value=["vlad-scherbich_ddog", "vlad-scherbich"],
+            ):
+                with mock.patch.object(mod, "_gh_auth_token_for_user", return_value="tok"):
+                    login: str = mod.resolve_gh_login()
+        self.assertEqual(login, "vlad-scherbich")
+        self.assertEqual(mod.resolve_runner_plain(), "vlad-scherbich")
+        display: str = mod.resolve_runner_display()
+        self.assertEqual(display, "<https://github.com/vlad-scherbich|vlad-scherbich>")
 
     def test_auto_created_footer_includes_runner(self) -> None:
         with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
@@ -468,42 +492,35 @@ class SlackDefaultsTests(unittest.TestCase):
     def test_resolve_runner_display_prefers_gh_login(self) -> None:
         import create_gh_release as mod
 
-        fake_gh: mock.Mock = mock.Mock(returncode=0, stdout="vlad-scherbich\n", stderr="")
         with mock.patch.object(mod, "_RUNNER_DISPLAY_CACHE", None):
-            with mock.patch("create_gh_release.subprocess.run", return_value=fake_gh) as run_mock:
-                display: str = resolve_runner_display()
+            with mock.patch.object(mod, "_RUNNER_LOGIN_CACHE", None):
+                with mock.patch.object(mod, "resolve_gh_login", return_value="vlad-scherbich"):
+                    display: str = resolve_runner_display()
         self.assertEqual(display, "<https://github.com/vlad-scherbich|vlad-scherbich>")
-        run_mock.assert_called_once()
-        argv: list[str] = run_mock.call_args.args[0]
-        self.assertEqual(argv[:3], ["gh", "api", "user"])
 
     def test_resolve_runner_display_falls_back_to_git_name(self) -> None:
         import create_gh_release as mod
 
-        gh_fail: mock.Mock = mock.Mock(returncode=1, stdout="", stderr="boom")
         git_ok: mock.Mock = mock.Mock(returncode=0, stdout="Local Name\n", stderr="")
 
-        def fake_run(cmd: list[str], **_kwargs: Any) -> mock.Mock:
-            if cmd and cmd[0] == "gh":
-                return gh_fail
-            return git_ok
-
         with mock.patch.object(mod, "_RUNNER_DISPLAY_CACHE", None):
-            with mock.patch("create_gh_release.subprocess.run", side_effect=fake_run):
-                display: str = resolve_runner_display()
+            with mock.patch.object(mod, "_RUNNER_LOGIN_CACHE", None):
+                with mock.patch.object(mod, "resolve_gh_login", return_value=""):
+                    with mock.patch("create_gh_release.subprocess.run", return_value=git_ok):
+                        display: str = resolve_runner_display()
         self.assertEqual(display, "`Local Name`")
 
     def test_resolve_runner_display_caches(self) -> None:
         import create_gh_release as mod
 
-        fake_gh: mock.Mock = mock.Mock(returncode=0, stdout="cached-user\n", stderr="")
         with mock.patch.object(mod, "_RUNNER_DISPLAY_CACHE", None):
-            with mock.patch("create_gh_release.subprocess.run", return_value=fake_gh) as run_mock:
-                first: str = resolve_runner_display()
-                second: str = resolve_runner_display()
+            with mock.patch.object(mod, "_RUNNER_LOGIN_CACHE", None):
+                with mock.patch.object(mod, "resolve_gh_login", return_value="cached-user") as login_mock:
+                    first: str = resolve_runner_display()
+                    second: str = resolve_runner_display()
         self.assertEqual(first, second)
         self.assertEqual(first, "<https://github.com/cached-user|cached-user>")
-        self.assertEqual(run_mock.call_count, 1)
+        self.assertEqual(login_mock.call_count, 1)
 
     def test_preferred_env_names(self) -> None:
         self.assertEqual(SLACK_CHANNEL_PROD_ENV, "DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL")

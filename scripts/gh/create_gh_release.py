@@ -218,6 +218,11 @@ _RELEASE_SCRIPT_BRANCH_URL: str = (
 )
 # Cached Slack/review credit for who ran the script (gh login or local name).
 _RUNNER_DISPLAY_CACHE: Optional[str] = None
+# Plain GitHub login used inside resolve_runner_display / resolve_runner_plain.
+_RUNNER_LOGIN_CACHE: Optional[str] = None
+# Release-script feature branch name (compare URL leaf + Workflow footer field).
+_RELEASE_SCRIPT_BRANCH_NAME: str = "vlad/release-create-release-rc-script"
+_RELEASE_SCRIPT_PATH: str = "scripts/gh/create_gh_release.py"
 
 # When True, ``run_external_with_stderr`` echoes stderr from reno/pandoc/etc.
 # to the user's terminal. Set by ``main`` from ``--verbose``.
@@ -428,6 +433,107 @@ def draft_kind_phrase(version: str) -> str:
     return "release"
 
 
+def _gh_api_user_login(*, token: str = "") -> str:
+    """Return ``gh api user --jq .login``, optionally with an explicit token."""
+    env: dict[str, str] = dict(os.environ)
+    if token:
+        env["GH_TOKEN"] = token
+        env.pop("GITHUB_TOKEN", None)
+    try:
+        cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
+            ["gh", "api", "user", "--jq", ".login"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if cp.returncode != 0:
+        return ""
+    return cp.stdout.strip()
+
+
+def _gh_auth_logins_github_com() -> list[str]:
+    """Logged-in github.com accounts from ``gh auth status`` (active first)."""
+    try:
+        cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
+            ["gh", "auth", "status"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    text: str = (cp.stdout or "") + (cp.stderr or "")
+    active: list[str] = []
+    others: list[str] = []
+    current: str = ""
+    for line in text.splitlines():
+        m: Optional[re.Match[str]] = re.search(
+            r"Logged in to github\.com account (\S+)",
+            line,
+        )
+        if m is not None:
+            current = m.group(1)
+            continue
+        if current and "Active account: true" in line:
+            active.append(current)
+            current = ""
+            continue
+        if current and "Active account: false" in line:
+            others.append(current)
+            current = ""
+            continue
+    return active + others
+
+
+def _gh_auth_token_for_user(login: str) -> str:
+    """Token for a logged-in github.com user, or empty if unavailable."""
+    try:
+        cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
+            ["gh", "auth", "token", "--user", login],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if cp.returncode != 0:
+        return ""
+    return cp.stdout.strip()
+
+
+def resolve_gh_login() -> str:
+    """GitHub login for Slack/review credit.
+
+    Prefer the active ``gh`` login. On DataDog/* repos, if the active login
+    looks like an EMU account (``*_ddog``), prefer another logged-in
+    github.com account that is not ``*_ddog`` (personal vs EMU). Falls back
+    to the active login when no alternate works.
+    """
+    global _RUNNER_LOGIN_CACHE
+    if _RUNNER_LOGIN_CACHE is not None:
+        return _RUNNER_LOGIN_CACHE
+
+    active: str = _gh_api_user_login()
+    login: str = active
+    if GH_REPO.startswith("DataDog/") and active.endswith("_ddog"):
+        for candidate in _gh_auth_logins_github_com():
+            if candidate == active or candidate.endswith("_ddog"):
+                continue
+            token: str = _gh_auth_token_for_user(candidate)
+            if not token:
+                continue
+            verified: str = _gh_api_user_login(token=token)
+            if verified == candidate:
+                login = candidate
+                break
+
+    _RUNNER_LOGIN_CACHE = login
+    return login
+
+
 def resolve_runner_display() -> str:
     """Who ran this script, for Slack/review fine print.
 
@@ -440,18 +546,7 @@ def resolve_runner_display() -> str:
     if _RUNNER_DISPLAY_CACHE is not None:
         return _RUNNER_DISPLAY_CACHE
 
-    login: str = ""
-    try:
-        cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
-            ["gh", "api", "user", "--jq", ".login"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if cp.returncode == 0:
-            login = cp.stdout.strip()
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+    login: str = resolve_gh_login()
     if login:
         _RUNNER_DISPLAY_CACHE = f"<https://github.com/{login}|{login}>"
         return _RUNNER_DISPLAY_CACHE
@@ -480,7 +575,7 @@ def resolve_runner_display() -> str:
 
 def generated_by_pr_line(extra: str = "") -> str:
     """Bump-PR body credit linking the release-script feature branch."""
-    linked: str = f"[scripts/gh/create_gh_release.py]({_RELEASE_SCRIPT_BRANCH_URL})"
+    linked: str = f"[{_RELEASE_SCRIPT_PATH}]({_RELEASE_SCRIPT_BRANCH_URL})"
     if extra:
         return f"_note: generated by {linked} {extra}._"
     return f"_note: generated by {linked}._"
@@ -490,8 +585,8 @@ def auto_created_footer() -> str:
     """Fine-print footer: automation branch credit plus who ran the tool."""
     runner: str = resolve_runner_display()
     return (
-        "_Brought to you by release automation — `scripts/gh/create_gh_release.py` "
-        f"on <{_RELEASE_SCRIPT_BRANCH_URL}|vlad/release-create-release-rc-script>. "
+        f"_Brought to you by release automation — `{_RELEASE_SCRIPT_PATH}` "
+        f"on <{_RELEASE_SCRIPT_BRANCH_URL}|{_RELEASE_SCRIPT_BRANCH_NAME}>. "
         f"Run by {runner}. "
         "Try `patch` / `rc` / `final`._"
     )
@@ -2588,7 +2683,10 @@ def slack_mention(env_var: str, default_user_id: str) -> str:
 
 
 def resolve_runner_plain() -> str:
-    """Plain runner label for Workflow text vars (no mrkdwn wrappers)."""
+    """Plain GitHub login (or local name) for Workflow text vars — no mrkdwn."""
+    login: str = resolve_gh_login()
+    if login:
+        return login
     display: str = resolve_runner_display()
     linked: Optional[re.Match[str]] = re.fullmatch(
         r"<https://github.com/[^|]+\|([^>]+)>",
@@ -2658,6 +2756,12 @@ def format_workflow_trigger_payload(
         "reviewer_emmett": slack_user_id(SLACK_USER_EMMETT_ENV, SLACK_USER_EMMETT_ID),
         "runner": resolve_runner_plain(),
         "channel_id": channel_id,
+        # Footer pieces so Workflow can italicize the "Brought to you by" note
+        # without stuffing mrkdwn into one text variable.
+        "script": _RELEASE_SCRIPT_PATH,
+        "script_branch": _RELEASE_SCRIPT_BRANCH_NAME,
+        "script_branch_url": _RELEASE_SCRIPT_BRANCH_URL,
+        "commands_hint": "patch / rc / final",
     }
 
 

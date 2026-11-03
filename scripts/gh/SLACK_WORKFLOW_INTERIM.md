@@ -8,15 +8,19 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
 
 | Key | Example | Workflow variable type |
 | --- | --- | --- |
-| `version` | `4.16.2` | Text |
+| `version` | `4.15.8` | Text |
 | `kind` | `patch release` | Text |
-| `draft_url` | `https://github.com/.../releases/...` | Text |
-| `target_sha` | `824a3b275151…` | Text |
-| `branch` | `4.16` | Text |
+| `draft_url` | `https://github.com/.../releases/tag/v4.15.8` | Text |
+| `target_sha` | `503be289517c…` | Text |
+| `branch` | `4.15` | Text |
 | `reviewer_brett` | `UD1N1U7JQ` | **User ID** |
 | `reviewer_emmett` | `U04HER8LNAZ` | **User ID** |
-| `runner` | `vlad.scherbich` | Text |
+| `runner` | `vlad-scherbich` | Text (GitHub login) |
 | `channel_id` | `C04MK6NNDG9` | Channel ID (optional) |
+| `script` | `scripts/gh/create_gh_release.py` | Text |
+| `script_branch` | `vlad/release-create-release-rc-script` | Text |
+| `script_branch_url` | `https://github.com/DataDog/dd-trace-py/compare/main...vlad/release-create-release-rc-script` | Text |
+| `commands_hint` | `patch / rc / final` | Text |
 
 ## Rebuild the Workflow (click path)
 
@@ -30,7 +34,7 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
    - Line 1: `:package:` then bold **Draft** then insert `kind` then insert `version` then ` is ready for review`
    - Line 2: insert `draft_url` (bare URL usually auto-links) · `target` then insert `target_sha`
    - Line 3: insert `reviewer_brett` and `reviewer_emmett` (User ID vars become real @mentions) then ` — can I get a :lgtm:? Please review and` then bold **Publish release** then ` when ready.`
-   - Line 4: `Run by` insert `runner` · `branch` insert `branch`
+   - Footer (italic in the editor): `Brought to you by release automation — ` then insert `script` then ` on ` then insert `script_branch_url` / `script_branch` then ` . Run by ` then insert `runner` then ` . Try ` then insert `commands_hint` then `.`
 
 7. **Publish** the workflow. Dry-run the script first (`--dry-run --slack`) and confirm the JSON keys match. Only then wet-post.
 
