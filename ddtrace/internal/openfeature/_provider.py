@@ -658,7 +658,7 @@ class DataDogProvider(AbstractProvider):
         evaluation_context: typing.Optional[EvaluationContext],
         flag_metadata: dict[str, typing.Any],
     ) -> None:
-        for dependency in details.dependency_evaluations:
+        for dependency in getattr(details, "dependency_evaluations", ()):
             error_code = (
                 self._map_error_code_to_openfeature(dependency.error_code)
                 if dependency.error_code is not None

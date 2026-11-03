@@ -1,6 +1,7 @@
 """Dependent evaluations and telemetry through the native evaluator and provider."""
 
 import copy
+from types import SimpleNamespace
 from unittest import mock
 
 from openfeature import api
@@ -12,6 +13,7 @@ import pytest
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._native import process_ffe_configuration
+from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
@@ -190,14 +192,14 @@ def test_prerequisite_do_log_and_telemetry_failure_do_not_change_assignment(eval
     assert exposure_keys(exposures) == ["root"]
 
 
-def test_dependency_events_use_root_snapshot_consent_and_timestamp(evaluated):
+@pytest.mark.parametrize("consent", [True, False])
+def test_dependency_events_use_root_snapshot_consent_and_timestamp(evaluated, consent):
     _, client, evaluations, _, _ = evaluated
     config = create_config(create_boolean_flag("parent"), dependent_flag())
-    config["observeFullEvaluationData"] = True
+    config["observeFullEvaluationData"] = consent
     assert process_ffe_configuration(config)
     replacement = copy.deepcopy(config)
-    replacement["observeFullEvaluationData"] = False
-    from ddtrace.internal.openfeature._native import resolve_flag
+    replacement["observeFullEvaluationData"] = not consent
 
     def resolve_then_refresh(*args, **kwargs):
         result = resolve_flag(*args, **kwargs)
@@ -210,11 +212,46 @@ def test_dependency_events_use_root_snapshot_consent_and_timestamp(evaluated):
         )
 
     assert details.value is True
+    assert event_keys(evaluations) == ["parent", "root"]
     for call in evaluations.call_args_list:
         event = call.args[0]
-        assert event.observe_full_evaluation_data is True
-        assert event.attrs == {"plan": "pro"}
+        assert event.observe_full_evaluation_data is consent
+        assert event.attrs == ({"plan": "pro"} if consent else {})
         assert event.eval_time_ms == details.flag_metadata[EVAL_TIMESTAMP_METADATA_KEY]
+
+
+def test_independent_flag_with_older_native_resolution_details(evaluated):
+    _, client, evaluations, exposures, metrics = evaluated
+    assert process_ffe_configuration(create_config(create_boolean_flag("root")))
+
+    def resolve_without_dependencies(*args, **kwargs):
+        result = resolve_flag(*args, **kwargs)
+        return SimpleNamespace(
+            **{
+                name: getattr(result, name)
+                for name in (
+                    "value",
+                    "error_code",
+                    "error_message",
+                    "reason",
+                    "variant",
+                    "allocation_key",
+                    "flag_metadata",
+                    "do_log",
+                    "serial_id",
+                )
+            }
+        )
+
+    with mock.patch("ddtrace.internal.openfeature._provider.resolve_flag", side_effect=resolve_without_dependencies):
+        details = client.get_boolean_details("root", False, EvaluationContext(targeting_key="subject"))
+
+    assert details.value is True
+    assert details.error_code is None
+    assert details.variant == "true"
+    assert event_keys(evaluations) == ["root"]
+    assert exposure_keys(exposures) == ["root"]
+    assert [call.kwargs["flag_key"] for call in metrics.call_args_list] == ["root"]
 
 
 def test_direct_disabled_flag_retains_disabled_reason(evaluated):
