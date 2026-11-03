@@ -1,3 +1,5 @@
+"""Helpers shared by LLM integrations and LLM Observability that do not depend on either product."""
+
 import json
 from typing import Any
 
