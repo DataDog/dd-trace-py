@@ -3,7 +3,7 @@ from ddtrace.llmobs._integrations.mistralai import EMBED_METADATA_PARAMS
 from ddtrace.llmobs._integrations.mistralai import GENERATE_METADATA_PARAMS
 
 
-def get_weather(location: str) -> dict:
+def get_weather(location: str) -> dict[str, object]:
     """Mock weather function for tool testing."""
     return {"location": location, "temperature": 72, "unit": "fahrenheit", "forecast": "Sunny"}
 
