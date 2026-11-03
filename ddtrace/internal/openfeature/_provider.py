@@ -808,7 +808,8 @@ class ExposureLoggingHook(Hook):
     It runs at the finally_after stage because the SDK runs after hooks first: an after
     hook that raises turns the result into an error, so a failed evaluation sends nothing
     and records nothing. The cache records even when Datadog logging is off, so
-    ExposureHook sees the same verdicts either way.
+    ExposureHook sees the same verdicts either way. Delivery to Datadog is best-effort:
+    the exposure is recorded before the send, so a failed enqueue is not retried.
     """
 
     def __init__(self) -> None:
