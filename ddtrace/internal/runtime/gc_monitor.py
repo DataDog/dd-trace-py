@@ -25,7 +25,13 @@ GEN_COUNT: int = 3
 # a collection (gc.callbacks, this one included, and finalizers) can hand the GIL to
 # other threads, and wall time would count all the time they run as pause.
 # Windows thread time only advances once per scheduler tick, so keep wall time there.
-_pause_clock_ns: Callable[[], int] = time.monotonic_ns if sys.platform == "win32" else time.thread_time_ns
+# macOS builds before thread_time_ns existed (and any other build without it) also
+# fall back to wall time — getattr, not a platform name check, so a newer macOS
+# Python that exposes the clock still uses it.
+_thread_time_ns: Callable[[], int] | None = getattr(time, "thread_time_ns", None)
+_pause_clock_ns: Callable[[], int] = (
+    time.monotonic_ns if sys.platform == "win32" or _thread_time_ns is None else _thread_time_ns
+)
 
 
 def _gc_callbacks_supported() -> bool:

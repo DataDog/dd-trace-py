@@ -299,18 +299,20 @@ def test_skipped_stop_does_not_pair_with_a_later_stop() -> None:
 
 
 def test_pause_clock_matches_platform() -> None:
-    """Windows keeps wall time; elsewhere the collecting thread's CPU time.
+    """Wall time on Windows or when thread_time_ns is missing; else thread CPU.
 
     The GIL-wait exclusion test below only covers the thread-time path. This
-    pins the platform choice so the Windows branch is not untested.
+    pins the platform choice so the wall-time branch is not untested.
     """
-    expected: object = time.monotonic_ns if sys.platform == "win32" else time.thread_time_ns
+    expected: object = (
+        time.monotonic_ns if sys.platform == "win32" or not hasattr(time, "thread_time_ns") else time.thread_time_ns
+    )
     assert gc_monitor._pause_clock_ns is expected
 
 
 @pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="Windows pause clock stays wall time (thread time is too coarse)",
+    sys.platform == "win32" or not hasattr(time, "thread_time_ns"),
+    reason="pause clock is wall time when thread_time_ns is missing or too coarse",
 )
 def test_pause_excludes_time_other_threads_run() -> None:
     """Time that another thread runs during a collection is not a stop-the-world pause.
@@ -318,39 +320,44 @@ def test_pause_excludes_time_other_threads_run() -> None:
     Python code inside a collection (gc.callbacks, finalizers) can hand the GIL to
     another thread, which keeps it for as long as it runs. Wall time between start
     and stop would report all of that as one pause.
+
+    Drive start/stop directly so a large heap's real GC work is not inside the
+    measured window (that noise flaked under CI load against a 200ms budget).
     """
-    other_ran_ns: int = 200_000_000
+    other_ran_ns: int = 500_000_000
     go: threading.Event = threading.Event()
     other_done: threading.Event = threading.Event()
+    ready: threading.Event = threading.Event()
 
     def other_thread() -> None:
+        ready.set()
         go.wait()
         deadline: int = time.monotonic_ns() + other_ran_ns
         while time.monotonic_ns() < deadline:
             pass
         other_done.set()
 
-    def hand_off_gil(phase: str, info: dict[str, int]) -> None:
-        if phase == "start" and not other_done.is_set():
-            go.set()
-            other_done.wait(timeout=5)
-
     thread: threading.Thread = threading.Thread(target=other_thread, daemon=True)
     thread.start()
+    assert ready.wait(timeout=5)
+
     monitor: GCPauseMonitor = GCPauseMonitor()
-    monitor.acquire()
-    # After the monitor's hook, so the hand-off lands between its start and stop.
-    gc.callbacks.append(hand_off_gil)
+    # Count as acquired without installing the hook; only the injected pause is timed.
+    monitor._refcount = 1
     try:
         monitor.snapshot_and_reset()
-        gc.collect()
+        monitor._on_gc("start", {"generation": 0})
+        wall_start: int = time.monotonic_ns()
+        go.set()
+        assert other_done.wait(timeout=5)
+        wall_handoff_ns: int = time.monotonic_ns() - wall_start
+        monitor._on_gc("stop", {"generation": 0})
         snap: GCPauseSnapshot = monitor.snapshot_and_reset()
     finally:
-        gc.callbacks.remove(hand_off_gil)
-        monitor.release()
         go.set()
         thread.join(timeout=5)
+        monitor._refcount = 0
 
-    assert other_done.is_set()
-    assert snap.n_pauses >= 1
-    assert snap.max_ns < other_ran_ns // 2, snap
+    assert wall_handoff_ns >= other_ran_ns // 2, wall_handoff_ns
+    assert snap.n_pauses == 1
+    assert snap.max_ns < wall_handoff_ns // 5, (snap, wall_handoff_ns)
