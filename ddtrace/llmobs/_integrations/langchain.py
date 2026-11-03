@@ -158,6 +158,11 @@ class LangChainIntegration(BaseLLMIntegration):
         except Exception:
             parent_instance.__dict__["_datadog_spans"] = spans
 
+    def _on_request_span_started(self, span: Span, instance: Any = None, operation: str = "") -> None:
+        self.record_instance(instance, span)
+        if operation in ("llm", "chat"):
+            self.llmobs_set_prompt_tag(instance, span)
+
     def _llmobs_set_tags(
         self,
         span: Span,

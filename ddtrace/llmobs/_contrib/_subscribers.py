@@ -32,20 +32,27 @@ def unregister(component: str) -> None:
     # Shared listeners remain registered for other components and in-flight requests.
 
 
+def get_integration(component: str) -> Optional[BaseLLMIntegration]:
+    """Return the component's integration, building it on first use, or None if it is not registered."""
+    integration_cls = _integration_classes.get(component)
+    if integration_cls is None:
+        return None
+    integration = _integrations.get(component)
+    if integration is None:
+        integration = integration_cls(integration_config=getattr(config, component))
+        _integrations[component] = integration
+    return integration
+
+
 class LLMObsSpanStartingSubscriber(Subscriber):
     auto_register = False
     event_names = (f"{SpanLifecycleEvents.SPAN_STARTING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
     def on_event(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
-        component = ctx.event.component
-        integration_cls = _integration_classes.get(component)
-        if integration_cls is None:
-            return
-        integration = _integrations.get(component)
+        integration = get_integration(ctx.event.component)
         if integration is None:
-            integration = integration_cls(integration_config=getattr(config, component))
-            _integrations[component] = integration
+            return
         # Keep the request's integration alive across unpatch and repatch.
         ctx.set_item(_CONTEXT_KEY, integration)
         if ctx.event.submit_to_llmobs and integration.llmobs_enabled:
@@ -76,6 +83,7 @@ class LLMObsSpanStartedSubscriber(Subscriber):
             span._set_ctx_item(PROXY_REQUEST, True)
         integration._annotate_integration_tag(span)
         integration._stamp_llmobs_span_kind_at_start(span, event.operation, operation=event.operation)
+        integration._on_request_span_started(span, instance=event.instance, operation=event.operation)
 
 
 class LLMObsSpanFinishingSubscriber(Subscriber):
@@ -90,7 +98,7 @@ class LLMObsSpanFinishingSubscriber(Subscriber):
         event = ctx.event
         integration.llmobs_set_tags(
             span_from_context(ctx),
-            args=[],
+            args=list(event.request_args),
             kwargs=event.request_kwargs,
             response=event.response,
             operation=event.operation,

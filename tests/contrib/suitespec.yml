@@ -40,6 +40,7 @@ components:
     - ddtrace/contrib/internal/azure_servicebus/*
     - ddtrace/ext/azure_servicebus.py
   botocore:
+    - ddtrace/contrib/internal/bedrock_inference_profiles.py
     - ddtrace/contrib/internal/botocore/*
     - ddtrace/contrib/internal/boto/*
     - ddtrace/contrib/internal/aiobotocore/*

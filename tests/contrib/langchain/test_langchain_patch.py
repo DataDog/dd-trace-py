@@ -1,11 +1,11 @@
 import pytest
 
+from ddtrace.contrib.internal.bedrock_inference_profiles import _clear_inference_profile_cache
+from ddtrace.contrib.internal.bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.contrib.internal.langchain.patch import _extract_model_name
 from ddtrace.contrib.internal.langchain.patch import get_version
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import _clear_inference_profile_cache
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from tests.contrib.patch import PatchTestCase
 
 
