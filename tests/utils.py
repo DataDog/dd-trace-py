@@ -1377,12 +1377,6 @@ def snapshot_context(
             cast("AgentWriterInterface | HTTPWriter", writer_now).flush_queue(raise_exc=True)
 
     flush(before_start=True)
-    url = client._url(
-        "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
-    )
-    status, body = client._request("GET", url, timeout=timeout, retry=False, xfail_on_error=False)
-    if status != 200:
-        pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
     original_compute_stats_enabled = dd_config._trace_compute_stats
     original_stats_env = os.environ.get("DD_TRACE_STATS_COMPUTATION_ENABLED")
     completed = False
@@ -1395,9 +1389,17 @@ def snapshot_context(
         os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] = str(compute_stats_enabled).lower()
         if not subprocess_mode:
             if isinstance(writer, AgentWriterInterface):
+                # Replacing the exporter flushes pending stats without a session token.
+                # Do this before opening the session so earlier tests' stats cannot leak into it.
                 writer.set_test_session_token(session.token, compute_stats_enabled=compute_stats_enabled)
             else:
                 writer._headers[header] = session.token
+        url = client._url(
+            "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
+        )
+        status, body = client._request("GET", url, timeout=timeout, retry=False, xfail_on_error=False)
+        if status != 200:
+            pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
         try:
             yield session
             completed = session.verify_on_exit

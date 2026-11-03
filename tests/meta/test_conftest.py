@@ -13,6 +13,60 @@ from tests.utils import override_env
 from tests.utils import terminate_process_group
 
 
+@pytest.mark.parametrize("compute_stats_enabled", [False, True])
+@pytest.mark.parametrize("start_status", [200, 500])
+def test_snapshot_flushes_old_exporter_before_session_start(monkeypatch, compute_stats_enabled, start_status):
+    from ddtrace.internal.writer import NativeWriter
+
+    writer = mock.Mock(spec=NativeWriter)
+    writer.intake_url = "http://localhost:9126"
+    writer._test_session_token = "background"
+    old_exporter = writer._exporter = mock.Mock()
+    writer.set_test_session_token.side_effect = lambda *args, **kwargs: NativeWriter.set_test_session_token(
+        writer, *args, **kwargs
+    )
+    tracer = mock.Mock()
+    tracer._span_aggregator.writer = writer
+    monkeypatch.setattr(utils.ddtrace, "tracer", tracer)
+    monkeypatch.setattr(utils.dd_config, "_trace_compute_stats", True)
+    monkeypatch.setenv("DD_TRACE_STATS_COMPUTATION_ENABLED", "true")
+    old_headers = "X-Datadog-Test-Session-Token:background,Other:preserved"
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", old_headers)
+
+    def request(client, method, url, **kwargs):
+        assert "/test/session/start" in url
+        # Exporter shutdown sends any pending, untagged stats from preceding tests.
+        writer._shutdown_exporter.assert_called_once_with(old_exporter)
+        assert writer._test_session_token != "background"
+        assert writer._compute_stats_enabled is compute_stats_enabled
+        return start_status, b"session start failed" if start_status != 200 else b""
+
+    monkeypatch.setattr(utils.TestAgentClient, "_request", request)
+    verify = mock.Mock()
+    clear = mock.Mock()
+    monkeypatch.setattr(utils.SnapshotTest, "verify", verify)
+    monkeypatch.setattr(utils.SnapshotTest, "clear", clear)
+
+    def capture():
+        with utils.snapshot_context("regression", compute_stats_enabled=compute_stats_enabled):
+            assert os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] == str(compute_stats_enabled).lower()
+
+    if start_status == 200:
+        capture()
+        verify.assert_called_once()
+    else:
+        with pytest.raises(pytest.fail.Exception, match="session start failed"):
+            capture()
+        verify.assert_not_called()
+
+    clear.assert_called_once()
+    assert writer._test_session_token == "background"
+    assert writer._compute_stats_enabled is True
+    assert utils.dd_config._trace_compute_stats is True
+    assert os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] == "true"
+    assert os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] == old_headers
+
+
 @pytest.mark.parametrize("mode", ["graceful", "stubborn", "child"])
 def test_terminate_process_group(mode):
     code = """
