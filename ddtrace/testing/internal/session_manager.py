@@ -1,11 +1,13 @@
 import atexit
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
+from functools import cached_property
 import json
 import logging
 import os
 from pathlib import Path
 import re
+import tempfile
 import time
 import typing as t
 
@@ -26,6 +28,8 @@ from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_DIR
+from ddtrace.testing.internal.constants import TEST_OPTIMIZATION_GIT_DIR
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
 from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
@@ -73,6 +77,45 @@ _UPLOAD_SENTINEL_TTL_SECONDS = 300
 _UPLOAD_LOCK_FILENAME = "dd-trace-py.upload.lock"
 _UPLOAD_LOCK_TIMEOUT_SECONDS = 60.0
 _UPLOAD_LOCK_RETRY_INTERVAL_SECONDS = 0.5
+
+# Marker written after a successful unshallow fetch (git fetch --shallow-since
+# --update-shallow) so that follow-up pytest commands sharing the same checkout
+# do not fetch again. The fetch usually leaves .git/shallow in place (it
+# only moves the shallow boundary back), so later sessions still see a shallow
+# repository and would repeat the network round-trip even though a second fetch
+# reproduces exactly the history the first one already downloaded.
+# The marker is keyed to the repository's local HEAD (git rev-parse HEAD, not
+# the CI-provider commit SHA) and to the shallow boundary the fetch produced
+# (the boundary commits recorded in .git/shallow). It is honored only when
+# both still match, so a checkout that was re-shallowed at the same commit
+# (e.g. a git fetch --depth=1 during a CI re-checkout), a merge checkout whose
+# history was re-shallowed on one side while deepened on the other (HEAD and
+# even the reachable commit count can be unchanged or larger while ancestry
+# needed for the merge-base is gone), or a .testoptimization directory restored
+# into a fresh shallow clone is detected and re-fetched. There is deliberately
+# no TTL and no cleanup: a later CI run either has a fresh clone (marker
+# absent), a different HEAD or a different shallow boundary (marker mismatch),
+# and a rerun on the same HEAD over a persistent workspace can safely skip
+# because an identical shallow boundary still bounds the locally present
+# history.
+_UNSHALLOW_DONE_FILENAME = "dd-trace-py.unshallow-done"
+
+
+def _write_json_atomic(path: Path, payload: dict[str, t.Any]) -> None:
+    """Publish JSON using a private temporary file on the destination filesystem."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp: t.Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=path.name + ".", suffix=".tmp", delete=False
+        ) as output:
+            tmp = Path(output.name)
+            json.dump(payload, output)
+        # Close before replacing so publication also works on Windows.
+        tmp.replace(path)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
 
 
 def _parse_line_number(value: str) -> t.Optional[int]:
@@ -513,16 +556,30 @@ class SessionManager:
 
         return self.session.test_command
 
+    @cached_property
+    def _git_directory(self) -> t.Optional[Path]:
+        """Resolve the worktree-private Git directory once for upload coordination."""
+        # Offline sessions must not invoke Git, including during cleanup.
+        offline = get_offline_mode()
+        if offline.manifest_enabled or offline.payload_files_enabled:
+            return None
+        workspace = getattr(self, "workspace_path", None)
+        if workspace is None:
+            return None
+        try:
+            head = Git(cwd=str(workspace)).get_git_path("HEAD")
+        except RuntimeError:
+            return None
+        return head.parent if head is not None else None
+
     def _upload_sentinel_path(self) -> t.Optional[Path]:
         """Return the path to the upload-completion sentinel, or None if unavailable.
 
-        The sentinel lives inside ``.git/`` so it is naturally scoped to one repo
-        checkout and shared between xdist workers running against the same workspace.
+        The sentinel is private to this checkout, including when .git is a file
+        pointing to metadata outside the workspace.
         """
-        workspace_path = getattr(self, "workspace_path", None)
-        if workspace_path is None:
-            return None
-        return Path(workspace_path) / ".git" / _UPLOAD_SENTINEL_FILENAME
+        directory = self._git_directory
+        return directory / _UPLOAD_SENTINEL_FILENAME if directory is not None else None
 
     def _read_upload_sentinel(self) -> t.Optional[dict[str, t.Any]]:
         """Return the sentinel payload if it is fresh and matches our HEAD, else None.
@@ -577,22 +634,68 @@ class SessionManager:
         merge_base = env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA)
         if merge_base:
             payload_data["merge_base_sha"] = merge_base
-        tmp = sentinel.with_suffix(sentinel.suffix + ".tmp")
         try:
-            tmp.write_text(json.dumps(payload_data))
-            tmp.replace(sentinel)
+            _write_json_atomic(sentinel, payload_data)
         except OSError as e:
             log.debug("Could not write git upload sentinel %s: %s", sentinel, e)
 
-    def _upload_lock_path(self) -> t.Optional[Path]:
-        """Return the path to the cross-process upload lock, or None if unavailable."""
+    def _unshallow_done_path(self) -> t.Optional[Path]:
+        """Return the checkout's persistent fetch marker path, or None if unavailable."""
         workspace_path = getattr(self, "workspace_path", None)
         if workspace_path is None:
             return None
-        return Path(workspace_path) / ".git" / _UPLOAD_LOCK_FILENAME
+        return Path(workspace_path) / TEST_OPTIMIZATION_DIR / TEST_OPTIMIZATION_GIT_DIR / _UNSHALLOW_DONE_FILENAME
+
+    def _read_unshallow_done(self, git: Git) -> bool:
+        """Return whether a previous fetch's HEAD and shallow boundary still match.
+
+        Use the local HEAD because CI providers can report a different source SHA.
+        Any boundary change invalidates the marker, including re-shallowing one
+        parent of a merge while deepening another. Unknown or malformed state is
+        a cache miss; the marker has no TTL because it describes local Git history.
+        """
+        marker = self._unshallow_done_path()
+        if marker is None:
+            return False
+        try:
+            data = json.loads(marker.read_text())
+        except (OSError, ValueError):
+            return False
+        if not isinstance(data, dict):
+            return False
+        head_sha = git.get_commit_sha()
+        if not isinstance(head_sha, str) or not head_sha or data.get("head_sha") != head_sha:
+            return False
+        boundary = git.get_shallow_boundary()
+        # Compare the canonical JSON list directly: malformed nested values must
+        # be a cache miss rather than raising when converted to a set.
+        return boundary is not None and data.get("shallow_boundary") == sorted(boundary)
+
+    def _mark_unshallow_done(self, git: Git) -> None:
+        """Persist the unshallow-done marker so follow-up sessions skip the fetch."""
+        head_sha = git.get_commit_sha()
+        if not isinstance(head_sha, str) or not head_sha:
+            return
+        boundary = git.get_shallow_boundary()
+        if boundary is None:
+            return
+        marker = self._unshallow_done_path()
+        if marker is None:
+            return
+        try:
+            _write_json_atomic(
+                marker, {"head_sha": head_sha, "shallow_boundary": sorted(boundary), "timestamp": time.time()}
+            )
+        except OSError as e:
+            log.debug("Could not write unshallow-done marker %s: %s", marker, e)
+
+    def _upload_lock_path(self) -> t.Optional[Path]:
+        """Return the path to the cross-process upload lock, or None if unavailable."""
+        directory = self._git_directory
+        return directory / _UPLOAD_LOCK_FILENAME if directory is not None else None
 
     def cleanup_upload_artifacts(self) -> None:
-        """Delete the upload sentinel file left in .git/.
+        """Delete the upload sentinel in this checkout's Git metadata directory.
 
         Safe to call once the session is finishing — by that point all workers
         have already run upload_git_data() during their __init__, so the sentinel
@@ -608,6 +711,12 @@ class SessionManager:
         lock and unshallow concurrently — reintroducing the very race the lock
         is meant to prevent. The lock file is a zero-byte placeholder; leaving
         it in .git/ is harmless.
+
+        The unshallow-done marker (``.testoptimization/git/dd-trace-py.unshallow-done``)
+        is never touched by this cleanup: unlike the upload sentinel, its value
+        is precisely to outlive this pytest process, so the next pytest command
+        run against the same checkout in the CI instance can skip the unshallow
+        fetch.
         """
         sentinel = self._upload_sentinel_path()
         if sentinel is not None:
@@ -691,19 +800,43 @@ class SessionManager:
         finally:
             lock_file.close()
 
-    def _update_pr_merge_base(self, git: Git) -> None:
+    def _update_pr_merge_base(self, git: Git, quiet: bool = False) -> str:
         """Compute PULL_REQUEST_BASE_BRANCH_SHA via git merge-base if not already set.
 
-        Called from upload_git_data() after any unshallowing so the commits are
-        guaranteed to be present in the local history.
+        Returns the merge-base stored by this call, or an empty string when nothing
+        was computed (already set, missing SHAs, or the merge-base command failed).
+
+        Called from upload_git_data() before and after any unshallowing. The first
+        attempt uses the local history only, and on shallow clones its result is
+        provisional: git treats shallow boundary commits as roots, so merge-base
+        can return an older ancestor while the true merge-base is hidden behind a
+        truncated parent. It is therefore only a fallback for when the fetch fails,
+        and it is replaced by a recomputation after a successful fetch. quiet=True
+        keeps the expected local failure on shallow clones at debug level; the
+        post-fetch retry keeps the default warning.
         """
         if self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA):
-            return
+            return ""
         base_sha = self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA)
         head_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA)
         if base_sha and head_sha:
-            if merge_base := git.get_merge_base(base_sha, head_sha):
+            if merge_base := git.get_merge_base(base_sha, head_sha, warn=not quiet):
                 self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = merge_base
+                return merge_base
+        return ""
+
+    def _pr_merge_base_missing(self) -> bool:
+        """Return True when the PR merge-base is computable (both SHAs set) but not resolved.
+
+        Only a preexisting value (e.g. user-supplied DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA)
+        counts as resolved. A merge-base computed from a shallow graph does not: git
+        treats shallow boundary commits as roots, so it may be an older ancestor while
+        the true merge-base is hidden. Callers must therefore capture this before any
+        local computation, whose stored value would make it return False.
+        """
+        return not self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) and all(
+            self.env_tags.get(tag) for tag in (GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA, GitTag.COMMIT_HEAD_SHA)
+        )
 
     def upload_git_data(self) -> None:
         # NOTE: In manifest mode (Bazel sandbox), git commands are unavailable
@@ -765,31 +898,71 @@ class SessionManager:
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
-            log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-            unshallow_successful = git.try_all_unshallow_repository_methods()
-            if unshallow_successful:
-                if len(commits_not_in_backend) > 0:
-                    log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
-                    latest_commits = git.get_latest_commits()
-                    backend_commits = self.api_client.get_known_commits(latest_commits)
-                    if backend_commits is None:
-                        log.warning("search_commits failed after unshallow, aborting git metadata upload")
-                        TelemetryAPI.get().record_git_pack_data(0, 0)
-                        return
+        is_shallow = git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0)
+        # Whether a previous pytest command in this CI instance already ran the
+        # unshallow fetch for this HEAD: the local graph is then already the
+        # post-fetch one, and re-running the fetch would only repeat the same
+        # network round-trip (the fetch moves the shallow boundary but usually
+        # leaves .git/shallow in place, so the repo still reports as shallow).
+        # Only consulted on shallow repositories: a non-shallow repository
+        # never fetches, so the marker is irrelevant there.
+        already_unshallowed = is_shallow and self._read_unshallow_done(git)
+        # Whether the PR merge-base still needs resolving, captured before the
+        # local attempt below: a shallow-graph result is provisional and does not
+        # resolve it (see _update_pr_merge_base).
+        merge_base_needed = self._pr_merge_base_missing()
 
-                    commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
-            elif len(commits_not_in_backend) > 0:
-                log.warning("Failed to unshallow repository, continuing to send pack data")
+        # Attempt the merge-base from the local history first. On non-shallow
+        # repositories — and on shallow clones a previous session in this CI
+        # instance already deepened — this is authoritative. On a shallow clone
+        # that has not been deepened yet it is at best a provisional value kept
+        # only as a fallback for when the fetch below fails; a successful fetch
+        # replaces it with a recomputation over the extended history. Failing
+        # locally on a not-yet-deepened shallow clone is expected, so that
+        # attempt stays quiet (debug level).
+        local_merge_base = self._update_pr_merge_base(git, quiet=is_shallow and not already_unshallowed)
 
-        # Compute the true PR merge-base now that the repo has been unshallowed (if needed).
-        # This is done here rather than at env_tags collection time because on shallow clones the
-        # required commits are only available after the fetch above completes.
-        # Must run before the early-return below so sessions where all commits are already
-        # known to the backend still populate git.pull_request.base_branch_sha.
-        self._update_pr_merge_base(git)
+        # Only unshallow when there is work that needs the extra history and no
+        # earlier session in this CI instance already did it: commits missing
+        # from the backend, or a PR merge-base that is not resolved by a
+        # preexisting (user-supplied) value. When the backend already knows
+        # every commit and the merge-base is resolved (or not applicable), the
+        # fetch is skipped entirely, matching the behavior of the other CI
+        # Visibility tracers. When the unshallow-done marker matches our HEAD,
+        # the fetch is skipped for the same reason: it already ran and would
+        # only reproduce the history that is already local.
+        if is_shallow and not already_unshallowed:
+            if commits_not_in_backend or merge_base_needed:
+                log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+                unshallow_successful = git.try_all_unshallow_repository_methods()
+                if unshallow_successful:
+                    self._mark_unshallow_done(git)
+                    # Recompute the merge-base over the extended history. The local
+                    # attempt above ran on the truncated shallow graph and may have
+                    # returned an older ancestor than the true merge-base, so replace
+                    # the value it stored (user-supplied values are never cleared).
+                    if local_merge_base and (
+                        self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA) == local_merge_base
+                    ):
+                        del self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA]
+                    self._update_pr_merge_base(git)
 
-        if len(commits_not_in_backend) == 0:
+                    if commits_not_in_backend:
+                        log.debug(
+                            "Unshallow successful, getting latest commits from backend based on unshallowed commits"
+                        )
+                        latest_commits = git.get_latest_commits()
+                        backend_commits = self.api_client.get_known_commits(latest_commits)
+                        if backend_commits is None:
+                            log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                            TelemetryAPI.get().record_git_pack_data(0, 0)
+                            return
+
+                        commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+                elif commits_not_in_backend:
+                    log.warning("Failed to unshallow repository, continuing to send pack data")
+
+        if not commits_not_in_backend:
             log.debug("All latest commits found in backend, skipping metadata upload")
             self._mark_upload_done()
             return

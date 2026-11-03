@@ -70,6 +70,7 @@ def test_target_arch_matches_the_directories_the_build_creates():
     "system,bundled,system_names",
     [
         ("Linux", "libddwaf.so", ("libddwaf.so.2", "libddwaf.so")),
+        ("FreeBSD", "libddwaf.so", ("libddwaf.so.2", "libddwaf.so")),
         ("Darwin", "libddwaf.dylib", ()),
         ("Windows", "libddwaf.dll", ()),
     ],
@@ -105,6 +106,15 @@ def test_the_system_library_is_used_when_nothing_is_bundled(tmp_path):
 
     assert resolved == "libddwaf.so.2"
     assert layout.is_loadable(resolved, "Linux")
+
+
+def test_freebsd_uses_the_system_library(tmp_path):
+    # There is no prebuilt libddwaf for FreeBSD, so nothing is ever bundled there.
+    resolved = layout.resolve_library(str(tmp_path), "FreeBSD", "amd64")
+
+    assert resolved == "libddwaf.so.2"
+    assert layout.is_loadable(resolved, "FreeBSD")
+    assert layout.load_candidates(resolved, "FreeBSD") == ("libddwaf.so.2", "libddwaf.so")
 
 
 def test_a_bundled_library_for_another_architecture_is_ignored(tmp_path):

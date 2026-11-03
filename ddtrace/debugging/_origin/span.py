@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
-from threading import current_thread
 from time import monotonic_ns
 from types import FunctionType
 from types import MethodType
 import typing as t
-import uuid
 import weakref
 
 import ddtrace
@@ -21,8 +19,10 @@ from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.threads import current_thread
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
@@ -42,7 +42,7 @@ class EntrySpanProbe(LogFunctionProbe):
         message = f"{cls.__span_class__} span info for {name}, in {module}, in function {function}"
 
         return cls(
-            probe_id=str(uuid.uuid4()),
+            probe_id=uuid4(),
             version=0,
             tags={},
             module=module,

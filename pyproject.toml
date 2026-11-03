@@ -16,8 +16,7 @@ license = { text = "LICENSE.BSD3" }
 # ddtrace has many sub-components which can break when CPython internals
 # change over versions, e.g. profiling. So we explicitly mark incompatibility
 # with versions we don't support yet.
-# TODO(py-315): raise this upper bound once Python 3.15 support is complete.
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.9,<3.16"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -32,6 +31,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
     "bytecode>=0.19.0,<1; python_version>='3.15.0'",
@@ -40,7 +40,7 @@ dependencies = [
     "bytecode>=0.15.1,<1; python_version~='3.12.0'",
     "bytecode>=0.14.0,<1; python_version~='3.11.0'",
     "bytecode>=0.13.0,<1; python_version<'3.11'",
-    "ddtrace-internal==0.1.0",
+    "ddtrace-internal==0.2.0",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
     # TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that
@@ -79,6 +79,8 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.integration_hooks']
 anthropic = "ddtrace.llmobs._contrib.anthropic"
+llama_index = "ddtrace.llmobs._contrib.llama_index"
+mistralai = "ddtrace.llmobs._contrib.mistralai"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"

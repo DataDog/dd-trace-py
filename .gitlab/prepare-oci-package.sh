@@ -39,8 +39,6 @@ esac
 
 # pip download selects wheels by --python-version and --abi, so one interpreter
 # fetches the dependencies for every Python version that the package supports.
-# TODO(py-315): pip refuses the local ddtrace wheel on 3.15 while
-# requires-python is <3.15. Add 3.15 when requires-python allows it.
 mkdir -p ../pywheels-dep
 (
   cd ../pywheels
@@ -51,6 +49,7 @@ mkdir -p ../pywheels-dep
     --python-version=3.12 \
     --python-version=3.13 \
     --python-version=3.14 \
+    --python-version=3.15 \
     --ddtrace-flavor="${DDTRACE_FLAVOR:-}" \
     --local-ddtrace \
     --arch "${WHEEL_ARCH}" \
