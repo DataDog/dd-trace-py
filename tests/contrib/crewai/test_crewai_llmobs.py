@@ -20,7 +20,7 @@ from tests.llmobs._utils import assert_llmobs_span_data
 
 try:
     from crewai.constants import DEFAULT_LLM_MODEL
-except ImportError:  # crewai<1.0
+except ImportError:  # crewai<1.15
     from crewai.cli.constants import DEFAULT_LLM_MODEL
 
 

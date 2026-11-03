@@ -122,7 +122,7 @@ def traced_task_get_context(func: Callable[..., Any], instance: Any, args: Any, 
     return result
 
 
-async def trace_flow_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+async def traced_flow_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     integration: CrewAIIntegration = crewai._datadog_integration
     span_name = getattr(type(instance), "__name__", "CrewAI Flow")
     with integration.trace("CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=True) as span:
@@ -131,7 +131,7 @@ async def trace_flow_kickoff(func: Callable[..., Any], instance: Any, args: Any,
         return result
 
 
-async def trace_flow_method(
+async def traced_flow_method(
     func: Callable[..., Any],
     instance: Any,
     args: Any,

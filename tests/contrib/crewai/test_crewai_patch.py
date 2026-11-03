@@ -46,6 +46,9 @@ class TestCrewAIPatch(PatchTestCase.Base):
         self.assert_not_wrapped(crewai.tools.base_tool.BaseTool.run)
         for target in _crewai_1_7_targets(crewai):
             self.assert_not_wrapped(target)
+        # crewai 1.7 made Crew._get_context a staticmethod; unpatching must restore it as one.
+        if CREWAI_VERSION >= (1, 7, 0):
+            assert isinstance(crewai.Crew.__dict__["_get_context"], staticmethod)
 
     def assert_not_module_double_patched(self, crewai):
         self.assert_not_double_wrapped(crewai.Crew.kickoff)

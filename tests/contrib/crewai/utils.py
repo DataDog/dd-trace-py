@@ -1,5 +1,6 @@
 import crewai
 from crewai.tools import BaseTool
+from crewai.tools import tool
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
@@ -8,6 +9,12 @@ from ddtrace.internal.utils.version import parse_version
 CREWAI_VERSION = parse_version(crewai.__version__)
 # crewai 1.7.0 added Crew.akickoff and Flow.akickoff, which run tasks, agents and tools natively async.
 requires_akickoff = pytest.mark.skipif(CREWAI_VERSION < (1, 7, 0), reason="requires crewai>=1.7")
+
+
+@tool("Sum Calculator")
+def sum_tool(entries: list[float]) -> float:
+    """This tool returns the sum of a list of numbers."""
+    return sum(entries)
 
 
 class MaxTool(BaseTool):

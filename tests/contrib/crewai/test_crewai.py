@@ -1,11 +1,11 @@
 from crewai import Crew
-from crewai.tools import tool
 import pytest
 
 from tests.contrib.crewai.utils import CREWAI_VERSION
 from tests.contrib.crewai.utils import FailingTool
 from tests.contrib.crewai.utils import MaxTool
 from tests.contrib.crewai.utils import requires_akickoff
+from tests.contrib.crewai.utils import sum_tool
 
 
 # The crewai 1.x hierarchical recording delegates only the first task, so it has its own snapshot.
@@ -188,6 +188,7 @@ def basic_crew_checkpoint(basic_crew, monkeypatch):
     # Restoring calls kickoff again on the restored crew. Return the same crew so the run replays the basic recording;
     # on_events=[] keeps the restored run from writing checkpoints.
     monkeypatch.setattr(Crew, "from_checkpoint", classmethod(lambda cls, config: basic_crew))
+    # CheckpointConfig only exists in crewai>=1.15.
     from crewai import CheckpointConfig
 
     yield CheckpointConfig(restore_from="unused", on_events=[])
@@ -221,12 +222,6 @@ async def test_simple_flow_stream(crewai, simple_flow_async):
     session = await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
     async for _ in session:
         pass
-
-
-@tool("Sum Calculator")
-def sum_tool(entries: list) -> float:
-    """This tool returns the sum of a list of numbers."""
-    return sum(entries)
 
 
 # Native function calling (crewai 1.x) calls Tool.run (decorated tools) and BaseTool.run (subclasses) directly.

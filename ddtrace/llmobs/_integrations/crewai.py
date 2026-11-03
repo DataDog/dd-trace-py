@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from collections.abc import Iterable
 import json
 from typing import Any
@@ -221,7 +222,9 @@ class CrewAIIntegration(BaseLLMIntegration):
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
         # CrewStructuredTool.invoke takes input=...; BaseTool.run and Tool.run take the tool arguments themselves.
-        tool_input = kwargs["input"] if "input" in kwargs else (args[0] if args else kwargs)
+        tool_input = get_argument_value(args, kwargs, 0, "input", optional=True)
+        if tool_input is None:
+            tool_input = kwargs
         _annotate_llmobs_span_data(
             span,
             name=tool_name if tool_name else "CrewAI Tool",
@@ -514,20 +517,22 @@ def _extract_tool_description_field(tool_description: str):
     return fields[-1]
 
 
-def _get_flow_structure(flow_instance) -> tuple[list[str], set[str], dict[str, tuple[str, list[str]]]]:
+def _get_flow_structure(
+    flow_instance: Any,
+) -> tuple[Collection[str], Collection[str], dict[str, tuple[str, list[str]]]]:
     """Return a flow's start methods, routers and listeners, as {listener: (condition_type, trigger_methods)}.
 
     crewai 1.15.0 replaced Flow._start_methods, _routers and _listeners with a flow definition.
     """
     if hasattr(flow_instance, "_listeners"):
         listeners = {name: _listener_condition(condition) for name, condition in flow_instance._listeners.items()}
-        return list(flow_instance._start_methods), set(flow_instance._routers), listeners
+        return flow_instance._start_methods, flow_instance._routers, listeners
     routers = {name for name, method in flow_instance._definition.methods.items() if method.router}
     listeners = {name: _listener_condition(condition) for name, _, condition in flow_instance._listener_methods()}
-    return list(flow_instance._start_method_names()), routers, listeners
+    return flow_instance._start_method_names(), routers, listeners
 
 
-def _listener_condition(condition) -> tuple[str, list[str]]:
+def _listener_condition(condition: Any) -> tuple[str, list[str]]:
     """Convert a stored listen condition to (condition_type, trigger_methods), flattening nested conditions.
 
     Simple listeners are stored as (condition_type, methods) before crewai 1.15.0 and as a method name since. Listeners

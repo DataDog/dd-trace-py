@@ -8,13 +8,19 @@ import crewai
 from ddtrace.contrib.internal.crewai.utils import CREWAI_VERSION
 from ddtrace.contrib.internal.crewai.utils import atrace_call
 from ddtrace.contrib.internal.crewai.utils import trace_call
-from ddtrace.contrib.internal.crewai.utils import trace_flow_kickoff
-from ddtrace.contrib.internal.crewai.utils import trace_flow_method
-from ddtrace.contrib.internal.crewai.utils import traced_task_get_context
+from ddtrace.contrib.internal.crewai.utils import traced_flow_kickoff
+from ddtrace.contrib.internal.crewai.utils import traced_flow_method
 from ddtrace.contrib.internal.crewai.utils import traced_tool_call
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
+
+
+# crewai 1.7.0 added native async execution (Crew.akickoff) and a Tool.run override that native function calling
+# calls directly.
+_HAS_NATIVE_ASYNC = CREWAI_VERSION >= (1, 7, 0)
+# crewai 1.9.0 changed Flow._execute_method to return (method_result, finished_event_id).
+_EXECUTE_METHOD_RETURNS_EVENT_ID = CREWAI_VERSION >= (1, 9, 0)
 
 
 def _reenters_kickoff(instance: Any, args: Any, kwargs: Any) -> bool:
@@ -54,27 +60,23 @@ async def traced_agent_aexecute(func: Callable[..., Any], instance: Any, args: A
     return await atrace_call(func, instance, args, kwargs, "agent")
 
 
-async def traced_flow_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+async def traced_user_flow_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     if _is_internal_flow(instance) or _reenters_kickoff(instance, args, kwargs):
         return await func(*args, **kwargs)
-    return await trace_flow_kickoff(func, instance, args, kwargs)
+    return await traced_flow_kickoff(func, instance, args, kwargs)
 
 
-async def traced_flow_method(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+async def traced_user_flow_method(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
     if _is_internal_flow(instance):
         return await func(*args, **kwargs)
-    # crewai 1.9.0 changed Flow._execute_method to return (method_result, finished_event_id).
-    return await trace_flow_method(func, instance, args, kwargs, returns_event_id=CREWAI_VERSION >= (1, 9, 0))
+    return await traced_flow_method(func, instance, args, kwargs, returns_event_id=_EXECUTE_METHOD_RETURNS_EVENT_ID)
 
 
 def patch() -> None:
     wrap(crewai, "Crew.kickoff", traced_kickoff)
-    wrap(crewai, "Crew._get_context", traced_task_get_context)
-    wrap(crewai, "Flow.kickoff_async", traced_flow_kickoff)
-    wrap(crewai, "Flow._execute_method", traced_flow_method)
-    # crewai 1.7.0 added native async execution (Crew.akickoff) and a Tool.run override that native function
-    # calling calls directly.
-    if CREWAI_VERSION >= (1, 7, 0):
+    wrap(crewai, "Flow.kickoff_async", traced_user_flow_kickoff)
+    wrap(crewai, "Flow._execute_method", traced_user_flow_method)
+    if _HAS_NATIVE_ASYNC:
         wrap(crewai, "Crew.akickoff", traced_akickoff)
         wrap(crewai, "Task._aexecute_core", traced_task_aexecute)
         wrap(crewai, "Agent.aexecute_task", traced_agent_aexecute)
@@ -83,11 +85,9 @@ def patch() -> None:
 
 def unpatch() -> None:
     unwrap(crewai.Crew, "kickoff")
-    # unwrap() reads the attribute through the class, which would drop the staticmethod of crewai>=1.7.
-    crewai.Crew._get_context = crewai.Crew.__dict__["_get_context"].__wrapped__
     unwrap(crewai.Flow, "kickoff_async")
     unwrap(crewai.Flow, "_execute_method")
-    if CREWAI_VERSION >= (1, 7, 0):
+    if _HAS_NATIVE_ASYNC:
         unwrap(crewai.Crew, "akickoff")
         unwrap(crewai.Task, "_aexecute_core")
         unwrap(crewai.Agent, "aexecute_task")
