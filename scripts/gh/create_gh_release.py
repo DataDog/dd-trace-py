@@ -1425,9 +1425,10 @@ def published_stable_tags() -> list[str]:
 
 
 def find_eol_block(version: str) -> str:
-    """Copy EOL from the newest published ``vX.Y.*`` release of any kind.
+    """Copy EOL from the newest published ``vX.Y.*`` release that still has it.
 
-    Refuses with a clear error if none is found (lesson 7: never write TBD).
+    Walks newest → oldest so a later patch that omitted the line does not
+    block drafting. Refuses if none is found (lesson 7: never write TBD).
     """
     v: Version = Version(normalize_version_str(version))
     major: int = v.major
@@ -1453,16 +1454,21 @@ def find_eol_block(version: str) -> str:
             "or publish that line's first release first."
         )
     candidates.sort(key=lambda item: item[0], reverse=True)
-    tag = candidates[0][1]
-    body: str = run_out(
-        ["gh", "release", "view", tag, "--json", "body", "--jq", ".body"],
-        cwd=REPO_ROOT,
-    )
-    for line in body.splitlines():
-        if line.strip().startswith("Estimated end-of-life date"):
-            return line.strip()
+    # Walk newest → oldest: later patch notes sometimes omit the EOL line
+    # that the line's first release still carries (e.g. v4.15.7 vs v4.15.0).
+    checked: list[str] = []
+    for _ver, tag in candidates:
+        checked.append(tag)
+        body: str = run_out(
+            ["gh", "release", "view", tag, "--json", "body", "--jq", ".body"],
+            cwd=REPO_ROOT,
+        )
+        for line in body.splitlines():
+            if line.strip().startswith("Estimated end-of-life date"):
+                return line.strip()
     raise SystemExit(
-        f"published release {tag} has no 'Estimated end-of-life date' line to copy. Refuse to draft with TBD."
+        f"no 'Estimated end-of-life date' line found on published "
+        f"v{major}.{minor}.* releases ({', '.join(checked)}). Refuse to draft with TBD."
     )
 
 

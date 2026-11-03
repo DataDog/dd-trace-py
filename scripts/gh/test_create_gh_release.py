@@ -52,6 +52,7 @@ from create_gh_release import compute_next_minor_rc1  # noqa: E402
 from create_gh_release import compute_next_patch  # noqa: E402
 from create_gh_release import compute_next_rc  # noqa: E402
 from create_gh_release import draft_kind_phrase  # noqa: E402
+from create_gh_release import find_eol_block  # noqa: E402
 from create_gh_release import format_included_since_section  # noqa: E402
 from create_gh_release import format_notes_for_version  # noqa: E402
 from create_gh_release import format_slack_announce  # noqa: E402
@@ -213,6 +214,27 @@ class EolComposeTests(unittest.TestCase):
         self.assertIn("Estimated end-of-life date: 05-2027", body)
         self.assertIn("support level definitions", body)
         self.assertIn("- note", body)
+
+    def test_find_eol_block_walks_older_when_newest_omits(self) -> None:
+        releases: list[dict[str, object]] = [
+            {"tagName": "v4.15.7", "isDraft": False},
+            {"tagName": "v4.15.0", "isDraft": False},
+        ]
+        bodies: dict[str, str] = {
+            "v4.15.7": "### Bug Fixes\n\n- something\n",
+            "v4.15.0": "Estimated end-of-life date, accurate to within three months: 05-2027\n\n### Notes\n",
+        }
+
+        def fake_run_out(argv: list[str], cwd: object = None) -> str:  # noqa: ARG001
+            # gh release view <tag> --json body --jq .body
+            tag: str = argv[3]
+            return bodies[tag]
+
+        with mock.patch("create_gh_release.list_published_release_tags", return_value=releases):
+            with mock.patch("create_gh_release.run_out", side_effect=fake_run_out):
+                eol: str = find_eol_block("4.15.8")
+        self.assertTrue(eol.startswith("Estimated end-of-life date"))
+        self.assertIn("05-2027", eol)
 
     def test_review_text_template(self) -> None:
         with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
