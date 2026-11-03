@@ -257,7 +257,7 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
 
 
 @pytest.mark.parametrize("tracing_enabled", [True, False])
-def test_tracing_product_explicitly_manages_bundles(tracing_enabled, monkeypatch):
+def test_tracing_product_registers_bundles_and_retains_listeners_on_stop(tracing_enabled, monkeypatch):
     from ddtrace._trace import product
 
     bundle = Mock(spec=SubscriberBundle)
@@ -268,7 +268,7 @@ def test_tracing_product_explicitly_manages_bundles(tracing_enabled, monkeypatch
         product.start()
         bundle.register.assert_called_once_with()
         product.stop()
-        bundle.unregister.assert_called_once_with()
+        bundle.unregister.assert_not_called()
         assert tracer.shutdown.call_count == int(tracing_enabled)
 
 
@@ -279,7 +279,45 @@ def test_tracing_product_retains_listeners_when_shutdown_fails(monkeypatch):
     monkeypatch.setattr(product, "subscriber_bundles", (bundle,))
     with patch("ddtrace.trace.tracer") as tracer:
         tracer.enabled = True
-        tracer.shutdown.side_effect = RuntimeError("drain failed")
-        with pytest.raises(RuntimeError, match="drain failed"):
+        tracer.shutdown.side_effect = RuntimeError("shutdown failed")
+        with pytest.raises(RuntimeError, match="shutdown failed"):
             product.stop()
         bundle.unregister.assert_not_called()
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_ENABLED="true"),
+    err=lambda err: err.startswith("Shutting down tracer with 1 spans.") and len(err.splitlines()) == 1,
+)
+def test_tracing_product_stop_preserves_active_request_completion() -> None:
+    from ddtrace._trace import product
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.products import ProductManager
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    manager = ProductManager()
+    manager._products = [("apm-tracing", product)]
+    manager.start_products()
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="test",
+        integration_config=IntegrationConfig(Config(), "test"),
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        assert not span.finished
+        manager.stop_products()
+        assert not tracer.enabled
+        assert not span.finished
+        event.response_status_code = 201
+
+    assert span.finished
+    assert span.get_tag("http.status_code") == "201"

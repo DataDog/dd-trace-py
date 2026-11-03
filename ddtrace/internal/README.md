@@ -110,13 +110,20 @@ ordering, enablement, and failure handling. A registration error propagating out
 
 Keep completion listeners registered while draining active contexts. Call
 `unregister()` only after draining succeeds; if draining raises, retain the listeners.
+Products that cannot guarantee all active contexts have drained must retain their
+completion listeners after `stop()` returns.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
 Tracing groups its web framework subscribers in
 `ddtrace._trace.product.subscriber_bundles`, an ordinary product-local tuple. Its
-`start()` registers the bundles, and `stop()` unregisters them after tracer shutdown.
+`start()` registers the bundles. Its `stop()` shuts down the tracer but keeps the
+bundles registered: tracer shutdown flushes finished traces and stops processors;
+it does not drain request execution contexts. Requests completing afterward still
+need their completion listeners to finish spans and attach final response metadata.
+Keeping listeners registered does not guarantee those spans are exported after
+tracer shutdown.
 Importing `ddtrace._trace.subscribers` also registers the web framework subscriber
 for public integration APIs and configurations that skip tracing product startup.
 Registration is idempotent. Span-dependent integrations retain their request span
@@ -127,7 +134,7 @@ for AppSec processing. Other subscriber families continue to register automatica
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
-stopping performs the bundle cleanup described above.
+stopping also retains the bundle listeners as described above.
 
 ## Remote Configuration Callbacks
 
