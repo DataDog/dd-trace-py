@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where forking from a worker process, for example spawning a
+    subprocess with ``asyncio.create_subprocess_exec`` on uvloop in a gunicorn worker, was delayed by
+    up to half the Remote Configuration poll interval (2.5 seconds by default).
