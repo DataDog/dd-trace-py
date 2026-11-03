@@ -15,7 +15,11 @@ The pinned public recording API (see the issue's PLAN doc):
   scope), exit = clear, only if it is still the current one.
 * ``PipelinesReporter.on_produce(queue_type, cluster, topic)`` records a produce
   side and links it to the thread's current consume scope, or records a source
-  link (``in_side = -1``) when there is none.
+  link (``in_side = -1``) when there is none. The cluster is the Kafka cluster
+  id (the ``kafka_cluster_id`` context item the patch resolves via
+  ``list_topics``), or ``""`` when unknown — never raw bootstrap servers,
+  which vary per client config; the backend matches clusterless sides on
+  ``(queue_type, topic)``.
 * ``PipelinesReporter.take_report(service, env)`` builds the
   ``DdPipelinesReportV1`` dict for the current window and resets it; the flush
   paths use ``take_due_report`` so at most one report leaves per window.
@@ -23,6 +27,11 @@ The pinned public recording API (see the issue's PLAN doc):
 No message ids, no context propagation, no stats: only which topics the service
 reads and writes, and which produced message was made in the context of a
 consumed one on the same thread. Errors must never raise into application code.
+
+The thread-local "current consumed message" is NOT private to this module:
+it lives in ``ddtrace.internal.datastreams.current_message``, the same slot
+classic DSM uses for its pathway context, so the DSM-on and pipelines-on
+cases share one mechanism and cannot diverge.
 
 Flush lifecycle: with DSM enabled the report rides the DSM processor's periodic
 payload as its last key (see ``processor._due_pipelines_report``); with DSM
@@ -56,6 +65,7 @@ from ddtrace.version import __version__
 from .._encoding import packb
 from ..agent import get_connection
 from ..hostname import get_hostname
+from . import current_message
 
 
 log = get_logger(__name__)
@@ -69,10 +79,10 @@ DEFAULT_WINDOW_SECONDS = 300.0
 REPORT_PAYLOAD_KEY = "DdPipelinesReportV1"
 PIPELINES_STATS_ENDPOINT = "/v0.1/pipeline_stats"
 
-_PRODUCE = 0
-_CONSUME = 1
+_PRODUCE = "produce"
+_CONSUME = "consume"
 
-SideKey = tuple[int, str, str, str, str]  # (direction, queue_type, cluster, topic, group)
+SideKey = tuple[str, str, str, str, str]  # (direction, queue_type, cluster, topic, group)
 LinkKey = tuple[Optional[SideKey], SideKey]  # (in_side key or None for source, out_side key)
 
 
@@ -200,8 +210,6 @@ class PipelinesReporter:
         self._links: dict[LinkKey, bool] = {}  # link key -> recorded (dict as ordered set)
         self._saw_traffic = False
         self._cap_logged = False  # warn once per window when a cap is first hit
-        # Per-thread current consume side; threading.local cleans up on thread death.
-        self._local = threading.local()
         self._clock = clock
         self._interval = self._resolve_interval(interval)
         self._window_start = clock()
@@ -342,14 +350,16 @@ class PipelinesReporter:
             )
 
     def _current_consume_key(self) -> Optional[SideKey]:
-        return getattr(self._local, "consume", None)
+        # The current consumed-message context is the shared slot classic DSM
+        # also uses (ddtrace.internal.datastreams.current_message): one
+        # mechanism, two readers (DSM pathway, pipelines side).
+        return current_message.current_pipelines_side()
 
     def _set_current_consume_key(self, side_key: SideKey) -> None:
-        self._local.consume = side_key
+        current_message.set_pipelines_side(side_key)
 
     def _clear_current_consume_key(self, side_key: SideKey) -> None:
-        if getattr(self._local, "consume", None) == side_key:
-            self._local.consume = None
+        current_message.clear_pipelines_side(side_key)
 
     def _take_report_locked(self, service: str, env: str) -> Optional[dict[str, Any]]:
         self._window_start = self._clock()
@@ -410,7 +420,10 @@ class PipelinesReporter:
         thread at fork time) is safe; the lock is replaced outright.
         """
         self._lock = threading.Lock()
-        self._local = threading.local()
+        # Fresh window and fresh pipelines context in the child; the DSM part of
+        # the shared current-message slot is untouched (classic DSM fork
+        # behavior is unchanged).
+        current_message.reset_pipelines_side()
         self._sides = {}
         self._links = {}
         self._saw_traffic = False

@@ -160,19 +160,6 @@ def dsm_kafka_message_consume(instance, message, span):
         )
 
 
-def _pipelines_bootstrap_cluster(instance: Any) -> str:
-    """The instance's bootstrap servers as the pipelines cluster fallback, cached per instance."""
-    cached = getattr(instance, "_dd_pipelines_bootstrap_cluster", None)
-    if cached is not None:
-        return cached
-    cluster = str(getattr(instance, "_dd_bootstrap_servers", None) or "")
-    try:
-        instance._dd_pipelines_bootstrap_cluster = cluster
-    except (AttributeError, TypeError):  # fakes or C types without attribute assignment: skip the cache
-        pass
-    return cluster
-
-
 def pipelines_kafka_message_produce(
     instance: Any,
     args: tuple[Any, ...],
@@ -182,16 +169,17 @@ def pipelines_kafka_message_produce(
 ) -> None:
     """Record a kafka produce side for automatic DSM pipelines (DSM2-531).
 
-    The cluster is the kafka_cluster_id context item when the patch resolved it
-    via list_topics, otherwise the producer's bootstrap servers.
+    The cluster is the kafka_cluster_id context item the patch resolves via
+    list_topics, or "" when unknown — never raw bootstrap servers, which vary
+    per client config; the backend matches clusterless sides on (queue_type,
+    topic).
     """
     reporter = get_pipelines_reporter()
     if reporter is None:
         return
     try:
         cluster_id = core.find_item("kafka_cluster_id")
-        cluster = str(cluster_id) if cluster_id else _pipelines_bootstrap_cluster(instance)
-        reporter.on_produce("kafka", cluster, core.find_item("kafka_topic") or "")
+        reporter.on_produce("kafka", str(cluster_id) if cluster_id else "", core.find_item("kafka_topic") or "")
     except Exception:  # noqa: BLE001 - T-13: never raise into the application
         log.debug("pipelines: failed to record kafka produce side", exc_info=True)
 
@@ -202,7 +190,7 @@ def pipelines_kafka_message_consume(instance: Any, message: Any, span: Any) -> N
     Fired per polled message, before the user processes it: the side stays the
     thread's current consumed-message context until the next consume on that
     thread replaces it (PipelinesReporter.set_current_consume). The cluster is
-    the consumer's cluster id when known, otherwise its bootstrap servers.
+    the kafka_cluster_id context item the patch resolved, or "" when unknown.
     """
     reporter = get_pipelines_reporter()
     if reporter is None:
@@ -211,9 +199,9 @@ def pipelines_kafka_message_consume(instance: Any, message: Any, span: Any) -> N
         if message.error() is not None:
             # transport-error event, not a consumed message; mirrors the DSM handler
             return
-        cluster_id = getattr(instance, "_dd_cluster_id", None)
-        cluster = str(cluster_id) if cluster_id else _pipelines_bootstrap_cluster(instance)
-        reporter.set_current_consume("kafka", cluster, str(message.topic()), getattr(instance, "_group_id", None) or "")
+        cluster_id = getattr(instance, "_dd_cluster_id", None) or core.find_item("kafka_cluster_id")
+        reporter.set_current_consume("kafka", str(cluster_id) if cluster_id else "", str(message.topic()),
+            getattr(instance, "_group_id", None) or "")
     except Exception:  # noqa: BLE001 - T-13: never raise into the application
         log.debug("pipelines: failed to record kafka consume side", exc_info=True)
 

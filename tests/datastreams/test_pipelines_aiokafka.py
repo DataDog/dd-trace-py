@@ -63,11 +63,22 @@ def take(reporter):
     return report
 
 
-def _send_start(topic, bootstrap_servers="localhost:9092"):
+CLUSTER_ID = "kafka-cluster-1"
+
+
+@pytest.fixture(autouse=True)
+def _reset_kafka_cluster_id():
+    yield
+    core.set_item("kafka_cluster_id", None)
+
+
+def _send_start(topic, bootstrap_servers="localhost:9092", cluster_id=CLUSTER_ID):
+    core.set_item("kafka_cluster_id", cluster_id)
     pipelines_aiokafka_send_start(topic, None, None, [], FakeExecutionContext(bootstrap_servers), None)
 
 
-def _getone(consumer, topic):
+def _getone(consumer, topic, cluster_id=CLUSTER_ID):
+    core.set_item("kafka_cluster_id", cluster_id)
     pipelines_aiokafka_message_consume(consumer, None, None, FakeMessage(topic), None)
 
 
@@ -75,7 +86,7 @@ def test_produce_records_side_with_empty_group(reporter):
     """A bare produce records direction 0, group "" and a source link (T-5)."""
     _send_start("orders", "localhost:9092")
     report = take(reporter)
-    assert report["sides"] == [[0, "kafka", "localhost:9092", "orders", ""]]
+    assert report["sides"] == [["produce", "kafka", CLUSTER_ID, "orders", ""]]
     # No consume context on this thread: the produce is a source.
     assert report["links"] == [[-1, 0]]
 
@@ -84,7 +95,7 @@ def test_consume_records_side_with_group(reporter):
     """A consume records direction 1 with the consumer's group (T-5)."""
     _getone(FakeConsumer("localhost:9092", "orders-group"), "orders")
     report = take(reporter)
-    assert report["sides"] == [[1, "kafka", "localhost:9092", "orders", "orders-group"]]
+    assert report["sides"] == [["consume", "kafka", CLUSTER_ID, "orders", "orders-group"]]
     assert report["links"] == []
 
 
@@ -93,12 +104,12 @@ def test_consume_then_produce_links_in_same_thread(reporter):
     _getone(FakeConsumer("localhost:9092", "orders-group"), "orders")
     _send_start("enriched-orders", "localhost:9092")
     report = take(reporter)
-    # Sides are sorted: the produce side comes first.
+    # Sides are sorted: consume sorts before produce with string directions.
     assert report["sides"] == [
-        [0, "kafka", "localhost:9092", "enriched-orders", ""],
-        [1, "kafka", "localhost:9092", "orders", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "orders", "orders-group"],
+        ["produce", "kafka", CLUSTER_ID, "enriched-orders", ""],
     ]
-    assert report["links"] == [[1, 0]]
+    assert report["links"] == [[0, 1]]
 
 
 def test_consume_then_produce_links_inside_asyncio_task(reporter):
@@ -113,10 +124,10 @@ def test_consume_then_produce_links_inside_asyncio_task(reporter):
     asyncio.run(process_message())
     report = take(reporter)
     assert report["sides"] == [
-        [0, "kafka", "localhost:9092", "enriched-orders", ""],
-        [1, "kafka", "localhost:9092", "orders", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "orders", "orders-group"],
+        ["produce", "kafka", CLUSTER_ID, "enriched-orders", ""],
     ]
-    assert report["links"] == [[1, 0]]
+    assert report["links"] == [[0, 1]]
 
 
 def test_produce_after_context_replaced_links_to_new_consume(reporter):
@@ -127,12 +138,12 @@ def test_produce_after_context_replaced_links_to_new_consume(reporter):
     _send_start("enriched", "localhost:9092")
     report = take(reporter)
     assert report["sides"] == [
-        [0, "kafka", "localhost:9092", "enriched", ""],
-        [1, "kafka", "localhost:9092", "topic-a", "orders-group"],
-        [1, "kafka", "localhost:9092", "topic-b", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "topic-a", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "topic-b", "orders-group"],
+        ["produce", "kafka", CLUSTER_ID, "enriched", ""],
     ]
     # topic-a's context is gone (replaced): only the topic-b link is recorded.
-    assert report["links"] == [[2, 0]]
+    assert report["links"] == [[1, 2]]
 
 
 def test_produce_on_another_thread_is_source(reporter):
@@ -152,30 +163,42 @@ def test_produce_on_another_thread_is_source(reporter):
 
     report = take(reporter)
     assert report["sides"] == [
-        [0, "kafka", "localhost:9092", "enriched", ""],
-        [1, "kafka", "localhost:9092", "orders", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "orders", "orders-group"],
+        ["produce", "kafka", CLUSTER_ID, "enriched", ""],
     ]
-    assert report["links"] == [[-1, 0]]
+    assert report["links"] == [[-1, 1]]
 
 
 def test_consume_group_unset_uses_empty_string(reporter):
     """A consumer without a group_id records group "" (T-5)."""
     _getone(FakeConsumer("localhost:9092", None), "orders")
     report = take(reporter)
-    assert report["sides"] == [[1, "kafka", "localhost:9092", "orders", ""]]
+    assert report["sides"] == [["consume", "kafka", CLUSTER_ID, "orders", ""]]
 
 
-def test_bootstrap_servers_list_joined_into_cluster(reporter):
-    """A list of bootstrap servers is normalized to a comma-joined cluster (T-5)."""
+def test_cluster_comes_from_the_kafka_cluster_id_item(reporter):
+    """The cluster is the kafka_cluster_id core item, never the bootstrap servers (T-5)."""
     consumer = FakeConsumer(["kafka-1:9092", "kafka-2:9092"], "orders-group")
-    _getone(consumer, "orders")
-    _send_start("enriched", ["kafka-1:9092", "kafka-2:9092"])
+    _getone(consumer, "orders", cluster_id="kafka-cluster-9")
+    _send_start("enriched", ["kafka-1:9092", "kafka-2:9092"], cluster_id="kafka-cluster-9")
     report = take(reporter)
     assert report["sides"] == [
-        [0, "kafka", "kafka-1:9092,kafka-2:9092", "enriched", ""],
-        [1, "kafka", "kafka-1:9092,kafka-2:9092", "orders", "orders-group"],
+        ["consume", "kafka", "kafka-cluster-9", "orders", "orders-group"],
+        ["produce", "kafka", "kafka-cluster-9", "enriched", ""],
     ]
-    assert report["links"] == [[1, 0]]
+    assert report["links"] == [[0, 1]]
+
+
+def test_no_cluster_id_item_records_empty_cluster(reporter):
+    """Without a kafka_cluster_id item the cluster is "" (backend matches on type+topic)."""
+    consumer = FakeConsumer("kafka-1:9092", "orders-group")
+    _getone(consumer, "orders", cluster_id=None)
+    _send_start("enriched", "kafka-1:9092", cluster_id=None)
+    report = take(reporter)
+    assert report["sides"] == [
+        ["consume", "kafka", "", "orders", "orders-group"],
+        ["produce", "kafka", "", "enriched", ""],
+    ]
 
 
 def test_getmany_records_each_message_and_last_is_current(reporter):
@@ -185,17 +208,18 @@ def test_getmany_records_each_message_and_last_is_current(reporter):
         "partition-0": [FakeMessage("topic-a"), FakeMessage("topic-b")],
         "partition-1": [FakeMessage("topic-c")],
     }
+    core.set_item("kafka_cluster_id", CLUSTER_ID)
     pipelines_aiokafka_many_messages_consume(consumer, None, messages)
     _send_start("enriched", "localhost:9092")
     report = take(reporter)
     assert report["sides"] == [
-        [0, "kafka", "localhost:9092", "enriched", ""],
-        [1, "kafka", "localhost:9092", "topic-a", "orders-group"],
-        [1, "kafka", "localhost:9092", "topic-b", "orders-group"],
-        [1, "kafka", "localhost:9092", "topic-c", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "topic-a", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "topic-b", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "topic-c", "orders-group"],
+        ["produce", "kafka", CLUSTER_ID, "enriched", ""],
     ]
     # The last consumed message (topic-c) is the thread's current context.
-    assert report["links"] == [[3, 0]]
+    assert report["links"] == [[2, 3]]
 
 
 def test_getmany_without_messages_records_nothing(reporter):
@@ -210,6 +234,7 @@ def test_getone_without_message_records_nothing(reporter):
 
 def test_core_dispatch_reaches_pipelines_handlers(reporter):
     """The handlers are subscribed on the aiokafka core events at import (T-5)."""
+    core.set_item("kafka_cluster_id", CLUSTER_ID)
     core.dispatch(
         "aiokafka.getone.message",
         (FakeConsumer("localhost:9092", "orders-group"), None, 0, FakeMessage("orders"), None),
@@ -217,10 +242,10 @@ def test_core_dispatch_reaches_pipelines_handlers(reporter):
     core.dispatch("aiokafka.send.start", ("enriched", None, None, [], FakeExecutionContext("localhost:9092"), None))
     report = take(reporter)
     assert report["sides"] == [
-        [0, "kafka", "localhost:9092", "enriched", ""],
-        [1, "kafka", "localhost:9092", "orders", "orders-group"],
+        ["consume", "kafka", CLUSTER_ID, "orders", "orders-group"],
+        ["produce", "kafka", CLUSTER_ID, "enriched", ""],
     ]
-    assert report["links"] == [[1, 0]]
+    assert report["links"] == [[0, 1]]
 
 
 def test_disabled_reporter_makes_handlers_noop(monkeypatch):
@@ -258,5 +283,5 @@ def test_handlers_never_raise(reporter):
 def test_take_report_resets_window(reporter):
     """take_report resets the window: a second take with no traffic is None (T-5)."""
     _send_start("orders", "localhost:9092")
-    assert take(reporter)["sides"] == [[0, "kafka", "localhost:9092", "orders", ""]]
+    assert take(reporter)["sides"] == [["produce", "kafka", CLUSTER_ID, "orders", ""]]
     assert reporter.take_report("svc", "env") is None

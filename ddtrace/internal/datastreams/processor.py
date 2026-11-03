@@ -16,12 +16,12 @@ from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.datastreams import current_message
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
-from ddtrace.internal.threads import local
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -134,7 +134,11 @@ class DataStreamsProcessor(PeriodicService):
         self._hostname = compat.ensure_text(get_hostname())
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
-        self._current_context = local()
+        # The current-consumed-message context (DSM pathway + pipelines side)
+        # lives in the shared ddtrace.internal.datastreams.current_message
+        # slot; a fresh processor starts with a fresh context, exactly as the
+        # processor's own thread-local did before the slot was shared.
+        current_message.clear_current_message()
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
@@ -334,7 +338,7 @@ class DataStreamsProcessor(PeriodicService):
             current_edge_start_ms, data = decode_var_int_64(data)
             ctx = DataStreamsCtx(self, hash_value, float(pathway_start_ms) / 1e3, float(current_edge_start_ms) / 1e3)
             # reset context of current thread every time we decode
-            self._current_context.value = ctx
+            current_message.set_dsm_pathway(ctx)
             return ctx
         except (EOFError, TypeError, struct.error):
             return self.new_pathway()
@@ -361,7 +365,7 @@ class DataStreamsProcessor(PeriodicService):
         if not now_sec:
             now_sec = time.time()
         ctx = DataStreamsCtx(self, 0, now_sec, now_sec)
-        self._current_context.value = ctx
+        current_message.set_dsm_pathway(ctx)
         return ctx
 
     def set_checkpoint(
@@ -379,11 +383,9 @@ class DataStreamsProcessor(PeriodicService):
 
         if not now_sec:
             now_sec = time.time()
-        if hasattr(self._current_context, "value"):
-            ctx = self._current_context.value
-        else:
+        ctx = current_message.current_dsm_pathway()
+        if ctx is None:
             ctx = self.new_pathway()
-            self._current_context.value = ctx
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
