@@ -364,6 +364,7 @@ def build_supported_versions_entries(
 ):
     """Build the JSON payload for supported_versions.json."""
     entries = []
+    missing_ranges = []
     integration_names = set(get_integration_names())
     pinned_integrations = get_pinned_integrations(integration_names)
 
@@ -380,12 +381,10 @@ def build_supported_versions_entries(
         for dependency_name, tested_versions in sorted(tested_versions_by_dependency.items()):
             supported_range = resolve_supported_range(dependency_name, declared_ranges, is_sole_dependency)
             if supported_range is None:
-                # Nothing declares a range for this dependency (e.g. gunicorn has no
-                # patch module, boto3 is not what the botocore integration patches).
-                print(
-                    f"WARNING: skipping {dependency_name} ({integration_name}): no supported range declared",
-                    file=sys.stderr,
-                )
+                # Integrations without a patch module (e.g. gunicorn, which is only a
+                # documentation note) instrument nothing, so they have no range.
+                if (CONTRIB_INTERNAL_ROOT / integration_name / "patch.py").is_file():
+                    missing_ranges.append(f"{dependency_name} ({integration_name})")
                 continue
 
             entry: dict[str, object] = {
@@ -403,6 +402,14 @@ def build_supported_versions_entries(
                 entry["pinned"] = True
 
             entries.append(entry)
+
+    if missing_ranges:
+        raise SystemExit(
+            "ERROR: no supported range found for these tested dependencies. Add their module "
+            "to the integration's _supported_versions() (or to DISTRIBUTION_TO_MODULE when the "
+            "module name differs from the distribution name):\n"
+            + "\n".join(f"  - {missing}" for missing in missing_ranges)
+        )
 
     return sorted(entries, key=lambda entry: (entry["integrationName"], entry["dependencyName"]))
 
