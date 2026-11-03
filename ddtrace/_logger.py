@@ -24,7 +24,7 @@ def _get_env(name, default=None, modifier=None):
     return modifier(value) if modifier is not None else value
 
 
-def configure_ddtrace_logger() -> None:
+def configure_ddtrace_logger(config_retriever: Optional[Callable[..., Any]] = None) -> None:
     """Configures ddtrace log levels and file paths.
 
     Customization is possible with the environment variables:
@@ -53,17 +53,26 @@ def configure_ddtrace_logger() -> None:
             ie: ``logging.basicConfig()``.
 
     """
+    if config_retriever is None:
+        config_retriever = _get_env
     try:
         ddtrace_logger = logging.getLogger("ddtrace")
-        if _get_env("DD_TRACE_LOG_STREAM_HANDLER", True, lambda value: value.lower() in ("true", "1")):
-            ddtrace_logger.addHandler(logging.StreamHandler())
-        _configure_ddtrace_debug_logger(ddtrace_logger)
-        _configure_ddtrace_file_logger()
+        stream_handler = next((h for h in ddtrace_logger.handlers if h.name == "ddtrace_stream"), None)
+        if config_retriever("DD_TRACE_LOG_STREAM_HANDLER", True, lambda value: value.lower() in ("true", "1")):
+            if stream_handler is None:
+                stream_handler = logging.StreamHandler()
+                stream_handler.set_name("ddtrace_stream")
+                ddtrace_logger.addHandler(stream_handler)
+        elif stream_handler is not None:
+            ddtrace_logger.removeHandler(stream_handler)
+            stream_handler.close()
+        _configure_ddtrace_debug_logger(ddtrace_logger, config_retriever)
+        _configure_ddtrace_file_logger(config_retriever)
     except Exception:
         log.warning("Failed to configure ddtrace logging", exc_info=True)
 
 
-def _configure_ddtrace_debug_logger(logger):
+def _configure_ddtrace_debug_logger(logger, config_retriever):
     """Configure the ddtrace logger level based on DD_TRACE_DEBUG and DD_TRACE_LOG_LEVEL.
 
     The priority is DD_TRACE_DEBUG, then DD_TRACE_LOG_LEVEL
@@ -71,8 +80,8 @@ def _configure_ddtrace_debug_logger(logger):
     Note: DD_TRACE_DEBUG=true implies a log level of DEBUG, but DD_TRACE_LOG_LEVEL=DEBUG
     does not imply DD_TRACE_DEBUG is enabled.
     """
-    trace_debug = _get_env("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
-    log_level = _get_env("DD_TRACE_LOG_LEVEL")
+    trace_debug = config_retriever("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
+    log_level = config_retriever("DD_TRACE_LOG_LEVEL")
 
     if trace_debug:
         logger.setLevel(logging.DEBUG)
@@ -90,10 +99,11 @@ def _configure_ddtrace_debug_logger(logger):
                 log_level_upper,
             )
 
+    elif _get_env("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1")):
+        logger.setLevel(logging.NOTSET)
 
-def _configure_ddtrace_file_logger(config_retriever: Optional[Callable[..., Any]] = None) -> None:
-    if config_retriever is None:
-        config_retriever = _get_env
+
+def _configure_ddtrace_file_logger(config_retriever: Callable[..., Any]) -> None:
     logger = logging.getLogger("ddtrace")
     try:
         log_file_level = config_retriever("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
@@ -180,3 +190,33 @@ def _emits_to_stderr(logger: logging.Logger) -> bool:
         if stream is sys.stderr:
             return True
     return False
+
+
+def _configure_ddtrace_native_logger(logger: Any, get_config: Callable[..., Any]) -> None:
+    py_logger = logging.getLogger("ddtrace")
+    try:
+        trace_debug = get_config("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
+        default_backend = "stderr" if trace_debug and _emits_to_stderr(py_logger) else None
+        backend = get_config("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
+        kwargs = {"output": backend}
+        if backend == "file":
+            kwargs["path"] = get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log")
+            kwargs["max_size_bytes"] = get_config("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
+            kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
+
+        if backend:
+            logger.configure(**kwargs)
+        for output in ("file", "stderr"):
+            if output == backend or (output == "stderr" and backend == "stdout"):
+                continue
+            try:
+                logger.disable(output)
+            except ValueError:
+                pass
+        if not backend:
+            return
+        # "info" instead of "debug" to avoid flooding by default
+        default_log_level = "info" if trace_debug else "warning"
+        logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level))
+    except Exception:
+        log.warning("Failed to initialize native logger", exc_info=True)

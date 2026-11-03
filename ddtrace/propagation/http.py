@@ -1038,11 +1038,13 @@ class HTTPPropagator:
         appropriate span and triggers sampling before returning the injection context.
         """
         core_tracer = core.root.get_item("tracer")
+        if core_tracer is None:
+            from ddtrace.trace import tracer as core_tracer
         # Extract context for header injection (non_active_span takes precedence)
         injection_context = trace_info.context if isinstance(trace_info, Span) else trace_info
 
         # Find root span for sampling decisions
-        if injection_context.sampling_priority is not None or core_tracer is None:
+        if injection_context.sampling_priority is not None:
             return injection_context
 
         sampling_span: Optional[Span] = None

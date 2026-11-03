@@ -51,8 +51,8 @@ The autoinstrumentation entrypoint is ``import ddtrace.bootstrap.sitecustomize``
 ``import ddtrace.auto``, or behind the scenes by ``ddtrace-run``.
 
 Keep package and launcher imports lightweight. Initialize enabled products in bootstrap and report
-setup errors without preventing application startup. Configure Python logging at package import,
-then apply resolved file settings and check Python-version support in ``sitecustomize.py``.
+setup errors without preventing application startup. Configure logging early from the environment,
+then apply resolved settings once telemetry is ready. Check Python-version support in ``sitecustomize.py``.
 Set ``_DD_GLOBAL_TRACER_INIT=false`` to detect root-level exports scheduled for removal in v5.0;
 import those values from their defining modules instead.
 

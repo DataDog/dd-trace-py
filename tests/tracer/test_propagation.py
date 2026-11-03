@@ -3883,8 +3883,7 @@ def test_inject_context_without_global_tracer():
         http.HTTPPropagator.inject(Context(trace_id=123, span_id=456), headers)
     error.assert_not_called()
     assert headers == {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
-    assert core.root.get_item("tracer") is None
-    assert "ddtrace.trace" not in sys.modules
+    assert core.root.get_item("tracer") is sys.modules["ddtrace.trace"].tracer
 
 
 def test_inject_context_without_sampling_priority_active_trace():
