@@ -21,7 +21,7 @@ the provider's `_integration_name`. Supply the two provider-specific behaviors:
 
 Use the actual base/reference signatures and implement or inherit the behavior needed by the
 integration. For standard request integrations, construct it lazily in the LLMObs subscriber
-with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/_subscribers.py`.
+with `integration_config=config.<name>`; see `ddtrace/llmobs/_subscribers.py`.
 Keep contrib free of LLMObs imports. When extending an integration that stores its instance on
 `module._datadog_integration`, preserve that ownership and cleanup unless migrating its lifecycle.
 
@@ -65,7 +65,7 @@ standard request integrations so contrib does not import LLMObs.
 Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration.
 `LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so it dispatches each
 `SpanLifecycleEvents` phase as `"<phase>.llm.request"`. The shared subscribers in
-`ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
+`ddtrace/llmobs/_subscribers.py` receive an `ExecutionContext` and select the
 registered integration using `ctx.event.component`:
 
 - `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when

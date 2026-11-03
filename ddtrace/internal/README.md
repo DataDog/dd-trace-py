@@ -136,6 +136,14 @@ Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping also retains the bundle listeners as described above.
 
+LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
+LLMObs or starting the product registers the shared lifecycle listener. Product-owned
+integration adapters also register it when an integration is patched, including direct
+patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
+component removes its factory and cached integration; shared listeners stay registered
+so other components and in-flight requests can finish. Product stop and LLMObs disable
+also retain these completion listeners.
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from
