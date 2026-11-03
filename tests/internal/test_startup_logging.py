@@ -175,11 +175,13 @@ def test_bootstrap_file_logging_honors_fleet_and_reports_telemetry(tmp_path):
         f"""
         import logging
         from unittest.mock import patch
+        import sys
         from ddtrace import _logger
         from ddtrace.internal.settings import _core
         configure = _logger.configure_ddtrace_logger
         def setup(retrieve):
-            with patch('ddtrace.internal.telemetry.telemetry_writer.add_configuration') as report:
+            writer = sys.modules['ddtrace.internal.telemetry'].telemetry_writer
+            with patch.object(writer, 'add_configuration') as report:
                 configure(retrieve)
                 report.assert_any_call('DD_TRACE_LOG_FILE', {str(new_file)!r}, 'fleet_stable_config', None)
         with patch.dict(_core.FLEET_CONFIG, {{'DD_TRACE_LOG_FILE': {str(new_file)!r}}}, clear=True):
