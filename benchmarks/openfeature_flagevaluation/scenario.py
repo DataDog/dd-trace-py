@@ -63,12 +63,17 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
     num_context_fields: int
     # Whether the evaluated configuration permits full evaluation data.
     observe_full_evaluation_data: bool
+    # provider_resolution only: whether every split carries features.
+    split_features: bool = False
 
     def run(self):
         from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 
         mode = self.mode
+        if mode == "provider_resolution":
+            yield from self._provider_resolution()
+            return
         num_flags = max(1, self.num_flags)
         num_users = max(1, self.num_users)
         num_fields = max(0, self.num_context_fields)
@@ -185,3 +190,87 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
 
         else:
             raise ValueError(f"unknown mode: {mode}")
+
+    def _provider_resolution(self):
+        """Native resolution plus the provider's own hooks, as one client evaluation runs them."""
+        from openfeature.flag_evaluation import FlagType
+
+        from ddtrace.internal.openfeature import _provider
+        from ddtrace.internal.openfeature._native import process_ffe_configuration
+
+        num_flags = max(1, self.num_flags)
+        num_users = max(1, self.num_users)
+        attrs = {f"attr_{i}": f"value_{i}" for i in range(max(0, self.num_context_fields))}
+        flag_keys = [f"flag-{i}" for i in range(num_flags)]
+        process_ffe_configuration(_ufc_configuration(flag_keys, self.split_features, self.observe_full_evaluation_data))
+
+        # Nothing is sent: exposures go to a discarding writer and evaluation counts to a
+        # discarding queue, so the loop measures evaluation work only.
+        _provider.get_exposure_writer = lambda: _DISCARDING_EXPOSURE_WRITER
+        provider = _provider.DataDogProvider()
+        evp_writer = getattr(provider, "_flag_eval_evp_writer", None)
+        if evp_writer is not None:
+            evp_writer._queue = _DiscardingQueue(maxsize=evp_writer._queue.maxsize)
+        hooks = list(reversed(provider.get_provider_hooks()))
+
+        cycle_count = max(num_flags, num_users)
+        evaluations = []
+        for i in range(cycle_count):
+            flag_key = flag_keys[i % num_flags]
+            ctx = EvaluationContext(targeting_key=f"user-{i % num_users}", attributes=attrs)
+            hook_context = HookContext(
+                flag_key=flag_key, flag_type=FlagType.STRING, default_value="default", evaluation_context=ctx
+            )
+            evaluations.append((flag_key, ctx, hook_context))
+
+        first = provider.resolve_string_details(flag_keys[0], "default", evaluations[0][1])
+        assert first.value == "on" and first.error_code is None, first
+
+        def _(loops):
+            for i in range(loops):
+                flag_key, ctx, hook_context = evaluations[i % cycle_count]
+                details = provider.resolve_string_details(flag_key, "default", ctx).to_flag_evaluation_details(flag_key)
+                for hook in hooks:
+                    hook.finally_after(hook_context, details, {})
+
+        yield _
+
+
+class _DiscardingExposureWriter:
+    def enqueue(self, event):
+        pass
+
+
+_DISCARDING_EXPOSURE_WRITER = _DiscardingExposureWriter()
+
+# A few features of each value type across the three destinations, like a holdout split.
+_SPLIT_FEATURES = [
+    {"key": "holdout.key", "value": "06ad2f1e", "destinations": ["HOOK"]},
+    {"key": "holdout.assignment_group", "value": "status_quo", "destinations": ["HOOK", "EXPOSURE"]},
+    {"key": "holdout.should_include_in_holdout_analysis", "value": False, "destinations": ["HOOK"]},
+    {"key": "holdout.fraction", "value": 0.5, "destinations": ["EVALUATION"]},
+]
+
+
+def _ufc_configuration(flag_keys, split_features, observe_full_evaluation_data):
+    def split(serial_id):
+        result = {"variationKey": "on", "shards": [], "serialId": serial_id}
+        if split_features:
+            result["features"] = _SPLIT_FEATURES
+        return result
+
+    return {
+        "createdAt": "2026-10-01T00:00:00Z",
+        "environment": {"name": "benchmark"},
+        "observeFullEvaluationData": observe_full_evaluation_data,
+        "flags": {
+            key: {
+                "key": key,
+                "enabled": True,
+                "variationType": "STRING",
+                "variations": {"on": {"key": "on", "value": "on"}, "off": {"key": "off", "value": "off"}},
+                "allocations": [{"key": f"alloc-{i}", "splits": [split(i)], "doLog": True}],
+            }
+            for i, key in enumerate(flag_keys)
+        },
+    }
