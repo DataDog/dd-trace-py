@@ -147,7 +147,7 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
 
-    // The caller must hold task_link_map_lock().
+    // The caller must hold task_link_map_lock_.
     void weak_link_task(PyObject* parent, PyObject* child)
     {
         weak_task_link_map_[child] = parent;
