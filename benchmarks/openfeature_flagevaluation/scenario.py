@@ -52,6 +52,46 @@ def _make_details(flag_key, variant, allocation_key, observe_full_evaluation_dat
     )
 
 
+class _DiscardingExposureWriter:
+    def enqueue(self, event):
+        pass
+
+
+_DISCARDING_EXPOSURE_WRITER = _DiscardingExposureWriter()
+
+# A few features of each value type across the three destinations, like a holdout split.
+_SPLIT_FEATURES = [
+    {"key": "holdout.key", "value": "06ad2f1e", "destinations": ["HOOK"]},
+    {"key": "holdout.assignment_group", "value": "status_quo", "destinations": ["HOOK", "EXPOSURE"]},
+    {"key": "holdout.should_include_in_holdout_analysis", "value": False, "destinations": ["HOOK"]},
+    {"key": "holdout.fraction", "value": 0.5, "destinations": ["EVALUATION"]},
+]
+
+
+def _ufc_configuration(flag_keys, split_features, observe_full_evaluation_data):
+    def split(serial_id):
+        result = {"variationKey": "on", "shards": [], "serialId": serial_id}
+        if split_features:
+            result["features"] = _SPLIT_FEATURES
+        return result
+
+    return {
+        "createdAt": "2026-10-01T00:00:00Z",
+        "environment": {"name": "benchmark"},
+        "observeFullEvaluationData": observe_full_evaluation_data,
+        "flags": {
+            key: {
+                "key": key,
+                "enabled": True,
+                "variationType": "STRING",
+                "variations": {"on": {"key": "on", "value": "on"}, "off": {"key": "off", "value": "off"}},
+                "allocations": [{"key": f"alloc-{i}", "splits": [split(i)], "doLog": True}],
+            }
+            for i, key in enumerate(flag_keys)
+        },
+    }
+
+
 class OpenFeatureFlagEvaluation(bm.Scenario):
     # Which segment of the pipeline to exercise.
     mode: str
@@ -234,43 +274,3 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
                     hook.finally_after(hook_context, details, {})
 
         yield _
-
-
-class _DiscardingExposureWriter:
-    def enqueue(self, event):
-        pass
-
-
-_DISCARDING_EXPOSURE_WRITER = _DiscardingExposureWriter()
-
-# A few features of each value type across the three destinations, like a holdout split.
-_SPLIT_FEATURES = [
-    {"key": "holdout.key", "value": "06ad2f1e", "destinations": ["HOOK"]},
-    {"key": "holdout.assignment_group", "value": "status_quo", "destinations": ["HOOK", "EXPOSURE"]},
-    {"key": "holdout.should_include_in_holdout_analysis", "value": False, "destinations": ["HOOK"]},
-    {"key": "holdout.fraction", "value": 0.5, "destinations": ["EVALUATION"]},
-]
-
-
-def _ufc_configuration(flag_keys, split_features, observe_full_evaluation_data):
-    def split(serial_id):
-        result = {"variationKey": "on", "shards": [], "serialId": serial_id}
-        if split_features:
-            result["features"] = _SPLIT_FEATURES
-        return result
-
-    return {
-        "createdAt": "2026-10-01T00:00:00Z",
-        "environment": {"name": "benchmark"},
-        "observeFullEvaluationData": observe_full_evaluation_data,
-        "flags": {
-            key: {
-                "key": key,
-                "enabled": True,
-                "variationType": "STRING",
-                "variations": {"on": {"key": "on", "value": "on"}, "off": {"key": "off", "value": "off"}},
-                "allocations": [{"key": f"alloc-{i}", "splits": [split(i)], "doLog": True}],
-            }
-            for i, key in enumerate(flag_keys)
-        },
-    }
