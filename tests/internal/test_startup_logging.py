@@ -238,16 +238,23 @@ def test_package_import_checks_python_version():
     """)
 
 
-def test_auto_continues_when_logger_import_fails():
-    result = run("""
+def test_auto_continues_when_file_logger_import_fails(tmp_path):
+    result = run(
+        """
         import importlib.abc
         import sys
-        class BrokenLogger(importlib.abc.MetaPathFinder):
+        class BrokenFileLogger(importlib.abc.MetaPathFinder):
             def find_spec(self, fullname, path=None, target=None):
-                if fullname == 'ddtrace._logger':
-                    raise ImportError('logger unavailable')
-        sys.meta_path.insert(0, BrokenLogger())
+                if fullname == 'logging.handlers':
+                    raise ImportError('file logger unavailable')
+        finder = BrokenFileLogger()
+        sys.meta_path.insert(0, finder)
+        import ddtrace
+        sys.meta_path.remove(finder)
         import ddtrace.auto
-        assert not sys.modules['ddtrace.bootstrap.sitecustomize'].loaded
-    """)
-    assert b"logger unavailable" in result.stderr
+        assert sys.modules['ddtrace.bootstrap.sitecustomize'].loaded
+    """,
+        DD_TRACE_LOG_FILE=str(tmp_path / "trace.log"),
+    )
+    assert b"Failed to configure ddtrace logging" in result.stderr
+    assert b"file logger unavailable" in result.stderr

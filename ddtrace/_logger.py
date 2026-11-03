@@ -60,8 +60,8 @@ def configure_ddtrace_logger() -> None:
     if _configured:
         return
     _configured = True
-    ddtrace_logger = logging.getLogger("ddtrace")
     try:
+        ddtrace_logger = logging.getLogger("ddtrace")
         if _get_env("DD_TRACE_LOG_STREAM_HANDLER", True, lambda value: value.lower() in ("true", "1")):
             ddtrace_logger.addHandler(logging.StreamHandler())
         _configure_ddtrace_debug_logger(ddtrace_logger)

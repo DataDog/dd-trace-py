@@ -15,19 +15,11 @@ LOADED_MODULES = frozenset(sys.modules)
 
 import ddtrace.internal._unpatched  # noqa: E402, F401, isort:skip
 
+from ddtrace._logger import configure_ddtrace_logger as _configure_ddtrace_logger
 from ddtrace.internal.utils.deprecations import check_supported_python_version as _check_supported_python_version
 
 
-try:
-    from ddtrace._logger import configure_ddtrace_logger as _configure_ddtrace_logger
-
-    _configure_ddtrace_logger()
-except Exception:
-    import logging as _logging
-
-    _logging.getLogger(__name__).warning("Failed to configure ddtrace logging", exc_info=True)
-
-
+_configure_ddtrace_logger()
 _check_supported_python_version()
 
 __all__ = ["__version__", "patch", "patch_all", "config", "DDTraceDeprecationWarning"]
