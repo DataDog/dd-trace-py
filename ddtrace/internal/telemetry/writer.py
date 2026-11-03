@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Union
 import weakref
 
+from ddtrace.internal._exceptions import is_panic_exception
 from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
@@ -26,7 +27,6 @@ from .._runtime_id import get_parent_runtime_id
 from .._runtime_id import get_runtime_id
 from .._runtime_id import on_runtime_identity_refresh
 from .._runtime_id import remove_runtime_identity_refresh
-from ..native.exceptions import is_panic_exception
 from ..periodic import PeriodicService
 from ..serverless import in_aws_lambda_microvm
 from ..utils.formats import get_test_session_token

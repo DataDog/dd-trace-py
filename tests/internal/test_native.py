@@ -1,8 +1,15 @@
+import os
+import subprocess
+import sys
+
 import pytest
 
 
 def test_is_panic_exception():
+    from ddtrace.internal._exceptions import is_panic_exception as shared_is_panic_exception
     from ddtrace.internal.native.exceptions import is_panic_exception
+
+    assert is_panic_exception is shared_is_panic_exception
 
     class PanicException(BaseException):
         pass
@@ -14,6 +21,42 @@ def test_is_panic_exception():
     assert is_panic_exception(PanicException("boom")) is True
     assert is_panic_exception(ValueError("boom")) is False
     assert is_panic_exception(BaseException("boom")) is False
+
+
+def test_panic_detection_does_not_load_native():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from ddtrace.internal._exceptions import is_panic_exception; "
+            "assert not is_panic_exception(ValueError()); assert 'ddtrace.internal.native' not in sys.modules",
+        ],
+        capture_output=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("module", ["ddtrace.internal.forksafe", "ddtrace.internal.native"])
+def test_native_forksafe_import_order(module):
+    result = subprocess.run(
+        [sys.executable, "-c", f"import {module}; import ddtrace.internal.native; import ddtrace.internal.forksafe"],
+        capture_output=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="IAST native module is not available on Windows")
+@pytest.mark.parametrize("enabled", ["true", "false"])
+def test_iast_native_import_without_tracer(enabled):
+    result = subprocess.run(
+        [sys.executable, "-c", "from ddtrace.appsec._iast._taint_tracking._native import ops; assert ops"],
+        env=dict(os.environ, DD_IAST_ENABLED=enabled),
+        capture_output=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.subprocess(env={"DD_VERSION": "b"})
@@ -80,7 +123,7 @@ apm_configuration_default:
         env["DD_TRACE_DEBUG"] = "true"
         env["_DD_SC_MANAGED_FILE_OVERRIDE"] = managed_config.name
 
-        _, err, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
+        _, err, status, _ = call_program(sys.executable, "-c", "import ddtrace.trace", env=env)
         assert status == 0, err
         assert b"Read the following static config: StableConfig" in err
         assert b'ConfigMap([("DD_VERSION", "c")]), tags: {}, rules: [] }' in err
