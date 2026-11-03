@@ -2,7 +2,6 @@ from collections.abc import Awaitable
 from collections.abc import Callable
 import sys
 from typing import Any
-from typing import Union
 
 from mistralai import client
 from mistralai.client.chat import Chat
@@ -12,7 +11,6 @@ from mistralai.client.models.embeddingresponse import EmbeddingResponse
 
 from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
-from ddtrace.contrib.internal.mistralai._constants import COMPONENT
 from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import extract_provider
