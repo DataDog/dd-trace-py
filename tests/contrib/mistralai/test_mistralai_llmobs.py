@@ -3,6 +3,8 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.contrib.internal.mistralai.patch import patch
+from ddtrace.contrib.internal.mistralai.patch import unpatch
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.contrib.mistralai.utils import CHAT_TOOLS
@@ -557,4 +559,26 @@ async def test_async_chat_stream_with_tools(mistral_client, mistralai_llmobs, te
             metrics={"input_tokens": 72, "output_tokens": 14, "total_tokens": 86},
             tool_definitions=WEATHER_TOOL_DEFINITIONS,
         ),
+    )
+
+
+@pytest.mark.parametrize("repatch", [False, True])
+def test_chat_stream_finishes_after_unpatch(mistral_client, mistralai_llmobs, test_spans, repatch):
+    stream = mistral_client.chat.stream(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+    unpatch()
+    if repatch:
+        patch()
+    for _ in stream:
+        pass
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert spans[0].finished
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(spans[0], output_messages=STREAM_CHAT_OUTPUT_MESSAGES),
     )
