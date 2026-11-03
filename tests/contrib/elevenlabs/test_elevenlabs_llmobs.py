@@ -1173,6 +1173,61 @@ async def test_redundant_start_failure_preserves_ongoing_state(state, asynchrono
     assert not value.error
 
 
+@pytest.mark.skipif(
+    STOP_BEFORE_CLEANUP, reason="cleanup cannot abort before the stop; see test_aborted_shutdown_of_live_session"
+)
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["sync_error", "async_error", "async_cancel"])
+@pytest.mark.parametrize("already_closing", [False, True])
+async def test_aborted_external_shutdown_restores_observation(state, test_spans, monkeypatch, mode, already_closing):
+    value, _ = state
+    asynchronous = mode != "sync_error"
+    audio = AsyncScriptAudio() if asynchronous else ScriptAudio()
+    cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
+    instance = cls(ElevenLabs(api_key="test-key"), "test-agent", requires_auth=False, audio_interface=audio)
+    instance._dd_elevenlabs_state = value
+    value.closing = already_closing
+    failure = RuntimeError("Synthetic audio cleanup failure")
+    waiting = asyncio.Event()
+
+    def fail_stop():
+        raise failure
+
+    async def async_stop():
+        if mode == "async_cancel":
+            waiting.set()
+            await asyncio.Event().wait()
+        raise failure
+
+    monkeypatch.setattr(audio, "stop", async_stop if asynchronous else fail_stop)
+    try:
+        if mode == "async_cancel":
+            task = asyncio.create_task(instance.end_session())
+            await asyncio.wait_for(waiting.wait(), 3)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            with pytest.raises(RuntimeError) as raised:
+                if asynchronous:
+                    await instance.end_session()
+                else:
+                    instance.end_session()
+            assert raised.value is failure
+        assert not instance._should_stop.is_set()
+        assert value.closing is already_closing
+        assert not value.closed
+        if not already_closing:
+            input_audio(value)
+            receive(value, event("agent_response", 37, agent_response="Still observed"))
+            value.close()
+            data = llm_rows(test_spans)[0][1]
+            assert data["meta"]["output"]["messages"][0]["content"] == "Still observed"
+            assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM
+    finally:
+        instance.client_tools.stop()
+
+
 class FailingStopAudio(ScriptAudio):
     """Audio whose first stop() raises, so the first end_session() aborts during cleanup."""
 
@@ -1204,7 +1259,7 @@ class AsyncFailingStopAudio(AsyncScriptAudio):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["sync_error", "async_error", "async_cancel"])
-async def test_aborted_external_shutdown_restores_observation(test_spans, mode):
+async def test_aborted_shutdown_of_live_session(test_spans, mode):
     asynchronous = mode != "sync_error"
     failure = RuntimeError("Synthetic audio cleanup failure")
     waiting = asyncio.Event() if mode == "async_cancel" else None
