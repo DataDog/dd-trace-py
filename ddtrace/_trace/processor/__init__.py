@@ -739,6 +739,7 @@ class SpanAggregator(SpanProcessor):
 
     def _recreate_writer(
         self,
+        *,
         appsec_enabled: Optional[bool],
         llmobs_enabled: Optional[bool],
         compute_stats: Optional[bool],
@@ -770,7 +771,12 @@ class SpanAggregator(SpanProcessor):
             if reset_buffer:
                 self.reset_trace_buffer_after_fork()
             self.writer.drop_buffered_traces()
-            self._recreate_writer(appsec_enabled, llmobs_enabled, compute_stats, apm_opt_out)
+            self._recreate_writer(
+                appsec_enabled=appsec_enabled,
+                llmobs_enabled=llmobs_enabled,
+                compute_stats=compute_stats,
+                apm_opt_out=apm_opt_out,
+            )
             return
 
         if flush_writer:
@@ -780,7 +786,12 @@ class SpanAggregator(SpanProcessor):
         elif drop_buffered_traces:
             self.writer.drop_buffered_traces()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self._recreate_writer(appsec_enabled, llmobs_enabled, compute_stats, apm_opt_out)
+        self._recreate_writer(
+            appsec_enabled=appsec_enabled,
+            llmobs_enabled=llmobs_enabled,
+            compute_stats=compute_stats,
+            apm_opt_out=apm_opt_out,
+        )
         if self._runtime_identity is not None:
             # A writer rebuilt after a fork is built for the child's runtime ID.
             self._runtime_identity = (self._runtime_identity[0], get_runtime_id())
