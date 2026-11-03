@@ -262,7 +262,7 @@ if pid == 0:
         assert pipelines._flusher is not old_flusher
         report = pipelines._reporter.take_report("svc", "")
         sides = {tuple(side) for side in report["sides"]}
-        assert (0, "sqs", "", "child-topic", "") in sides
+        assert ("produce", "sqs", "", "child-topic", "") in sides
         assert not any("parent" in str(side) for side in sides), sides
         print("CHILD-OK")
         os._exit(0)

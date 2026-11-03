@@ -87,42 +87,41 @@ def test_produce_records_side_with_cluster_id(fresh_reporter):
     _dispatch_produce(FakeProducer(), "orders", cluster_id="cluster-1")
 
     report = fresh_reporter.take_report("svc", "env")
-    assert report["sides"] == [[0, "kafka", "cluster-1", "orders", ""]]
+    assert report["sides"] == [["produce", "kafka", "cluster-1", "orders", ""]]
     assert report["links"] == [[-1, 0]]
     assert report["service"] == "svc"
     assert report["env"] == "env"
 
 
-def test_produce_cluster_falls_back_to_bootstrap_servers(fresh_reporter):
-    # T-5: no kafka_cluster_id item -> the producer's bootstrap servers, cached
-    # per instance (the second produce interned to the same single side).
+def test_produce_without_cluster_id_records_empty_cluster(fresh_reporter):
+    # T-5: no kafka_cluster_id item -> cluster "" (never raw bootstrap servers,
+    # which vary per client config; the backend matches clusterless sides on
+    # (queue_type, topic)). The second produce interns to the same single side.
     producer = FakeProducer(bootstrap_servers="host1:9092")
     _dispatch_produce(producer, "orders")
     _dispatch_produce(producer, "orders")
 
-    assert producer._dd_pipelines_bootstrap_cluster == "host1:9092"
     report = fresh_reporter.take_report("svc", "env")
-    assert report["sides"] == [[0, "kafka", "host1:9092", "orders", ""]]
+    assert report["sides"] == [["produce", "kafka", "", "orders", ""]]
 
 
 def test_consume_records_side(fresh_reporter):
-    # T-5: consume side values (direction 1, group per config) with the
-    # consumer's bootstrap servers as cluster.
+    # T-5: consume side values (direction consume, group per config); cluster is
+    # the resolved cluster id, "" when none (never bootstrap servers).
     consumer = FakeConsumer(bootstrap_servers="host1:9092", group_id="g1")
     _dispatch_consume(consumer, FakeMessage("orders"))
 
     report = fresh_reporter.take_report("svc", "env")
-    assert report["sides"] == [[1, "kafka", "host1:9092", "orders", "g1"]]
+    assert report["sides"] == [["consume", "kafka", "", "orders", "g1"]]
 
 
-def test_consume_prefers_cluster_id_over_bootstrap_servers(fresh_reporter):
-    # T-5: the consumer's cluster id (shared bootstrap cache) wins over its
-    # bootstrap servers when known.
+def test_consume_uses_resolved_cluster_id(fresh_reporter):
+    # T-5: the consumer's cluster id (shared bootstrap cache) is used when known.
     consumer = FakeConsumer(bootstrap_servers="host1:9092", cluster_id="cluster-1", group_id="g1")
     _dispatch_consume(consumer, FakeMessage("orders"))
 
     report = fresh_reporter.take_report("svc", "env")
-    assert report["sides"] == [[1, "kafka", "cluster-1", "orders", "g1"]]
+    assert report["sides"] == [["consume", "kafka", "cluster-1", "orders", "g1"]]
 
 
 def test_consume_group_empty_when_unset(fresh_reporter):
@@ -131,7 +130,7 @@ def test_consume_group_empty_when_unset(fresh_reporter):
     _dispatch_consume(consumer, FakeMessage("orders"))
 
     report = fresh_reporter.take_report("svc", "env")
-    assert report["sides"] == [[1, "kafka", "host1:9092", "orders", ""]]
+    assert report["sides"] == [["consume", "kafka", "", "orders", ""]]
 
 
 def test_consume_error_message_records_no_side(fresh_reporter):
@@ -150,8 +149,8 @@ def test_produce_links_to_current_consume(fresh_reporter):
     _dispatch_produce(FakeProducer(), "out-topic", cluster_id="cluster-1")
 
     report = fresh_reporter.take_report("svc", "env")
-    consume_idx = report["sides"].index([1, "kafka", "cluster-1", "in-topic", "g1"])
-    produce_idx = report["sides"].index([0, "kafka", "cluster-1", "out-topic", ""])
+    consume_idx = report["sides"].index(["consume", "kafka", "cluster-1", "in-topic", "g1"])
+    produce_idx = report["sides"].index(["produce", "kafka", "cluster-1", "out-topic", ""])
     assert report["links"] == [[consume_idx, produce_idx]]
 
 
@@ -164,10 +163,10 @@ def test_consume_batch_records_each_message_topic_and_last_wins(fresh_reporter):
     _dispatch_produce(FakeProducer(), "out-topic", cluster_id="cluster-1")
 
     report = fresh_reporter.take_report("svc", "env")
-    assert [1, "kafka", "cluster-1", "topic-a", "g1"] in report["sides"]
-    assert [1, "kafka", "cluster-1", "topic-b", "g1"] in report["sides"]
-    consume_idx = report["sides"].index([1, "kafka", "cluster-1", "topic-b", "g1"])
-    produce_idx = report["sides"].index([0, "kafka", "cluster-1", "out-topic", ""])
+    assert ["consume", "kafka", "cluster-1", "topic-a", "g1"] in report["sides"]
+    assert ["consume", "kafka", "cluster-1", "topic-b", "g1"] in report["sides"]
+    consume_idx = report["sides"].index(["consume", "kafka", "cluster-1", "topic-b", "g1"])
+    produce_idx = report["sides"].index(["produce", "kafka", "cluster-1", "out-topic", ""])
     # topic-a's consume was replaced by topic-b's: the produce links to topic-b.
     assert report["links"] == [[consume_idx, produce_idx]]
 
@@ -192,7 +191,7 @@ def test_produce_on_other_thread_is_source(fresh_reporter):
     thread.join()
 
     report = fresh_reporter.take_report("svc", "env")
-    produce_idx = report["sides"].index([0, "kafka", "cluster-1", "out-topic", ""])
+    produce_idx = report["sides"].index(["produce", "kafka", "cluster-1", "out-topic", ""])
     assert report["links"] == [[-1, produce_idx]]
 
 
@@ -204,8 +203,8 @@ def test_produce_after_consumed_context_exited_is_source(fresh_reporter):
     _dispatch_produce(FakeProducer(), "out-topic", cluster_id="cluster-1")
 
     report = fresh_reporter.take_report("svc", "env")
-    assert [1, "kafka", "cluster-1", "in-topic", "g1"] in report["sides"]
-    produce_idx = report["sides"].index([0, "kafka", "cluster-1", "out-topic", ""])
+    assert ["consume", "kafka", "cluster-1", "in-topic", "g1"] in report["sides"]
+    produce_idx = report["sides"].index(["produce", "kafka", "cluster-1", "out-topic", ""])
     assert report["links"] == [[-1, produce_idx]]
 
 
@@ -233,4 +232,4 @@ def test_handlers_never_raise(fresh_reporter):
     _dispatch_produce(FakeProducer(), "orders", cluster_id="cluster-1")
 
     report = fresh_reporter.take_report("svc", "env")
-    assert [0, "kafka", "cluster-1", "orders", ""] in report["sides"]
+    assert ["produce", "kafka", "cluster-1", "orders", ""] in report["sides"]

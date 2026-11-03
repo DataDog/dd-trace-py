@@ -60,7 +60,7 @@ def test_t1_records_consume_and_produce_sides():
     assert report == {
         "service": "my-service",
         "env": "prod",
-        "sides": [[1, "sqs", "", "queue-1", "group-1"]],
+        "sides": [["consume", "sqs", "", "queue-1", "group-1"]],
         "links": [],
     }
     # the window was reset: nothing more to report without new traffic
@@ -76,9 +76,9 @@ def test_t2_produce_links_to_current_consume():
         reporter.on_produce("sqs", "", "invoices")
         reporter.on_produce("sns", "", "notifications")
     report = reporter.take_report("svc", "")
-    consume = _side_index(report, (1, "kafka", "cluster-a", "payments", "billing"))
-    out_invoices = _side_index(report, (0, "sqs", "", "invoices", ""))
-    out_notifications = _side_index(report, (0, "sns", "", "notifications", ""))
+    consume = _side_index(report, ("consume", "kafka", "cluster-a", "payments", "billing"))
+    out_invoices = _side_index(report, ("produce", "sqs", "", "invoices", ""))
+    out_notifications = _side_index(report, ("produce", "sns", "", "notifications", ""))
     assert report["links"] == sorted([[consume, out_invoices], [consume, out_notifications]])
 
 
@@ -89,7 +89,7 @@ def test_t3_produce_without_consume_parent_is_source():
     reporter = pipelines.PipelinesReporter(clock=FakeClock())
     reporter.on_produce("kafka", "", "orders")
     report = reporter.take_report("svc", "")
-    assert report["sides"] == [[0, "kafka", "", "orders", ""]]
+    assert report["sides"] == [["produce", "kafka", "", "orders", ""]]
     assert report["links"] == [[-1, 0]]
 
 
@@ -100,7 +100,7 @@ def test_t3_produce_on_other_thread_is_source():
         thread.start()
         thread.join()
         report = reporter.take_report("svc", "")
-    out = _side_index(report, (0, "sqs", "", "out", ""))
+    out = _side_index(report, ("produce", "sqs", "", "out", ""))
     assert report["links"] == [[-1, out]]
 
 
@@ -128,15 +128,15 @@ def test_t4_consume_context_replaced_and_cleared():
     report = reporter.take_report("svc", "")
     links = {tuple(link) for link in report["links"]}
     assert (
-        _side_index(report, (1, "kafka", "", "topic-2", "g")),
-        _side_index(report, (0, "sqs", "", "after-replace", "")),
+        _side_index(report, ("consume", "kafka", "", "topic-2", "g")),
+        _side_index(report, ("produce", "sqs", "", "after-replace", "")),
     ) in links
-    assert (-1, _side_index(report, (0, "sqs", "", "after-exit", ""))) in links
+    assert (-1, _side_index(report, ("produce", "sqs", "", "after-exit", ""))) in links
     assert (
-        _side_index(report, (1, "kafka", "", "topic-4", "g")),
-        _side_index(report, (0, "sqs", "", "stale-exit", "")),
+        _side_index(report, ("consume", "kafka", "", "topic-4", "g")),
+        _side_index(report, ("produce", "sqs", "", "stale-exit", "")),
     ) in links
-    assert (-1, _side_index(report, (0, "sqs", "", "after-all-exits", ""))) in links
+    assert (-1, _side_index(report, ("produce", "sqs", "", "after-all-exits", ""))) in links
 
 
 # -- T-10: interning and determinism -----------------------------------------
@@ -154,8 +154,8 @@ def test_t10_interning_and_deterministic_order():
     report = reporter.take_report("svc", "")
     assert len(report["sides"]) == 2
     assert report["sides"] == sorted(report["sides"])
-    consume = _side_index(report, (1, "sqs", "", "queue", "batch-1"))
-    out = _side_index(report, (0, "kafka", "", "out", ""))
+    consume = _side_index(report, ("consume", "sqs", "", "queue", "batch-1"))
+    out = _side_index(report, ("produce", "kafka", "", "out", ""))
     assert report["links"] == [[consume, out]]
 
     # the same event sequence always produces the same report bytes
@@ -202,8 +202,8 @@ def test_t13_never_raises_with_garbage_arguments_under_threads():
     with fresh.on_consume("kafka", "c", "t", "g"):
         fresh.on_produce("sqs", "", "out")
     report = fresh.take_report("svc", "")
-    consume = _side_index(report, (1, "kafka", "c", "t", "g"))
-    out = _side_index(report, (0, "sqs", "", "out", ""))
+    consume = _side_index(report, ("consume", "kafka", "c", "t", "g"))
+    out = _side_index(report, ("produce", "sqs", "", "out", ""))
     assert report["links"] == [[consume, out]]
 
 

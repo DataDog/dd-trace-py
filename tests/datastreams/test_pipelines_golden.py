@@ -73,7 +73,7 @@ def test_t6_one_report_per_window_injected_clock():
     clock.advance(0.1)
     report = reporter.take_due_report("svc", "")
     assert report is not None
-    assert report["sides"] == [[0, "kafka", "", "orders", ""]]
+    assert report["sides"] == [["produce", "kafka", "", "orders", ""]]
     # the window was taken: nothing left to report
     assert reporter.take_due_report("svc", "") is None
     # an empty window produces no report
@@ -84,7 +84,7 @@ def test_t6_one_report_per_window_injected_clock():
     clock.advance(300.0)
     report = reporter.take_due_report("svc", "")
     assert report is not None
-    assert report["sides"] == [[1, "sqs", "", "queue", "group"]]
+    assert report["sides"] == [["consume", "sqs", "", "queue", "group"]]
 
 
 # -- one report per window (the real background thread) -----------------------

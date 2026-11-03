@@ -176,11 +176,12 @@ def dsm_aiokafka_message_commit(instance: GroupCoordinator, args: Any, kwargs: A
 
 # Automatic DSM pipelines (DSM2-531): topic side and in-process link recording,
 # independent of classic DSM. These handlers are subscribed unconditionally and
-# are a no-op unless get_pipelines_reporter() returns a reporter. The produce
-# side is recorded on "aiokafka.send.start" (where the topic and the producer's
-# bootstrap_servers are available and the current-consume context is still the
-# one the send happens in); "aiokafka.send.completed" only carries offset
-# metadata for classic DSM stats, which pipelines do not record.
+# are a no-op unless get_pipelines_reporter() returns a reporter. The cluster is
+# the kafka_cluster_id context item (same as the DSM aiokafka handlers), or ""
+# when unknown. The produce side is recorded on "aiokafka.send.start" (where
+# the current-consume context is still the one the send happens in);
+# "aiokafka.send.completed" only carries offset metadata for classic DSM stats,
+# which pipelines do not record.
 #
 # NOTE: the reporter's current-consume context is thread-local. All asyncio
 # tasks running on one event loop share a thread, so a produce issued from a
@@ -188,20 +189,6 @@ def dsm_aiokafka_message_commit(instance: GroupCoordinator, args: Any, kwargs: A
 # message, while a produce on another thread (for example a second event loop)
 # does not link and is recorded as a source. The demo topologies consume and
 # produce in the same task, so links are recorded as intended.
-
-
-def _pipelines_cluster(bootstrap_servers: Any) -> str:
-    # Normalize a client's bootstrap_servers (a "host:port" string, or a list of
-    # them) to the cluster string used in pipelines reports. The common string
-    # case returns as-is, keeping the per-message hot path allocation-free.
-    if not bootstrap_servers:
-        return ""
-    if isinstance(bootstrap_servers, str):
-        return bootstrap_servers
-    try:
-        return ",".join(str(server) for server in bootstrap_servers)
-    except Exception:
-        return str(bootstrap_servers)
 
 
 def pipelines_aiokafka_send_start(
@@ -217,7 +204,8 @@ def pipelines_aiokafka_send_start(
         return
     try:
         event = getattr(span_ctx, "event", None)
-        cluster = _pipelines_cluster(getattr(event, "bootstrap_servers", None))
+        cluster_id = core.find_item("kafka_cluster_id")
+        cluster = str(cluster_id) if cluster_id else ""
         reporter.on_produce("kafka", cluster, topic)
     except Exception:  # noqa: BLE001 - T-13: never raise into the application
         log.debug("aiokafka pipelines: failed to record produce side", exc_info=True)
@@ -237,11 +225,13 @@ def pipelines_aiokafka_message_consume(
         return
     try:
         group = instance._group_id
-        bootstrap_servers = instance._client._bootstrap_servers
         # The message is processed after getone()/getmany() returns, so the
         # consume context is set as the thread's current one until the next
         # consume on this thread replaces it.
-        reporter.set_current_consume("kafka", _pipelines_cluster(bootstrap_servers), message.topic, group or "")
+        cluster_id = core.find_item("kafka_cluster_id")
+        reporter.set_current_consume(
+            "kafka", str(cluster_id) if cluster_id else "", message.topic, group or ""
+        )
     except Exception:  # noqa: BLE001 - T-13: never raise into the application
         log.debug("aiokafka pipelines: failed to record consume side", exc_info=True)
 
