@@ -28,7 +28,7 @@ variables:
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
-  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v130207166-153cbe2-ci-utils@sha256:816d1defebb9f049f3bc2e9987ce90d47f7a6c0316b7fc720c30f56376be63ed"
+  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v149816936-0fbc9e3-ci-utils@sha256:c94e6149a7aae045ee27c9e8c5b30a16f84addb5e92d690024d920d12d8df83c"
 
   # Only trunk pipelines publish to the compiled-extension cache. Feature branches read it
   # but never write, so a branch that touches native code cannot evict trunk's entries.
