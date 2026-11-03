@@ -227,15 +227,42 @@ def test_core_import_does_not_reconfigure_logging(telemetry):
     )
 
 
-def test_package_import_checks_python_version():
-    run("""
+@pytest.mark.parametrize("entrypoint", ["importlib.reload(ddtrace)", "from ddtrace.trace import tracer"])
+def test_manual_import_does_not_check_python_version(entrypoint):
+    run(f"""
         import importlib
         from unittest.mock import patch
         import ddtrace
         with patch('ddtrace.internal.utils.deprecations.check_supported_python_version') as check:
-            importlib.reload(ddtrace)
+            {entrypoint}
+            check.assert_not_called()
+    """)
+
+
+@pytest.mark.parametrize("entrypoint", ["import ddtrace.auto", "import ddtrace.bootstrap.sitecustomize"])
+def test_bootstrap_checks_python_version_once(entrypoint):
+    run(f"""
+        from unittest.mock import patch
+        with patch('ddtrace.internal.utils.deprecations.check_supported_python_version') as check:
+            {entrypoint}
+            import ddtrace.auto
             check.assert_called_once_with()
     """)
+
+
+def test_ddtrace_run_checks_python_version():
+    code = """
+import site
+from unittest.mock import patch
+with patch('ddtrace.internal.utils.deprecations.check_supported_python_version') as check:
+    site.main()
+    check.assert_called_once_with()
+from ddtrace.bootstrap import sitecustomize
+assert sitecustomize.loaded
+"""
+    # Delay site initialization so the check can be observed before the launcher bootstrap runs.
+    result = subprocess.run(["ddtrace-run", sys.executable, "-S", "-c", code], capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stderr.decode()
 
 
 def test_auto_continues_when_file_logger_import_fails(tmp_path):

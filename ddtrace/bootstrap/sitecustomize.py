@@ -25,8 +25,10 @@ log = logging.getLogger(__name__)
 
 try:
     from ddtrace.internal.logger import get_logger
+    from ddtrace.internal.utils.deprecations import check_supported_python_version
 
     log = get_logger(__name__)
+    check_supported_python_version()
 
     import ddtrace.bootstrap.cloning as cloning
     import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation

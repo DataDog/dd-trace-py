@@ -1,5 +1,6 @@
 import logging
 import os
+from os import path
 import sys
 from typing import Any
 from typing import Optional
@@ -123,7 +124,7 @@ def _add_file_handler(
 ):
     ddtrace_file_handler = None
     if log_path is not None:
-        log_path = os.path.abspath(log_path)
+        log_path = path.abspath(log_path)
         num_backup = 1
         from logging.handlers import RotatingFileHandler
 
@@ -169,7 +170,7 @@ def _emits_to_stderr(logger: logging.Logger) -> bool:
     return False
 
 
-def _configure_ddtrace_native_logger(native_logger: Any) -> None:
+def _configure_ddtrace_native_logger(logger: Any) -> None:
     py_logger = logging.getLogger("ddtrace")
     try:
         trace_debug = _get_env("DD_TRACE_DEBUG", False, lambda value: value.lower() in ("true", "1"))
@@ -183,9 +184,9 @@ def _configure_ddtrace_native_logger(native_logger: Any) -> None:
             kwargs["max_size_bytes"] = _get_env("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
             kwargs["max_files"] = _get_env("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
 
-        native_logger.configure(**kwargs)
+        logger.configure(**kwargs)
         # "info" instead of "debug" to avoid flooding by default
         default_log_level = "info" if trace_debug else "warning"
-        native_logger.set_log_level(_get_env("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level))
+        logger.set_log_level(_get_env("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)

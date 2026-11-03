@@ -60,6 +60,7 @@ Import submodules explicitly, for example ``from ddtrace import trace`` or ``imp
 
 Configure Python logging once in ``ddtrace.__init__`` using only the standard library and environment variables.
 Configure native logging when the native module loads. Report logging configuration when telemetry starts.
+Run the Python-version support check only in ``sitecustomize.py``, for ``ddtrace.auto`` and ``ddtrace-run``.
 Initialize enabled Data Streams handlers from preload and manual patching, independently of ``ddtrace.trace``.
 
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.

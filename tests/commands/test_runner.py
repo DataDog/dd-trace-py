@@ -312,7 +312,6 @@ def test_launcher_does_not_initialize_ddtrace(flags):
             assert {name for name in sys.modules if name == "ddtrace" or name.startswith("ddtrace.")} == {
                 "ddtrace", "ddtrace._logger", "ddtrace.commands", "ddtrace.commands.ddtrace_run",
                 "ddtrace.internal", "ddtrace.internal._unpatched",
-                "ddtrace.internal.utils", "ddtrace.internal.utils.deprecations"
             }
             assert executable == sys.executable
             assert args == (sys.executable, "-c", "pass", "--version")
@@ -749,7 +748,6 @@ import ddtrace
 assert sys.excepthook is before
 assert {name for name in sys.modules if name.startswith("ddtrace.")} == {
     "ddtrace._logger", "ddtrace.internal", "ddtrace.internal._unpatched",
-    "ddtrace.internal.utils", "ddtrace.internal.utils.deprecations"
 }
 assert "tracer" in dir(ddtrace)
 assert "config" in dir(ddtrace)
