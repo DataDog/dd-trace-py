@@ -1463,6 +1463,8 @@ def format_notes_for_version(
 
     When ``earliest_version`` is not yet present in the reno report (typical for
     an unpublished patch/RC), fall back to the ``Unreleased`` section only.
+    That fallback still omits a ``## Unreleased`` heading — GitHub bodies should
+    show ``### Bug Fixes`` / etc. directly under the EOL blurb.
     """
     formatter = load_format_release_notes()
     try:
@@ -1481,7 +1483,15 @@ def format_notes_for_version(
             exclude_unreleased=False,
             collapse_release_candidates=collapse_release_candidates,
         )
-    return formatted.strip()
+    # Reno's Unreleased bucket is the right content for unpublished patches, but
+    # GitHub release bodies must not keep the "## Unreleased" wrapper heading
+    # (see 4.16.1 / 4.15.7 — EOL then ### Bug Fixes / … only).
+    stripped: str = re.sub(
+        r"(?m)^## Unreleased\s*\n+",
+        "",
+        formatted.strip(),
+    ).strip()
+    return stripped
 
 
 def generate_release_notes(

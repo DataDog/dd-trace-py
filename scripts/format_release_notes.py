@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: ignore-errors
 """Reformat raw reno release notes into grouped, per-category bullet lists.
 
 Reads from stdin the exact output of:
@@ -43,7 +44,9 @@ Usage:
 
 When earliest_version is given, output includes every release at or after it
 (by semantic version, plus the Unreleased section if present) instead of just
-the single matching release.
+the single matching release. Unreleased body content is emitted without a
+``## Unreleased`` heading so GitHub release notes match historical format
+(EOL + ``### Bug Fixes`` / ``### Upgrade Notes`` / … only).
 
 --exclude-unreleased drops the Unreleased section from the output, whether or
 not earliest_version is given.
@@ -55,7 +58,7 @@ candidates whose version numbers are identical except for the rc number
 
 import argparse
 import re
-import subprocess
+import subprocess  # nosec B404 — script shells out to reno/pandoc CLIs
 import sys
 
 from packaging.version import InvalidVersion
@@ -294,15 +297,25 @@ def format_release_notes(raw_text, earliest_version=None, exclude_unreleased=Fal
     out = []
     for version, body in releases:
         formatted_body = format_release_body(body)
-        if formatted_body:
+        if not formatted_body:
+            continue
+        # GitHub release bodies should start with section headings
+        # (### Bug Fixes / Upgrade Notes / …), not a reno "## Unreleased"
+        # wrapper. Versioned sections keep "## vX.Y.Z" for multi-release
+        # slices; Unreleased content is inlined without that heading.
+        if version == UNRELEASED:
+            out.append(formatted_body)
+        else:
             out.append(f"## {version}\n\n{formatted_body}")
     return "\n\n".join(out) + "\n"
 
 
 def generate_raw_text():
     """Run "reno report | pandoc -f rst -t gfm --wrap=none" and return its output."""
-    reno = subprocess.run(["reno", "report"], capture_output=True, text=True, check=True)
-    pandoc = subprocess.run(
+    reno = subprocess.run(  # nosec B603 B607 — invokes reno CLI, trusted PATH
+        ["reno", "report"], capture_output=True, text=True, check=True
+    )
+    pandoc = subprocess.run(  # nosec B603 B607 — invokes pandoc CLI, trusted PATH
         ["pandoc", "-f", "rst", "-t", "gfm", "--wrap=none"],
         input=reno.stdout,
         capture_output=True,

@@ -180,6 +180,29 @@ class NotesFormattingTests(unittest.TestCase):
         body: str = format_notes_for_version(raw, "v4.16.2")
         self.assertIn("tracing", body)
         self.assertNotIn("Already shipped", body)
+        # Unpublished patch falls back to Unreleased content without the
+        # reno "## Unreleased" wrapper (matches 4.16.1 / 4.15.7 GitHub bodies).
+        self.assertNotIn("## Unreleased", body)
+        self.assertIn("### Bug Fixes", body)
+        self.assertTrue(body.lstrip().startswith("### "), body)
+
+    def test_format_notes_omits_empty_upgrade_and_features(self) -> None:
+        raw: str = dedent(
+            """
+            # Release Notes
+
+            ## Unreleased
+
+            ### Bug Fixes
+
+            - internal: Fixes only bugs this cycle.
+            """
+        )
+        body: str = format_notes_for_version(raw, "v4.15.8")
+        self.assertNotIn("## Unreleased", body)
+        self.assertIn("### Bug Fixes", body)
+        self.assertNotIn("### Upgrade Notes", body)
+        self.assertNotIn("### New Features", body)
 
     def test_collapse_rcs_for_final(self) -> None:
         raw: str = dedent(
