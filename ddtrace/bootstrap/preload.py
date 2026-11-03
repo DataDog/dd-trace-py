@@ -46,6 +46,9 @@ if crashtracker_config.enabled:
     except Exception:
         log.error("failed to enable crashtracking", exc_info=True)
 
+if config._data_streams_enabled:
+    import ddtrace.internal.datastreams  # noqa: F401
+
 # Run the product manager protocol
 manager.run_protocol()
 

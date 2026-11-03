@@ -1,4 +1,7 @@
-import ddtrace._initialize  # noqa: F401, isort:skip
+# ruff: noqa: E402
+from ddtrace._logger import configure_ddtrace_logger  # isort:skip
+
+configure_ddtrace_logger()
 
 from collections.abc import Callable
 import importlib
@@ -388,6 +391,9 @@ def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) ->
 
         >>> patch(psycopg=True, elasticsearch=True)
     """
+    if config._data_streams_enabled:
+        import ddtrace.internal.datastreams  # noqa: F401
+
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.

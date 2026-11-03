@@ -72,3 +72,6 @@ import_then_first_span:
   <<: *defaults
   import_ddtrace: true
   sdk_action: "from ddtrace import tracer; tracer.enabled = False; tracer.trace('startup').finish()"
+configure_logger:
+  <<: *defaults
+  sdk_action: "from ddtrace._logger import configure_ddtrace_logger; configure_ddtrace_logger()"

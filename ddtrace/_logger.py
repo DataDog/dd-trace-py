@@ -3,9 +3,11 @@ from os import path
 import sys
 from typing import Optional
 
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import get_config
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings._read_config import record_configuration
+from ddtrace.internal.settings._read_config import resolve_config
+from ddtrace.internal.utils import asbool
 
 
 log = get_logger(__name__)
@@ -16,6 +18,17 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 )
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
+_configured = False
+_configuration_lock = RLock()
+
+
+def get_config(name, default=None, modifier=None, report_telemetry=True):
+    return resolve_config(
+        name,
+        default,
+        modifier,
+        report_configuration=record_configuration if report_telemetry else None,
+    )
 
 
 def configure_ddtrace_logger() -> None:
@@ -47,14 +60,21 @@ def configure_ddtrace_logger() -> None:
             ie: ``logging.basicConfig()``.
 
     """
-    ddtrace_logger = logging.getLogger("ddtrace")
-    if get_config("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
-        ddtrace_logger.addHandler(logging.StreamHandler())
-
-    _configure_ddtrace_debug_logger(ddtrace_logger)
-    _configure_ddtrace_file_logger(ddtrace_logger)
-    # Calling _configure_ddtrace_native_logger should come after Python logging has been configured.
-    _configure_ddtrace_native_logger(ddtrace_logger)
+    global _configured
+    with _configuration_lock:
+        if _configured:
+            return
+        ddtrace_logger = logging.getLogger("ddtrace")
+        try:
+            if get_config("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
+                ddtrace_logger.addHandler(logging.StreamHandler())
+            _configure_ddtrace_debug_logger(ddtrace_logger)
+            _configure_ddtrace_file_logger(ddtrace_logger)
+            # Configure native logging after Python handlers are ready.
+            _configure_ddtrace_native_logger(ddtrace_logger)
+        except Exception:
+            log.warning("Failed to configure ddtrace logging", exc_info=True)
+        _configured = True
 
 
 def _configure_ddtrace_debug_logger(logger):
@@ -158,8 +178,6 @@ def _emits_to_stderr(logger: logging.Logger) -> bool:
 
 def _configure_ddtrace_native_logger(py_logger: logging.Logger):
     try:
-        from ddtrace.internal.native._native import logger
-
         trace_debug = get_config("DD_TRACE_DEBUG", False, asbool)
         default_backend = "stderr" if trace_debug and _emits_to_stderr(py_logger) else None
         backend = get_config("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
@@ -172,6 +190,8 @@ def _configure_ddtrace_native_logger(py_logger: logging.Logger):
                 "_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int, report_telemetry=True
             )
             kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
+
+        from ddtrace.internal.native._native import logger
 
         logger.configure(**kwargs)
         # "info" instead of "debug" to avoid flooding by default

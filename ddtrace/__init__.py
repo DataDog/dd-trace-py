@@ -15,6 +15,11 @@ LOADED_MODULES = frozenset(sys.modules)
 
 import ddtrace.internal._unpatched  # noqa: E402, F401, isort:skip
 
+from ddtrace.internal.utils.deprecations import check_supported_python_version as _check_supported_python_version
+
+
+_check_supported_python_version()
+
 __all__ = ["__version__", "patch", "patch_all", "config", "DDTraceDeprecationWarning"]
 
 _EXPORTS = {
@@ -28,7 +33,7 @@ _EXPORTS = {
     "patch_all": ("ddtrace._monkey", "patch_all"),
     "config": ("ddtrace.internal.settings._config", "config"),
     "DDTraceDeprecationWarning": ("ddtrace.internal.utils.deprecations", "DDTraceDeprecationWarning"),
-    "check_supported_python_version": ("ddtrace._initialize", "check_supported_python_version"),
+    "check_supported_python_version": ("ddtrace.internal.utils.deprecations", "check_supported_python_version"),
     # TODO: Remove root-level re-exports in v5.0.
     "tracer": ("ddtrace.trace", "tracer"),
 }

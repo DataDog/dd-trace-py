@@ -300,3 +300,6 @@ experiments:
           - name: startup-import_then_first_span
             thresholds:
               - execution_time < 10000 ms
+          - name: startup-configure_logger
+            thresholds:
+              - execution_time < 10000 ms

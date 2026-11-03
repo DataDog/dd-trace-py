@@ -1,4 +1,7 @@
-import ddtrace._initialize  # noqa: F401, isort:skip
+# ruff: noqa: E402
+from ddtrace._logger import configure_ddtrace_logger  # isort:skip
+
+configure_ddtrace_logger()
 
 import sys
 

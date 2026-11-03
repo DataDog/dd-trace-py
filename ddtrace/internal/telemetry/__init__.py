@@ -1,6 +1,6 @@
 """
 Instrumentation Telemetry API.
-This is normally started automatically when ``ddtrace`` is imported. It can be disabled by setting
+This starts when instrumentation or configuration requiring telemetry is initialized. It can be disabled by setting
 ``DD_INSTRUMENTATION_TELEMETRY_ENABLED`` variable to ``False``.
 """
 
@@ -9,14 +9,15 @@ import typing as t
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
-from ddtrace.internal.settings._core import FLEET_CONFIG
-from ddtrace.internal.settings._core import FLEET_CONFIG_IDS
-from ddtrace.internal.settings._core import LOCAL_CONFIG
+from ddtrace.internal.settings._core import FLEET_CONFIG  # noqa: F401
+from ddtrace.internal.settings._core import FLEET_CONFIG_IDS  # noqa: F401
+from ddtrace.internal.settings._core import LOCAL_CONFIG  # noqa: F401
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
-from ddtrace.internal.settings._otel_remapper import parse_otel_env
-from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
+from ddtrace.internal.settings._read_config import resolve_config
+from ddtrace.internal.settings._read_config import set_configuration_reporter
+from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES  # noqa: F401
 from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.process_tags import process_tags_config
@@ -36,92 +37,15 @@ def get_config(
     otel_env: t.Optional[t.Union[str, list[str]]] = None,
     report_telemetry=True,
 ) -> t.Any:
-    """Retrieve a configuration value in order of precedence:
-    1. Fleet stable config (highest)
-    2. Datadog env vars
-    3. OpenTelemetry env vars
-    4. Local stable config
-    5. Default value (lowest)
-
-    When multiple OpenTelemetry variables are provided, later entries take precedence.
-    Reports telemetry for every detected configuration source.
-    """
-    if isinstance(envs, str):
-        envs = [envs]
-    otel_envs = [otel_env] if isinstance(otel_env, str) else otel_env or []
-
-    # Expand with registered aliases of the canonical name (envs[0]) so all
-    # config sources (LOCAL_CONFIG, env, FLEET_CONFIG) honor legacy renames.
-    canonical = envs[0]
-    aliases = CONFIGURATION_ALIASES.get(canonical, [])
-    if aliases:
-        envs += [a for a in aliases if a not in envs]
-
-    effective_val = default
-    telemetry_name = envs[0]
-    # Configurations marked ``sensitive: true`` in the registry are excluded from
-    # configuration telemetry, regardless of which source supplies the value.
-    if telemetry_name in SENSITIVE_CONFIGURATIONS:
-        report_telemetry = False
-    if report_telemetry:
-        telemetry_writer.add_configuration(telemetry_name, default, "default")
-
-    for env_name in envs:
-        if env_name in LOCAL_CONFIG:
-            val = LOCAL_CONFIG[env_name]
-            if modifier:
-                val = modifier(val)
-
-            if report_telemetry:
-                telemetry_writer.add_configuration(telemetry_name, val, "local_stable_config")
-            effective_val = val
-            break
-
-    for otel_env_name in otel_envs:
-        if otel_env_name in env:
-            raw_val, parsed_val = parse_otel_env(otel_env_name)
-            if parsed_val is not None:
-                val = parsed_val
-                if modifier:
-                    val = modifier(val)
-
-                if report_telemetry:
-                    # OpenTelemetry configurations always report the raw value
-                    telemetry_writer.add_configuration(telemetry_name, raw_val, "otel_env_var")
-                effective_val = val
-            else:
-                _invalid_otel_config(otel_env_name)
-
-    for env_name in envs:
-        if env_name in env:
-            val = env[env_name]
-            if modifier:
-                val = modifier(val)
-
-            if report_telemetry:
-                telemetry_writer.add_configuration(telemetry_name, val, "env_var")
-                for otel_env_name in otel_envs:
-                    if otel_env_name in env:
-                        _hiding_otel_config(otel_env_name, env_name)
-            effective_val = val
-            break
-
-    for env_name in envs:
-        if env_name in FLEET_CONFIG:
-            val = FLEET_CONFIG[env_name]
-            config_id = FLEET_CONFIG_IDS.get(env_name)
-            if modifier:
-                val = modifier(val)
-
-            if report_telemetry:
-                telemetry_writer.add_configuration(telemetry_name, val, "fleet_stable_config", config_id)
-                for otel_env_name in otel_envs:
-                    if otel_env_name in env:
-                        _hiding_otel_config(otel_env_name, env_name)
-            effective_val = val
-            break
-
-    return effective_val
+    return resolve_config(
+        envs,
+        default,
+        modifier,
+        otel_env,
+        report_configuration=telemetry_writer.add_configuration if report_telemetry else None,
+        invalid_otel=lambda name: _invalid_otel_config(name),
+        hiding_otel=lambda name, dd_name: _hiding_otel_config(name, dd_name),
+    )
 
 
 telemetry_enabled = get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
@@ -131,6 +55,7 @@ else:
     from .noop_writer import NoOpTelemetryWriter as TelemetryWriter  # type: ignore[assignment]
 
 telemetry_writer = TelemetryWriter()
+set_configuration_reporter(lambda *configuration: telemetry_writer.add_configuration(*configuration))
 
 
 def report_configuration(config: DDConfig) -> None:

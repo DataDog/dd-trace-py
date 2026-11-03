@@ -733,7 +733,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_SDK_DISABLED"] = "true"
     env["OTEL_UNSUPPORTED_CONFIG"] = "value"
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.trace", env=env)
     assert status == 0, stderr
 
     configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
@@ -2261,9 +2261,8 @@ def test_get_config_respects_aliases_and_sensitive_configurations(telemetry_writ
 
     sensitive_name = "DD_TEST_SYNTHETIC_SENSITIVE_GET_CONFIG_SETTING"
     monkeypatch.setenv(sensitive_name, "leaked_value")
-    with mock.patch.object(
-        ddtrace.internal.telemetry,
-        "SENSITIVE_CONFIGURATIONS",
+    with mock.patch(
+        "ddtrace.internal.settings._read_config.SENSITIVE_CONFIGURATIONS",
         frozenset({sensitive_name}),
     ):
         assert ddtrace.internal.telemetry.get_config(sensitive_name, "default_value") == "leaked_value"

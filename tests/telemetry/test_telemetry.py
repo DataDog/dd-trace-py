@@ -81,7 +81,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import os
 
-import ddtrace # enables telemetry
+import ddtrace.trace # enables telemetry
 from ddtrace.internal.runtime import get_runtime_id
 
 
@@ -450,7 +450,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
 import time
 
-import ddtrace # enables telemetry
+import ddtrace.trace # enables telemetry
 
 # The native worker self-schedules heartbeats off DD_TELEMETRY_HEARTBEAT_INTERVAL (set to a small
 # value below). Fork, then in both parent and child sleep long enough for several auto-heartbeats so
@@ -573,7 +573,7 @@ def pre_ddtrace_exc_hook(exctype, value, traceback):
 
 sys.excepthook = pre_ddtrace_exc_hook
 
-import ddtrace
+import ddtrace.trace
 raise Exception('bad_code')
 """
     )
@@ -704,7 +704,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
         }
     )
     # Generate a trace to trigger app-started event
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.trace", env=env)
     assert status == 0, stderr
 
     # The in-process telemetry_writer fixture also emits an app-started into the session, but only
@@ -756,11 +756,13 @@ assert "ddtrace.internal.telemetry" in sys.modules
 def test_installed_excepthook():
     import sys
 
-    # importing ddtrace initializes the telemetry writer and installs the excepthook
+    original_hook = sys.excepthook
     import ddtrace  # noqa: F401
 
+    assert sys.excepthook is original_hook
     # ddtrace installs a single dispatching hook that fans out to registered callbacks
     from ddtrace.internal import excepthook
+    import ddtrace.trace  # noqa: F401
 
     assert sys.excepthook.__name__ == "_ddtrace_excepthook"
 
