@@ -24,3 +24,9 @@ def check_supported_python_version() -> None:
 
 
 check_supported_python_version()
+
+from ddtrace.internal.settings._config import config  # noqa: E402
+
+
+if config._data_streams_enabled:
+    import ddtrace.internal.datastreams  # noqa: E402, F401

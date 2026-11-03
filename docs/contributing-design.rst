@@ -58,6 +58,9 @@ Set ``_DD_GLOBAL_TRACER_INIT=false`` before starting Python to detect imports of
 root-level exports scheduled for removal in v5.0. Import values from their defining modules.
 Import submodules explicitly, for example ``from ddtrace import trace`` or ``import ddtrace.trace``.
 
+Initialize enabled Data Streams handlers in ``ddtrace._initialize``, shared by manual and automatic
+instrumentation. Keep product startup imports out of ``ddtrace.trace``.
+
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
 These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, etc. Before starting these Products,
 some setup has to happen, especially the execution of preexisting PEP648 ``sitecustomize`` scripts to maintain

@@ -44,6 +44,3 @@ __all__ = [
     "Span",
     "tracer",
 ]
-
-
-import ddtrace.internal.datastreams  # noqa: E402, F401
