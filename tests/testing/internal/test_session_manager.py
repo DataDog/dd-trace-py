@@ -1,6 +1,9 @@
 from contextlib import contextmanager
 from contextlib import nullcontext
 import os
+from pathlib import Path
+import subprocess
+import sys
 import typing as t
 from unittest.mock import Mock
 from unittest.mock import call
@@ -1074,6 +1077,7 @@ class TestUploadSentinel:
 
         sm = SessionManager.__new__(SessionManager)
         sm.workspace_path = workspace_path
+        sm._git_directory = Path(workspace_path) / ".git"
         sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
         sm.api_client = Mock()
         return sm
@@ -1380,6 +1384,7 @@ class TestUnshallowMarker:
 
         sm = SessionManager.__new__(SessionManager)
         sm.workspace_path = workspace_path
+        sm._git_directory = Path(workspace_path) / ".git"
         sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
         sm.api_client = Mock()
         return sm
@@ -1772,6 +1777,7 @@ class TestUploadLock:
 
         sm = SessionManager.__new__(SessionManager)
         sm.workspace_path = workspace_path
+        sm._git_directory = Path(workspace_path) / ".git"
         sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
         sm.api_client = Mock()
         sm.api_client.get_known_commits.return_value = []
@@ -1974,6 +1980,150 @@ class TestUploadLock:
         sm = SessionManager.__new__(SessionManager)
         sm.env_tags = {}
         sm.cleanup_upload_artifacts()  # no workspace_path — must not raise
+
+
+class TestGitCoordination:
+    def _manager(self, workspace, head="head-sha"):
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = Path(workspace)
+        sm.env_tags = {GitTag.COMMIT_SHA: head}
+        return sm
+
+    def _publish(self, sm, kind, head):
+        from ddtrace.testing.internal.git import GitTag
+
+        if kind == "upload":
+            sm.env_tags[GitTag.COMMIT_SHA] = head
+            sm._mark_upload_done()
+            return sm._upload_sentinel_path()
+        git = Mock()
+        git.get_commit_sha.return_value = head
+        git.get_shallow_boundary.return_value = {head}
+        sm._mark_unshallow_done(git)
+        return sm._unshallow_done_path()
+
+    def test_worktree_upload_state_stays_private(self, tmp_path) -> None:
+        from ddtrace.testing.internal.git import Git
+
+        metadata = tmp_path / "common.git" / "worktrees"
+        first = self._manager(tmp_path / "first")
+        second = self._manager(tmp_path / "second")
+        with patch.object(
+            Git, "get_git_path", side_effect=[metadata / "first" / "HEAD", metadata / "second" / "HEAD"]
+        ) as resolve:
+            assert first._upload_lock_path() == metadata / "first" / "dd-trace-py.upload.lock"
+            assert first._upload_sentinel_path() == metadata / "first" / "dd-trace-py.upload-done"
+            assert second._upload_lock_path() == metadata / "second" / "dd-trace-py.upload.lock"
+            assert second._upload_sentinel_path() == metadata / "second" / "dd-trace-py.upload-done"
+        assert resolve.call_count == 2  # Resolution is cached per session.
+
+    @pytest.mark.parametrize("manifest, payloads", [(True, False), (False, True)])
+    def test_offline_cleanup_does_not_call_git(self, tmp_path, manifest, payloads) -> None:
+        sm = self._manager(tmp_path)
+        offline = Mock(manifest_enabled=manifest, payload_files_enabled=payloads)
+        with (
+            patch("ddtrace.testing.internal.session_manager.get_offline_mode", return_value=offline),
+            patch("ddtrace.testing.internal.session_manager.Git") as git,
+        ):
+            sm.cleanup_upload_artifacts()
+        git.assert_not_called()
+
+    @pytest.mark.parametrize("failure", ["", OSError("Git metadata unavailable")])
+    def test_unknown_git_directory_disables_upload_coordination(self, tmp_path, failure) -> None:
+        from ddtrace.testing.internal.git import Git
+
+        sm = self._manager(tmp_path)
+        options = {"side_effect": failure} if isinstance(failure, OSError) else {"return_value": failure}
+        with patch.object(Git, "_git_output", **options):
+            assert sm._upload_sentinel_path() is None
+            assert sm._upload_lock_path() is None
+            with sm._upload_lock() as acquired:
+                assert acquired is True
+
+    def test_gitfile_and_symlink_use_actual_metadata(self, git_repo_empty, tmp_path) -> None:
+        from ddtrace.testing.internal.git import Git
+
+        metadata = tmp_path / "metadata"
+        result = Git(cwd=git_repo_empty)._call_git(["init", "--separate-git-dir", str(metadata)])
+        assert result.return_code == 0, result.stderr
+        alias = tmp_path / "alias"
+        alias.symlink_to(git_repo_empty, target_is_directory=True)
+        sm = self._manager(alias)
+
+        assert sm._upload_lock_path() == metadata / "dd-trace-py.upload.lock"
+        assert sm._upload_sentinel_path() == metadata / "dd-trace-py.upload-done"
+        with sm._upload_lock() as acquired:
+            assert acquired is True
+            sm._mark_upload_done()
+        assert sm._read_upload_sentinel() is not None
+        sm.cleanup_upload_artifacts()
+        assert not sm._upload_sentinel_path().exists()
+        assert sm._upload_lock_path().exists()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Requires POSIX file locking")
+    def test_upload_lock_coordinates_processes_through_symlink(self, git_repo_empty, tmp_path) -> None:
+        alias = tmp_path / "alias"
+        alias.symlink_to(git_repo_empty, target_is_directory=True)
+        sm = self._manager(alias)
+        lock = Path(git_repo_empty) / ".git" / "dd-trace-py.upload.lock"
+        code = (
+            "import fcntl, sys\n"
+            "with open(sys.argv[1], 'a') as lock:\n"
+            "    fcntl.flock(lock, fcntl.LOCK_EX)\n"
+            "    print('locked', flush=True)\n"
+            "    sys.stdin.readline()\n"
+        )
+        with subprocess.Popen(
+            [sys.executable, "-c", code, str(lock)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+        ) as peer:
+            try:
+                assert peer.stdout.readline() == "locked\n"
+                with patch("ddtrace.testing.internal.session_manager.time.monotonic", side_effect=[0, 9999]):
+                    with sm._upload_lock() as acquired:
+                        assert acquired is False
+            finally:
+                peer.communicate("release\n", timeout=10)
+        assert peer.returncode == 0
+        with sm._upload_lock() as acquired:
+            assert acquired is True
+
+    @pytest.mark.parametrize("kind", ["upload", "unshallow"])
+    def test_overlapping_marker_writers_publish_complete_payloads(self, git_repo_empty, kind) -> None:
+        import json
+
+        first = self._manager(git_repo_empty)
+        second = self._manager(git_repo_empty)
+        replace = Path.replace
+        temporary_paths = []
+
+        def interleave(source, destination):
+            temporary_paths.append(source)
+            if len(temporary_paths) == 1:
+                # Pause the first writer just before publication, and let another finish.
+                self._publish(second, kind, "second")
+                assert json.loads(destination.read_text())["head_sha"] == "second"
+                assert source.exists(), "The second writer must not consume the first writer's temporary file"
+            return replace(source, destination)
+
+        with patch.object(Path, "replace", interleave):
+            destination = self._publish(first, kind, "first")
+
+        assert len(set(temporary_paths)) == 2
+        assert json.loads(destination.read_text())["head_sha"] == "first"
+        assert not list(destination.parent.glob("*.tmp"))
+
+    @pytest.mark.parametrize("kind", ["upload", "unshallow"])
+    def test_failed_publication_keeps_previous_marker_and_cleans_temporary_file(self, git_repo_empty, kind) -> None:
+        import json
+
+        sm = self._manager(git_repo_empty)
+        destination = self._publish(sm, kind, "previous")
+        with patch.object(Path, "replace", side_effect=OSError("publication failed")):
+            self._publish(sm, kind, "new")
+        assert json.loads(destination.read_text())["head_sha"] == "previous"
+        assert not list(destination.parent.glob("*.tmp"))
 
 
 class TestParallelInit:
