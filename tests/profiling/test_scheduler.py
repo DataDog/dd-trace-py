@@ -98,6 +98,7 @@ def test_start_builds_code_provenance_in_background() -> None:
 def test_start_skips_code_provenance_build_when_disabled() -> None:
     s: scheduler.Scheduler = scheduler.Scheduler()
     s._enable_code_provenance = False
+    build: mock.MagicMock
     with mock.patch.object(code_provenance, "get_code_provenance_file") as build:
         s.start()
         s.stop()
@@ -162,6 +163,8 @@ def test_flush_during_background_build_builds_the_file_itself(tmp_path: Path, mo
 
     s: scheduler.Scheduler = scheduler.Scheduler()
     with mock.patch.object(ddup, "upload", upload):
+        release_build: threading.Event
+        computes: list[int]
         release_build, computes = _start_with_held_build(s, tmp_path, monkeypatch)
         try:
             s.stop()
@@ -186,6 +189,8 @@ def test_fork_waits_for_background_build(tmp_path: Path, monkeypatch: pytest.Mon
     # cold build waits for the build to finish.
     s: scheduler.Scheduler = scheduler.Scheduler()
     with mock.patch.object(ddup, "upload"):
+        release_build: threading.Event
+        computes: list[int]
         release_build, computes = _start_with_held_build(s, tmp_path, monkeypatch)
         s.stop()
         s.join()
