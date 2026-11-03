@@ -62,6 +62,9 @@ suites:
         - name: elevenlabs
           python: ['3.10', '3.12']
           dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
+        - name: elevenlabs
+          python: ['3.10', '3.12']
+          dependencies: ['elevenlabs==2.75.0', pytest-asyncio]
   aws_sdk_bedrock_runtime:
     paths:
       - "@bootstrap"

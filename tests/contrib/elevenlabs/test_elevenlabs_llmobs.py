@@ -12,10 +12,13 @@ import wave
 from elevenlabs import ElevenLabs
 from elevenlabs.conversational_ai import conversation
 import pytest
+from websockets.exceptions import ConnectionClosedOK
+from websockets.frames import Close
 
 from ddtrace import config
 from ddtrace.contrib.internal.elevenlabs import patch as patch_module
 from ddtrace.contrib.internal.elevenlabs._state import _CURRENT_STATE
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
@@ -31,6 +34,8 @@ from tests.llmobs._utils import assert_llmobs_span_data
 PCM = b"\x01\x00" * 1600
 B64 = base64.b64encode(PCM).decode()
 BASE_NS = 1_790_000_000_000_000_000
+# elevenlabs 2.75.0 sets _should_stop before end_session cleanup, so an aborted cleanup is final.
+STOP_BEFORE_CLEANUP = parse_version(patch_module.get_version()) >= (2, 75, 0)
 
 
 class Clock:
@@ -434,6 +439,69 @@ async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans,
     assert ("user_speech_activity" in phase["meta"]["metadata"]) is vad_enabled
     assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM
     assert decoded_frames(data["meta"]["output"]["messages"][0]) == PCM
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True])
+async def test_server_close_finalizes_turn_without_error(monkeypatch, test_spans, asynchronous):
+    # Since 2.75.0 the SDK ends a server-closed session internally, without calling end_session().
+    import websockets
+
+    clock = Clock()
+    monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
+    events = iter([metadata(), event("agent_response", 37, agent_response="Answer")])
+
+    def next_raw():
+        clock.advance()
+        try:
+            return json.dumps(next(events))
+        except StopIteration:
+            raise ConnectionClosedOK(Close(1000, ""), None) from None
+
+    class SyncSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def send(self, raw):
+            pass
+
+        def recv(self, **kwargs):
+            return next_raw()
+
+    class AsyncSocket:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def send(self, raw):
+            pass
+
+        async def recv(self):
+            await asyncio.sleep(0)
+            return next_raw()
+
+    patch_module.unpatch()
+    monkeypatch.setattr(conversation, "connect", lambda *args, **kwargs: SyncSocket())
+    monkeypatch.setattr(websockets, "connect", lambda *args, **kwargs: AsyncSocket())
+    patch_module.patch()
+    cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
+    audio = AsyncScriptAudio() if asynchronous else ScriptAudio()
+    instance = cls(ElevenLabs(api_key="test-key"), "test-agent", requires_auth=False, audio_interface=audio)
+    if asynchronous:
+        await instance.start_session()
+        await instance.wait_for_session_end()
+    else:
+        instance.start_session()
+        instance.wait_for_session_end()
+    assert instance._should_stop.is_set()
+    _, data = llm_rows(test_spans)[0]
+    assert data["status"] == "ok"
+    assert data["meta"]["output"]["messages"][0]["content"] == "Answer"
 
 
 @pytest.mark.parametrize("normal_events_only", [False, True])
@@ -1138,6 +1206,8 @@ async def test_aborted_external_shutdown_restores_observation(state, test_spans,
     cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
     instance = cls(ElevenLabs(api_key="test-key"), "test-agent", requires_auth=False, audio_interface=audio)
     instance._dd_elevenlabs_state = value
+    # 2.75.0+ stops audio only once the session started it.
+    instance._audio_started = True
     value.closing = already_closing
     failure = RuntimeError("Synthetic audio cleanup failure")
     waiting = asyncio.Event()
@@ -1166,10 +1236,10 @@ async def test_aborted_external_shutdown_restores_observation(state, test_spans,
                 else:
                     instance.end_session()
             assert raised.value is failure
-        assert not instance._should_stop.is_set()
-        assert value.closing is already_closing
+        assert instance._should_stop.is_set() is STOP_BEFORE_CLEANUP
+        assert value.closing is (already_closing or STOP_BEFORE_CLEANUP)
         assert not value.closed
-        if not already_closing:
+        if not value.closing:
             input_audio(value)
             receive(value, event("agent_response", 37, agent_response="Still observed"))
             value.close()
