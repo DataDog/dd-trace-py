@@ -87,6 +87,22 @@ def test_deprecated_switch_in_every_source(monkeypatch, fleet, env, local, expec
     assert config.value_source(NEW) == source
 
 
+@pytest.mark.parametrize("name", [NEW, OLD])
+def test_fleet_config_id_is_reported_for_either_name(monkeypatch, name):
+    from ddtrace.internal.settings import _core
+
+    monkeypatch.delenv(NEW, raising=False)
+    monkeypatch.delenv(OLD, raising=False)
+    monkeypatch.setattr(_core, "FLEET_CONFIG", {name: "false"})
+    monkeypatch.setattr(_core, "FLEET_CONFIG_IDS", {name: "fleet-123"})
+    monkeypatch.setattr(_core, "LOCAL_CONFIG", {})
+
+    config = OpenFeatureConfig()
+
+    assert config.exposures_datadog_logging_enabled is False
+    assert config.config_id(NEW) == "fleet-123"
+
+
 @pytest.mark.subprocess(parametrize={"_DD_SC_FILE_ENV": ["_DD_SC_LOCAL_FILE_OVERRIDE", "_DD_SC_MANAGED_FILE_OVERRIDE"]})
 def test_deprecated_switch_in_stable_config_file_warns():
     import os

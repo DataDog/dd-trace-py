@@ -7,6 +7,7 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _core
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource
@@ -177,6 +178,8 @@ class OpenFeatureConfig(DDConfig):
                     self.exposures_datadog_logging_enabled = enabled
                     self.parsed.exposures_datadog_logging_enabled = enabled
                     self._value_source[_EXPOSURES_SWITCH] = value_source
+                    if value_source == ValueSource.FLEET_STABLE_CONFIG:
+                        self._config_ids[_EXPOSURES_SWITCH] = _core.FLEET_CONFIG_IDS.get(name)
                     return
 
     _openfeature_config_keys = [
