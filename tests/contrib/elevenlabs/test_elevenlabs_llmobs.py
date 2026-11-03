@@ -1,6 +1,8 @@
 import asyncio
 import base64
+from contextlib import contextmanager
 import gzip
+import inspect
 import io
 import json
 from pathlib import Path
@@ -12,8 +14,7 @@ import wave
 from elevenlabs import ElevenLabs
 from elevenlabs.conversational_ai import conversation
 import pytest
-from websockets.exceptions import ConnectionClosedOK
-from websockets.frames import Close
+from websockets.sync.server import serve
 
 from ddtrace import config
 from ddtrace.contrib.internal.elevenlabs import patch as patch_module
@@ -441,65 +442,41 @@ async def test_ordinary_async_sdk_with_custom_interface(monkeypatch, test_spans,
     assert decoded_frames(data["meta"]["output"]["messages"][0]) == PCM
 
 
+@contextmanager
+def agent_server(handler):
+    """Serve handler as a real Agents WebSocket endpoint on localhost and yield a client that targets it."""
+    with serve(handler, "127.0.0.1", 0) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield ElevenLabs(api_key="test-key", base_url="http://127.0.0.1:%d" % server.socket.getsockname()[1])
+        finally:
+            server.shutdown()
+            thread.join(3)
+
+
+async def maybe_await(result):
+    """Lets one test body drive both the sync and the async conversation API."""
+    return await result if inspect.isawaitable(result) else result
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("asynchronous", [False, True])
-async def test_server_close_finalizes_turn_without_error(monkeypatch, test_spans, asynchronous):
+async def test_server_close_finalizes_turn_without_error(test_spans, asynchronous):
     # Since 2.75.0 the SDK ends a server-closed session internally, without calling end_session().
-    import websockets
+    def handler(ws):
+        ws.recv()  # conversation_initiation_client_data
+        ws.send(json.dumps(metadata()))
+        ws.send(json.dumps(event("agent_response", 37, agent_response="Answer")))
+        # Returning closes the connection normally (1000).
 
-    clock = Clock()
-    monkeypatch.setattr(_state.time, "time_ns", lambda: clock.now)
-    events = iter([metadata(), event("agent_response", 37, agent_response="Answer")])
-
-    def next_raw():
-        clock.advance()
-        try:
-            return json.dumps(next(events))
-        except StopIteration:
-            raise ConnectionClosedOK(Close(1000, ""), None) from None
-
-    class SyncSocket:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def send(self, raw):
-            pass
-
-        def recv(self, **kwargs):
-            return next_raw()
-
-    class AsyncSocket:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        async def send(self, raw):
-            pass
-
-        async def recv(self):
-            await asyncio.sleep(0)
-            return next_raw()
-
-    patch_module.unpatch()
-    monkeypatch.setattr(conversation, "connect", lambda *args, **kwargs: SyncSocket())
-    monkeypatch.setattr(websockets, "connect", lambda *args, **kwargs: AsyncSocket())
-    patch_module.patch()
-    cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
-    audio = AsyncScriptAudio() if asynchronous else ScriptAudio()
-    instance = cls(ElevenLabs(api_key="test-key"), "test-agent", requires_auth=False, audio_interface=audio)
-    if asynchronous:
-        await instance.start_session()
-        await instance.wait_for_session_end()
-    else:
-        instance.start_session()
-        instance.wait_for_session_end()
-    assert instance._should_stop.is_set()
-    _, data = llm_rows(test_spans)[0]
+    with agent_server(handler) as client:
+        cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
+        audio = AsyncScriptAudio() if asynchronous else ScriptAudio()
+        instance = cls(client, "test-agent", requires_auth=False, audio_interface=audio)
+        await maybe_await(instance.start_session())
+        await maybe_await(instance.wait_for_session_end())
+    [(_, data)] = llm_rows(test_spans)
     assert data["status"] == "ok"
     assert data["meta"]["output"]["messages"][0]["content"] == "Answer"
 
@@ -1196,34 +1173,72 @@ async def test_redundant_start_failure_preserves_ongoing_state(state, asynchrono
     assert not value.error
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["sync_error", "async_error", "async_cancel"])
-@pytest.mark.parametrize("already_closing", [False, True])
-async def test_aborted_external_shutdown_restores_observation(state, test_spans, monkeypatch, mode, already_closing):
-    value, _ = state
-    asynchronous = mode != "sync_error"
-    audio = AsyncScriptAudio() if asynchronous else ScriptAudio()
-    cls = conversation.AsyncConversation if asynchronous else conversation.Conversation
-    instance = cls(ElevenLabs(api_key="test-key"), "test-agent", requires_auth=False, audio_interface=audio)
-    instance._dd_elevenlabs_state = value
-    # 2.75.0+ stops audio only once the session started it.
-    instance._audio_started = True
-    value.closing = already_closing
-    failure = RuntimeError("Synthetic audio cleanup failure")
-    waiting = asyncio.Event()
+class FailingStopAudio(ScriptAudio):
+    """Audio whose first stop() raises, so the first end_session() aborts during cleanup."""
 
-    def fail_stop():
-        raise failure
+    def __init__(self, failure):
+        self.failure = failure
 
-    async def async_stop():
-        if mode == "async_cancel":
-            waiting.set()
+    def stop(self):
+        failure, self.failure = self.failure, None
+        if failure is not None:
+            raise failure
+
+
+class AsyncFailingStopAudio(AsyncScriptAudio):
+    """Async FailingStopAudio; given a waiting event, the first stop() blocks until cancelled instead."""
+
+    def __init__(self, failure, waiting=None):
+        self.failure = failure
+        self.waiting = waiting
+
+    async def stop(self):
+        failure, self.failure = self.failure, None
+        if failure is None:
+            return
+        if self.waiting is not None:
+            self.waiting.set()
             await asyncio.Event().wait()
         raise failure
 
-    monkeypatch.setattr(audio, "stop", async_stop if asynchronous else fail_stop)
-    try:
-        if mode == "async_cancel":
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["sync_error", "async_error", "async_cancel"])
+async def test_aborted_external_shutdown_restores_observation(test_spans, mode):
+    asynchronous = mode != "sync_error"
+    failure = RuntimeError("Synthetic audio cleanup failure")
+    waiting = asyncio.Event() if mode == "async_cancel" else None
+    ready = threading.Event()
+
+    def handler(ws):
+        ws.recv()  # conversation_initiation_client_data
+        ws.send(json.dumps(metadata()))
+        # The SDK reports ping latency only from its receive loop, after audio has started.
+        ws.send(json.dumps({"type": "ping", "ping_event": {"event_id": 1, "ping_ms": 1}}))
+        for raw in ws:  # ends when the client closes
+            if json.loads(raw).get("type") == "user_message":
+                ws.send(json.dumps(event("agent_response", 37, agent_response="Still observed")))
+                return
+
+    def on_ping(ms):
+        ready.set()
+
+    async def async_on_ping(ms):
+        ready.set()
+
+    with agent_server(handler) as client:
+        if asynchronous:
+            audio = AsyncFailingStopAudio(failure, waiting)
+            cls, callback = conversation.AsyncConversation, async_on_ping
+        else:
+            audio = FailingStopAudio(failure)
+            cls, callback = conversation.Conversation, on_ping
+        instance = cls(
+            client, "test-agent", requires_auth=False, audio_interface=audio, callback_latency_measurement=callback
+        )
+        await maybe_await(instance.start_session())
+        assert await asyncio.to_thread(ready.wait, 3)
+        if waiting is not None:
             task = asyncio.create_task(instance.end_session())
             await asyncio.wait_for(waiting.wait(), 3)
             task.cancel()
@@ -1231,23 +1246,17 @@ async def test_aborted_external_shutdown_restores_observation(state, test_spans,
                 await task
         else:
             with pytest.raises(RuntimeError) as raised:
-                if asynchronous:
-                    await instance.end_session()
-                else:
-                    instance.end_session()
+                await maybe_await(instance.end_session())
             assert raised.value is failure
-        assert instance._should_stop.is_set() is STOP_BEFORE_CLEANUP
-        assert value.closing is (already_closing or STOP_BEFORE_CLEANUP)
-        assert not value.closed
-        if not value.closing:
-            input_audio(value)
-            receive(value, event("agent_response", 37, agent_response="Still observed"))
-            value.close()
-            data = llm_rows(test_spans)[0][1]
-            assert data["meta"]["output"]["messages"][0]["content"] == "Still observed"
-            assert decoded_frames(data["meta"]["input"]["messages"][0]) == PCM
-    finally:
-        instance.client_tools.stop()
+        value = instance._dd_elevenlabs_state
+        assert value.closing is STOP_BEFORE_CLEANUP
+        if not STOP_BEFORE_CLEANUP:
+            # The session is still live, so the integration must keep observing it.
+            await maybe_await(instance.send_user_message("Question"))
+        await maybe_await(instance.wait_for_session_end())
+    assert value.closed
+    responses = [row["meta"]["output"]["messages"][0]["content"] for _, row in llm_rows(test_spans)]
+    assert responses == ([] if STOP_BEFORE_CLEANUP else ["Still observed"])
 
 
 @pytest.mark.asyncio
