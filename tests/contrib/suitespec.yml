@@ -373,6 +373,8 @@ suites:
       command: pytest {cmdargs} tests/contrib/aiokafka/
       env:
         DD_DATA_STREAMS_ENABLED: 'true'
+        # Disable stats to prevent them from leaking in a snapshot session
+        DD_TRACE_STATS_COMPUTATION_ENABLED: 'false'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
         - name: aiokafka
@@ -929,6 +931,8 @@ suites:
   django:
     venvs_per_job: 4
     env:
+      # Disable stats to prevent them from leaking in a snapshot session
+      DD_TRACE_STATS_COMPUTATION_ENABLED: 'false'
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
       POSTGRES_IMAGE: registry.ddbuild.io/images/mirror/postgres:16-alpine
@@ -1246,6 +1250,7 @@ suites:
       - '@contrib'
       - '@falcon'
       - tests/contrib/falcon/*
+      - tests/snapshots/tests.contrib.falcon.*
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/falcon
@@ -1685,6 +1690,8 @@ suites:
       command: pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka
       env:
         DD_DATA_STREAMS_ENABLED: 'true'
+        # Disable stats to prevent them from leaking in a snapshot session
+        DD_TRACE_STATS_COMPUTATION_ENABLED: 'false'
         _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
       variants:
         - name: kafka
@@ -2462,6 +2469,9 @@ suites:
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.2.4']
   starlette:
     venvs_per_job: 8
+    env:
+      # Disable stats to prevent them from leaking in a snapshot session
+      DD_TRACE_STATS_COMPUTATION_ENABLED: 'false'
     paths:
       - '@bootstrap'
       - '@contrib'
