@@ -265,7 +265,10 @@ def test_removed_config_reverts_to_less_specific_config(restart_profiler: _Recor
 
     callback([_payload("service", None)])
 
-    assert restart_profiler.last[STACK] is True
+    # Locals: mypy keeps the earlier last[STACK] is False narrowing across the
+    # callback mutation, so a second assert on the same expression looks dead.
+    stack_after_remove: bool = restart_profiler.last[STACK]
+    assert stack_after_remove is True
     assert set(remoteconfig.debug_configs) == {"env"}
 
 
@@ -285,7 +288,8 @@ def test_config_retargeted_away_is_removed(restart_profiler: _Recorder) -> None:
 
     callback([_payload("a", _profiling_content({"service": "other-service"}, {"cpuTime": True}))])
 
-    assert restart_profiler.last[STACK] is False
+    stack_after_retarget: bool = restart_profiler.last[STACK]
+    assert stack_after_retarget is False
     assert remoteconfig.debug_configs == {}
 
 
@@ -742,6 +746,23 @@ def test_restart_profiler_applies_settings_without_enabled_collectors(created_pr
     assert profiling_config.max_frames == 10
 
 
+def test_restart_profiler_keeps_gc_only_profiler_on_settings_update(
+    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]]
+) -> None:
+    # GC is local-only and not in the RC wanted map. A settings-only update with
+    # all RC collectors disabled must still restart so GC keeps running.
+    monkeypatch.setattr(profiling_config.gc, "enabled", True)
+    monkeypatch.setattr(profiling_config.pytorch, "enabled", False)
+    monkeypatch.setattr(profiling_config.native_heap, "enabled", False)
+
+    remoteconfig._restart_profiler(_collectors(), {**remoteconfig._settings_from_env(), "maxStackDepth": 24})
+
+    assert created_profilers == [_collectors()]
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
+    assert profiling_config.max_frames == 24
+    assert profiling_config.gc.enabled is True
+
+
 def test_start_profiler_waits_for_lifecycle_lock(created_profilers: list[dict[str, bool]]) -> None:
     # Importing sitecustomize starts a profiler, so it is imported once Profiler is replaced.
     from ddtrace.profiling.bootstrap import sitecustomize
@@ -813,13 +834,41 @@ def test_start_profiler_with_only_native_heap_enabled(
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
 
 
+def test_start_profiler_with_only_gc_enabled(
+    monkeypatch: pytest.MonkeyPatch, created_profilers: list[dict[str, bool]]
+) -> None:
+    # Importing sitecustomize starts a profiler, so it is imported once Profiler is replaced.
+    from ddtrace.profiling.bootstrap import sitecustomize
+
+    with lifecycle.lock:
+        lifecycle.stop_profiler()
+        created_profilers.clear()
+
+    for setting in (
+        profiling_config.stack,
+        profiling_config.memory,
+        profiling_config.lock,
+        profiling_config.exception,
+        profiling_config.pytorch,
+        profiling_config.native_heap,
+    ):
+        monkeypatch.setattr(setting, "enabled", False)
+    monkeypatch.setattr(profiling_config.gc, "enabled", True)
+
+    sitecustomize.start_profiler()
+
+    assert created_profilers == [{}]
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
+
+
 def test_product_activated_when_profiling_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     from ddtrace.internal.profiling import product
 
-    monkeypatch.setattr(product.profiling_config, "enabled", False)
+    # product.activated() reads the same settings object imported above.
+    monkeypatch.setattr(profiling_config, "enabled", False)
     assert not product.activated()
 
-    monkeypatch.setattr(product.profiling_config, "enabled", True)
+    monkeypatch.setattr(profiling_config, "enabled", True)
     assert product.activated()
 
 
@@ -890,7 +939,10 @@ def test_removing_config_restores_env_collectors(
     # The configuration from the environment still has the lock collector disabled.
     callback([_payload("env", None)])
 
-    assert profiling_config.lock.enabled is False
+    # Local: mypy keeps the earlier lock.enabled is True narrowing across the
+    # callback mutation.
+    lock_after_remove: bool = bool(profiling_config.lock.enabled)
+    assert lock_after_remove is False
     assert remoteconfig._running_collectors() == _env_collectors()
 
 
@@ -1009,7 +1061,7 @@ def test_profiler_starts_with_remote_config_disabled() -> None:
     from ddtrace.internal.service import ServiceStatus
     from ddtrace.profiling import bootstrap
 
-    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
@@ -1039,7 +1091,7 @@ def test_profiler_starts_when_remote_config_fails_to_start() -> None:
     from ddtrace.internal.service import ServiceStatus
     from ddtrace.profiling import bootstrap
 
-    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
+    assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING
     # The profiling product depends on remote-configuration, so it does not subscribe to Remote Config.
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None

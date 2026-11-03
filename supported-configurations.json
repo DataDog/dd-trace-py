@@ -2924,6 +2924,13 @@
         "default": null
       }
     ],
+    "DD_PROFILING_GC_ENABLED": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_PROFILING_HEAP_ENABLED": [
       {
         "implementation": "C",

@@ -25,6 +25,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import exception
+from ddtrace.profiling.collector import gc as gc_collector
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
@@ -199,6 +200,7 @@ class _ProfilerInstance(service.Service):
         _memory_collector_enabled: Optional[bool] = None,
         _stack_collector_enabled: Optional[bool] = None,
         _lock_collector_enabled: Optional[bool] = None,
+        _gc_collector_enabled: Optional[bool] = None,
         _pytorch_collector_enabled: Optional[bool] = None,
         _exception_profiling_enabled: Optional[bool] = None,
         enable_code_provenance: Optional[bool] = None,
@@ -221,6 +223,9 @@ class _ProfilerInstance(service.Service):
         )
         self._lock_collector_enabled: bool = (
             _lock_collector_enabled if _lock_collector_enabled is not None else profiling_config.lock.enabled
+        )
+        self._gc_collector_enabled: bool = (
+            _gc_collector_enabled if _gc_collector_enabled is not None else profiling_config.gc.enabled
         )
         self._pytorch_collector_enabled: bool = (
             _pytorch_collector_enabled if _pytorch_collector_enabled is not None else profiling_config.pytorch.enabled
@@ -283,6 +288,8 @@ class _ProfilerInstance(service.Service):
             timeout=profiling_config.api_timeout_ms,
             process_tags=self.process_tags,
         )
+        if self._gc_collector_enabled:
+            ddup.config_sample_type(ddup.SAMPLE_TYPE_GC)
         ddup.start()
 
         # Surface the effective profiler configuration on each uploaded profile
@@ -308,6 +315,14 @@ class _ProfilerInstance(service.Service):
                 LOG.debug("[profiling] Profiling ExceptionCollector initialized")
             except Exception:
                 LOG.error("[profiling] Failed to start ExceptionCollector, disabling.", exc_info=True)
+
+        if self._gc_collector_enabled:
+            LOG.debug("Profiling collector (gc) enabled")
+            try:
+                self._collectors.append(gc_collector.GCCollector())
+                LOG.debug("Profiling collector (gc) initialized")
+            except Exception:
+                LOG.error("Failed to start gc collector, disabling.", exc_info=True)
 
         if self._stack_collector_enabled:
             LOG.debug("[profiling] Profiling StackCollector enabled")
@@ -456,6 +471,7 @@ class _ProfilerInstance(service.Service):
         "_memory_collector_enabled",
         "_stack_collector_enabled",
         "_lock_collector_enabled",
+        "_gc_collector_enabled",
         "_pytorch_collector_enabled",
         "_exception_profiling_enabled",
     )
