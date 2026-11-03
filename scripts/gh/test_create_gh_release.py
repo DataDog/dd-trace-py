@@ -30,6 +30,10 @@ from create_gh_release import _GH_RELEASE_REQUIRED_FLAGS  # noqa: E402
 from create_gh_release import _RELEASE_SCRIPT_BRANCH_NAME  # noqa: E402
 from create_gh_release import _RELEASE_SCRIPT_BRANCH_URL  # noqa: E402
 from create_gh_release import _RELEASE_SCRIPT_PATH  # noqa: E402
+from create_gh_release import CI_KIND_PRODUCT  # noqa: E402
+from create_gh_release import CI_KIND_RETRY_INFRA  # noqa: E402
+from create_gh_release import CI_KIND_ROLLUP  # noqa: E402
+from create_gh_release import CI_KIND_UNKNOWN  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_DEFAULT  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_GUILD_ENV  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_PROD_ENV  # noqa: E402
@@ -39,6 +43,7 @@ from create_gh_release import SLACK_DM_ENV  # noqa: E402
 from create_gh_release import SLACK_USER_BRETT_ID  # noqa: E402
 from create_gh_release import SLACK_USER_EMMETT_ID  # noqa: E402
 from create_gh_release import SLACK_WORKFLOW_STRUCTURED_ENV  # noqa: E402
+from create_gh_release import CiFailureDetail  # noqa: E402
 from create_gh_release import ReleaseState  # noqa: E402
 from create_gh_release import WaitingOn  # noqa: E402
 from create_gh_release import _is_version_bump_pr_title  # noqa: E402
@@ -46,6 +51,7 @@ from create_gh_release import auto_created_footer  # noqa: E402
 from create_gh_release import build_gh_release_args  # noqa: E402
 from create_gh_release import build_parser  # noqa: E402
 from create_gh_release import build_version_bump_pr_body  # noqa: E402
+from create_gh_release import classify_ci_failure  # noqa: E402
 from create_gh_release import compose_release_body  # noqa: E402
 from create_gh_release import compute_final_version  # noqa: E402
 from create_gh_release import compute_next_minor_rc1  # noqa: E402
@@ -53,6 +59,8 @@ from create_gh_release import compute_next_patch  # noqa: E402
 from create_gh_release import compute_next_rc  # noqa: E402
 from create_gh_release import draft_kind_phrase  # noqa: E402
 from create_gh_release import find_eol_block  # noqa: E402
+from create_gh_release import format_ci_detail  # noqa: E402
+from create_gh_release import format_ci_failure_guidance  # noqa: E402
 from create_gh_release import format_included_since_section  # noqa: E402
 from create_gh_release import format_notes_for_version  # noqa: E402
 from create_gh_release import format_slack_announce  # noqa: E402
@@ -812,6 +820,86 @@ class DraftReleaseMismatchTests(unittest.TestCase):
             setattr(mod, "read_pyproject_version_at", original_read_pyproject)
 
 
+class CiFailureClassifyTests(unittest.TestCase):
+    def test_classify_rollup_and_infra(self) -> None:
+        self.assertEqual(
+            classify_ci_failure(CiFailureDetail(name="DDCI Status", description="Not required to merge")),
+            CI_KIND_ROLLUP,
+        )
+        self.assertEqual(
+            classify_ci_failure(CiFailureDetail(name="dd-gitlab/default-pipeline")),
+            CI_KIND_ROLLUP,
+        )
+        self.assertEqual(
+            classify_ci_failure(
+                CiFailureDetail(
+                    name="dd-gitlab/llmobs/vllm 2/6",
+                    description="Pod was not scheduled due to insufficient resources",
+                )
+            ),
+            CI_KIND_RETRY_INFRA,
+        )
+        self.assertEqual(
+            classify_ci_failure(CiFailureDetail(name="dd-gitlab/microbenchmarks: [1, core_api fork_time]")),
+            CI_KIND_RETRY_INFRA,
+        )
+        self.assertEqual(
+            classify_ci_failure(CiFailureDetail(name="unit-tests (check-run, action_required)")),
+            CI_KIND_PRODUCT,
+        )
+        self.assertEqual(
+            classify_ci_failure(CiFailureDetail(name="dd-gitlab/some-integration")),
+            CI_KIND_UNKNOWN,
+        )
+
+    def test_format_guidance_lists_retry_and_urls(self) -> None:
+        mosaic: str = (
+            "https://mosaic.us1.ddbuild.io/change-request/12551606129292880986?owner=DataDog&taskExecutionId=1"
+        )
+        text: str = format_ci_failure_guidance(
+            "503be289517c45debc4c25db92e5f5c26cf419fe",
+            [
+                CiFailureDetail(
+                    name="dd-gitlab/llmobs/vllm 2/6",
+                    url=mosaic,
+                    description="Pod was not scheduled due to insufficient resources",
+                ),
+                CiFailureDetail(
+                    name="DDCI Status",
+                    url="https://mosaic.us1.ddbuild.io/change-request/12551606129292880986",
+                    description="Not required to merge",
+                ),
+            ],
+        )
+        self.assertIn("Waiting will not turn these green", text)
+        self.assertIn("Needs Retry (likely platform/infra):", text)
+        self.assertIn("dd-gitlab/llmobs/vllm 2/6", text)
+        self.assertIn("Rollup contexts", text)
+        self.assertIn("DDCI Status", text)
+        self.assertIn(
+            "https://github.com/DataDog/dd-trace-py/commit/503be289517c45debc4c25db92e5f5c26cf419fe/checks",
+            text,
+        )
+        self.assertIn("https://mosaic.us1.ddbuild.io/change-request/12551606129292880986", text)
+
+    def test_format_ci_detail_includes_kind_tags(self) -> None:
+        detail: str = format_ci_detail(
+            "deadbeefcafe",
+            "failure",
+            [
+                CiFailureDetail(
+                    name="dd-gitlab/microbenchmarks: [1, x]",
+                    url="https://mosaic.us1.ddbuild.io/change-request/1?x=1",
+                )
+            ],
+            [],
+            10,
+        )
+        self.assertIn("[retry_infra]", detail)
+        self.assertIn("Needs Retry", detail)
+        self.assertIn("Waiting will not turn these green", detail)
+
+
 class CiGreenPreflightTests(unittest.TestCase):
     def _patch_responses(self, state: str, statuses_ndjson: str, check_runs_ndjson: str) -> tuple[Any, Any]:
         import create_gh_release as mod
@@ -836,13 +924,22 @@ class CiGreenPreflightTests(unittest.TestCase):
 
         mod, original = self._patch_responses(
             state="failure",
-            statuses_ndjson='{"context": "dd-gitlab/build", "state": "failure"}\n',
+            statuses_ndjson=(
+                '{"context": "dd-gitlab/microbenchmarks: [1, core_api fork_time]", '
+                '"state": "failure", '
+                '"target_url": "https://mosaic.us1.ddbuild.io/change-request/99?job=1", '
+                '"description": "Image pull failed"}\n'
+            ),
             check_runs_ndjson="",
         )
         try:
             with self.assertRaises(SystemExit) as ctx:
                 ensure_ci_green("dead")
-            self.assertIn("non-green CI", str(ctx.exception))
+            msg: str = str(ctx.exception)
+            self.assertIn("non-green CI", msg)
+            self.assertIn("Needs Retry", msg)
+            self.assertIn("Waiting will not turn these green", msg)
+            self.assertIn("mosaic.us1.ddbuild.io/change-request/99", msg)
         finally:
             mod.run_out = original
 

@@ -36,9 +36,11 @@ Usage:
 CI wait (patch / rc / final / draft-release):
   Wet runs poll GitHub statuses/checks until green (default --wait-ci, 75m
   timeout, ~45s poll). On green the same invocation continues and creates the
-  draft. On red CI it exits with an error. On timeout it exits WAITING ON with
-  the last status (re-run to resume). --dry-run never waits. --no-wait-ci
-  exits WAITING ON immediately when CI is still pending.
+  draft. On red CI it exits with an error and prints classified failing
+  contexts (Needs Retry vs product vs rollup) plus Mosaic/GitHub URLs when
+  available — waiting will not help once CI has failed. On timeout it exits
+  WAITING ON with the last status (re-run to resume). --dry-run never waits.
+  --no-wait-ci exits WAITING ON immediately when CI is still pending.
 
 Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL
@@ -137,6 +139,8 @@ import time
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Sequence
+from typing import Union
 import urllib.error
 import urllib.request
 
@@ -770,8 +774,151 @@ def fetch_ssm_parameter(name: str) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
-    """Return CI status for a commit as ``(overall_state, failing, pending, passing_count)``.
+# Classification labels for red CI (shown in refuse messages).
+CI_KIND_RETRY_INFRA: str = "retry_infra"
+CI_KIND_ROLLUP: str = "rollup"
+CI_KIND_PRODUCT: str = "product"
+CI_KIND_UNKNOWN: str = "unknown"
+
+# GitHub status description / context hints that usually mean platform flake.
+_CI_INFRA_HINT_RE: re.Pattern[str] = re.compile(
+    r"insufficient resources|not scheduled|untolerated taints|"
+    r"timed?\s*out|timeout|image pull|BadZipFile|truncated file header|"
+    r"context deadline|infrastructure|runner unavailable|network error|"
+    r"pod was not|ECR|environment preparation",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class CiFailureDetail:
+    """One red check context / check-run with optional GitHub status URL."""
+
+    name: str
+    url: str = ""
+    description: str = ""
+
+
+def coerce_ci_failures(failing: Sequence[Union[str, CiFailureDetail]]) -> list[CiFailureDetail]:
+    """Normalize summary fakes (plain names) and live details to ``CiFailureDetail``."""
+    out: list[CiFailureDetail] = []
+    for item in failing:
+        if isinstance(item, CiFailureDetail):
+            out.append(item)
+        else:
+            out.append(CiFailureDetail(name=str(item)))
+    return out
+
+
+def ci_failure_names(failing: Sequence[Union[str, CiFailureDetail]]) -> list[str]:
+    """Plain context names for ReleaseState / SLO filters."""
+    return [d.name for d in coerce_ci_failures(failing)]
+
+
+def classify_ci_failure(detail: CiFailureDetail) -> str:
+    """Heuristic class for a red check: retry_infra / rollup / product / unknown.
+
+    Uses GitHub context name + status description only (no extra network).
+    Infra/platform leafs → Retry; parent rollups → ignore for Retry list;
+    product → likely code; unknown → open Mosaic and inspect.
+    """
+    bare: str = re.sub(r" \(check-run(?:, [^)]+)?\)$", "", detail.name).strip()
+    desc: str = (detail.description or "").strip()
+    lower_bare: str = bare.lower()
+    if bare == "DDCI Status" or lower_bare.endswith("/default-pipeline") or lower_bare == "default-pipeline":
+        return CI_KIND_ROLLUP
+    if "action_required" in detail.name.lower():
+        return CI_KIND_PRODUCT
+    blob: str = f"{bare}\n{desc}"
+    if _CI_INFRA_HINT_RE.search(blob):
+        return CI_KIND_RETRY_INFRA
+    # Microbenchmark matrix jobs on this repo are usually platform flakes.
+    if "microbenchmarks" in lower_bare:
+        return CI_KIND_RETRY_INFRA
+    return CI_KIND_UNKNOWN
+
+
+def github_commit_checks_url(sha: str) -> str:
+    """GitHub commit checks tab for the tip SHA."""
+    return f"https://github.com/{GH_REPO}/commit/{sha}/checks"
+
+
+def format_ci_failure_guidance(sha: str, failing: Sequence[Union[str, CiFailureDetail]]) -> str:
+    """Actionable next steps when CI is already red (waiting will not help)."""
+    details: list[CiFailureDetail] = coerce_ci_failures(failing)
+    if not details:
+        return ""
+    lines: list[str] = [
+        "Waiting will not turn these green — CI already failed.",
+        "Classify + next action:",
+    ]
+    retry: list[CiFailureDetail] = []
+    product: list[CiFailureDetail] = []
+    unknown: list[CiFailureDetail] = []
+    rollup: list[CiFailureDetail] = []
+    for d in details:
+        kind: str = classify_ci_failure(d)
+        if kind == CI_KIND_RETRY_INFRA:
+            retry.append(d)
+        elif kind == CI_KIND_PRODUCT:
+            product.append(d)
+        elif kind == CI_KIND_ROLLUP:
+            rollup.append(d)
+        else:
+            unknown.append(d)
+
+    def _emit_group(label: str, items: list[CiFailureDetail]) -> None:
+        if not items:
+            return
+        lines.append(f"  {label}")
+        for item in items[:15]:
+            lines.append(f"    - {item.name}")
+            if item.description:
+                lines.append(f"      note: {item.description}")
+            if item.url:
+                lines.append(f"      url: {item.url}")
+        if len(items) > 15:
+            lines.append(f"    ... and {len(items) - 15} more")
+
+    _emit_group("Needs Retry (likely platform/infra):", retry)
+    _emit_group("Likely product / needs investigation:", product)
+    _emit_group("Inspect in Mosaic (class unclear):", unknown)
+    if rollup:
+        roll_names: str = ", ".join(d.name for d in rollup[:8])
+        lines.append(
+            f"  Rollup contexts (clear after leaf jobs go green): {roll_names}"
+            + (f" (+{len(rollup) - 8} more)" if len(rollup) > 8 else "")
+        )
+    lines.append(f"  GitHub checks: {github_commit_checks_url(sha)}")
+    mosaic_urls: list[str] = []
+    for d in details:
+        if d.url and "mosaic." in d.url and d.url not in mosaic_urls:
+            mosaic_urls.append(d.url)
+    if mosaic_urls:
+        # Prefer the change-request root when present.
+        root: Optional[str] = None
+        for u in mosaic_urls:
+            m: Optional[re.Match[str]] = re.match(
+                r"(https://mosaic[^?\s]+/change-request/[^?\s]+)",
+                u,
+            )
+            if m:
+                root = m.group(1)
+                break
+        lines.append(f"  Mosaic: {root or mosaic_urls[0]}")
+        if retry or unknown:
+            lines.append(
+                "  Open Mosaic → retry the failed leaf jobs (or re-run failed jobs), "
+                "then re-run this command when GitHub status is green."
+            )
+    lines.append("Do not pass --allow-ci-failure unless you intentionally cut from a red tip.")
+    return "\n".join(lines)
+
+
+def get_commit_ci_summary(
+    sha: str,
+) -> tuple[str, list[CiFailureDetail], list[str], int]:
+    """Return CI status as ``(overall_state, failing, pending, passing_count)``.
 
     Combines two GitHub APIs:
 
@@ -783,8 +930,8 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
       ``conclusion`` fields.
 
     Both must report green for the commit to be considered "fully passing".
-    Pending or failing items show up in the ``pending``/``failing`` lists so the
-    runner can see exactly what's wrong.
+    Failing entries include ``target_url`` / description when GitHub provides them
+    so refuse messages can point at Mosaic Retry links.
     """
     # Legacy combined-status API. The top-level ``state`` field is the
     # authoritative roll-up across ALL statuses (even those on later pages);
@@ -802,7 +949,7 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
     )
     overall_state: str = state_out.strip() or "pending"
 
-    failing: list[str] = []
+    failing: list[CiFailureDetail] = []
     pending: list[str] = []
     passing_count: int = 0
 
@@ -813,13 +960,13 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
             f"repos/DataDog/dd-trace-py/commits/{sha}/statuses",
             "--paginate",
             "--jq",
-            ".[] | {context, state}",
+            ".[] | {context, state, target_url, description}",
         ],
         cwd=REPO_ROOT,
     )
-    # Pagination returns most-recent first; track the latest state per context
+    # Pagination returns most-recent first; track the latest row per context
     # so older superseded statuses don't double-count.
-    latest_state_by_ctx: dict[str, str] = {}
+    latest_by_ctx: dict[str, dict[str, Any]] = {}
     for line in statuses_out.splitlines():
         line = line.strip()
         if not line:
@@ -829,14 +976,21 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
         except ValueError:
             continue
         ctx_name: str = s.get("context", "<unknown>")
-        latest_state_by_ctx.setdefault(ctx_name, s.get("state", ""))
-    for ctx_name, ctx_state in latest_state_by_ctx.items():
+        latest_by_ctx.setdefault(ctx_name, s)
+    for ctx_name, row in latest_by_ctx.items():
+        ctx_state: str = str(row.get("state") or "")
         if ctx_state == "success":
             passing_count += 1
         elif ctx_state == "pending":
             pending.append(ctx_name)
         elif ctx_state in ("failure", "error"):
-            failing.append(ctx_name)
+            failing.append(
+                CiFailureDetail(
+                    name=ctx_name,
+                    url=str(row.get("target_url") or ""),
+                    description=str(row.get("description") or ""),
+                )
+            )
 
     # Modern check-runs API.
     runs_out: str = run_out(
@@ -845,7 +999,7 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
             "api",
             f"repos/DataDog/dd-trace-py/commits/{sha}/check-runs",
             "--jq",
-            ".check_runs[] | {name, status, conclusion}",
+            ".check_runs[] | {name, status, conclusion, html_url}",
         ],
         cwd=REPO_ROOT,
     )
@@ -860,6 +1014,7 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
         name: str = run_obj.get("name", "<unknown>")
         run_status: str = run_obj.get("status", "")
         conclusion: str = run_obj.get("conclusion") or ""
+        html_url: str = str(run_obj.get("html_url") or "")
         if run_status != "completed":
             pending.append(f"{name} (check-run)")
             if overall_state == "success":
@@ -868,7 +1023,13 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
             passing_count += 1
         else:
             # failure, timed_out, cancelled, action_required, stale, ...
-            failing.append(f"{name} (check-run, {conclusion or 'unknown'})")
+            failing.append(
+                CiFailureDetail(
+                    name=f"{name} (check-run, {conclusion or 'unknown'})",
+                    url=html_url,
+                    description=conclusion,
+                )
+            )
             if overall_state == "success":
                 overall_state = "failure"
 
@@ -878,17 +1039,26 @@ def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
 def format_ci_detail(
     sha: str,
     overall: str,
-    failing: list[str],
+    failing: Sequence[Union[str, CiFailureDetail]],
     pending: list[str],
     passing: int,
 ) -> str:
     """Human-readable CI roll-up for logs and WAITING ON / error messages."""
+    details: list[CiFailureDetail] = coerce_ci_failures(failing)
     short: str = sha if len(sha) <= 12 else sha[:12]
-    detail: str = f"CI on {short}: state={overall}, passing={passing}, pending={len(pending)}, failing={len(failing)}"
-    if failing:
-        detail += "\n  failing:\n    " + "\n    ".join(failing[:10])
-        if len(failing) > 10:
-            detail += f"\n    ... and {len(failing) - 10} more"
+    detail: str = f"CI on {short}: state={overall}, passing={passing}, pending={len(pending)}, failing={len(details)}"
+    if details:
+        detail += "\n  failing:"
+        for d in details[:10]:
+            kind: str = classify_ci_failure(d)
+            detail += f"\n    [{kind}] {d.name}"
+            if d.description:
+                detail += f" — {d.description}"
+            if d.url:
+                detail += f"\n      {d.url}"
+        if len(details) > 10:
+            detail += f"\n    ... and {len(details) - 10} more"
+        detail += "\n" + format_ci_failure_guidance(sha, details)
     if pending:
         detail += "\n  pending:\n    " + "\n    ".join(pending[:10])
         if len(pending) > 10:
@@ -914,26 +1084,32 @@ def wait_for_ci_green(
     poll_interval_s: float = DEFAULT_CI_POLL_INTERVAL_S,
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
-    summary_fn: Optional[Callable[[str], tuple[str, list[str], list[str], int]]] = None,
+    summary_fn: Optional[
+        Callable[
+            [str],
+            tuple[str, Sequence[Union[str, CiFailureDetail]], list[str], int],
+        ]
+    ] = None,
 ) -> None:
     """Poll GitHub until CI is green, failed, or the timeout elapses.
 
     On green: returns so the same invocation can create the draft.
-    On failure: raises ``SystemExit`` with the failing check names.
+    On failure: raises ``SystemExit`` with the failing check names and Retry guidance.
     On timeout: raises ``WaitingOn`` with the last status (main prints
     ``WAITING ON:`` and exits 2).
     """
     # Resolve at call time so tests can patch ``get_commit_ci_summary``.
-    resolve_summary: Callable[[str], tuple[str, list[str], list[str], int]] = (
-        summary_fn if summary_fn is not None else get_commit_ci_summary
-    )
+    resolve_summary: Callable[
+        [str],
+        tuple[str, Sequence[Union[str, CiFailureDetail]], list[str], int],
+    ] = summary_fn if summary_fn is not None else get_commit_ci_summary
     started: float = monotonic_fn()
     deadline: float = started + timeout_s
     poll_n: int = 0
     last_detail: str = ""
     while True:
         overall: str
-        failing: list[str]
+        failing: Sequence[Union[str, CiFailureDetail]]
         pending: list[str]
         passing: int
         try:
@@ -969,7 +1145,8 @@ def wait_for_ci_green(
         if failing:
             raise SystemExit(
                 f"CI failed while waiting; refusing to draft. {last_detail}\n"
-                "Fix or tip past the failure, or pass --allow-ci-failure."
+                "Fix, tip past the failure, or Retry infra jobs in Mosaic; "
+                "only pass --allow-ci-failure if you intentionally cut from red."
             )
         now: float = monotonic_fn()
         remaining: float = deadline - now
@@ -1014,7 +1191,7 @@ def ensure_ci_green(
     should pass ``wait=False`` so the script does not hang.
     """
     overall: str
-    failing: list[str]
+    failing: list[CiFailureDetail]
     pending: list[str]
     passing: int
     overall, failing, pending, passing = get_commit_ci_summary(sha)
@@ -1028,8 +1205,8 @@ def ensure_ci_green(
     if failing:
         raise SystemExit(
             f"refusing to draft release on a commit with non-green CI. {detail}\n"
-            "Either wait for CI to complete on origin/<target>, or pass "
-            "--allow-ci-failure to override (e.g. for known-flaky red checks)."
+            "Re-run after leaf jobs are green (Retry in Mosaic if platform/infra). "
+            "Pass --allow-ci-failure only to intentionally override a red tip."
         )
     # Pending only from here.
     if wait:
@@ -1861,7 +2038,7 @@ def inspect_branch_state(branch: str) -> ReleaseState:
             branch, compute_next_patch(version) if is_stable_version(version) else version
         ),
         ci_overall=overall,
-        ci_failing=failing,
+        ci_failing=ci_failure_names(failing),
         ci_pending=pending,
     )
     return state
@@ -2209,7 +2386,8 @@ def check_libdatadog_released_tag(ref: str = "origin/main") -> None:
 
 def check_slo_breaches_on_sha(sha: str) -> None:
     overall, failing, pending, _ = get_commit_ci_summary(sha)
-    slo_fail: list[str] = [n for n in failing if "slo" in n.lower() or "check-slo-breaches" in n.lower()]
+    fail_names: list[str] = ci_failure_names(failing)
+    slo_fail: list[str] = [n for n in fail_names if "slo" in n.lower() or "check-slo-breaches" in n.lower()]
     slo_pending: list[str] = [n for n in pending if "slo" in n.lower() or "check-slo-breaches" in n.lower()]
     if slo_fail or slo_pending:
         raise WaitingOn("check-slo-breaches is not green on the candidate: " + ", ".join(slo_fail + slo_pending))
