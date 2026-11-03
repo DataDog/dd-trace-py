@@ -552,14 +552,18 @@ async def test_traced_async_stream_finalizes_when_on_stream_created_raises():
 def test_langchain_finalize_skips_aiguard_finally_when_stream_never_started():
     from ddtrace.contrib.internal.langchain.utils import LangchainStreamHandler
 
-    span = Mock()
-    handler = LangchainStreamHandler(None, span, (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    ctx = Mock()
+    handler = LangchainStreamHandler(
+        None, Mock(), (), {}, ctx=ctx, aiguard_finally_event="langchain.llm.stream.finally"
+    )
     with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
         handler.finalize_stream()
     dispatch.assert_not_called()
-    span.finish.assert_called_once()
+    ctx.dispatch_ended_event.assert_called_once_with()
 
-    started = LangchainStreamHandler(None, Mock(), (), {}, aiguard_finally_event="langchain.llm.stream.finally")
+    started = LangchainStreamHandler(
+        None, Mock(), (), {}, ctx=Mock(), aiguard_finally_event="langchain.llm.stream.finally"
+    )
     started._stream_started = True
     with patch("ddtrace.contrib.internal.langchain.utils.core.dispatch") as dispatch:
         started.finalize_stream()
