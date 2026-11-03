@@ -205,6 +205,32 @@ class TestFeatureRouting:
         assert metadata["__dd_feature.k"] == "first"
         assert "__dd_exposure_feature.k" not in metadata
 
+    def test_native_features_are_read_once_per_evaluation(self, provider, writer):
+        from ddtrace.internal.openfeature import _provider
+
+        process_ffe_configuration(_config([{"key": "k", "value": "v", "destinations": ["HOOK", "EXPOSURE"]}]))
+        reads = []
+        real_resolve = _provider.resolve_flag
+
+        class CountingDetails:
+            def __init__(self, details):
+                self._details = details
+
+            def __getattr__(self, name):
+                return getattr(self._details, name)
+
+            @property
+            def features(self):
+                reads.append(1)
+                return self._details.features
+
+        with mock.patch.object(_provider, "resolve_flag", lambda *a, **k: CountingDetails(real_resolve(*a, **k))):
+            metadata = _evaluate().flag_metadata
+
+        assert metadata["__dd_feature.k"] == "v"
+        assert writer.enqueue.call_args[0][0]["features"] == {"k": "v"}
+        assert len(reads) == 1
+
     def test_split_without_features_adds_no_metadata(self, provider, writer):
         process_ffe_configuration(_config())
         plain = set(_evaluate().flag_metadata)
