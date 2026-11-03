@@ -1501,9 +1501,9 @@ def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
     return {}
 
 
-# Hosted MCP tool fields that carry no credential; headers, authorization and the URL path, query
-# and fragment can, so only these and the URL origin are recorded.
-_SAFE_MCP_TOOL_FIELDS = (
+# OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,
+# query and fragment can, so only these and the URL origin are recorded.
+_SAFE_OPENAI_MCP_TOOL_FIELDS = (
     "type",
     "server_label",
     "server_description",
@@ -1513,12 +1513,12 @@ _SAFE_MCP_TOOL_FIELDS = (
 )
 
 
-def safe_mcp_tool_config(tool: Any) -> dict[str, Any]:
-    """Allowlisted view of a hosted MCP tool configuration, with server_url reduced to its origin."""
+def safe_mcp_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> dict[str, Any]:
+    """Hosted MCP tool configuration keeping only the allowlist fields, with server_url reduced to its origin."""
     config = load_data_value(tool)
     if not isinstance(config, dict):
         return {}
-    safe = {key: config[key] for key in _SAFE_MCP_TOOL_FIELDS if config.get(key) is not None}
+    safe = {key: config[key] for key in allowlist if config.get(key) is not None}
     server_url = config.get("server_url")
     origin = url_origin(server_url) if isinstance(server_url, str) else None
     if origin:
@@ -1544,19 +1544,19 @@ def _without_domain_secret_values(value: Any) -> Any:
     return value
 
 
-def safe_tool_config(tool: Any) -> Any:
-    """Tool configuration as recorded: MCP tools reduced to their safe view, domain secret values dropped."""
+def safe_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
+    """Tool configuration as recorded: MCP tools keep the allowlist fields, domain secret values are dropped."""
     config = load_data_value(tool)
     if isinstance(config, dict) and config.get("type") == "mcp":
-        return safe_mcp_tool_config(config)
+        return safe_mcp_tool_config(config, allowlist=allowlist)
     return _without_domain_secret_values(config)
 
 
-def _safe_response_tools(tools: Any) -> Any:
+def _safe_response_tools(tools: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
     """Response tools as recorded in metadata, each reduced by safe_tool_config."""
     if not isinstance(tools, list):
         return tools
-    return [safe_tool_config(tool) for tool in tools]
+    return [safe_tool_config(tool, allowlist=allowlist) for tool in tools]
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:

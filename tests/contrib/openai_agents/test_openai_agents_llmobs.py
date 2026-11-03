@@ -21,6 +21,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import safe_mcp_tool_config
+from ddtrace.llmobs._integrations.utils import safe_tool_config
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
@@ -966,3 +967,17 @@ def test_response_metadata_drops_domain_secret_values():
     assert code_interpreter_tool["container"]["network_policy"] == _SAFE_NETWORK_POLICY
     assert shell_tool["environment"]["network_policy"] == _SAFE_NETWORK_POLICY
     assert _DOMAIN_SECRET not in json.dumps(metadata, default=str)
+
+
+def test_safe_tool_config_takes_a_custom_mcp_allowlist():
+    """Other integrations can record a different MCP field set without losing the URL origin rule."""
+    config = dict(_LEAKY_MCP_TOOL_CONFIG)
+
+    safe = safe_tool_config(config, allowlist=("type", "server_label"))
+
+    assert safe == {"type": "mcp", "server_label": "zapier", "server_url": "https://mcp.zapier.com"}
+    assert safe_mcp_tool_config(config, allowlist=("server_label",)) == {
+        "server_label": "zapier",
+        "server_url": "https://mcp.zapier.com",
+    }
+    _assert_no_mcp_credentials(safe)
