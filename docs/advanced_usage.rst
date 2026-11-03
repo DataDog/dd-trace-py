@@ -666,12 +666,9 @@ for an application serving inference with an LLM through PyTorch:
 Feature Flag Exposures in Your Own Data Store
 ---------------------------------------------
 
-The Datadog OpenFeature provider sends exposures to Datadog. It also puts its exposure
-decision and the selected split's features into the flag metadata of every evaluation, so
-an OpenFeature hook can record exposures in your own data store.
-
-``ddtrace.openfeature.ExposureHook`` reads that metadata for you. It receives every
-completed evaluation, with the same exposure decision that the provider uses for Datadog::
+The Datadog OpenFeature provider sends exposures to Datadog. To record exposures in your own
+data store, use ``ddtrace.openfeature.ExposureHook``. It receives every completed evaluation,
+with the same exposure decision that the provider uses for Datadog::
 
     import queue
 
@@ -725,21 +722,22 @@ include ``HOOK``. Values are a ``str``, ``float`` or ``bool``. Holdout splits ca
 such features. The provider ignores a destination it does not know and logs a warning once
 for each one.
 
-The same data is in the evaluation's flag metadata, for hooks that use only the OpenFeature
-API. Read it in the hook's ``finally_after`` stage and skip details that have an error code.
-``ExposureHook`` does both.
+The features are also in the evaluation's flag metadata, for hooks that use only the
+OpenFeature API. Read them in the hook's ``finally_after`` stage, and skip details that have an
+error code.
 
 =============================  ==================  ===============================================
 Key                            Type                Meaning
 =============================  ==================  ===============================================
 ``allocation_key``             ``str``             The selected allocation
-``__dd_do_log``                ``bool``            Whether the allocation logs exposures
-``__dd_exposure_cache_hit``    ``bool``            The subject was already exposed. Present only
-                                                   when the allocation logs exposures
-``__dd_split_serial_id``       ``int``             The split's serial id, when it has one
 ``__dd_feature.<key>``         ``str``, ``float``  One entry for each feature of the selected
                                or ``bool``         split that lists the ``HOOK`` destination
 =============================  ==================  ===============================================
+
+The ``__dd_feature.<key>`` entries are the public flag metadata. Other keys that start with
+``__dd_`` are internal. They can change or be missing in a later release. Do not read the
+exposure decision from flag metadata. Use ``ExposureHook``: ``is_exposure``, ``is_cache_hit``
+and ``should_send`` are the supported way to get it.
 
 To stop sending exposures to Datadog, set
 ``DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED=false``. ``ExposureHook`` callbacks
