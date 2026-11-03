@@ -1,4 +1,10 @@
-"""Temporary routing between request events and the legacy span processor."""
+"""Temporary routing between request events and the legacy span processor.
+
+The processor selects a route before span binding. Remember it weakly so completion
+survives context exit and processor replacement without retaining unfinished spans.
+Remove the registry and integration allowlist with AppSecIastSpanProcessor once
+request events own all supported integration lifecycles.
+"""
 
 from weakref import WeakKeyDictionary
 
@@ -21,6 +27,7 @@ def uses_request_events(ctx: core.ExecutionContext[Event], span: SpanData) -> bo
     if integrations is None:
         return False
     integration = ctx.get_item("integration_config")
+    # Keep legacy ownership unless both lifecycle notifications can be handled.
     if not (
         getattr(integration, "integration_name", None) in integrations
         and ctx.get_item("scope", {}).get("type") == "http"

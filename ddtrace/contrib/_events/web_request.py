@@ -5,17 +5,26 @@ these events neither open a scope nor manage its span.
 """
 
 from dataclasses import dataclass
+from enum import Enum
 
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import SpanData
 
 
+class WebRequestEvents(str, Enum):
+    WEB_REQUEST_READY = "web.request.ready"
+    WEB_REQUEST_COMPLETING = "web.request.completing"
+
+
 @dataclass
 class WebRequestReady(Event):
-    """The span is bound; emit in the request's active scope, before application code runs."""
+    """The request span is bound in its active context, before application code runs.
 
-    event_name = "web.request.ready"
+    Span modifiers and HTTP metadata setup may still run afterward.
+    """
+
+    event_name = WebRequestEvents.WEB_REQUEST_READY.value
 
     ctx: ExecutionContext[Event]
     span: SpanData
@@ -23,13 +32,15 @@ class WebRequestReady(Event):
 
 @dataclass
 class WebRequestCompleting(Event):
-    """Attach analysis before the span finishes, including on errors and cancellation.
+    """The request span is about to finish, from response sending or teardown.
 
-    Completion may run in another task or callback. A nested wrapper must not
-    finalize an enclosing request.
+    This includes errors and cancellation; queued parents wait for their children.
+    Completion may run in another task, so use ctx to access the request's state.
+    Application work and final-tag hooks may still run afterward. Nested wrappers
+    must leave the enclosing request's analysis running.
     """
 
-    event_name = "web.request.completing"
+    event_name = WebRequestEvents.WEB_REQUEST_COMPLETING.value
 
     ctx: ExecutionContext[Event]
     span: SpanData
