@@ -184,10 +184,9 @@ class SpanCodeOriginProcessorEntry:
 
     @classmethod
     def enable(cls) -> None:
-        if cls._instance is not None:
-            return
-
         with cls._lock:
+            if cls._instance is not None:
+                return
             cls._instance = cls()
 
             # Instrument the pending views
@@ -195,27 +194,28 @@ class SpanCodeOriginProcessorEntry:
             for f in pending:
                 cls.instrument_view(f)
 
-        if cls.__uploader__ is not None:
-            cls._snapshot_uploader()
+            if cls.__uploader__ is not None:
+                cls._snapshot_uploader()
 
-        # Enable the context wrapper
-        cls.__context_wrapper__.__enabled__ = True
+            # Enable the context wrapper
+            cls.__context_wrapper__.__enabled__ = True
 
         log.debug("Code Origin for Spans (entry) enabled")
 
     @classmethod
     def disable(cls) -> None:
-        if cls._instance is None:
-            return
+        with cls._lock:
+            if cls._instance is None:
+                return
 
-        # Disable the context wrapper
-        cls.__context_wrapper__.__enabled__ = False
+            # Disable the context wrapper
+            cls.__context_wrapper__.__enabled__ = False
 
-        if cls.__uploader__ is not None:
-            from ddtrace.debugging._uploader import UploaderProduct
+            if cls.__uploader__ is not None:
+                from ddtrace.debugging._uploader import UploaderProduct
 
-            cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
+                cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN_ENTRY)
 
-        cls._instance = None
+            cls._instance = None
 
         log.debug("Code Origin for Spans (entry) disabled")

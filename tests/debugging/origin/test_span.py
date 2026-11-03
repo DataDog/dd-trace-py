@@ -47,6 +47,56 @@ def test_entry_span_probe_initialized_once():
     assert all(probe is probes[0] for probe in probes)
 
 
+def test_disable_waits_for_snapshot_uploader_registration():
+    from threading import Event
+    from threading import Thread
+
+    entered = Event()
+    release = Event()
+    disabled = Event()
+    products = set()
+
+    class Uploader:
+        @staticmethod
+        def register(product):
+            entered.set()
+            assert release.wait(5)
+            products.add(product)
+
+        @staticmethod
+        def unregister(product):
+            products.discard(product)
+
+    class Processor(SpanCodeOriginProcessorEntry):
+        _instance = None
+        __uploader__ = None
+
+    Processor.enable()
+    Processor.__uploader__ = Uploader
+
+    def disable():
+        Processor.disable()
+        disabled.set()
+
+    registering = Thread(target=Processor._snapshot_uploader)
+    stopping = Thread(target=disable)
+    registering.start()
+    try:
+        assert entered.wait(5)
+        stopping.start()
+        assert not disabled.wait(0.05)
+    finally:
+        release.set()
+        registering.join(5)
+        if stopping.ident is not None:
+            stopping.join(5)
+        Processor.disable()
+
+    assert disabled.is_set()
+    assert not products
+    assert Processor._instance is None
+
+
 class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
     __uploader__ = MockSignalUploader
 
