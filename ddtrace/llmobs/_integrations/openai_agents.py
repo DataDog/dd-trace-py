@@ -14,11 +14,14 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._integrations.agent_manifest import ALLOWED_MODEL_SETTINGS_KEYS
+from ddtrace.llmobs._integrations.agent_manifest import is_flat_scalar_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._integrations.utils import safe_mcp_tool_config
+from ddtrace.llmobs._integrations.utils import safe_tool_config
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -357,7 +360,16 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if not isinstance(model_settings, dict):
             model_settings = getattr(model_settings, "__dict__", None)
 
-        return load_data_value(model_settings)
+        settings = load_data_value(model_settings)
+        if not isinstance(settings, dict):
+            return None
+        # extra_headers, extra_query, extra_body and extra_args can carry credentials, so only
+        # inference params are recorded.
+        return {
+            key: value
+            for key, value in settings.items()
+            if key in ALLOWED_MODEL_SETTINGS_KEYS and is_flat_scalar_value(value)
+        }
 
     def _extract_tools_from_agent(self, agent):
         if not hasattr(agent, "tools") or not agent.tools:
@@ -392,7 +404,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                     tool_dict["on_safety_check"] = tool.on_safety_check
             elif tool_name == "code_interpreter":
                 if hasattr(tool, "tool_config"):
-                    tool_dict["tool_config"] = tool.tool_config
+                    tool_dict["tool_config"] = safe_tool_config(tool.tool_config)
             elif tool_name == "hosted_mcp":
                 if hasattr(tool, "tool_config"):
                     tool_dict["tool_config"] = safe_mcp_tool_config(tool.tool_config)
@@ -400,7 +412,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                     tool_dict["on_approval_request"] = tool.on_approval_request
             elif tool_name == "image_generation":
                 if hasattr(tool, "tool_config"):
-                    tool_dict["tool_config"] = tool.tool_config
+                    tool_dict["tool_config"] = safe_tool_config(tool.tool_config)
             elif tool_name == "local_shell":
                 if hasattr(tool, "executor"):
                     tool_dict["executor"] = tool.executor

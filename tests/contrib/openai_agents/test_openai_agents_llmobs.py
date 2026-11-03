@@ -11,6 +11,11 @@ try:
     from openai.types.responses.tool import Mcp
 except ImportError:  # openai versions without hosted MCP tools
     Mcp = None
+try:
+    from openai.types.responses.function_shell_tool import FunctionShellTool
+    from openai.types.responses.tool import CodeInterpreter
+except ImportError:  # openai versions without container network policies
+    CodeInterpreter = FunctionShellTool = None
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
@@ -894,3 +899,70 @@ def test_safe_mcp_tool_config_omits_unusable_urls(server_url, expected):
 
     assert safe.get("server_url") == expected
     assert safe["server_label"] == "x"
+
+
+_DOMAIN_SECRET = "fake-domain-secret-" + "Zt8yQm3vLk2pW9xRn5bC"
+_NETWORK_POLICY = {
+    "type": "allowlist",
+    "allowed_domains": ["api.example.com"],
+    "domain_secrets": [{"domain": "api.example.com", "name": "API_KEY", "value": _DOMAIN_SECRET}],
+}
+_SAFE_NETWORK_POLICY = {
+    "type": "allowlist",
+    "allowed_domains": ["api.example.com"],
+    "domain_secrets": [{"domain": "api.example.com", "name": "API_KEY"}],
+}
+
+
+def test_agent_manifest_drops_code_interpreter_domain_secret_values(agents):
+    tool_config = {"type": "code_interpreter", "container": {"type": "auto", "network_policy": _NETWORK_POLICY}}
+    agent = agents.Agent(name="code agent", tools=[agents.CodeInterpreterTool(tool_config=tool_config)])
+
+    (tool,) = OpenAIAgentsIntegration._extract_tools_from_agent(None, agent)
+
+    assert tool["tool_config"] == {
+        "type": "code_interpreter",
+        "container": {"type": "auto", "network_policy": _SAFE_NETWORK_POLICY},
+    }
+    assert _DOMAIN_SECRET not in json.dumps(tool, default=str)
+
+
+def test_agent_manifest_model_settings_keep_only_inference_params(agents):
+    """extra_headers, extra_query, extra_body and extra_args can carry proxy or provider credentials."""
+    settings = {
+        "temperature": 0.2,
+        "max_tokens": 512,
+        "extra_headers": {"Authorization": f"Bearer {_MCP_HEADER_TOKEN}", "api-key": _MCP_QUERY_KEY},
+        "extra_query": {"api-version": "2024-10-21", "sig": _MCP_PATH_TOKEN},
+        "extra_body": {"metadata": {"secret": _MCP_OAUTH_TOKEN}},
+    }
+    if "extra_args" in agents.ModelSettings.__dataclass_fields__:
+        settings["extra_args"] = {"api_key": _MCP_PASSWORD}
+    agent = agents.Agent(name="settings agent", model_settings=agents.ModelSettings(**settings))
+
+    recorded = OpenAIAgentsIntegration._extract_model_settings_from_agent(None, agent)
+
+    assert recorded["temperature"] == 0.2
+    assert recorded["max_tokens"] == 512
+    assert not {"extra_headers", "extra_query", "extra_body", "extra_args"} & set(recorded)
+    _assert_no_mcp_credentials(recorded)
+
+
+@pytest.mark.skipif(CodeInterpreter is None, reason="openai has no container network policies")
+def test_response_metadata_drops_domain_secret_values():
+    """Applied to every response tool, in case OpenAI echoes container policies like it echoes server_url."""
+    code_interpreter = CodeInterpreter.model_validate(
+        {"type": "code_interpreter", "container": {"type": "auto", "network_policy": _NETWORK_POLICY}}
+    )
+    shell = FunctionShellTool.model_validate(
+        {"type": "shell", "environment": {"type": "container_auto", "network_policy": _NETWORK_POLICY}}
+    )
+    response = mock.Mock(spec=["tools"], tools=[code_interpreter, shell])
+    span = mock.Mock(span_data=mock.Mock(type="response", response=response))
+
+    metadata = OaiSpanAdapter(span).llmobs_metadata
+
+    code_interpreter_tool, shell_tool = metadata["tools"]
+    assert code_interpreter_tool["container"]["network_policy"] == _SAFE_NETWORK_POLICY
+    assert shell_tool["environment"]["network_policy"] == _SAFE_NETWORK_POLICY
+    assert _DOMAIN_SECRET not in json.dumps(metadata, default=str)

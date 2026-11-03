@@ -1526,13 +1526,37 @@ def safe_mcp_tool_config(tool: Any) -> dict[str, Any]:
     return safe
 
 
+def _without_domain_secret_values(value: Any) -> Any:
+    """Copy of value where each container network policy domain secret keeps only its domain and name."""
+    if isinstance(value, dict):
+        return {
+            key: [
+                {field: secret[field] for field in ("domain", "name") if field in secret}
+                for secret in item
+                if isinstance(secret, dict)
+            ]
+            if key == "domain_secrets" and isinstance(item, list)
+            else _without_domain_secret_values(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_without_domain_secret_values(item) for item in value]
+    return value
+
+
+def safe_tool_config(tool: Any) -> Any:
+    """Tool configuration as recorded: MCP tools reduced to their safe view, domain secret values dropped."""
+    config = load_data_value(tool)
+    if isinstance(config, dict) and config.get("type") == "mcp":
+        return safe_mcp_tool_config(config)
+    return _without_domain_secret_values(config)
+
+
 def _safe_response_tools(tools: Any) -> Any:
-    """Response tools as recorded in metadata: hosted MCP tools are reduced to their safe view."""
+    """Response tools as recorded in metadata, each reduced by safe_tool_config."""
     if not isinstance(tools, list):
         return tools
-    return [
-        safe_mcp_tool_config(tool) if isinstance(tool, dict) and tool.get("type") == "mcp" else tool for tool in tools
-    ]
+    return [safe_tool_config(tool) for tool in tools]
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
