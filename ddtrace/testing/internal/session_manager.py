@@ -83,15 +83,19 @@ _UPLOAD_LOCK_RETRY_INTERVAL_SECONDS = 0.5
 # repository and would repeat the network round-trip even though a second fetch
 # reproduces exactly the history the first one already downloaded.
 # The marker is keyed to the repository's local HEAD (git rev-parse HEAD, not
-# the CI-provider commit SHA) and to the number of commits reachable from it,
-# so a checkout that was re-shallowed at the same commit (e.g. a
-# git fetch --depth=1 during a CI re-checkout) or a .testoptimization directory
-# restored into a fresh shallow clone is detected and re-fetched. There is
-# deliberately no TTL and no cleanup: a later CI run either has a fresh clone
-# (marker absent), a different HEAD (marker mismatch) or a re-truncated history
-# (commit count below the recorded one), and a rerun on the same HEAD over a
-# persistent workspace can safely skip because the recorded commit count still
-# bounds the locally present history.
+# the CI-provider commit SHA) and to the shallow boundary the fetch produced
+# (the boundary commits recorded in .git/shallow). It is honored only when
+# both still match, so a checkout that was re-shallowed at the same commit
+# (e.g. a git fetch --depth=1 during a CI re-checkout), a merge checkout whose
+# history was re-shallowed on one side while deepened on the other (HEAD and
+# even the reachable commit count can be unchanged or larger while ancestry
+# needed for the merge-base is gone), or a .testoptimization directory restored
+# into a fresh shallow clone is detected and re-fetched. There is deliberately
+# no TTL and no cleanup: a later CI run either has a fresh clone (marker
+# absent), a different HEAD or a different shallow boundary (marker mismatch),
+# and a rerun on the same HEAD over a persistent workspace can safely skip
+# because an identical shallow boundary still bounds the locally present
+# history.
 _UNSHALLOW_DONE_FILENAME = "dd-trace-py.unshallow-done"
 
 
@@ -623,20 +627,21 @@ class SessionManager:
 
         The marker is keyed to the repository's local HEAD (``git rev-parse
         HEAD``), not the CI-provider commit SHA: the fetch deepens the *local*
-        history, so the local HEAD is the right identity for it. A marker only
-        counts when the local history still contains at least as many commits
-        reachable from HEAD as were present when the marker was written — a
-        checkout that was re-shallowed at the same commit (e.g.
-        ``git fetch --depth=1`` during a CI re-checkout) or a
-        ``.testoptimization`` directory restored into a fresh shallow clone is
-        not treated as already deepened. Anything else is treated as "not done"
-        so the normal fetch path runs.
+        history, so the local HEAD is the right identity for it. It is honored
+        only when the shallow boundary still equals the one the fetch produced:
+        a reachable-commit count alone is not a faithful signal on merge
+        checkouts, where re-shallowing one side of the history while deepening
+        the other can leave HEAD unchanged and even increase the count while
+        ancestry needed for the merge-base is gone. Any boundary change —
+        re-shallowing, further deepening by other tooling — rejects the marker,
+        which costs at most a redundant, idempotent fetch. Anything else is
+        treated as "not done" so the normal fetch path runs.
         """
         head_sha = git.get_commit_sha()
         if not isinstance(head_sha, str) or not head_sha:
             return False
-        commit_count = git.get_commit_count()
-        if not isinstance(commit_count, int) or commit_count <= 0:
+        boundary = git.get_shallow_boundary()
+        if boundary is None:
             return False
         marker = self._unshallow_done_path()
         if marker is None:
@@ -647,18 +652,20 @@ class SessionManager:
             return False
         if not isinstance(data, dict) or data.get("head_sha") != head_sha:
             return False
-        recorded_count = data.get("commit_count")
-        # Markers written before commit_count was recorded are not honored: the
-        # history depth they were written against is unknown.
-        return isinstance(recorded_count, int) and commit_count >= recorded_count
+        recorded = data.get("shallow_boundary")
+        # Markers written before the boundary was recorded are not honored: the
+        # history state they were written against is unknown.
+        if not isinstance(recorded, list):
+            return False
+        return set(recorded) == boundary
 
     def _mark_unshallow_done(self, git: Git) -> None:
         """Persist the unshallow-done marker so follow-up sessions skip the fetch."""
         head_sha = git.get_commit_sha()
         if not isinstance(head_sha, str) or not head_sha:
             return
-        commit_count = git.get_commit_count()
-        if not isinstance(commit_count, int) or commit_count <= 0:
+        boundary = git.get_shallow_boundary()
+        if boundary is None:
             return
         marker = self._unshallow_done_path()
         if marker is None:
@@ -668,7 +675,9 @@ class SessionManager:
             # The .testoptimization/git directory usually does not exist yet in
             # normal (non-Bazel) runs; it is only created on demand here.
             marker.parent.mkdir(parents=True, exist_ok=True)
-            tmp.write_text(json.dumps({"head_sha": head_sha, "commit_count": commit_count, "timestamp": time.time()}))
+            tmp.write_text(
+                json.dumps({"head_sha": head_sha, "shallow_boundary": sorted(boundary), "timestamp": time.time()})
+            )
             tmp.replace(marker)
         except OSError as e:
             log.debug("Could not write unshallow-done marker %s: %s", marker, e)

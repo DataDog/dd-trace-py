@@ -1384,7 +1384,9 @@ class TestUnshallowMarker:
         sm.api_client = Mock()
         return sm
 
-    def _write_marker(self, workspace_path, head_sha: str = "head-sha", commit_count: int = 5, timestamp=None) -> None:
+    def _write_marker(
+        self, workspace_path, head_sha: str = "head-sha", boundary=("boundary-1", "boundary-2"), timestamp=None
+    ) -> None:
         import json as _json
         import time as _time
 
@@ -1394,14 +1396,18 @@ class TestUnshallowMarker:
             _json.dumps(
                 {
                     "head_sha": head_sha,
-                    "commit_count": commit_count,
+                    "shallow_boundary": sorted(boundary),
                     "timestamp": timestamp if timestamp is not None else _time.time(),
                 }
             )
         )
 
     def _make_mock_git(
-        self, merge_base: str = "", try_all: bool = True, head_sha: str = "head-sha", commit_count: int = 5
+        self,
+        merge_base: str = "",
+        try_all: bool = True,
+        head_sha: str = "head-sha",
+        boundary=("boundary-1", "boundary-2"),
     ) -> Mock:
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -1412,7 +1418,7 @@ class TestUnshallowMarker:
         mock_git.get_filtered_revisions.return_value = ["commit-2"]
         mock_git.pack_objects.return_value = iter([])
         mock_git.get_commit_sha.return_value = head_sha
-        mock_git.get_commit_count.return_value = commit_count
+        mock_git.get_shallow_boundary.return_value = set(boundary) if boundary is not None else None
         return mock_git
 
     def test_no_marker_returns_false(self, tmp_path) -> None:
@@ -1462,19 +1468,36 @@ class TestUnshallowMarker:
         assert sm._read_unshallow_done(mock_git) is True
 
     def test_reshallowed_checkout_rejects_marker(self, tmp_path) -> None:
-        """A re-shallow at the same commit (fewer reachable commits) re-fetches.
+        """A re-shallow at the same commit (a different shallow boundary) re-fetches.
 
-        ``git fetch --depth=1 <same SHA>`` leaves HEAD unchanged while previously
-        fetched ancestors become unreachable; the recorded commit count catches
-        the truncated history and rejects the marker.
+        ``git fetch --depth=1 <same SHA>`` leaves HEAD unchanged while the
+        previously fetched ancestors become unreachable; the shallow boundary
+        changes, so the recorded boundary no longer matches and the marker is
+        rejected.
         """
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        self._write_marker(tmp_path, commit_count=30)
-        mock_git = self._make_mock_git(head_sha="head-sha", commit_count=1)
+        self._write_marker(tmp_path, boundary=("old-boundary-1", "old-boundary-2"))
+        mock_git = self._make_mock_git(head_sha="head-sha", boundary=("head-sha",))
         assert sm._read_unshallow_done(mock_git) is False
 
-    def test_marker_without_commit_count_rejected(self, tmp_path) -> None:
-        """Markers from the previous format (no commit_count) are not honored."""
+    def test_merge_checkout_boundary_change_rejected_despite_deeper_history(self, tmp_path) -> None:
+        """A merge checkout re-shallowed on one side and deepened on the other.
+
+        On a merge checkout the reachable commit count can *increase* while
+        ancestry needed for the merge-base is gone: one parent's side was
+        re-shallowed while the other was deepened further. A scalar count
+        cannot catch this; the recorded shallow boundary can, because any
+        boundary change — in either direction — rejects the marker.
+        """
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        # Recorded boundary from the earlier fetch; the current boundary is a
+        # different set even though the history is "bigger" overall.
+        self._write_marker(tmp_path, boundary=("old-a-boundary",))
+        mock_git = self._make_mock_git(head_sha="head-sha", boundary=("new-b-boundary-1", "new-b-boundary-2"))
+        assert sm._read_unshallow_done(mock_git) is False
+
+    def test_marker_without_boundary_rejected(self, tmp_path) -> None:
+        """Markers from the previous format (no shallow_boundary) are not honored."""
         import json as _json
         import time as _time
 
@@ -1498,6 +1521,12 @@ class TestUnshallowMarker:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         assert sm._read_unshallow_done(self._make_mock_git(head_sha="")) is False
 
+    def test_boundary_unavailable_returns_false(self, tmp_path) -> None:
+        """A shallow boundary that cannot be read rejects the marker (safe path)."""
+        self._write_marker(tmp_path)
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        assert sm._read_unshallow_done(self._make_mock_git(boundary=None)) is False
+
     def test_missing_workspace_path_attribute_returns_false(self) -> None:
         # Some tests build SessionManager via __new__ without setting workspace_path.
         sm = SessionManager.__new__(SessionManager)
@@ -1508,11 +1537,11 @@ class TestUnshallowMarker:
         import json as _json
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm._mark_unshallow_done(self._make_mock_git(head_sha="head-sha", commit_count=7))
+        sm._mark_unshallow_done(self._make_mock_git(head_sha="head-sha", boundary=("boundary-1", "boundary-2")))
         marker_path = tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done"
         data = _json.loads(marker_path.read_text())
         assert data["head_sha"] == "head-sha"
-        assert data["commit_count"] == 7
+        assert data["shallow_boundary"] == ["boundary-1", "boundary-2"]
         assert isinstance(data["timestamp"], (int, float))
 
     def test_mark_noop_without_local_head(self, tmp_path) -> None:
@@ -1520,9 +1549,9 @@ class TestUnshallowMarker:
         sm._mark_unshallow_done(self._make_mock_git(head_sha=""))
         assert not (tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done").exists()
 
-    def test_mark_noop_without_commit_count(self, tmp_path) -> None:
+    def test_mark_noop_without_boundary(self, tmp_path) -> None:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm._mark_unshallow_done(self._make_mock_git(commit_count=0))
+        sm._mark_unshallow_done(self._make_mock_git(boundary=None))
         assert not (tmp_path / ".testoptimization" / "git" / "dd-trace-py.unshallow-done").exists()
 
     def test_mark_noop_without_workspace_path(self) -> None:
@@ -1615,7 +1644,7 @@ class TestUnshallowMarker:
         assert marker_path.exists()
         marker_data = _json.loads(marker_path.read_text())
         assert marker_data["head_sha"] == "head-sha"
-        assert marker_data["commit_count"] == 5
+        assert marker_data["shallow_boundary"] == ["boundary-1", "boundary-2"]
 
     def test_upload_git_data_does_not_write_marker_when_fetch_fails(self, tmp_path) -> None:
         """A failed fetch leaves no marker, so the next command retries it."""
@@ -1665,11 +1694,12 @@ class TestUnshallowMarker:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base-sha"
         sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head-sha"
-        # Marker recorded 30 reachable commits; the checkout was re-shallowed to depth 1.
-        self._write_marker(tmp_path, commit_count=30)
+        # Marker recorded the boundary from the earlier fetch; the checkout was
+        # re-shallowed, so the current boundary differs.
+        self._write_marker(tmp_path, boundary=("old-boundary-1", "old-boundary-2"))
         sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
 
-        mock_git = self._make_mock_git(merge_base="merge-base-sha", commit_count=1)
+        mock_git = self._make_mock_git(merge_base="merge-base-sha", boundary=("head-sha",))
 
         with (
             patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),

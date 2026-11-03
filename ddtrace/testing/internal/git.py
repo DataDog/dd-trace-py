@@ -247,13 +247,22 @@ class Git:
     def get_commit_sha(self) -> str:
         return self._git_output(["rev-parse", "HEAD"])
 
-    def get_commit_count(self) -> int:
-        """Return the number of commits reachable from HEAD (0 if the command fails)."""
-        output = self._git_output(["rev-list", "--count", "HEAD"])
+    def get_shallow_boundary(self) -> t.Optional[set[str]]:
+        """Return the set of shallow-boundary commit SHAs (empty when the repo is not shallow).
+
+        The boundary is the set of commits listed in the git dir's ``shallow``
+        file — the grafted roots below which history is hidden. Returns None
+        when the git directory cannot be resolved, so callers can treat that as
+        "unknown" and take the safe path.
+        """
+        git_dir = self._git_output(["rev-parse", "--absolute-git-dir"])
+        if not git_dir:
+            return None
         try:
-            return int(output)
-        except ValueError:
-            return 0
+            content = (Path(git_dir) / "shallow").read_text()
+        except OSError:
+            return set()
+        return {line.strip() for line in content.splitlines() if line.strip()}
 
     def get_upstream_sha(self) -> _GitSubprocessDetails:
         return self._call_git(["rev-parse", "@{upstream}"])
