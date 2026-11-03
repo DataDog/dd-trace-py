@@ -41,8 +41,8 @@ _LOCK_ERROR_RE = re.compile(
 _LOCK_MAX_RETRIES = 5
 _LOCK_BASE_DELAY_SECONDS = 0.5
 
-# Keep this cross-process lock on a stable file in Git's actual
-# metadata directory. The timeout, inode, and fallback behavior are part of the
+# Keep this cross-process lock on a stable file beside Git's shared shallow
+# file. The timeout, inode, and fallback behavior are part of the
 # coordination protocol; changing them can reintroduce concurrent fetch races.
 # Every call to unshallow_repository acquires an exclusive flock before issuing
 # git fetch --update-shallow, so concurrent xdist workers (or multiple pytest
@@ -247,31 +247,34 @@ class Git:
     def get_commit_sha(self) -> str:
         return self._git_output(["rev-parse", "HEAD"])
 
-    def get_shallow_boundary(self) -> t.Optional[set[str]]:
-        """Return the set of shallow-boundary commit SHAs (empty when the repo is not shallow).
-
-        The boundary is the set of commits listed in the ``shallow`` file — the
-        grafted roots below which history is hidden. The file is resolved with
-        ``git rev-parse --git-path shallow`` because in a linked worktree the
-        shallow file lives in the *common* git directory rather than in the
-        worktree-private one that ``--absolute-git-dir`` would report; git
-        performs that private-vs-common resolution itself. The returned path
-        can be relative to the subprocess working directory, so it is resolved
-        against this instance's cwd. Returns None when the path cannot be
-        resolved, so callers can treat that as "unknown" and take the safe
-        path.
-        """
-        shallow_path = self._git_output(["rev-parse", "--git-path", "shallow"])
-        if not shallow_path:
+    def get_git_path(self, name: str) -> t.Optional[Path]:
+        """Resolve a Git metadata path, including worktree-private and common files."""
+        try:
+            output = self._git_output(["rev-parse", "--git-path", name])
+        except OSError:
             return None
-        path = Path(shallow_path)
+        if not output:
+            return None
+        path = Path(output)
         if not path.is_absolute():
-            base = self.cwd if self.cwd is not None else os.getcwd()
-            path = Path(base) / path
+            path = (Path(self.cwd or ".") / path).absolute()
+        return path
+
+    def get_shallow_boundary(self) -> t.Optional[set[str]]:
+        """Return shallow-boundary SHAs, an empty set if absent, or None if unreadable.
+
+        Let Git locate the file: linked worktrees share the common Git directory's
+        shallow file. Relative paths are resolved against the Git subprocess's cwd.
+        """
+        path = self.get_git_path("shallow")
+        if path is None:
+            return None
         try:
             content = path.read_text()
-        except OSError:
+        except FileNotFoundError:
             return set()
+        except (OSError, UnicodeError):
+            return None
         return {line.strip() for line in content.splitlines() if line.strip()}
 
     def get_upstream_sha(self) -> _GitSubprocessDetails:
@@ -344,19 +347,9 @@ class Git:
         return self._call_git(["cat-file", "-e", f"{commit_sha}^{{commit}}"]).return_code == 0
 
     def _unshallow_lock_path(self) -> t.Optional[Path]:
-        """Return the cross-process lock path in Git's actual metadata directory."""
-        try:
-            git_dir = self._git_output(["rev-parse", "--git-dir"])
-        except Exception:
-            return None
-        if not git_dir:
-            return None
-
-        git_dir_path = Path(git_dir)
-        if not git_dir_path.is_absolute():
-            cwd = Path(self.cwd) if self.cwd is not None else Path.cwd()
-            git_dir_path = cwd / git_dir_path
-        return git_dir_path / _UNSHALLOW_LOCK_FILENAME
+        """Keep the fetch lock beside the shallow file, which worktrees share."""
+        shallow = self.get_git_path("shallow")
+        return shallow.with_name(_UNSHALLOW_LOCK_FILENAME) if shallow is not None else None
 
     @contextlib.contextmanager
     def _unshallow_lock(self) -> t.Iterator[bool]:
