@@ -1,3 +1,4 @@
+from _thread import get_ident
 import hashlib
 import importlib.util
 import json
@@ -188,7 +189,9 @@ def _is_valid_cache_file(cache_file: Path) -> bool:
 
 
 def _write_cached_json(cache_file: Path, data: str) -> None:
-    tmp_path = cache_file.with_suffix(f"{cache_file.suffix}.{os.getpid()}.tmp")
+    # The file lock does not keep out other threads of this process, so each thread
+    # needs its own temp file or one thread's rename takes the other's file away.
+    tmp_path = cache_file.with_suffix(f"{cache_file.suffix}.{os.getpid()}.{get_ident()}.tmp")
     try:
         with tmp_path.open("w", encoding="utf-8") as f:
             f.write(data)
