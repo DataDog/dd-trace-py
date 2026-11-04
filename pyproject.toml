@@ -54,6 +54,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+opentracing = [
+    "opentracing>=2,<3",
+]
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
 ]
