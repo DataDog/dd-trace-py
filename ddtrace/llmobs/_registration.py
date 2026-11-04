@@ -1,6 +1,6 @@
 """Lazy subscriber bundles owned by LLMObs."""
 
-from ddtrace.internal.products import SubscriberBundle
+from ddtrace.internal.core.subscriber import SubscriberBundle
 
 
 LLM_SUBSCRIBERS = SubscriberBundle(
