@@ -1144,6 +1144,107 @@ class WaitForCiGreenTests(unittest.TestCase):
         self.assertEqual(calls[0], 2)
 
 
+class WaitForPypiVersionTests(unittest.TestCase):
+    """PyPI poll helper: fake has_version + clock (no network)."""
+
+    def test_already_present_returns_without_sleep(self) -> None:
+        from create_gh_release import wait_for_pypi_version
+
+        sleeps: list[float] = []
+
+        wait_for_pypi_version(
+            "4.16.2",
+            timeout_s=100.0,
+            poll_interval_s=10.0,
+            sleep_fn=lambda s: sleeps.append(s),
+            monotonic_fn=lambda: 0.0,
+            has_version_fn=lambda _v: True,
+        )
+        self.assertEqual(sleeps, [])
+
+    def test_missing_then_present_polls_once(self) -> None:
+        from create_gh_release import wait_for_pypi_version
+
+        sleeps: list[float] = []
+        clock: list[float] = [0.0]
+        calls: list[int] = [0]
+
+        def has_version(_v: str) -> bool:
+            calls[0] += 1
+            return calls[0] >= 2
+
+        def sleep_fn(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        wait_for_pypi_version(
+            "v4.16.2",
+            timeout_s=100.0,
+            poll_interval_s=10.0,
+            sleep_fn=sleep_fn,
+            monotonic_fn=lambda: clock[0],
+            has_version_fn=has_version,
+        )
+        self.assertEqual(sleeps, [10.0])
+        self.assertEqual(calls[0], 2)
+
+    def test_timeout_raises_waiting_on_with_tag_pipeline_url(self) -> None:
+        from create_gh_release import gitlab_tag_pipelines_url
+        from create_gh_release import wait_for_pypi_version
+
+        clock: list[float] = [0.0]
+        sleeps: list[float] = []
+
+        def sleep_fn(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        with self.assertRaises(WaitingOn) as ctx:
+            wait_for_pypi_version(
+                "4.16.2",
+                timeout_s=25.0,
+                poll_interval_s=10.0,
+                sleep_fn=sleep_fn,
+                monotonic_fn=lambda: clock[0],
+                has_version_fn=lambda _v: False,
+            )
+        msg: str = str(ctx.exception)
+        self.assertIn("PyPI still does not list ddtrace==4.16.2", msg)
+        self.assertIn(gitlab_tag_pipelines_url("4.16.2"), msg)
+        self.assertIn("release_pypi_prod", msg)
+        self.assertIn("apm-reliability/dd-trace-py", msg)
+        self.assertEqual(sleeps, [10.0, 10.0, 5.0])
+
+    def test_format_failure_mentions_tag_not_branch_ci(self) -> None:
+        from create_gh_release import format_pypi_wait_failure
+
+        msg: str = format_pypi_wait_failure("4.16.2")
+        self.assertIn("tag", msg.lower())
+        self.assertIn("Branch CI green before drafting is not enough", msg)
+        self.assertIn("Ref is the tag v4.16.2", msg)
+
+    def test_gitlab_tag_pipelines_url_filters_ref(self) -> None:
+        from create_gh_release import gitlab_tag_pipelines_url
+
+        url: str = gitlab_tag_pipelines_url("v4.16.2")
+        self.assertIn("ref=v4.16.2", url)
+        self.assertIn("apm-reliability/dd-trace-py", url)
+
+    def test_ensure_no_wait_pypi_raises_immediately(self) -> None:
+        from create_gh_release import ensure_pypi_version_from_args
+
+        args: Any = mock.Mock(
+            dry_run=False,
+            wait_pypi=False,
+            pypi_wait_timeout=90.0,
+            pypi_poll_interval=60.0,
+        )
+        with mock.patch("create_gh_release.pypi_has_version", return_value=False):
+            with self.assertRaises(WaitingOn) as ctx:
+                ensure_pypi_version_from_args("4.16.2", args)
+        self.assertIn("release_pypi_prod", str(ctx.exception))
+
+
 class LoadLocalEnvTests(unittest.TestCase):
     def test_missing_file_is_noop(self) -> None:
         missing: Path = Path(tempfile.mkdtemp()) / "no-such.env"

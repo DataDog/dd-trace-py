@@ -19,6 +19,7 @@ allowed-tools:
 | "create RC for the next release" / "cut an RC" | `scripts/gh/create_gh_release.py rc [--candidate SHA]` |
 | "ship X.Y.0" / "final release for X.Y" | `scripts/gh/create_gh_release.py final X.Y` |
 | "post-release" / "version is published, continue" | `scripts/gh/create_gh_release.py post-release vX.Y.Z` |
+| "wait for PyPI" / "tag pipeline follow-up" | `scripts/gh/create_gh_release.py wait-pypi vX.Y.Z` |
 
 Building blocks (`bump-rc`, `ensure-branch`, `draft-release`) are also available; prefer the intent commands above.
 
@@ -53,8 +54,9 @@ DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL=https://hooks.slack.com/services/
 
 - Fix / backport / bump PR review and merge
 - CI green on `origin/X.Y` (or candidate SHA) — wet `patch`/`rc`/`final`/`draft-release` poll by default (`--wait-ci`, ~75m / 45s); `--dry-run` never waits; `--no-wait-ci` exits `WAITING ON` immediately if still pending
-- Maintainer publish of the draft (tag ruleset)
-- PyPI appearing after the GitLab tag pipeline (`post-release`)
+- Maintainer publish of the draft (tag ruleset) — creates the Git tag only
+- GitLab **tag** pipeline green (`release_pypi_prod` is `on_success`); branch CI before draft is not enough
+- PyPI listing `ddtrace==X.Y.Z` (`post-release` / `wait-pypi` poll by default, ~90m / 60s; `--no-wait-pypi` one-shots; on timeout: tag-pipeline URL + Retry guidance)
 - Dogfooding PRs in dd-source / dogweb (manual until Phase A)
 
 ## References

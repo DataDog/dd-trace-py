@@ -9,7 +9,8 @@ Intent commands (resumable — re-run until a human gate):
   patch <PR> [--branch X.Y]  Backport a merged fix into a patch release draft.
   rc [--candidate SHA]       Cut the next release-candidate draft on main.
   final X.Y                  Ship X.Y.0 from the last RC (set-version + draft).
-  post-release <version>     After a maintainer publishes: verify PyPI, open next bump.
+  post-release <version>     After a maintainer publishes: wait for PyPI, open next bump.
+  wait-pypi <version>        Poll until PyPI lists the version (tag-pipeline follow-up).
 
 Building blocks (also used by the intent commands):
   bump-rc / bump-version     Open a version-bump PR.
@@ -24,6 +25,11 @@ Usage:
   scripts/gh/create_gh_release.py rc [--candidate SHA] [--dry-run] [--slack|--test-dm]
   scripts/gh/create_gh_release.py final 4.17 [--dry-run] [--slack|--test-dm]
   scripts/gh/create_gh_release.py post-release v4.16.2 [--dry-run]
+                                   [--wait-pypi|--no-wait-pypi]
+                                   [--pypi-wait-timeout SECS] [--pypi-poll-interval SECS]
+  scripts/gh/create_gh_release.py wait-pypi v4.16.2 [--dry-run]
+                                   [--wait-pypi|--no-wait-pypi]
+                                   [--pypi-wait-timeout SECS] [--pypi-poll-interval SECS]
   scripts/gh/create_gh_release.py bump-rc [--base-branch main] [--dry-run]
   scripts/gh/create_gh_release.py ensure-branch X.Y [--from A.B] [--dry-run]
   scripts/gh/create_gh_release.py draft-release [--target main] [--version 4.9.0rc3]
@@ -41,6 +47,14 @@ CI wait (patch / rc / final / draft-release):
   available — waiting will not help once CI has failed. On timeout it exits
   WAITING ON with the last status (re-run to resume). --dry-run never waits.
   --no-wait-ci exits WAITING ON immediately when CI is still pending.
+
+PyPI wait (post-release / wait-pypi):
+  GitHub Publish creates the tag; wheels upload only if the GitLab *tag*
+  pipeline succeeds (release_pypi_prod is on_success). Branch CI green before
+  drafting is necessary but not sufficient. Wet post-release / wait-pypi poll
+  PyPI until ddtrace==version exists (default --wait-pypi, 90m / 60s). On
+  timeout: WAITING ON with the tag-pipeline URL and Retry guidance.
+  --dry-run never polls; --no-wait-pypi one-shots then WAITING ON if missing.
 
 Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL
@@ -104,6 +118,12 @@ Failure recovery:
       Prints the Incoming Webhook mrkdwn body and the structured Workflow
       JSON; does not call the webhook.
 
+  GitHub release published but PyPI missing (tag pipeline red):
+      Open the tag pipeline (print_gitlab_watch_list / WAITING ON text),
+      Retry failed jobs (e.g. contrib/molten), wait for release_pypi_prod,
+      then re-run `post-release vX.Y.Z` or `wait-pypi vX.Y.Z`. Do not treat
+      branch CI green as done.
+
   ensure-branch checked out a local branch but `git push` failed:
       git checkout main && git branch -D <X.Y>   # then re-run ensure-branch
 
@@ -162,6 +182,13 @@ LOCAL_ENV_FILE: Path = Path(__file__).resolve().parent / ".env.local"
 # Wet-run CI poll defaults (patch / rc / final / draft-release). Dry-run never waits.
 DEFAULT_CI_WAIT_TIMEOUT_S: float = 75 * 60
 DEFAULT_CI_POLL_INTERVAL_S: float = 45.0
+# After GitHub Publish creates the tag, GitLab tag pipeline builds wheels and
+# ``release_pypi_prod`` uploads to PyPI. Branch CI green is not enough — wait
+# for PyPI (post-release / wait-pypi). Default ~90m covers a full tag pipeline.
+DEFAULT_PYPI_WAIT_TIMEOUT_S: float = 90 * 60
+DEFAULT_PYPI_POLL_INTERVAL_S: float = 60.0
+# Canonical GitLab project path for tag pipelines (apm-reliability namespace).
+GITLAB_DD_TRACE_PY_PROJECT: str = "DataDog/apm-reliability/dd-trace-py"
 
 # Slack webhook env vars. Channel webhooks: prod (#apm-python-release, default
 # review ping), optional guild (#guild-dd-trace-py), test, plus legacy
@@ -2421,14 +2448,29 @@ def print_dogfood_checklist(version: str) -> None:
     )
 
 
+def gitlab_tag_pipelines_url(version: str) -> str:
+    """GitLab pipelines list filtered to the release tag (publish runs here)."""
+    ver: str = normalize_version_str(version)
+    return f"https://gitlab.ddbuild.io/{GITLAB_DD_TRACE_PY_PROJECT}/-/pipelines?ref=v{ver}"
+
+
+def pypi_project_json_url(version: str) -> str:
+    """PyPI JSON API URL for a ddtrace version (200 iff published)."""
+    ver: str = normalize_version_str(version)
+    return f"https://pypi.org/pypi/ddtrace/{ver}/json"
+
+
 def print_gitlab_watch_list(version: str) -> None:
     ver: str = normalize_version_str(version)
     print(
         f"\nGitLab tag pipeline jobs to watch for v{ver} (glab not required):\n"
-        "  - build wheels / publish to PyPI\n"
-        "  - upload debug symbols\n"
-        "  - any store_gitlab_package / release jobs listed in the current runbook\n"
-        f"  Pipeline: https://gitlab.ddbuild.io/DataDog/dd-trace-py/-/pipelines?ref=v{ver}"
+        "  - build wheels / tests on the tag pipeline (must be green)\n"
+        "  - release_pypi_prod (only runs when the tag pipeline succeeds)\n"
+        "  - upload debug symbols / notify jobs\n"
+        f"  Pipeline: {gitlab_tag_pipelines_url(ver)}\n"
+        "  Branch CI green before drafting is necessary but not sufficient — "
+        "PyPI upload happens only after Publish creates the tag and the tag "
+        "pipeline passes."
     )
 
 
@@ -2674,7 +2716,10 @@ def cmd_rc(args: argparse.Namespace) -> int:
 
     rc: int = cmd_draft_release(draft_ns)
     print_dogfood_checklist(version)
-    print(f"waiting on: maintainer publish of v{version}; then dogfood + post-release")
+    print(
+        f"waiting on: maintainer publish of v{version}; then tag GitLab pipeline "
+        f"+ PyPI (post-release / wait-pypi); then dogfood"
+    )
     if rc == 0:
         raise WaitingOn(f"maintainer publish of draft v{version}")
     return rc
@@ -2752,18 +2797,23 @@ def cmd_final(args: argparse.Namespace) -> int:
         **_slack_flag_values(args),
     )
     rc: int = cmd_draft_release(draft_ns)
-    print(f"waiting on: maintainer publish of v{final_ver}; then post-release")
+    print(f"waiting on: maintainer publish of v{final_ver}; then tag GitLab pipeline + PyPI (post-release / wait-pypi)")
     if rc == 0:
         raise WaitingOn(f"maintainer publish of draft v{final_ver}")
     return rc
 
 
-def pypi_has_version(version: str) -> bool:
+def pypi_has_version(
+    version: str,
+    *,
+    urlopen_fn: Callable[..., Any] = urllib.request.urlopen,
+) -> bool:
+    """True iff PyPI JSON for ``ddtrace==version`` returns HTTP 200."""
     ver: str = normalize_version_str(version)
-    url: str = f"https://pypi.org/pypi/ddtrace/{ver}/json"
+    url: str = pypi_project_json_url(ver)
     try:
         req: urllib.request.Request = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 — fixed pypi.org URL
+        with urlopen_fn(req, timeout=15) as resp:  # nosec B310 — fixed pypi.org URL
             return int(resp.status) == 200
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
@@ -2771,6 +2821,110 @@ def pypi_has_version(version: str) -> bool:
         raise SystemExit(f"PyPI lookup failed for {ver}: HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
         raise SystemExit(f"PyPI lookup failed for {ver}: {exc}") from exc
+
+
+def format_pypi_wait_failure(version: str) -> str:
+    """Human message when PyPI still lacks the version after waiting."""
+    ver: str = normalize_version_str(version)
+    return (
+        f"PyPI still does not list ddtrace=={ver} "
+        f"({pypi_project_json_url(ver)}).\n"
+        "GitHub Publish only creates the tag; wheels upload in the GitLab "
+        f"*tag* pipeline (ref=v{ver}, detached HEAD) via release_pypi_prod "
+        "(.is_release + on_success). That pipeline still runs the same-looking "
+        "contrib/test jobs as branch CI — a failed molten (or any) test there "
+        "skips release_pypi_prod even though it looks like regular CI.\n"
+        f"In the GitLab UI: open {gitlab_tag_pipelines_url(ver)} and confirm "
+        f"the pipeline Ref is the tag v{ver} (not branch {ver.rsplit('.', 1)[0]}). "
+        "Retry failed jobs, wait for release_pypi_prod, then re-run this command. "
+        "Branch CI green before drafting is not enough."
+    )
+
+
+def wait_for_pypi_version(
+    version: str,
+    *,
+    timeout_s: float = DEFAULT_PYPI_WAIT_TIMEOUT_S,
+    poll_interval_s: float = DEFAULT_PYPI_POLL_INTERVAL_S,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+    has_version_fn: Optional[Callable[[str], bool]] = None,
+) -> None:
+    """Poll PyPI until ``ddtrace==version`` exists or ``timeout_s`` elapses.
+
+    Source of truth for "release succeeded" is PyPI presence. On timeout raise
+    ``WaitingOn`` with the tag-pipeline URL (maintainers Retry failed jobs).
+    """
+    check: Callable[[str], bool] = has_version_fn if has_version_fn is not None else pypi_has_version
+    ver: str = normalize_version_str(version)
+    if check(ver):
+        print(f"PyPI has ddtrace=={ver}")
+        return
+    started: float = monotonic_fn()
+    deadline: float = started + timeout_s
+    poll_n: int = 0
+    print(
+        f"PyPI does not list ddtrace=={ver} yet; waiting up to {timeout_s:.0f}s "
+        f"(poll every {poll_interval_s:.0f}s). Tag pipeline: "
+        f"{gitlab_tag_pipelines_url(ver)}"
+    )
+    while True:
+        now: float = monotonic_fn()
+        remaining: float = deadline - now
+        if remaining <= 0:
+            raise WaitingOn(format_pypi_wait_failure(ver))
+        sleep_for: float = min(poll_interval_s, remaining)
+        poll_n += 1
+        elapsed: float = now - started
+        print(
+            f"WAITING ON PYPI (poll {poll_n}): ddtrace=={ver} not listed yet — "
+            f"elapsed {elapsed:.0f}s, next check in {sleep_for:.0f}s "
+            f"(timeout {timeout_s:.0f}s)",
+            flush=True,
+        )
+        sleep_fn(sleep_for)
+        if check(ver):
+            elapsed_ok: float = monotonic_fn() - started
+            print(f"PyPI has ddtrace=={ver} after {elapsed_ok:.0f}s ({poll_n} polls)")
+            return
+
+
+def ensure_pypi_version_from_args(version: str, args: argparse.Namespace) -> None:
+    """Apply ``--wait-pypi`` / timeout flags; dry-run never polls."""
+    dry_run: bool = bool(getattr(args, "dry_run", False))
+    wait: Optional[bool] = getattr(args, "wait_pypi", None)
+    if dry_run:
+        if pypi_has_version(version):
+            print(f"(dry-run) PyPI already has ddtrace=={normalize_version_str(version)}")
+        else:
+            print(
+                f"(dry-run) would wait for PyPI ddtrace=={normalize_version_str(version)} "
+                f"(tag pipeline {gitlab_tag_pipelines_url(version)})"
+            )
+            print_gitlab_watch_list(version)
+        return
+    if wait is False:
+        if not pypi_has_version(version):
+            print_gitlab_watch_list(version)
+            raise WaitingOn(format_pypi_wait_failure(version))
+        print(f"PyPI has ddtrace=={normalize_version_str(version)}")
+        return
+    wait_for_pypi_version(
+        version,
+        timeout_s=float(getattr(args, "pypi_wait_timeout", DEFAULT_PYPI_WAIT_TIMEOUT_S)),
+        poll_interval_s=float(getattr(args, "pypi_poll_interval", DEFAULT_PYPI_POLL_INTERVAL_S)),
+    )
+
+
+def cmd_wait_pypi(args: argparse.Namespace) -> int:
+    """Poll until PyPI lists the version (tag-pipeline follow-up)."""
+    version: str = normalize_version_str(args.version)
+    if bool(getattr(args, "dry_run", False)):
+        ensure_pypi_version_from_args(version, args)
+        return 0
+    ensure_pypi_version_from_args(version, args)
+    print_gitlab_watch_list(version)
+    return 0
 
 
 def cmd_post_release(args: argparse.Namespace) -> int:
@@ -2785,13 +2939,11 @@ def cmd_post_release(args: argparse.Namespace) -> int:
         raise WaitingOn(f"GitHub release v{version} is still a draft ({url})")
     print(f"GitHub release published: {url}")
 
-    if not pypi_has_version(version):
-        raise WaitingOn(
-            f"PyPI does not list ddtrace=={version} yet "
-            f"(https://pypi.org/pypi/ddtrace/{version}/json) — watch the GitLab tag pipeline"
-        )
-    print(f"PyPI has ddtrace=={version}")
-    print_gitlab_watch_list(version)
+    # Branch CI green ≠ done: Publish creates the tag; GitLab tag pipeline must
+    # succeed so release_pypi_prod can upload. Wait for PyPI as the gate.
+    ensure_pypi_version_from_args(version, args)
+    if not dry_run:
+        print_gitlab_watch_list(version)
 
     v: Version = Version(version)
     if is_rc_version(version) and v.pre is not None and v.pre[1] == 1:
@@ -3325,6 +3477,45 @@ def _add_common_flags(sp: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_pypi_wait_flags(sp: argparse.ArgumentParser) -> None:
+    """PyPI presence poll (post-release / wait-pypi). Dry-run never waits."""
+    wait_g: Any = sp.add_mutually_exclusive_group()
+    wait_g.add_argument(
+        "--wait-pypi",
+        dest="wait_pypi",
+        action="store_true",
+        default=None,
+        help=(
+            "poll PyPI until ddtrace==version exists (default for wet "
+            "post-release / wait-pypi; ignored by --dry-run so dry-run never hangs)"
+        ),
+    )
+    wait_g.add_argument(
+        "--no-wait-pypi",
+        dest="wait_pypi",
+        action="store_false",
+        help="do not poll; exit WAITING ON immediately when PyPI lacks the version",
+    )
+    sp.add_argument(
+        "--pypi-wait-timeout",
+        type=float,
+        default=DEFAULT_PYPI_WAIT_TIMEOUT_S,
+        metavar="SECONDS",
+        help=(
+            f"max seconds to wait for PyPI when waiting "
+            f"(default: {int(DEFAULT_PYPI_WAIT_TIMEOUT_S)} = "
+            f"{int(DEFAULT_PYPI_WAIT_TIMEOUT_S) // 60}m)"
+        ),
+    )
+    sp.add_argument(
+        "--pypi-poll-interval",
+        type=float,
+        default=DEFAULT_PYPI_POLL_INTERVAL_S,
+        metavar="SECONDS",
+        help=f"seconds between PyPI polls (default: {int(DEFAULT_PYPI_POLL_INTERVAL_S)})",
+    )
+
+
 def _add_ci_flags(sp: argparse.ArgumentParser) -> None:
     """CI-green preflight + optional wait/poll (patch / rc / final / draft-release)."""
     sp.add_argument(
@@ -3446,12 +3637,24 @@ def build_parser() -> argparse.ArgumentParser:
     final_p.set_defaults(func=cmd_final)
 
     post_p: argparse.ArgumentParser = sub.add_parser(
-        "post-release", help="after publish: verify PyPI + open the next bump PR"
+        "post-release",
+        help="after publish: wait for PyPI (tag pipeline) + open the next bump PR",
     )
     post_p.add_argument("version", help="published version (vX.Y.Z or X.Y.Z)")
     post_p.add_argument("--dry-run", action="store_true")
+    _add_pypi_wait_flags(post_p)
     _add_common_flags(post_p)
     post_p.set_defaults(func=cmd_post_release)
+
+    wait_pypi_p: argparse.ArgumentParser = sub.add_parser(
+        "wait-pypi",
+        help="poll until PyPI lists ddtrace==version (GitLab tag-pipeline gate)",
+    )
+    wait_pypi_p.add_argument("version", help="published version (vX.Y.Z or X.Y.Z)")
+    wait_pypi_p.add_argument("--dry-run", action="store_true")
+    _add_pypi_wait_flags(wait_pypi_p)
+    _add_common_flags(wait_pypi_p)
+    wait_pypi_p.set_defaults(func=cmd_wait_pypi)
 
     bp: argparse.ArgumentParser = sub.add_parser("bump-rc", help="open the rc(N+1) bump PR")
     bp.add_argument("--base-branch", default="main", help="base branch to PR against (default: main)")
