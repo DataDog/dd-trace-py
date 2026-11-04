@@ -1,4 +1,8 @@
-"""Tracing shared by every supported crewai version; see _patch_v0 and _patch_v1 for the version-specific parts."""
+"""Tracing shared by every supported crewai version; see _patch_v0 and _patch_v1 for the version-specific parts.
+
+The integration is the CrewAIIntegration that patch.py stores on crewai._datadog_integration. It is typed Any here
+because only patch.py may depend on the LLM Observability package.
+"""
 
 import sys
 from typing import Any
@@ -8,7 +12,6 @@ import crewai
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -16,7 +19,7 @@ from ddtrace.trace import tracer
 CREWAI_VERSION = parse_version(getattr(crewai, "__version__", ""))
 
 
-def _start_span(integration: CrewAIIntegration, instance: Any, operation: str) -> Span:
+def _start_span(integration: Any, instance: Any, operation: str) -> Any:
     if operation == "crew":
         return integration.trace(
             "Crew Kickoff",
@@ -50,7 +53,7 @@ def _start_span(integration: CrewAIIntegration, instance: Any, operation: str) -
 
 
 def _finish_span(
-    integration: CrewAIIntegration,
+    integration: Any,
     span: Span,
     instance: Any,
     args: Any,
@@ -64,7 +67,7 @@ def _finish_span(
 
 
 def trace_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any, operation: str) -> Any:
-    integration: CrewAIIntegration = crewai._datadog_integration
+    integration = crewai._datadog_integration
     span = _start_span(integration, instance, operation)
     result = None
     try:
@@ -78,7 +81,7 @@ def trace_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any, 
 
 
 async def atrace_call(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any, operation: str) -> Any:
-    integration: CrewAIIntegration = crewai._datadog_integration
+    integration = crewai._datadog_integration
     span = _start_span(integration, instance, operation)
     result = None
     try:
@@ -113,14 +116,14 @@ async def traced_tool_ainvoke(func: Callable[..., Any], instance: Any, args: Any
 
 
 def traced_task_execute_async(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: CrewAIIntegration = crewai._datadog_integration
+    integration = crewai._datadog_integration
     _ddtrace_ctx = integration._get_current_ctx()
     setattr(instance, "_ddtrace_ctx", _ddtrace_ctx)
     return func(*args, **kwargs)
 
 
 def traced_task_get_context(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: CrewAIIntegration = crewai._datadog_integration
+    integration = crewai._datadog_integration
     span = tracer.current_span()
     result = func(*args, **kwargs)
     integration._llmobs_set_span_link_on_task(span, args, kwargs)
@@ -128,7 +131,7 @@ def traced_task_get_context(func: Callable[..., Any], instance: Any, args: Any, 
 
 
 async def traced_flow_kickoff(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: CrewAIIntegration = crewai._datadog_integration
+    integration = crewai._datadog_integration
     span_name = getattr(type(instance), "__name__", "CrewAI Flow")
     with integration.trace("CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=True) as span:
         result = await func(*args, **kwargs)
@@ -144,7 +147,7 @@ async def traced_flow_method(
     returns_event_id: bool = False,
 ) -> Any:
     """Trace Flow._execute_method. If returns_event_id, it returns (method_result, finished_event_id)."""
-    integration: CrewAIIntegration = crewai._datadog_integration
+    integration = crewai._datadog_integration
     span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
     with integration.trace(
         "CrewAI Flow Method",
@@ -168,7 +171,7 @@ async def traced_flow_method(
 
 
 def patched_find_triggered_methods(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-    integration: CrewAIIntegration = crewai._datadog_integration
+    integration = crewai._datadog_integration
     result = func(*args, **kwargs)
     current_span = tracer.current_span()
     integration.llmobs_set_span_links_on_flow(current_span, args, kwargs, instance)
