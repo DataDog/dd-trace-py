@@ -853,7 +853,7 @@ integrations:
   tested_versions_by_dependency:
     pynamodb:
       min: 5.5.1
-      max: 5.5.1
+      max: 6.1.0
 
 - integration_name: pyodbc
   is_external_package: true
