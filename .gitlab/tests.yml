@@ -15,9 +15,10 @@ include:
       - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/ci-templates.yml"
 
 extract_test_artifacts:
-  extends: .testrunner
+  extends: .ci_utils
   stage: setup
   needs:
     - pipeline: "$PARENT_PIPELINE_ID"
@@ -55,6 +56,7 @@ extract_test_artifacts:
     paths:
       - ddtrace/**/*.so*
       - .cache/ddtrace-test-wheels/
+    expire_in: 1 week
 
 
 .test_base:

@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from collections.abc import Mapping
 from collections.abc import Sequence
 from functools import partial
@@ -12,10 +13,13 @@ from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.aiguard._streaming import BufferedAIGuardStream
+from ddtrace.aiguard._streaming import EnabledFn
+from ddtrace.aiguard._streaming import ReconstructFn
 from ddtrace.aiguard._streaming import _is_async_plain_stream
 from ddtrace.aiguard._streaming import _is_async_traced_stream
 from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
+from ddtrace.aiguard._streaming import _stream_analysis_enabled
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_after
@@ -33,6 +37,7 @@ from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_af
 from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
+from ddtrace.aiguard.integrations._openai_responses import may_request_mcp_approval
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -123,46 +128,83 @@ def _openai_listen(client: AIGuardClient) -> None:
     core.on("openai.unpatch", _uninstall_openai_wrappers)
 
 
+def _with_listed_tools(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """kwargs with an iterable tools argument turned into a list, so the SDK and every AI Guard hook
+    see the same tools instead of an iterator the SDK consumes first.
+    """
+    tools = kwargs.get("tools")
+    if tools is None or isinstance(tools, (list, tuple, str, bytes, Mapping)) or not isinstance(tools, Iterable):
+        return kwargs
+    return {**kwargs, "tools": list(tools)}
+
+
+# An after-listener: (client, request kwargs, response), as registered on the contrib's .after event.
+AfterListenerFn = Callable[[AIGuardClient, dict[str, Any], Any], None]
+
+
+def _listed_tools_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    return func(*args, **_with_listed_tools(kwargs))
+
+
+async def _async_listed_tools_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    return await func(*args, **_with_listed_tools(kwargs))
+
+
 def _make_openai_stream_wrappers(
-    client: AIGuardClient, reconstruct: Callable[..., Any], evaluate_after: Callable[..., Any]
+    client: AIGuardClient,
+    reconstruct: ReconstructFn,
+    evaluate_after: AfterListenerFn,
+    should_buffer: Optional[Callable[[dict[str, Any]], bool]] = None,
+    enabled: EnabledFn = _stream_analysis_enabled,
 ) -> tuple[Callable[..., Any], Callable[..., Any]]:
     """Build the (sync, async) buffer wrappers for one OpenAI surface; ``evaluate_after`` is the
     reused after-listener. Split needed: async ``create`` returns a coroutine a sync wrapper can't await.
 
     Both TracedStream results (OpenAI SDK >=1.6) and raw (async) generators (SDK <1.6, which never
     produce a TracedStream) are buffered; otherwise older streams would forward chunks unevaluated.
+    should_buffer, when set, restricts buffering to the requests whose kwargs it accepts.
     """
 
-    def sync_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-        result = func(*args, **kwargs)
+    def wrap_stream(result: Any, kwargs: dict[str, Any], is_async: bool) -> Any:
         if not (_is_traced_stream(result) or _is_plain_stream(result)):
             return result
+        if should_buffer is not None:
+            try:
+                buffer = should_buffer(kwargs)
+            except Exception:
+                logger.debug("AI Guard openai: stream buffering decision failed, not buffering", exc_info=True)
+                buffer = False
+            if not buffer:
+                return result
 
         def evaluate(resp: Any) -> Any:
             return evaluate_after(client, kwargs, resp)
 
-        if _is_async_traced_stream(result) or _is_async_plain_stream(result):
-            return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct, evaluate=evaluate)
-        return BufferedAIGuardStream(result, reconstruct=reconstruct, evaluate=evaluate)
+        if is_async or _is_async_traced_stream(result) or _is_async_plain_stream(result):
+            return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct, evaluate=evaluate, enabled=enabled)
+        return BufferedAIGuardStream(result, reconstruct=reconstruct, evaluate=evaluate, enabled=enabled)
+
+    def sync_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+        kwargs = _with_listed_tools(kwargs)
+        return wrap_stream(func(*args, **kwargs), kwargs, is_async=False)
 
     async def async_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-        result = await func(*args, **kwargs)
-        if not (_is_traced_stream(result) or _is_plain_stream(result)):
-            return result
-
-        def evaluate(resp: Any) -> Any:
-            return evaluate_after(client, kwargs, resp)
-
-        return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct, evaluate=evaluate)
+        kwargs = _with_listed_tools(kwargs)
+        return wrap_stream(await func(*args, **kwargs), kwargs, is_async=True)
 
     return sync_wrapper, async_wrapper
 
 
+def _mcp_enabled() -> bool:
+    return bool(aiguard_config._ai_guard_mcp_enabled)
+
+
 def _install_openai_wrappers(client: AIGuardClient) -> None:
-    """Install outermost streaming buffer wrappers on Chat/Responses ``create`` (raw helpers go to
-    ``_install_openai_raw_wrappers``). Fires on ``openai.patch``; only when the flag is on.
+    """Install outermost stream buffer wrappers on create, on openai.patch: every stream with stream
+    analysis on, else only Responses streams that can carry MCP approval requests (DD_AI_GUARD_MCP_ENABLED).
     """
-    if not aiguard_config._ai_guard_analyze_stream_responses_enabled:
+    analyze_streams = aiguard_config._ai_guard_analyze_stream_responses_enabled
+    if not analyze_streams and not aiguard_config._ai_guard_mcp_enabled:
         return
 
     import openai
@@ -172,21 +214,36 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
     from ddtrace.contrib.internal.trace_utils import wrap
     from ddtrace.internal.utils.formats import deep_getattr
 
-    chat_sync, chat_async = _make_openai_stream_wrappers(client, reconstruct_openai_chat, _openai_chat_completion_after)
-    resp_sync, resp_async = _make_openai_stream_wrappers(
-        client, reconstruct_openai_responses, _openai_response_create_after
-    )
-
     # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/openai/patch.py::patch() (the
-    # ``_RESOURCES`` loop). ``parse`` is intentionally skipped: it is non-streaming
-    # in the inspected SDKs. If the contrib adds/renames a streaming target, that
-    # surface silently goes unbuffered here.
-    targets = [
-        ("chat.Completions", "create", chat_sync),
-        ("chat.AsyncCompletions", "create", chat_async),
-        ("responses.Responses", "create", resp_sync),
-        ("responses.AsyncResponses", "create", resp_async),
+    # ``_RESOURCES`` loop). ``parse`` is non-streaming in the inspected SDKs, so it only gets its
+    # tools listed. If the contrib adds/renames a streaming target, that surface silently goes
+    # unbuffered here.
+    targets = []
+    if analyze_streams:
+        chat_sync, chat_async = _make_openai_stream_wrappers(
+            client, reconstruct_openai_chat, _openai_chat_completion_after
+        )
+        resp_sync, resp_async = _make_openai_stream_wrappers(
+            client, reconstruct_openai_responses, _openai_response_create_after
+        )
+        targets += [("chat.Completions", "create", chat_sync), ("chat.AsyncCompletions", "create", chat_async)]
+    else:
+        resp_sync, resp_async = _make_openai_stream_wrappers(
+            client,
+            reconstruct_openai_responses,
+            partial(_openai_response_create_after, approvals_only=True),
+            # A reusable prompt can configure hosted MCP tools without a tools argument; buffering it
+            # only matters when a verdict can block, so monitor mode streams it untouched.
+            should_buffer=lambda kwargs: (bool(kwargs.get("prompt")) and aiguard_config._ai_guard_block)
+            or may_request_mcp_approval(kwargs.get("tools")),
+            enabled=_mcp_enabled,
+        )
+    targets += [("responses.Responses", "create", resp_sync), ("responses.AsyncResponses", "create", resp_async)]
+    # parse consumes tools and posts directly, bypassing create, so it needs its tools listed too.
+    targets += [
+        ("responses.Responses", "parse", _listed_tools_wrapper),
+        ("responses.AsyncResponses", "parse", _async_listed_tools_wrapper),
     ]
 
     for path, attr, wrapper in targets:
@@ -200,7 +257,8 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
             continue
         _openai_wrapped_targets.append((owner, attr))
 
-    _install_openai_raw_wrappers(client)
+    if analyze_streams:
+        _install_openai_raw_wrappers(client)
 
 
 def _inject_parse_cache(api_response: Any, value: Any) -> None:
