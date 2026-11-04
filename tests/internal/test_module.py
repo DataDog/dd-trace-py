@@ -1,10 +1,7 @@
-from contextlib import contextmanager
-from importlib.util import spec_from_loader
 import json
 import os
 from pathlib import Path
 import sys
-import threading
 from unittest import mock
 from warnings import warn
 
@@ -95,87 +92,46 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-@contextmanager
-def _blocking_module(module_name):
-    """Install a finder for module_name whose execution waits until continue_import is set."""
-    import_started = threading.Event()
-    continue_import = threading.Event()
+@pytest.mark.subprocess
+def test_pre_exec_hook_runs_wrapt_post_import_hooks():
+    # A pre-exec hook (e.g. IAST) that executes the module itself must not skip
+    # the post-import hooks of a wrapt loader wrapped by the watchdog loader.
+    from pathlib import Path
+    import sys
+    import tempfile
 
-    class BlockingLoader:
-        def create_module(self, spec):
-            return None
+    from wrapt.importer import ImportHookFinder
+    from wrapt.importer import register_post_import_hook
 
-        def exec_module(self, module):
-            import_started.set()
-            assert continue_import.wait(timeout=5)
-            module.initialized = True
+    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.module import _UniversalModuleWatchdog
 
-    class BlockingFinder:
-        def find_spec(self, fullname, path=None, target=None):
-            if fullname == module_name:
-                return spec_from_loader(fullname, BlockingLoader())
-            return None
+    module_name = "dd_wrapt_pre_exec_target"
+    module_dir = tempfile.mkdtemp()
+    Path(module_dir, module_name + ".py").write_text("source_executed = True\n")
+    sys.path.insert(0, module_dir)
 
-    finder = BlockingFinder()
-    sys.meta_path.append(finder)
-    import_thread = threading.Thread(target=__import__, args=(module_name,))
-    import_thread.start()
-    try:
-        assert import_started.wait(timeout=5)
-        yield continue_import, import_thread
-    finally:
-        continue_import.set()
-        import_thread.join(timeout=5)
-        sys.meta_path.remove(finder)
-        sys.modules.pop(module_name, None)
+    calls = []
+    register_post_import_hook(lambda module: calls.append(module.__name__), module_name)
 
+    def pre_exec_hook(loader, module):
+        exec(compile("pre_exec_executed = True\n", module.__file__, "exec"), module.__dict__)
 
-def test_import_module_hook_deferred_while_module_initializing(module_watchdog):
-    module_name = "tests.blocking_module_hook_fixture"
-    hook_calls = []
+    ModuleWatchdog.register_pre_exec_module_hook(lambda name: name == module_name, pre_exec_hook)
 
-    with _blocking_module(module_name) as (continue_import, import_thread):
-        # Registration must not wait for the import: callers may hold locks the
-        # importing thread needs (e.g. the debugger watchdog lock).
-        registration_thread = threading.Thread(
-            target=module_watchdog.register_module_hook,
-            args=(module_name, lambda module: hook_calls.append(getattr(module, "initialized", False))),
-        )
-        registration_thread.start()
-        registration_thread.join(timeout=5)
-        assert not registration_thread.is_alive()
-        assert hook_calls == []
+    class LateWatchdog(ModuleWatchdog):
+        pass
 
-        continue_import.set()
-        import_thread.join(timeout=5)
-        assert not import_thread.is_alive()
+    # Registering a watchdog after wrapt's finder moves the watchdog finder ahead of it.
+    LateWatchdog.install()
+    wrapt_finder = next(f for f in sys.meta_path if isinstance(f, ImportHookFinder))
+    assert sys.meta_path.index(_UniversalModuleWatchdog._instance) < sys.meta_path.index(wrapt_finder)
 
-    assert hook_calls == [True]
+    module = __import__(module_name)
 
-
-def test_import_module_hook_registered_during_after_import(module_watchdog):
-    module_name = "tests.blocking_module_hook_fixture"
-    late_hook_calls = []
-
-    def late_hook(module):
-        late_hook_calls.append(getattr(module, "initialized", False))
-
-    def early_hook(module):
-        # Hooks have already been collected for this import, so a hook registered
-        # now from another thread must be called straight away, exactly once.
-        t = threading.Thread(target=module_watchdog.register_module_hook, args=(module_name, late_hook))
-        t.start()
-        t.join(timeout=5)
-        assert not t.is_alive()
-
-    module_watchdog.register_module_hook(module_name, early_hook)
-
-    with _blocking_module(module_name) as (continue_import, import_thread):
-        continue_import.set()
-        import_thread.join(timeout=5)
-        assert not import_thread.is_alive()
-
-    assert late_hook_calls == [True]
+    assert module.pre_exec_executed
+    assert not hasattr(module, "source_executed")
+    assert calls == [module_name], calls
 
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))

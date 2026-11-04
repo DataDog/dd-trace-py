@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    LLM Observability: Fixes an issue where OpenAI and Anthropic integrations can remain
-    uninstrumented when Remote Configuration enables LLM Observability during application
-    startup with Interactive Application Security Testing enabled.

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security: Fixes an issue where, with IAST enabled, integrations such as OpenAI, Anthropic and
+    LangChain could remain uninstrumented for the lifetime of the process when their library was
+    imported after a product was enabled at runtime, for example through Remote Configuration.
