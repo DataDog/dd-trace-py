@@ -558,7 +558,7 @@ class LockCollector(collector.CaptureSamplerCollector):
             current: Callable[..., Any] = collector._get_patch_target()
             if not isinstance(current, _LockAllocatorWrapper):
                 log.debug(
-                    "%s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
+                    "[profiling] %s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
                     type(collector).__name__,
                     collector.MODULE.__name__,
                     collector.PATCHED_LOCK_NAME,
@@ -640,7 +640,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         original_lock: Callable[..., Any] = self._get_patch_target()
         if isinstance(original_lock, _LockAllocatorWrapper):
             log.debug(
-                "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
+                "[profiling] %s: %s.%s is already patched, skipping to avoid double-wrapping.",
                 type(self).__name__,
                 self.MODULE.__name__,
                 self.PATCHED_LOCK_NAME,

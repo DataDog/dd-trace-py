@@ -1,0 +1,49 @@
+id: uuid4-usage
+message: Use ddtrace.internal.native.uuid4 instead of uuid.uuid4
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/vendor/**"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+  - "ddtrace/testing/**"
+  # TODO: Switch these to ddtrace.internal.native.uuid4.
+  - "ddtrace/aiguard/integrations/_langchain.py"
+  - "ddtrace/contrib/internal/openai/_realtime.py"
+  - "ddtrace/contrib/internal/pytorch/_utils.py"
+  - "ddtrace/internal/_runtime_id.py"
+  - "ddtrace/internal/ci_visibility/_api_client.py"
+  - "ddtrace/internal/ci_visibility/encoder.py"
+  - "ddtrace/llmobs/_experiment.py"
+rule:
+  any:
+    - pattern: uuid.uuid4()
+    - kind: import_from_statement
+      all:
+        - has:
+            field: module_name
+            regex: "^uuid$"
+        - has:
+            stopBy: end
+            kind: dotted_name
+            regex: "^uuid4$"
+note: |
+  The uuid module imports threading on Linux, via platform and subprocess.
+  Module cloning (DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE, on by default when
+  gevent is installed) unloads them after ddtrace has started, so importing
+  uuid from one of ddtrace's own background threads, e.g. when remote
+  configuration enables a product, imports threading again on that thread. On
+  Python < 3.13 that makes it the main thread, and the interpreter waits on it
+  forever at exit.
+
+  ddtrace.internal.native.uuid4 returns a random (version 4) UUID in its
+  hyphenated string form, without the uuid module, and is also faster.
+
+  Before:
+    import uuid
+    probe_id = str(uuid.uuid4())
+
+  After:
+    from ddtrace.internal.native import uuid4
+    probe_id = uuid4()

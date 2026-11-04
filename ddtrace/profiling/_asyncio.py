@@ -168,7 +168,7 @@ def _(asyncio: ModuleType) -> None:
     globals()["get_running_loop"] = _get_running_loop
     globals()["_task_get_name"] = lambda task: task.get_name()
 
-    init_stack: bool = config.stack.enabled and stack.is_available
+    init_stack: bool = (config.install or config.stack.enabled) and stack.is_available
 
     # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
     # Try both names for compatibility
@@ -354,7 +354,7 @@ def _(uvloop: ModuleType) -> None:
 
     import asyncio
 
-    init_stack: bool = config.stack.enabled and stack.is_available
+    init_stack: bool = (config.install or config.stack.enabled) and stack.is_available
 
     # Wrap uvloop.new_event_loop to track loops when they're created
     new_event_loop_func: typing.Optional[typing.Callable[[], asyncio.AbstractEventLoop]] = getattr(

@@ -86,6 +86,12 @@ class Session:
     def is_active(cls, ident: SessionId) -> bool:
         return SessionManager.is_session_active(ident)
 
+    @classmethod
+    def is_active_for(cls, probe: t.Any) -> bool:
+        """Whether a session is active on the current trace for this probe."""
+        session_id = probe.tags.get("session_id")
+        return session_id is not None and cls.is_active(session_id)
+
 
 class SessionManager:
     _sessions_trace_map: t.MutableMapping[t.Any, dict[SessionId, Session]] = (

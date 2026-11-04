@@ -115,12 +115,18 @@ configure_stack_internal_test(test_sampling_cycle_state)
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
 
+dd_wrapper_add_test(test_weak_task_links test_weak_task_links.cpp)
+configure_stack_internal_test(test_weak_task_links)
+
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
 
 dd_wrapper_add_test(test_segv_chain test_segv_chain.cpp)
 target_include_directories(test_segv_chain PRIVATE ../echion)
+if(DO_VALGRIND)
+    target_compile_definitions(test_segv_chain PRIVATE DD_VALGRIND)
+endif()
 
 # vm.cc is compiled into the test binary: the fast-copy state lives in inline variables, so the copy in the test
 # executable is distinct from the one in the _stack library and only the constructor linked here initializes it.

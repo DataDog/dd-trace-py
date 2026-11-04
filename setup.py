@@ -188,8 +188,45 @@ LIBDDWAF_CHECKSUMS = {
 }
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v46.0.0 requires rust 1.87.0.
+# libdatadog v46.1.1 requires rust 1.87.0.
 RUST_MINIMUM_VERSION = "1.87.0"
+
+
+SCCACHE_START_MAX_ATTEMPTS = 3
+SCCACHE_START_TIMEOUT = 60
+
+
+def start_sccache_server(sccache_path):
+    """
+    Start the sccache server up front and report whether it is usable.
+
+    The server health-checks the storage backend (S3 in CI) when it starts, and SCCACHE_IGNORE_SERVER_IO_ERROR does
+    not cover that check. Without this, a transient backend error fails the first compile instead of just the cache.
+
+    --dist-status rather than --start-server or --show-stats: it connects to a running server or starts one, and exits
+    nonzero if the storage check fails, as the first compile would. --start-server exits nonzero with "Address in use"
+    when a server is already running, and --show-stats exits 0 with default stats even when no server can start.
+    """
+    for attempt in range(1, SCCACHE_START_MAX_ATTEMPTS + 1):
+        try:
+            subprocess.run(
+                [str(sccache_path), "--dist-status"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=SCCACHE_START_TIMEOUT,
+            )
+            return True
+        except (subprocess.SubprocessError, OSError) as e:
+            # sccache reports why it failed on stderr, not in the exception text
+            reason = (getattr(e, "stderr", None) or "").strip() or e
+            print(
+                "WARNING: sccache server unavailable (attempt %d/%d): %s"
+                % (attempt, SCCACHE_START_MAX_ATTEMPTS, reason)
+            )
+            if attempt < SCCACHE_START_MAX_ATTEMPTS:
+                time.sleep(2**attempt)
+    return False
 
 
 def interpose_sccache():
@@ -207,6 +244,9 @@ def interpose_sccache():
         return
     sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
+        if not start_sccache_server(sccache_path):
+            print("WARNING: sccache server did not start, building without sccache")
+            return
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
         # a wrapper
@@ -715,9 +755,9 @@ class LibraryDownloader(BuildPyCommand):
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
         if self.no_bundle_libddwaf:
-            if CURRENT_OS != "Linux":
+            if CURRENT_OS not in ("Linux", "FreeBSD"):
                 raise RuntimeError(
-                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no system "
+                    "--no-bundle-libddwaf is only supported on Linux and FreeBSD, not on %s: the runtime has no system "
                     "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
                     "so libddwaf must be bundled" % CURRENT_OS
                 )
@@ -1796,9 +1836,9 @@ if not IS_PYSTON:
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
-                "ddtrace.appsec._shared._stacktrace",
+                "ddtrace.internal.security._stacktrace",
                 sources=[
-                    "ddtrace/appsec/_shared/_stacktrace.c",
+                    "ddtrace/internal/security/_stacktrace.c",
                 ],
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )

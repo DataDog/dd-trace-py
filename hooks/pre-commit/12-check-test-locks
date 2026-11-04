@@ -1,0 +1,47 @@
+#!/bin/sh
+# Fail the commit when staged lock or suitespec changes leave missing or leftover
+# test lock files. Same inventory check as GitLab check_requirements_lockfiles
+# and the prechecks "Check test locks" step.
+#
+# Runs against a temporary checkout of the index so unstaged worktree lock or
+# suitespec edits cannot hide an inconsistent staged set.
+
+CHECK_CMD="${CHECK_CMD:-scripts/test-requirements}"
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMRD)
+
+should_run=false
+echo "$staged_files" | grep -qE '(^|/)suitespec\.yml$|^tests/suitespec\.py$|^tests/requirements_locks/|^scripts/test-requirements$' && should_run=true
+
+if [ "$should_run" != true ]; then
+    echo 'Test-lock check skipped: no lock or suitespec files staged'
+    exit 0
+fi
+
+echo "Checking test lock inventory against staged index..."
+
+# Test harness / override: caller supplies the checker and skips the index snapshot.
+if [ "$CHECK_CMD" != "scripts/test-requirements" ]; then
+    "$CHECK_CMD" check || exit 1
+    exit 0
+fi
+
+snapshot=$(mktemp -d)
+trap 'rm -rf "$snapshot"' EXIT
+
+# Materialize the index versions of every path the inventory check reads.
+if ! git ls-files -z -- \
+    '**/suitespec.yml' \
+    'tests/suitespec.py' \
+    'tests/requirements_locks/*.txt' \
+    'scripts/test-requirements' \
+    'scripts/uv-run-script' \
+    'scripts/_uv-bootstrap.sh' \
+    'scripts/check_lockfile_cooldown.py' \
+    | git checkout-index --prefix="$snapshot/" -z --stdin
+then
+    echo "Failed to materialize staged index for test-lock check" >&2
+    exit 1
+fi
+mkdir -p "$snapshot/tests/requirements_locks"
+
+(cd "$snapshot" && scripts/test-requirements check) || exit 1

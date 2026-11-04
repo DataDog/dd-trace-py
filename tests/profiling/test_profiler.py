@@ -12,6 +12,8 @@ from unittest import mock
 import pytest
 
 import ddtrace
+from ddtrace._trace.span import Span
+from ddtrace.ext import SpanTypes
 from ddtrace.internal import service
 from ddtrace.internal import threads as internal_threads
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -127,6 +129,20 @@ def test_copy_keeps_collector_selection() -> None:
     for key in profiler._ProfilerInstance._COPY_PRIVATE_ATTRIBUTES:
         assert getattr(c, key) is False, key
     assert c._collectors == []
+
+
+def test_collector_defaults_are_read_when_profiler_is_built(monkeypatch: pytest.MonkeyPatch) -> None:
+    from ddtrace.internal.settings.profiling import config as profiling_config
+
+    # Remote config changes profiling_config after this module imported ddtrace.profiling.profiler.
+    for setting in (profiling_config.stack, profiling_config.memory, profiling_config.lock, profiling_config.exception):
+        monkeypatch.setattr(setting, "enabled", False)
+
+    p = profiler._ProfilerInstance()
+    assert p._stack_collector_enabled is False
+    assert p._memory_collector_enabled is False
+    assert p._lock_collector_enabled is False
+    assert p._exception_profiling_enabled is False
 
 
 def test_shallow_copy_of_profiler() -> None:
@@ -1165,6 +1181,43 @@ def test_construction_does_not_enable_endpoint_collection() -> None:
             mock_enable.assert_called_once()
         finally:
             p.stop(flush=False)
+
+
+def _finish_web_root_span(endpoint_processor: Any) -> None:
+    span = Span("request", resource="GET /", span_type=SpanTypes.WEB)
+    span._local_root = span
+    endpoint_processor.on_span_finish(span)
+
+
+def test_stop_disables_and_clears_endpoint_collection() -> None:
+    endpoint_processor = ddtrace.tracer._endpoint_call_counter_span_processor
+
+    p = profiler.Profiler(endpoint_collection_enabled=True)
+    p.start()
+    try:
+        _finish_web_root_span(endpoint_processor)
+        assert endpoint_processor.endpoint_counts == {"GET /": 1}
+    finally:
+        p.stop(flush=False)
+
+    # No scheduler is left to reset the counts, so a stopped profiler must not let them grow.
+    _finish_web_root_span(endpoint_processor)
+    assert endpoint_processor.reset() == ({}, {})
+
+
+def test_failed_start_disables_endpoint_collection() -> None:
+    endpoint_processor = ddtrace.tracer._endpoint_call_counter_span_processor
+
+    p = profiler.Profiler(endpoint_collection_enabled=True)
+    assert p._profiler._scheduler is not None
+    with (
+        mock.patch.object(p._profiler._scheduler, "start", side_effect=RuntimeError("scheduler start failed")),
+        pytest.raises(RuntimeError, match="scheduler start failed"),
+    ):
+        p.start()
+
+    _finish_web_root_span(endpoint_processor)
+    assert endpoint_processor.reset() == ({}, {})
 
 
 @pytest.mark.subprocess(err=None)

@@ -296,6 +296,31 @@ def test_ci_visibility_encoder_truncates_event_meta_string_values():
     assert event_content[b"metrics"][b"numeric_metric"] == 42
 
 
+def test_ci_visibility_encoder_keeps_tail_of_error_stack_and_message():
+    long_stack = "s" * MAX_META_TAG_VALUE_LENGTH + "STACK_TAIL"
+    long_message = "m" * MAX_META_TAG_VALUE_LENGTH + "MESSAGE_TAIL"
+    long_other = "OTHER_HEAD" + "o" * MAX_META_TAG_VALUE_LENGTH
+    span = Span(name="client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
+    span._set_attribute(EVENT_TYPE, "test")
+    span.set_tag("error.stack", long_stack)
+    span.set_tag("error.message", long_message)
+    span.set_tag("other_meta", long_other)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.put([span])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, _)] = encoded_traces
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    meta = decoded[b"events"][0][b"content"][b"meta"]
+
+    assert {k: meta[k] for k in (b"error.stack", b"error.message", b"other_meta")} == {
+        b"error.stack": long_stack[-MAX_META_TAG_VALUE_LENGTH:].encode(),
+        b"error.message": long_message[-MAX_META_TAG_VALUE_LENGTH:].encode(),
+        b"other_meta": long_other[:MAX_META_TAG_VALUE_LENGTH].encode(),
+    }
+
+
 def test_ci_visibility_encoder_truncates_payload_metadata_without_mutating_stored_metadata():
     long_value = "m" * (MAX_META_TAG_VALUE_LENGTH + 1)
     encoder = CIVisibilityEncoderV01(0, 0)

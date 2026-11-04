@@ -315,6 +315,34 @@ def test_set_get_ranges_str():
     assert not get_ranges(s2)
 
 
+@pytest.mark.parametrize("lookup", ["ranges", "tainted"])
+def test_reentrant_hash_removes_taint_during_lookup(lookup):
+    context_id = _get_iast_context_id()
+
+    class ReentrantHash(str):
+        mode = 0
+
+        def __hash__(self):
+            if self.mode == 1:
+                self.mode = 2
+                assert get_ranges(self, context_id) == []
+                self.mode = 0
+            return 12346 if self.mode == 2 else 12345
+
+    value = ReentrantHash("non-interned input")
+    source = Source(name="parameter", value="input", origin=OriginType.PARAMETER)
+    assert set_ranges(value, [TaintRange(0, len(value), source)], context_id)
+    assert len(get_ranges(value, context_id)) == 1
+
+    value.mode = 1
+    if lookup == "ranges":
+        assert get_ranges(value, context_id) == []
+    else:
+        assert not is_pyobject_tainted(value)
+    assert value.mode == 0
+    assert get_ranges(value, context_id) == []
+
+
 def test_set_get_ranges_other():
     _RANGE1 = TaintRange(0, 2, _SOURCE1)
     _RANGE2 = TaintRange(1, 3, _SOURCE2)

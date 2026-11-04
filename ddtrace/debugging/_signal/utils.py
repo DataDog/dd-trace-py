@@ -283,7 +283,7 @@ def capture_exc_info(exc_info: ExcInfoType) -> Optional[dict[str, Any]]:
     return {
         "type": _type.__name__,
         "message": ", ".join([serialize(v) for v in value.args]),
-        "stacktrace": capture_traceback(tb) if tb is not None else None,
+        "stacktrace": capture_traceback(tb) if tb is not None else [],
     }
 
 

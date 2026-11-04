@@ -30,6 +30,8 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
@@ -2340,3 +2342,54 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None
+
+
+@pytest.mark.parametrize("initial_compute_stats", [True, False])
+@pytest.mark.parametrize("stats_while_opted_out", [None, True, False])
+@pytest.mark.parametrize("compute_stats_enabled", [None, True, False])
+def test_standalone_shadows_compute_stats(tracer, initial_compute_stats, stats_while_opted_out, compute_stats_enabled):
+    """Opting out must not rewrite the user's stats preference.
+
+    Standalone mode shadows the setting in the writer and processors via their
+    opt-out flags, so stats resume as soon as APM tracing is re-enabled.
+    """
+    with mock.patch.object(config, "_trace_compute_stats", initial_compute_stats):
+        with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
+            try:
+                tracer.configure(appsec_enabled=True, iast_enabled=False, apm_tracing_disabled=True)
+                # The preference is untouched while opted out; the writer and
+                # processors carry the opt-out shadow instead.
+                assert config._trace_compute_stats is initial_compute_stats
+                aggr = tracer._span_aggregator
+                assert aggr.tags_processor.apm_opt_out is True
+                inner_writer = aggr.writer._inner_writer
+                assert inner_writer._compute_stats_enabled is initial_compute_stats
+                assert inner_writer._stats_opt_out is True
+
+                tracer.configure(appsec_enabled=True)
+                assert config._trace_compute_stats is initial_compute_stats
+
+                # Explicit stats updates while opted out set the preference.
+                if stats_while_opted_out is not None:
+                    tracer.configure(appsec_enabled=True, compute_stats_enabled=stats_while_opted_out)
+                    assert config._trace_compute_stats is stats_while_opted_out
+
+                tracer.configure(appsec_enabled=False, compute_stats_enabled=compute_stats_enabled)
+                expected_stats = initial_compute_stats
+                if stats_while_opted_out is not None:
+                    expected_stats = stats_while_opted_out
+                if compute_stats_enabled is not None:
+                    expected_stats = compute_stats_enabled
+                assert config._trace_compute_stats is expected_stats
+                # Leaving standalone mode lifts the shadow: the writer computes
+                # stats again iff the preference says so.
+                aggr = tracer._span_aggregator
+                assert aggr.tags_processor.apm_opt_out is False
+                inner_writer = aggr.writer._inner_writer
+                assert inner_writer._compute_stats_enabled is expected_stats
+                assert inner_writer._stats_opt_out is False
+
+                tracer.configure(trace_processors=[])
+                assert config._trace_compute_stats is expected_stats
+            finally:
+                tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)

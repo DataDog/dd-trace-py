@@ -6,6 +6,8 @@ import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
+from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
+from ddtrace.internal.utils.openai import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
@@ -41,8 +43,6 @@ from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_conte
 from ddtrace.llmobs._integrations.utils import get_openai_server_tool_usage_metrics
 from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
-from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
-from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_get_metadata_from_response
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion

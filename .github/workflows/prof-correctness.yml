@@ -8,6 +8,7 @@ on:
     paths:
       - .github/workflows/prof-correctness.yml
       - ddtrace/internal/datadog/profiling/**
+      - ddtrace/internal/profiling/**
       - ddtrace/profiling/**
       - src/native/**
   workflow_dispatch:

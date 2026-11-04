@@ -13,8 +13,10 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -146,7 +148,7 @@ async def patch_run_request_middleware(wrapped: Callable, instance: sanic.Sanic,
     # Set resource from the framework request
     request = args[0]
     ctx = _get_request_context(request)
-    if ctx is not None:
+    if ctx is not None and not config._otel_trace_semantics_enabled:
         ctx.event.resource = f"{request.method} {_get_path(request)}"
     return await wrapped(*args, **kwargs)
 
@@ -236,9 +238,10 @@ def _create_sanic_request_context(request: Request) -> core.ExecutionContext[Web
 
     url = f"{request.scheme}://{request.host}{request.path}"
     resource = None
-    if SANIC_VERSION < (21, 0, 0):
+    if SANIC_VERSION < (21, 0, 0) and not config._otel_trace_semantics_enabled:
         # The path is not available anymore in 21.x. It is set from
-        # patch_run_request_middleware instead.
+        # patch_run_request_middleware instead. With OTel semantics the span is named
+        # from the matched route only, never from the raw URL path.
         resource = f"{request.method} {_get_path(request)}"
 
     event = WebFrameworkRequestEvent(
@@ -280,6 +283,13 @@ async def sanic_http_routing_after(request: Request, route: Route, kwargs: dict,
         pattern = route.pattern
 
     ctx.event.resource = f"{request.method} {pattern}"
+    if config._otel_trace_semantics_enabled:
+        ctx.event.request_route = pattern
+        # Name the span from the resolved route so sampling during the handler sees the final name.
+        span = span_from_context(ctx)
+        if span is not None:
+            span._set_attribute(http.ROUTE, pattern)
+            set_otel_resource_for_method(span, request.method, pattern)
     ctx.event.additional_tags["sanic.route.name"] = route.name
 
 

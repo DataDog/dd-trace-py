@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.utils.version import parse_version
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -144,6 +145,30 @@ async def test_param_handler(app, test_spans, aiohttp_client, query_string, trac
         assert query_string == span.get_tag(http.QUERY_STRING)
     else:
         assert http.QUERY_STRING not in span.get_tags()
+
+
+@pytest.mark.parametrize(
+    "query_string,trace_query_string",
+    (
+        ("foo=bar", False),
+        ("foo=bar", True),
+    ),
+)
+async def test_param_handler_otel_semantics(app, test_spans, aiohttp_client, query_string, trace_query_string):
+    app[CONFIG_KEY]["trace_query_string"] = trace_query_string
+    client = await aiohttp_client(app)
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        request = await client.request("GET", "/echo/team?" + query_string)
+        assert 200 == request.status
+        await request.text()
+    traces = test_spans.pop_traces()
+    assert 1 == len(traces)
+    span = traces[0][0]
+    assert span.resource == "GET /echo/{name}"
+    if trace_query_string:
+        assert span.get_tag(otel_http.URL_QUERY) == query_string
+    else:
+        assert span.get_tag(otel_http.URL_QUERY) is None
 
 
 async def test_404_handler(app, test_spans, aiohttp_client):

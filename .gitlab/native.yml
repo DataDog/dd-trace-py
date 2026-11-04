@@ -39,12 +39,15 @@ include:
 
 "clang-tidy profiling":
   stage: tests
-  image: registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native
+  image: registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native
   tags: ["arch:amd64"]
   timeout: 20m
   needs: []
   before_script:
     - pyenv global 3.12
+    # Same as profiling_native: keep the active pyenv libpython findable when
+    # the image ld.so.conf lags the installed patch version.
+    - export LD_LIBRARY_PATH="$(pyenv prefix)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:clang_tidy_build[collapsed=true]\r\e[0Kclang-tidy on profiling C++ code"

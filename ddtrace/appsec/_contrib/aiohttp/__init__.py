@@ -1,10 +1,10 @@
+from collections.abc import Awaitable
 from collections.abc import Mapping
-import json
 import re
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
-from urllib.parse import parse_qsl
 
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -16,6 +16,9 @@ from ddtrace.appsec._asm_request_context import set_blocked
 from ddtrace.appsec._asm_request_context import set_body_response
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._contrib.aiohttp._utils import decode_text
+from ddtrace.appsec._contrib.aiohttp._utils import parse_form
+from ddtrace.appsec._contrib.aiohttp._utils import single_or_list
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.internal import core
@@ -26,7 +29,9 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import _get_blocked_template
 from ddtrace.internal.utils.http import classify_media_type
-from ddtrace.internal.utils.http import parse_form_multipart
+from ddtrace.internal.utils.http import inspectable_charset
+from ddtrace.internal.utils.http import is_punycode_charset
+from ddtrace.internal.utils.http import parse_json_bytes
 import ddtrace.vendor.xmltodict as xmltodict
 
 
@@ -101,7 +106,31 @@ def _parse_cookies(headers: Any) -> dict[str, Union[str, list[str]]]:
         key, value = key.strip(), value.strip()
         if key or value:
             cookies.setdefault(key, []).append(_unquote_cookie(value))
-    return {key: values[0] if len(values) == 1 else values for key, values in cookies.items()}
+    return single_or_list(cookies)
+
+
+_multipart_import_failed = False
+
+
+def _multipart_parser() -> Optional[Callable[[Any, bytes], Awaitable[dict[str, Any]]]]:
+    global _multipart_import_failed
+    if _multipart_import_failed:
+        return None
+    try:
+        from ddtrace.appsec._contrib.aiohttp._multipart import multipart_fields
+    except Exception:
+        _multipart_import_failed = True
+        logger.warning("aiohttp::multipart body inspection unavailable", exc_info=True)
+        return None
+    return multipart_fields
+
+
+def _parse_json_body(raw_body: bytes, charset: str, punycode: bool) -> Any:
+    try:
+        parsed = parse_json_bytes(raw_body, charset, punycode)
+    except ValueError:
+        return decode_text(raw_body, charset)
+    return [parsed, decode_text(raw_body, charset)] if punycode else parsed
 
 
 def _check_blocked() -> None:
@@ -157,22 +186,20 @@ async def _analyze_body(request: Any, media_type: MediaType) -> Optional[bytes]:
         logger.debug("aiohttp::failed to read request body", exc_info=True)
         return None
     body: Any = None
-    charset = request.charset or "utf-8"
     try:
+        charset = inspectable_charset(request.charset, len(raw_body))
         with iast_disabled_taint_sources():
             if media_type is MediaType.JSON:
-                body = json.loads(raw_body.decode(charset)) if raw_body else None
+                if raw_body:
+                    body = _parse_json_body(raw_body, charset, is_punycode_charset(request.charset))
             elif media_type is MediaType.XML:
                 body = xmltodict.parse(raw_body)
+            elif media_type is MediaType.FORM_URLENCODED:
+                body = parse_form(raw_body, charset)
             else:
-                text_body = raw_body.decode(charset, errors="replace")
-                if media_type is MediaType.FORM_URLENCODED:
-                    form: dict[str, list[str]] = {}
-                    for key, value in parse_qsl(text_body.rstrip(), keep_blank_values=True, encoding=charset):
-                        form.setdefault(key, []).append(value)
-                    body = {key: values[0] if len(values) == 1 else values for key, values in form.items()}
-                else:
-                    body = parse_form_multipart(text_body, request.headers)
+                multipart_fields = _multipart_parser()
+                if multipart_fields is not None:
+                    body = await multipart_fields(request, raw_body)
     except Exception:
         logger.debug("aiohttp::failed to parse request body", exc_info=True)
         return raw_body

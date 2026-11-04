@@ -7,6 +7,7 @@
 #include "dd_wrapper/include/defer.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <optional>
 #include <random>
 #include <string_view>
@@ -195,15 +196,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
 
         // Clean up the weak_task_link_map. Reuse the same all_task_origins set
-        to_remove.clear();
-        for (auto kv : weak_task_link_map) {
-            if (all_task_origins.find(kv.first) == all_task_origins.end())
-                to_remove.push_back(kv.first);
-        }
-
-        for (auto key : to_remove) {
-            weak_task_link_map.erase(key);
-        }
+        echion.prune_weak_task_links(all_task_origins);
 
         // Determine the parent tasks from the gather (strong) links.
         for (auto& link : task_link_map) {
@@ -435,17 +428,15 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030e0000
 Result<void>
-ThreadInfo::for_each_task_address_from_thread_list(const TaskAddressCallback& callback)
+ThreadInfo::for_each_task_address_from_thread_list(EchionSampler& echion, const TaskAddressCallback& callback)
 {
-    if (this->tstate_addr == 0 || this->asyncio_loop == 0) {
+    const size_t tasks_head_offset = echion.asyncio_thread_tasks_head_offset();
+    if (this->tstate_addr == 0 || this->asyncio_loop == 0 || tasks_head_offset == 0 ||
+        tasks_head_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
         return Result<void>::ok();
     }
 
-    // Since Python 3.13, every PyThreadState is allocated as a _PyThreadStateImpl. Calculate the remote address of its
-    // Python 3.14-only asyncio_tasks_head field. get_task_addresses_from_linked_list copies and validates the head.
-    constexpr size_t asyncio_tasks_head_offset = offsetof(_PyThreadStateImpl, asyncio_tasks_head);
-    uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
-
+    const uintptr_t head_addr = this->tstate_addr + tasks_head_offset;
     auto maybe_task_addresses = get_task_addresses_from_linked_list(head_addr);
     if (!maybe_task_addresses) {
         // Lock-free list snapshots are best effort. Treat an inconsistent source as empty so other sources remain
@@ -463,15 +454,20 @@ ThreadInfo::for_each_task_address_from_thread_list(const TaskAddressCallback& ca
 }
 
 Result<void>
-ThreadInfo::for_each_task_address_from_interpreter_list(PyThreadState* tstate, const TaskAddressCallback& callback)
+ThreadInfo::for_each_task_address_from_interpreter_list(EchionSampler& echion,
+                                                        PyThreadState* tstate,
+                                                        const TaskAddressCallback& callback)
 {
-    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0) {
+    const size_t tasks_head_offset = echion.asyncio_interpreter_tasks_head_offset();
+    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0 || tasks_head_offset == 0) {
         return Result<void>::ok();
     }
 
-    constexpr size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
-    uintptr_t head_addr = reinterpret_cast<uintptr_t>(tstate->interp) + asyncio_tasks_head_offset;
-
+    const uintptr_t interpreter_addr = reinterpret_cast<uintptr_t>(tstate->interp);
+    if (tasks_head_offset > std::numeric_limits<uintptr_t>::max() - interpreter_addr) {
+        return Result<void>::ok();
+    }
+    const uintptr_t head_addr = interpreter_addr + tasks_head_offset;
     auto maybe_task_addresses = get_task_addresses_from_linked_list(head_addr);
     if (!maybe_task_addresses) {
         // Lock-free list snapshots are best effort. Treat an inconsistent source as empty so other sources remain
@@ -554,11 +550,11 @@ ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, 
     // Task moving between sources. get_all_tasks deduplicates the resulting snapshots by address. Invalid linked-list
     // snapshots are treated as empty sources, while callback failures stop traversal and propagate to the caller.
     if (tstate != nullptr && this->tstate_addr != 0) {
-        auto result = for_each_task_address_from_thread_list(callback);
+        auto result = for_each_task_address_from_thread_list(echion, callback);
         if (!result) {
             return result.error();
         }
-        result = for_each_task_address_from_interpreter_list(tstate, callback);
+        result = for_each_task_address_from_interpreter_list(echion, tstate, callback);
         if (!result) {
             return result.error();
         }

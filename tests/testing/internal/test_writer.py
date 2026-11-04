@@ -114,7 +114,10 @@ class TestBaseWriterStartup:
                 assert len(results) == 1
                 assert results[0].error_type is None
                 assert results[0].response_body == b"ok"
-                request.assert_called_once_with("POST", "/upload", body=b"payload", headers={})
+                upload_calls = [
+                    request_call for request_call in request.call_args_list if request_call.args[1] == "/upload"
+                ]
+                assert upload_calls == [call("POST", "/upload", body=b"payload", headers={})]
                 http_constructor.assert_not_called()
                 https_constructor.assert_not_called()
         finally:
@@ -471,6 +474,23 @@ class TestMetadataTruncation:
         assert truncated["*"]["short"] == "value"
         assert truncated["*"]["long"] == "m" * MAX_META_TAG_VALUE_LENGTH
         assert metadata["*"]["long"] == long_value
+
+    def test_events_meta_keeps_tail_of_error_stack_and_message(self) -> None:
+        long_stack = "s" * MAX_META_TAG_VALUE_LENGTH + "STACK_TAIL"
+        long_message = "m" * MAX_META_TAG_VALUE_LENGTH + "MESSAGE_TAIL"
+        long_other = "OTHER_HEAD" + "o" * MAX_META_TAG_VALUE_LENGTH
+        event = Event(
+            type="test",
+            content={"meta": {"error.stack": long_stack, "error.message": long_message, "other": long_other}},
+        )
+
+        truncated = _truncate_events_meta([event])
+
+        assert truncated[0]["content"]["meta"] == {
+            "error.stack": long_stack[-MAX_META_TAG_VALUE_LENGTH:],
+            "error.message": long_message[-MAX_META_TAG_VALUE_LENGTH:],
+            "other": long_other[:MAX_META_TAG_VALUE_LENGTH],
+        }
 
     def test_events_meta_returns_original_when_no_values_truncated(self) -> None:
         event = Event(type="test", content={"meta": {"short": "value"}})
@@ -888,6 +908,7 @@ class TestSerializationFunctions:
         suite.name = "TestSuite"
         suite.session.item_id = 666
         suite.module.item_id = 777
+        suite.module.module_path = "/path/to/test_module"
         suite.item_id = 888
         suite.tags = {"suite.custom": "suite_value"}
         suite.metrics = {"suite.metric": 100}
@@ -912,6 +933,8 @@ class TestSerializationFunctions:
         # Check metadata
         meta = event["content"]["meta"]
         assert meta["span.kind"] == "test"
+        assert meta["test.module"] == "test_module"
+        assert meta["test.module_path"] == "/path/to/test_module"
         assert meta["test.suite"] == "TestSuite"
         assert meta["test.status"] == "pass"
         assert meta["type"] == "test_suite_end"
