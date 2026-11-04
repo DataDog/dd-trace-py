@@ -25,11 +25,13 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Union
 
+from ddtrace.aiguard._api_client import _SKIPPED_REASON
 from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import ContentPart
 from ddtrace.aiguard._api_client import Function
 from ddtrace.aiguard._api_client import ImageURL
+from ddtrace.aiguard._api_client import MCPServer
 from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
@@ -37,6 +39,9 @@ from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._common import wrap_abort_error
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.aiguard.integrations._anthropic_mcp import attach_mcp
+from ddtrace.aiguard.integrations._anthropic_mcp import mark_evaluated
+from ddtrace.aiguard.integrations._anthropic_mcp import request_mcp_tools
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -592,6 +597,18 @@ def _safe_convert_response(resp: Any) -> Optional[list[Message]]:
         return None
 
 
+def _attach_mcp_servers(
+    messages: list[Message], kwargs: dict[str, Any]
+) -> tuple[Optional[list[MCPServer]], dict[str, Any]]:
+    """Reference the client-managed MCP tools of this request in messages; fails open without MCP metadata."""
+    try:
+        mcp_tools = request_mcp_tools(kwargs.get("tools"))
+        return attach_mcp(messages, mcp_tools), mcp_tools
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to attach MCP metadata", exc_info=True)
+        return None, {}
+
+
 def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``anthropic.messages.create.before``.
 
@@ -649,8 +666,12 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         return None
 
     logger.debug("AI Guard anthropic before-hook evaluating %d message(s)", len(ai_guard_messages))
+    mcp_servers, mcp_tools = _attach_mcp_servers(ai_guard_messages, kwargs)
+    if mcp_tools:
+        # A new request with MCP tools starts a new turn: no earlier response spares its calls.
+        mark_evaluated([], mcp_tools)
     try:
-        evaluate_auto(client, ai_guard_messages, AI_GUARD.INTEGRATION_ANTHROPIC)
+        evaluate_auto(client, ai_guard_messages, AI_GUARD.INTEGRATION_ANTHROPIC, mcp_servers)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
@@ -688,11 +709,20 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
         logger.debug("AI Guard anthropic after-hook skipped: request converter failed")
         return None
     all_messages = request_messages + response_messages
+    mcp_servers, mcp_tools = _attach_mcp_servers(all_messages, kwargs)
 
+    evaluated: list[Message] = []
     try:
-        evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_ANTHROPIC)
+        evaluation = evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_ANTHROPIC, mcp_servers)
+        # A middleware-skipped evaluation checked nothing, so it must not spare the tool calls their check.
+        if evaluation["reason"] != _SKIPPED_REASON:
+            evaluated = response_messages
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate Anthropic messages response", exc_info=True)
+    finally:
+        # Requests without MCP tools leave the marks alone; with them, a block or skip clears them.
+        if mcp_tools:
+            mark_evaluated(evaluated, mcp_tools)
     return None

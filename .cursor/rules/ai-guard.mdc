@@ -76,6 +76,30 @@ gated by `DD_AI_GUARD_MCP_ENABLED`. Keep these invariants when changing it:
 - New MCP code inside the listeners fails open (debug log) and only lets `AIGuardAbortError`
   propagate.
 
+Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic_mcp.py`, installed on
+`anthropic.patch`:
+- `_mcp.py` wraps the MCP SDK transports (`stdio_client`, `sse_client`, `streamable_http_client`)
+  read-only and in place, so imports made before patching are covered. The wrapper only swaps the
+  generator `asynccontextmanager` drives for a proxy that records the server per read stream; a
+  `ClientSession` resolves it from its own read stream. Never read headers, `env` or `cwd`; stdio
+  `args` only keep the package or module of `npx`/`uvx`/`python -m`-style launchers (`safe_stdio_args`).
+- `mcp_tool` / `async_mcp_tool` are wrapped in place. A converted tool with a known server gets its
+  own copy of `input_schema` (to_dict() copies share it, which is how listeners resolve a request's
+  MCP tools) and a guarded `call` that evaluates before `tools/call` is sent. Sessions without a
+  transport-derived key (in-memory) produce no MCP metadata and no call check.
+- One check per operation: the after-hook of a request with MCP tools replaces a ContextVar with the
+  root span ID and (tool, arguments) of the MCP tool calls it evaluated (cleared on block, failure or
+  middleware skip; the before-hook of such a request clears it too). `call` consumes a matching entry
+  under the same root span instead of evaluating again. The key is the root span_id, or None without
+  a root or when the root is the `anthropic.request` span itself; use the same rule at mark and call time. Never keep these marks process-wide, nor
+  unscoped to the trace: thread-pool servers reuse a thread's context. Unmarked calls (the
+  non-streaming tool runner uses the uninstrumented `beta.messages.parse`, streams without stream
+  analysis, direct calls) are evaluated as a lone assistant tool call with a local ID.
+- A call check raises the bare `AIGuardAbortError`: the tool runner converts any `Exception`,
+  including the Anthropic-compatible wrapper, into a tool result and would keep running.
+- Do not wrap async generator functions with `ddtrace.internal.wrapping.wrap`: its trampoline calls
+  `athrow` on the inner generator while it is awaiting (for example on anyio cancellation).
+
 ## How AI Guard Works: High-Level Architecture
 
 ### 1. Lazy, opt-in initialization

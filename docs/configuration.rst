@@ -901,10 +901,11 @@ AI Guard
      type: Boolean
      default: True
      description: |
-       Enabled by default; set to False to stop sending MCP server details and evaluating MCP
-       approval requests. When AI Guard is enabled, evaluations of remote MCP tools run by the
-       OpenAI Responses API (tools of type ``mcp``) identify the MCP server each call goes to: its
-       configured name, the scheme, host and port of its URL, and the tools called through it.
+       Enabled by default; set to False to stop sending MCP server details, evaluating MCP approval
+       requests and checking the calls of Anthropic SDK MCP tools. When AI Guard is enabled,
+       evaluations of remote MCP tools run by the OpenAI Responses API (tools of type ``mcp``)
+       identify the MCP server each call goes to: its configured name, the scheme, host and port of
+       its URL, and the tools called through it.
        Credentials, headers, and the user information, path, query string and fragment of the server
        URL are never sent. This setting does not change blocking, which still follows the evaluation
        verdict and DD_AI_GUARD_BLOCK.
@@ -913,6 +914,16 @@ AI Guard
        responses of requests whose MCP tools can ask for approval are buffered until that
        evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off.
        Responses read through ``with_raw_response`` or ``with_streaming_response`` are not evaluated.
+
+       MCP tools converted with the Anthropic SDK ``mcp_tool`` and ``async_mcp_tool`` helpers are
+       evaluated before each call is sent to the MCP server, unless the model response that requested
+       that call was already evaluated with its MCP server details. The server is identified from the
+       MCP SDK client transport of its session: the scheme, host and port of a streamable HTTP or SSE
+       URL, or the command and package or module name of a stdio server. Headers, environment variables
+       and other command arguments are never sent. Sessions on in-memory or unrecognized transports, or
+       on a transport opened before the Anthropic integration was patched, get no MCP server details and
+       no call check. The non-streaming tool runner calls ``messages.parse``, which is not instrumented,
+       so its MCP tool calls are checked without the conversation that requested them.
 
 Code Security
 -------------

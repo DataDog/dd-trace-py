@@ -1858,8 +1858,8 @@ def test_anthropic_kill_switch_enabled_registers_listeners():
     with override_ai_guard_config(dict(_ai_guard_anthropic_enabled=True)):
         with patch.object(_listener.core, "on") as mock_on:
             _listener._anthropic_listen(Mock())
-            # before + after evaluation listeners plus patch/unpatch (streaming buffers).
-            assert mock_on.call_count == 4
+            # before + after evaluation listeners plus patch/unpatch (streaming buffers, MCP helpers).
+            assert mock_on.call_count == 6
 
 
 def test_anthropic_kill_switch_disabled_skips_listeners():
