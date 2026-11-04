@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Metric probes whose value expression fails to evaluate, or does not
+    evaluate to a number, now report the evaluation error instead of silently emitting nothing
+    while the probe appears healthy.
