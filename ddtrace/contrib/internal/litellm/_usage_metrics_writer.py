@@ -415,7 +415,7 @@ class _DogStatsdSender:
         packet wait for its send timeout.
         """
         self._deadline = deadline
-        self._send_lines([line.encode("utf-8") for line in lines])
+        self._send_lines(lines)
 
     def stop_by(self, deadline: Optional[float]) -> None:
         """Make every send, the one in progress included, stop when deadline, a time.monotonic() value, passes."""
@@ -425,26 +425,22 @@ class _DogStatsdSender:
         now = time.monotonic()
         return any(d is not None and now >= d for d in (self._deadline, self._stop_deadline))
 
-    def _send_lines(self, lines: list[bytes]) -> None:
-        packet: list[bytes] = []
-        size = 0
-        for data in lines:
-            if len(data) > _MAX_LINE:
+    def _send_lines(self, lines: list[str]) -> None:
+        kept = []
+        for line in lines:
+            if len(line.encode("utf-8")) > _MAX_LINE:
                 log.debug(
                     "LiteLLM usage metrics: dropping a %d-byte DogStatsD line, longer than the Agent reads",
-                    len(data),
+                    len(line.encode("utf-8")),
                 )
                 continue
-            if packet and size + 1 + len(data) > self._max_packet:
-                self._send_packet(packet)
-                packet, size = [], 0
-            size += len(data) + (1 if packet else 0)
-            packet.append(data)
-        if packet:
-            self._send_packet(packet)
+            kept.append(line)
+        for datagram in ai_usage.pack_dogstatsd(kept, self._max_packet):
+            self._send_packet(datagram)
 
-    def _send_packet(self, packet: list[bytes]) -> None:
-        data = b"\n".join(packet)
+    def _send_packet(self, datagram: str) -> None:
+        data = datagram.encode("utf-8")
+        packet = datagram.split("\n")
         for attempt in range(_SEND_ATTEMPTS):
             # Checked before every attempt: a full buffer makes this loop wait between retries.
             if self._past_deadline():

@@ -193,10 +193,6 @@ def _field(obj, name):
     return obj.get(name) if isinstance(obj, dict) else getattr(obj, name, None)
 
 
-def _count(value):
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
-
-
 def traced_chunk_creator(func, instance, args, kwargs):
     """Note which token counts a provider's stream chunk reports, and the model and service tier it names.
 
@@ -208,15 +204,13 @@ def traced_chunk_creator(func, instance, args, kwargs):
         try:
             chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
             usage = _field(chunk, "usage")
-            prompt, completion = _field(usage, "prompt_tokens"), _field(usage, "completion_tokens")
-            # A usage of zeros is LiteLLM's placeholder for none; a zero next to a positive count is the provider's.
-            real = (_count(prompt) and prompt > 0) or (_count(completion) and completion > 0)
-            input_reported = real and _count(prompt)
-            output_reported = real and _count(completion)
+            # A usage of zeros is LiteLLM's placeholder for none, which the native module reports as no usage.
+            fields = _usage_metrics.usage_fields(usage, False) if usage is not None else {}
+            input_reported = "input_tokens" in fields
+            output_reported = "output_tokens" in fields
             if output_reported and getattr(instance, "custom_llm_provider", None) == "anthropic":
                 choices = _field(chunk, "choices") or [None]
                 output_reported = bool(_field(choices[0], "finish_reason"))
-            reasoning = _field(_field(usage, "completion_tokens_details"), "reasoning_tokens")
             model = _field(chunk, "model")
             # OpenAI's chunks name the tier at their top level; an Anthropic stream names it in message_start only.
             tier = _field(chunk, "service_tier")
@@ -231,7 +225,7 @@ def traced_chunk_creator(func, instance, args, kwargs):
                 input_reported,
                 output_reported,
                 model if isinstance(model, str) else None,
-                isinstance(reasoning, int),
+                "reasoning_output_tokens" in fields,
                 tier if isinstance(tier, str) else None,
             )
         except Exception:
@@ -259,10 +253,8 @@ def traced_anthropic_chunk_parser(func, instance, args, kwargs):
     try:
         chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
         if _field(chunk, "type") == "message_start":
-            message = _field(chunk, "message")
-            model = _field(message, "model")
-            tier = _usage_metrics.valid_service_tier(_field(_field(message, "usage"), "service_tier"))
-            model = model if isinstance(model, str) and model else None
+            response = _usage_metrics.ai_usage.parse_provider_response("anthropic", _usage_metrics._plain(chunk))
+            model, tier = response["response_model"], response["service_tier"]
             if model or tier:
                 _anthropic_stream_starts[instance] = (model, tier)
     except Exception:

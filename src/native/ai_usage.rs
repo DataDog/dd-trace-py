@@ -88,6 +88,212 @@ pub mod ai_usage {
         )))
     }
 
+    // What a provider reported, read by the crate's shared rules.
+
+    fn format_named(name: &str) -> PyResult<libdd_ai_usage::UsageFormat> {
+        libdd_ai_usage::UsageFormat::from_name(name)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown usage format: {name}")))
+    }
+
+    fn usage_dict<'py>(
+        py: Python<'py>,
+        usage: &libdd_ai_usage::ProviderUsage,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        let counts = [
+            ("input_tokens", usage.input_tokens),
+            ("output_tokens", usage.output_tokens),
+            ("cache_read_input_tokens", usage.cache_read_input_tokens),
+            ("cache_write_input_tokens", usage.cache_write_input_tokens),
+            (
+                "cache_write_5m_input_tokens",
+                usage.cache_write_5m_input_tokens,
+            ),
+            (
+                "cache_write_1h_input_tokens",
+                usage.cache_write_1h_input_tokens,
+            ),
+            ("reasoning_output_tokens", usage.reasoning_output_tokens),
+        ];
+        for (key, value) in counts {
+            if let Some(value) = value {
+                dict.set_item(key, value)?;
+            }
+        }
+        if let Some(basis) = usage.input_basis {
+            dict.set_item("input_basis", basis)?;
+        }
+        if let Some(basis) = usage.output_basis {
+            dict.set_item("output_basis", basis)?;
+        }
+        if let Some(parts) = &usage.input_tokens_by_modality {
+            dict.set_item("input_tokens_by_modality", parts.clone())?;
+        }
+        if let Some(parts) = &usage.output_tokens_by_modality {
+            dict.set_item("output_tokens_by_modality", parts.clone())?;
+        }
+        Ok(dict)
+    }
+
+    fn response_dict<'py>(
+        py: Python<'py>,
+        response: &libdd_ai_usage::ProviderResponse,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        match &response.usage {
+            Some(usage) => dict.set_item("usage", usage_dict(py, usage)?)?,
+            None => dict.set_item("usage", py.None())?,
+        }
+        dict.set_item("response_model", response.response_model.clone())?;
+        dict.set_item("service_tier", response.service_tier.clone())?;
+        Ok(dict)
+    }
+
+    /// What one provider response or stream event (a dict, or a list of
+    /// events) reported: `{"usage": dict | None, "response_model", "service_tier"}`.
+    /// `usage_format` is a `UsageFormat` name (`auto`, `openai_chat`, ...).
+    #[pyfunction]
+    #[pyo3(signature = (usage_format, payload, embeddings=false))]
+    fn parse_provider_response<'py>(
+        py: Python<'py>,
+        usage_format: &str,
+        payload: &Bound<'py, PyAny>,
+        embeddings: bool,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let format = format_named(usage_format)?;
+        let payload = to_json(payload, 0)?;
+        let response = libdd_ai_usage::parse_provider_response(format, &payload, embeddings);
+        response_dict(py, &response)
+    }
+
+    /// What a whole response body or stream (str or bytes, JSON or
+    /// server-sent events) reported: `(response, outcome, error_name)`, with
+    /// `outcome` one of `open`, `completed`, `failed`.
+    #[pyfunction]
+    #[pyo3(signature = (usage_format, body, embeddings=false))]
+    fn parse_provider_body<'py>(
+        py: Python<'py>,
+        usage_format: &str,
+        body: &Bound<'py, PyAny>,
+        embeddings: bool,
+    ) -> PyResult<(Bound<'py, PyDict>, &'static str, Option<String>)> {
+        let format = format_named(usage_format)?;
+        let (response, outcome, error) = if let Ok(bytes) = body.cast::<PyBytes>() {
+            let bytes = bytes.as_bytes();
+            py.detach(|| libdd_ai_usage::parse_provider_body(format, bytes, embeddings))
+        } else if let Ok(text) = body.cast::<PyString>() {
+            let text = text.to_str()?;
+            py.detach(|| libdd_ai_usage::parse_provider_body(format, text.as_bytes(), embeddings))
+        } else {
+            return Err(PyTypeError::new_err("body must be str or bytes"));
+        };
+        Ok((response_dict(py, &response)?, outcome.as_str(), error))
+    }
+
+    /// What a stream reported, from its chunks (str or bytes) in order:
+    /// `(response, outcome, error_name)`. Each chunk ends its last line, as
+    /// an SDK hands over whole server-sent events or bare JSON events.
+    #[pyfunction]
+    #[pyo3(signature = (usage_format, chunks, embeddings=false))]
+    fn parse_provider_stream<'py>(
+        py: Python<'py>,
+        usage_format: &str,
+        chunks: &Bound<'py, PyAny>,
+        embeddings: bool,
+    ) -> PyResult<(Bound<'py, PyDict>, &'static str, Option<String>)> {
+        let format = format_named(usage_format)?;
+        let mut owned: Vec<Vec<u8>> = Vec::new();
+        for chunk in chunks.try_iter()? {
+            let chunk = chunk?;
+            if let Ok(bytes) = chunk.cast::<PyBytes>() {
+                owned.push(bytes.as_bytes().to_vec());
+            } else if let Ok(text) = chunk.cast::<PyString>() {
+                owned.push(text.to_str()?.as_bytes().to_vec());
+            }
+        }
+        let (response, outcome, error) = py.detach(|| {
+            let mut stream = libdd_ai_usage::UsageStream::new(format, embeddings);
+            for chunk in &owned {
+                // A chunk that is one bare JSON event, as an SDK that already split the stream hands it over, is
+                // read whole: the line limit is for undelimited streams.
+                let event = std::str::from_utf8(chunk)
+                    .ok()
+                    .map(str::trim)
+                    .filter(|text| text.starts_with('{'))
+                    .and_then(|text| Json::parse(text).ok());
+                match event {
+                    Some(event) => stream.event(&event),
+                    None => {
+                        stream.feed(chunk);
+                        stream.feed(b"\n");
+                    }
+                }
+            }
+            stream.finish()
+        });
+        Ok((response_dict(py, &response)?, outcome.as_str(), error))
+    }
+
+    /// The `gen_ai.provider.name` of a provider as a gateway or SDK names it.
+    #[pyfunction]
+    fn gen_ai_provider_name(name: &str) -> Option<String> {
+        libdd_ai_usage::gen_ai_provider_name(name)
+    }
+
+    /// The `error.type` of an error, from its name (class name, provider error
+    /// type or code) and HTTP status.
+    #[pyfunction]
+    #[pyo3(signature = (name=None, status=None))]
+    fn classify_error(name: Option<&str>, status: Option<i64>) -> Option<&'static str> {
+        let status = status.and_then(|status| u16::try_from(status).ok());
+        libdd_ai_usage::classify_error(name, status)
+    }
+
+    #[pyfunction]
+    fn is_service_tier(value: &str) -> bool {
+        libdd_ai_usage::is_service_tier(value)
+    }
+
+    #[pyfunction]
+    fn bedrock_arn_account(model: &str) -> Option<String> {
+        libdd_ai_usage::bedrock_arn_account(model).map(str::to_owned)
+    }
+
+    /// The provider account and project ids a provider's response headers
+    /// name. `header(name)` returns one header's value, or None.
+    #[pyfunction]
+    fn provider_id_attributes(
+        provider_name: &str,
+        header: &Bound<'_, PyAny>,
+    ) -> PyResult<BTreeMap<String, String>> {
+        let mut values: BTreeMap<&str, String> = BTreeMap::new();
+        for (provider, _, name) in libdd_ai_usage::PROVIDER_ID_HEADERS {
+            if provider == provider_name && !values.contains_key(name) {
+                if let Some(value) = header.call1((name,))?.extract::<Option<String>>()? {
+                    values.insert(name, value);
+                }
+            }
+        }
+        Ok(
+            libdd_ai_usage::provider_id_attributes(provider_name, |name| {
+                values.get(name).map(String::as_str)
+            })
+            .into_iter()
+            .collect(),
+        )
+    }
+
+    /// DogStatsD lines packed into datagrams of at most `max_payload` bytes.
+    #[pyfunction]
+    #[pyo3(signature = (lines, max_payload, constant_tags=Vec::new()))]
+    fn pack_dogstatsd(
+        lines: Vec<String>,
+        max_payload: usize,
+        constant_tags: Vec<String>,
+    ) -> Vec<String> {
+        libdd_ai_usage::pack_dogstatsd(&lines, &constant_tags, max_payload)
+    }
+
     /// A rejected observation: `ValueError(error_code, message)`.
     fn rejected(error: MetricError) -> PyErr {
         PyValueError::new_err((error.code().as_str(), error.message().to_owned()))

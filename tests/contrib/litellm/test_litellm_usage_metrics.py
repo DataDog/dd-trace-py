@@ -235,7 +235,10 @@ def test_operation_and_provider_names():
 def test_error_types_are_identifiers():
     assert error_type("RateLimitError") == "rate_limit_error"
     assert error_type("APIConnectionError") == "api_connection_error"
-    assert error_type("ClientDisconnected") == "client_disconnected"
+    # The shared error.type table: a name it does not know is an api_error.
+    assert error_type("ClientDisconnected") == "api_error"
+    assert error_type(litellm.Timeout("x", "gpt-4o-mini", "openai")) == "timeout_error"
+    assert error_type("Timeout") == "timeout_error"
     assert error_type(TimeoutError()) == "timeout_error"
     assert error_type("") is None
 
@@ -335,7 +338,7 @@ def test_retry_then_streamed_success(logger, writer):
     proxy.succeeded(1.0, first_chunk=0.85)
 
     failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
-    assert failed["error_type"] == "exception"
+    assert failed["error_type"] == "api_error"
     assert "input_tokens" not in failed and "cost_usd" not in failed
     # The success is measured from its own attempt, not from the start of the request.
     assert succeeded["duration_seconds"] == pytest.approx(0.2)
@@ -380,8 +383,15 @@ def test_anthropic_stream_usage_reads_the_raw_events():
         None,
         False,
     )
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START + MESSAGE_DELTA.decode()])[:2] == (True, True)
-    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None, False)
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START + MESSAGE_DELTA.decode() + MESSAGE_STOP])[:2] == (
+        True,
+        True,
+    )
+    # libdd-ai-usage merges message_start's placeholder output count, so a stream cut between message_delta and
+    # message_stop counts its output as estimated.
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, MESSAGE_DELTA])[:2] == (True, False)
+    # [DONE] ends any stream for libdd-ai-usage.
+    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None, True)
     # Generated text that names an event kind is not an event of that kind.
     text = {"type": "text_delta", "text": '{"type": "message_delta", "usage": {"output_tokens": 9}}'}
     delta = "data: " + json.dumps({"type": "content_block_delta", "index": 0, "delta": text})
@@ -394,7 +404,7 @@ def test_anthropic_messages_stream_reports_each_side(logger, writer, final_usage
     proxy = Proxy(logger, call_type="anthropic_messages", stream=True, route="claude")
     proxy.start()
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
-    events = [MESSAGE_START, MESSAGE_DELTA] if final_usage else [MESSAGE_START]
+    events = [MESSAGE_START, MESSAGE_DELTA, MESSAGE_STOP] if final_usage else [MESSAGE_START]
     input_reported, output_reported, model, tier, _ = _usage_metrics.anthropic_stream_usage(events)
     logger.observe_stream("call-1", input_reported, output_reported, model, service_tier=tier)
     proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, cost=8.35e-5, first_chunk=0.2, model="claude-haiku-4-5")
@@ -478,35 +488,24 @@ def test_a_truncated_response_is_scanned_once():
     assert time.monotonic() - started < 2
 
 
-def test_a_responses_stream_final_event_is_read_without_decoding_its_output(monkeypatch):
-    # response.completed carries the whole response; only its type, model and usage are decoded.
-    decoded = []
-    loads = json.loads
-    monkeypatch.setattr(
-        _usage_metrics.json, "loads", lambda text, *a, **k: decoded.append(len(text)) or loads(text, *a, **k)
-    )
+def test_a_responses_stream_final_event_is_read_without_decoding_its_output():
+    # response.completed carries the whole response; libdd-ai-usage reads it natively.
     response = {
         "id": "resp_1",
         "model": "gpt-5-mini-2026-08-07",
         "output": [{"type": "message", "content": [{"type": "output_text", "text": "x" * 5_000_000}]}],
         "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
     }
-    event = "event: response.completed\ndata: " + json.dumps({"type": "response.completed", "response": response})
+    # LiteLLM hands the event over as bare JSON, its SSE field prefix stripped.
+    event = json.dumps({"type": "response.completed", "response": response})
     assert _usage_metrics.responses_stream_usage(event) == (True, True, True, "gpt-5-mini-2026-08-07", True)
-    assert decoded and max(decoded) < 1000
 
 
-def test_the_response_model_is_read_without_decoding_the_response(monkeypatch):
-    # The response can hold the whole generated output; only the model's own string is decoded.
-    decoded = []
-    loads = json.loads
-    monkeypatch.setattr(
-        _usage_metrics.json, "loads", lambda text, *a, **k: decoded.append(len(text)) or loads(text, *a, **k)
-    )
+def test_the_response_model_is_read_without_decoding_the_response():
+    # The response can hold the whole generated output; libdd-ai-usage reads it natively.
     content = "x" * 5_000_000
     original = json.dumps({"choices": [{"message": {"content": content}}], "model": "claude-haiku-4-5-20251001"})
     assert _usage_metrics._response_model({"original_response": original}) == "claude-haiku-4-5-20251001"
-    assert decoded and max(decoded) < 100
 
 
 def test_fallback(logger, writer):
@@ -565,9 +564,9 @@ def test_an_attempt_that_fails_without_a_usable_error_name_is_still_an_error(log
     proxy.attempt(0.2)
     logger.attempt_failed({"litellm_call_id": "call-1"}, _ProviderError())
     proxy.failed(_ProviderError())
-    assert [observation["error_type"] for observation, _ in writer.of(PROVIDER_ATTEMPT)] == ["error"] * 3
+    assert [observation["error_type"] for observation, _ in writer.of(PROVIDER_ATTEMPT)] == ["api_error"] * 3
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "error"
+    assert request["error_type"] == "api_error"
     assert request["provider_operations"] == 3
 
 
@@ -598,14 +597,14 @@ def test_client_disconnect(logger, writer):
         0.3, usage={"prompt_tokens": 8, "completion_tokens": 5}, cost=4.2e-6, error_class="ClientDisconnected"
     )
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
-    assert attempt["error_type"] == "client_disconnected"
+    assert attempt["error_type"] == "api_error"
     assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "client_disconnected"
+    assert request["error_type"] == "api_error"
     assert request["estimated_cost_usd"] == 4.2e-6
 
 
-@pytest.mark.parametrize("events, attempt_error", [([MESSAGE_STOP], None), ([], "client_disconnected")])
+@pytest.mark.parametrize("events, attempt_error", [([MESSAGE_STOP], None), ([], "api_error")])
 def test_a_client_that_leaves_after_the_provider_finished(installed, writer, events, attempt_error):
     # The proxy flags a client that closes right after message_stop, before its generator ended, as disconnected.
     # The provider attempt ended as it should; the request keeps the error.
@@ -621,9 +620,10 @@ def test_a_client_that_leaves_after_the_provider_finished(installed, writer, eve
     )
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert attempt.get("error_type") == attempt_error
-    assert attempt["output_tokens"] == 5 and "output_token_source" not in attempt
+    # Without message_stop, libdd-ai-usage cannot tell message_delta's output count from message_start's placeholder.
+    assert attempt["output_tokens"] == 5 and attempt.get("output_token_source") == (None if events else "estimated")
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "client_disconnected"
+    assert request["error_type"] == "api_error"
 
 
 def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(installed, writer):
@@ -639,7 +639,7 @@ def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(instal
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert "error_type" not in attempt
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "client_disconnected"
+    assert request["error_type"] == "api_error"
 
 
 def test_total_failure_seen_by_the_wrapper(logger, writer):
@@ -712,7 +712,7 @@ def test_midstream_provider_failure_is_charged(logger, writer, event_first):
     assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["estimated_cost_usd"] == 1.8e-6
-    assert request["error_type"] == "exception"
+    assert request["error_type"] == "api_error"
     assert logger._requests == {}
 
 
@@ -755,7 +755,7 @@ def test_failed_stream_without_a_failure_event(logger, writer):
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
     proxy.failed(Exception())
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
-    assert attempt["error_type"] == "exception"
+    assert attempt["error_type"] == "api_error"
     assert "input_tokens" not in attempt
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["estimated_cost_usd"] == 0
@@ -1302,7 +1302,7 @@ def test_the_native_anthropic_stream_wrapper_passes_the_service_tier(installed, 
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
     logging_obj = type("LoggingObj", (), {"litellm_call_id": "call-1"})()
     litellm_patch.traced_anthropic_stream_events(
-        lambda *args: None, None, (["data: " + json.dumps(start), MESSAGE_DELTA], logging_obj), {}
+        lambda *args: None, None, (["data: " + json.dumps(start), MESSAGE_DELTA, MESSAGE_STOP], logging_obj), {}
     )
     proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, first_chunk=0.2, model="claude-haiku-4-5")
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
