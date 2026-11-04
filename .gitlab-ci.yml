@@ -299,6 +299,33 @@ apm-sdks-benchmarks:
     - when: manual
       allow_failure: true
 
+# Speedlab profiling: dedicated bare-metal benchmarks measuring the CPU
+# overhead of ddtrace's profiler on the synthetic workload app. Triggers the
+# python-synthetic-profiling suite in speedlab, which compares the candidate
+# build (this pipeline's wheels) against a baseline with profiling enabled.
+# The triggered pipeline provisions an m7i.metal-24xl instance with pinned
+# CPUs and SMT off.
+speedlab-profiling:
+  stage: benchmarks
+  needs:
+    - job: "upload all"
+  trigger:
+    project: DataDog/apm-reliability/speedlab
+    # TODO: change back to main once speedlab changes are merged
+    branch: gyuheon0h/PROF-16476-simple-synthetic-python-ci-config
+  variables:
+    # Point speedlab at this pipeline's wheels in dd-trace-py-builds S3.
+    DD_TRACE_PYTHON_PIPELINE_ID: $CI_PIPELINE_ID
+    # Select which downstream speedlab jobs to run.
+    SPEEDLAB_TRIGGER: python-profiling
+    # Upstream metadata for PR comment posting.
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+  rules:
+    - when: manual
+      allow_failure: true
+
 check_new_flaky_tests:
   stage: tests
   needs: ["run-tests-trigger"]
