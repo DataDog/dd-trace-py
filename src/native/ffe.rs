@@ -4,9 +4,7 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod ffe {
-    use std::collections::HashMap;
-
-    use pyo3::{exceptions::PyValueError, prelude::*};
+    use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
     use tracing::debug;
 
     use libdd_ffe::rules_based as ffe;
@@ -73,8 +71,6 @@ pub mod ffe {
         variant: Option<Str>,
         #[pyo3(get)]
         allocation_key: Option<Str>,
-        #[pyo3(get)]
-        flag_metadata: HashMap<Str, Str>,
         #[pyo3(get)]
         do_log: bool,
         // Serial id of the selected split, surfaced for APM span enrichment
@@ -205,6 +201,20 @@ pub mod ffe {
         }
     }
 
+    #[pymethods]
+    impl ResolutionDetails {
+        #[getter]
+        fn flag_metadata<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+            // Provider resolution reads allocation_key directly. Build the public
+            // metadata dictionary only when requested, without an intermediate map.
+            let metadata = PyDict::new(py);
+            if let Some(key) = &self.allocation_key {
+                metadata.set_item("allocation_key", key)?;
+            }
+            Ok(metadata)
+        }
+    }
+
     impl ResolutionDetails {
         fn from_assignment(assignment: Assignment) -> ResolutionDetails {
             ResolutionDetails {
@@ -213,10 +223,7 @@ pub mod ffe {
                 error_message: None,
                 reason: Some(assignment.reason.into()),
                 variant: Some(assignment.variation_key),
-                allocation_key: Some(assignment.allocation_key.clone()),
-                flag_metadata: [("allocation_key".into(), assignment.allocation_key)]
-                    .into_iter()
-                    .collect(),
+                allocation_key: Some(assignment.allocation_key),
                 do_log: assignment.do_log,
                 serial_id: assignment.serial_id.map(i64::from),
                 dependency_evaluations: Vec::new(),
@@ -231,7 +238,6 @@ pub mod ffe {
                 reason: Some(reason.into()),
                 variant: None,
                 allocation_key: None,
-                flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
                 dependency_evaluations: Vec::new(),
@@ -246,7 +252,6 @@ pub mod ffe {
                 reason: Some(Reason::Error),
                 variant: None,
                 allocation_key: None,
-                flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
                 dependency_evaluations: Vec::new(),
