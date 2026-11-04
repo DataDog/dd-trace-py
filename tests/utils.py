@@ -1500,6 +1500,7 @@ def snapshot(
             "variants": variants,
             "async_mode": async_mode,
             "wait_for_num_traces": wait_for_num_traces,
+            "compute_stats_enabled": compute_stats_enabled,
         }
         return decorated
 
