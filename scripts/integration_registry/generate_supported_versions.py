@@ -121,6 +121,16 @@ def _normalize_dependency_name(name: str) -> str:
     return re.sub(r"[-.]", "_", name.lower())
 
 
+# Distributions whose module name (the key used by ``_supported_versions``) does
+# not match the distribution name, even by prefix.
+DISTRIBUTION_TO_MODULE = {
+    "azure-functions-durable": "azure.durable_functions",
+    "flask-caching": "flask_cache",  # flask_cache reads its version from flask_caching
+    "google-cloud-aiplatform": "vertexai",
+    "opensearch-py": "opensearchpy",
+}
+
+
 def resolve_supported_range(
     dependency_name: str,
     declared_ranges: dict[str, str] | None,
@@ -133,15 +143,15 @@ def resolve_supported_range(
     ``psycopg2-binary``, or a stdlib module vs its ``stdlib.*`` entry). We match by
     normalized name, then by longest shared-prefix match (which pairs distribution
     variants like ``psycopg2-binary`` with ``psycopg2`` without matching unrelated
-    substrings). As a last resort, when the integration has a single dependency and
-    declares a single range, that range is used even if the names differ (covers stdlib
-    modules).
+    substrings). ``DISTRIBUTION_TO_MODULE`` covers names that do not match at all. As a
+    last resort, when the integration has a single dependency and declares a single
+    range, that range is used even if the names differ (covers stdlib modules).
     """
     if not declared_ranges:
         return None
 
     normalized = {_normalize_dependency_name(key): range_ for key, range_ in declared_ranges.items()}
-    dependency_norm = _normalize_dependency_name(dependency_name)
+    dependency_norm = _normalize_dependency_name(DISTRIBUTION_TO_MODULE.get(dependency_name, dependency_name))
 
     if dependency_norm in normalized:
         return normalized[dependency_norm]
@@ -318,7 +328,7 @@ def get_pinned_integrations(integration_names: set[str]) -> set[str]:
 
 def build_versions(
     tested_versions: set[TestedVersion],
-    supported_range: str | None,
+    supported_range: str,
 ) -> list[dict[str, object]]:
     """Group runtimes that tested the same set of package versions.
 
@@ -336,13 +346,13 @@ def build_versions(
 
     entries: list[dict[str, object]] = []
     for tested_sorted, python_versions in runtimes_by_tested.items():
-        entry: dict[str, object] = {
-            "testedRuntimes": {"python": sorted(python_versions, key=_python_sort_key)},
-        }
-        if supported_range is not None:
-            entry["supportedRange"] = supported_range
-        entry["tested"] = list(tested_sorted)
-        entries.append(entry)
+        entries.append(
+            {
+                "testedRuntimes": {"python": sorted(python_versions, key=_python_sort_key)},
+                "supportedRange": supported_range,
+                "tested": list(tested_sorted),
+            }
+        )
 
     entries.sort(key=lambda entry: _python_sort_key(entry["testedRuntimes"]["python"][0]))
     return entries
@@ -354,6 +364,7 @@ def build_supported_versions_entries(
 ):
     """Build the JSON payload for supported_versions.json."""
     entries = []
+    missing_ranges = []
     integration_names = set(get_integration_names())
     pinned_integrations = get_pinned_integrations(integration_names)
 
@@ -369,6 +380,12 @@ def build_supported_versions_entries(
 
         for dependency_name, tested_versions in sorted(tested_versions_by_dependency.items()):
             supported_range = resolve_supported_range(dependency_name, declared_ranges, is_sole_dependency)
+            if supported_range is None:
+                # Integrations without a patch module (e.g. gunicorn, which is only a
+                # documentation note) instrument nothing, so they have no range.
+                if (CONTRIB_INTERNAL_ROOT / integration_name / "patch.py").is_file():
+                    missing_ranges.append(f"{dependency_name} ({integration_name})")
+                continue
 
             entry: dict[str, object] = {
                 "dependencyName": dependency_name,
@@ -385,6 +402,14 @@ def build_supported_versions_entries(
                 entry["pinned"] = True
 
             entries.append(entry)
+
+    if missing_ranges:
+        raise SystemExit(
+            "ERROR: no supported range found for these tested dependencies. Add their module "
+            "to the integration's _supported_versions() (or to DISTRIBUTION_TO_MODULE when the "
+            "module name differs from the distribution name):\n"
+            + "\n".join(f"  - {missing}" for missing in missing_ranges)
+        )
 
     return sorted(entries, key=lambda entry: (entry["integrationName"], entry["dependencyName"]))
 

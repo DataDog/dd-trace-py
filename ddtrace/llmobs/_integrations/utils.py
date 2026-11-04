@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import safe_load_json
+from ddtrace.internal.utils.http import url_origin
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -1500,6 +1501,64 @@ def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
     return {}
 
 
+# OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,
+# query and fragment can, so only these and the URL origin are recorded.
+_SAFE_OPENAI_MCP_TOOL_FIELDS = (
+    "type",
+    "server_label",
+    "server_description",
+    "connector_id",
+    "require_approval",
+    "allowed_tools",
+)
+
+
+def safe_mcp_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> dict[str, Any]:
+    """Hosted MCP tool configuration keeping only the allowlist fields, with server_url reduced to its origin."""
+    config = load_data_value(tool)
+    if not isinstance(config, dict):
+        return {}
+    safe = {key: config[key] for key in allowlist if config.get(key) is not None}
+    server_url = config.get("server_url")
+    origin = url_origin(server_url) if isinstance(server_url, str) else None
+    if origin:
+        safe["server_url"] = origin
+    return safe
+
+
+def _without_domain_secret_values(value: Any) -> Any:
+    """Copy of value where each container network policy domain secret keeps only its domain and name."""
+    if isinstance(value, dict):
+        return {
+            key: [
+                {field: secret[field] for field in ("domain", "name") if field in secret}
+                for secret in item
+                if isinstance(secret, dict)
+            ]
+            if key == "domain_secrets" and isinstance(item, list)
+            else _without_domain_secret_values(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_without_domain_secret_values(item) for item in value]
+    return value
+
+
+def safe_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
+    """Tool configuration as recorded: MCP tools keep the allowlist fields, domain secret values are dropped."""
+    config = load_data_value(tool)
+    if isinstance(config, dict) and config.get("type") == "mcp":
+        return safe_mcp_tool_config(config, allowlist=allowlist)
+    return _without_domain_secret_values(config)
+
+
+def _safe_response_tools(tools: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
+    """Response tools as recorded in metadata, each reduced by safe_tool_config."""
+    if not isinstance(tools, list):
+        return tools
+    return [safe_tool_config(tool, allowlist=allowlist) for tool in tools]
+
+
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
@@ -1806,7 +1865,8 @@ class OaiSpanAdapter:
                 if hasattr(self.response, field):
                     value = getattr(self.response, field)
                     if value is not None:
-                        metadata[field] = load_data_value(value)
+                        value = load_data_value(value)
+                        metadata[field] = _safe_response_tools(value) if field == "tools" else value
 
             if hasattr(self.response, "text") and self.response.text:
                 metadata["text"] = load_data_value(self.response.text)

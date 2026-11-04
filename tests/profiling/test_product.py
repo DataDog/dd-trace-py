@@ -179,7 +179,7 @@ def test_more_specific_config_disables_profiler(restart_profiler: _Recorder) -> 
     remoteconfig.ProfilingRCCallback()(
         [
             _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
-            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "locks": True})),
         ]
     )
 
@@ -201,8 +201,8 @@ def test_more_specific_config_enables_profiler(restart_profiler: _Recorder) -> N
 def test_unset_profiler_is_a_no_op(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True})),
-            _payload("service", _profiling_content({"service": SERVICE}, {"lock": False})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "locks": True})),
+            _payload("service", _profiling_content({"service": SERVICE}, {"locks": False})),
         ]
     )
 
@@ -223,7 +223,7 @@ def test_non_boolean_profiler_value_is_ignored(restart_profiler: _Recorder) -> N
 
 def test_payload_order_does_not_change_precedence(restart_profiler: _Recorder) -> None:
     more_specific = _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": False}))
-    less_specific = _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True}))
+    less_specific = _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "locks": True}))
 
     remoteconfig.ProfilingRCCallback()([more_specific, less_specific])
 
@@ -234,7 +234,7 @@ def test_last_updated_config_wins_on_equal_specificity(restart_profiler: _Record
     callback = remoteconfig.ProfilingRCCallback()
     callback(
         [
-            _payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True, "lock": True})),
+            _payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True, "locks": True})),
             _payload("b", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
         ]
     )
@@ -247,7 +247,7 @@ def test_last_updated_config_wins_on_equal_specificity(restart_profiler: _Record
 def test_configs_are_kept_across_callbacks(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
     callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True}))])
-    callback([_payload("service", _profiling_content({"service": SERVICE}, {"lock": True}))])
+    callback([_payload("service", _profiling_content({"service": SERVICE}, {"locks": True}))])
 
     assert restart_profiler.last[STACK] is True
     assert restart_profiler.last[LOCK] is True
@@ -257,7 +257,7 @@ def test_removed_config_reverts_to_less_specific_config(restart_profiler: _Recor
     callback = remoteconfig.ProfilingRCCallback()
     callback(
         [
-            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True})),
+            _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "locks": True})),
             _payload("service", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
         ]
     )
@@ -501,6 +501,7 @@ def test_no_restart_when_merged_config_does_not_change(restart_profiler: _Record
     "profilers,settings",
     [
         ({"cpuTime": True}, {"unknownSetting": 20}),
+        ({"cpuTime": True}, {"rubySignalWorkaround": True}),
         ({"cpuTime": True}, {"maxStackDepth": profiling_config.parsed.max_frames}),
         # The stack collector produces both CPU and wall time profiles.
         ({"cpuTime": False, "wallTime": True}, None),
@@ -524,10 +525,11 @@ def test_default_config_comes_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert remoteconfig._get_default_config()["profilers"] == {
         "cpuTime": True,
         "wallTime": True,
+        "heapObjects": False,
         "heapSize": False,
         "allocations": False,
-        "exception": False,
-        "lock": True,
+        "exceptions": False,
+        "locks": True,
     }
 
 
@@ -566,7 +568,7 @@ def test_config_matching_env_does_not_restart_profiler(
     _set_env_profilers(monkeypatch, enabled=True)
 
     remoteconfig.ProfilingRCCallback()(
-        [_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "lock": True}))]
+        [_payload("env", _profiling_content({"env": ENV}, {"cpuTime": True, "locks": True}))]
     )
 
     assert restart_profiler.calls == []
@@ -578,7 +580,7 @@ def test_removing_all_configs_reverts_to_env_config(
     _set_env_profilers(monkeypatch, enabled=True, lock=False)
     callback = remoteconfig.ProfilingRCCallback()
 
-    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": False, "wallTime": False, "lock": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"cpuTime": False, "wallTime": False, "locks": True}))])
     assert restart_profiler.last[STACK] is False
     assert restart_profiler.last[LOCK] is True
 
@@ -655,18 +657,19 @@ def test_start_profiler_replaces_profiler(created_profilers: list[dict[str, bool
     [
         ({"cpuTime": True}, _collectors(stack=True)),
         ({"wallTime": True}, _collectors(stack=True)),
+        ({"heapObjects": True}, _collectors(memory=True)),
         ({"heapSize": True}, _collectors(memory=True)),
         ({"allocations": True}, _collectors(memory=True)),
-        ({"lock": True}, _collectors(lock=True)),
-        ({"exception": True}, _collectors(exception=True)),
+        ({"locks": True}, _collectors(lock=True)),
+        ({"exceptions": True}, _collectors(exception=True)),
         (
             {
                 "cpuTime": True,
                 "wallTime": False,
                 "heapSize": False,
                 "allocations": True,
-                "lock": True,
-                "exception": True,
+                "locks": True,
+                "exceptions": True,
             },
             _collectors(stack=True, memory=True, lock=True, exception=True),
         ),
@@ -686,7 +689,7 @@ def test_wanted_collectors_keeps_unavailable_collectors_disabled(monkeypatch: py
     monkeypatch.setattr(remoteconfig, "stack_is_available", False)
     monkeypatch.setattr(remoteconfig, "exception_is_available", False)
 
-    profilers = {"cpuTime": True, "wallTime": True, "heapSize": True, "lock": True, "exception": True}
+    profilers = {"cpuTime": True, "wallTime": True, "heapSize": True, "locks": True, "exceptions": True}
     assert remoteconfig._wanted_collectors(profilers) == _collectors(memory=True, lock=True)
 
 
@@ -849,7 +852,7 @@ def test_reverting_config_after_failed_restart_restarts_profiler(
 
     with monkeypatch.context() as m:
         m.setattr(profiler_module.Profiler, "start", fail_start)
-        callback([_payload("env", _profiling_content({"env": ENV}, {"lock": False}))])
+        callback([_payload("env", _profiling_content({"env": ENV}, {"locks": False}))])
 
     assert env_profiler._profiler.status == ServiceStatus.STOPPED
     assert not hasattr(bootstrap, "profiler")
@@ -881,7 +884,7 @@ def test_removing_config_restores_env_collectors(
     _set_env_profilers(monkeypatch, enabled=True, lock=False)
     _start_bootstrap_profiler(_env_collectors())
 
-    callback([_payload("env", _profiling_content({"env": ENV}, {"lock": True}))])
+    callback([_payload("env", _profiling_content({"env": ENV}, {"locks": True}))])
     assert profiling_config.lock.enabled is True
 
     # The configuration from the environment still has the lock collector disabled.
@@ -951,6 +954,46 @@ def test_profiler_started_off_main_thread_flushes_on_sigterm() -> None:
 
 
 @pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_ENABLED": "false",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+        "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": "true",
+    },
+    err=None,
+)
+def test_product_subscribes_to_debug_and_apm_profiling() -> None:
+    from unittest import mock
+
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.profiling import product
+    from ddtrace.internal.profiling import remoteconfig
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    products = [RemoteConfigProduct.Debug, RemoteConfigProduct.ApmProfiling]
+
+    with (
+        mock.patch.object(remoteconfig_poller, "register_callback") as register_callback,
+        mock.patch.object(remoteconfig_poller, "enable_product") as enable_product,
+    ):
+        product.start()
+
+    assert [c.args[0] for c in register_callback.call_args_list] == products
+    callbacks = [c.args[1] for c in register_callback.call_args_list]
+    assert isinstance(callbacks[0], remoteconfig.ProfilingRCCallback)
+    assert callbacks[0] is callbacks[1]
+    assert [c.args[0] for c in enable_product.call_args_list] == products
+
+    with (
+        mock.patch.object(remoteconfig_poller, "unregister_callback") as unregister_callback,
+        mock.patch.object(remoteconfig_poller, "disable_product") as disable_product,
+    ):
+        product.stop()
+
+    assert [c.args[0] for c in unregister_callback.call_args_list] == products
+    assert [c.args[0] for c in disable_product.call_args_list] == products
+
+
+@pytest.mark.subprocess(
     ddtrace_run=True,
     env={
         "DD_PROFILING_ENABLED": "true",
@@ -968,6 +1011,7 @@ def test_profiler_starts_with_remote_config_disabled() -> None:
 
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")
 
@@ -998,6 +1042,7 @@ def test_profiler_starts_when_remote_config_fails_to_start() -> None:
     assert bootstrap.profiler._profiler.status == ServiceStatus.RUNNING  # type: ignore[attr-defined]
     # The profiling product depends on remote-configuration, so it does not subscribe to Remote Config.
     assert remoteconfig_poller.get_registered(RemoteConfigProduct.Debug) is None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.ApmProfiling) is None
 
     print("OK")
 

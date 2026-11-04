@@ -42,7 +42,7 @@ Implement only the extraction helpers needed by the provider. Register exported 
 
 ## Patch lifecycle (`LlmRequestEvent`)
 
-Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `LlmEvents` so product subscribers can add tags and extract LLMObs data.
+Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_events/llm.py` with `core.context_with_event()`. Read `ddtrace/contrib/internal/anthropic/patch.py` for the event-based pattern. The patch layer stores the response on `event.response` and calls `ctx.dispatch_ended_event()`. `LlmTracingSubscriber` in `ddtrace/_trace/subscribers/llm.py` handles span creation, errors, and finishing, dispatching `SpanLifecycleEvents` (`ddtrace/contrib/_events/span_lifecycle.py`) so product subscribers can add tags and extract LLMObs data.
 
 Key points:
 - Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset for subscriber-based integrations
@@ -62,15 +62,17 @@ standard request integrations so contrib does not import LLMObs.
 
 ## LLMObs subscribers and registration
 
-Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration. The shared subscribers
-in `ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
+Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration.
+`LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so it dispatches each
+`SpanLifecycleEvents` phase as `"<phase>.llm.request"`. The shared subscribers in
+`ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
 registered integration using `ctx.event.component`:
 
-- `LlmEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
+- `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
-- `LlmEvents.SPAN_STARTED`: set base tags, annotate the integration, and stamp agent kind/name
+- `SpanLifecycleEvents.SPAN_STARTED`: set base tags, annotate the integration, and stamp agent kind/name
   before children start. Preserve APM shadow tags and proxy handling from the reference.
-- `LlmEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
+- `SpanLifecycleEvents.SPAN_FINISHING`: extract data with `integration.llmobs_set_tags()` before finishing.
 
 Provide `listen()` / `unlisten()` in `ddtrace/llmobs/_contrib/<name>/__init__.py`.
 Call the shared `register(component, integration_cls)` from `listen()` and
@@ -139,6 +141,8 @@ Oversized inline media makes `_writer._truncate_span_event` blank the span's ent
 
 Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `get_metadata_from_kwargs()` and provider-specific helpers in `ddtrace/llmobs/_integrations/utils.py` when they apply. They filter provider sentinel defaults such as OpenAI `Omit`/`NotGiven`, serialize SDK objects through `load_data_value()`, and keep metadata limited to supported fields. `_annotate_llmobs_span_data()` coerces metadata keys to strings, but integrations should still avoid sending noisy or high-cardinality raw objects.
 
+Never copy tool or model configurations verbatim either. Hosted MCP tools carry credentials in `headers`, `authorization` and the server URL (userinfo, path, query), and container network policies carry `domain_secrets` values: record tools through `safe_tool_config()` in `ddtrace/llmobs/_integrations/utils.py`. Model settings can carry `extra_headers`, `extra_query`, `extra_body` and `extra_args`: filter them with `ALLOWED_MODEL_SETTINGS_KEYS` and `is_flat_scalar_value()` from `agent_manifest.py`.
+
 ### Token Field Mapping
 
 | Library | Input | Output | Cache Fields |
@@ -190,7 +194,7 @@ Agent integrations have a critical ordering constraint. `_resolve_parent_agent()
 
 Direct spans call `_stamp_llmobs_span_kind_at_start()` through `BaseLLMIntegration.trace()`.
 Events carrying `llmobs_integration` call it through `LlmTracingSubscriber.on_started`;
-subscriber-based integrations must call it in their `SPAN_STARTED` handler. Extraction classes
+subscriber-based integrations must call it in their `SpanLifecycleEvents.SPAN_STARTED` handler. Extraction classes
 customize the two hooks below instead of stamping kind at finish time.
 
 ### Hooks to implement for agent spans
