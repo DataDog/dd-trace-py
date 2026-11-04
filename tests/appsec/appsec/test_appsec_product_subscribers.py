@@ -83,7 +83,7 @@ def test_direct_appsec_activation_registers_exploit_prevention_subscribers(subsc
 
 def test_inactive_appsec_registers_no_subscribers(subscribers):
     with mock.patch.object(asm_config, "_ep_enabled", True):
-        product_subscribers.register()
+        product_subscribers.register(_listeners._asm_switch_state)
 
     for register, _ in subscribers.values():
         register.assert_not_called()
@@ -128,20 +128,20 @@ def test_registration_is_idempotent_and_restores_reset_listeners(monkeypatch):
         handler = mock.Mock()
         monkeypatch.setattr(AppSecDbApiSubscriber, "_event_handlers", (handler,))
         try:
-            product_subscribers.register()
-            product_subscribers.register()
+            product_subscribers.register(_listeners._asm_switch_state)
+            product_subscribers.register(_listeners._asm_switch_state)
             event = DbQueryEvent(query="SELECT 1", span_name_prefix="sqlite")
             core.dispatch_event(event)
             handler.assert_called_once_with(event)
 
             AppSecDbApiSubscriber.unregister()
-            product_subscribers.register()
+            product_subscribers.register(_listeners._asm_switch_state)
             core.dispatch_event(event)
             assert handler.call_count == 2
         finally:
             product_subscribers.unregister()
     if was_enabled:
-        product_subscribers.register()
+        product_subscribers.register(_listeners._asm_switch_state)
 
 
 @pytest.mark.parametrize("shutdown", [product.stop, _listeners.disable_appsec])
@@ -168,7 +168,7 @@ def test_shutdown_during_httpx_request_preserves_completion(shutdown, raises):
         mock.patch.object(httpx_subscribers, "_get_asm_context", return_value=mock.Mock()),
         mock.patch.object(httpx_subscribers, "should_analyze_body_response", return_value=False),
     ):
-        product_subscribers.register()
+        product_subscribers.register(_listeners._asm_switch_state)
         try:
             try:
                 with core.context_with_event(event) as ctx:
@@ -190,4 +190,41 @@ def test_shutdown_during_httpx_request_preserves_completion(shutdown, raises):
         finally:
             product_subscribers.unregister()
     if was_enabled:
-        product_subscribers.register()
+        product_subscribers.register(_listeners._asm_switch_state)
+
+
+def test_direct_appsec_activation_registers_listeners_and_subscribers(subscribers, monkeypatch):
+    monkeypatch.setattr(product_subscribers, "_listeners_registered", False)
+    with (
+        mock.patch.object(asm_config, "_ep_enabled", True),
+        mock.patch.object(product_subscribers, "_register_listeners") as register_listeners,
+    ):
+        _listeners.load_appsec()
+        register_listeners.assert_called_once_with(_listeners._asm_switch_state)
+
+    for register, unregister in subscribers.values():
+        register.assert_called_once_with()
+        unregister.assert_not_called()
+
+
+def test_appsec_activation_registers_framework_listeners_once(subscribers, monkeypatch):
+    monkeypatch.setattr(product_subscribers, "_listeners_registered", False)
+    with mock.patch.object(product_subscribers, "_register_listeners") as register_listeners:
+        with mock.patch.object(asm_config, "_asm_enabled", False):
+            product_subscribers.register(_listeners._asm_switch_state)
+            register_listeners.assert_not_called()
+
+        with mock.patch.object(asm_config, "_asm_enabled", True):
+            product_subscribers.register(_listeners._asm_switch_state)
+            product_subscribers.register(_listeners._asm_switch_state)
+
+        register_listeners.assert_called_once_with(_listeners._asm_switch_state)
+
+
+def test_disable_keeps_framework_listeners_registered(subscribers, monkeypatch):
+    monkeypatch.setattr(product_subscribers, "_listeners_registered", False)
+    with mock.patch.object(product_subscribers, "_register_listeners") as register_listeners:
+        _listeners.load_appsec()
+        _listeners.disable_appsec()
+        _listeners.load_appsec()
+        register_listeners.assert_called_once_with(_listeners._asm_switch_state)
