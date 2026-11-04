@@ -24,7 +24,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
-from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import exception
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
@@ -77,25 +76,10 @@ class Profiler:
 
             self._profiler.start()
             Profiler._active_instance = self
-            # Register again if application code has replaced the SIGTERM or SIGINT handler
-            # since the last start. If it chained on top of ours, our handler will run twice,
-            # which is harmless because the second call will find no active instance.
-            register_exit_signal_handler = (
-                Profiler._exit_signal_handler is None
-                or (
-                    signal.getsignal(signal.SIGTERM),
-                    signal.getsignal(signal.SIGINT),
-                )
-                != Profiler._exit_signal_handler
-            )
 
         atexit.register(self.stop)
 
-        # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
-        # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
-        # so without this the last partial profile window is silently lost.
-        if register_exit_signal_handler:
-            Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
+        Profiler._register_exit_signal_handler()
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -118,6 +102,20 @@ class Profiler:
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    @staticmethod
+    def _register_exit_signal_handler() -> None:
+        """Make SIGTERM and SIGINT flush and stop the active profiler."""
+        # Register again if application code has replaced the SIGTERM or SIGINT handler
+        # since the last registration. If it chained on top of ours, our handler will run twice,
+        # which is harmless because the second call will find no active instance.
+        if Profiler._exit_signal_handler is not None and Profiler._exit_signal_handler == (
+            signal.getsignal(signal.SIGTERM),
+            signal.getsignal(signal.SIGINT),
+        ):
+            return
+
+        Profiler._exit_signal_handler = atexit.register_on_exit_signal(Profiler._stop_active_instance_on_signal)
 
     @staticmethod
     def _stop_active_instance_on_signal() -> None:
@@ -198,13 +196,13 @@ class _ProfilerInstance(service.Service):
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
         api_key: Optional[str] = None,
-        _memory_collector_enabled: bool = profiling_config.memory.enabled,
-        _stack_collector_enabled: bool = profiling_config.stack.enabled,
-        _lock_collector_enabled: bool = profiling_config.lock.enabled,
-        _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
-        _exception_profiling_enabled: bool = profiling_config.exception.enabled,
-        enable_code_provenance: bool = profiling_config.code_provenance,
-        endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
+        _memory_collector_enabled: Optional[bool] = None,
+        _stack_collector_enabled: Optional[bool] = None,
+        _lock_collector_enabled: Optional[bool] = None,
+        _pytorch_collector_enabled: Optional[bool] = None,
+        _exception_profiling_enabled: Optional[bool] = None,
+        enable_code_provenance: Optional[bool] = None,
+        endpoint_collection_enabled: Optional[bool] = None,
     ) -> None:
         super().__init__()
         # User-supplied values
@@ -214,13 +212,32 @@ class _ProfilerInstance(service.Service):
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
-        self._memory_collector_enabled: bool = _memory_collector_enabled
-        self._stack_collector_enabled: bool = _stack_collector_enabled
-        self._lock_collector_enabled: bool = _lock_collector_enabled
-        self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
-        self._exception_profiling_enabled: bool = _exception_profiling_enabled
-        self.enable_code_provenance: bool = enable_code_provenance
-        self.endpoint_collection_enabled: bool = endpoint_collection_enabled
+
+        self._memory_collector_enabled: bool = (
+            _memory_collector_enabled if _memory_collector_enabled is not None else profiling_config.memory.enabled
+        )
+        self._stack_collector_enabled: bool = (
+            _stack_collector_enabled if _stack_collector_enabled is not None else profiling_config.stack.enabled
+        )
+        self._lock_collector_enabled: bool = (
+            _lock_collector_enabled if _lock_collector_enabled is not None else profiling_config.lock.enabled
+        )
+        self._pytorch_collector_enabled: bool = (
+            _pytorch_collector_enabled if _pytorch_collector_enabled is not None else profiling_config.pytorch.enabled
+        )
+        self._exception_profiling_enabled: bool = (
+            _exception_profiling_enabled
+            if _exception_profiling_enabled is not None
+            else profiling_config.exception.enabled
+        )
+        self.enable_code_provenance: bool = (
+            enable_code_provenance if enable_code_provenance is not None else profiling_config.code_provenance
+        )
+        self.endpoint_collection_enabled: bool = (
+            endpoint_collection_enabled
+            if endpoint_collection_enabled is not None
+            else profiling_config.endpoint_collection
+        )
 
         # Non-user-supplied values
         # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.
@@ -325,16 +342,23 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
+            def start_asyncio_collector(collector_name: str) -> None:
+                # The asyncio collector module imports asyncio, which must not be loaded before the application
+                # imports it.
+                from ddtrace.profiling.collector import asyncio
+
+                start_collector(getattr(asyncio, collector_name))
+
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioLockCollector")),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioSemaphoreCollector")),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioBoundedSemaphoreCollector")),
+                ("asyncio", lambda _: start_asyncio_collector("AsyncioConditionCollector")),
             ]
 
         if self._pytorch_collector_enabled:
@@ -505,6 +529,17 @@ class _ProfilerInstance(service.Service):
             if col.status != service.ServiceStatus.STOPPED:
                 self._rollback_collector_start(col)
 
+        self._disable_endpoint_collection()
+
+    def _disable_endpoint_collection(self) -> None:
+        if not self.endpoint_collection_enabled:
+            return
+
+        try:
+            self.tracer._endpoint_call_counter_span_processor.disable()
+        except Exception:
+            LOG.debug("[profiling] Failed to disable endpoint collection", exc_info=True)
+
     def _start_service(self) -> None:
         """Start the profiler."""
 
@@ -559,6 +594,9 @@ class _ProfilerInstance(service.Service):
                     self._scheduler.flush()
                 except Exception:
                     LOG.error("Error while flushing the last profile", exc_info=True)
+
+        # Reset endpoint counter to prevent it from growing forever
+        self._disable_endpoint_collection()
 
         for col in reversed(self._collectors):
             try:

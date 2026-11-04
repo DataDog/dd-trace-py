@@ -7,6 +7,8 @@ from typing import Union
 
 from ddtrace import _monkey
 from ddtrace.internal import agent
+from ddtrace.internal import core
+from ddtrace.internal.constants import RUNTIME_METRICS_ENABLED_KEY
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -48,7 +50,6 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
     from ddtrace.internal import gitmetadata
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 
     if isinstance(tracer_info.writer, LogWriter):
@@ -125,7 +126,7 @@ def collect(tracer_info: TracerDebugInfo) -> dict[str, Any]:
         enabled_cli="ddtrace" in env.get("PYTHONPATH", ""),
         log_injection_enabled=config._logs_injection,
         health_metrics_enabled=config._health_metrics_enabled,
-        runtime_metrics_enabled=RuntimeWorker.enabled,
+        runtime_metrics_enabled=bool(core.root.get_item(RUNTIME_METRICS_ENABLED_KEY)),
         dd_version=config.version or "",
         global_tags=tags_to_str(config.tags),
         tracer_tags=tags_to_str(tracer_info.tags),

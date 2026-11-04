@@ -903,6 +903,20 @@
         "default": null
       }
     ],
+    "DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_CIVISIBILITY_GIT_UPLOAD_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_CIVISIBILITY_ITR_ENABLED": [
       {
         "implementation": "A",
@@ -3556,13 +3570,6 @@
         "default": "datadoghq.com"
       }
     ],
-    "DD_SNAPSHOT_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": null
-      }
-    ],
     "DD_SNOWFLAKE_SERVICE": [
       {
         "implementation": "A",
@@ -6201,6 +6208,14 @@
         "implementation": "A",
         "type": "string",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],

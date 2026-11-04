@@ -8,11 +8,9 @@ from typing import cast
 
 import ddtrace
 from ddtrace.contrib.internal import trace_utils as contrib_trace_utils
-from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
@@ -99,34 +97,10 @@ def traced_auth_middleware_process_request(func: FunctionType, args: tuple[Any],
         try:
             return func(*args, **kwargs)
         finally:
-            mode = asm_config._user_event_mode
-            if mode != "disabled":
-                try:
-                    if request:
-                        if hasattr(request, "user") and hasattr(request.user, "_setup"):
-                            request.user._setup()
-                            request_user = request.user._wrapped
-                        else:
-                            request_user = request.user
-                        if hasattr(request, "session") and hasattr(request.session, "session_key"):
-                            session_key = request.session.session_key
-                        else:
-                            session_key = None
-                        core.dispatch(
-                            "django.process_request",
-                            (
-                                request_user,
-                                session_key,
-                                mode,
-                                kwargs,
-                                _DjangoUserInfoRetriever(request_user, credentials=kwargs),
-                                config_django,
-                            ),
-                        )
-                except Exception:
-                    log.debug(
-                        "Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True
-                    )
+            try:
+                core.dispatch("django.process_request", (request, kwargs, config_django))
+            except Exception:
+                log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
 
 
 def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:

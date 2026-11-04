@@ -11,7 +11,6 @@ from typing import Protocol
 from urllib import parse
 
 from ddtrace import config
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
@@ -78,6 +77,8 @@ from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.inferred_spans import PUBSUB_PUSH_SPAN_NAME
+from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.sampling import _inherit_sampling_tags
@@ -291,7 +292,7 @@ def _on_web_framework_finish_request(
 
 
 def _set_inferred_proxy_tags(span: Span, status_code):
-    if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
+    if span._parent and is_inferred_span(span._parent):
         inferred_span = span._parent
         # Proxy spans keep Datadog status attributes; only the source lookup follows active semantics.
         if not status_code and config._otel_trace_semantics_enabled:
@@ -349,7 +350,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContex
     )
 
     span = tracer.start_span(
-        "gcp.pubsub.receive",
+        PUBSUB_PUSH_SPAN_NAME,
         service=config._get_service(),
         resource=subscription_id,
         span_type=SpanTypes.WORKER,

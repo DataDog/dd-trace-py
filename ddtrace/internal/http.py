@@ -6,9 +6,9 @@ from typing import Any
 from typing import Optional
 from urllib.parse import urlsplit
 
+from ddtrace.internal import container
 from ddtrace.internal import forksafe
 from ddtrace.internal.native import ConnectionFailedError
-from ddtrace.internal.runtime import container
 
 
 log = logging.getLogger(__name__)

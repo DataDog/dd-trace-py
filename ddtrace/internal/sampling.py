@@ -50,7 +50,9 @@ class SpanTraceSourceProtocol(Protocol):
 
     def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
 
-    def _override_sampling_decision(self, decision: Optional[NumericType]) -> None: ...
+    def _override_sampling_decision(
+        self, decision: Optional[NumericType], sampling_mechanism: int = SamplingMechanism.MANUAL
+    ) -> None: ...
 
 
 class PriorityCategory:

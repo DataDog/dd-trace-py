@@ -6,5 +6,5 @@ alwaysApply: false
 
 # review-ci
 
-Read `.claude/skills/review-ci/SKILL.md` from the repository root and follow that workflow.
+Read `.agents/skills/review-ci/SKILL.md` from the repository root and follow that workflow.
 If this client supports skill invocation, use `review-ci` directly.
