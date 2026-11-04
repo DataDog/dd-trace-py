@@ -104,7 +104,7 @@ class _ConfigurationEndpoint:
                 if request_url.path != "/ufc":
                     self._send({"endpoints": ["/v0.7/config"]})
                     return
-                parameter = parse_qs(request_url.query).get("dependent-flags-variant-key", [None])[0]
+                parameter = parse_qs(request_url.query).get("cap_dependent-flags-variant-key", [None])[0]
                 supported = parameter == "v1"
                 endpoint.requests.append({"parameter": parameter})
                 config, variant = endpoint.selected(supported)

@@ -189,7 +189,7 @@ class AgentlessConfigurationSource(PeriodicService):
         self._stopping = False
         log.debug(
             "Feature Flags: agentless configuration source settings: sdk_env=%s, requested_env=%s, "
-            "DD-API-KEY header %s, dependent-flags-variant-key query parameter %s, "
+            "DD-API-KEY header %s, cap_dependent-flags-variant-key query parameter %s, "
             "poll interval %.1fs, request timeout %.1fs",
             self._env or "unset",
             self._requested_env or "not sent",
@@ -328,8 +328,8 @@ class AgentlessConfigurationSource(PeriodicService):
             return urlunsplit(("", "", self._request_path, self._request_query, "")) or "/"
 
         query = parse_qsl(self._request_query, keep_blank_values=True)
-        query = [(name, value) for name, value in query if name != "dependent-flags-variant-key"]
-        query.append(("dependent-flags-variant-key", parameter))
+        query = [(name, value) for name, value in query if name != "cap_dependent-flags-variant-key"]
+        query.append(("cap_dependent-flags-variant-key", parameter))
         return urlunsplit(("", "", self._request_path, urlencode(query), "")) or "/"
 
     def _headers(self) -> "dict[str, str]":
