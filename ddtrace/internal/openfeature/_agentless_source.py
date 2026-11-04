@@ -22,7 +22,6 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from urllib.parse import parse_qs
-from urllib.parse import parse_qsl
 from urllib.parse import urlencode
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
@@ -148,13 +147,10 @@ class AgentlessConfigurationSource(PeriodicService):
         # must carry it.
         parts = urlsplit(endpoint)
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
+        request_query = parts.query
         if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-            query = parse_qsl(parts.query, keep_blank_values=True)
-            query = [(name, value) for name, value in query if name != "cap_dependent-flags-variant-key"]
-            query.append(("cap_dependent-flags-variant-key", "v1"))
-            request_query = urlencode(query)
-        else:
-            request_query = parts.query
+            capability_query = urlencode({"cap_dependent-flags-variant-key": "v1"})
+            request_query = f"{request_query}&{capability_query}" if request_query else capability_query
         self._request_target = urlunsplit(("", "", parts.path, request_query, "")) or "/"
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.

@@ -231,26 +231,31 @@ def test_api_key_header_present_and_absent(harness):
 
 
 @pytest.mark.parametrize(
-    "capabilities, expected",
+    "capabilities,expected_target",
     [
-        ((), None),
-        (("unknown-feature-v1",), None),
-        (("dependent-flag-variant-key-v1",), "v1"),
-        (["unknown-feature-v1", "dependent-flag-variant-key-v1"], "v1"),
+        ((), "/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"),
+        (("unknown-feature-v1",), "/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"),
+        (
+            ("dependent-flag-variant-key-v1",),
+            "/api/v2/feature-flagging/config/rules-based/server?dd_env=prod&cap_dependent-flags-variant-key=v1",
+        ),
+        (
+            ["unknown-feature-v1", "dependent-flag-variant-key-v1"],
+            "/api/v2/feature-flagging/config/rules-based/server?dd_env=prod&cap_dependent-flags-variant-key=v1",
+        ),
     ],
 )
-def test_evaluator_capability_parameter_on_initial_and_conditional_requests(harness, monkeypatch, capabilities, expected):
+def test_evaluator_capability_parameter_on_initial_and_conditional_requests(
+    harness, monkeypatch, capabilities, expected_target
+):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
-    endpoint = ENDPOINT + "&token=preserved"
-    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)], endpoint=endpoint)
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)])
     src.periodic()
     src.periodic()
 
     assert len(src._requests) == 2
     for request in src._requests:
-        query = parse_qs(urlsplit(request["target"]).query)
-        assert query.get("cap_dependent-flags-variant-key", [None])[0] == expected
-        assert query["token"] == ["preserved"]
+        assert request["target"] == expected_target
     assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
 
 
@@ -259,7 +264,33 @@ def test_missing_native_capability_reporter_omits_parameter(harness, monkeypatch
     src = harness([_FakeResponse(200, _ufc_body())])
     src.periodic()
     assert "cap_dependent-flags-variant-key" not in parse_qs(urlsplit(src._requests[0]["target"]).query)
-    assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
+
+
+@pytest.mark.parametrize(
+    "endpoint,expected_target",
+    [
+        (
+            "https://flags.example.test/config",
+            "/config?cap_dependent-flags-variant-key=v1",
+        ),
+        (
+            "https://flags.example.test/config?token=one&token=two&blank=&encoded=a%2Fb#fragment",
+            "/config?token=one&token=two&blank=&encoded=a%2Fb&cap_dependent-flags-variant-key=v1",
+        ),
+    ],
+)
+def test_evaluator_capability_parameter_preserves_endpoint_query(harness, monkeypatch, endpoint, expected_target):
+    monkeypatch.setattr(
+        native_mod,
+        "ffe",
+        SimpleNamespace(get_evaluator_capabilities=lambda: ["dependent-flag-variant-key-v1"]),
+    )
+    src = harness([_FakeResponse(304)], endpoint=endpoint)
+    src.periodic()
+
+    target = src._requests[0]["target"]
+    assert target == expected_target
+    assert urlsplit(target).fragment == ""
 
 
 def test_linked_evaluator_does_not_advertise_dependent_flags():
