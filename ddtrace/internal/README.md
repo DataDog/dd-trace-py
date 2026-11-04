@@ -116,6 +116,29 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+Tracing groups its web framework subscribers in
+`ddtrace._trace.product.subscriber_bundles`, an ordinary product-local tuple. Its
+`start()` registers the bundles. Its `stop()` shuts down the tracer but keeps the
+bundles registered: tracer shutdown flushes finished traces and stops processors;
+it does not drain request execution contexts. Requests completing afterward still
+need their completion listeners to finish spans and attach final response metadata.
+Keeping listeners registered does not guarantee those spans are exported after
+tracer shutdown.
+
+Importing `ddtrace._trace.subscribers` or its web framework module does not register
+the web framework subscriber. Integrations register it explicitly when installing
+their middleware, plugin, tween, or patches so manual instrumentation also works
+without tracing product startup. Registration is idempotent. Span-dependent
+integrations retain their request span creation and completion listeners. Aiohttp
+records its tracing decision on each request event and can emit metadata-only
+lifecycle events with
+`DD_TRACE_ENABLED=false`. Standalone security still creates the request span needed
+for AppSec processing. Other subscriber families continue to register automatically.
+
+Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
+`stop()` is not called by the product manager at process exit. Explicit product
+stopping also retains the bundle listeners as described above.
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from

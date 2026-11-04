@@ -8,6 +8,7 @@ from bottle import response
 
 from ddtrace import config
 from ddtrace._trace.http_tags import is_otel_non_error_status
+from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -21,6 +22,7 @@ class TracePlugin:
     api = 2
 
     def __init__(self, service="bottle", tracer=None, distributed_tracing=None):
+        WebFrameworkRequestSubscriber.register()
         if tracer is not None:
             deprecate(
                 "The tracer parameter is deprecated",
