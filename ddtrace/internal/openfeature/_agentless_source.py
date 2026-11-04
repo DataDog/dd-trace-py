@@ -22,6 +22,8 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from urllib.parse import parse_qs
+from urllib.parse import parse_qsl
+from urllib.parse import urlencode
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -146,7 +148,14 @@ class AgentlessConfigurationSource(PeriodicService):
         # must carry it.
         parts = urlsplit(endpoint)
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
-        self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
+        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
+            query = parse_qsl(parts.query, keep_blank_values=True)
+            query = [(name, value) for name, value in query if name != "dependent-flags-variant-key"]
+            query.append(("dependent-flags-variant-key", "v1"))
+            request_query = urlencode(query)
+        else:
+            request_query = parts.query
+        self._request_target = urlunsplit(("", "", parts.path, request_query, "")) or "/"
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
@@ -317,8 +326,6 @@ class AgentlessConfigurationSource(PeriodicService):
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
-        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-            headers["X-DD-FEATURE-FLAGS-CAPABILITIES"] = DEPENDENT_FLAG_VARIANT_KEY_V1
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
         if self._etag:
