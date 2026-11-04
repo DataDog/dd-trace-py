@@ -2603,7 +2603,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
     )
     def test_decision_request_fields_and_parts(self, openai, openai_llmobs, test_spans):
-        """Fields passed in extra_body and every input part are recorded; inline images become image parts."""
+        """Known request fields in extra_body and every input part are recorded; other extra_body fields are not."""
         image_url = (
             "data:image/png;base64,"
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
@@ -2628,7 +2628,7 @@ MUL: "*"
                 model="gpt-6-luna",
                 input=decision_input,
                 questions=DECISION_QUESTIONS,
-                extra_body={"prompt_cache_key": "tickets", "safety_identifier": "user-1"},
+                extra_body={"prompt_cache_key": "tickets", "safety_identifier": "user-1", "provider_token": "secret"},
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1

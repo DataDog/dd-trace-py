@@ -1488,12 +1488,16 @@ def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any]
     """Record the decisions request body as the input and the response body as the output.
 
     The questions decide what the model answers, so they stay with the input instead of in metadata. Inline images are
-    captured as image parts and replaced in the body by a marker.
+    captured as image parts and replaced in the body by a marker. Only known request fields are taken from extra_body,
+    since its other fields can carry credentials.
     """
-    body = {k: kwargs[k] for k in OPENAI_DECISION_REQUEST_KEYS if k in kwargs and not _is_openai_sentinel(kwargs[k])}
     extra_body = kwargs.get("extra_body")
-    if isinstance(extra_body, dict):
-        body.update(extra_body)
+    sources = (kwargs, extra_body) if isinstance(extra_body, dict) else (kwargs,)
+    body = {}
+    for source in sources:
+        body.update(
+            {k: v for k, v in source.items() if k in OPENAI_DECISION_REQUEST_KEYS and not _is_openai_sentinel(v)}
+        )
     image_parts: list[ImagePart] = []
     input_message = Message(role="user", content=safe_json(_openai_decision_body(body, image_parts)) or "")
     if image_parts:
