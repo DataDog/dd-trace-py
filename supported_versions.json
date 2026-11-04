@@ -1798,6 +1798,18 @@
                     "1.10.1",
                     "2.3.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.13",
+                "tested": [
+                    "2.5.1"
+                ]
             }
         ]
     },
@@ -2803,6 +2815,18 @@
                 "supportedRange": ">=1.10.0",
                 "tested": [
                     "1.10.1",
+                    "1.30.0",
+                    "2.3.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.10.0",
+                "tested": [
                     "1.30.0",
                     "2.3.0"
                 ]
@@ -4566,6 +4590,18 @@
                 "tested": [
                     "1.71.1"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.71.1",
+                "tested": [
+                    "2.7.0"
+                ]
             }
         ]
     },
@@ -4586,6 +4622,18 @@
                 "supportedRange": ">=1.71.1",
                 "tested": [
                     "1.71.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.71.1",
+                "tested": [
+                    "1.43.0"
                 ]
             }
         ]
