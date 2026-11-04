@@ -148,6 +148,8 @@ Oversized inline media makes `_writer._truncate_span_event` blank the span's ent
 
 Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `get_metadata_from_kwargs()` and provider-specific helpers in `ddtrace/llmobs/_integrations/utils.py` when they apply. They filter provider sentinel defaults such as OpenAI `Omit`/`NotGiven`, serialize SDK objects through `load_data_value()`, and keep metadata limited to supported fields. `_annotate_llmobs_span_data()` coerces metadata keys to strings, but integrations should still avoid sending noisy or high-cardinality raw objects.
 
+Never copy tool or model configurations verbatim either. Hosted MCP tools carry credentials in `headers`, `authorization` and the server URL (userinfo, path, query), and container network policies carry `domain_secrets` values: record tools through `safe_tool_config()` in `ddtrace/llmobs/_integrations/utils.py`. Model settings can carry `extra_headers`, `extra_query`, `extra_body` and `extra_args`: filter them with `ALLOWED_MODEL_SETTINGS_KEYS` and `is_flat_scalar_value()` from `agent_manifest.py`.
+
 ### Token Field Mapping
 
 | Library | Input | Output | Cache Fields |
