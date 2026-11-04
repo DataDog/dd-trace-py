@@ -15,6 +15,7 @@ from typing import Protocol
 from typing import cast
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._expressions import EvaluationTimeoutError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
@@ -60,6 +61,7 @@ class SignalState(str, Enum):
     SKIP_BUDGET = "SKIP_BUDGET"
     SKIP_CAPPED = "SKIP_CAPPED"
     COND_ERROR = "COND_ERROR"
+    COND_TIMEOUT = "COND_TIMEOUT"
     DONE = "DONE"
 
 
@@ -137,21 +139,32 @@ class Signal(abc.ABC):
             return False
 
         t_start = Time.monotonic()
+        eval_timeout_ms = di_config.evaluation_timeout_ms
+        error: Optional[EvaluationError] = None
+        error_state = SignalState.COND_ERROR
         try:
             result = bool(condition.eval(scope))
+        except EvaluationTimeoutError:
+            error = EvaluationError(
+                expr=condition.dsl, message=f"Condition evaluation timed out after {eval_timeout_ms}ms"
+            )
+            error_state = SignalState.COND_TIMEOUT
         except DDExpressionEvaluationError as e:
-            self.errors.append(EvaluationError(expr=e.dsl, message=e.error))
+            error = EvaluationError(expr=e.dsl, message=e.error)
+        finally:
+            self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
+
+        if error is not None:
+            self.errors.append(error)
+            # Timeouts feed the same throttle as evaluation errors
             if probe.condition_error_limiter.limit() is RateLimitExceeded:
                 probe._error_throttled_until = Time.monotonic() + probe.condition_error_limiter.tau
                 self.state = SignalState.SKIP_COND_ERROR
             else:
-                self.state = SignalState.COND_ERROR
+                self.state = error_state
             return False
-        finally:
-            self._eval_duration_ms = (Time.monotonic() - t_start) * 1000
 
         # RFC: treat evaluation overruns as guardrail input — feed into the error throttle
-        eval_timeout_ms = di_config.evaluation_timeout_ms
         if self._eval_duration_ms > eval_timeout_ms:
             self.errors.append(
                 EvaluationError(
@@ -208,6 +221,16 @@ class Signal(abc.ABC):
     def _sampled_out(self) -> bool:
         """Ask the sampler for admission, right before capturing."""
         return self._skipped_by(DebuggerSampler.admit(self.probe))
+
+    @property
+    def __type__(self) -> Optional[str]:
+        """debugger.events.*/debugger.capture.incomplete's event_type tag,
+        and (for LogSignal) the backend wire payload's
+        debugger.snapshot.type field. None here means "no defined
+        event_type yet" (e.g. span probes) -- subclasses override as
+        needed; see LogSignal and Snapshot.
+        """
+        return None
 
     @property
     def session(self) -> Optional[Session]:

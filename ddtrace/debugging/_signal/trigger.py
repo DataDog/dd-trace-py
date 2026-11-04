@@ -23,6 +23,13 @@ class Trigger(LogSignal):
 
     __default_timing__ = ProbeEvalTiming.ENTRY
 
+    @property
+    def __type__(self) -> t.Optional[str]:
+        # Its log message (when any) is only ever an evaluation-error
+        # report (see message/has_message below), never real snapshot/log
+        # content -- same as SpanDecoration.
+        return "diagnostic"
+
     def _link_session(self) -> None:
         probe = t.cast(SessionMixin, self.probe)
 
