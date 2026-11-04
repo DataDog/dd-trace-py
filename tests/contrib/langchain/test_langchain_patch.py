@@ -95,6 +95,37 @@ class TestLangchainPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(langchain_core.vectorstores.VectorStore.__init_subclass__)
 
 
+@pytest.mark.subprocess()
+def test_subclasses_defined_after_repatch_are_wrapped():
+    from langchain_core.embeddings import Embeddings
+    from langchain_core.vectorstores import VectorStore
+
+    from ddtrace.contrib.internal.langchain.patch import patch
+    from ddtrace.contrib.internal.langchain.patch import unpatch
+    from ddtrace.internal.compat import is_wrapted
+
+    patch()
+    unpatch()
+    assert "__init_subclass__" not in VectorStore.__dict__
+    assert "__init_subclass__" not in Embeddings.__dict__
+    patch()
+
+    class FakeVectorStore(VectorStore):
+        def similarity_search(self, query, k=4, **kwargs):
+            return []
+
+    class FakeEmbeddings(Embeddings):
+        def embed_documents(self, texts):
+            return []
+
+        def embed_query(self, text):
+            return []
+
+    assert is_wrapted(FakeVectorStore.__dict__["similarity_search"])
+    assert is_wrapted(FakeEmbeddings.__dict__["embed_documents"])
+    assert is_wrapted(FakeEmbeddings.__dict__["embed_query"])
+
+
 class _FakeInstance:
     """Minimal stand-in for a langchain LLM/chat-model instance."""
 

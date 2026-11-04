@@ -503,6 +503,23 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
         log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
 
 
+def _unwrap_init_subclass(cls) -> None:
+    """Remove the __init_subclass__ wrapper from cls without pinning the original to cls.
+
+    The generic unwrap() stores the original bound to cls in cls.__dict__, so after a later
+    patch() the hooks above would receive cls as func.__self__ instead of each new subclass,
+    leaving subclasses defined after an unpatch/patch cycle untraced.
+    """
+    wrapper = cls.__dict__.get("__init_subclass__")
+    if not is_wrapted(wrapper):
+        return
+    original = wrapper.__wrapped__
+    if any(base.__dict__.get("__init_subclass__") is original for base in cls.__mro__[1:]):
+        delattr(cls, "__init_subclass__")
+    else:
+        setattr(cls, "__init_subclass__", original)
+
+
 def _runnable_lambda_span_name(func, instance, is_batch: bool) -> str:
     instance_name = getattr(instance, "name", None)
     default_name = f"{instance.__class__.__name__}.{func.__name__}"
@@ -639,5 +656,5 @@ def unpatch():
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
-    unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")
-    unwrap(langchain_core.vectorstores.VectorStore, "__init_subclass__")
+    _unwrap_init_subclass(langchain_core.embeddings.Embeddings)
+    _unwrap_init_subclass(langchain_core.vectorstores.VectorStore)
