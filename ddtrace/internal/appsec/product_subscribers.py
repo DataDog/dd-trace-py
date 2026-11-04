@@ -3,7 +3,7 @@
 from typing import Callable
 
 from ddtrace.internal import core
-from ddtrace.internal.products import SubscriberBundle
+from ddtrace.internal.core.subscriber import SubscriberBundle
 from ddtrace.internal.settings.asm import config
 
 
