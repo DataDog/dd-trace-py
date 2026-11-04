@@ -164,8 +164,9 @@ suites:
         - name: google_genai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, google-genai]
-        # The latest-compatible row already resolves to the lower SDK line on
-        # Python 3.9 and 3.10; test that lower bound on the remaining runtimes.
+        # The unpinned dependency resolves by Python version: 1.21.1 on Python
+        # 3.9/3.10 and 2.34.0 on 3.11+. Test the lower bound where the unpinned
+        # row selects 2.x; testing it on 3.9/3.10 would duplicate environments.
         - name: google_genai
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
