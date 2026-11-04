@@ -566,12 +566,11 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python
+      python: ['3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: aws_durable_execution_sdk_python
-          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['aws-durable-execution-sdk-python~=1.4.0', aws-durable-execution-sdk-python-testing]
         - name: aws_durable_execution_sdk_python
-          python: ['3.11', '3.12', '3.13', '3.14']
           dependencies: [aws-durable-execution-sdk-python, aws-durable-execution-sdk-python-testing]
   azure_cosmos:
     venvs_per_job: 7
