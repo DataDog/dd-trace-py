@@ -249,7 +249,7 @@ def test_evaluator_capability_parameter_on_initial_and_conditional_requests(harn
     assert len(src._requests) == 2
     for request in src._requests:
         query = parse_qs(urlsplit(request["target"]).query)
-        assert query.get("dependent-flags-variant-key", [None])[0] == expected
+        assert query.get("cap_dependent-flags-variant-key", [None])[0] == expected
         assert query["token"] == ["preserved"]
         assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in request["headers"]
     assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
@@ -259,7 +259,7 @@ def test_missing_native_capability_reporter_omits_parameter(harness, monkeypatch
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
     src = harness([_FakeResponse(200, _ufc_body())])
     src.periodic()
-    assert "dependent-flags-variant-key" not in parse_qs(urlsplit(src._requests[0]["target"]).query)
+    assert "cap_dependent-flags-variant-key" not in parse_qs(urlsplit(src._requests[0]["target"]).query)
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
 
 

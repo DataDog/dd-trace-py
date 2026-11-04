@@ -150,8 +150,8 @@ class AgentlessConfigurationSource(PeriodicService):
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
         if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
             query = parse_qsl(parts.query, keep_blank_values=True)
-            query = [(name, value) for name, value in query if name != "dependent-flags-variant-key"]
-            query.append(("dependent-flags-variant-key", "v1"))
+            query = [(name, value) for name, value in query if name != "cap_dependent-flags-variant-key"]
+            query.append(("cap_dependent-flags-variant-key", "v1"))
             request_query = urlencode(query)
         else:
             request_query = parts.query
