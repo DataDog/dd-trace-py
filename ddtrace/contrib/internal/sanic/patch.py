@@ -14,6 +14,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
+from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import http
@@ -159,6 +160,7 @@ def patch() -> None:
 
     if getattr(sanic, "__datadog_patch", False):
         return
+    WebFrameworkRequestSubscriber.register()
     sanic.__datadog_patch = True
 
     SANIC_VERSION = tuple(map(int, get_version().split(".")))

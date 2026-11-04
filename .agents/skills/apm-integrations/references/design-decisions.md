@@ -45,7 +45,12 @@ For span-independent web integrations, capture `is_tracing_enabled()` in the req
 event's `tracing_enabled` field at entry, as aiohttp does. This accounts for
 standalone security, which still needs request spans when tracing is disabled.
 Existing span-dependent integrations retain the default and direct subscriber
-registration until their lifecycle can run without spans.
+registration until their lifecycle can run without spans. Register the shared web
+framework subscriber at instrumentation setup (middleware, plugin, or tween
+installation, or patching), rather than at module import. This preserves manual
+instrumentation when tracing product startup is skipped. Registration is
+idempotent; do not unregister the shared subscriber when unpatching one integration,
+since other integrations and active requests still need its listeners.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

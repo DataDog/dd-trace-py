@@ -685,10 +685,6 @@ def on_ended(ctx, exc_info):
     assert bool(exc_info[1]) == (response_kind == "http_error")
 
 
-core.on("context.started.web.request", on_started)
-core.on("context.ended.web.request", on_ended)
-
-
 async def handler(request):
     span = tracer.current_span()
     if expect_tracing:
@@ -713,6 +709,9 @@ async def main():
     app = web.Application()
     app.router.add_get("/", handler)
     trace_app(app)
+    # Observe after setup so the tracing subscriber creates the span first.
+    core.on("context.started.web.request", on_started)
+    core.on("context.ended.web.request", on_ended)
     async with TestClient(TestServer(app)) as client:
         response = await client.get("/")
         assert response.status == expected_status, response.status

@@ -12,8 +12,8 @@ from ddtrace.internal import core
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.core.subscriber import SubscriberBundle
 from ddtrace.internal.products import ProductManager
-from ddtrace.internal.products import SubscriberBundle
 
 
 @dataclass
@@ -22,7 +22,7 @@ class RegistrationEvent(Event):
 
 
 def test_bundle_registration_is_lazy() -> None:
-    with patch("ddtrace.internal.products.import_module") as load:
+    with patch("ddtrace.internal.core.subscriber.import_module") as load:
         bundle = SubscriberBundle("example.web", ("RequestSubscriber", "InspectSubscriber"))
         load.assert_not_called()
         bundle.register()
@@ -46,7 +46,7 @@ def test_shared_bundle_is_idempotent_and_can_restore_listeners() -> None:
     setattr(module, "RequestSubscriber", RequestSubscriber)
     bundle = SubscriberBundle("example.web", ("RequestSubscriber",))
     try:
-        with patch("ddtrace.internal.products.import_module", return_value=module):
+        with patch("ddtrace.internal.core.subscriber.import_module", return_value=module):
             bundle.register()
             bundle.register()
             event = RegistrationEvent()
@@ -63,7 +63,7 @@ def test_shared_bundle_is_idempotent_and_can_restore_listeners() -> None:
 
 def test_unregister_unused_bundle_does_not_import() -> None:
     bundle = SubscriberBundle("unused_product.subscribers", ("Subscriber",))
-    with patch("ddtrace.internal.products.import_module") as load:
+    with patch("ddtrace.internal.core.subscriber.import_module") as load:
         bundle.unregister()
         load.assert_not_called()
 
@@ -73,7 +73,7 @@ def test_missing_subscriber_does_not_partially_register() -> None:
     subscriber = Mock()
     setattr(module, "RequestSubscriber", subscriber)
     bundle = SubscriberBundle("example.web", ("RequestSubscriber", "MissingSubscriber"))
-    with patch("ddtrace.internal.products.import_module", return_value=module):
+    with patch("ddtrace.internal.core.subscriber.import_module", return_value=module):
         with pytest.raises(AttributeError, match="MissingSubscriber"):
             bundle.register()
     subscriber.register.assert_not_called()
@@ -93,7 +93,7 @@ def test_unregister_bundle_removes_all_subscribers(monkeypatch: pytest.MonkeyPat
 
 def test_bundle_import_failure_propagates_to_caller() -> None:
     bundle = SubscriberBundle("example.web", ("RequestSubscriber",))
-    with patch("ddtrace.internal.products.import_module", side_effect=ImportError("unavailable")):
+    with patch("ddtrace.internal.core.subscriber.import_module", side_effect=ImportError("unavailable")):
         with pytest.raises(ImportError, match="unavailable"):
             bundle.register()
 
@@ -180,17 +180,18 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
 
 
 @pytest.mark.subprocess
-def test_direct_integration_import_registers_web_subscribers() -> None:
+def test_direct_integration_import_does_not_register_web_subscribers() -> None:
     import sys
 
+    import ddtrace._trace.subscribers.web_framework  # noqa: F401
     import ddtrace.contrib  # noqa: F401
     from ddtrace.internal import core
     from ddtrace.internal.products import manager
 
     assert manager._products is None
     assert "ddtrace._trace.product" not in sys.modules
-    assert core.has_listeners("context.started.web.request")
-    assert core.has_listeners("context.ended.web.request")
+    assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.ended.web.request")
 
 
 @pytest.mark.parametrize("shutdown", ["stop_products", "exit_products"])

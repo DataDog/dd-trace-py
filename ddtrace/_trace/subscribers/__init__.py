@@ -4,8 +4,3 @@ import ddtrace._trace.subscribers.kafka  # noqa: F401
 import ddtrace._trace.subscribers.llm  # noqa: F401
 import ddtrace._trace.subscribers.messaging  # noqa: F401
 import ddtrace._trace.subscribers.molten  # noqa: F401
-from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
-
-
-# Public integration APIs also need listeners when product startup is skipped.
-WebFrameworkRequestSubscriber.register()

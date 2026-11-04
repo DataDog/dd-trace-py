@@ -6,6 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
@@ -42,6 +43,7 @@ def _supported_versions() -> dict[str, str]:
 def patch():
     if getattr(molten, "_datadog_patch", False):
         return
+    WebFrameworkRequestSubscriber.register()
     molten._datadog_patch = True
 
     pin = Pin()

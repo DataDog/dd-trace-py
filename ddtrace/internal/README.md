@@ -75,10 +75,10 @@ gets extended to add support for additional features.
 ## Subscriber bundles
 
 Products can group related subscribers with `SubscriberBundle` from
-`ddtrace.internal.products`:
+`ddtrace.internal.core.subscriber`:
 
 ```python
-from ddtrace.internal.products import SubscriberBundle
+from ddtrace.internal.core.subscriber import SubscriberBundle
 
 WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     module="example_product.subscribers",
@@ -124,11 +124,14 @@ it does not drain request execution contexts. Requests completing afterward stil
 need their completion listeners to finish spans and attach final response metadata.
 Keeping listeners registered does not guarantee those spans are exported after
 tracer shutdown.
-Importing `ddtrace._trace.subscribers` also registers the web framework subscriber
-for public integration APIs and configurations that skip tracing product startup.
-Registration is idempotent. Span-dependent integrations retain their request span
-creation and completion listeners. Aiohttp records its tracing decision on each
-request event and can emit metadata-only lifecycle events with
+
+Importing `ddtrace._trace.subscribers` or its web framework module does not register
+the web framework subscriber. Integrations register it explicitly when installing
+their middleware, plugin, tween, or patches so manual instrumentation also works
+without tracing product startup. Registration is idempotent. Span-dependent
+integrations retain their request span creation and completion listeners. Aiohttp
+records its tracing decision on each request event and can emit metadata-only
+lifecycle events with
 `DD_TRACE_ENABLED=false`. Standalone security still creates the request span needed
 for AppSec processing. Other subscriber families continue to register automatically.
 
