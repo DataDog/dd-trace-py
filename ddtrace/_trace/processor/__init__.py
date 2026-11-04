@@ -271,7 +271,7 @@ def _resolve_apm_trace_agentless() -> bool:
 
 
 # Track telemetry span metrics by span api
-# ex: otel api, opentracing api, datadog api
+# ex: otel api, datadog api
 _SPANS_CREATED_RECORDERS: dict[str, MetricRecorder] = {}
 _SPANS_FINISHED_RECORDERS: dict[str, MetricRecorder] = {}
 # spans_dropped has a single reason so far, so it needs no per-value map.
