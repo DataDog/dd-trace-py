@@ -591,7 +591,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 1.5.3
+      max: 1.7.4
 
 - integration_name: langgraph
   is_external_package: true
@@ -909,7 +909,7 @@ integrations:
   tested_versions_by_dependency:
     torch:
       min: 2.0.1
-      max: 2.14.0
+      max: 2.15.0
 
 - integration_name: ray
   is_external_package: true
