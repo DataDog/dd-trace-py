@@ -4,11 +4,13 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.aiguard import MCP
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import ContentPart
 from ddtrace.aiguard import Function
 from ddtrace.aiguard import ImageURL
+from ddtrace.aiguard import MCPServer
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
@@ -16,6 +18,7 @@ from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.settings.aiguard import ENV_TIMEOUT
 from ddtrace.internal.settings.aiguard import AIGuardConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.aiguard.utils import assert_ai_guard_span
@@ -303,6 +306,18 @@ def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_gu
     assert str(exc_info.value).startswith("AI Guard service returned unexpected response format")
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
     assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_without_registered_tracer(mock_execute_request, ai_guard_client):
+    """With no tracer on the core registry the verdict can't be reported, so evaluate fails before the request."""
+    with patch("ddtrace.aiguard._api_client.core") as core_mock:
+        core_mock.root.get_item.return_value = None
+        with pytest.raises(AIGuardClientError, match="requires the global tracer"):
+            ai_guard_client.evaluate(TOOL_CALL)
+
+    core_mock.root.get_item.assert_called_once_with("tracer")
+    mock_execute_request.assert_not_called()
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -763,7 +778,7 @@ def test_configured_timeout_reaching_the_transport(raw_timeout, expected_timeout
         def request(self, *args, **kwargs):
             raise ConnectionFailedError("refused")
 
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         timeout = AIGuardConfig()._ai_guard_timeout
 
     with override_ai_guard_config(
@@ -784,18 +799,18 @@ def test_configured_timeout_reaching_the_transport(raw_timeout, expected_timeout
 
 @pytest.mark.parametrize("raw_timeout", ["999", "500", "0", "-1"])
 def test_timeout_flooring_to_zero_warns_and_uses_the_default(raw_timeout):
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         with patch("ddtrace.internal.settings.aiguard.log") as log:
             config = AIGuardConfig()
 
     assert config._ai_guard_timeout == 10_000
     log.warning.assert_called_once()
-    assert AI_GUARD.ENV_TIMEOUT in log.warning.call_args[0]
+    assert ENV_TIMEOUT in log.warning.call_args[0]
 
 
 @pytest.mark.parametrize("raw_timeout", ["1000", "1500"])
 def test_timeout_of_at_least_one_second_is_kept_without_warning(raw_timeout):
-    with override_env({AI_GUARD.ENV_TIMEOUT: raw_timeout}):
+    with override_env({ENV_TIMEOUT: raw_timeout}):
         with patch("ddtrace.internal.settings.aiguard.log") as log:
             config = AIGuardConfig()
 
@@ -812,3 +827,34 @@ def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
         ai_guard_client.evaluate(PROMPT, Options(block=False))
 
     assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"
+
+
+@pytest.mark.parametrize("mcp_servers", [None, []], ids=["none", "empty"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_omits_empty_mcp_servers(mock_execute_request, ai_guard_client, mcp_servers):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    ai_guard_client.evaluate([Message(role="user", content="hi")], mcp_servers=mcp_servers)
+
+    assert set(mock_execute_request.call_args.args[1]["data"]["attributes"]) == {"messages", "meta"}
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sends_mcp_servers(mock_execute_request, ai_guard_client):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    server = MCPServer(
+        id="mcp_b77bc22583ac5006",
+        managed_by="client",
+        transport="streamable_http",
+        tools={"wiki_search": "search"},
+        url="https://mcp.example.com",
+    )
+    tool_call = ToolCall(id="call_1", function=Function(name="wiki_search", arguments="{}"))
+    tool_call["mcp"] = MCP(server_id=server["id"])
+    messages = [Message(role="user", content="hi"), Message(role="assistant", tool_calls=[tool_call])]
+
+    ai_guard_client.evaluate(messages, mcp_servers=[server])
+
+    attributes = mock_execute_request.call_args.args[1]["data"]["attributes"]
+    assert attributes["mcp_servers"] == [server]
+    assert attributes["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_b77bc22583ac5006"}

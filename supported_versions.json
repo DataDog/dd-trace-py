@@ -1,6 +1,6 @@
 [
     {
-        "dependencyName": "aiobotocore",
+        "libraryName": "aiobotocore",
         "integrationName": "aiobotocore",
         "autoInstrumented": false,
         "versions": [
@@ -60,7 +60,7 @@
         ]
     },
     {
-        "dependencyName": "botocore",
+        "libraryName": "botocore",
         "integrationName": "aiobotocore",
         "autoInstrumented": false,
         "versions": [
@@ -120,7 +120,7 @@
         ]
     },
     {
-        "dependencyName": "aiohttp",
+        "libraryName": "aiohttp",
         "integrationName": "aiohttp",
         "autoInstrumented": true,
         "versions": [
@@ -165,7 +165,7 @@
         ]
     },
     {
-        "dependencyName": "aiohttp-jinja2",
+        "libraryName": "aiohttp-jinja2",
         "integrationName": "aiohttp_jinja2",
         "autoInstrumented": true,
         "versions": [
@@ -193,7 +193,7 @@
         ]
     },
     {
-        "dependencyName": "aiokafka",
+        "libraryName": "aiokafka",
         "integrationName": "aiokafka",
         "autoInstrumented": true,
         "versions": [
@@ -229,7 +229,7 @@
         ]
     },
     {
-        "dependencyName": "aiomysql",
+        "libraryName": "aiomysql",
         "integrationName": "aiomysql",
         "autoInstrumented": true,
         "versions": [
@@ -254,7 +254,7 @@
         ]
     },
     {
-        "dependencyName": "aiopg",
+        "libraryName": "aiopg",
         "integrationName": "aiopg",
         "autoInstrumented": true,
         "versions": [
@@ -290,7 +290,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "algoliasearch",
+        "libraryName": "algoliasearch",
         "integrationName": "algoliasearch",
         "autoInstrumented": true,
         "versions": [
@@ -316,7 +316,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "anthropic",
+        "libraryName": "anthropic",
         "integrationName": "anthropic",
         "autoInstrumented": true,
         "versions": [
@@ -350,7 +350,7 @@
         ]
     },
     {
-        "dependencyName": "anyio",
+        "libraryName": "anyio",
         "integrationName": "anyio",
         "autoInstrumented": true,
         "versions": [
@@ -406,7 +406,7 @@
         ]
     },
     {
-        "dependencyName": "aredis",
+        "libraryName": "aredis",
         "integrationName": "aredis",
         "autoInstrumented": true,
         "versions": [
@@ -424,7 +424,7 @@
         ]
     },
     {
-        "dependencyName": "pytest-asyncio",
+        "libraryName": "pytest-asyncio",
         "integrationName": "asyncio",
         "autoInstrumented": true,
         "versions": [
@@ -469,7 +469,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "asyncpg",
+        "libraryName": "asyncpg",
         "integrationName": "asyncpg",
         "autoInstrumented": true,
         "versions": [
@@ -515,7 +515,7 @@
         ]
     },
     {
-        "dependencyName": "avro",
+        "libraryName": "avro",
         "integrationName": "avro",
         "autoInstrumented": true,
         "versions": [
@@ -549,7 +549,7 @@
         ]
     },
     {
-        "dependencyName": "aws-durable-execution-sdk-python",
+        "libraryName": "aws-durable-execution-sdk-python",
         "integrationName": "aws_durable_execution_sdk_python",
         "autoInstrumented": true,
         "versions": [
@@ -571,7 +571,7 @@
         ]
     },
     {
-        "dependencyName": "datadog-lambda",
+        "libraryName": "datadog-lambda",
         "integrationName": "aws_lambda",
         "autoInstrumented": true,
         "versions": [
@@ -618,7 +618,7 @@
         ]
     },
     {
-        "dependencyName": "aws-sdk-bedrock-runtime",
+        "libraryName": "aws-sdk-bedrock-runtime",
         "integrationName": "aws_sdk_bedrock_runtime",
         "autoInstrumented": true,
         "versions": [
@@ -642,7 +642,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "azure-cosmos",
+        "libraryName": "azure-cosmos",
         "integrationName": "azure_cosmos",
         "autoInstrumented": true,
         "versions": [
@@ -679,7 +679,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "azure-functions",
+        "libraryName": "azure-functions",
         "integrationName": "azure_durable_functions",
         "autoInstrumented": true,
         "versions": [
@@ -701,7 +701,7 @@
         ]
     },
     {
-        "dependencyName": "azure-functions-durable",
+        "libraryName": "azure-functions-durable",
         "integrationName": "azure_durable_functions",
         "autoInstrumented": true,
         "versions": [
@@ -735,7 +735,7 @@
         ]
     },
     {
-        "dependencyName": "azure-eventhub",
+        "libraryName": "azure-eventhub",
         "integrationName": "azure_eventhubs",
         "autoInstrumented": true,
         "versions": [
@@ -772,7 +772,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "azure-functions",
+        "libraryName": "azure-functions",
         "integrationName": "azure_functions",
         "autoInstrumented": true,
         "versions": [
@@ -831,7 +831,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "azure-servicebus",
+        "libraryName": "azure-servicebus",
         "integrationName": "azure_servicebus",
         "autoInstrumented": true,
         "versions": [
@@ -866,7 +866,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "boto3",
+        "libraryName": "boto3",
         "integrationName": "botocore",
         "autoInstrumented": true,
         "versions": [
@@ -892,7 +892,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "botocore",
+        "libraryName": "botocore",
         "integrationName": "botocore",
         "autoInstrumented": true,
         "versions": [
@@ -918,7 +918,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "bottle",
+        "libraryName": "bottle",
         "integrationName": "bottle",
         "autoInstrumented": true,
         "versions": [
@@ -953,7 +953,7 @@
         ]
     },
     {
-        "dependencyName": "celery",
+        "libraryName": "celery",
         "integrationName": "celery",
         "autoInstrumented": true,
         "versions": [
@@ -987,7 +987,7 @@
         ]
     },
     {
-        "dependencyName": "cherrypy",
+        "libraryName": "cherrypy",
         "integrationName": "cherrypy",
         "autoInstrumented": false,
         "versions": [
@@ -1023,7 +1023,7 @@
         ]
     },
     {
-        "dependencyName": "claude-agent-sdk",
+        "libraryName": "claude-agent-sdk",
         "integrationName": "claude_agent_sdk",
         "autoInstrumented": true,
         "versions": [
@@ -1051,7 +1051,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "python-consul",
+        "libraryName": "python-consul",
         "integrationName": "consul",
         "autoInstrumented": true,
         "versions": [
@@ -1075,7 +1075,7 @@
         ]
     },
     {
-        "dependencyName": "crewai",
+        "libraryName": "crewai",
         "integrationName": "crewai",
         "autoInstrumented": true,
         "versions": [
@@ -1096,7 +1096,7 @@
         ]
     },
     {
-        "dependencyName": "django",
+        "libraryName": "django",
         "integrationName": "django",
         "autoInstrumented": true,
         "versions": [
@@ -1191,7 +1191,7 @@
         ]
     },
     {
-        "dependencyName": "dogpile-cache",
+        "libraryName": "dogpile-cache",
         "integrationName": "dogpile_cache",
         "autoInstrumented": true,
         "versions": [
@@ -1244,7 +1244,7 @@
         ]
     },
     {
-        "dependencyName": "dramatiq",
+        "libraryName": "dramatiq",
         "integrationName": "dramatiq",
         "autoInstrumented": true,
         "versions": [
@@ -1279,7 +1279,7 @@
         ]
     },
     {
-        "dependencyName": "elastic-transport",
+        "libraryName": "elastic-transport",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1340,7 +1340,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch",
+        "libraryName": "elasticsearch",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1409,7 +1409,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch1",
+        "libraryName": "elasticsearch1",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1433,7 +1433,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch2",
+        "libraryName": "elasticsearch2",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1457,7 +1457,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch5",
+        "libraryName": "elasticsearch5",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1481,7 +1481,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch6",
+        "libraryName": "elasticsearch6",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1505,7 +1505,7 @@
         ]
     },
     {
-        "dependencyName": "elasticsearch7",
+        "libraryName": "elasticsearch7",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1542,7 +1542,7 @@
         ]
     },
     {
-        "dependencyName": "opensearch-py",
+        "libraryName": "opensearch-py",
         "integrationName": "elasticsearch",
         "autoInstrumented": true,
         "versions": [
@@ -1592,7 +1592,7 @@
         ]
     },
     {
-        "dependencyName": "elevenlabs",
+        "libraryName": "elevenlabs",
         "integrationName": "elevenlabs",
         "autoInstrumented": true,
         "versions": [
@@ -1615,7 +1615,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "falcon",
+        "libraryName": "falcon",
         "integrationName": "falcon",
         "autoInstrumented": true,
         "versions": [
@@ -1651,7 +1651,7 @@
         ]
     },
     {
-        "dependencyName": "fastapi",
+        "libraryName": "fastapi",
         "integrationName": "fastapi",
         "autoInstrumented": true,
         "versions": [
@@ -1710,7 +1710,7 @@
         ]
     },
     {
-        "dependencyName": "flask",
+        "libraryName": "flask",
         "integrationName": "flask",
         "autoInstrumented": true,
         "versions": [
@@ -1749,7 +1749,7 @@
         ]
     },
     {
-        "dependencyName": "flask-cache",
+        "libraryName": "flask-cache",
         "integrationName": "flask_cache",
         "autoInstrumented": false,
         "versions": [
@@ -1767,7 +1767,7 @@
         ]
     },
     {
-        "dependencyName": "flask-caching",
+        "libraryName": "flask-caching",
         "integrationName": "flask_cache",
         "autoInstrumented": false,
         "versions": [
@@ -1801,7 +1801,7 @@
         ]
     },
     {
-        "dependencyName": "gevent",
+        "libraryName": "gevent",
         "integrationName": "gevent",
         "autoInstrumented": true,
         "versions": [
@@ -1857,7 +1857,7 @@
         ]
     },
     {
-        "dependencyName": "google-adk",
+        "libraryName": "google-adk",
         "integrationName": "google_adk",
         "autoInstrumented": true,
         "versions": [
@@ -1904,7 +1904,7 @@
         ]
     },
     {
-        "dependencyName": "google-cloud-pubsub",
+        "libraryName": "google-cloud-pubsub",
         "integrationName": "google_cloud_pubsub",
         "autoInstrumented": true,
         "versions": [
@@ -1960,7 +1960,7 @@
         ]
     },
     {
-        "dependencyName": "google-genai",
+        "libraryName": "google-genai",
         "integrationName": "google_genai",
         "autoInstrumented": true,
         "versions": [
@@ -1995,7 +1995,7 @@
         ]
     },
     {
-        "dependencyName": "graphql-core",
+        "libraryName": "graphql-core",
         "integrationName": "graphql",
         "autoInstrumented": true,
         "versions": [
@@ -2055,7 +2055,7 @@
         ]
     },
     {
-        "dependencyName": "grpcio",
+        "libraryName": "grpcio",
         "integrationName": "grpc",
         "autoInstrumented": true,
         "versions": [
@@ -2146,7 +2146,7 @@
         ]
     },
     {
-        "dependencyName": "httpx",
+        "libraryName": "httpx",
         "integrationName": "httpx",
         "autoInstrumented": true,
         "versions": [
@@ -2184,7 +2184,7 @@
         ]
     },
     {
-        "dependencyName": "httpx2",
+        "libraryName": "httpx2",
         "integrationName": "httpx2",
         "autoInstrumented": true,
         "versions": [
@@ -2230,7 +2230,7 @@
         ]
     },
     {
-        "dependencyName": "jinja2",
+        "libraryName": "jinja2",
         "integrationName": "jinja2",
         "autoInstrumented": true,
         "versions": [
@@ -2289,7 +2289,7 @@
         ]
     },
     {
-        "dependencyName": "confluent-kafka",
+        "libraryName": "confluent-kafka",
         "integrationName": "kafka",
         "autoInstrumented": true,
         "versions": [
@@ -2333,7 +2333,7 @@
         ]
     },
     {
-        "dependencyName": "kombu",
+        "libraryName": "kombu",
         "integrationName": "kombu",
         "autoInstrumented": false,
         "versions": [
@@ -2380,7 +2380,7 @@
         ]
     },
     {
-        "dependencyName": "langchain-core",
+        "libraryName": "langchain-core",
         "integrationName": "langchain",
         "autoInstrumented": true,
         "versions": [
@@ -2414,7 +2414,7 @@
         ]
     },
     {
-        "dependencyName": "langgraph",
+        "libraryName": "langgraph",
         "integrationName": "langgraph",
         "autoInstrumented": true,
         "versions": [
@@ -2454,7 +2454,7 @@
         ]
     },
     {
-        "dependencyName": "langgraph-checkpoint",
+        "libraryName": "langgraph-checkpoint",
         "integrationName": "langgraph",
         "autoInstrumented": true,
         "versions": [
@@ -2491,7 +2491,7 @@
         ]
     },
     {
-        "dependencyName": "langgraph-prebuilt",
+        "libraryName": "langgraph-prebuilt",
         "integrationName": "langgraph",
         "autoInstrumented": true,
         "versions": [
@@ -2527,7 +2527,7 @@
         ]
     },
     {
-        "dependencyName": "litellm",
+        "libraryName": "litellm",
         "integrationName": "litellm",
         "autoInstrumented": true,
         "versions": [
@@ -2573,7 +2573,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "llama-index-core",
+        "libraryName": "llama-index-core",
         "integrationName": "llama_index",
         "autoInstrumented": true,
         "versions": [
@@ -2621,7 +2621,7 @@
         ]
     },
     {
-        "dependencyName": "logbook",
+        "libraryName": "logbook",
         "integrationName": "logbook",
         "autoInstrumented": true,
         "versions": [
@@ -2646,7 +2646,7 @@
         ]
     },
     {
-        "dependencyName": "stdlib.logging",
+        "libraryName": "stdlib.logging",
         "integrationName": "logging",
         "autoInstrumented": true,
         "versions": [
@@ -2669,7 +2669,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "loguru",
+        "libraryName": "loguru",
         "integrationName": "loguru",
         "autoInstrumented": true,
         "versions": [
@@ -2705,7 +2705,7 @@
         ]
     },
     {
-        "dependencyName": "mako",
+        "libraryName": "mako",
         "integrationName": "mako",
         "autoInstrumented": true,
         "versions": [
@@ -2741,7 +2741,7 @@
         ]
     },
     {
-        "dependencyName": "mariadb",
+        "libraryName": "mariadb",
         "integrationName": "mariadb",
         "autoInstrumented": true,
         "versions": [
@@ -2776,7 +2776,7 @@
         ]
     },
     {
-        "dependencyName": "mcp",
+        "libraryName": "mcp",
         "integrationName": "mcp",
         "autoInstrumented": true,
         "versions": [
@@ -2800,7 +2800,7 @@
         ]
     },
     {
-        "dependencyName": "mistralai",
+        "libraryName": "mistralai",
         "integrationName": "mistralai",
         "autoInstrumented": true,
         "versions": [
@@ -2824,7 +2824,7 @@
         ]
     },
     {
-        "dependencyName": "mlflow",
+        "libraryName": "mlflow",
         "integrationName": "mlflow",
         "autoInstrumented": false,
         "versions": [
@@ -2856,7 +2856,7 @@
         ]
     },
     {
-        "dependencyName": "mlflow-skinny",
+        "libraryName": "mlflow-skinny",
         "integrationName": "mlflow",
         "autoInstrumented": false,
         "versions": [
@@ -2876,7 +2876,7 @@
         ]
     },
     {
-        "dependencyName": "mlflow-tracing",
+        "libraryName": "mlflow-tracing",
         "integrationName": "mlflow",
         "autoInstrumented": false,
         "versions": [
@@ -2896,7 +2896,7 @@
         ]
     },
     {
-        "dependencyName": "molten",
+        "libraryName": "molten",
         "integrationName": "molten",
         "autoInstrumented": true,
         "versions": [
@@ -2920,7 +2920,7 @@
         ]
     },
     {
-        "dependencyName": "mysql-connector-python",
+        "libraryName": "mysql-connector-python",
         "integrationName": "mysql",
         "autoInstrumented": true,
         "versions": [
@@ -2966,7 +2966,7 @@
         ]
     },
     {
-        "dependencyName": "mysqlclient",
+        "libraryName": "mysqlclient",
         "integrationName": "mysqldb",
         "autoInstrumented": true,
         "versions": [
@@ -2999,7 +2999,7 @@
         ]
     },
     {
-        "dependencyName": "openai",
+        "libraryName": "openai",
         "integrationName": "openai",
         "autoInstrumented": true,
         "versions": [
@@ -3095,7 +3095,7 @@
         ]
     },
     {
-        "dependencyName": "openai-agents",
+        "libraryName": "openai-agents",
         "integrationName": "openai_agents",
         "autoInstrumented": true,
         "versions": [
@@ -3153,7 +3153,7 @@
         ]
     },
     {
-        "dependencyName": "protobuf",
+        "libraryName": "protobuf",
         "integrationName": "protobuf",
         "autoInstrumented": false,
         "versions": [
@@ -3197,7 +3197,7 @@
         ]
     },
     {
-        "dependencyName": "psycopg",
+        "libraryName": "psycopg",
         "integrationName": "psycopg",
         "autoInstrumented": true,
         "versions": [
@@ -3242,7 +3242,7 @@
         ]
     },
     {
-        "dependencyName": "psycopg2-binary",
+        "libraryName": "psycopg2-binary",
         "integrationName": "psycopg",
         "autoInstrumented": true,
         "versions": [
@@ -3276,7 +3276,7 @@
         ]
     },
     {
-        "dependencyName": "pydantic-ai-slim",
+        "libraryName": "pydantic-ai-slim",
         "integrationName": "pydantic_ai",
         "autoInstrumented": true,
         "versions": [
@@ -3323,7 +3323,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "pylibmc",
+        "libraryName": "pylibmc",
         "integrationName": "pylibmc",
         "autoInstrumented": true,
         "versions": [
@@ -3347,7 +3347,7 @@
         ]
     },
     {
-        "dependencyName": "pymemcache",
+        "libraryName": "pymemcache",
         "integrationName": "pymemcache",
         "autoInstrumented": true,
         "versions": [
@@ -3373,7 +3373,7 @@
         ]
     },
     {
-        "dependencyName": "pymongo",
+        "libraryName": "pymongo",
         "integrationName": "pymongo",
         "autoInstrumented": true,
         "versions": [
@@ -3425,7 +3425,7 @@
         ]
     },
     {
-        "dependencyName": "pymysql",
+        "libraryName": "pymysql",
         "integrationName": "pymysql",
         "autoInstrumented": true,
         "versions": [
@@ -3460,7 +3460,7 @@
         ]
     },
     {
-        "dependencyName": "pynamodb",
+        "libraryName": "pynamodb",
         "integrationName": "pynamodb",
         "autoInstrumented": true,
         "versions": [
@@ -3485,7 +3485,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "pyodbc",
+        "libraryName": "pyodbc",
         "integrationName": "pyodbc",
         "autoInstrumented": true,
         "versions": [
@@ -3520,7 +3520,7 @@
         ]
     },
     {
-        "dependencyName": "pyramid",
+        "libraryName": "pyramid",
         "integrationName": "pyramid",
         "autoInstrumented": true,
         "versions": [
@@ -3555,7 +3555,7 @@
         ]
     },
     {
-        "dependencyName": "pytest",
+        "libraryName": "pytest",
         "integrationName": "pytest",
         "autoInstrumented": false,
         "versions": [
@@ -3632,7 +3632,7 @@
         ]
     },
     {
-        "dependencyName": "pytest-bdd",
+        "libraryName": "pytest-bdd",
         "integrationName": "pytest_bdd",
         "autoInstrumented": false,
         "versions": [
@@ -3668,7 +3668,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "torch",
+        "libraryName": "torch",
         "integrationName": "pytorch",
         "autoInstrumented": false,
         "versions": [
@@ -3728,7 +3728,7 @@
         ]
     },
     {
-        "dependencyName": "ray",
+        "libraryName": "ray",
         "integrationName": "ray",
         "autoInstrumented": false,
         "versions": [
@@ -3750,7 +3750,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "ray",
+        "libraryName": "ray",
         "integrationName": "ray_serve",
         "autoInstrumented": false,
         "versions": [
@@ -3772,7 +3772,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "redis",
+        "libraryName": "redis",
         "integrationName": "redis",
         "autoInstrumented": true,
         "versions": [
@@ -3839,7 +3839,7 @@
         ]
     },
     {
-        "dependencyName": "redis-py-cluster",
+        "libraryName": "redis-py-cluster",
         "integrationName": "rediscluster",
         "autoInstrumented": true,
         "versions": [
@@ -3860,7 +3860,7 @@
         ]
     },
     {
-        "dependencyName": "requests",
+        "libraryName": "requests",
         "integrationName": "requests",
         "autoInstrumented": true,
         "versions": [
@@ -3906,7 +3906,7 @@
         ]
     },
     {
-        "dependencyName": "rq",
+        "libraryName": "rq",
         "integrationName": "rq",
         "autoInstrumented": true,
         "versions": [
@@ -3944,7 +3944,7 @@
         ]
     },
     {
-        "dependencyName": "sanic",
+        "libraryName": "sanic",
         "integrationName": "sanic",
         "autoInstrumented": true,
         "versions": [
@@ -4012,7 +4012,7 @@
         ]
     },
     {
-        "dependencyName": "snowflake-connector-python",
+        "libraryName": "snowflake-connector-python",
         "integrationName": "snowflake",
         "autoInstrumented": false,
         "versions": [
@@ -4100,7 +4100,7 @@
         ]
     },
     {
-        "dependencyName": "sqlalchemy",
+        "libraryName": "sqlalchemy",
         "integrationName": "sqlalchemy",
         "autoInstrumented": false,
         "versions": [
@@ -4146,7 +4146,7 @@
         ]
     },
     {
-        "dependencyName": "pysqlite3-binary",
+        "libraryName": "pysqlite3-binary",
         "integrationName": "sqlite3",
         "autoInstrumented": true,
         "versions": [
@@ -4167,7 +4167,7 @@
         ]
     },
     {
-        "dependencyName": "starlette",
+        "libraryName": "starlette",
         "integrationName": "starlette",
         "autoInstrumented": true,
         "versions": [
@@ -4229,7 +4229,7 @@
         ]
     },
     {
-        "dependencyName": "structlog",
+        "libraryName": "structlog",
         "integrationName": "structlog",
         "autoInstrumented": true,
         "versions": [
@@ -4265,7 +4265,7 @@
         ]
     },
     {
-        "dependencyName": "stdlib.subprocess",
+        "libraryName": "stdlib.subprocess",
         "integrationName": "subprocess",
         "autoInstrumented": true,
         "versions": [
@@ -4288,7 +4288,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "tornado",
+        "libraryName": "tornado",
         "integrationName": "tornado",
         "autoInstrumented": false,
         "versions": [
@@ -4335,7 +4335,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "trio",
+        "libraryName": "trio",
         "integrationName": "trio",
         "autoInstrumented": true,
         "versions": [
@@ -4370,7 +4370,7 @@
         ]
     },
     {
-        "dependencyName": "typesafe-sdk",
+        "libraryName": "typesafe-sdk",
         "integrationName": "typesafe",
         "autoInstrumented": true,
         "versions": [
@@ -4401,7 +4401,7 @@
         ]
     },
     {
-        "dependencyName": "stdlib.unittest",
+        "libraryName": "stdlib.unittest",
         "integrationName": "unittest",
         "autoInstrumented": true,
         "versions": [
@@ -4424,7 +4424,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "urllib3",
+        "libraryName": "urllib3",
         "integrationName": "urllib3",
         "autoInstrumented": false,
         "versions": [
@@ -4493,7 +4493,7 @@
         ]
     },
     {
-        "dependencyName": "valkey",
+        "libraryName": "valkey",
         "integrationName": "valkey",
         "autoInstrumented": true,
         "versions": [
@@ -4538,7 +4538,7 @@
         ]
     },
     {
-        "dependencyName": "google-cloud-aiplatform",
+        "libraryName": "google-cloud-aiplatform",
         "integrationName": "vertexai",
         "autoInstrumented": true,
         "versions": [
@@ -4559,7 +4559,7 @@
         ]
     },
     {
-        "dependencyName": "vertexai",
+        "libraryName": "vertexai",
         "integrationName": "vertexai",
         "autoInstrumented": true,
         "versions": [
@@ -4580,7 +4580,7 @@
         ]
     },
     {
-        "dependencyName": "vertica-python",
+        "libraryName": "vertica-python",
         "integrationName": "vertica",
         "autoInstrumented": true,
         "versions": [
@@ -4600,7 +4600,7 @@
         "pinned": true
     },
     {
-        "dependencyName": "vllm",
+        "libraryName": "vllm",
         "integrationName": "vllm",
         "autoInstrumented": true,
         "versions": [
@@ -4632,7 +4632,7 @@
         ]
     },
     {
-        "dependencyName": "yaaredis",
+        "libraryName": "yaaredis",
         "integrationName": "yaaredis",
         "autoInstrumented": true,
         "versions": [
