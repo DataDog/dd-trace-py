@@ -84,7 +84,7 @@ logger = get_logger(__name__)
 
 
 _EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE = "__dd_exposure_lifecycle_state"
-_EXPOSURE_LIFECYCLE_HOOK_DATA = "datadog.exposure_lifecycle_state"
+_EXPOSURE_LIFECYCLE_CONTEXT_STATE = "_datadog_exposure_lifecycle_state"
 _EXPOSURE_SNAPSHOT_MAX_DEPTH = 4
 _EXPOSURE_SNAPSHOT_MAX_ITEMS = 256
 _EXPOSURE_SNAPSHOT_MAX_NODES = 1_280
@@ -157,11 +157,18 @@ class _ExposureFinalizationHook(Hook):
 
     def before(self, hook_context: HookContext, hints: HookHints) -> EvaluationContext:
         state = _PendingExposureBatch()
-        hook_context.hook_data[_EXPOSURE_LIFECYCLE_HOOK_DATA] = state
+        # HookContext gained hook_data after the minimum supported openfeature-sdk
+        # version. The SDK preserves this invocation-specific HookContext through
+        # finally_after in every supported version, and permits private attributes.
+        setattr(hook_context, _EXPOSURE_LIFECYCLE_CONTEXT_STATE, state)
         return EvaluationContext(attributes={_EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE: state})  # type: ignore[dict-item]
 
     def finally_after(self, hook_context: HookContext, details: typing.Any, hints: HookHints) -> None:
-        state = hook_context.hook_data.pop(_EXPOSURE_LIFECYCLE_HOOK_DATA, None)
+        state = getattr(hook_context, _EXPOSURE_LIFECYCLE_CONTEXT_STATE, None)
+        try:
+            delattr(hook_context, _EXPOSURE_LIFECYCLE_CONTEXT_STATE)
+        except AttributeError:
+            pass
         if not isinstance(state, _PendingExposureBatch):
             return
         if details.error_code is not None or details.reason == Reason.ERROR:
@@ -612,6 +619,11 @@ class DataDogProvider(AbstractProvider):
         if not isinstance(state, _PendingExposureBatch):
             return evaluation_context, None
         sanitized = {key: value for key, value in attributes.items() if key != _EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE}
+        # The SDK merge creates a fresh mutable dictionary. Remove the carrier from
+        # that lifecycle context as well as from the provider-facing copy so a later
+        # hook cannot observe Datadog's internal batch object.
+        if type(attributes) is dict:
+            attributes.pop(_EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE, None)
         return EvaluationContext(targeting_key=evaluation_context.targeting_key, attributes=sanitized), state
 
     def _resolve(

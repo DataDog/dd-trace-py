@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import threading
+from types import SimpleNamespace
 from unittest import mock
 
 from openfeature import api
@@ -85,6 +86,14 @@ class _AfterHook(Hook):
             self._barrier.wait(timeout=5)
         if self._fail:
             raise RuntimeError("application hook failed")
+
+
+class _ContextInspectingHook(Hook):
+    def __init__(self):
+        self.attributes = None
+
+    def after(self, hook_context, details, hints):
+        self.attributes = hook_context.evaluation_context.attributes
 
 
 class _DeepcopyBomb(dict):
@@ -198,6 +207,48 @@ def test_staged_exposure_snapshot_preserves_shape_without_dispatching_to_caller_
     assert attributes[0]["nested"] == {"plan": ["pro", {"region": "us"}]}
     assert attributes[0]["wide"] == list(range(256))
     assert "bomb" not in attributes[0]
+
+
+def test_exposure_finalization_supports_hook_context_without_hook_data(evaluated):
+    provider, _, _, exposures, _ = evaluated
+    hook = provider_module._ExposureFinalizationHook(provider)
+    hook_context = SimpleNamespace()
+
+    carrier = hook.before(hook_context, {})
+    merged_context = EvaluationContext(targeting_key="subject", attributes={"plan": "pro"}).merge(carrier)
+    sanitized_context, state = provider._take_exposure_lifecycle_state(merged_context)
+    assert sanitized_context is not None
+    assert sanitized_context.attributes == {"plan": "pro"}
+    assert provider_module._EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE not in merged_context.attributes
+    provider._report_exposure(
+        "root",
+        "true",
+        "root-allocation",
+        sanitized_context,
+        exposure_state=state,
+    )
+    hook.finally_after(hook_context, SimpleNamespace(error_code=None, reason=Reason.STATIC), {})
+
+    assert exposures.call_count == 1
+    assert not hasattr(hook_context, provider_module._EXPOSURE_LIFECYCLE_CONTEXT_STATE)
+
+
+def test_exposure_lifecycle_state_is_removed_from_downstream_hook_context(evaluated):
+    _, client, _, exposures, _ = evaluated
+    assert process_ffe_configuration(create_config(create_boolean_flag("root")))
+    inspecting_hook = _ContextInspectingHook()
+
+    details = client.get_boolean_details(
+        "root",
+        False,
+        EvaluationContext(targeting_key="subject", attributes={"plan": "pro"}),
+        FlagEvaluationOptions(hooks=[inspecting_hook]),
+    )
+
+    assert details.value is True
+    assert exposures.call_count == 1
+    assert inspecting_hook.attributes == {"plan": "pro"}
+    assert provider_module._EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE not in inspecting_hook.attributes
 
 
 def test_after_hook_failure_keeps_dependency_evaluations_but_rolls_back_exposures(evaluated):
