@@ -1070,6 +1070,7 @@ class ai_usage:
             Take the points recorded so far as DogStatsD lines, without newlines.
             """
             ...
+        def take_dogstatsd_datagrams(self, max_payload: int) -> tuple[bytes, int]: ...
 
     # What a provider reported, read by libdd-ai-usage's shared rules. A response dict is
     # {"usage": dict | None, "response_model": str | None, "service_tier": str | None}.
@@ -1094,7 +1095,7 @@ class ai_usage:
     @staticmethod
     def provider_id_attributes(provider_name: str, header: Any) -> dict[str, str]: ...
     @staticmethod
-    def pack_dogstatsd(lines: list[str], max_payload: int, constant_tags: list[str] = ...) -> list[str]: ...
+    def pack_dogstatsd(lines: list[str], max_payload: int, constant_tags: list[str] = ...) -> tuple[list[str], int]: ...
 
 class ffe:
     """

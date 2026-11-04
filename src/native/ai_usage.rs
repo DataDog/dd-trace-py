@@ -214,20 +214,8 @@ pub mod ai_usage {
         let (response, outcome, error) = py.detach(|| {
             let mut stream = libdd_ai_usage::UsageStream::new(format, embeddings);
             for chunk in &owned {
-                // A chunk that is one bare JSON event, as an SDK that already split the stream hands it over, is
-                // read whole: the line limit is for undelimited streams.
-                let event = std::str::from_utf8(chunk)
-                    .ok()
-                    .map(str::trim)
-                    .filter(|text| text.starts_with('{'))
-                    .and_then(|text| Json::parse(text).ok());
-                match event {
-                    Some(event) => stream.event(&event),
-                    None => {
-                        stream.feed(chunk);
-                        stream.feed(b"\n");
-                    }
-                }
+                stream.feed(chunk);
+                stream.feed(b"\n");
             }
             stream.finish()
         });
@@ -283,15 +271,16 @@ pub mod ai_usage {
         )
     }
 
-    /// DogStatsD lines packed into datagrams of at most `max_payload` bytes.
+    /// DogStatsD lines packed into datagrams of at most `max_payload` bytes,
+    /// and the number of lines dropped for being longer than that.
     #[pyfunction]
     #[pyo3(signature = (lines, max_payload, constant_tags=Vec::new()))]
     fn pack_dogstatsd(
         lines: Vec<String>,
         max_payload: usize,
         constant_tags: Vec<String>,
-    ) -> Vec<String> {
-        libdd_ai_usage::pack_dogstatsd(&lines, &constant_tags, max_payload)
+    ) -> (Vec<String>, usize) {
+        libdd_ai_usage::pack_dogstatsd_counted(&lines, &constant_tags, max_payload)
     }
 
     /// A rejected observation: `ValueError(error_code, message)`.
@@ -618,6 +607,29 @@ pub mod ai_usage {
         fn take_dogstatsd(&self, py: Python<'_>) -> PyResult<Vec<String>> {
             let batch = self.take()?;
             py.detach(|| batch.dogstatsd_lines()).map_err(rejected)
+        }
+
+        /// Take the points recorded so far as DogStatsD datagrams of at most
+        /// `max_payload` bytes, NUL-separated in one bytes object, and the
+        /// number of lines dropped for being longer than `max_payload`.
+        fn take_dogstatsd_datagrams<'py>(
+            &self,
+            py: Python<'py>,
+            max_payload: usize,
+        ) -> PyResult<(Bound<'py, PyBytes>, usize)> {
+            let batch = self.take()?;
+            let (text, dropped) = py
+                .detach(|| {
+                    let lines = batch.dogstatsd_lines()?;
+                    Ok(libdd_ai_usage::pack_dogstatsd_joined(
+                        lines.iter().map(String::as_str),
+                        &[] as &[&str],
+                        max_payload,
+                        '\0',
+                    ))
+                })
+                .map_err(rejected)?;
+            Ok((PyBytes::new(py, text.as_bytes()), dropped))
         }
     }
 }

@@ -235,8 +235,9 @@ def test_operation_and_provider_names():
 def test_error_types_are_identifiers():
     assert error_type("RateLimitError") == "rate_limit_error"
     assert error_type("APIConnectionError") == "api_connection_error"
-    # The shared error.type table: a name it does not know is an api_error.
-    assert error_type("ClientDisconnected") == "api_error"
+    # The shared error.type table: a client that left is cancelled, and a name it does not know is an api_error.
+    assert error_type("ClientDisconnected") == "cancelled"
+    assert error_type("SomeOtherError") == "api_error"
     assert error_type(litellm.Timeout("x", "gpt-4o-mini", "openai")) == "timeout_error"
     assert error_type("Timeout") == "timeout_error"
     assert error_type(TimeoutError()) == "timeout_error"
@@ -387,11 +388,10 @@ def test_anthropic_stream_usage_reads_the_raw_events():
         True,
         True,
     )
-    # libdd-ai-usage merges message_start's placeholder output count, so a stream cut between message_delta and
-    # message_stop counts its output as estimated.
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, MESSAGE_DELTA])[:2] == (True, False)
-    # [DONE] ends any stream for libdd-ai-usage.
-    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None, True)
+    # Only message_delta reports the output: a stream cut between it and message_stop still reported its output.
+    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, MESSAGE_DELTA])[:2] == (True, True)
+    # [DONE] ends only OpenAI streams: an Anthropic stream ends with message_stop.
+    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None, False)
     # Generated text that names an event kind is not an event of that kind.
     text = {"type": "text_delta", "text": '{"type": "message_delta", "usage": {"output_tokens": 9}}'}
     delta = "data: " + json.dumps({"type": "content_block_delta", "index": 0, "delta": text})
@@ -597,14 +597,14 @@ def test_client_disconnect(logger, writer):
         0.3, usage={"prompt_tokens": 8, "completion_tokens": 5}, cost=4.2e-6, error_class="ClientDisconnected"
     )
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
-    assert attempt["error_type"] == "api_error"
+    assert attempt["error_type"] == "cancelled"
     assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "api_error"
+    assert request["error_type"] == "cancelled"
     assert request["estimated_cost_usd"] == 4.2e-6
 
 
-@pytest.mark.parametrize("events, attempt_error", [([MESSAGE_STOP], None), ([], "api_error")])
+@pytest.mark.parametrize("events, attempt_error", [([MESSAGE_STOP], None), ([], "cancelled")])
 def test_a_client_that_leaves_after_the_provider_finished(installed, writer, events, attempt_error):
     # The proxy flags a client that closes right after message_stop, before its generator ended, as disconnected.
     # The provider attempt ended as it should; the request keeps the error.
@@ -620,10 +620,10 @@ def test_a_client_that_leaves_after_the_provider_finished(installed, writer, eve
     )
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert attempt.get("error_type") == attempt_error
-    # Without message_stop, libdd-ai-usage cannot tell message_delta's output count from message_start's placeholder.
-    assert attempt["output_tokens"] == 5 and attempt.get("output_token_source") == (None if events else "estimated")
+    # message_delta reported the output, with or without message_stop.
+    assert attempt["output_tokens"] == 5 and attempt.get("output_token_source") is None
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "api_error"
+    assert request["error_type"] == "cancelled"
 
 
 def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(installed, writer):
@@ -639,7 +639,7 @@ def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(instal
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert "error_type" not in attempt
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "api_error"
+    assert request["error_type"] == "cancelled"
 
 
 def test_total_failure_seen_by_the_wrapper(logger, writer):

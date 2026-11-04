@@ -36,7 +36,7 @@ tokio = "1"
 # Random bytes come from our own RNG (see rand.rs), so no getrandom feature.
 uuid = { version = "1", default-features = false }
 libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1", optional = true, features = ["pyo3"] }
-libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "724f33db3bf9486692a8b9bc2255d5f18d65fee8", optional = true, features = ["otlp"] }
+libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "b73ca399b91af26e860d4f0e087505fc36155e69", optional = true, features = ["otlp"] }
 libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1", features = ["one_way_shm_futex"] }
 libdd-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1" }
 libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1", features = [

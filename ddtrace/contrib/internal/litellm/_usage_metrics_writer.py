@@ -49,8 +49,6 @@ SCOPE_NAME = "ddtrace.contrib.litellm"
 # Largest datagram sent to DogStatsD over UDP and over a Unix socket.
 _UDP_MAX_PACKET = 1432
 _UDS_MAX_PACKET = 8192
-# The Agent reads a DogStatsD datagram into an 8 KiB buffer by default, so a longer line would arrive cut.
-_MAX_LINE = 8192
 _SEND_TIMEOUT_SECONDS = 0.1
 _SEND_ATTEMPTS = 20
 
@@ -417,6 +415,21 @@ class _DogStatsdSender:
         self._deadline = deadline
         self._send_lines(lines)
 
+    def send_datagrams(self, datagrams: bytes, dropped: int, deadline: Optional[float] = None) -> None:
+        """Send NUL-separated datagrams as UsageMetrics.take_dogstatsd_datagrams packs them, with the count of lines
+        it dropped for being longer than a datagram, stopping when deadline passes.
+        """
+        self._deadline = deadline
+        self._log_dropped(dropped)
+        if datagrams:
+            for datagram in datagrams.split(b"\0"):
+                self._send_packet(datagram)
+
+    @staticmethod
+    def _log_dropped(dropped: int) -> None:
+        if dropped:
+            log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines longer than a datagram", dropped)
+
     def stop_by(self, deadline: Optional[float]) -> None:
         """Make every send, the one in progress included, stop when deadline, a time.monotonic() value, passes."""
         self._stop_deadline = deadline
@@ -426,42 +439,35 @@ class _DogStatsdSender:
         return any(d is not None and now >= d for d in (self._deadline, self._stop_deadline))
 
     def _send_lines(self, lines: list[str]) -> None:
-        kept = []
-        for line in lines:
-            if len(line.encode("utf-8")) > _MAX_LINE:
-                log.debug(
-                    "LiteLLM usage metrics: dropping a %d-byte DogStatsD line, longer than the Agent reads",
-                    len(line.encode("utf-8")),
-                )
-                continue
-            kept.append(line)
-        for datagram in ai_usage.pack_dogstatsd(kept, self._max_packet):
-            self._send_packet(datagram)
+        # The native packer drops a line longer than a datagram, which the Agent would refuse.
+        datagrams, dropped = ai_usage.pack_dogstatsd(lines, self._max_packet)
+        self._log_dropped(dropped)
+        for datagram in datagrams:
+            self._send_packet(datagram.encode("utf-8"))
 
-    def _send_packet(self, datagram: str) -> None:
-        data = datagram.encode("utf-8")
-        packet = datagram.split("\n")
+    def _send_packet(self, data: bytes) -> None:
+        lines = data.count(b"\n") + 1
         for attempt in range(_SEND_ATTEMPTS):
             # Checked before every attempt: a full buffer makes this loop wait between retries.
             if self._past_deadline():
-                log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
+                log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", lines)
                 return
             try:
                 sock = self._connect()
                 # Resolving the host name is not bounded by the socket timeout and can outlast the deadline.
                 if self._past_deadline():
-                    log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
+                    log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", lines)
                     self.close()
                     return
                 sock.send(data)
                 return
             except OSError as e:
                 if e.errno == errno.EMSGSIZE:
-                    if len(packet) > 1:
+                    if lines > 1:
                         # The socket takes smaller datagrams than assumed (macOS limits Unix datagrams to 2 KiB by
                         # default): send smaller packets from now on.
                         self._max_packet = max(self._max_packet // 2, 512)
-                        self._send_lines(packet)
+                        self._send_lines(data.decode("utf-8").split("\n"))
                     else:
                         log.debug(
                             "LiteLLM usage metrics: dropping a %d-byte DogStatsD line, longer than the socket takes",
@@ -478,7 +484,7 @@ class _DogStatsdSender:
                     "LiteLLM usage metrics: sending to DogStatsD at %s failed (%s); %d lines dropped",
                     self._target,
                     _os_error_name(e),
-                    len(packet),
+                    lines,
                 )
                 log.debug("LiteLLM usage metrics: failed to send a DogStatsD packet", exc_info=True)
                 # A UDP connect succeeds without a listener, so only a failed send shows that an address is wrong.
@@ -604,9 +610,8 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
                     self._enqueue([self._otlp.encode(part) for part in parts])
                 self._send_pending(self._otlp, deadline)
             elif self._dogstatsd is not None:
-                lines = self._usage.take_dogstatsd()
-                if lines:
-                    self._dogstatsd.send(lines, deadline)
+                datagrams, dropped = self._usage.take_dogstatsd_datagrams(self._dogstatsd._max_packet)
+                self._dogstatsd.send_datagrams(datagrams, dropped, deadline)
         except Exception:
             log.debug("LiteLLM usage metrics: export failed", exc_info=True)
         finally:

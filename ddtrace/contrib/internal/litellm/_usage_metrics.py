@@ -465,10 +465,14 @@ def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str], Opti
     """
     response, outcome, _ = ai_usage.parse_provider_stream("anthropic", list(chunks))
     usage = response["usage"] or {}
-    completed = outcome == "completed"
-    # The module merges message_start's placeholder output count, so only a finished stream reported its output.
-    output_reported = completed and "output_tokens" in usage
-    return "input_tokens" in usage, output_reported, response["response_model"], response["service_tier"], completed
+    # message_start's placeholder output count is not reported: only message_delta reports the output.
+    return (
+        "input_tokens" in usage,
+        "output_tokens" in usage,
+        response["response_model"],
+        response["service_tier"],
+        outcome == "completed",
+    )
 
 
 def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str], bool]:
