@@ -5,6 +5,7 @@ import claude_agent_sdk
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import safe_json
@@ -1350,8 +1351,7 @@ class TestLLMObsClaudeAgentSdk:
         include_partial_messages — the client leaves the flag alone and the query() path neither
         forces nor filters, so any partial events reach the caller untouched.
         """
-        integration = claude_agent_sdk._datadog_integration
-        assert integration.llmobs_enabled is False
+        assert LLMObs.enabled is False
 
         # client path: __init__ must not flip the flag on
         client = claude_agent_sdk.ClaudeSDKClient()

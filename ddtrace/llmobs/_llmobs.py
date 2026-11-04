@@ -32,6 +32,7 @@ from ddtrace.ext import net
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal.constants import LLMOBS_ENABLED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -1159,6 +1160,7 @@ class LLMObs(Service):
             cls._instance = cls(tracer=_tracer, span_processor=span_processor)
 
             cls.enabled = True
+            core.root.set_item(LLMOBS_ENABLED_KEY, True)
             # Align config._llmobs_enabled with effective state for user-initiated calls.
             # When _auto=True, the caller (RC handler, env-var auto-start) has already
             # written the appropriate source; stamping "code" would mask it on precedence.
@@ -2021,6 +2023,7 @@ class LLMObs(Service):
             cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=False)
         cls._instance.tracer._span_aggregator.llmobs_processor = _NoopTraceProcessor()
         cls.enabled = False
+        core.root.set_item(LLMOBS_ENABLED_KEY, False)
         # Align config._llmobs_enabled with effective state for user-initiated calls.
         # When _auto=True, the caller (RC handler) has already written _rc_value;
         # stamping "code" here would mask env/code state when _rc_value later clears.

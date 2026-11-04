@@ -2,11 +2,50 @@ from dataclasses import replace
 from typing import Any
 from typing import Optional
 
+from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.internal import core
+from ddtrace.internal.constants import LLMOBS_ENABLED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 
 
 log = get_logger(__name__)
+
+# LLMObs subscribes to shared lifecycle events for this component; see ddtrace/llmobs/_contrib/claude_agent_sdk.
+COMPONENT = "claude_agent_sdk"
+
+
+def llmobs_enabled() -> bool:
+    return bool(core.root.get_item(LLMOBS_ENABLED_KEY))
+
+
+def request_event(
+    span_name: str,
+    resource: str,
+    operation: str,
+    request_kwargs: Optional[dict[str, Any]] = None,
+    instance: Any = None,
+    activate: bool = True,
+) -> LlmRequestEvent:
+    """Build the LlmRequestEvent for one claude_agent_sdk span.
+
+    operation is "query" or "request" for the agent span, otherwise "step", "llm" or "tool".
+    """
+    return LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.claude_agent_sdk,
+        service=int_service(None, config.claude_agent_sdk),
+        resource=resource,
+        span_name=span_name,
+        provider="",
+        submit_to_llmobs=True,
+        request_kwargs=request_kwargs if request_kwargs is not None else {},
+        instance=instance,
+        operation=operation,
+        activate=activate,
+    )
 
 
 # Records whether the caller explicitly passed include_partial_messages at construction. The
