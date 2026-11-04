@@ -68,6 +68,9 @@ discover_branches:
     - job: discover_branches
       artifacts: true
 
+# Space downstream pipelines one hour apart after branch discovery completes.
+# GitLab waits without holding a runner; keep the delay on the trigger jobs so
+# benchmark jobs in downstream branches need no scheduling changes.
 main:
   extends: .trigger_base
   script: |
@@ -75,6 +78,8 @@ main:
 
 main (dependencies unpinned):
   extends: .trigger_base
+  when: delayed
+  start_in: 3 hours
   script: |
     ./trigger-pipeline.sh "${BRANCH_MAIN}"
   variables:
@@ -82,10 +87,14 @@ main (dependencies unpinned):
 
 current minor:
   extends: .trigger_base
+  when: delayed
+  start_in: 1 hour
   script: |
     ./trigger-pipeline.sh "${BRANCH_CURRENT_MINOR}"
 
 previous major:
   extends: .trigger_base
+  when: delayed
+  start_in: 2 hours
   script: |
     ./trigger-pipeline.sh "${BRANCH_PREV_MAJOR}"
