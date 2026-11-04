@@ -66,7 +66,7 @@ gets extended to add support for additional features.
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
-| `skip_exit() -> bool` | Return `True` to skip `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
+| `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
@@ -75,24 +75,24 @@ gets extended to add support for additional features.
 ## Subscriber bundles
 
 Products can group related subscribers with `SubscriberBundle` from
-`ddtrace.internal.products`:
+`ddtrace.internal.core.subscriber`:
 
 ```python
-from ddtrace.internal.products import SubscriberBundle
+from ddtrace.internal.core.subscriber import SubscriberBundle
 
-WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
+REQUEST_SUBSCRIBERS = SubscriberBundle(
     module="example_product.subscribers",
     subscribers=("RequestSubscriber", "RequestContextSubscriber"),
 )
 
 def start():
     # Initialize product state before activating its listeners.
-    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    REQUEST_SUBSCRIBERS.register()
 
 
 def stop(join=False):
     # Drain active work before removing its completion listeners.
-    WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+    REQUEST_SUBSCRIBERS.unregister()
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
