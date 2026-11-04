@@ -2,13 +2,13 @@ from dataclasses import dataclass
 from typing import ClassVar
 from typing import Optional
 
-from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec._iast_context import _get_iast_context_id
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.inferred_spans import is_inferred_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.span_processor import SpanProcessor
 
 from ._iast_env import _get_iast_env
 from ._iast_request_context import _iast_end_request
@@ -20,7 +20,7 @@ log = get_logger(__name__)
 
 
 @dataclass(eq=False)
-class AppSecIastSpanProcessor(SpanProcessor):
+class AppSecIastSpanProcessor(SpanProcessor[SpanData]):
     _instance: ClassVar[Optional["AppSecIastSpanProcessor"]] = None
 
     @classmethod
