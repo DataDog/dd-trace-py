@@ -8,9 +8,12 @@ from aws_durable_execution_sdk_python.retries import create_retry_strategy
 from aws_durable_execution_sdk_python_testing import DurableFunctionTestRunner
 import pytest
 
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _is_dynamic_parent
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_retry_handler
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
 from ddtrace.ext import aws_durable
+from ddtrace.internal import core
 from tests.utils import override_config
 
 
@@ -391,3 +394,40 @@ def test_workflow_failed_status():
 
     with DurableFunctionTestRunner(workflow) as runner:
         runner.run()
+
+
+def test_step_runs_when_current_context_has_no_event(test_spans):
+    """A step started while the current core context carries no event must still run
+    instead of failing with "ExecutionContext has no event" (seen in warm Lambda containers).
+    """
+    calls = []
+
+    def body(step_context):
+        calls.append(True)
+        return "ok"
+
+    @ades.durable_execution
+    def workflow(event, context):
+        # A context created without an event, like the one a later execution in a
+        # warm container can find itself under.
+        with core.context_with_data("test.no_event"):
+            return context.step(body, name="no-event-step")
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+    assert calls == [True]
+    step_span = test_spans.find_span(name=aws_durable.SPAN_STEP)
+    assert step_span.resource == "no-event-step"
+
+
+def test_event_readers_tolerate_missing_event():
+    """The helpers that read the active core event treat "no event" as "no parent"."""
+    with core.context_with_data("test.no_event"):
+        assert _is_dynamic_parent() is False
+
+        try:
+            raise RuntimeError("boom")
+        except RuntimeError as e:
+            error = e
+        assert _traced_retry_handler(lambda err: "handled", None, (error,), {}) == "handled"

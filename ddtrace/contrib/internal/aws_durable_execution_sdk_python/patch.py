@@ -3,6 +3,7 @@ import contextvars
 import functools
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 import aws_durable_execution_sdk_python
 from aws_durable_execution_sdk_python import execution
@@ -170,10 +171,18 @@ def _is_top_level_for_span(operation_executor: OperationExecutor):
     )
 
 
+def _current_event() -> Optional[core.Event]:
+    """Return the active core event, or None when the current context has no event."""
+    try:
+        return core.current.event
+    except AttributeError:
+        return None
+
+
 def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
     """Record checkpoint replay status on the active operation event."""
     if _is_top_level_for_span(instance):
-        event = core.current.event
+        event = _current_event()
         if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
             operation_id = instance.operation_identifier.operation_id
             checkpoint = instance.state.get_checkpoint_result(operation_id)
@@ -208,7 +217,7 @@ def _traced_retry_handler(wrapped: Callable, instance: Any, args: tuple, kwargs:
     """Store retry cause on the active operation event for later use by _trace_with_event."""
     error = get_argument_value(args, kwargs, 0, "error", optional=True)
     if isinstance(error, Exception) and error.__traceback__ is not None:
-        event = core.current.event
+        event = _current_event()
         if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
             event.suspend_cause_exc_info = (type(error), error, error.__traceback__)
     return wrapped(*args, **kwargs)
@@ -216,7 +225,7 @@ def _traced_retry_handler(wrapped: Callable, instance: Any, args: tuple, kwargs:
 
 def _is_dynamic_parent() -> bool:
     """Return True if the active parent event is a map/parallel operation."""
-    parent_event = core.current.event
+    parent_event = _current_event()
     return isinstance(parent_event, AwsDurableOperationEvent) and parent_event.operation in _DYNAMIC_PARENT_OPERATIONS
 
 
