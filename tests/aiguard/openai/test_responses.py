@@ -18,6 +18,8 @@ from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._listener import _with_listed_tools
+from ddtrace.aiguard.integrations._mcp import ApprovalDecision
+from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
@@ -27,6 +29,7 @@ from ddtrace.aiguard.integrations._openai_responses import _mcp_servers_payload
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
 from ddtrace.aiguard.integrations._openai_responses import may_request_mcp_approval
+from ddtrace.aiguard.integrations._openai_responses_streaming import reconstruct_openai_responses
 from ddtrace.internal.settings.aiguard import AIGuardConfig
 from tests.aiguard.openai._span_helpers import assert_block_emits_both_spans
 from tests.aiguard.utils import mock_evaluate_response
@@ -1612,7 +1615,8 @@ def _approval_request(request_id="mcpr_test", server_label="deepwiki", name="ask
     }
 
 
-def test_mcp_approval_requests_become_the_last_assistant_turn(mcp_enabled):
+def test_mcp_approval_requests_join_the_last_assistant_turn(mcp_enabled):
+    """The response's own text stays in the evaluated turn, next to the approval requests."""
     resp = _Item(
         output=[
             _approval_request("mcpr_1"),
@@ -1622,7 +1626,8 @@ def test_mcp_approval_requests_become_the_last_assistant_turn(mcp_enabled):
     )
     servers = _hosted_mcp_servers(MCP_TOOLS)
     result = _convert_openai_response_output(resp, servers)
-    assert result[0] == {"role": "assistant", "content": "Need approval"}
+    (turn,) = result
+    assert turn["content"] == "Need approval"
     assert [tool_call["id"] for tool_call in result[-1]["tool_calls"]] == ["mcpr_1", "mcpr_2"]
     assert [tool_call["mcp"] for tool_call in result[-1]["tool_calls"]] == [{"server_id": DEEPWIKI_ID}] * 2
     assert servers["deepwiki"]["tools"] == {
@@ -2312,7 +2317,9 @@ def test_mcp_secrets_never_reported_from_a_replayed_approval(mock_execute_reques
     with caplog.at_level("DEBUG", logger="ddtrace"):
         _openai_response_create_before(new_ai_guard_client(), kwargs)
 
-    assert _evaluated_attributes(mock_execute_request)["mcp_servers"][0]["url"] == origin
+    # The approval is evaluated first; the user message, still last once approvals are set aside, next.
+    assert mock_execute_request.call_count == 2
+    assert _evaluated_attributes(mock_execute_request, 0)["mcp_servers"][0]["url"] == origin
     reported = _reported_text(mock_execute_request, test_spans, caplog)
     for secret in secrets + _TOOL_CREDENTIALS:
         assert secret not in reported
@@ -2405,3 +2412,138 @@ def test_streamed_reusable_prompt_is_buffered_and_blocked(
     (server,) = _evaluated_attributes(mock_execute_request)["mcp_servers"]
     assert server["id"] == _server_id("name|deepwiki")
     assert "url" not in server
+
+
+# ---------------------------------------------------------------------------
+# Approval requests keep the response and the prompt in their evaluations
+# ---------------------------------------------------------------------------
+
+_FUNCTION_CALL = {"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": '{"q":"x"}'}
+_TEXT = {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Prohibited text"}]}
+
+
+@pytest.mark.parametrize(
+    "item,expected_turn",
+    [
+        (_TEXT, {"role": "assistant", "content": "Prohibited text", "tool_calls": [APPROVAL_TOOL_CALL]}),
+        (
+            _FUNCTION_CALL,
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {"id": "call_1", "function": {"name": "lookup", "arguments": '{"q":"x"}'}},
+                    APPROVAL_TOOL_CALL,
+                ],
+            },
+        ),
+    ],
+    ids=["text", "function_call"],
+)
+@patch(EXECUTE_REQUEST)
+def test_approval_requests_keep_the_response_in_the_evaluated_turn(
+    mock_execute_request, mcp_enabled, item, expected_turn
+):
+    """Custom rules evaluate the last turn, so the response's text or tool calls must stay in it."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    resp = _Item(output=[item, _approval_request()])
+
+    _openai_response_create_after(new_ai_guard_client(), {"input": "Ask deepwiki", "tools": MCP_TOOLS}, resp)
+
+    assert _evaluated_messages(mock_execute_request)[-1] == expected_turn
+
+
+def test_approval_requests_after_a_tool_result_form_their_own_turn(mcp_enabled):
+    resp = _Item(output=[_mcp_call(), _approval_request()])
+
+    result = _convert_openai_response_output(resp, _hosted_mcp_servers(MCP_TOOLS))
+
+    assert result[-2]["role"] == "tool"
+    assert result[-1] == {"role": "assistant", "tool_calls": [APPROVAL_TOOL_CALL]}
+
+
+@pytest.mark.parametrize("approval", ["rejected", "cached_allow"])
+@patch(EXECUTE_REQUEST)
+def test_fresh_prompt_variables_are_evaluated_with_a_replayed_approval(mock_execute_request, mcp_enabled, approval):
+    """Neither a rejected approval nor a cached decision evaluates anything, so the prompt must be."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    if approval == "cached_allow":
+        approval_decisions.record(["mcpr_test"], ApprovalDecision(False, "ALLOW", "", []))
+    kwargs = _continuation(
+        _approval_request(),
+        _approval_response(approve=approval == "cached_allow"),
+        prompt={"id": "pmpt_test", "variables": {"city": "Paris"}},
+    )
+
+    _openai_response_create_before(new_ai_guard_client(), kwargs)
+
+    mock_execute_request.assert_called_once()
+    last = _evaluated_messages(mock_execute_request)[-1]
+    assert last["role"] == "user"
+    assert "Paris" in last["content"]
+
+
+@pytest.mark.parametrize("method", ["create", "parse"])
+@patch(EXECUTE_REQUEST)
+def test_iterable_tools_keep_the_server_url_through_create_and_parse(
+    mock_execute_request, openai_responses_mcp_approval_client, mcp_enabled, method
+):
+    """parse consumes tools and posts directly, bypassing create, so it lists them too."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    getattr(openai_responses_mcp_approval_client.responses, method)(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=iter(MCP_TOOLS)
+    )
+
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["create", "parse"])
+@patch(EXECUTE_REQUEST)
+async def test_iterable_tools_keep_the_server_url_through_async_create_and_parse(
+    mock_execute_request, async_openai_responses_mcp_approval_client, mcp_enabled, method
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    await getattr(async_openai_responses_mcp_approval_client.responses, method)(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=iter(MCP_TOOLS)
+    )
+
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
+@patch(EXECUTE_REQUEST)
+def test_saved_prompt_uses_the_response_tools_for_the_server(mock_execute_request, mcp_enabled):
+    """A saved prompt resolves its tools server-side; the response echoes them with the URL."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    resp = _Item(output=[_approval_request()], tools=MCP_TOOLS)
+
+    _openai_response_create_after(new_ai_guard_client(), {"input": "Ask deepwiki", "prompt": {"id": "p"}}, resp)
+
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
+@patch(EXECUTE_REQUEST)
+def test_saved_prompt_stream_keeps_the_response_tools_for_the_server(mock_execute_request, mcp_enabled):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    created = _Item(type="response.created", response=_Item(tools=MCP_TOOLS, output=[]))
+    completed = _Item(type="response.completed", response=_Item(output=[_approval_request()], tools=None))
+
+    rebuilt = reconstruct_openai_responses([created, completed])
+    _openai_response_create_after(new_ai_guard_client(), {"input": "Ask deepwiki", "prompt": {"id": "p"}}, rebuilt)
+
+    assert rebuilt["tools"] == MCP_TOOLS
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
+def test_streamed_reusable_prompt_is_not_buffered_in_monitor_mode(
+    openai_responses_mcp_approval_stream_client_mcp_buffered,
+):
+    """Without local blocking a verdict cannot stop the stream, so waiting for it only adds latency."""
+    with override_ai_guard_config(dict(_ai_guard_block=False)), patch(EXECUTE_REQUEST) as mock_execute_request:
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        stream = openai_responses_mcp_approval_stream_client_mcp_buffered.responses.create(
+            model=RESPONSES_MODEL, input="Ask deepwiki", prompt={"id": "pmpt_test"}, stream=True
+        )
+
+    assert type(stream).__name__ not in ("BufferedAIGuardStream", "BufferedAIGuardAsyncStream")

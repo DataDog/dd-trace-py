@@ -913,9 +913,10 @@ AI Guard
        verdict and DD_AI_GUARD_BLOCK.
 
        MCP approval requests are evaluated before your application can approve them. Streamed
-       responses of requests whose MCP tools can ask for approval, or that use a reusable prompt,
-       are buffered until that evaluation completes, even when
-       DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off.
+       responses of requests whose MCP tools can ask for approval are buffered until that
+       evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off. So
+       are streamed responses of requests that use a reusable prompt, unless DD_AI_GUARD_BLOCK
+       is false.
        Responses read through ``with_raw_response`` or ``with_streaming_response`` are not evaluated.
 
 Code Security

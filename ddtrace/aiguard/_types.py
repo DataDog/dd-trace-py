@@ -11,6 +11,9 @@ from typing import TypedDict
 from typing import Union
 
 
+Action = Literal["ALLOW", "DENY", "ABORT"]
+
+
 class Function(TypedDict):
     name: str
     arguments: str
@@ -72,7 +75,7 @@ class Message(TypedDict, total=False):
 
 
 class Evaluation(TypedDict):
-    action: Literal["ALLOW", "DENY", "ABORT"]
+    action: Action
     reason: str
     tags: list[str]
     sds: list[Any]

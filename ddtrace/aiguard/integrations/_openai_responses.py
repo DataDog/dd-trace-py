@@ -23,6 +23,7 @@ Completions, so a tenant's AI Guard rules apply uniformly across both APIs.
 from collections.abc import Mapping
 from typing import Any
 from typing import Optional
+from typing import cast
 
 from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
@@ -34,6 +35,7 @@ from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.aiguard._types import Action
 from ddtrace.aiguard.integrations._mcp import ApprovalDecision
 from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.aiguard.integrations._mcp import mcp_reference
@@ -346,7 +348,11 @@ def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
 
 
 def _convert_openai_response_input(
-    instructions: Any, input_: Any, prompt: Any = None, mcp_servers: Optional[dict[str, MCPServer]] = None
+    instructions: Any,
+    input_: Any,
+    prompt: Any = None,
+    mcp_servers: Optional[dict[str, MCPServer]] = None,
+    approval_requests: bool = True,
 ) -> list[Message]:
     """Convert ``instructions`` + ``input`` (+ optional ``prompt``) to AI Guard ``Message`` list.
 
@@ -364,7 +370,8 @@ def _convert_openai_response_input(
       - ``mcp_call`` items → assistant ``tool_calls`` turn AND a ``role="tool"`` follow-up
         carrying the server's output (see ``_mcp_call_messages``).
       - mcp_approval_request items → assistant tool_calls turn, only when mcp_servers is set
-        (DD_AI_GUARD_MCP_ENABLED). mcp_approval_response items carry no content.
+        (DD_AI_GUARD_MCP_ENABLED) and approval_requests is true. mcp_approval_response items carry
+        no content.
       - Items in ``_RESPONSE_SKIPPED_ITEM_TYPES`` are dropped.
       - Unknown / forward-incompatible types are silently dropped (the
         converter fails open so SDK calls don't break on new payload shapes).
@@ -433,7 +440,7 @@ def _convert_openai_response_input(
                 continue
 
             if item_type == "mcp_approval_request":
-                if mcp_servers is not None:
+                if mcp_servers is not None and approval_requests:
                     result.append(_mcp_approval_request_message(item, mcp_servers))
                 continue
 
@@ -461,7 +468,8 @@ def _convert_openai_response_output(resp: Any, mcp_servers: Optional[dict[str, M
     Items in ``_RESPONSE_SKIPPED_ITEM_TYPES`` (``reasoning``, ``mcp_list_tools``)
     are dropped — they are not part of the user-visible conversation.
 
-    With mcp_servers set, mcp_approval_request items form the last assistant turn, the evaluation target.
+    With mcp_servers set, mcp_approval_request items join the last assistant turn, so the response's own
+    text or tool calls stay in the evaluated turn; they form a new turn only after a tool result.
     """
     result: list[Message] = []
     approval_tool_calls: list[ToolCall] = []
@@ -489,7 +497,11 @@ def _convert_openai_response_output(resp: Any, mcp_servers: Optional[dict[str, M
         except Exception:
             logger.debug("Failed to convert OpenAI response output item", exc_info=True)
     if approval_tool_calls:
-        result.append(Message(role="assistant", tool_calls=approval_tool_calls))
+        last = result[-1] if result else None
+        if last is not None and last.get("role") == "assistant":
+            last["tool_calls"] = list(last.get("tool_calls") or []) + approval_tool_calls
+        else:
+            result.append(Message(role="assistant", tool_calls=approval_tool_calls))
     return result
 
 
@@ -528,7 +540,9 @@ def _evaluate_mcp_approvals(
             client, messages, AI_GUARD.INTEGRATION_OPENAI, _mcp_servers_payload(messages, mcp_servers)
         )
     except AIGuardAbortError as e:
-        approval_decisions.record(approval_ids, ApprovalDecision(True, e.action, e.reason, e.tags))
+        # The client raises only for a validated non-ALLOW action; the error itself types it as str.
+        action = cast(Action, e.action)
+        approval_decisions.record(approval_ids, ApprovalDecision(True, action, e.reason, e.tags))
         raise
     decision = ApprovalDecision(False, evaluation["action"], evaluation["reason"], evaluation["tags"])
     approval_decisions.record(approval_ids, decision)
@@ -581,19 +595,26 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
     except Exception:
         logger.debug("Failed to read OpenAI hosted MCP servers", exc_info=True)
         mcp_servers = None
+    if mcp_servers is not None:
+        try:
+            history = _convert_openai_response_input(
+                kwargs.get("instructions"), kwargs.get("input"), prompt=kwargs.get("prompt"), mcp_servers=mcp_servers
+            )
+            _authorize_mcp_approvals(client, kwargs.get("input"), history, mcp_servers)
+        except AIGuardAbortError:
+            raise
+        except Exception:
+            logger.debug("Failed to authorize OpenAI MCP approvals", exc_info=True)
+
+    # Replayed approval requests are history for the approvals above, never the prompt's evaluation
+    # target, so fresh prompt variables or user input stay last and are evaluated whatever the approval.
     messages = _convert_openai_response_input(
         kwargs.get("instructions"),
         kwargs.get("input"),
         prompt=kwargs.get("prompt"),
         mcp_servers=mcp_servers,
+        approval_requests=False,
     )
-    if mcp_servers is not None:
-        try:
-            _authorize_mcp_approvals(client, kwargs.get("input"), messages, mcp_servers)
-        except AIGuardAbortError:
-            raise
-        except Exception:
-            logger.debug("Failed to authorize OpenAI MCP approvals", exc_info=True)
 
     if not messages:
         logger.debug("AI Guard openai responses before-hook skipped: no convertible input messages")
@@ -629,7 +650,11 @@ def _openai_response_create_after(
         return None
 
     try:
-        mcp_servers = _hosted_mcp_servers(kwargs.get("tools"))
+        tools = kwargs.get("tools")
+        if not isinstance(tools, (list, tuple)):
+            # A saved prompt resolves its tools server-side; the response echoes them.
+            tools = _get(resp, "tools")
+        mcp_servers = _hosted_mcp_servers(tools)
         approval_ids = _approval_request_ids(_get(resp, "output")) if mcp_servers is not None else []
     except Exception:
         logger.debug("Failed to read OpenAI hosted MCP servers or approval requests", exc_info=True)
