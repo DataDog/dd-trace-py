@@ -4,7 +4,9 @@ import itertools
 from typing import Optional
 
 from ddtrace.internal import atexit
+from ddtrace.internal import core
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.constants import RUNTIME_METRICS_ENABLED_KEY
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -129,6 +131,7 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance.join(1)
             cls._instance = None
             cls.enabled = False
+            core.root.set_item(RUNTIME_METRICS_ENABLED_KEY, False)
 
     @classmethod
     def enable(
@@ -145,6 +148,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
             cls._instance = runtime_worker
             cls.enabled = True
+            core.root.set_item(RUNTIME_METRICS_ENABLED_KEY, True)
 
     def stop(self, *args, **kwargs) -> None:
         super().stop(*args, **kwargs)
