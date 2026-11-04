@@ -1,6 +1,6 @@
 """AppSec-owned bundles shared by direct and remote activation."""
 
-from ddtrace.internal.products import SubscriberBundle
+from ddtrace.internal.core.subscriber import SubscriberBundle
 from ddtrace.internal.settings.asm import config
 
 
