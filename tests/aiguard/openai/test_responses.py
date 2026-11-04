@@ -17,6 +17,7 @@ import pytest
 from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._listener import _with_listed_tools
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
@@ -2315,3 +2316,92 @@ def test_mcp_secrets_never_reported_from_a_replayed_approval(mock_execute_reques
     reported = _reported_text(mock_execute_request, test_spans, caplog)
     for secret in secrets + _TOOL_CREDENTIALS:
         assert secret not in reported
+
+
+# ---------------------------------------------------------------------------
+# Tools the SDK consumes before AI Guard reads them, and tools held by a stored prompt
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "tools,listed",
+    [
+        (iter(MCP_TOOLS), MCP_TOOLS),
+        ((tool for tool in MCP_TOOLS), MCP_TOOLS),
+    ],
+    ids=["iterator", "generator"],
+)
+def test_iterable_tools_are_listed_once(tools, listed):
+    kwargs = {"model": RESPONSES_MODEL, "tools": tools}
+
+    normalized = _with_listed_tools(kwargs)
+
+    assert normalized["tools"] == listed
+    assert normalized is not kwargs
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"model": RESPONSES_MODEL}, {"tools": None}, {"tools": MCP_TOOLS}, {"tools": tuple(MCP_TOOLS)}],
+    ids=["no_tools", "none", "list", "tuple"],
+)
+def test_listed_tools_are_left_alone(kwargs):
+    assert _with_listed_tools(kwargs) is kwargs
+
+
+@patch(EXECUTE_REQUEST)
+def test_streamed_mcp_approval_request_with_iterable_tools_is_blocked(
+    mock_execute_request, openai_responses_mcp_approval_stream_client_mcp_buffered
+):
+    """The SDK accepts any iterable of tools; an iterator it consumed first must not skip the check."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    stream = openai_responses_mcp_approval_stream_client_mcp_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=iter(MCP_TOOLS), stream=True
+    )
+    seen = []
+    with pytest.raises(AIGuardAbortError):
+        for event in stream:
+            seen.append(event)
+
+    assert seen == []
+    assert mock_execute_request.call_count == 2
+    # The tools were read before the SDK consumed them, so the server keeps its URL origin.
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
+@patch(EXECUTE_REQUEST)
+def test_mcp_approval_request_with_iterable_tools_reports_the_server_url(
+    mock_execute_request, openai_responses_mcp_approval_client, mcp_enabled
+):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    resp = openai_responses_mcp_approval_client.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", tools=iter(MCP_TOOLS)
+    )
+
+    assert resp.output[-1].type == "mcp_approval_request"
+    assert _evaluated_attributes(mock_execute_request)["mcp_servers"] == [DEEPWIKI_SERVER]
+
+
+@patch(EXECUTE_REQUEST)
+def test_streamed_reusable_prompt_is_buffered_and_blocked(
+    mock_execute_request, openai_responses_mcp_approval_stream_client_mcp_buffered
+):
+    """A stored prompt can configure hosted MCP tools without a tools argument."""
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    stream = openai_responses_mcp_approval_stream_client_mcp_buffered.responses.create(
+        model=RESPONSES_MODEL, input="Ask deepwiki", prompt={"id": "pmpt_test"}, stream=True
+    )
+    seen = []
+    with pytest.raises(AIGuardAbortError):
+        for event in stream:
+            seen.append(event)
+
+    assert seen == []
+    assert mock_execute_request.call_count == 2
+    # Without tools, only the label identifies the server.
+    (server,) = _evaluated_attributes(mock_execute_request)["mcp_servers"]
+    assert server["id"] == _server_id("name|deepwiki")
+    assert "url" not in server

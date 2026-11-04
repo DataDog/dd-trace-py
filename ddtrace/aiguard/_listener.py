@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from collections.abc import Mapping
 from collections.abc import Sequence
 from functools import partial
@@ -126,6 +127,16 @@ def _openai_listen(client: AIGuardClient) -> None:
     core.on("openai.unpatch", _uninstall_openai_wrappers)
 
 
+def _with_listed_tools(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """kwargs with an iterable tools argument turned into a list, so the SDK and every AI Guard hook
+    see the same tools instead of an iterator the SDK consumes first.
+    """
+    tools = kwargs.get("tools")
+    if tools is None or isinstance(tools, (list, tuple, str, bytes, Mapping)) or not isinstance(tools, Iterable):
+        return kwargs
+    return {**kwargs, "tools": list(tools)}
+
+
 def _make_openai_stream_wrappers(
     client: AIGuardClient,
     reconstruct: Callable[..., Any],
@@ -161,9 +172,11 @@ def _make_openai_stream_wrappers(
         return BufferedAIGuardStream(result, reconstruct=reconstruct, evaluate=evaluate, enabled=enabled)
 
     def sync_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+        kwargs = _with_listed_tools(kwargs)
         return wrap_stream(func(*args, **kwargs), kwargs, is_async=False)
 
     async def async_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+        kwargs = _with_listed_tools(kwargs)
         return wrap_stream(await func(*args, **kwargs), kwargs, is_async=True)
 
     return sync_wrapper, async_wrapper
@@ -207,7 +220,8 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
             client,
             reconstruct_openai_responses,
             partial(_openai_response_create_after, approvals_only=True),
-            should_buffer=lambda kwargs: may_request_mcp_approval(kwargs.get("tools")),
+            # A reusable prompt can configure hosted MCP tools without a tools argument.
+            should_buffer=lambda kwargs: bool(kwargs.get("prompt")) or may_request_mcp_approval(kwargs.get("tools")),
             enabled=_mcp_enabled,
         )
     targets += [("responses.Responses", "create", resp_sync), ("responses.AsyncResponses", "create", resp_async)]
