@@ -139,7 +139,7 @@ def resolve_supported_range(
     """Resolve the supported range for a dependency from an integration's declaration.
 
     ``_supported_versions`` is keyed by import/module name, which does not always match
-    the distribution name used as ``dependencyName`` (e.g. ``psycopg2`` vs
+    the distribution name used as ``libraryName`` (e.g. ``psycopg2`` vs
     ``psycopg2-binary``, or a stdlib module vs its ``stdlib.*`` entry). We match by
     normalized name, then by longest shared-prefix match (which pairs distribution
     variants like ``psycopg2-binary`` with ``psycopg2`` without matching unrelated
@@ -388,7 +388,7 @@ def build_supported_versions_entries(
                 continue
 
             entry: dict[str, object] = {
-                "dependencyName": dependency_name,
+                "libraryName": dependency_name,
                 "integrationName": integration_name,
                 "autoInstrumented": is_auto_instrumented_package(integration_name),
                 "versions": build_versions(tested_versions, supported_range),
@@ -411,7 +411,7 @@ def build_supported_versions_entries(
             + "\n".join(f"  - {missing}" for missing in missing_ranges)
         )
 
-    return sorted(entries, key=lambda entry: (entry["integrationName"], entry["dependencyName"]))
+    return sorted(entries, key=lambda entry: (entry["integrationName"], entry["libraryName"]))
 
 
 def main() -> None:
