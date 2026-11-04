@@ -3,6 +3,8 @@ import json
 import logging
 import socket
 from types import SimpleNamespace
+from urllib.parse import parse_qs
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -233,25 +235,29 @@ def test_api_key_header_present_and_absent(harness):
     [
         ((), None),
         (("unknown-feature-v1",), None),
-        (("dependent-flag-variant-key-v1",), "dependent-flag-variant-key-v1"),
+        (("dependent-flag-variant-key-v1",), "v1"),
     ],
 )
-def test_evaluator_capability_header_on_initial_and_conditional_requests(harness, monkeypatch, capabilities, expected):
+def test_evaluator_capability_parameter_on_initial_and_conditional_requests(harness, monkeypatch, capabilities, expected):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
-    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)])
+    endpoint = ENDPOINT + "&token=preserved"
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)], endpoint=endpoint)
     src.periodic()
     src.periodic()
 
     assert len(src._requests) == 2
     for request in src._requests:
-        assert request["headers"].get("X-DD-FEATURE-FLAGS-CAPABILITIES") == expected
+        query = parse_qs(urlsplit(request["target"]).query)
+        assert query.get("cap_dependent-flags-variant-key", [None])[0] == expected
+        assert query["token"] == ["preserved"]
     assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
 
 
-def test_missing_native_capability_reporter_omits_header(harness, monkeypatch):
+def test_missing_native_capability_reporter_omits_parameter(harness, monkeypatch):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
     src = harness([_FakeResponse(200, _ufc_body())])
     src.periodic()
+    assert "cap_dependent-flags-variant-key" not in parse_qs(urlsplit(src._requests[0]["target"]).query)
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
 
 
@@ -266,6 +272,7 @@ def test_raising_capability_reporter_advertises_nothing(harness, monkeypatch):
     src._start_service()
     src.periodic()
     assert len(src._requests) == 1
+    assert "cap_dependent-flags-variant-key" not in parse_qs(urlsplit(src._requests[0]["target"]).query)
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
     assert len(src._applied) == 1
 
@@ -460,15 +467,15 @@ def test_debug_logs_malformed_payload_reason(harness, caplog):
     ids=["managed", "custom"],
 )
 @pytest.mark.parametrize(
-    "capabilities,capabilities_header",
+    "capabilities,capability_parameter",
     [
         ((), "not sent"),
         (("unknown-feature-v1",), "not sent"),
-        (("dependent-flag-variant-key-v1",), "dependent-flag-variant-key-v1"),
+        (("dependent-flag-variant-key-v1",), "v1"),
     ],
 )
 def test_debug_logs_effective_settings_on_start(
-    harness, caplog, monkeypatch, endpoint, api_key, requested_env, api_key_header, capabilities, capabilities_header
+    harness, caplog, monkeypatch, endpoint, api_key, requested_env, api_key_header, capabilities, capability_parameter
 ):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
     src = harness([_FakeResponse(304)], api_key=api_key, env="prod", endpoint=endpoint)
@@ -479,7 +486,7 @@ def test_debug_logs_effective_settings_on_start(
 
     assert (
         f"Feature Flags: agentless configuration source settings: sdk_env=prod, requested_env={requested_env}, "
-        f"DD-API-KEY header {api_key_header}, capabilities header {capabilities_header}, "
+        f"DD-API-KEY header {api_key_header}, cap_dependent-flags-variant-key query parameter {capability_parameter}, "
         "poll interval 30.0s, request timeout 5.0s"
     ) in _debug_messages(caplog)
     assert "secret" not in caplog.text

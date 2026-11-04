@@ -13,6 +13,8 @@ from http.server import HTTPServer
 import json
 import threading
 from unittest import mock
+from urllib.parse import parse_qs
+from urllib.parse import urlsplit
 
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
@@ -32,7 +34,6 @@ from tests.openfeature.config_helpers import create_config
 from tests.utils import override_global_config
 
 
-_CAPABILITY_HEADER = "X-DD-FEATURE-FLAGS-CAPABILITIES"
 _CONTEXT = EvaluationContext(targeting_key="subject-1", attributes={"plan": "premium"})
 
 
@@ -99,12 +100,13 @@ class _ConfigurationEndpoint:
                 self.wfile.write(payload)
 
             def do_GET(self):
-                if self.path != "/ufc":
+                request_url = urlsplit(self.path)
+                if request_url.path != "/ufc":
                     self._send({"endpoints": ["/v0.7/config"]})
                     return
-                token = self.headers.get(_CAPABILITY_HEADER, "")
-                supported = DEPENDENT_FLAG_VARIANT_KEY_V1 in token.split(",")
-                endpoint.requests.append({"header": token})
+                parameter = parse_qs(request_url.query).get("cap_dependent-flags-variant-key", [None])[0]
+                supported = parameter == "v1"
+                endpoint.requests.append({"parameter": parameter})
                 config, variant = endpoint.selected(supported)
                 etag = f'"{endpoint.version}-{variant}"'
                 if self.headers.get("If-None-Match") == etag:
@@ -236,7 +238,7 @@ def test_capability_advertisement_delivers_evaluable_dependencies(delivery, prov
     assert sorted(_exposed(writer)) == ["child", "parent"]
     assert _evaluated(instance) == ["parent"]
     if delivery.transport == "agentless":
-        assert delivery.requests[-1]["header"] == DEPENDENT_FLAG_VARIANT_KEY_V1
+        assert delivery.requests[-1]["parameter"] == "v1"
     else:
         raw = delivery.requests[-1]["client"]["capabilities"]
         raw = base64.b64decode(raw) if isinstance(raw, str) else bytes(raw)
