@@ -22,6 +22,8 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from urllib.parse import parse_qs
+from urllib.parse import parse_qsl
+from urllib.parse import urlencode
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -90,10 +92,9 @@ def _describe_error(error: BaseException) -> str:
     return f"{name}: {message}" if message else name
 
 
-def _capabilities_header() -> Optional[str]:
-    """Return the capability header value, or None when nothing may be advertised."""
+def _dependent_flags_variant_key_parameter() -> Optional[str]:
     if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-        return DEPENDENT_FLAG_VARIANT_KEY_V1
+        return "v1"
     return None
 
 
@@ -153,7 +154,8 @@ class AgentlessConfigurationSource(PeriodicService):
         # must carry it.
         parts = urlsplit(endpoint)
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
-        self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
+        self._request_path = parts.path
+        self._request_query = parts.query
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
@@ -187,11 +189,12 @@ class AgentlessConfigurationSource(PeriodicService):
         self._stopping = False
         log.debug(
             "Feature Flags: agentless configuration source settings: sdk_env=%s, requested_env=%s, "
-            "DD-API-KEY header %s, capabilities header %s, poll interval %.1fs, request timeout %.1fs",
+            "DD-API-KEY header %s, dependent-flags-variant-key query parameter %s, "
+            "poll interval %.1fs, request timeout %.1fs",
             self._env or "unset",
             self._requested_env or "not sent",
             "sent" if self._api_key else "not sent",
-            _capabilities_header() or "not sent",
+            _dependent_flags_variant_key_parameter() or "not sent",
             self.interval,
             self._request_timeout,
         )
@@ -319,15 +322,22 @@ class AgentlessConfigurationSource(PeriodicService):
 
     # -- request ------------------------------------------------------------
 
+    def _request_target(self) -> str:
+        parameter = _dependent_flags_variant_key_parameter()
+        if parameter is None:
+            return urlunsplit(("", "", self._request_path, self._request_query, "")) or "/"
+
+        query = parse_qsl(self._request_query, keep_blank_values=True)
+        query = [(name, value) for name, value in query if name != "dependent-flags-variant-key"]
+        query.append(("dependent-flags-variant-key", parameter))
+        return urlunsplit(("", "", self._request_path, urlencode(query), "")) or "/"
+
     def _headers(self) -> "dict[str, str]":
         headers = {
             "Accept-Encoding": "gzip",
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
-        capabilities = _capabilities_header()
-        if capabilities:
-            headers["X-DD-FEATURE-FLAGS-CAPABILITIES"] = capabilities
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
         if self._etag:
@@ -348,7 +358,7 @@ class AgentlessConfigurationSource(PeriodicService):
                 self._in_flight_conn = conn
             # Suppress self-tracing: no HTTP span, no trace-header injection.
             setattr(conn, _HTTPLIB_NO_TRACE_REQUEST, True)
-            conn.request("GET", self._request_target, None, self._headers())
+            conn.request("GET", self._request_target(), None, self._headers())
             resp = conn.getresponse()
             body = resp.read()
             return _PollResponse(
