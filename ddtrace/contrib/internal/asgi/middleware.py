@@ -10,8 +10,7 @@ from urllib import parse
 from ddtrace import config
 from ddtrace._trace.http_tags import set_status_code_tag
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib._events.web_request import WebRequestCompleting
-from ddtrace.contrib._events.web_request import WebRequestReady
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
@@ -73,6 +72,8 @@ config._add(
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
 _DD_ROUTE_RESOURCE_RESOLVER = "route_resource_resolver"
+_SPAN_STARTED_EVENT = f"{SpanLifecycleEvents.SPAN_STARTED.value}.asgi.request"
+_SPAN_FINISHING_EVENT = f"{SpanLifecycleEvents.SPAN_FINISHING.value}.asgi.request"
 
 
 def get_version() -> str:
@@ -302,11 +303,13 @@ class TraceMiddleware:
         ):
             completing: Optional[Callable[[], None]] = None
             if scope["type"] == "http" and not is_subapp:
-                if core.has_listeners(WebRequestCompleting.event_name):
-                    cleanup.callback(core.dispatch_event, WebRequestCompleting(ctx, span))
+                # Keep the existing ASGI lifecycle owner. Finishing can run from
+                # response sending in another task, so carry this request's context.
+                if core.has_listeners(_SPAN_FINISHING_EVENT):
+                    cleanup.callback(core.dispatch, _SPAN_FINISHING_EVENT, (ctx,))
                     completing = cleanup.close
-                if core.has_listeners(WebRequestReady.event_name):
-                    core.dispatch_event(WebRequestReady(ctx, span))
+                if core.has_listeners(_SPAN_STARTED_EVENT):
+                    core.dispatch(_SPAN_STARTED_EVENT, (ctx,))
             if self.span_modifier:
                 self.span_modifier(span, scope)
 

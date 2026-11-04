@@ -15,8 +15,6 @@ from ddtrace import config
 from ddtrace.appsec._iast import _request_lifecycle as lifecycle
 from ddtrace.appsec._iast import processor as module
 from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-from ddtrace.contrib._events.web_request import WebRequestCompleting
-from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal.settings.asm import config as asm_config
@@ -36,7 +34,7 @@ def active_context(identifier, integration, protocol="http"):
 def processor(monkeypatch):
     monkeypatch.setattr(asm_config, "_iast_enabled", True)
     monkeypatch.setattr(
-        core, "has_listeners", lambda event: event in (WebRequestReady.event_name, WebRequestCompleting.event_name)
+        core, "has_listeners", lambda event: event in ("span.started.asgi.request", "span.finishing.asgi.request")
     )
     return AppSecIastSpanProcessor()
 
@@ -58,7 +56,7 @@ def test_request_route_survives_context_exit_and_processor_replacement(
     monkeypatch.setattr(
         core,
         "has_listeners",
-        lambda event: listening and event in (WebRequestReady.event_name, WebRequestCompleting.event_name),
+        lambda event: listening and event in ("span.started.asgi.request", "span.finishing.asgi.request"),
     )
     with (
         mock.patch.object(module, "_iast_start_request", return_value=None) as start,
@@ -71,7 +69,7 @@ def test_request_route_survives_context_exit_and_processor_replacement(
             processor.on_span_start(span)
             span_bus.store_span_on_context(ctx, span)
             if listening:
-                lifecycle.IastRequestReadySubscriber.on_event(WebRequestReady(ctx, span))
+                lifecycle.IastRequestStartedSubscriber.on_event(ctx)
             child = Span("manual.web", span_type="web")
             processor.on_span_start(child)
             processor.on_span_finish(child)
@@ -79,7 +77,7 @@ def test_request_route_survives_context_exit_and_processor_replacement(
         # Completion does not depend on the current scope or mutable component tag.
         span.set_tag("component", "fastapi")
         if listening:
-            lifecycle.IastRequestCompletingSubscriber.on_event(WebRequestCompleting(ctx, span))
+            lifecycle.IastRequestFinishingSubscriber.on_event(ctx)
         AppSecIastSpanProcessor().on_span_finish(span)
         expected_legacy_calls = [] if migrated else [mock.call(span)]
         assert start.call_args_list == expected_legacy_calls + [mock.call(child)]

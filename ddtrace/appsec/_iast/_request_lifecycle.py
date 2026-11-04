@@ -10,12 +10,12 @@ from weakref import WeakKeyDictionary
 
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
-from ddtrace.contrib._events.web_request import WebRequestCompleting
-from ddtrace.contrib._events.web_request import WebRequestReady
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.internal import core
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.span_bus import span_from_context
 
 
 _EVENT_MANAGED_REQUESTS: dict[str, frozenset[str]] = {"asgi.request": frozenset({"fastapi"})}
@@ -31,8 +31,8 @@ def uses_request_events(ctx: core.ExecutionContext[Event], span: SpanData) -> bo
     if not (
         getattr(integration, "integration_name", None) in integrations
         and ctx.get_item("scope", {}).get("type") == "http"
-        and core.has_listeners(WebRequestReady.event_name)
-        and core.has_listeners(WebRequestCompleting.event_name)
+        and core.has_listeners(f"{SpanLifecycleEvents.SPAN_STARTED.value}.{ctx.identifier}")
+        and core.has_listeners(f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{ctx.identifier}")
     ):
         return False
     # Start runs before binding; later manual WEB spans stay with the processor.
@@ -40,21 +40,27 @@ def uses_request_events(ctx: core.ExecutionContext[Event], span: SpanData) -> bo
     return bound_span is None or bound_span is span
 
 
-class IastRequestReadySubscriber(Subscriber):
+class IastRequestStartedSubscriber(Subscriber):
     auto_register = False
-    event_names = (WebRequestReady.event_name,)
+    event_names = tuple(
+        f"{SpanLifecycleEvents.SPAN_STARTED.value}.{identifier}" for identifier in _EVENT_MANAGED_REQUESTS
+    )
 
     @classmethod
-    def on_event(cls, event: WebRequestReady) -> None:
-        if event.span in _SPAN_ROUTES:
-            _iast_start_request(event.span)
+    def on_event(cls, ctx: core.ExecutionContext[Event]) -> None:
+        span = span_from_context(ctx)
+        if span in _SPAN_ROUTES:
+            _iast_start_request(span)
 
 
-class IastRequestCompletingSubscriber(Subscriber):
+class IastRequestFinishingSubscriber(Subscriber):
     auto_register = False
-    event_names = (WebRequestCompleting.event_name,)
+    event_names = tuple(
+        f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{identifier}" for identifier in _EVENT_MANAGED_REQUESTS
+    )
 
     @classmethod
-    def on_event(cls, event: WebRequestCompleting) -> None:
-        if event.span in _SPAN_ROUTES:
-            _iast_end_request(event.span, context=event.ctx)
+    def on_event(cls, ctx: core.ExecutionContext[Event]) -> None:
+        span = span_from_context(ctx)
+        if span in _SPAN_ROUTES:
+            _iast_end_request(span, context=ctx)

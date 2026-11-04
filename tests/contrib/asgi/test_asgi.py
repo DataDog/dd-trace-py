@@ -20,14 +20,13 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
-from ddtrace.contrib._events.web_request import WebRequestCompleting
-from ddtrace.contrib._events.web_request import WebRequestReady
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -1050,18 +1049,22 @@ async def _send_complete_http_response(
 def request_events():
     events = []
 
-    def record(event):
-        assert event.ctx.get_item("_inner_span") is event.span
-        assert not event.span.finished
-        if isinstance(event, WebRequestReady):
-            assert core.current is event.ctx
-        events.append(event)
+    def record(event_name, ctx):
+        span = span_from_context(ctx)
+        assert not span.finished
+        if event_name == "span.started.asgi.request":
+            assert core.current is ctx
+        events.append((event_name, ctx, span))
 
-    for event_type in (WebRequestReady, WebRequestCompleting):
-        core.on(event_type.event_name, record)
+    listeners = {
+        event_name: partial(record, event_name)
+        for event_name in ("span.started.asgi.request", "span.finishing.asgi.request")
+    }
+    for event_name, listener in listeners.items():
+        core.on(event_name, listener)
     yield events
-    for event_type in (WebRequestReady, WebRequestCompleting):
-        core.reset_listeners(event_type.event_name, record)
+    for event_name, listener in listeners.items():
+        core.reset_listeners(event_name, listener)
 
 
 @pytest.mark.asyncio
@@ -1126,9 +1129,12 @@ async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, reque
         assert send.call_args_list[0].args[0]["status"] == (403 if outcome.startswith("blocked") else 200)
 
     assert len(requests) == 3
-    assert [type(event) for event in request_events] == [WebRequestReady, WebRequestCompleting]
-    assert request_events[0].ctx is request_events[1].ctx
-    assert request_events[0].span is request_events[1].span is requests[0]
+    assert [event_name for event_name, _, _ in request_events] == [
+        "span.started.asgi.request",
+        "span.finishing.asgi.request",
+    ]
+    assert request_events[0][1] is request_events[1][1]
+    assert request_events[0][2] is request_events[1][2] is requests[0]
     assert finished == requests[::-1]
     assert all(child._parent is parent for parent, child in zip(requests, requests[1:]))
     assert not scope["datadog"]["request_spans"]
@@ -1186,7 +1192,10 @@ async def test_blocked_response_send_error_recorded_before_finish(tracer, reques
         assert error == 1
         assert error_type.endswith(exc_type.__name__)
         assert error_message == "blocked response send failed"
-    assert [type(event) for event in request_events] == [WebRequestReady, WebRequestCompleting]
+    assert [event_name for event_name, _, _ in request_events] == [
+        "span.started.asgi.request",
+        "span.finishing.asgi.request",
+    ]
     assert not scope["datadog"]["request_spans"]
     assert not scope["datadog"].get("request_spans_to_finish")
 

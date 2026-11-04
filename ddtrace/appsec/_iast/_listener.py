@@ -22,8 +22,8 @@ from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._langchain import _on_langchain_patch
 from ddtrace.appsec._iast._langchain import _on_langchain_unpatch
 from ddtrace.appsec._iast._langchain import langchain_listen
-from ddtrace.appsec._iast._request_lifecycle import IastRequestCompletingSubscriber
-from ddtrace.appsec._iast._request_lifecycle import IastRequestReadySubscriber
+from ddtrace.appsec._iast._request_lifecycle import IastRequestFinishingSubscriber
+from ddtrace.appsec._iast._request_lifecycle import IastRequestStartedSubscriber
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
 from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_sql_patch
 from ddtrace.internal import core
@@ -40,8 +40,8 @@ def iast_instrumentation_listen() -> None:
 
 def iast_listen() -> None:
     iast_instrumentation_listen()
-    IastRequestReadySubscriber.register()
-    IastRequestCompletingSubscriber.register()
+    IastRequestStartedSubscriber.register()
+    IastRequestFinishingSubscriber.register()
 
     def _iast_context_end(
         ctx: core.ExecutionContext,
