@@ -11,9 +11,35 @@ pub mod ffe {
 
     use libdd_ffe::rules_based as ffe;
     use libdd_ffe::rules_based::{
-        get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
-        EvaluationError, Str, UniversalFlagConfig,
+        now, Assignment, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
+        EvaluationError, EvaluationOptions, Str, UniversalFlagConfig,
     };
+
+    /// UFC extensions supported by both the linked evaluator and this binding,
+    /// including dependency error propagation and ordered exposure replay.
+    #[pyfunction]
+    fn get_evaluator_capabilities() -> Vec<&'static str> {
+        vec!["dependent-flag-variant-key-v1"]
+    }
+
+    #[derive(Clone)]
+    #[pyclass(frozen, skip_from_py_object)]
+    struct DependencyEvaluation {
+        #[pyo3(get)]
+        flag_key: Str,
+        #[pyo3(get)]
+        variant: Option<Str>,
+        #[pyo3(get)]
+        allocation_key: Option<Str>,
+        #[pyo3(get)]
+        serial_id: Option<i64>,
+        #[pyo3(get)]
+        error_code: Option<ErrorCode>,
+        #[pyo3(get)]
+        reason: Option<Reason>,
+        #[pyo3(get)]
+        do_log: bool,
+    }
 
     #[pyclass(frozen)]
     #[pyo3(name = "Configuration")]
@@ -55,6 +81,10 @@ pub mod ffe {
         // assignment field is Option<i32>; cast to i64 to match the Python stub.
         #[pyo3(get)]
         serial_id: Option<i64>,
+        #[pyo3(get)]
+        dependency_evaluations: Vec<DependencyEvaluation>,
+        #[pyo3(get)]
+        exposure_trace: Vec<Str>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -131,36 +161,69 @@ pub mod ffe {
                 }
             };
 
-            let assignment = get_assignment(
-                Some(&self.inner),
+            let evaluation = self.inner.eval_flag_with_trace(
                 flag_key,
                 &context,
                 expected_type.into(),
                 now(),
+                EvaluationOptions::default(),
             );
-
-            let result = match assignment {
-                Ok(assignment) => ResolutionDetails {
-                    value: Some(assignment.value),
-                    error_code: None,
-                    error_message: None,
-                    reason: Some(assignment.reason.into()),
-                    variant: Some(assignment.variation_key),
-                    allocation_key: Some(assignment.allocation_key.clone()),
-                    flag_metadata: [("allocation_key".into(), assignment.allocation_key)]
-                        .into_iter()
-                        .collect(),
-                    do_log: assignment.do_log,
-                    serial_id: assignment.serial_id.map(|id| id as i64),
-                },
+            let mut result = match evaluation.result {
+                Ok(assignment) => ResolutionDetails::from_assignment(assignment),
                 Err(err) => err.into(),
             };
+            result.dependency_evaluations = evaluation
+                .evaluations
+                .into_iter()
+                .map(|record| {
+                    let details = match record.result {
+                        Ok(assignment) => ResolutionDetails::from_assignment(assignment),
+                        // A reached prerequisite must produce an assignment. Unlike a
+                        // direct evaluation, disabled/unassigned prerequisites are errors.
+                        Err(
+                            EvaluationError::FlagDisabled | EvaluationError::DefaultAllocationNull,
+                        ) => ResolutionDetails::error(
+                            ErrorCode::General,
+                            "prerequisite has no assignment",
+                        ),
+                        Err(err) => err.into(),
+                    };
+                    DependencyEvaluation {
+                        flag_key: record.flag_key,
+                        variant: details.variant,
+                        allocation_key: details.allocation_key,
+                        serial_id: details.serial_id,
+                        error_code: details.error_code,
+                        reason: details.reason,
+                        do_log: details.do_log,
+                    }
+                })
+                .collect();
+            result.exposure_trace = evaluation.exposure_trace;
 
             Ok(result)
         }
     }
 
     impl ResolutionDetails {
+        fn from_assignment(assignment: Assignment) -> ResolutionDetails {
+            ResolutionDetails {
+                value: Some(assignment.value),
+                error_code: None,
+                error_message: None,
+                reason: Some(assignment.reason.into()),
+                variant: Some(assignment.variation_key),
+                allocation_key: Some(assignment.allocation_key.clone()),
+                flag_metadata: [("allocation_key".into(), assignment.allocation_key)]
+                    .into_iter()
+                    .collect(),
+                do_log: assignment.do_log,
+                serial_id: assignment.serial_id.map(i64::from),
+                dependency_evaluations: Vec::new(),
+                exposure_trace: Vec::new(),
+            }
+        }
+
         fn empty(reason: impl Into<Reason>) -> ResolutionDetails {
             ResolutionDetails {
                 value: None,
@@ -172,6 +235,8 @@ pub mod ffe {
                 flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
+                dependency_evaluations: Vec::new(),
+                exposure_trace: Vec::new(),
             }
         }
 
@@ -186,6 +251,8 @@ pub mod ffe {
                 flag_metadata: HashMap::new(),
                 do_log: false,
                 serial_id: None,
+                dependency_evaluations: Vec::new(),
+                exposure_trace: Vec::new(),
             }
         }
     }
@@ -193,6 +260,22 @@ pub mod ffe {
     impl From<EvaluationError> for ResolutionDetails {
         fn from(value: EvaluationError) -> ResolutionDetails {
             match value {
+                EvaluationError::DependencyEvaluationFailed { source, .. } => match *source {
+                    EvaluationError::FlagDisabled | EvaluationError::DefaultAllocationNull => {
+                        ResolutionDetails::error(
+                            ErrorCode::General,
+                            "prerequisite has no assignment",
+                        )
+                    }
+                    source => {
+                        let mut details = ResolutionDetails::from(source);
+                        details.reason = Some(Reason::Error);
+                        if details.error_code.is_none() {
+                            details.error_code = Some(ErrorCode::General);
+                        }
+                        details
+                    }
+                },
                 EvaluationError::TypeMismatch { expected, found } => ResolutionDetails::error(
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),

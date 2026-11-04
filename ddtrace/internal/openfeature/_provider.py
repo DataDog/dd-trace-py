@@ -21,6 +21,9 @@ from openfeature.exception import ProviderNotReadyError
 from openfeature.flag_evaluation import FlagResolutionDetails
 from openfeature.flag_evaluation import FlagValueType
 from openfeature.flag_evaluation import Reason
+from openfeature.hook import Hook
+from openfeature.hook import HookContext
+from openfeature.hook import HookHints
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
@@ -44,11 +47,14 @@ from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOI
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
 from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
+from ddtrace.internal.openfeature.writer import ExposureEvent
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -75,6 +81,93 @@ ObjectFlagValue = typing.Union[typing.Sequence[FlagValueType], typing.Mapping[st
 K = typing.TypeVar("K")
 V = typing.TypeVar("V")
 logger = get_logger(__name__)
+
+
+_EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE = "__dd_exposure_lifecycle_state"
+_EXPOSURE_LIFECYCLE_HOOK_DATA = "datadog.exposure_lifecycle_state"
+_EXPOSURE_SNAPSHOT_MAX_DEPTH = 4
+_EXPOSURE_SNAPSHOT_MAX_ITEMS = 256
+_EXPOSURE_SNAPSHOT_MAX_NODES = 1_280
+_EXPOSURE_SNAPSHOT_OMIT = object()
+
+
+class _PendingExposureBatch:
+    """An ordered exposure batch owned by one OpenFeature hook invocation."""
+
+    def __init__(self) -> None:
+        self.events: list[ExposureEvent] = []
+        self.attributes: typing.Optional[dict[str, typing.Any]] = None
+
+
+def _snapshot_exposure_attributes(attributes: typing.Any) -> dict[str, typing.Any]:
+    """Copy supported context data without invoking caller copy or iteration hooks."""
+    remaining = [_EXPOSURE_SNAPSHOT_MAX_NODES]
+    ancestors: set[int] = set()
+
+    def snapshot(value: typing.Any, depth: int) -> typing.Any:
+        if remaining[0] <= 0:
+            return _EXPOSURE_SNAPSHOT_OMIT
+        remaining[0] -= 1
+
+        if value is None or type(value) in (str, bool, int, float):
+            return value
+        if depth >= _EXPOSURE_SNAPSHOT_MAX_DEPTH:
+            return _EXPOSURE_SNAPSHOT_OMIT
+
+        value_type = type(value)
+        if value_type not in (dict, list, tuple):
+            return _EXPOSURE_SNAPSHOT_OMIT
+        identity = id(value)
+        if identity in ancestors:
+            return _EXPOSURE_SNAPSHOT_OMIT
+        ancestors.add(identity)
+        try:
+            if value_type is dict:
+                result: dict[str, typing.Any] = {}
+                for index, (key, item) in enumerate(value.items()):
+                    if index >= _EXPOSURE_SNAPSHOT_MAX_ITEMS or remaining[0] <= 0:
+                        break
+                    if type(key) is not str:
+                        continue
+                    copied = snapshot(item, depth + 1)
+                    if copied is not _EXPOSURE_SNAPSHOT_OMIT:
+                        result[key] = copied
+                return result
+
+            result_list: list[typing.Any] = []
+            for index in range(min(len(value), _EXPOSURE_SNAPSHOT_MAX_ITEMS)):
+                if remaining[0] <= 0:
+                    break
+                copied = snapshot(value[index], depth + 1)
+                # Keep list positions stable without retaining unsupported caller objects.
+                result_list.append(None if copied is _EXPOSURE_SNAPSHOT_OMIT else copied)
+            return result_list
+        finally:
+            ancestors.remove(identity)
+
+    copied = snapshot(attributes, 0)
+    return copied if type(copied) is dict else {}
+
+
+class _ExposureFinalizationHook(Hook):
+    """Commits staged exposures only after the complete hook lifecycle succeeds."""
+
+    def __init__(self, provider: "DataDogProvider") -> None:
+        self._provider = provider
+
+    def before(self, hook_context: HookContext, hints: HookHints) -> EvaluationContext:
+        state = _PendingExposureBatch()
+        hook_context.hook_data[_EXPOSURE_LIFECYCLE_HOOK_DATA] = state
+        return EvaluationContext(attributes={_EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE: state})  # type: ignore[dict-item]
+
+    def finally_after(self, hook_context: HookContext, details: typing.Any, hints: HookHints) -> None:
+        state = hook_context.hook_data.pop(_EXPOSURE_LIFECYCLE_HOOK_DATA, None)
+        if not isinstance(state, _PendingExposureBatch):
+            return
+        if details.error_code is not None or details.reason == Reason.ERROR:
+            return
+        for event in state.events:
+            self._provider._report_exposure_event(event)
 
 
 class LRUCache(MutableMapping, typing.Generic[K, V]):
@@ -217,6 +310,12 @@ class DataDogProvider(AbstractProvider):
             self._debug_logging_hook = DebugLoggingHook()
             warn_raw_evaluation_data_logged()
 
+        # Exposure candidates are built during resolution but committed only from
+        # the final hook stage, after later application hooks have succeeded.
+        self._exposure_finalization_hook: typing.Optional[_ExposureFinalizationHook] = (
+            _ExposureFinalizationHook(self) if self._active else None
+        )
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -245,6 +344,8 @@ class DataDogProvider(AbstractProvider):
            accumulates feature-flag metadata onto the local-root APM span.
         4. DebugLoggingHook (_debug_logging_hook.py) — registered only when debug logging is
            enabled (DD_TRACE_DEBUG=true); logs the details of every evaluation.
+        5. ExposureFinalizationHook — stages exposure candidates per invocation and commits
+           them only when the final SDK result is successful.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
@@ -255,6 +356,8 @@ class DataDogProvider(AbstractProvider):
             hooks.append(self._span_enrichment_hook)
         if self._debug_logging_hook is not None:
             hooks.append(self._debug_logging_hook)
+        if self._exposure_finalization_hook is not None:
+            hooks.append(self._exposure_finalization_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -481,8 +584,9 @@ class DataDogProvider(AbstractProvider):
         evaluation_context: typing.Optional[EvaluationContext] = None,
         variation_type: VariationType = VariationType.Boolean,
     ) -> FlagResolutionDetails[ResolvedValue]:
+        evaluation_context, exposure_state = self._take_exposure_lifecycle_state(evaluation_context)
         snapshot = _get_ffe_snapshot()
-        details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot)
+        details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot, exposure_state)
         if self._debug_logging_hook is not None:
             log_provider_resolution(
                 flag_key,
@@ -494,6 +598,22 @@ class DataDogProvider(AbstractProvider):
             )
         return details
 
+    @staticmethod
+    def _take_exposure_lifecycle_state(
+        evaluation_context: typing.Optional[EvaluationContext],
+    ) -> tuple[typing.Optional[EvaluationContext], typing.Optional[_PendingExposureBatch]]:
+        if evaluation_context is None:
+            return None, None
+        try:
+            attributes = evaluation_context.attributes
+            state = attributes.get(_EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE)
+        except Exception:
+            return evaluation_context, None
+        if not isinstance(state, _PendingExposureBatch):
+            return evaluation_context, None
+        sanitized = {key: value for key, value in attributes.items() if key != _EXPOSURE_LIFECYCLE_STATE_ATTRIBUTE}
+        return EvaluationContext(targeting_key=evaluation_context.targeting_key, attributes=sanitized), state
+
     def _resolve(
         self,
         flag_key: str,
@@ -501,6 +621,7 @@ class DataDogProvider(AbstractProvider):
         evaluation_context: typing.Optional[EvaluationContext],
         variation_type: VariationType,
         snapshot: typing.Optional[_FfeSnapshot],
+        exposure_state: typing.Optional[_PendingExposureBatch] = None,
     ) -> FlagResolutionDetails[ResolvedValue]:
         """
         Core resolution logic for all flag types.
@@ -553,6 +674,11 @@ class DataDogProvider(AbstractProvider):
                     flag_metadata=flag_metadata,
                 )
 
+            # Native memoization records each reached prerequisite once. Record
+            # evaluations even when the root fails; only the selected successful
+            # path can contribute exposures.
+            self._record_dependency_evaluations(details, evaluation_context, flag_metadata)
+
             # Handle errors from native evaluation
             if details.error_code is not None:
                 # Map native error code to OpenFeature error code
@@ -568,6 +694,7 @@ class DataDogProvider(AbstractProvider):
                             allocation_key=None,
                             evaluation_context=evaluation_context,
                             serial_id=None,
+                            exposure_state=exposure_state,
                         )
                     return FlagResolutionDetails(
                         value=default_value,
@@ -589,6 +716,12 @@ class DataDogProvider(AbstractProvider):
             # Map native ffe.Reason to OpenFeature Reason
             reason = self._map_reason_to_openfeature(details.reason)
 
+            # Dependency exposures are transactional with the root assignment.
+            # The native trace is ordered for successful-path replay and is
+            # deliberately separate from completion-ordered evaluation records.
+            if details.variant:
+                self._report_dependency_exposures(details, evaluation_context, exposure_state)
+
             # Report exposure event only if do_log flag is True
             if details.do_log:
                 self._report_exposure(
@@ -597,6 +730,7 @@ class DataDogProvider(AbstractProvider):
                     allocation_key=details.allocation_key,
                     evaluation_context=evaluation_context,
                     serial_id=details.serial_id,
+                    exposure_state=exposure_state,
                 )
             else:
                 logger.debug(
@@ -645,6 +779,88 @@ class DataDogProvider(AbstractProvider):
                 flag_metadata=flag_metadata,
             )
 
+    def _record_dependency_evaluations(
+        self,
+        details: ffe.ResolutionDetails,
+        evaluation_context: typing.Optional[EvaluationContext],
+        flag_metadata: dict[str, typing.Any],
+    ) -> None:
+        dependencies = details.dependency_evaluations
+        if not dependencies:
+            return
+        writer = self._flag_eval_evp_writer
+        consent = flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+        attrs: typing.Mapping[str, typing.Any] = {}
+        truncation_reasons: frozenset[str] = frozenset()
+        attrs_prepared = False
+        if consent and evaluation_context is not None:
+            attrs = evaluation_context.attributes or {}
+        if writer is not None and consent and evaluation_context is not None and writer.can_prepare_context():
+            attrs, truncation_reasons = writer.prepare_context(evaluation_context.attributes or {})
+            attrs_prepared = True
+        for dependency in dependencies:
+            error_code = (
+                self._map_error_code_to_openfeature(dependency.error_code)
+                if dependency.error_code is not None
+                else None
+            )
+            if writer is not None:
+                try:
+                    code = error_code.value if error_code is not None else ""
+                    writer.enqueue(
+                        _EvalEvent(
+                            flag_key=dependency.flag_key,
+                            variant=dependency.variant or "",
+                            allocation_key=dependency.allocation_key or "",
+                            targeting_key=evaluation_context.targeting_key if evaluation_context is not None else None,
+                            # Protected mode must not inspect context attributes.
+                            attrs=attrs,
+                            runtime_default=not dependency.variant,
+                            error_message=_protected_error_message(code),
+                            eval_time_ms=flag_metadata[EVAL_TIMESTAMP_METADATA_KEY],
+                            observe_full_evaluation_data=consent,
+                            error_code=code,
+                            attrs_prepared=attrs_prepared,
+                            context_truncation_reasons=truncation_reasons,
+                        )
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to enqueue prerequisite evaluation")
+            if self._flag_eval_metrics is not None:
+                try:
+                    reason = self._map_reason_to_openfeature(dependency.reason)
+                    self._flag_eval_metrics.record(
+                        flag_key=dependency.flag_key,
+                        variant=dependency.variant,
+                        reason=reason.value,
+                        error_code=error_code,
+                        allocation_key=dependency.allocation_key,
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to record prerequisite evaluation metric")
+
+    def _report_dependency_exposures(
+        self,
+        details: ffe.ResolutionDetails,
+        evaluation_context: typing.Optional[EvaluationContext],
+        exposure_state: typing.Optional[_PendingExposureBatch],
+    ) -> None:
+        dependencies = {dependency.flag_key: dependency for dependency in details.dependency_evaluations}
+        for flag_key in details.exposure_trace:
+            dependency = dependencies.get(flag_key)
+            if dependency is None:
+                logger.debug("Feature Flags: exposure trace references missing prerequisite %s", flag_key)
+                continue
+            if dependency.do_log and dependency.error_code is None:
+                self._report_exposure(
+                    flag_key=dependency.flag_key,
+                    variant_key=dependency.variant,
+                    allocation_key=dependency.allocation_key,
+                    evaluation_context=evaluation_context,
+                    serial_id=dependency.serial_id,
+                    exposure_state=exposure_state,
+                )
+
     def _report_exposure(
         self,
         flag_key: str,
@@ -652,6 +868,7 @@ class DataDogProvider(AbstractProvider):
         allocation_key: typing.Optional[str],
         evaluation_context: typing.Optional[EvaluationContext],
         serial_id: typing.Optional[int] = None,
+        exposure_state: typing.Optional[_PendingExposureBatch] = None,
     ) -> None:
         """
         Report a feature flag exposure event to the EVP proxy intake.
@@ -680,6 +897,38 @@ class DataDogProvider(AbstractProvider):
             )
             if not exposure_event:
                 return
+
+            if exposure_state is not None:
+                # Later application hooks may mutate their context. Retain the exact
+                # evaluation-time subject snapshot until the final lifecycle verdict.
+                # Snapshot the shared context once; event-owned dictionaries only need
+                # shallow copies and never invoke caller-defined copy hooks.
+                if exposure_state.attributes is None:
+                    exposure_state.attributes = _snapshot_exposure_attributes(exposure_event["subject"]["attributes"])
+                exposure_state.events.append(
+                    {
+                        **exposure_event,
+                        "allocation": {**exposure_event["allocation"]},
+                        "flag": {**exposure_event["flag"]},
+                        "variant": {**exposure_event["variant"]},
+                        "subject": {
+                            **exposure_event["subject"],
+                            "attributes": exposure_state.attributes,
+                        },
+                    }
+                )
+                return
+
+            self._report_exposure_event(exposure_event)
+        except Exception as e:
+            logger.debug("Failed to prepare exposure event: %s", e, exc_info=True)
+
+    def _report_exposure_event(self, exposure_event: ExposureEvent) -> None:
+        try:
+            flag_key = exposure_event["flag"]["key"]
+            allocation_key = exposure_event["allocation"]["key"]
+            variant_key = exposure_event["variant"]["key"]
+            serial_id = exposure_event.get("serial_id")
 
             # Check cache to prevent duplicate exposure events
             key = (flag_key, exposure_event["subject"]["id"])

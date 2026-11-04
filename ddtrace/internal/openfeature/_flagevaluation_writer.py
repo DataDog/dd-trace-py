@@ -699,6 +699,8 @@ class _EvalEvent(typing.NamedTuple):
     eval_time_ms: int
     observe_full_evaluation_data: bool = False
     error_code: str = ""
+    attrs_prepared: bool = False
+    context_truncation_reasons: frozenset[str] = frozenset()
 
 
 class _FlagEvaluationConnection(typing.Protocol):
@@ -892,6 +894,25 @@ class FlagEvaluationWriter(PeriodicService):
     # Public API used by FlagEvalEVPHook
     # ------------------------------------------------------------------
 
+    def prepare_context(
+        self, attrs: typing.Mapping[str, typing.Any]
+    ) -> tuple[typing.Mapping[str, typing.Any], frozenset[str]]:
+        """Create one bounded immutable snapshot reusable by a dependency batch."""
+        try:
+            return flatten_and_prune_context(attrs)
+        except Exception as exc:
+            with self._counter_lock:
+                should_log_snapshot_error = not self._context_snapshot_error_logged
+                self._context_snapshot_error_logged = True
+            if should_log_snapshot_error:
+                logger.debug("FlagEvaluationWriter: context snapshot error (%s)", type(exc).__name__)
+            return _EMPTY_CONTEXT, frozenset((CONTEXT_TRUNCATION_SNAPSHOT_ERROR,))
+
+    def can_prepare_context(self) -> bool:
+        """Return whether snapshot work is currently useful before enqueue admission."""
+        with self._lifecycle_lock:
+            return self._accepting_events and not self._queue.full()
+
     def enqueue(self, event: _EvalEvent) -> None:
         """Enqueue from the finally_after hook thread without waiting for queue capacity.
 
@@ -915,18 +936,11 @@ class FlagEvaluationWriter(PeriodicService):
         # bounded iterator is slow; the accepting state is rechecked before commit.
         observe_full_evaluation_data = event.observe_full_evaluation_data is True
         if observe_full_evaluation_data:
-            try:
-                bounded_attrs, truncation_reasons = flatten_and_prune_context(event.attrs)
-            except Exception as exc:
-                bounded_attrs = _EMPTY_CONTEXT
-                truncation_reasons = frozenset((CONTEXT_TRUNCATION_SNAPSHOT_ERROR,))
-                with self._counter_lock:
-                    should_log_snapshot_error = not self._context_snapshot_error_logged
-                    self._context_snapshot_error_logged = True
-                if should_log_snapshot_error:
-                    # Log the exception type only. The caller's exception text or
-                    # traceback can contain context data.
-                    logger.debug("FlagEvaluationWriter: context snapshot error (%s)", type(exc).__name__)
+            if event.attrs_prepared:
+                bounded_attrs = event.attrs
+                truncation_reasons = event.context_truncation_reasons
+            else:
+                bounded_attrs, truncation_reasons = self.prepare_context(event.attrs)
         else:
             bounded_attrs = _EMPTY_CONTEXT
             truncation_reasons = frozenset()
@@ -942,6 +956,8 @@ class FlagEvaluationWriter(PeriodicService):
             eval_time_ms=event.eval_time_ms,
             observe_full_evaluation_data=observe_full_evaluation_data,
             error_code=event.error_code,
+            attrs_prepared=True,
+            context_truncation_reasons=truncation_reasons,
         )
 
         closed = False

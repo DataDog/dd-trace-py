@@ -410,6 +410,7 @@ class TestKillswitchGating:
             with override_global_config(
                 {"experimental_flagging_provider_enabled": True, "_otel_metrics_enabled": True}
             ):
+                from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
                 from ddtrace.internal.openfeature._provider import DataDogProvider
 
                 provider = DataDogProvider()
@@ -417,10 +418,11 @@ class TestKillswitchGating:
                 assert provider._flag_eval_metrics_hook is not None
                 # EVP hook absent.
                 assert provider._flag_eval_evp_hook is None
-                # get_provider_hooks still returns the OTel hook.
+                # get_provider_hooks still returns the OTel hook, alongside hooks
+                # unrelated to evaluation-count delivery.
                 hooks = provider.get_provider_hooks()
-                assert len(hooks) == 1
-                assert hooks[0] is provider._flag_eval_metrics_hook
+                assert provider._flag_eval_metrics_hook in hooks
+                assert all(not isinstance(hook, FlagEvalEVPHook) for hook in hooks)
 
     def test_provider_shutdown_joins_evp_writer_final_flush(self):
         """Provider shutdown waits for FlagEvaluationWriter.on_shutdown final flush."""

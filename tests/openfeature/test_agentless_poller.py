@@ -2,6 +2,7 @@ import gzip
 import json
 import logging
 import socket
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,7 @@ from ddtrace.internal.native import ConnectionFailedError
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+import ddtrace.internal.openfeature._native as native_mod
 
 
 ENDPOINT = "https://ufc-server.ff-cdn.datadoghq.com/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"
@@ -224,6 +226,38 @@ def test_api_key_header_present_and_absent(harness):
     without_key = harness([_FakeResponse(304)], api_key=None)
     without_key.periodic()
     assert "DD-API-KEY" not in without_key._requests[0]["headers"]
+
+
+@pytest.mark.parametrize(
+    "capabilities, expected",
+    [
+        ((), None),
+        (("unknown-feature-v1",), None),
+        (("dependent-flag-variant-key-v1",), "dependent-flag-variant-key-v1"),
+    ],
+)
+def test_evaluator_capability_header_on_initial_and_conditional_requests(harness, monkeypatch, capabilities, expected):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)])
+    src.periodic()
+    src.periodic()
+
+    assert len(src._requests) == 2
+    for request in src._requests:
+        assert request["headers"].get("X-DD-FEATURE-FLAGS-CAPABILITIES") == expected
+    assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
+
+
+def test_missing_native_capability_reporter_omits_header(harness, monkeypatch):
+    monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
+    src = harness([_FakeResponse(200, _ufc_body())])
+    src.periodic()
+    assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
+
+
+def test_linked_evaluator_advertises_dependent_flags():
+    assert native_mod.ffe.get_evaluator_capabilities() == ["dependent-flag-variant-key-v1"]
+    assert "dependent-flag-variant-key-v1" in native_mod.get_evaluator_capabilities()
 
 
 def test_client_library_headers_and_gzip_accept(harness):
