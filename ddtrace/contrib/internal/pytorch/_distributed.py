@@ -63,7 +63,13 @@ def _reset_child_state() -> None:
             from ddtrace.internal.core import ROOT_CONTEXT_ID  # noqa: PLC0415
             from ddtrace.internal.core import ExecutionContext  # noqa: PLC0415
 
-            _CURRENT_CONTEXT.set(ExecutionContext(ROOT_CONTEXT_ID))
+            # Keep the tracer registered on the fresh root: products look it up there instead of
+            # importing ddtrace.trace, and only the span chain needs dropping in the child.
+            tracer = _CURRENT_CONTEXT.get().root().get_item("tracer")
+            new_root: ExecutionContext[Any] = ExecutionContext(ROOT_CONTEXT_ID)
+            if tracer is not None:
+                new_root.set_item("tracer", tracer)
+            _CURRENT_CONTEXT.set(new_root)
         except Exception:  # nosec B110
             pass
     _no_env_job_id_warned = False
