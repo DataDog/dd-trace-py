@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import threading
 from unittest import mock
 from warnings import warn
 
@@ -90,6 +91,66 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     module_watchdog.register_module_hook(module.__name__, hook)
 
     hook.assert_called_once_with(module)
+
+
+def test_import_module_hook_waits_for_module_initialization(module_watchdog):
+    module_name = "tests.blocking_module_hook_fixture"
+    import_started = threading.Event()
+    continue_import = threading.Event()
+    registration_started = threading.Event()
+    registration_finished = threading.Event()
+    hook_calls = []
+
+    class BlockingLoader:
+        def create_module(self, spec):
+            return None
+
+        def exec_module(self, module):
+            import_started.set()
+            assert continue_import.wait(timeout=5)
+            module.initialized = True
+
+    class BlockingFinder:
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname == module_name:
+                from importlib.util import spec_from_loader
+
+                return spec_from_loader(fullname, BlockingLoader())
+            return None
+
+    finder = BlockingFinder()
+    sys.meta_path.append(finder)
+    import_thread = threading.Thread(target=__import__, args=(module_name,))
+    import_thread.start()
+    try:
+        assert import_started.wait(timeout=5)
+
+        def register_hook():
+            registration_started.set()
+            try:
+                module_watchdog.register_module_hook(
+                    module_name, lambda module: hook_calls.append(getattr(module, "initialized", False))
+                )
+            finally:
+                registration_finished.set()
+
+        registration_thread = threading.Thread(target=register_hook)
+        registration_thread.start()
+        assert registration_started.wait(timeout=5)
+        assert not registration_finished.wait(timeout=0.1)
+
+        continue_import.set()
+        import_thread.join(timeout=5)
+        registration_thread.join(timeout=5)
+
+        assert not import_thread.is_alive()
+        assert not registration_thread.is_alive()
+        assert hook_calls == [True]
+    finally:
+        continue_import.set()
+        import_thread.join(timeout=5)
+        sys.meta_path.remove(finder)
+        sys.modules.pop(module_name, None)
 
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))

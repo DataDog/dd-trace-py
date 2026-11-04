@@ -1,5 +1,6 @@
 import abc
 from collections import defaultdict
+from importlib._bootstrap import _get_module_lock  # type: ignore[attr-defined]
 from importlib._bootstrap import _init_module_attrs
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
@@ -715,18 +716,27 @@ class ModuleWatchdog(BaseModuleWatchdog):
         """
         cls.install()
 
-        log.debug("Registering hook '%r' on module '%s'", hook, module)
-        instance = t.cast(ModuleWatchdog, cls._instance)
-        instance._hook_map[module].append(hook)
+        # A module is added to sys.modules before its body is executed. Serialize
+        # registration with that execution so a hook registered from another
+        # thread (for example Remote Config) cannot patch a partially initialized
+        # module and leave it permanently marked as patched.
+        module_lock = _get_module_lock(module)
+        module_lock.acquire()
         try:
-            module_object = sys.modules[module]
-        except KeyError:
-            # The module is not loaded yet. Nothing more we can do.
-            return
+            log.debug("Registering hook '%r' on module '%s'", hook, module)
+            instance = t.cast(ModuleWatchdog, cls._instance)
+            instance._hook_map[module].append(hook)
+            try:
+                module_object = sys.modules[module]
+            except KeyError:
+                # The module is not loaded yet. Nothing more we can do.
+                return
 
-        # The module was already imported so we invoke the hook straight-away
-        log.debug("Calling hook '%r' on already imported module '%s'", hook, module)
-        hook(module_object)
+            # The module was already imported so we invoke the hook straight-away
+            log.debug("Calling hook '%r' on already imported module '%s'", hook, module)
+            hook(module_object)
+        finally:
+            module_lock.release()
 
     @classmethod
     def unregister_module_hook(cls, module: str, hook: ModuleHookType) -> None:
