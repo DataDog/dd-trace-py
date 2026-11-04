@@ -565,7 +565,9 @@ def test_module_watchdog_restores_spec_loader():
 
     for module in (spec_loader_victim, namespace_test):
         assert module.__loader__ is module.__spec__.loader, module
-        assert not isinstance(module.__loader__, _ImportHookChainedLoader), module
+        assert not isinstance(module.__loader__, _ImportHookChainedLoader), (
+            f"{module.__name__} still has chained loader: {module.__loader__!r}"
+        )
 
     # Python 3.15+ emits a DeprecationWarning when formatting a traceback
     # frame from a module whose loaders disagree.
