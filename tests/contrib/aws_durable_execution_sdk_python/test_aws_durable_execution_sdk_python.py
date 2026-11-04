@@ -1,4 +1,7 @@
+from collections import Counter
 import json
+import threading
+import time
 from unittest import mock
 
 import aws_durable_execution_sdk_python as ades
@@ -6,6 +9,8 @@ from aws_durable_execution_sdk_python.config import Duration
 from aws_durable_execution_sdk_python.config import StepConfig
 from aws_durable_execution_sdk_python.retries import RetryStrategyConfig
 from aws_durable_execution_sdk_python.retries import create_retry_strategy
+from aws_durable_execution_sdk_python.waits import WaitForConditionConfig
+from aws_durable_execution_sdk_python.waits import WaitForConditionDecision
 from aws_durable_execution_sdk_python_testing import DurableFunctionTestRunner
 import pytest
 
@@ -340,6 +345,182 @@ def test_suspend_during_checkpoint_save_does_not_mark_execute_span_error(test_sp
     execute_spans = list(test_spans.filter_spans(name="aws.durable.execute"))
     assert execute_spans
     assert all(span.error == 0 for span in execute_spans)
+
+
+def _callback_invocation_settled(runner, execution_arn, callback_id):
+    """True once the invocation that created callback_id has completed.
+
+    The SDK 3.x test runner waits for this before returning a callback; the 1.x
+    runner does not, and completing a callback mid-invocation invalidates that
+    invocation's checkpoint token.
+    """
+    # max_items: the 1.x runner returns 100 events per page by default.
+    events = runner._executor.get_execution_history(execution_arn, max_items=10_000).events
+    for index, event in enumerate(events):
+        details = getattr(event, "callback_started_details", None)
+        if event.event_type == "CallbackStarted" and details is not None and details.callback_id == callback_id:
+            return any(later.event_type == "InvocationCompleted" for later in events[index + 1 :])
+    return False
+
+
+def _complete_callbacks(runner, execution_arn, first_name):
+    """Complete the named callback, then the next pending one, each after its invocation suspends.
+
+    Callers must keep a single callback pending at a time.
+    """
+    completed = []
+    deadline = time.monotonic() + 60
+    while len(completed) < 2 and time.monotonic() < deadline:
+        try:
+            callback_id = runner.wait_for_callback(execution_arn, name=None if completed else first_name, timeout=5)
+        except Exception:
+            callback_id = None
+        if callback_id and callback_id not in completed:
+            if _callback_invocation_settled(runner, execution_arn, callback_id):
+                runner.send_callback_success(callback_id, result=b'"ok"')
+                completed.append(callback_id)
+                continue
+        time.sleep(0.1)
+
+
+def _span_key(span, spans_by_id):
+    parent = spans_by_id.get(span.parent_id)
+    return (
+        span.name,
+        parent.name if parent is not None else None,
+        span.get_tag(aws_durable.TAG_NAME),
+        span.get_tag(aws_durable.TAG_REPLAYED),
+    )
+
+
+def test_all_operations_traced_across_replay(test_spans):
+    """Every traced operation keeps its span, parent, name and replay tag across the
+    suspend/resume invocations of one workflow, on every supported SDK version.
+    """
+
+    def check(state, check_context):
+        return state + 1
+
+    def stop_on_second_attempt(state, attempt):
+        if attempt >= 2:
+            return WaitForConditionDecision.stop_polling()
+        return WaitForConditionDecision.continue_waiting(Duration.from_seconds(1))
+
+    def submitter(callback_id, callback_context):
+        pass
+
+    @ades.durable_execution
+    def workflow(event, context):
+        context.step(lambda _ctx: "a", name="s1")
+        context.wait(Duration.from_seconds(1), name="w1")
+        context.wait_for_condition(
+            check, config=WaitForConditionConfig(wait_strategy=stop_on_second_attempt, initial_state=0), name="poll"
+        )
+        context.run_in_child_context(lambda child: child.step(lambda _ctx: "c", name="inner"), name="child")
+        context.map([1, 2], lambda ctx, item, i, items: ctx.step(lambda _ctx: item, name=f"m{i}"), name="mapper")
+        context.parallel(
+            [lambda ctx: ctx.step(lambda _ctx: "p0", name="p0"), lambda ctx: ctx.step(lambda _ctx: "p1", name="p1")],
+            name="par",
+        )
+        # One pending callback at a time keeps the invocation count deterministic.
+        context.create_callback(name="cb").result()
+        context.wait_for_callback(submitter, name="wfc")
+        return "done"
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        execution_arn = runner.run_async()
+        completer = threading.Thread(target=_complete_callbacks, args=(runner, execution_arn, "cb"), daemon=True)
+        completer.start()
+        try:
+            runner.wait_for_result(execution_arn, timeout=120)
+        finally:
+            completer.join()
+
+    spans = test_spans.pop()
+    spans_by_id = {span.span_id: span for span in spans}
+    execute_spans = sorted((s for s in spans if s.name == "aws.durable.execute"), key=lambda s: s.start_ns)
+    # Invocations suspend at w1, at poll attempt 1, at cb, and at wfc; the fifth completes.
+    assert [
+        (s.get_tag(aws_durable.TAG_REPLAYED), s.get_tag(aws_durable.TAG_INVOCATION_STATUS)) for s in execute_spans
+    ] == [
+        ("false", "pending"),
+        ("true", "pending"),
+        ("true", "pending"),
+        ("true", "pending"),
+        ("true", "succeeded"),
+    ]
+    operation_spans = [s for s in spans if s.name != "aws.durable.execute"]
+    assert all(s.get_tag(aws_durable.TAG_ID) for s in operation_spans if s.name != "aws.durable.wait_for_callback")
+
+    execute, child, step = "aws.durable.execute", "aws.durable.child_context", "aws.durable.step"
+    expected = Counter(
+        {
+            (step, execute, "s1", "false"): 1,
+            (step, execute, "s1", "true"): 4,
+            ("aws.durable.wait", execute, "w1", "false"): 1,
+            ("aws.durable.wait", execute, "w1", "true"): 4,
+            ("aws.durable.wait_for_condition", execute, "poll", "false"): 2,
+            ("aws.durable.wait_for_condition", execute, "poll", "true"): 2,
+            (child, execute, "child", "false"): 1,
+            (child, execute, "child", "true"): 2,
+            (step, child, "inner", "false"): 1,
+            ("aws.durable.map", execute, "mapper", "false"): 1,
+            ("aws.durable.map", execute, "mapper", "true"): 2,
+            (step, "aws.durable.map", "m0", "false"): 1,
+            (step, "aws.durable.map", "m1", "false"): 1,
+            ("aws.durable.parallel", execute, "par", "false"): 1,
+            ("aws.durable.parallel", execute, "par", "true"): 2,
+            (step, "aws.durable.parallel", "p0", "false"): 1,
+            (step, "aws.durable.parallel", "p1", "false"): 1,
+            ("aws.durable.create_callback", execute, "cb", "false"): 1,
+            ("aws.durable.create_callback", execute, "cb", "true"): 2,
+        }
+    )
+    wait_for_callback = "aws.durable.wait_for_callback"
+    if SDK_VERSION >= (3, 0, 0):
+        # SDK 3.x runs wait_for_callback's body through a private child context, so its
+        # operations are direct children and its id/replayed tags are on the span itself.
+        callback_parent = wait_for_callback
+        expected[(wait_for_callback, execute, "wfc", "false")] = 2
+    else:
+        callback_parent = child
+        expected[(wait_for_callback, execute, "wfc", None)] = 2
+        expected[(child, wait_for_callback, "wfc", "false")] = 2
+    expected[("aws.durable.create_callback", callback_parent, "wfc create callback id", "false")] = 1
+    expected[("aws.durable.create_callback", callback_parent, "wfc create callback id", "true")] = 1
+    expected[(step, callback_parent, "wfc submitter", "false")] = 1
+    expected[(step, callback_parent, "wfc submitter", "true")] = 1
+
+    assert Counter(_span_key(s, spans_by_id) for s in operation_spans) == expected
+
+
+@pytest.mark.skipif(SDK_VERSION < (3, 0, 0), reason="the SDK 1.x test runner cannot resolve chained-invoke targets")
+def test_invoke_traced_across_replay(test_spans):
+    """context.invoke emits an aws.durable.invoke span with the target function name; the
+    resume invocation reads it from its checkpoint and tags it replayed.
+    """
+
+    def target(payload, lambda_context):
+        return {"echo": payload}
+
+    @ades.durable_execution
+    def workflow(event, context):
+        return context.invoke("target-function", {"x": 1}, name="call")
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.register_function("target-function", target)
+        runner.run()
+
+    invoke_spans = sorted(test_spans.filter_spans(name="aws.durable.invoke"), key=lambda s: s.start_ns)
+    # The first invocation starts the invoke; any resume reads its checkpoint.
+    assert invoke_spans
+    assert [s.get_tag(aws_durable.TAG_REPLAYED) for s in invoke_spans] == ["false"] + ["true"] * (len(invoke_spans) - 1)
+    for span in invoke_spans:
+        assert span.get_tag(aws_durable.TAG_INVOKE_FUNCTION_NAME) == "target-function"
+        assert span.get_tag(aws_durable.TAG_NAME) == "call"
+        assert span.get_tag(aws_durable.TAG_ID)
+        assert span.resource == "call"
+        assert span.parent_id == test_spans.find_span(name="aws.durable.execute", trace_id=span.trace_id).span_id
 
 
 def test_cross_invocation_tracing_disabled_skips_checkpoint():
