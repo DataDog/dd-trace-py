@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue on Python 3.10 where inspecting the call stack from ddtrace
+    instrumentation placed on async functions and generators could raise a ``TypeError``,
+    silently disabling that instrumentation for the call.

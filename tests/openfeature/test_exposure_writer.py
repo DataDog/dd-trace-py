@@ -2,8 +2,8 @@
 Tests for the ExposureWriter class.
 """
 
-from functools import partial
 import json
+import threading
 from unittest import mock
 
 import pytest
@@ -18,7 +18,6 @@ from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_global_config
 
 
@@ -42,6 +41,8 @@ def writer():
     w.start()
     yield w
     w.stop()
+    # Finish the shutdown flush before another test patches the retry helper.
+    w.join()
 
 
 @pytest.fixture
@@ -67,11 +68,14 @@ def remote_config_transport():
         site="datadoghq.com",
         info_provider=info_provider,
     )
-    writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=connection_factory)
     sleep_intervals = []
-    local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep_intervals.append)
-    with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
-        yield writer, connection_factory, info_provider, sleep_intervals
+    writer = ExposureWriter(
+        interval=0.1,
+        route_selector=selector,
+        connection_factory=connection_factory,
+        retry_wait=sleep_intervals.append,
+    )
+    yield writer, connection_factory, info_provider, sleep_intervals
 
 
 class TestExposureWriter:
@@ -323,16 +327,15 @@ class TestExposureWriter:
         for connection in connections:
             connection.request.side_effect = ConnectionFailedError("connection refused")
         connection_factory = mock.Mock(side_effect=connections)
+        sleep_intervals = []
         writer = ExposureWriter(
             route_selector=_route_selector(source=AGENTLESS, endpoints=endpoints, api_key=api_key),
             connection_factory=connection_factory,
+            retry_wait=sleep_intervals.append,
         )
         writer.enqueue(sample_exposure_event)
 
-        sleep_intervals = []
-        local_backoff = partial(fibonacci_backoff_with_jitter, sleep_func=sleep_intervals.append)
-        with mock.patch("ddtrace.internal.openfeature.writer.fibonacci_backoff_with_jitter", local_backoff):
-            writer.periodic()
+        writer.periodic()
 
         assert connection_factory.call_count == expected_attempts
         for connection in connections:
@@ -466,3 +469,120 @@ class TestExposureWriter:
             "https://event-platform-intake.datadoghq.com",
             timeout=2.0,
         )
+
+
+WRITER_LOGGER = "ddtrace.internal.openfeature.writer"
+
+
+def _writer_messages(caplog):
+    return [r.getMessage() for r in caplog.records if r.name == WRITER_LOGGER]
+
+
+def test_debug_logs_shutdown_flush(caplog, sample_exposure_event):
+    writer = ExposureWriter(interval=60.0, route_selector=_route_selector())
+    writer._enabled = True
+    writer._buffer = [sample_exposure_event]
+    with (
+        caplog.at_level("DEBUG", logger=WRITER_LOGGER),
+        mock.patch.object(writer, "_send_payload_with_retry", return_value=mock.Mock(status=200)),
+    ):
+        writer.on_shutdown()
+
+    messages = _writer_messages(caplog)
+    assert messages[0] == "Feature Flags: flushing 1 pending exposure event(s) before shutdown"
+    assert (
+        messages[-1]
+        == "Feature Flags: exposure writer shutdown flush outcome: 1 event(s) accepted by the selected route (HTTP 200)"
+    )
+
+
+def test_debug_logs_empty_shutdown_flush(caplog):
+    writer = ExposureWriter(interval=60.0, route_selector=_route_selector())
+    with caplog.at_level("DEBUG", logger=WRITER_LOGGER):
+        writer.on_shutdown()
+
+    assert (
+        _writer_messages(caplog)[-1]
+        == "Feature Flags: exposure writer shutdown flush outcome: 0 event(s) had no pending work"
+    )
+
+
+def test_debug_logs_shutdown_delivery_failure(caplog, sample_exposure_event):
+    writer = ExposureWriter(interval=60.0, route_selector=_route_selector())
+    writer._buffer = [sample_exposure_event]
+    with (
+        caplog.at_level("DEBUG", logger=WRITER_LOGGER),
+        mock.patch.object(writer, "_send_payload_with_retry", return_value=mock.Mock(status=503)),
+    ):
+        writer.on_shutdown()
+
+    assert (
+        _writer_messages(caplog)[-1]
+        == "Feature Flags: exposure writer shutdown flush outcome: 1 event(s) dropped after HTTP 503"
+    )
+
+
+def test_debug_logs_drop_without_delivery_route(caplog, sample_exposure_event):
+    selector = mock.Mock()
+    selector.select.return_value = None
+    writer = ExposureWriter(interval=60.0, route_selector=selector)
+    writer._buffer = [sample_exposure_event]
+    with caplog.at_level("DEBUG", logger=WRITER_LOGGER):
+        writer.periodic()
+
+    assert "Feature Flags: dropping 1 exposure event(s): no event delivery route is available" in _writer_messages(
+        caplog
+    )
+
+
+def test_debug_logs_drop_after_rejected_delivery(caplog, sample_exposure_event):
+    writer = ExposureWriter(interval=60.0, route_selector=_route_selector())
+    writer._buffer = [sample_exposure_event]
+    with (
+        caplog.at_level("DEBUG", logger=WRITER_LOGGER),
+        mock.patch.object(writer, "_send_payload_with_retry", return_value=mock.Mock(status=400)),
+    ):
+        writer.periodic()
+
+    assert "Feature Flags: 1 exposure event(s) not delivered (HTTP 400); dropping them" in _writer_messages(caplog)
+
+
+def test_shutdown_does_not_wait_for_in_flight_delivery(caplog, sample_exposure_event):
+    sending = threading.Event()
+    release = threading.Event()
+
+    def send(*args):
+        sending.set()
+        assert release.wait(5)
+        return mock.Mock(status=200)
+
+    writer = ExposureWriter(interval=0.01, enabled=True, route_selector=_route_selector())
+    with (
+        caplog.at_level("DEBUG", logger=WRITER_LOGGER),
+        mock.patch.object(writer, "_send_payload_with_retry", send),
+        mock.patch.object(writer, "join", wraps=writer.join) as join,
+    ):
+        writer.enqueue(sample_exposure_event)
+        writer.start()
+        try:
+            assert sending.wait(5)
+            writer.stop()
+            join.assert_not_called()
+            assert "exposure writer shutdown flush outcome" not in caplog.text
+        finally:
+            release.set()
+            writer.join(timeout=5)
+    assert "exposure writer shutdown flush outcome" in caplog.text
+
+
+def test_shutdown_logs_pending_exposure_outcome_in_background(caplog, sample_exposure_event):
+    writer = ExposureWriter(interval=60, enabled=True, route_selector=_route_selector())
+    with (
+        caplog.at_level("DEBUG", logger=WRITER_LOGGER),
+        mock.patch.object(writer, "_send_payload_with_retry", return_value=mock.Mock(status=200)),
+    ):
+        writer.start()
+        writer.enqueue(sample_exposure_event)
+        writer.stop()
+        writer.join(timeout=5)
+    assert "1 event(s) accepted by the selected route (HTTP 200)" in caplog.text

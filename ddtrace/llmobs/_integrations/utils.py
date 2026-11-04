@@ -11,7 +11,10 @@ from typing import Union
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.formats import safe_load_json
+from ddtrace.internal.utils.http import url_origin
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -30,8 +33,10 @@ from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import STORAGE_SEARCH_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import WEB_SEARCH_COUNT_METRIC_KEY
 
 # Audio helpers were moved to audio_utils.py to keep this module manageable; the noqa'd names below
 # are re-exported so existing ``from ...utils import <helper>`` imports keep working.
@@ -50,12 +55,10 @@ from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav  # noqa: F401
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime  # noqa: F401
 from ddtrace.llmobs._span import _LLMObsSpan
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
@@ -257,6 +260,46 @@ def get_openrouter_cost_metrics(token_usage: Any) -> dict[str, float]:
     ):
         metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
         metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
+
+
+_OPENAI_SERVER_TOOL_CALL_METRIC_KEYS = {
+    "web_search_call": WEB_SEARCH_COUNT_METRIC_KEY,
+    "file_search_call": STORAGE_SEARCH_COUNT_METRIC_KEY,
+}
+
+
+def get_openai_server_tool_usage_metrics(resp: Any) -> dict[str, int]:
+    """Count the billable server-side tool calls in an OpenAI Responses response.
+
+    Web searches are read from the untyped tool_usage.web_search.num_requests when present, otherwise
+    counted from completed search actions (open_page / find_in_page steps are not billed). File searches
+    have no usage counter, so each completed file_search_call item counts once. Zero counts are omitted.
+    """
+    reported_web_searches = _get_attr(
+        _get_attr(_get_attr(resp, "tool_usage", None), "web_search", None), "num_requests", None
+    )
+    if not isinstance(reported_web_searches, int):
+        reported_web_searches = None
+    output = _get_attr(resp, "output", None)
+    if not isinstance(output, list):
+        output = []
+    metrics: dict[str, int] = {}
+    for item in output:
+        item_type = _get_attr(item, "type", None)
+        metric_key = _OPENAI_SERVER_TOOL_CALL_METRIC_KEYS.get(item_type)
+        if metric_key is None or _get_attr(item, "status", None) != "completed":
+            continue
+        if item_type == "web_search_call":
+            if reported_web_searches is not None:
+                continue
+            # Items without an action (older payloads) are assumed to be searches.
+            action_type = _get_attr(_get_attr(item, "action", None), "type", None)
+            if action_type is not None and action_type != "search":
+                continue
+        metrics[metric_key] = metrics.get(metric_key, 0) + 1
+    if reported_web_searches:
+        metrics[WEB_SEARCH_COUNT_METRIC_KEY] = reported_web_searches
     return metrics
 
 
@@ -1458,6 +1501,64 @@ def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
     return {}
 
 
+# OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,
+# query and fragment can, so only these and the URL origin are recorded.
+_SAFE_OPENAI_MCP_TOOL_FIELDS = (
+    "type",
+    "server_label",
+    "server_description",
+    "connector_id",
+    "require_approval",
+    "allowed_tools",
+)
+
+
+def safe_mcp_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> dict[str, Any]:
+    """Hosted MCP tool configuration keeping only the allowlist fields, with server_url reduced to its origin."""
+    config = load_data_value(tool)
+    if not isinstance(config, dict):
+        return {}
+    safe = {key: config[key] for key in allowlist if config.get(key) is not None}
+    server_url = config.get("server_url")
+    origin = url_origin(server_url) if isinstance(server_url, str) else None
+    if origin:
+        safe["server_url"] = origin
+    return safe
+
+
+def _without_domain_secret_values(value: Any) -> Any:
+    """Copy of value where each container network policy domain secret keeps only its domain and name."""
+    if isinstance(value, dict):
+        return {
+            key: [
+                {field: secret[field] for field in ("domain", "name") if field in secret}
+                for secret in item
+                if isinstance(secret, dict)
+            ]
+            if key == "domain_secrets" and isinstance(item, list)
+            else _without_domain_secret_values(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_without_domain_secret_values(item) for item in value]
+    return value
+
+
+def safe_tool_config(tool: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
+    """Tool configuration as recorded: MCP tools keep the allowlist fields, domain secret values are dropped."""
+    config = load_data_value(tool)
+    if isinstance(config, dict) and config.get("type") == "mcp":
+        return safe_mcp_tool_config(config, allowlist=allowlist)
+    return _without_domain_secret_values(config)
+
+
+def _safe_response_tools(tools: Any, *, allowlist: Iterable[str] = _SAFE_OPENAI_MCP_TOOL_FIELDS) -> Any:
+    """Response tools as recorded in metadata, each reduced by safe_tool_config."""
+    if not isinstance(tools, list):
+        return tools
+    return [safe_tool_config(tool, allowlist=allowlist) for tool in tools]
+
+
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
@@ -1506,100 +1607,6 @@ def openai_construct_completion_from_streamed_chunks(streamed_chunks: list[Any])
     if hasattr(streamed_chunks[0], "usage"):
         completion["usage"] = streamed_chunks[0].usage
     return completion
-
-
-def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=None, function_call_chunk=None):
-    """Builds a tool_call dictionary from streamed function_call/tool_call chunks."""
-    if function_call_chunk:
-        if not stored_tool_calls:
-            stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
-        # ``arguments`` may be present but None on OpenAI-compatible backends (e.g. DashScope),
-        # so coerce to "" — getattr's default only applies when the attribute is absent.
-        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "") or ""
-        return
-    if not tool_call_chunk:
-        return
-    tool_call_idx = getattr(tool_call_chunk, "index", None)
-    tool_id = getattr(tool_call_chunk, "id", None)
-    tool_type = getattr(tool_call_chunk, "type", None)
-    function_call = getattr(tool_call_chunk, "function", None)
-    custom_call = getattr(tool_call_chunk, "custom", None)
-    function_name = getattr(function_call, "name", "") or getattr(custom_call, "name", "")
-    if tool_call_idx is None:
-        # Some OpenAI-compatible backends (e.g. Gemini) omit the index and stream each parallel call whole in its
-        # own chunk: an id matches the call that already carries it, else it starts a new call; a delta without an id
-        # (even one repeating the name) continues the latest call.
-        if tool_id:
-            list_idx = next(
-                (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call.get("id") == tool_id), None
-            )
-        else:
-            list_idx = -1 if stored_tool_calls else None
-    else:
-        # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
-        list_idx = next(
-            (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
-            None,
-        )
-    if list_idx is None:
-        call_dict = {
-            "index": tool_call_idx,
-            "id": tool_id,
-            "type": tool_type,
-        }
-        if function_call:
-            call_dict["function"] = {"name": function_name, "arguments": ""}
-        elif custom_call:
-            call_dict["custom"] = {"name": function_name, "input": ""}
-        stored_tool_calls.append(call_dict)
-        list_idx = -1
-    if function_call:
-        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "") or ""
-    elif custom_call:
-        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "") or ""
-
-
-def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
-    """Constructs a chat completion message dictionary from streamed chunks.
-    The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "reasoning_content": "...", "tool_calls": [...], "finish_reason": "..."}
-    """
-    message: dict[str, Any] = {"content": "", "reasoning_content": "", "tool_calls": []}
-    for chunk in streamed_chunks:
-        if _get_attr(chunk, "usage", None):
-            message["usage"] = chunk.usage
-        if not _get_attr(chunk, "delta", None):
-            continue
-        if _get_attr(chunk, "index", None) and not message.get("index"):
-            message["index"] = chunk.index
-        if _get_attr(chunk.delta, "role", None) and not message.get("role"):
-            message["role"] = chunk.delta.role
-        if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
-            message["finish_reason"] = chunk.finish_reason
-        chunk_reasoning = _get_attr(chunk.delta, "reasoning_content", "")
-        if chunk_reasoning:
-            message["reasoning_content"] += chunk_reasoning
-        chunk_content = _get_attr(chunk.delta, "content", "")
-        if chunk_content:
-            message["content"] += chunk_content
-            continue
-        function_call = _get_attr(chunk.delta, "function_call", None)
-        if function_call:
-            openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
-        tool_calls = _get_attr(chunk.delta, "tool_calls", None)
-        if not tool_calls:
-            continue
-        for tool_call in tool_calls:
-            openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
-    if message["tool_calls"]:
-        # Unindexed calls (index None) can't be compared with each other; keep them in arrival order.
-        message["tool_calls"].sort(key=lambda x: x["index"] if x.get("index") is not None else float("inf"))
-    else:
-        message.pop("tool_calls", None)
-    if not message["reasoning_content"]:
-        message.pop("reasoning_content", None)
-    message["content"] = message["content"].strip()
-    return message
 
 
 class OaiSpanAdapter:
@@ -1776,7 +1783,8 @@ class OaiSpanAdapter:
                 if hasattr(self.response, field):
                     value = getattr(self.response, field)
                     if value is not None:
-                        metadata[field] = load_data_value(value)
+                        value = load_data_value(value)
+                        metadata[field] = _safe_response_tools(value) if field == "tools" else value
 
             if hasattr(self.response, "text") and self.response.text:
                 metadata["text"] = load_data_value(self.response.text)

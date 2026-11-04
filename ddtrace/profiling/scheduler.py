@@ -5,6 +5,7 @@ from typing import Optional
 
 import ddtrace
 from ddtrace.internal import periodic
+from ddtrace.internal import service
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling._types import ProfilerTracer
 from ddtrace.internal.logger import get_logger
@@ -21,9 +22,9 @@ class Scheduler(periodic.PeriodicService):
         self,
         before_flush: Optional[Callable[[], None]] = None,
         tracer: Optional[ProfilerTracer] = ddtrace.tracer,
-        interval: float = config.upload_interval,
+        interval: Optional[float] = None,
     ) -> None:
-        super().__init__(interval=interval)
+        super().__init__(interval=interval if interval is not None else config.upload_interval)
         self.before_flush: Optional[Callable[[], None]] = before_flush
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
@@ -32,25 +33,30 @@ class Scheduler(periodic.PeriodicService):
 
     def _start_service(self) -> None:
         """Start the scheduler."""
-        LOG.debug("Starting scheduler")
+        LOG.debug("[profiling] Starting scheduler")
         ddup.reset(self._tracer)
         super()._start_service()
         self._last_export = time.time_ns()
-        LOG.debug("Scheduler started")
+        LOG.debug("[profiling] Scheduler started")
+
+    def _rollback_start(self) -> None:
+        with self._service_lock:
+            self._stop_service()
+            self.status = service.ServiceStatus.STOPPED
 
     def flush(self) -> None:
-        """Flush events from recorder to exporters."""
-        LOG.debug("Flushing events")
+        """Flush profiles to exporters."""
+        LOG.debug("[profiling] Flushing profiles")
         if self.before_flush is not None:
             try:
                 self.before_flush()
             except Exception:
-                LOG.error("Scheduler before_flush hook failed", exc_info=True)
+                LOG.error("[profiling] Scheduler before_flush hook failed", exc_info=True)
 
         try:
             ddup.upload(self._tracer, self._enable_code_provenance)
         except Exception:
-            LOG.error("Failed to upload profile", exc_info=True)
+            LOG.error("[profiling] Failed to upload profile", exc_info=True)
         finally:
             self._last_export = time.time_ns()
 
@@ -76,7 +82,9 @@ class ServerlessScheduler(Scheduler):
     FLUSH_AFTER_INTERVALS = 60.0
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        kwargs.setdefault("interval", self.FORCED_INTERVAL)
+        if kwargs.get("interval") is None:
+            kwargs["interval"] = self.FORCED_INTERVAL
+
         super().__init__(*args, **kwargs)
         self._profiled_intervals: int = 0
 

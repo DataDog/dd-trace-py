@@ -26,6 +26,7 @@ from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
 from tests.openfeature.config_helpers import create_string_flag
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -49,7 +50,7 @@ def provider_and_client():
     assert provider._flag_eval_evp_writer is not None
     assert provider._flag_eval_evp_hook is not None
 
-    api.set_provider(provider)
+    set_openfeature_provider(provider)
     client = api.get_client()
     try:
         yield provider, client

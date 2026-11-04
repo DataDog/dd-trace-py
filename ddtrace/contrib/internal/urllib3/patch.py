@@ -7,6 +7,7 @@ import urllib3
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.otel.http.tags import otel_client_url
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
@@ -94,15 +95,21 @@ def _wrap_urlopen(func, instance, args, kwargs):
         host = str(instance.host)
         if ":" in host and not host.startswith("["):
             host = f"[{host}]"
-        request_url = parse.urlunparse(
-            (
-                instance.scheme,
-                f"{host}:{instance.port}" if instance.port and instance.port not in DROP_PORTS else host,
-                request_url,
-                None,
-                None,
-                None,
-            )
+        request_url = otel_client_url(
+            parse.urlunparse(
+                (
+                    instance.scheme,
+                    f"{host}:{instance.port}" if instance.port and instance.port not in DROP_PORTS else host,
+                    request_url,
+                    None,
+                    None,
+                    None,
+                )
+            ),
+            instance.scheme,
+            host,
+            instance.port,
+            request_url,
         )
 
     parsed_uri = parse.urlparse(request_url)

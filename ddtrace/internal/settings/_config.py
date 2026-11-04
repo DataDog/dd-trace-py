@@ -11,7 +11,6 @@ from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -111,6 +110,7 @@ INTEGRATION_CONFIGS = frozenset(
         "pyodbc",
         "dramatiq",
         "flask",
+        "aws_sdk_bedrock_runtime",
         "google_genai",
         "google_adk",
         "urllib3",
@@ -187,6 +187,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "elevenlabs",
         "crewai",
         "pydantic_ai",
         "vllm",
@@ -218,6 +219,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aiokafka",
         "google_cloud_pubsub",
         "mistralai",
+        "typesafe",
     }
 )
 
@@ -463,6 +465,11 @@ class Config:
                     return True
             return False
 
+    class _HTTPClientConfig(_HTTPServerConfig):
+        # Same behavior as the server configuration, with its own environment variable and default.
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "400-499")
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
+
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -574,6 +581,7 @@ class Config:
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
@@ -683,12 +691,7 @@ class Config:
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        trace_compute_stats_default = (
-            in_gcp_function() or in_azure_function() or is_at_least_py(3, 14) or agentless.enabled
-        )
-        self._trace_compute_stats = _get_config(
-            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool)
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
         self._trace_stats_additional_tags = _get_config(
             "DD_TRACE_STATS_ADDITIONAL_TAGS",

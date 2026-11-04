@@ -6609,6 +6609,8 @@ class TestListExperiments:
             assert llmobs.list_experiments() == summaries
 
     def test_list_experiments_requires_llmobs_enabled(self, monkeypatch, llmobs):
-        monkeypatch.setattr(llmobs, "enabled", False)
-        with pytest.raises(ValueError, match="LLMObs is not enabled"):
-            llmobs.list_experiments()
+        # Restore the flag before the llmobs fixture calls disable() during teardown.
+        with monkeypatch.context() as patch:
+            patch.setattr(llmobs, "enabled", False)
+            with pytest.raises(ValueError, match="LLMObs is not enabled"):
+                llmobs.list_experiments()

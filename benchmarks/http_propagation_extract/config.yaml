@@ -136,12 +136,6 @@ b3_single_headers: &b3_single_header_headers
     {"b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
   styles: "b3"
 
-none_propagation_style: &none_propagation_style
-  <<: *default_values
-  headers: |
-    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
-  styles: "none"
-
 datadog_tracecontext_tracestate_propagated_on_trace_id_match:
   <<: *default_values
   headers: |

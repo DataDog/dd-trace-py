@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
@@ -20,7 +21,6 @@ from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_comple
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.trace import Span
 

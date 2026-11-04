@@ -9,7 +9,7 @@ attrs==25.4.0
 babel==2.17.0
 beautifulsoup4==4.14.2
 bytecode==0.17.0
-certifi==2025.10.5
+certifi==2026.10.19
 charset-normalizer==3.4.4
 coverage[toml]==7.11.0
 docutils==0.17.1

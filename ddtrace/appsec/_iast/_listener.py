@@ -1,6 +1,7 @@
 from types import TracebackType
 from typing import Optional
 
+from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
 from ddtrace.appsec._iast._handlers import _iast_on_wrapped_view
 from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
@@ -11,6 +12,7 @@ from ddtrace.appsec._iast._handlers import _on_django_technical_500_response
 from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._handlers import _on_grpc_response
+from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._handlers import _on_pre_tracedrequest_iast
 from ddtrace.appsec._iast._handlers import _on_request_init
 from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
@@ -29,6 +31,7 @@ def iast_instrumentation_listen() -> None:
     core.on("sql.patch", _on_sql_patch)
     core.on("django.patch", _on_django_patch)
     core.on("flask.patch", _on_flask_patch)
+    core.on("fastapi.patch", _on_iast_fastapi_patch)
     core.on("langchain.patch", _on_langchain_patch)
     core.on("langchain.unpatch", _on_langchain_unpatch)
 
@@ -67,6 +70,8 @@ def iast_listen() -> None:
     core.on("asgi.finalize_response", _on_asgi_finalize_response)
     core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
     core.on("werkzeug.render_debugger_html", _on_werkzeug_render_debugger_html)
+
+    core.on("starlette.route.handle", _iast_instrument_starlette_scope)
 
     core.on("context.ended.wsgi.__call__", _iast_context_end)
     core.on("context.ended.asgi.__call__", _iast_context_end)

@@ -24,6 +24,7 @@ def test_iast_instrumentation_listener_lifecycle():
             _listener,
             _on_flask_patch=mock.DEFAULT,
             _on_django_patch=mock.DEFAULT,
+            _on_iast_fastapi_patch=mock.DEFAULT,
             _on_langchain_patch=mock.DEFAULT,
             _on_langchain_unpatch=mock.DEFAULT,
         ) as handlers,
@@ -38,6 +39,7 @@ def test_iast_instrumentation_listener_lifecycle():
         events = (
             ("flask.patch", ((3, 0, 0),), handlers["_on_flask_patch"]),
             ("django.patch", (), handlers["_on_django_patch"]),
+            ("fastapi.patch", (), handlers["_on_iast_fastapi_patch"]),
             ("langchain.patch", (), handlers["_on_langchain_patch"]),
             ("langchain.unpatch", (), handlers["_on_langchain_unpatch"]),
         )
@@ -59,6 +61,6 @@ def test_iast_instrumentation_listeners_disabled():
     import ddtrace.auto  # noqa: F401
     from ddtrace.internal import core
 
-    for event in ("sql.patch", "flask.patch", "django.patch", "langchain.patch", "langchain.unpatch"):
+    for event in ("sql.patch", "flask.patch", "django.patch", "fastapi.patch", "langchain.patch", "langchain.unpatch"):
         assert not core.has_listeners(event)
     assert not any(name.startswith("ddtrace.appsec._iast") for name in sys.modules)

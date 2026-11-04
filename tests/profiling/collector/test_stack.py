@@ -395,6 +395,88 @@ def test_stack_locations(tmp_path: Path) -> None:
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 14), reason="requires CPython's code object generation")
+@pytest.mark.subprocess()
+def test_code_object_address_reuse_does_not_return_stale_frame() -> None:
+    import gc
+    import os
+    from pathlib import Path
+    import tempfile
+    import time
+    from types import FunctionType
+    import weakref
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    test_name = "test_code_object_address_reuse_does_not_return_stale_frame"
+    tmp_path = Path(tempfile.mkdtemp(prefix=test_name))
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    code_filename = "echion-code-reuse.py"
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    namespace = {"time": time}
+    source = "def template(deadline):\n    while time.monotonic() < deadline:\n        pass\n"
+    exec(compile(source, code_filename, "exec"), namespace)
+    template_code = namespace["template"].__code__
+
+    def make_function(name: str):
+        code = template_code.replace(co_name=name, co_qualname=name)
+        return FunctionType(code, {"time": time})
+
+    old_name = "old_dynamic_function"
+    old_function = make_function(old_name)
+
+    with stack.StackCollector():
+        old_function(time.monotonic() + 0.3)
+        ddup.upload()
+
+        old_address = id(old_function.__code__)
+        old_code = weakref.ref(old_function.__code__)
+        del old_function
+        gc.collect()
+        assert old_code() is None
+
+        replacement_name = "new_dynamic_function"
+        replacement_function = make_function(replacement_name)
+        assert id(replacement_function.__code__) == old_address
+        replacement_function(time.monotonic() + 0.3)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    sampled_names = {
+        location.function_name
+        for sample in samples
+        for location in (pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id)
+        if location.filename == code_filename
+    }
+    assert replacement_name in sampled_names
+    assert old_name not in sampled_names
+
+    # Parse the earlier upload after address reuse so profile parsing cannot perturb the reuse sequence.
+    profile_files = sorted(
+        tmp_path.glob(Path(output_filename).name + ".*.pprof"), key=lambda path: int(path.name.rsplit(".", 2)[-2])
+    )
+    assert len(profile_files) >= 2
+    old_profile = pprof_utils.parse_profile(str(profile_files[-2]))
+    old_samples = pprof_utils.get_samples_with_value_type(old_profile, "wall-time")
+    pprof_utils.assert_profile_has_sample(
+        old_profile,
+        samples=old_samples,
+        expected_sample=pprof_utils.StackEvent(
+            locations=[pprof_utils.StackLocation(function_name=old_name, filename=code_filename, line_no=-1)]
+        ),
+    )
+
+
 def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     test_name = "test_push_span"
     pprof_prefix = str(tmp_path / test_name)
@@ -522,6 +604,42 @@ def test_restarts_do_not_stack_thread_hooks() -> None:
             t.join()
 
     assert [c.args for c in unregister_thread.call_args_list if c.args == (t.ident,)] == [(t.ident,)]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="uses the glibc __cxa_atexit exit-handler order")
+@pytest.mark.subprocess(err=None)
+def test_sampler_survives_native_exit_handlers() -> None:
+    """The sampler must survive the C++ static destructors that exit() runs while it is sampling, as under uWSGI."""
+    import ctypes
+    import threading
+    import time
+
+    libc = ctypes.CDLL(None)
+    EXIT_HANDLER = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+
+    def keep_sampling(_arg: object) -> None:
+        time.sleep(0.5)
+
+    # Like uWSGI's exit handler: registered before the profiler, so it runs after its static destructors.
+    handler = EXIT_HANDLER(keep_sampling)
+    libc.__cxa_atexit(handler, None, None)
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_sampler_survives_native_exit_handlers", version="my_version")
+    ddup.start()
+    stack.StackCollector().start()
+
+    def sleep_forever() -> None:
+        while True:
+            time.sleep(0.001)
+
+    for _ in range(16):
+        threading.Thread(target=sleep_forever, daemon=True).start()
+    time.sleep(0.5)
+
+    libc.exit(0)
 
 
 @pytest.mark.subprocess

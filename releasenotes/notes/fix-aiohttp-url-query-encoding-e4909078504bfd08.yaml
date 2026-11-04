@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    aiohttp: Fixes an issue where the ``http.url`` tag of aiohttp server spans lost the
+    percent-encoding of the query string. The ``http.query.string`` tag now also keeps the
+    percent-encoded query string.

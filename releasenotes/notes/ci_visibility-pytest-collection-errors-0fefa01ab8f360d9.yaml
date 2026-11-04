@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where pytest test discovery reports success
+    despite collection errors. With ``DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED``
+    enabled, collection errors now return exit code 2 while preserving partial
+    discovery results, unless ``--continue-on-collection-errors`` is supplied.

@@ -27,6 +27,8 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git
+from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
@@ -34,6 +36,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
@@ -146,6 +149,8 @@ from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
+from ddtrace.llmobs._integrations.aws_sdk_bedrock_runtime import on_bidirectional_stream
+from ddtrace.llmobs._integrations.elevenlabs import create_conversation_state
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -723,15 +728,16 @@ class LLMObs(Service):
         if not local_root:
             return
         # Read IP tags set by AppSec or DD_TRACE_CLIENT_IP_ENABLED on the APM root span.
-        client_ip = local_root.get_tag("http.client_ip")
-        network_client_ip = local_root.get_tag("network.client.ip")
+        # Under OTel HTTP semantics the same values are stored as client.address and network.peer.address.
+        client_ip = local_root.get_tag(http.CLIENT_IP) or local_root.get_tag(otel_http.CLIENT_ADDRESS)
+        network_client_ip = local_root.get_tag(net.CLIENT_IP) or local_root.get_tag(otel_http.NETWORK_PEER_ADDRESS)
         if not client_ip and not network_client_ip:
             return
         ip_tags = {}
         if client_ip:
-            ip_tags["http.client_ip"] = client_ip
+            ip_tags[http.CLIENT_IP] = client_ip
         if network_client_ip:
-            ip_tags["network.client.ip"] = network_client_ip
+            ip_tags[net.CLIENT_IP] = network_client_ip
         _annotate_llmobs_span_data(span, tags=ip_tags)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
@@ -1002,6 +1008,8 @@ class LLMObs(Service):
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
 
+        core.reset_listeners("aws_sdk_bedrock_runtime.bidirectional_stream", self._on_bidirectional_stream)
+
         # Remove listener hooks for span events
         core.reset_listeners("trace.span_start", self._on_span_start)
         core.reset_listeners("trace.span_finish", self._on_span_finish)
@@ -1010,6 +1018,7 @@ class LLMObs(Service):
             "http.activate_distributed_headers",
             self._activate_llmobs_distributed_context_soft_fail,
         )
+        core.reset_listeners("elevenlabs.conversation.start", create_conversation_state)
         core.reset_listeners("threading.submit", self._on_threading_submit)
         core.reset_listeners("threading.execution", self._on_threading_execution)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
@@ -1171,6 +1180,8 @@ class LLMObs(Service):
             )
             cls._instance.start()
 
+            core.on("aws_sdk_bedrock_runtime.bidirectional_stream", cls._instance._on_bidirectional_stream)
+
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)
             core.on("trace.span_finish", cls._instance._on_span_finish)
@@ -1179,6 +1190,7 @@ class LLMObs(Service):
                 "http.activate_distributed_headers",
                 cls._activate_llmobs_distributed_context_soft_fail,
             )
+            core.on("elevenlabs.conversation.start", create_conversation_state, "state")
             core.on("threading.submit", cls._instance._on_threading_submit, "llmobs_ctx")
             core.on("threading.execution", cls._instance._on_threading_execution)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
@@ -2607,6 +2619,9 @@ class LLMObs(Service):
         active = self._llmobs_context_provider.active()
         return active if isinstance(active, Span) else None
 
+    def _on_bidirectional_stream(self, event: Any) -> None:
+        on_bidirectional_stream(event, self._llmobs_context_provider, self._current_trace_context)
+
     def _current_trace_context(self) -> Optional[Context]:
         """Returns the context for the current LLMObs trace."""
         active = self._llmobs_context_provider.active()
@@ -2622,6 +2637,9 @@ class LLMObs(Service):
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
+            ml_app = get_llmobs_ml_app(active)
+            if ml_app:
+                context._meta[PROPAGATED_ML_APP_KEY] = ml_app
             # About to hand this trace to another execution context, so the decision has to exist
             # now. Resolving freezes it; if it was already resolved this just reads it back.
             sr, sd = self._resolve_sampling(active)
@@ -3834,6 +3852,7 @@ class LLMObs(Service):
             propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
             propagated_session_id = context._meta.get(PROPAGATED_SESSION_ID_KEY)
+            propagated_ml_app = context._meta.get(PROPAGATED_ML_APP_KEY)
             # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags, so
             # the agent attribution keys must be copied onto it explicitly (mirrors trace_id).
             propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
@@ -3849,6 +3868,8 @@ class LLMObs(Service):
                 )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
+                if propagated_ml_app is not None:
+                    llmobs_context._meta[PROPAGATED_ML_APP_KEY] = propagated_ml_app
                 if propagated_sample_rate is not None:
                     llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
                 if propagated_sampling_decision is not None:
@@ -3864,6 +3885,8 @@ class LLMObs(Service):
                 return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
+            if propagated_ml_app is not None:
+                llmobs_context._meta[PROPAGATED_ML_APP_KEY] = propagated_ml_app
             if propagated_sample_rate is not None:
                 llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
             if propagated_sampling_decision is not None:

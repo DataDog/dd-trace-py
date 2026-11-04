@@ -720,10 +720,10 @@ impl SpanData {
     /// Takes `slf` rather than `&mut self` so no borrow of this span is held while a
     /// `Context` subclass's Python `copy` override runs.
     #[getter(context)]
-    fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
+    pub(crate) fn get_context<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Context>> {
         let py = slf.py();
 
-        let this = slf.borrow();
+        let this = slf.try_borrow()?;
         if let Some(ctx) = &this._context {
             return Ok(ctx.bind(py).clone());
         }
@@ -743,7 +743,10 @@ impl SpanData {
             None => Context::new_root(py, trace_id, span_id)?.into_bound(py),
         };
 
-        let old = slf.borrow_mut()._context.replace(new_ctx.clone().unbind());
+        let old = slf
+            .try_borrow_mut()?
+            ._context
+            .replace(new_ctx.clone().unbind());
         drop(old);
         Ok(new_ctx)
     }
@@ -760,12 +763,14 @@ impl SpanData {
         Ok(value)
     }
 
-    #[pyo3(signature = (decision))]
+    /// Set the mechanism before publishing the priority so injection sees the intended reason.
+    #[pyo3(signature = (decision, sampling_mechanism=MANUAL_SAMPLING_MECHANISM))]
     fn _override_sampling_decision(
         slf: &Bound<'_, Self>,
         decision: Option<&Bound<'_, PyAny>>,
+        sampling_mechanism: i64,
     ) -> PyResult<()> {
-        Self::_set_sampling_decision_maker(slf, MANUAL_SAMPLING_MECHANISM)?;
+        Self::_set_sampling_decision_maker(slf, sampling_mechanism)?;
         // Metadata callbacks can replace the context, so resolve it again before publishing.
         let context = Self::get_context(slf)?;
         if context.is_exact_instance_of::<Context>() {

@@ -22,8 +22,9 @@ class IASTEnvironment:
     cannot be reused while source overrides preserve their secure marks.
     """
 
-    def __init__(self, span: Optional[SpanData] = None) -> None:
+    def __init__(self, span: Optional[SpanData] = None, context_id: Optional[int] = None) -> None:
         self.span = span or span_bus.get_span()
+        self.context_id = context_id
 
         self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: dict[str, int] = {}

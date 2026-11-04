@@ -1,0 +1,7 @@
+features:
+  - |
+    profiling: Adds experimental support for installing Profiler's hooks at startup
+    without starting the profiler, so that a profiler can be started later at runtime. 
+    This option is disabled by default, is not yet recommended for production
+    use, and its behavior may change in future releases. 
+

@@ -152,6 +152,20 @@ Traces
      version_added:
        v0.41.0:
 
+   DD_TRACE_ELEVENLABS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Enables automatic instrumentation of ElevenLabs Python Agents WebSocket
+         conversations. Set to False to disable this integration.
+
+   DD_ELEVENLABS_SERVICE:
+     type: String
+     default: None
+     description: |
+         Overrides the service name for ElevenLabs conversation spans. The
+         DD_ELEVENLABS_SERVICE_NAME alias is also supported.
+
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
      default: True
@@ -234,6 +248,17 @@ Traces
 
          If a tag name is not supplied the header name will be used. For example if
          ``DD_TRACE_HEADER_TAGS=User-Agent,content-type``. The value of http header will be stored in tags with the names ``http.<response/request>.headers.user-agent`` and ``http.<response/request>.headers.content-type``.
+
+   DD_TRACE_HTTP_CLIENT_ERROR_STATUSES:
+     type: String
+     default: "400-499"
+
+     description: |
+        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP
+        client request. Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
+        This setting is applied when ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` is enabled, where it sets the span
+        error status and the ``error.type`` attribute. With ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` enabled and this
+        setting not set, status codes from 400 to 499 is an error.
 
    DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING:
      type: Boolean
@@ -424,6 +449,21 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_TRACE_AWS_SDK_BEDROCK_RUNTIME_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Enables automatic instrumentation of the asynchronous AWS SDK for Bedrock Runtime.
+       Nova 2 Sonic conversation spans also require LLM Observability to be enabled.
+
+   DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE:
+     type: String
+     default: None
+     description: |
+       Overrides the service name for AWS SDK Bedrock Runtime spans.
+       ``DD_AWS_SDK_BEDROCK_RUNTIME_SERVICE_NAME`` is an alias.
+       When unset, spans use the application's configured service.
+
    DD_LLMOBS_PAYLOAD_SIZE_BYTES:
      type: Int
      default: 5242880
@@ -492,7 +532,7 @@ Traces
          **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
 
      version_added:
-        v4.15.0:
+        v4.16.0:
 
 Trace Context propagation
 -------------------------
@@ -561,6 +601,9 @@ Trace Context propagation
 
 Metrics
 -------
+
+When exporting traces over OTLP, the tracing library delegates APM RED metrics
+computation to the OpenTelemetry Collector or Datadog intake by default.
 
 .. ddtrace-configuration-options::
 
@@ -1006,6 +1049,33 @@ Test Visibility
 
      version_added:
         v4.15.0:
+
+   DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        When enabled, the pytest plugin may deepen shallow clones to fetch missing git history
+        (for example running ``git fetch --deepen=1`` or ``git fetch --shallow-since="1 month ago"``).
+        When disabled, no fetch is ever issued: the git metadata upload and any head-commit
+        metadata use only the locally available history.
+
+     version_added:
+        v4.17.0:
+
+   DD_CIVISIBILITY_GIT_UPLOAD_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        When enabled, the pytest plugin uploads git metadata (commit packfiles) to Datadog.
+        When disabled, the upload is skipped entirely — useful to upload git metadata once per
+        pipeline instead (for example with ``datadog-ci git-metadata upload`` in a single setup
+        job, using the same repository URL and commit). The pull request merge-base is still
+        computed from local history when possible.
+
+     version_added:
+        v4.17.0:
 
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean

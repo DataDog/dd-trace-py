@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes a memory leak where a ``contextvars`` copy made inside a ``@tracer.wrap`` function kept the
+    local variables of the finished call in memory.

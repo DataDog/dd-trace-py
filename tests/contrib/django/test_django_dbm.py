@@ -25,8 +25,10 @@ def test_django_postgres_dbm_propagation_enabled():
     from ddtrace.contrib.internal.django.database import instrument_dbs
     from tests.contrib import shared_tests
     from tests.contrib.django.test_django_dbm import get_cursor
+    from tests.contrib.django.utils import setup_django
     from tests.utils import scoped_tracer
 
+    setup_django()
     instrument_dbs(django)
 
     with scoped_tracer() as tracer:

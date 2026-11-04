@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from enum import Enum
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
@@ -16,6 +17,10 @@ if TYPE_CHECKING:
     from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
+class LlmEvents(Enum):
+    LLM_REQUEST = "llm.request"
+
+
 @dataclass
 class LlmRequestEvent(TracingEvent):
     """LLM request event for all LLM integrations.
@@ -25,12 +30,13 @@ class LlmRequestEvent(TracingEvent):
     (_set_base_span_tags, llmobs_set_tags).
     """
 
-    event_name = "llm.request"
+    event_name = LlmEvents.LLM_REQUEST.value
     span_kind = SpanKind.CLIENT
 
     provider: str = event_field()
     model: Optional[str] = event_field(default=None)
-    llmobs_integration: BaseLLMIntegration = event_field()
+    # Integrations that have moved to SpanLifecycleEvents subscribers leave this unset.
+    llmobs_integration: Optional[BaseLLMIntegration] = event_field(default=None)
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
     instance: Optional[Any] = event_field(default=None)
@@ -43,4 +49,10 @@ class LlmRequestEvent(TracingEvent):
 
     def __post_init__(self) -> None:
         self.operation_name = f"{self.component}.request"
-        self.span_type = SpanTypes.LLM if (self.submit_to_llmobs and self.llmobs_integration.llmobs_enabled) else None
+        self.span_type = (
+            SpanTypes.LLM
+            if (
+                self.submit_to_llmobs and self.llmobs_integration is not None and self.llmobs_integration.llmobs_enabled
+            )
+            else None
+        )

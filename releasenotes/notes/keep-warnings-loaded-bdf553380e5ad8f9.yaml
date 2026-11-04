@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixes an issue where ``logging.captureWarnings(True)`` had no effect when
+    running under ``ddtrace-run`` with gevent installed: warnings were written
+    directly to stderr in the default plain-text format instead of being routed
+    through the ``py.warnings`` logger.

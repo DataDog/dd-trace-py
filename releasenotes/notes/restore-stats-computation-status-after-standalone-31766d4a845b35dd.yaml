@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    stats computation: restore stats computation status when re-enabling tracing after opting out. Opting out of APM tracing now also correctly disables stats computation.

@@ -71,15 +71,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     #[cfg(target_os = "linux")]
     {
-        m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::update_otel_thread_context_from_span
-        ))?;
-        m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::update_otel_thread_context_from_context
-        ))?;
-        m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::detach_otel_thread_context
-        ))?;
+        m.add_wrapped(wrap_pyfunction!(otel_thread_ctx::sync_otel_thread_context))?;
     }
     shared_runtime::register_shared_runtime(m)?;
     remote_config::register_remote_config(m)?;
