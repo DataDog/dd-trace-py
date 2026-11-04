@@ -409,7 +409,7 @@ integrations:
   tested_versions_by_dependency:
     elevenlabs:
       min: 2.70.0
-      max: 2.70.0
+      max: 2.75.0
 
 - integration_name: falcon
   is_external_package: true
