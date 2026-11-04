@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+from importlib.util import spec_from_loader
 import json
 import os
 from pathlib import Path
@@ -93,13 +95,11 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-def test_import_module_hook_waits_for_module_initialization(module_watchdog):
-    module_name = "tests.blocking_module_hook_fixture"
+@contextmanager
+def _blocking_module(module_name):
+    """Install a finder for module_name whose execution waits until continue_import is set."""
     import_started = threading.Event()
     continue_import = threading.Event()
-    registration_started = threading.Event()
-    registration_finished = threading.Event()
-    hook_calls = []
 
     class BlockingLoader:
         def create_module(self, spec):
@@ -113,8 +113,6 @@ def test_import_module_hook_waits_for_module_initialization(module_watchdog):
     class BlockingFinder:
         def find_spec(self, fullname, path=None, target=None):
             if fullname == module_name:
-                from importlib.util import spec_from_loader
-
                 return spec_from_loader(fullname, BlockingLoader())
             return None
 
@@ -124,33 +122,60 @@ def test_import_module_hook_waits_for_module_initialization(module_watchdog):
     import_thread.start()
     try:
         assert import_started.wait(timeout=5)
-
-        def register_hook():
-            registration_started.set()
-            try:
-                module_watchdog.register_module_hook(
-                    module_name, lambda module: hook_calls.append(getattr(module, "initialized", False))
-                )
-            finally:
-                registration_finished.set()
-
-        registration_thread = threading.Thread(target=register_hook)
-        registration_thread.start()
-        assert registration_started.wait(timeout=5)
-        assert not registration_finished.wait(timeout=0.1)
-
-        continue_import.set()
-        import_thread.join(timeout=5)
-        registration_thread.join(timeout=5)
-
-        assert not import_thread.is_alive()
-        assert not registration_thread.is_alive()
-        assert hook_calls == [True]
+        yield continue_import, import_thread
     finally:
         continue_import.set()
         import_thread.join(timeout=5)
         sys.meta_path.remove(finder)
         sys.modules.pop(module_name, None)
+
+
+def test_import_module_hook_deferred_while_module_initializing(module_watchdog):
+    module_name = "tests.blocking_module_hook_fixture"
+    hook_calls = []
+
+    with _blocking_module(module_name) as (continue_import, import_thread):
+        # Registration must not wait for the import: callers may hold locks the
+        # importing thread needs (e.g. the debugger watchdog lock).
+        registration_thread = threading.Thread(
+            target=module_watchdog.register_module_hook,
+            args=(module_name, lambda module: hook_calls.append(getattr(module, "initialized", False))),
+        )
+        registration_thread.start()
+        registration_thread.join(timeout=5)
+        assert not registration_thread.is_alive()
+        assert hook_calls == []
+
+        continue_import.set()
+        import_thread.join(timeout=5)
+        assert not import_thread.is_alive()
+
+    assert hook_calls == [True]
+
+
+def test_import_module_hook_registered_during_after_import(module_watchdog):
+    module_name = "tests.blocking_module_hook_fixture"
+    late_hook_calls = []
+
+    def late_hook(module):
+        late_hook_calls.append(getattr(module, "initialized", False))
+
+    def early_hook(module):
+        # Hooks have already been collected for this import, so a hook registered
+        # now from another thread must be called straight away, exactly once.
+        t = threading.Thread(target=module_watchdog.register_module_hook, args=(module_name, late_hook))
+        t.start()
+        t.join(timeout=5)
+        assert not t.is_alive()
+
+    module_watchdog.register_module_hook(module_name, early_hook)
+
+    with _blocking_module(module_name) as (continue_import, import_thread):
+        continue_import.set()
+        import_thread.join(timeout=5)
+        assert not import_thread.is_alive()
+
+    assert late_hook_calls == [True]
 
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))

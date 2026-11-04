@@ -1,6 +1,5 @@
 import abc
 from collections import defaultdict
-from importlib._bootstrap import _get_module_lock  # type: ignore[attr-defined]
 from importlib._bootstrap import _init_module_attrs
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
@@ -13,6 +12,7 @@ from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 
@@ -437,6 +437,13 @@ class _UniversalModuleWatchdog:
                 t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(watchdog), watchdog.after_import)
                 t.cast(_ImportHookChainedLoader, spec.loader).add_transformer(type(watchdog), watchdog.transform)
 
+            # Watchdogs whose after_import will run once this module has been
+            # executed. Lets hook registration defer while the module is initializing.
+            try:
+                spec._dd_pending_after_import = {type(w) for w in self._watchdogs}
+            except (AttributeError, TypeError):
+                pass
+
             return spec
 
         finally:
@@ -545,6 +552,10 @@ class ModuleWatchdog(BaseModuleWatchdog):
     the subclass is installed.
     """
 
+    # Makes hook registration atomic with hook collection in after_import. It is
+    # never held while calling hooks or acquiring other locks.
+    _hook_map_lock = forksafe.Lock()
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -599,10 +610,14 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         # Collect all hooks by module origin and name
         hooks = []
-        if path is not None and path in self._hook_map:
-            hooks.extend(self._hook_map[path])
-        if module.__name__ in self._hook_map:
-            hooks.extend(self._hook_map[module.__name__])
+        with self._hook_map_lock:
+            if path is not None and path in self._hook_map:
+                hooks.extend(self._hook_map[path])
+            if module.__name__ in self._hook_map:
+                hooks.extend(self._hook_map[module.__name__])
+            pending = getattr(getattr(module, "__spec__", None), "_dd_pending_after_import", None)
+            if pending is not None:
+                pending.discard(type(self))
 
         if hooks:
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
@@ -716,15 +731,9 @@ class ModuleWatchdog(BaseModuleWatchdog):
         """
         cls.install()
 
-        # A module is added to sys.modules before its body is executed. Serialize
-        # registration with that execution so a hook registered from another
-        # thread (for example Remote Config) cannot patch a partially initialized
-        # module and leave it permanently marked as patched.
-        module_lock = _get_module_lock(module)
-        module_lock.acquire()
-        try:
-            log.debug("Registering hook '%r' on module '%s'", hook, module)
-            instance = t.cast(ModuleWatchdog, cls._instance)
+        log.debug("Registering hook '%r' on module '%s'", hook, module)
+        instance = t.cast(ModuleWatchdog, cls._instance)
+        with cls._hook_map_lock:
             instance._hook_map[module].append(hook)
             try:
                 module_object = sys.modules[module]
@@ -732,11 +741,18 @@ class ModuleWatchdog(BaseModuleWatchdog):
                 # The module is not loaded yet. Nothing more we can do.
                 return
 
-            # The module was already imported so we invoke the hook straight-away
-            log.debug("Calling hook '%r' on already imported module '%s'", hook, module)
-            hook(module_object)
-        finally:
-            module_lock.release()
+            # A module is in sys.modules before its body has been executed. If it
+            # is still initializing, after_import will call the hook once it is done.
+            spec = getattr(module_object, "__spec__", None)
+            if getattr(spec, "_initializing", False) and type(instance) in getattr(
+                spec, "_dd_pending_after_import", ()
+            ):
+                log.debug("Deferring hook '%r' until module '%s' is initialized", hook, module)
+                return
+
+        # The module was already imported so we invoke the hook straight-away
+        log.debug("Calling hook '%r' on already imported module '%s'", hook, module)
+        hook(module_object)
 
     @classmethod
     def unregister_module_hook(cls, module: str, hook: ModuleHookType) -> None:
