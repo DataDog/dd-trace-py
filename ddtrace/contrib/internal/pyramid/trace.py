@@ -4,7 +4,6 @@ from pyramid.settings import asbool
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -62,8 +61,6 @@ def trace_tween_factory(handler, registry):
     config.pyramid.distributed_tracing_enabled = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
 
     if enabled:
-        WebFrameworkRequestSubscriber.register()
-
         # make a request tracing function
         def trace_tween(request):
             with core.context_with_event(

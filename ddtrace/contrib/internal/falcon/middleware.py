@@ -5,7 +5,6 @@ from falcon import http_status_to_code
 from ddtrace import config
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
-from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -17,7 +16,6 @@ from ddtrace.internal.utils.deprecations import deprecate
 
 class TraceMiddleware:
     def __init__(self, tracer=None, service=None, distributed_tracing=None):
-        WebFrameworkRequestSubscriber.register()
         if service is None:
             service = schematize_service_name("falcon")
 

@@ -9,7 +9,6 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
-from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
@@ -43,7 +42,6 @@ def _supported_versions() -> dict[str, str]:
 
 class TraceTool(cherrypy.Tool):
     def __init__(self, app, service, use_distributed_tracing=None):
-        WebFrameworkRequestSubscriber.register()
         self.app = app
         config.cherrypy["service"] = schematize_service_name(service)
         if use_distributed_tracing is not None:
