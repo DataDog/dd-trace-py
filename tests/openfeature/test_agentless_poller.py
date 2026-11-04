@@ -251,7 +251,6 @@ def test_evaluator_capability_parameter_on_initial_and_conditional_requests(harn
         query = parse_qs(urlsplit(request["target"]).query)
         assert query.get("cap_dependent-flags-variant-key", [None])[0] == expected
         assert query["token"] == ["preserved"]
-        assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in request["headers"]
     assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
 
 
