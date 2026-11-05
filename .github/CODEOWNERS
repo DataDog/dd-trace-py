@@ -424,6 +424,12 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities @DataDog/a
 # below the ASM globs so a future tests/**/* rule naming a product cannot claim it.
 tests/standalone/                       @DataDog/python-guild
 
+# Package-split API inventories
+.agents/skills/package-split/           @DataDog/python-guild @DataDog/apm-core-python
+scripts/package-split                   @DataDog/python-guild @DataDog/apm-core-python
+scripts/package_split/                  @DataDog/python-guild @DataDog/apm-core-python
+tests/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
+
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
