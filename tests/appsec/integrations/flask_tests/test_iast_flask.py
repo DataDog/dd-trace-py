@@ -10,6 +10,7 @@ from flask_babel import Babel
 import pytest
 from werkzeug.test import EnvironBuilder
 
+from ddtrace.appsec._iast import _iast_request_context_base as request_base
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
@@ -162,6 +163,52 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             finally:
                 for event_name, listener in listeners.items():
                     core.reset_listeners(event_name, listener)
+
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+    def test_flask_early_span_finish_reports_once(self):
+        import sqlite3
+
+        self.app.testing = True
+        exported_reports = []
+        contexts_after_finish = []
+        writer = self.tracer._span_aggregator.writer
+        write = writer.write
+        free_slots = debug_context_array_free_slots_number()
+
+        def capture_export(spans=None):
+            for span in spans or ():
+                if span.name == "flask.request":
+                    exported_reports.append(load_iast_report(span))
+            return write(spans)
+
+        @self.app.route("/early-finish")
+        def endpoint():
+            value = request.args["table"]
+            assert is_pyobject_tainted(value)
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(add_aspect("SELECT 1 FROM ", value))
+            # Match the Lambda impending-timeout path before the WSGI call returns.
+            self.tracer.current_span()._finish_with_ancestors()
+            contexts_after_finish.append(IAST_CONTEXT.get())
+            return "ok"
+
+        with (
+            override_global_config(
+                dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100)
+            ),
+            mock.patch.object(writer, "write", side_effect=capture_export),
+            mock.patch.object(
+                request_base, "update_global_vulnerability_limit", wraps=request_base.update_global_vulnerability_limit
+            ) as update_limit,
+        ):
+            response = self.client.get("/early-finish?table=sqlite_master")
+            response.close()
+            update_limit.assert_called_once()
+        assert contexts_after_finish == [None]
+        assert len(exported_reports) == 1
+        assert [v["type"] for v in exported_reports[0]["vulnerabilities"]] == [VULN_SQL_INJECTION]
+        assert IAST_CONTEXT.get() is None
+        assert debug_context_array_free_slots_number() == free_slots
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
