@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from package_split.api_usage import analyze_api_usage
+import pytest
 
 from ._support import make_tree
 
@@ -187,3 +188,54 @@ def test_aggregation_and_summary(tmp_path):
     assert "f" in text
     assert "pkg.c1" in text and "pkg.c2" in text
     assert report.consumer_files == 2
+
+
+def test_guarded_alias_keeps_every_binding(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES | {"fallback.py": "def f():\n    pass\n"})
+    (tmp_path / "pkg" / "consumer10.py").write_text(
+        "try:\n    import pkg.lib as impl\nexcept ImportError:\n    import pkg.fallback as impl\nimpl.f()\n",
+        encoding="utf-8",
+    )
+    report = analyze(tmp_path, "pkg", {})
+    assert "call" in symbols_of(report)["f"]
+
+
+def test_function_scope_import_does_not_hide_module_binding(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES | {"other.py": "value = 1\n"})
+    (tmp_path / "pkg" / "consumer11.py").write_text(
+        "from pkg import lib\n"
+        "def g():\n"
+        "    from pkg import other as lib\n"
+        "    return lib.value\n"
+        "def h():\n"
+        "    return lib.CONST\n",
+        encoding="utf-8",
+    )
+    report = analyze(tmp_path, "pkg", {})
+    assert "read" in symbols_of(report)["CONST"]
+
+
+def test_unaliased_import_only_is_recorded(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "consumer12.py").write_text("import pkg.lib  # side effects only\n", encoding="utf-8")
+    report = analyze(tmp_path, "pkg", {})
+    assert symbols_of(report)["<module>"] == ["import"]
+    assert report.consumer_files == 1
+
+
+def test_raise_arguments_are_not_raised(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "consumer13.py").write_text(
+        "from pkg.lib import E, f\nraise E(f())\n",
+        encoding="utf-8",
+    )
+    symbols = symbols_of(analyze(tmp_path, "pkg", {}))
+    assert "raised" in symbols["E"]
+    assert "raised" not in symbols["f"]
+    assert "call" in symbols["f"]
+
+
+def test_unknown_target_is_an_error(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    with pytest.raises(ValueError, match="no scanned module matches pkg.missing"):
+        analyze(tmp_path, "pkg", {}, target="pkg.missing")

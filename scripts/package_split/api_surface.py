@@ -223,8 +223,11 @@ def bundling_suggestions(
         by_zone: dict[str, list[str]] = {}
         single_file: dict[str, set[str]] = {}
         for symbol in sorted(surface.symbols):
+            # Consumers in a differently zoned subpackage do not move with the owner.
             consumers = [
-                consumer for consumer in surface.consumers_of(symbol) if not _is_within(consumer, package_root)
+                consumer
+                for consumer in surface.consumers_of(symbol)
+                if not _is_within(consumer, package_root) or zone_of(consumer, report.zones) != owner_zone
             ]
             if not consumers:
                 # No external consumers: the symbol can stay private to the

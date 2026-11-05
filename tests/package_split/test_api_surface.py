@@ -153,6 +153,24 @@ def test_same_zone_other_package_consumer_blocks_bundling(tmp_path):
     assert {s.owner for s in bundling_suggestions(report)} == set()
 
 
+def test_differently_zoned_subpackage_consumer_blocks_bundling(tmp_path):
+    # A consumer inside the owner's package but zoned elsewhere does not move
+    # with the owner, so the symbol is shared across two zones.
+    build_repo(
+        tmp_path,
+        {
+            "shared/__init__.py": "",
+            "shared/base.py": "def helper():\n    pass\n",
+            "shared/other/__init__.py": "",
+            "shared/other/user.py": "from shared.base import helper\nhelper()\n",
+            "app/__init__.py": "",
+            "app/consumer.py": "from shared.base import helper\nhelper()\n",
+        },
+    )
+    report = analyze(tmp_path, zones=ZONES | {"shared.other": "product:other"})
+    assert {s.owner for s in bundling_suggestions(report)} == set()
+
+
 def test_zone_of_longest_prefix_wins():
     zones = {
         "ddtrace.internal": "internal-core",

@@ -99,7 +99,10 @@ class _UsageCollector(ast.NodeVisitor):
         self.target = target
         self.report = report
         self.roots = roots
-        self.bindings: dict[str, str] = {}
+        # A name can be bound to several modules (try/except ImportError
+        # fallbacks, imports in separate function scopes); keep every
+        # alternative so usages over-approximate rather than go missing.
+        self.bindings: dict[str, set[str]] = {}
         self.parents: dict[ast.AST, ast.AST] = {}
 
     # -- pass 1: bindings --------------------------------------------------
@@ -123,24 +126,27 @@ class _UsageCollector(ast.NodeVisitor):
             return False
         return top in self.roots
 
+    def _bind(self, name: str, resolved: str) -> None:
+        self.bindings.setdefault(name, set()).add(resolved)
+
+    def _symbol(self, resolved: str) -> str:
+        if self.target is None:
+            return resolved
+        return "<module>" if resolved == self.target else resolved[len(self.target) + 1 :]
+
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
-            top = alias.name.split(".")[0]
             if alias.asname:
-                self.bindings[alias.asname] = alias.name
-                if self._matches(alias.name):
-                    # `import <module> as x`: the module object is consumed.
-                    self.report.usages.append(
-                        Usage(
-                            self.importer,
-                            alias.name if self.target is None else "<module>",
-                            "import",
-                            self._location(node),
-                        )
-                    )
+                self._bind(alias.asname, alias.name)
             else:
                 # `import a.b.c` binds the name `a` to the top-level module.
-                self.bindings.setdefault(top, top)
+                self._bind(alias.name.split(".")[0], alias.name.split(".")[0])
+            if self._matches(alias.name):
+                # The imported module is consumed even without later use sites
+                # (e.g. side-effect imports).
+                self.report.usages.append(
+                    Usage(self.importer, self._symbol(alias.name), "import", self._location(node))
+                )
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.level:
@@ -156,15 +162,11 @@ class _UsageCollector(ast.NodeVisitor):
                     self.report.usages.append(Usage(self.importer, star_symbol, "import", self._location(node)))
                 continue
             binding = "%s.%s" % (target_module, alias.name) if target_module else alias.name
-            self.bindings[alias.asname or alias.name] = binding
+            self._bind(alias.asname or alias.name, binding)
             if self._matches(binding):
                 # The import itself is the baseline usage fact: the symbol is
                 # consumed even if no qualified use site is detected.
-                if self.target is None:
-                    symbol = binding
-                else:
-                    symbol = "<module>" if binding == self.target else binding[len(self.target) + 1 :]
-                self.report.usages.append(Usage(self.importer, symbol, "import", self._location(node)))
+                self.report.usages.append(Usage(self.importer, self._symbol(binding), "import", self._location(node)))
 
     # -- pass 2: usages ----------------------------------------------------
     def _location(self, node: ast.AST) -> str:
@@ -173,11 +175,7 @@ class _UsageCollector(ast.NodeVisitor):
     def _record(self, resolved: str, node: ast.AST) -> None:
         if not self._matches(resolved):
             return
-        if self.target is not None:
-            symbol = "<module>" if resolved == self.target else resolved[len(self.target) + 1 :]
-        else:
-            symbol = resolved
-        self.report.usages.append(Usage(self.importer, symbol, self._kind(node), self._location(node)))
+        self.report.usages.append(Usage(self.importer, self._symbol(resolved), self._kind(node), self._location(node)))
 
     def _kind(self, node: ast.AST) -> str:
         """Classify a usage by its syntactic context (nearest few parents).
@@ -202,7 +200,11 @@ class _UsageCollector(ast.NodeVisitor):
                 type_node = parent.type
                 if current is type_node or (isinstance(type_node, ast.Tuple) and current in type_node.elts):
                     candidates.add("exception-caught")
-            if isinstance(parent, ast.Raise):
+            # Only the raised expression or its constructor is raised; helpers
+            # called to build the exception arguments are ordinary calls.
+            if isinstance(parent, ast.Raise) and (
+                node is parent.exc or (isinstance(parent.exc, ast.Call) and node is parent.exc.func)
+            ):
                 candidates.add("raised")
             if isinstance(parent, ast.Call) and parent.func is current:
                 candidates.add("call")
@@ -214,10 +216,10 @@ class _UsageCollector(ast.NodeVisitor):
                 return kind
         return "read"
 
-    def _chain_root(self, node: ast.Attribute) -> tuple[str, list[str]] | None:
+    def _chain_root(self, node: ast.Attribute) -> tuple[set[str], list[str]] | None:
         """Resolve an attribute chain down to its root Name binding.
 
-        Returns (root_binding, attr_names) when the chain is rooted at a
+        Returns (root_bindings, attr_names) when the chain is rooted at a
         tracked binding, else None.
         """
         attrs: list[str] = []
@@ -237,12 +239,12 @@ class _UsageCollector(ast.NodeVisitor):
             if isinstance(node, ast.Attribute):
                 root = self._chain_root(node)
                 if root is not None:
-                    binding, attrs = root
-                    self._record(".".join([binding] + list(reversed(attrs))), node)
+                    bindings, attrs = root
+                    for binding in sorted(bindings):
+                        self._record(".".join([binding] + list(reversed(attrs))), node)
             elif isinstance(node, ast.Name):
-                name_binding = self.bindings.get(node.id)
-                if name_binding is not None:
-                    self._record(name_binding, node)
+                for binding in sorted(self.bindings.get(node.id, ())):
+                    self._record(binding, node)
 
 
 def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path]:
@@ -273,6 +275,9 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
 def analyze_api_usage(root: Path, source_paths: Iterable[Path], target: str) -> ApiUsageReport:
     """Compute the used-API report for target across the source paths."""
     modules = module_names_for(root, source_paths)
+    if not any(module == target or module.startswith(target + ".") for module in modules):
+        # An empty report would be indistinguishable from an unused target.
+        raise ValueError("no scanned module matches %s" % target)
     report = ApiUsageReport(target=target, files_scanned=len(modules))
 
     consumers = 0

@@ -45,3 +45,26 @@ def test_missing_source_path_exits_two(tmp_path, monkeypatch, capsys):
 
     assert main(["api-usage", "--module", "pkg.lib", "--source-path", "missing"]) == 2
     assert "source path does not exist" in capsys.readouterr().err
+
+
+def test_missing_explicit_zones_exits_two(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["api-surface", "--source-path", "pkg", "--zones", "missing.json"]) == 2
+
+
+def test_import_roots_follow_src_layout(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path / "src", "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-surface", "--source-path", "src/pkg"]) == 0
+    data = json.loads((tmp_path / "out" / "api-surface" / "api-surface.json").read_text())
+    assert data["report"]["roots"] == ["pkg"]
+
+
+def test_current_directory_source_path(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "."]) == 0

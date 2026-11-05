@@ -11,6 +11,8 @@ from pathlib import Path
 import sys
 from typing import Optional
 
+from .api_usage import module_names_for
+
 
 DEFAULT_OUTPUT = ".package-split"
 DEFAULT_SOURCE_PATHS = ["ddtrace"]
@@ -55,10 +57,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _inventory_inputs(args: argparse.Namespace) -> tuple[Path, list[Path], list[str]]:
-    """Scan root, source paths and import roots (the source paths' top-level names)."""
+    """Scan root, source paths and import roots (top-level names of the scanned modules)."""
     root = Path.cwd()
     source_paths = [root / p for p in args.source_path or DEFAULT_SOURCE_PATHS]
-    import_roots = list(dict.fromkeys(p.relative_to(root).parts[0] for p in source_paths))
+    import_roots = sorted({module.split(".", 1)[0] for module in module_names_for(root, source_paths)})
     return root, source_paths, import_roots
 
 
@@ -105,8 +107,9 @@ def _api_surface_command(args: argparse.Namespace) -> int:
     root, source_paths, import_roots = _inventory_inputs(args)
 
     zones = None
+    # An explicit --zones path must exist; only the default is optional.
     zones_path = Path(args.zones) if args.zones else root / "scripts" / "import-analysis" / "layers.json"
-    if zones_path.is_file():
+    if args.zones or zones_path.is_file():
         zones = json.loads(zones_path.read_text(encoding="utf-8")).get("zones")
 
     report = analyze_api_surfaces(root, source_paths, import_roots, zones)
