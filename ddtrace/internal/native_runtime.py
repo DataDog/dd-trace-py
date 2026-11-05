@@ -116,6 +116,32 @@ class NativeRuntime(SharedRuntime):
 
 _runtime: Optional[NativeRuntime] = None
 
+# Called after the runtime is replaced outside a fork, so that the owners of
+# workers on the old runtime rebuild them, as they do in a fork child.
+_replacement_hooks: list[Callable[[], None]] = []
+
+
+def on_runtime_replaced(hook: Callable[[], None]) -> Callable[[], None]:
+    """Register a hook to run after the runtime is replaced, e.g. by a descriptor cleanup."""
+    _replacement_hooks.append(hook)
+    return hook
+
+
+def unregister_on_runtime_replaced(hook: Callable[[], None]) -> None:
+    try:
+        _replacement_hooks.remove(hook)
+    except ValueError:
+        pass
+
+
+def _replace_runtime(runtime: NativeRuntime) -> None:
+    runtime.replace_runtime()
+    for hook in list(_replacement_hooks):
+        try:
+            hook()
+        except Exception:
+            log.debug("Native runtime replacement hook %r failed", hook, exc_info=True)
+
 
 @cache
 def get_native_runtime() -> NativeRuntime:
@@ -150,8 +176,9 @@ def _stop_while_closing_fds(close: Callable[..., Any]) -> Callable[..., Any]:
     """Wrap a function that closes inherited file descriptors.
 
     The runtime's own descriptors are among those closed. Stop the runtime while
-    they are still valid, then rebuild it and reset its workers as in a fork
-    child, so that no worker keeps a handle on a closed descriptor.
+    they are still valid, then replace it, as in a fork child: the old runtime
+    and its workers, whose connections may refer to closed descriptors, are
+    never touched again, and their owners rebuild the workers.
     """
     if getattr(close, "__ddtrace_native_runtime__", False):
         return close
@@ -169,7 +196,7 @@ def _stop_while_closing_fds(close: Callable[..., Any]) -> Callable[..., Any]:
             return close(*args, **kwargs)
         finally:
             _fd_cleanup.depth = depth
-            runtime.after_fork_child()
+            _replace_runtime(runtime)
 
     setattr(wrapper, "__ddtrace_native_runtime__", True)
     return wrapper

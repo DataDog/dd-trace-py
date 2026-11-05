@@ -338,6 +338,22 @@ impl SharedRuntimePy {
         Ok(())
     }
 
+    /// Replace the runtime with a fresh one in this process, e.g. after the
+    /// descriptors of the current one were closed. Call before_fork() first, while
+    /// those descriptors are still valid. The old runtime and its workers are
+    /// leaked, not dropped: their state may refer to closed descriptors, whose
+    /// numbers can already belong to something else. Owners of workers on the
+    /// old runtime must rebuild them, as in a fork child.
+    fn replace_runtime(&self) -> PyResult<()> {
+        let mut runtime = self
+            .inner
+            .runtime
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
+        replace_inherited_runtime(&mut runtime, &self.inner, std::process::id())?;
+        Ok(())
+    }
+
     fn defer_after_fork_child(&self) {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {

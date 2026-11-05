@@ -506,6 +506,98 @@ tracer.flush()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+@pytest.mark.parametrize("cleanup", ["closerange", "celery"])
+def test_native_runtime_replaced_after_cleanup_with_live_connections(run_python_code_in_subprocess, tmp_path, cleanup):
+    """Closing descriptors after the workers have connected must not break later use.
+
+    The workers' connections refer to the closed descriptors, whose numbers the
+    application then reuses. The runtime is replaced and its workers rebuilt,
+    rather than reset, so nothing acts on those descriptors again.
+    """
+    celery = tmp_path / "celery"
+    celery.mkdir()
+    (celery / "__init__.py").write_text("")
+    (celery / "platforms.py").write_text(
+        """
+import os
+
+
+def close_open_fds(keep=None):
+    keep = set(keep or ())
+    for fd in range(3, 1024):
+        if fd not in keep:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+"""
+    )
+
+    code = """
+import os
+import select
+import sys
+import time
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+sys.path.insert(0, %r)
+from celery import platforms
+
+
+def use(label):
+    for i in range(3):
+        with tracer.trace("%%s-%%d" %% (label, i)):
+            pass
+        tracer.flush()
+        telemetry_writer.periodic(force_flush=True)
+
+
+r, w = os.pipe()
+pid = os.fork()
+if pid == 0:
+    try:
+        use("before")
+        if %r == "closerange":
+            os.closerange(3, w)
+            os.closerange(w + 1, 1024)
+        else:
+            platforms.close_open_fds([0, 1, 2, w])
+        # Reuse low descriptor numbers, as an application would.
+        files = [open(os.devnull) for _ in range(8)]
+        use("after")
+        time.sleep(0.2)
+        use("later")
+        result = "ok"
+    except BaseException as e:
+        result = repr(e)
+    os.write(w, result.encode())
+    os._exit(0)
+
+os.close(w)
+ready, _, _ = select.select([r], [], [], 30)
+if not ready:
+    os.kill(pid, 9)
+    os.waitpid(pid, 0)
+    raise AssertionError("the child hung")
+result = os.read(r, 4096).decode()
+os.waitpid(pid, 0)
+assert result == "ok", result
+""" % (str(tmp_path), cleanup)
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
 def test_native_runtime_ready_for_child_hooks(run_python_code_in_subprocess):
     """The child rebuilds the native runtime in a fork hook that runs before any other.
 

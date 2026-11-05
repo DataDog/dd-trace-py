@@ -213,6 +213,9 @@ class SharedRuntime:
     def rebuild_after_fork(self) -> None:
         """Replace the runtime inherited by a fork child with a fresh one."""
         ...
+    def replace_runtime(self) -> None:
+        """Replace the runtime with a fresh one, leaking the old one and its workers."""
+        ...
     def defer_after_fork_child(self) -> None:
         """Prevent lazy runtime restart while Python child hooks run."""
         ...
