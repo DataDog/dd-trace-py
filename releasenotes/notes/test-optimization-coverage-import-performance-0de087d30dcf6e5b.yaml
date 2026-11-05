@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Test Optimization: Fixes an issue where collecting per-test code coverage slowed down
+    pytest's test collection and the start of each test process, more so in projects that
+    import many modules.
