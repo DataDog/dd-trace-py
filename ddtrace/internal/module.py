@@ -12,6 +12,8 @@ from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
+from wrapt import importer as wrapt_importer
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 
@@ -271,6 +273,10 @@ class _ImportHookChainedLoader:
 
         if pre_exec_hook:
             pre_exec_hook(self, module)
+            # The hook (e.g. IAST) executes the module itself, bypassing self.loader.
+            # Run wrapt's post-import hooks it would have run (once: wrapt pops them).
+            if type(self.loader) is getattr(wrapt_importer, "_ImportHookChainedLoader", None):
+                wrapt_importer.notify_module_loaded(module)
         else:
             if self.loader is None:
                 spec = getattr(module, "__spec__", None)

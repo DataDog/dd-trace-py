@@ -110,6 +110,26 @@ class ConftestTestCase(TracerTestCase):
         rec = self.inline_run(file_name)
         rec.assertoutcome(passed=1, failed=0, skipped=0)
 
+    def test_subprocess_snapshot_compute_stats(self):
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+            from tests.utils import snapshot
+
+            @snapshot(compute_stats_enabled=True)
+            @pytest.mark.subprocess()
+            def test_stats_enabled():
+                import os
+                from ddtrace import config
+
+                assert os.environ["DD_TRACE_STATS_COMPUTATION_ENABLED"] == "true"
+                assert config._trace_compute_stats is True
+            """
+        )
+        with mock.patch.object(utils.TestAgentClient, "_request", return_value=(200, b"")):
+            rec = self.inline_run(os.path.basename(py_file.strpath))
+        rec.assertoutcome(passed=1, failed=0, skipped=0)
+
     def test_subprocess_skip(self):
         """
         Test a skipping test with subprocess decorator
@@ -198,7 +218,7 @@ def test_session_token_survives_writer_replacement(pytester, monkeypatch, inheri
 
 @pytest.mark.parametrize(
     "body, outcome",
-    [(b"Received unmatched traces", pytest.xfail.Exception), (b"Different span attributes", pytest.fail.Exception)],
+    [(b"Received unmatched traces", pytest.fail.Exception), (b"Different span attributes", pytest.fail.Exception)],
 )
 def test_snapshot_comparison_outcomes(monkeypatch, body, outcome):
     session = utils.SnapshotTest("attempt", name="baseline", base_url="http://localhost:9126")
@@ -212,6 +232,6 @@ def test_testagent_connection_failure(monkeypatch):
     connection = mock.Mock()
     connection.request.side_effect = ConnectionRefusedError("agent unavailable")
     monkeypatch.setattr(client, "create_connection", lambda **kwargs: connection)
-    with pytest.raises(pytest.xfail.Exception, match="Failed to connect to test agent"):
+    with pytest.raises(RuntimeError, match="Test agent request failed"):
         client._request("GET", client._url("/test/session/requests"), retry=False)
     connection.close.assert_called_once()
