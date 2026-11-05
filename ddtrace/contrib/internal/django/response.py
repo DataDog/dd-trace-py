@@ -1,3 +1,5 @@
+from contextlib import ExitStack
+from contextlib import nullcontext
 import functools
 from types import FunctionType
 from types import ModuleType
@@ -14,6 +16,7 @@ from ddtrace._trace.http_tags import http_block_metadata
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -45,6 +48,9 @@ from . import utils
 
 
 log = get_logger(__name__)
+
+_SPAN_STARTED_EVENT = f"{SpanLifecycleEvents.SPAN_STARTED.value}.django.traced_get_response"
+_SPAN_FINISHING_EVENT = f"{SpanLifecycleEvents.SPAN_FINISHING.value}.django.traced_get_response"
 
 # PERF: cache the getattr lookup for the Django config
 config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
@@ -98,20 +104,28 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     pin = Pin.get_from(instance)
     otel_resource = utils._initial_otel_resource(request)
 
-    with core.context_with_data(
-        "django.traced_get_response",
-        remote_addr=request.META.get("REMOTE_ADDR"),
-        headers=request_headers,
-        headers_case_sensitive=True,
-        span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-        resource=otel_resource or utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config_django),
-        span_type=SpanTypes.WEB,
-        tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
-        integration_config=config_django,
-        distributed_headers=request_headers,
-        activate_distributed_headers=True,
-    ) as ctx:
+    with (
+        core.context_with_data(
+            "django.traced_get_response",
+            remote_addr=request.META.get("REMOTE_ADDR"),
+            headers=request_headers,
+            headers_case_sensitive=True,
+            span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
+            resource=otel_resource or utils.REQUEST_DEFAULT_RESOURCE,
+            service=trace_utils.int_service(pin, config_django),
+            span_type=SpanTypes.WEB,
+            tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
+            integration_config=config_django,
+            distributed_headers=request_headers,
+            activate_distributed_headers=True,
+        ) as ctx,
+        ExitStack() if core.has_listeners(_SPAN_FINISHING_EVENT) else nullcontext() as cleanup,
+    ):
+        # WSGI tracing ends when get_response returns, before streaming-body iteration.
+        if cleanup is not None:
+            cleanup.callback(core.dispatch, _SPAN_FINISHING_EVENT, (ctx,))
+        core.dispatch(_SPAN_STARTED_EVENT, (ctx,))
+
         if otel_resource is not None:
             record_initial_instrumentation_resource(span_from_context(ctx), otel_resource)
         core.dispatch(
