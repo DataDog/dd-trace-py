@@ -14,8 +14,8 @@ import pytest
 
 from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
-from ddtrace.llmobs._integrations.utils import g711_to_pcm16
-from ddtrace.llmobs._integrations.utils import pcm16_to_wav
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 
 
 try:
@@ -92,7 +92,16 @@ class _RecordingIntegration:
         )
 
     def _llmobs_set_tags_from_realtime_workflow(
-        self, span, name, session_id=None, parent_span=None, input_value=None, output_value=None, metadata=None
+        self,
+        span,
+        name,
+        session_id=None,
+        parent_span=None,
+        input_value=None,
+        output_value=None,
+        metadata=None,
+        metrics=None,
+        tags=None,
     ):
         self.workflows.append(
             {
@@ -103,12 +112,18 @@ class _RecordingIntegration:
                 "input_value": input_value,
                 "output_value": output_value,
                 "metadata": metadata,
+                "metrics": metrics,
+                "tags": tags,
             }
         )
 
+    def _get_model_provider(self, span):
+        return "openai"
 
-def _new_state(model=None):
+
+def _new_state(model=None, barge_in=False):
     integration = _RecordingIntegration()
+    integration.integration_config = {"_realtime_barge_in_enabled": barge_in}
     state = _RealtimeState(integration, client=None, model=model)
     return integration, state
 
@@ -1709,3 +1724,520 @@ def test_realtime_patch_and_unpatch(openai):
 
     patch()  # restore for the fixture's teardown
     assert hasattr(RealtimeConnection.parse_event, "__wrapped__")
+
+
+@pytest.fixture
+def barge_state(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    integration, state = _new_state(barge_in=True)
+    session = _session_created(transcription=False)
+    session.session.audio.input.turn_detection = _ns(type="server_vad", interrupt_response=True)
+    state.on_server_event(session)
+    return integration, state, clock
+
+
+def _barge_response(state, clock, response_id="r1", audio_ms=1000, generation_ms=100):
+    state.on_server_event(_ns(type="response.created", response=_ns(id=response_id)))
+    state.on_server_event(
+        _ns(
+            type="response.output_audio.delta",
+            response_id=response_id,
+            item_id="audio_" + response_id,
+            content_index=0,
+            delta=_b64(_agent_pcm(audio_ms)),
+        )
+    )
+    clock.advance_ms(generation_ms)
+    state.on_server_event(_ns(type="response.done", response=_ns(id=response_id, status="completed")))
+
+
+def _barge_speech(state, event_id="onset-1"):
+    state.on_server_event(_ns(type="input_audio_buffer.speech_started", event_id=event_id, item_id="user-next"))
+
+
+def _barge_ack(state, response_id="r1", cutoff_ms=200):
+    state.on_server_event(
+        _ns(type="conversation.item.truncated", item_id="audio_" + response_id, content_index=0, audio_end_ms=cutoff_ms)
+    )
+
+
+def _barge_roots(integration):
+    return [entry for entry in integration.workflows if entry["name"] == "realtime audio turn"]
+
+
+@pytest.mark.parametrize("generated_ms,cutoff_ms", [(6950, 5200), (11850, 5000), (13400, 7500)])
+def test_realtime_barge_in_first_late_cut(barge_state, generated_ms, cutoff_ms):
+    integration, state, clock = barge_state
+    _barge_response(state, clock, audio_ms=generated_ms)
+    assert not integration.responses
+    clock.advance_ms(cutoff_ms - 100)
+    _barge_speech(state)
+    _truncate(state, "r1", cutoff_ms)
+    assert not integration.responses  # Leave room for the acknowledgement.
+    _barge_ack(state, cutoff_ms=cutoff_ms)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    observation = root["metadata"]["voice_barge_in"]
+    assert observation["observation"] == "complete"
+    assert observation["events"][0]["reported_cutoff_ms"] == cutoff_ms
+    assert observation["events"][0]["truncation_acknowledged"] is True
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(
+        _agent_pcm(cutoff_ms)
+    )
+    _barge_ack(state, cutoff_ms=cutoff_ms)
+    state.finish_session()
+    assert len(_barge_roots(integration)) == 1
+
+
+def test_realtime_barge_in_known_zero(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    clock.advance_ms(1200)
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 0}
+    assert root["metadata"]["voice_barge_in"]["events"] == []
+
+
+def test_realtime_barge_in_close_before_window_is_incomplete(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] is None
+    assert root["metadata"]["voice_barge_in"]["observation"] == "incomplete"
+
+
+def test_realtime_barge_in_no_audio_cancel_is_not_eligible(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="response.created", response=_ns(id="silent")))
+    _barge_speech(state)
+    state.on_server_event(_ns(type="response.done", response=_ns(id="silent", status="cancelled")))
+    root = _barge_roots(integration)[0]
+    assert root["metadata"] is None
+    assert root["metrics"] is None
+
+
+def test_realtime_barge_in_attempt_without_truncation_is_counted(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    clock.advance_ms(1300)
+    state.finish_session()
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+def test_realtime_barge_in_manual_truncation_does_not_count(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _truncate(state, "r1", 0)
+    _barge_ack(state, cutoff_ms=0)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 0}
+    assert not root["metadata"]["voice_barge_in"]["events"]
+
+
+@pytest.mark.parametrize("onset", ["before_audio", "after_window"])
+def test_realtime_barge_in_truncation_does_not_make_inactive_onset_count(barge_state, onset):
+    integration, state, clock = barge_state
+    if onset == "before_audio":
+        _barge_speech(state)
+    _barge_response(state, clock)
+    if onset == "after_window":
+        clock.advance_ms(1100)  # Outside playback, but still inside the finalization grace period.
+        _barge_speech(state)
+    _truncate(state, "r1", 200)
+    _barge_ack(state, cutoff_ms=200)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 0}
+    assert root["metadata"]["voice_barge_in"]["events"] == []
+
+
+def test_realtime_barge_in_episode_deduplication(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _barge_speech(state)
+    _barge_speech(state, "same-speech-second-start")
+    state.on_server_event(_ns(type="input_audio_buffer.speech_stopped"))
+    _barge_speech(state)  # Redelivery of a prior event, even after stop.
+    _barge_speech(state, "onset-2")
+    _truncate(state, "r1", 100)
+    _barge_ack(state, cutoff_ms=100)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 2}
+    assert len(root["metadata"]["voice_barge_in"]["events"]) == 2
+
+
+def test_realtime_barge_in_next_response_does_not_finalize_prior_output(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock, audio_ms=6000)
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r2")))
+    assert not integration.responses
+    _barge_speech(state)
+    _truncate(state, "r1", 100)
+    _barge_ack(state, cutoff_ms=100)
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+@pytest.mark.parametrize("cutoff", [-1, float("nan"), float("inf"), 1001])
+def test_realtime_barge_in_invalid_cutoff(barge_state, cutoff):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _truncate(state, "r1", cutoff)
+    assert not integration.responses
+    clock.advance_ms(1200)
+    state.finish_session()
+    assert len(integration.responses) == 1
+    if cutoff == 1001:
+        assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_retention_budget_does_not_claim_zero(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_WAIT_NS", 100_000_000)
+    _barge_response(state, clock)
+    clock.advance_ms(1500)  # Processing resumes after both budget and estimated playback end.
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_turn_capacity_marks_eviction_incomplete(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_TURNS", 1)
+    _barge_response(state, clock, "r1", audio_ms=6000)
+    _barge_response(state, clock, "r2", audio_ms=6000)
+    assert len(state._playing) == 1
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_marker_cap_preserves_count(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_MARKERS", 1)
+    _barge_response(state, clock)
+    for event_id in ("one", "two"):
+        _barge_speech(state, event_id)
+        state.on_server_event(_ns(type="input_audio_buffer.speech_stopped"))
+    clock.advance_ms(1300)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 2}
+    assert root["metadata"]["voice_barge_in"]["events_truncated"] is True
+
+
+def test_realtime_barge_in_disabled_policy_is_not_eligible(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(
+        _ns(
+            type="session.updated",
+            session=_ns(audio=_ns(input=_ns(turn_detection=_ns(type="server_vad", interrupt_response=False)))),
+        )
+    )
+    _barge_response(state, clock)
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_session_change_invalidates_observation(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    state.on_client_event({"type": "session.update", "session": {"instructions": "new"}})
+    clock.advance_ms(1300)
+    state.finish_session()
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_audio_retention_independent(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_AUDIO_ACCUM_MAX_BYTES", 2)
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _truncate(state, "r1", 0)
+    _barge_ack(state, cutoff_ms=0)
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+def test_realtime_barge_in_marker_byte_budget(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_MARKER_BYTES", 1)
+    _barge_response(state, clock)
+    _barge_speech(state)
+    clock.advance_ms(1300)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert root["metadata"]["voice_barge_in"]["events"] == []
+    assert root["metadata"]["voice_barge_in"]["events_truncated"] is True
+
+
+def test_realtime_barge_in_ack_before_client_hook(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _barge_ack(state, cutoff_ms=100)
+    _truncate(state, "r1", 100)
+    state.finish_session()
+    assert len(_barge_roots(integration)) == 1
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+def test_realtime_barge_in_ack_after_next_speech_episode(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _truncate(state, "r1", 100)
+    state.on_server_event(_ns(type="input_audio_buffer.speech_stopped"))
+    _barge_speech(state, "next-episode")
+    _barge_ack(state, cutoff_ms=100)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert root["metadata"]["voice_barge_in"]["events"][0]["truncation_acknowledged"] is True
+
+
+def test_realtime_barge_in_invalid_content_only_invalidates_owner(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock, "r1")
+    _barge_response(state, clock, "r2")
+    state.on_client_event(
+        {"type": "conversation.item.truncate", "item_id": "audio_r1", "content_index": "invalid", "audio_end_ms": 100}
+    )
+    clock.advance_ms(1500)
+    state.finish_session()
+    roots = _barge_roots(integration)
+    assert roots[0]["metrics"] is None
+    assert roots[1]["metrics"] == {"barge_in_count": 0}
+
+
+def test_realtime_barge_in_content_relative_ack_without_client_hook(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    for index in (0, 1):
+        state.on_server_event(
+            _ns(
+                type="response.output_audio.delta",
+                response_id="r1",
+                item_id="audio_r1",
+                content_index=index,
+                delta=_b64(_agent_pcm(500)),
+            )
+        )
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+    clock.advance_ms(600)
+    _barge_speech(state)
+    state.on_server_event(
+        _ns(type="conversation.item.truncated", item_id="audio_r1", content_index=1, audio_end_ms=100)
+    )
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert root["metadata"]["voice_barge_in"]["events"][0]["content_index"] == 1
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(600))
+
+
+def test_realtime_barge_in_stale_deltas_do_not_extend_playback(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    audio = _ns(
+        type="response.output_audio.delta",
+        response_id="r1",
+        item_id="audio_r1",
+        content_index=0,
+        delta=_b64(_agent_pcm(500)),
+    )
+    state.on_server_event(audio)
+    clock.advance_ms(100)
+    _barge_speech(state)
+    _truncate(state, "r1", 100)
+    state.on_server_event(audio)
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="cancelled")))
+    _barge_ack(state, cutoff_ms=100)
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(100))
+
+
+def test_realtime_barge_in_concurrent_send_and_close(barge_state):
+    from concurrent.futures import ThreadPoolExecutor
+
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+
+    def operation(index):
+        if index % 3:
+            state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+        else:
+            state.finish_session()
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(operation, range(100)))
+    assert len(_barge_roots(integration)) == 1
+    assert not state._playing
+    assert not state._responses
+
+
+def test_realtime_barge_in_instrumentation_failure_is_isolated(barge_state, monkeypatch):
+    _, state, _ = barge_state
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("observation failure")
+
+    monkeypatch.setattr(state, "_flush_playing", fail)
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+
+
+def _barge_connection_messages():
+    session = {
+        "type": "session.created",
+        "event_id": "session",
+        "session": {
+            "type": "realtime",
+            "model": "gpt-realtime",
+            "audio": {
+                "input": {"turn_detection": {"type": "server_vad", "interrupt_response": True}},
+                "output": {"format": {"type": "audio/pcm", "rate": 24000}},
+            },
+        },
+    }
+    return [
+        json.dumps(event)
+        for event in [
+            session,
+            {"type": "response.created", "event_id": "created", "response": {"id": "r1"}},
+            {
+                "type": "response.output_audio.delta",
+                "event_id": "audio",
+                "response_id": "r1",
+                "item_id": "audio_r1",
+                "output_index": 0,
+                "content_index": 0,
+                "delta": _b64(_agent_pcm(500)),
+            },
+            {"type": "response.done", "event_id": "done", "response": {"id": "r1", "status": "completed"}},
+            {
+                "type": "input_audio_buffer.speech_started",
+                "event_id": "onset",
+                "audio_start_ms": 200,
+                "item_id": "next-user",
+            },
+            {
+                "type": "conversation.item.truncated",
+                "event_id": "ack",
+                "item_id": "audio_r1",
+                "content_index": 0,
+                "audio_end_ms": 200,
+            },
+        ]
+    ]
+
+
+@pytest.fixture(
+    params=[
+        pytest.param((None, None, None, "openai"), id="direct-endpoint"),
+        pytest.param((None, "https://gateway.example/v1", None, "unknown"), id="opaque-endpoint"),
+        pytest.param(("custom_provider", None, None, "custom_provider"), id="override-detected-provider"),
+        pytest.param(("openai", "https://gateway.example/v1", None, "openai"), id="override-unknown-provider"),
+        pytest.param(("", "https://gateway.example/v1", None, "unknown"), id="empty-override"),
+        pytest.param(("  ", "https://gateway.example/v1", None, "unknown"), id="blank-override"),
+        pytest.param(("original", "https://gateway.example/v1", "updated", "updated"), id="late-root-annotation"),
+        pytest.param(("unknown", None, None, "unknown"), id="explicit-unknown"),
+    ]
+)
+def realtime_provider_case(request):
+    return request.param
+
+
+def _assert_barge_connection_spans(test_spans, expected_provider):
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    roots = [span for span in spans if span.resource == "createRealtimeTurn"]
+    assert len(roots) == 1
+    data = _get_llmobs_data_metastruct(roots[0])
+    assert data["metrics"]["barge_in_count"] == 1
+    assert data["tags"]["agent_version"] == "v1"
+    assert data["tags"]["prompt_version"] == "p1"
+    assert data["tags"]["model_name"] == "gpt-realtime"
+    assert data["tags"]["model_provider"] == expected_provider
+    assert data["meta"]["metadata"]["voice_barge_in"]["events"][0]["reported_cutoff_ms"] == 200
+    for span in spans:
+        if span is not roots[0]:
+            assert "barge_in_count" not in _get_llmobs_data_metastruct(span).get("metrics", {})
+    llm = next(span for span in spans if span.resource == "createRealtimeResponse")
+    output = _get_llmobs_data_metastruct(llm)["meta"]["output"]["messages"][0]
+    assert output["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(200))
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
+def test_realtime_barge_in_sync_connection(openai, openai_llmobs, test_spans, monkeypatch, realtime_provider_case):
+    from ddtrace import config
+    from ddtrace.llmobs import LLMObs
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    socket = _FakeWebSocket(_barge_connection_messages())
+    conn = RealtimeConnection(socket)
+    provider, base_url, late_provider, expected_provider = realtime_provider_case
+    tags = {"agent_version": "v1", "prompt_version": "p1"}
+    if provider is not None:
+        tags["model_provider"] = provider
+    with LLMObs.workflow(name="call"):
+        with LLMObs.annotation_context(tags=tags):
+            _realtime._attach_session(_ns(_dd_client=openai.OpenAI(base_url=base_url), _dd_model="gpt-realtime"), conn)
+            for _ in range(3):
+                conn.recv()
+            clock.advance_ms(100)
+            conn.recv()
+        with LLMObs.annotation_context(tags={"agent_version": "v2", "model_provider": "later_context"}):
+            if late_provider is not None:
+                LLMObs.annotate(
+                    span=conn._dd_realtime_state._playing[0].root_span, tags={"model_provider": late_provider}
+                )
+            clock.advance_ms(100)
+            conn.recv()
+            conn.conversation.item.truncate(item_id="audio_r1", content_index=0, audio_end_ms=200)
+            conn.recv()
+        conn.close()
+    _assert_barge_connection_spans(test_spans, expected_provider)
+    assert len(socket.sent) == 1  # Instrumentation issued no provider commands itself.
+
+
+@pytest.mark.skipif(AsyncRealtimeConnection is None, reason="openai realtime API not available")
+@pytest.mark.asyncio
+async def test_realtime_barge_in_async_connection(
+    openai, openai_llmobs, test_spans, monkeypatch, realtime_provider_case
+):
+    from ddtrace import config
+    from ddtrace.llmobs import LLMObs
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    socket = _FakeAsyncWebSocket(_barge_connection_messages())
+    conn = AsyncRealtimeConnection(socket)
+    provider, base_url, late_provider, expected_provider = realtime_provider_case
+    tags = {"agent_version": "v1", "prompt_version": "p1"}
+    if provider is not None:
+        tags["model_provider"] = provider
+    with LLMObs.workflow(name="call"):
+        with LLMObs.annotation_context(tags=tags):
+            _realtime._attach_session(_ns(_dd_client=openai.OpenAI(base_url=base_url), _dd_model="gpt-realtime"), conn)
+            for _ in range(3):
+                await conn.recv()
+            clock.advance_ms(100)
+            await conn.recv()
+        with LLMObs.annotation_context(tags={"agent_version": "v2", "model_provider": "later_context"}):
+            if late_provider is not None:
+                LLMObs.annotate(
+                    span=conn._dd_realtime_state._playing[0].root_span, tags={"model_provider": late_provider}
+                )
+            clock.advance_ms(100)
+            await conn.recv()
+            await conn.conversation.item.truncate(item_id="audio_r1", content_index=0, audio_end_ms=200)
+            await conn.recv()
+        await conn.close()
+    _assert_barge_connection_spans(test_spans, expected_provider)
+    assert len(socket.sent) == 1

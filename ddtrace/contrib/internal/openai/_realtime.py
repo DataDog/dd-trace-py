@@ -27,7 +27,9 @@ already received may never be heard. When the client reports how far it got
 window derived from it cover what was heard. That report arrives after response.done, so on
 connections whose client has been seen to truncate, a finished turn is held while its audio is still
 playing rather than submitted immediately (see _park_for_playback); clients that never truncate are
-unaffected.
+unaffected. Experimental barge-in observation instead retains the first supported output too,
+and annotates its turn root with interruption episodes and an estimated-window count. It is
+disabled by default through the private integration configuration.
 
 A turn span is finalized on response.done - except that the user's input transcription
 (conversation.item.input_audio_transcription.completed) is asynchronous and frequently arrives after
@@ -51,6 +53,8 @@ Known limitations (deferred by design):
 
 import base64
 import importlib
+import json
+import math
 import time
 from types import ModuleType
 from types import SimpleNamespace
@@ -64,6 +68,7 @@ import openai
 
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import _get_attr
@@ -122,6 +127,14 @@ _AUDIO_ACCUM_MAX_BYTES = LLMOBS_AUDIO_INLINE_MAX_BYTES
 # truncation can still cap it (see `_park_for_playback`). Flushing is event-driven, so this bounds
 # both the submission delay and the window in which a connection going idle leaves a turn unflushed.
 _PARK_MAX_NS = 5 * 1_000_000_000
+
+_BARGE_IN_GRACE_NS = 250_000_000
+_BARGE_IN_MAX_WAIT_NS = 30_000_000_000
+_BARGE_IN_MAX_TURNS = 32
+_BARGE_IN_MAX_MARKERS = 128
+_BARGE_IN_MAX_SPEECH_IDS = 4096
+_BARGE_IN_MAX_MARKER_BYTES = 32_768
+_MISSING = object()
 
 
 class _AudioAccumulator:
@@ -322,6 +335,20 @@ class _ResponseTurn:
         # Function/MCP calls the model made this turn (+ inline MCP results).
         self.tool_calls: list[ToolCall] = []
         self.tool_results: list[ToolResult] = []
+        self.response_id: str = ""
+        self.finalized = False
+        self.barge_in_supported = False
+        self.barge_in_complete = True
+        self.barge_in_count = 0
+        self.barge_in_events: list[dict[str, Any]] = []
+        self.barge_in_marker_bytes = 0
+        self.barge_in_tags: dict[str, str] = {}
+        self.output_end_mono_ns: Optional[int] = None
+        self.observation_deadline_ns: Optional[int] = None
+        self.response_done_mono_ns: Optional[int] = None
+        self.output_stopped = False
+        self.audio_part_starts: dict[tuple[str, int], int] = {}
+        self.audio_part_bytes: dict[tuple[str, int], int] = {}
 
 
 class _RealtimeState:
@@ -364,17 +391,49 @@ class _RealtimeState:
         self._playing: list[Any] = []
         self._client_truncates = False
         self._closed = False
+        self._event_lock = RLock()
+        self._barge_in_enabled = bool(
+            getattr(integration, "integration_config", {}).get("_realtime_barge_in_enabled", False)
+        )
+        self._barge_in_policy: Optional[bool] = None
+        self._speech_active = False
+        self._speech_ids: set[str] = set()
+        self._speech_sequence = 0
+        self._speech: Optional[dict[str, Any]] = None
+        self._dedup_complete = True
+        self._provider_prompt_tags: dict[str, str] = {}
 
     # -- event entry points -------------------------------------------------
 
     def on_client_event(self, event: Any) -> None:
+        with self._event_lock:
+            if self._closed:
+                return
+            try:
+                self._handle_client_event(event)
+                if self._barge_in_enabled:
+                    self._flush_playing()
+            except Exception:
+                log.debug("error completing realtime client observation", exc_info=True)
+
+    def _handle_client_event(self, event: Any) -> None:
         try:
-            self._flush_playing()
+            if not self._barge_in_enabled:
+                self._flush_playing()
             event_type = _event_type(event)
             if event_type == "conversation.item.truncate":
                 # Client -> server: "the listener only got this far into that item."
-                self._on_truncate(_get_attr(event, "item_id", None), _get_attr(event, "audio_end_ms", None))
+                self._on_truncate(
+                    _get_attr(event, "item_id", None),
+                    _get_attr(event, "audio_end_ms", None),
+                    _get_attr(event, "content_index", 0),
+                )
             elif event_type == "session.update":
+                if self._barge_in_enabled:
+                    self._barge_in_policy = None
+                    self._provider_prompt_tags = {}
+                    for turn in self._open_turns():
+                        turn.barge_in_complete = False
                 self._update_session_config(_get_attr(event, "session", None))
             elif event_type == "input_audio_buffer.append":
                 audio = _get_attr(event, "audio", None)
@@ -389,21 +448,43 @@ class _RealtimeState:
             log.debug("error handling realtime client event", exc_info=True)
 
     def on_server_event(self, event: Any) -> None:
+        with self._event_lock:
+            if self._closed:
+                return
+            try:
+                self._handle_server_event(event)
+                if self._barge_in_enabled:
+                    self._flush_playing()
+            except Exception:
+                log.debug("error completing realtime server observation", exc_info=True)
+
+    def _handle_server_event(self, event: Any) -> None:
         try:
-            self._flush_playing()
+            if not self._barge_in_enabled:
+                self._flush_playing()
             event_type = _event_type(event)
             if event_type in ("session.created", "session.updated"):
+                if self._barge_in_enabled:
+                    self._update_barge_in_policy(_get_attr(event, "session", None))
                 self._update_session_config(_get_attr(event, "session", None))
                 return
             if event_type == "conversation.item.truncated":
                 # The server's acknowledgement of a client truncation; `cap_to` is absolute, so
                 # handling both it and the client event applies the cap once.
-                self._on_truncate(_get_attr(event, "item_id", None), _get_attr(event, "audio_end_ms", None))
+                self._on_truncate(
+                    _get_attr(event, "item_id", None),
+                    _get_attr(event, "audio_end_ms", None),
+                    _get_attr(event, "content_index", 0),
+                    acknowledged=True,
+                )
                 return
             if event_type == "input_audio_buffer.speech_started":
+                if self._barge_in_enabled:
+                    self._observe_speech_start(event)
                 self._on_speech_started(_get_attr(event, "audio_start_ms", None))
                 return
             if event_type == "input_audio_buffer.speech_stopped":
+                self._speech_active = False
                 # The commit that follows is the authoritative end of user speech (and overwrites
                 # this); recording it here only covers a session that never commits, so the window
                 # still gets an end.
@@ -440,7 +521,7 @@ class _RealtimeState:
                 return
             if event_type == "response.created":
                 response = _get_attr(event, "response", None)
-                self._start_response(_get_attr(response, "id", None) or _get_attr(event, "response_id", None))
+                self._start_response(_get_attr(response, "id", None) or _get_attr(event, "response_id", None), response)
                 return
             if event_type == "response.done":
                 response = _get_attr(event, "response", None)
@@ -464,6 +545,24 @@ class _RealtimeState:
                 if item_id is not None:
                     # Remember where this item's audio starts in the turn's segment, before appending.
                     turn.audio_item_starts.setdefault(str(item_id), turn.audio.total_decoded_bytes)
+                if self._barge_in_enabled:
+                    index = _get_attr(event, "content_index", 0)
+                    if item_id is not None and isinstance(index, int) and not isinstance(index, bool) and index >= 0:
+                        key = (str(item_id), index)
+                        turn.audio_part_starts.setdefault(key, turn.audio.total_decoded_bytes)
+                        turn.audio_part_bytes[key] = turn.audio_part_bytes.get(key, 0) + _decoded_b64_len(delta)
+                    else:
+                        turn.barge_in_complete = False
+                    if turn.output_stopped:
+                        return
+                    duration = _segment_duration_ns(
+                        _decoded_b64_len(delta), self._output_audio_mime, self._output_audio_rate
+                    )
+                    if duration is not None:
+                        now = time.monotonic_ns()
+                        turn.output_end_mono_ns = max(turn.output_end_mono_ns or now, now) + duration
+                    else:
+                        turn.barge_in_complete = False
                 turn.audio.append(delta, self._output_audio_mime, self._output_audio_rate)
         elif normalized == "response.audio_transcript.delta":
             turn.transcript += str(_get_attr(event, "delta", "") or "")
@@ -568,11 +667,130 @@ class _RealtimeState:
 
     # -- barge-in (agent playback cut short) --------------------------------
 
+    def _update_barge_in_policy(self, session: Any) -> None:
+        audio_input = _get_attr(_get_attr(session, "audio", None), "input", None)
+        policy = _get_attr(audio_input, "turn_detection", _MISSING)
+        if policy is _MISSING:
+            policy = _get_attr(session, "turn_detection", _MISSING)
+        if policy is not _MISSING:
+            enabled = (
+                _get_attr(policy, "type", None) == "server_vad"
+                and _get_attr(policy, "interrupt_response", True) is True
+            )
+            if self._barge_in_policy is not None and enabled != self._barge_in_policy:
+                for turn in self._open_turns():
+                    turn.barge_in_complete = False
+            self._barge_in_policy = enabled
+        prompt = _get_attr(session, "prompt", _MISSING)
+        if prompt is not _MISSING:
+            self._provider_prompt_tags = {}
+            for field, tag in (("id", "prompt_id"), ("version", "prompt_version")):
+                value = _get_attr(prompt, field, None)
+                if isinstance(value, (str, int)) and not isinstance(value, bool):
+                    self._provider_prompt_tags[tag] = str(value)[:200]
+
+    def _observe_speech_start(self, event: Any) -> None:
+        event_id = _get_attr(event, "event_id", None)
+        if isinstance(event_id, str):
+            if event_id in self._speech_ids:
+                return
+            if len(self._speech_ids) < _BARGE_IN_MAX_SPEECH_IDS:
+                self._speech_ids.add(event_id)
+            else:
+                self._dedup_complete = False
+                for turn in self._open_turns():
+                    turn.barge_in_complete = False
+        if self._speech_active:
+            return
+        self._speech_active = True
+        self._speech_sequence += 1
+        self._speech = {
+            "id": f"speech-{self._speech_sequence}",
+            "detected_at_ms": time.time_ns() // 1_000_000,
+            "counted": False,
+        }
+        now = time.monotonic_ns()
+        candidates = [
+            turn
+            for turn in self._open_turns()
+            if (
+                turn.barge_in_supported
+                and not turn.finalized
+                and not turn.output_stopped
+                and turn.audio.present
+                and turn.output_end_mono_ns is not None
+                and turn.output_end_mono_ns >= now
+            )
+        ]
+        self._speech["candidate_response_ids"] = {turn.response_id for turn in candidates}
+        if len(candidates) == 1:
+            self._count_speech(candidates[0])
+        elif len(candidates) > 1:
+            for turn in candidates:
+                turn.barge_in_complete = False
+
+    def _count_speech(self, turn: _ResponseTurn, item_id: Optional[str] = None, content_index: int = 0) -> None:
+        episode = self._speech
+        if (
+            self._barge_in_policy is not True
+            or not self._speech_active
+            or episode is None
+            or episode["counted"]
+            or turn.response_id not in episode.get("candidate_response_ids", ())
+            or turn.finalized
+            or turn.output_stopped
+            or not turn.barge_in_supported
+            or not turn.audio.present
+        ):
+            return
+        episode["counted"] = True
+        episode["turn"] = turn
+        turn.barge_in_count += 1
+        marker = {"id": episode["id"], "detected_at_ms": episode["detected_at_ms"], "response_id": turn.response_id}
+        if item_id is None and len(turn.audio_part_starts) == 1:
+            item_id, content_index = next(iter(turn.audio_part_starts))
+        if item_id is not None:
+            marker.update(item_id=item_id, content_index=content_index)
+        # Reserve space for a later cutoff/ack. Untrusted provider IDs must not
+        # defeat the marker budget even when the number of records is small.
+        marker_bytes = len(json.dumps(marker).encode("utf-8")) + 128
+        if (
+            len(turn.barge_in_events) < _BARGE_IN_MAX_MARKERS
+            and turn.barge_in_marker_bytes + marker_bytes <= _BARGE_IN_MAX_MARKER_BYTES
+        ):
+            turn.barge_in_events.append(marker)
+            turn.barge_in_marker_bytes += marker_bytes
+            episode["marker"] = marker
+
+    def _park_observation(self, turn: _ResponseTurn) -> bool:
+        if not turn.audio_part_bytes:
+            return False
+        if turn.output_end_mono_ns is None or turn.response_done_mono_ns is None:
+            turn.barge_in_complete = False
+            return False
+        now = time.monotonic_ns()
+        if turn.observation_deadline_ns is None:
+            turn.observation_deadline_ns = min(
+                turn.output_end_mono_ns + _BARGE_IN_GRACE_NS,
+                turn.response_done_mono_ns + _BARGE_IN_MAX_WAIT_NS,
+            )
+        if turn.observation_deadline_ns <= now:
+            if not turn.output_stopped and turn.observation_deadline_ns < turn.output_end_mono_ns + _BARGE_IN_GRACE_NS:
+                turn.barge_in_complete = False
+            return False
+        if turn not in self._playing:
+            while len(self._playing) >= _BARGE_IN_MAX_TURNS:
+                oldest = self._playing.pop(0)
+                oldest.barge_in_complete = False
+                self._finalize_turn(oldest, force=True)
+            self._playing.append(turn)
+        return True
+
     def _open_turns(self) -> list[Any]:
         """Every turn we could still amend: in flight, awaiting a transcript, or awaiting playback."""
         return list(self._responses.values()) + self._awaiting + self._playing
 
-    def _on_truncate(self, item_id: Any, audio_end_ms: Any) -> None:
+    def _on_truncate(self, item_id: Any, audio_end_ms: Any, content_index: Any = 0, acknowledged: bool = False) -> None:
         """Cap an assistant audio segment at what the listener actually heard.
 
         Over a WebSocket the client owns playback, and the model streams audio faster than it plays,
@@ -587,10 +805,20 @@ class _RealtimeState:
         self._client_truncates = True
         item = str(item_id) if item_id is not None else None
         end_ms = _as_float(audio_end_ms)
-        if item is None or end_ms is None:
+        if item is None or isinstance(audio_end_ms, bool) or end_ms is None or not math.isfinite(end_ms) or end_ms < 0:
+            return
+        if self._barge_in_enabled and (
+            not isinstance(content_index, int) or isinstance(content_index, bool) or content_index < 0
+        ):
+            for turn in self._open_turns():
+                if item in turn.audio_item_starts:
+                    turn.barge_in_complete = False
             return
         for turn in self._open_turns():
-            item_start = turn.audio_item_starts.get(item)
+            if self._barge_in_enabled:
+                item_start = turn.audio_part_starts.get((item, content_index))
+            else:
+                item_start = turn.audio_item_starts.get(item)
             if item_start is None:
                 continue
             # Per turn: an older held turn's audio may have arrived under a format the session has
@@ -599,9 +827,36 @@ class _RealtimeState:
             bytes_per_second = _bytes_per_second(mime, rate)
             if not bytes_per_second:
                 return
+            if self._barge_in_enabled:
+                part_bytes = turn.audio_part_bytes[(item, content_index)]
+                if end_ms * bytes_per_second / 1000 > part_bytes:
+                    turn.barge_in_complete = False
+                    return
+                self._count_speech(turn, item, content_index)
+                marker = None
+                if acknowledged:
+                    marker = next(
+                        (
+                            entry
+                            for entry in reversed(turn.barge_in_events)
+                            if entry.get("item_id") == item and entry.get("content_index") == content_index
+                        ),
+                        None,
+                    )
+                if marker is None and self._speech_active and self._speech and self._speech.get("turn") is turn:
+                    marker = self._speech.get("marker")
+                if marker is not None:
+                    marker.update(item_id=item, content_index=content_index, reported_cutoff_ms=end_ms)
+                    if acknowledged:
+                        marker["truncation_acknowledged"] = True
+                turn.output_stopped = True
+                now = time.monotonic_ns()
+                turn.output_end_mono_ns = min(turn.output_end_mono_ns or now, now)
+                deadline = now if acknowledged else now + _BARGE_IN_GRACE_NS
+                turn.observation_deadline_ns = min(turn.observation_deadline_ns or deadline, deadline)
             cap = item_start + int(end_ms / 1000 * bytes_per_second)
             turn.audio.cap_to(cap - cap % 2)  # keep PCM16 samples whole; a byte is nothing for G.711
-            if turn in self._playing:
+            if turn in self._playing and not self._barge_in_enabled:
                 # Playback ended when the listener cut it off, so stop waiting on it.
                 self._playing.remove(turn)
                 self._finalize_turn(turn, force=True)
@@ -620,6 +875,8 @@ class _RealtimeState:
         exactly as before, paying nothing. The cost of that trade is that the first interruption on a
         connection is still reported untruncated.
         """
+        if self._barge_in_enabled:
+            return self._park_observation(turn) if turn.barge_in_supported else False
         if not self._client_truncates or turn.audio.start_ns is None:
             return False
         playback_ns = _segment_duration_ns(
@@ -651,10 +908,26 @@ class _RealtimeState:
         A connection that goes idle immediately after a response is the gap: nothing fires, so the
         held turn waits for the next event, for close, or for the connection to be dropped
         (`_finish_session_on_gc`). `_PARK_MAX_NS` bounds how long that can be, and a timed flush is
-        deliberately avoided - it would finalize turns off-thread, and this state machine is only
-        safe because every path runs on the caller's own thread.
+        deliberately avoided - it would finalize spans off-thread. Event handlers and close serialize
+        state updates, but finalization still runs on an application observation path.
         """
         if not self._playing:
+            return
+        if self._barge_in_enabled:
+            now = time.monotonic_ns()
+            for turn in list(self._playing):
+                deadline = turn.observation_deadline_ns
+                if deadline is not None and deadline > now and not force:
+                    continue
+                if (deadline is not None and deadline > now) or (
+                    not turn.output_stopped
+                    and turn.output_end_mono_ns is not None
+                    and deadline is not None
+                    and deadline < turn.output_end_mono_ns + _BARGE_IN_GRACE_NS
+                ):
+                    turn.barge_in_complete = False
+                self._playing.remove(turn)
+                self._finalize_turn(turn, force=True)
             return
         now = time.time_ns()
         for turn in [t for t in self._playing if force or t.playback_end_ns is None or t.playback_end_ns <= now]:
@@ -663,17 +936,21 @@ class _RealtimeState:
 
     # -- span lifecycle -----------------------------------------------------
 
-    def _start_response(self, response_id: Optional[str]) -> None:
+    def _start_response(self, response_id: Optional[str], response: Any = None) -> None:
         if response_id is None:
             return
         # A new turn starting means a prior turn's input transcription is almost certainly not coming
         # anymore, and that any held playback is over (or was cut off without a truncation reaching
         # us), so flush both rather than let a span hang.
         self._flush_awaiting()
-        self._flush_playing(force=True)
+        if not self._barge_in_enabled:
+            self._flush_playing(force=True)
         turn = _ResponseTurn(self._pending_input)
+        turn.response_id = str(response_id)
+        turn.barge_in_supported = self._barge_in_enabled and self._barge_in_policy is True
+        turn.barge_in_complete = self._dedup_complete
         self._pending_input = _InputTurn()
-        turn.model = self._model
+        turn.model = _get_attr(response, "model", None) or self._model
         # Turn root (workflow): the whole perceived turn and the root of this turn's trace, grouped by
         # session_id (or nested under the caller's own LLMObs context if there is one). Back-dated to
         # when the user started speaking (or spoke-end) when known.
@@ -687,6 +964,11 @@ class _RealtimeState:
             turn_start = turn.input.speech_start_ns or turn.input.audio.start_ns or turn.input.speech_end_ns
             if turn_start is not None:
                 turn.root_span.start_ns = int(turn_start)
+            if self._barge_in_enabled:
+                snapshot = getattr(self._integration, "_realtime_attribution", None)
+                if snapshot is not None:
+                    turn.barge_in_tags = snapshot(turn.root_span)
+                turn.barge_in_tags.update(self._provider_prompt_tags)
         except Exception:
             log.debug("error starting realtime turn span", exc_info=True)
             turn.root_span = None
@@ -714,6 +996,7 @@ class _RealtimeState:
         if turn is None:
             return
         turn.response_done_ns = time.time_ns()
+        turn.response_done_mono_ns = time.monotonic_ns()
         turn.usage = _get_attr(response, "usage", None)
         turn.model = _get_attr(response, "model", None) or turn.model or self._model
         turn.status = _get_attr(response, "status", None)
@@ -736,10 +1019,14 @@ class _RealtimeState:
 
     def _flush_awaiting(self) -> None:
         for turn in self._awaiting:
-            self._finalize_turn(turn, force=True)
+            self._finalize_turn(turn, force=not self._barge_in_enabled)
         self._awaiting = []
 
     def finish_session(self) -> None:
+        with self._event_lock:
+            self._finish_session()
+
+    def _finish_session(self) -> None:
         if self._closed:
             return
         self._closed = True
@@ -749,16 +1036,21 @@ class _RealtimeState:
         self._flush_awaiting()
         self._flush_playing(force=True)
         for turn in list(self._responses.values()):
+            turn.barge_in_complete = False
             if not turn.input.transcript and turn.input.item_id is not None:
                 turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
             self._finalize_turn(turn, force=True)
         self._responses.clear()
         self._input_transcripts.clear()
         self._tool_call_names.clear()
+        self._speech = None
+        self._speech_ids.clear()
 
     # -- tagging helpers ----------------------------------------------------
 
     def _finalize_turn(self, turn: _ResponseTurn, force: bool = False) -> None:
+        if turn.finalized:
+            return
         if turn.span is None and turn.root_span is None:
             return
         # The turn's data is complete, but on a barge-in-capable client the agent's audio may still be
@@ -766,6 +1058,7 @@ class _RealtimeState:
         # listener might never hear. `force` is for the paths that must not wait (close, next turn).
         if not force and self._park_for_playback(turn):
             return
+        turn.finalized = True
         # Drop the cached transcript for this turn's input item so the map can't grow across a long
         # session (every finalize path goes through here).
         if turn.input.item_id is not None:
@@ -808,12 +1101,32 @@ class _RealtimeState:
         """
         if turn.root_span is None:
             return
+        feature_tags: dict[str, Any] = {}
+        if self._barge_in_enabled and turn.barge_in_supported and (turn.audio.present or turn.audio_part_bytes):
+            feature_tags["metadata"] = {
+                "voice_barge_in": {
+                    "version": 1,
+                    "observation": "complete" if turn.barge_in_complete else "incomplete",
+                    "playback_basis": "estimated_playback",
+                    "events": turn.barge_in_events,
+                    "events_truncated": turn.barge_in_count > len(turn.barge_in_events),
+                }
+            }
+            if turn.barge_in_complete:
+                feature_tags["metrics"] = {"barge_in_count": turn.barge_in_count}
+            feature_tags["tags"] = {
+                **turn.barge_in_tags,
+                "model_name": turn.model or "unknown_model",
+                "model_provider": self._integration._get_model_provider(turn.span or turn.root_span),
+                "playback_basis": "estimated_playback",
+            }
         self._integration._llmobs_set_tags_from_realtime_workflow(
             turn.root_span,
             name="realtime audio turn",
             session_id=self._session_id,
             input_value=turn.input.transcript or turn.input.text or None,
             output_value=turn.transcript or turn.text or None,
+            **feature_tags,
         )
 
     def _emit_phase_spans(self, turn: _ResponseTurn) -> None:
