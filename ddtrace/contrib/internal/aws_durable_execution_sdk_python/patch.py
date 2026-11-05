@@ -13,6 +13,7 @@ from aws_durable_execution_sdk_python.lambda_service import OperationSubType
 from aws_durable_execution_sdk_python.operation.base import OperationExecutor
 from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
 
+from ddtrace._trace._registration import AWS_DURABLE_SUBSCRIBERS
 from ddtrace.contrib._events.aws_durable import AwsDurableExecuteEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableOperationEvent
@@ -270,7 +271,7 @@ def patch():
     if getattr(aws_durable_execution_sdk_python, "_datadog_patch", False):
         return
 
-    import ddtrace._trace.subscribers.aws_durable  # noqa: F401
+    AWS_DURABLE_SUBSCRIBERS.register()
 
     aws_durable_execution_sdk_python._datadog_patch = True
 

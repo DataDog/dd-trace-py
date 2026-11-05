@@ -5,6 +5,8 @@ import molten
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace._registration import MOLTEN_SUBSCRIBERS
+from ddtrace._trace._registration import SPAN_SUBSCRIBERS
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib import trace_utils
@@ -41,6 +43,9 @@ def _supported_versions() -> dict[str, str]:
 
 
 def patch():
+    SPAN_SUBSCRIBERS.register()
+    MOLTEN_SUBSCRIBERS.register()
+
     if getattr(molten, "_datadog_patch", False):
         return
     WebFrameworkRequestSubscriber.register()

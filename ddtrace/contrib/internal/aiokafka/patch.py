@@ -5,6 +5,7 @@ import aiokafka
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace._registration import KAFKA_SUBSCRIBERS
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
@@ -302,6 +303,8 @@ async def traced_consumer_start(func, instance, args, kwargs):
 
 
 def patch():
+    KAFKA_SUBSCRIBERS.register()
+
     if getattr(aiokafka, "_datadog_patch", False):
         return
     aiokafka._datadog_patch = True

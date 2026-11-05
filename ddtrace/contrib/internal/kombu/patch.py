@@ -3,6 +3,7 @@ import kombu
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace._registration import MESSAGING_SUBSCRIBERS
 from ddtrace._trace.pin import Pin
 
 # project
@@ -51,6 +52,8 @@ def patch():
     This duplicated doesn't look nice. The nicer alternative is to use an ObjectProxy on top
     of Kombu. However, it means that any "import kombu.Connection" won't be instrumented.
     """
+    MESSAGING_SUBSCRIBERS.register()
+
     if getattr(kombu, "_datadog_patch", False):
         return
     kombu._datadog_patch = True

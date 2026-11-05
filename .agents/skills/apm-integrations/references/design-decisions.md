@@ -33,6 +33,12 @@ Typed event-driven pattern using `core.context_with_event()` with `TracingEvent`
 subclasses and `TracingSubscriber`. Infrastructure exists in `ddtrace/_trace/events.py`
 and `ddtrace/_trace/subscribers/`. Read concrete contrib examples such as
 `ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`.
+Subscriber definitions never activate listeners. The owning product or instrumentation
+setup must call `register()` explicitly, directly or through a product-owned
+`SubscriberBundle`. Shared tracing bundles live in `ddtrace/_trace/_registration.py`;
+register the relevant bundle from direct/manual setup paths as well as product startup.
+A bundle names one module and one or more classes; compose bundles for multiple modules.
+Retain completion listeners while active requests can still finish.
 See `ddtrace/internal/core/__init__.py` for the API. An event is available through
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call

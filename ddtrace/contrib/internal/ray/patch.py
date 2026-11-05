@@ -6,6 +6,7 @@ import ray
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace._registration import RAY_SUBSCRIBERS
 from ddtrace.contrib._events.ray import RayJobEvent
 from ddtrace.contrib.internal.ray.core.actor import inject_tracing_into_actor_class
 from ddtrace.contrib.internal.ray.core.actor import traced_actor_method_submission
@@ -216,7 +217,7 @@ def patch():
     if getattr(ray, "_datadog_patch", False):
         return
 
-    import ddtrace._trace.subscribers.ray  # noqa: F401
+    RAY_SUBSCRIBERS.register()
 
     ray._datadog_patch = True
 

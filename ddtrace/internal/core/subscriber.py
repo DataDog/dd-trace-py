@@ -1,23 +1,8 @@
-"""
-This files implements the subscribers models for ``core.dispatch_event`` and ``core.context_with_event``.
-
-Subscribers are meant to replace ``core.on()`` by automatically register hook for events registered in
-event_names attribute.
-
-Subscriber class automatically register hook for the name of the events stored in event_names attribute.
-ContextSubscriber class automatically register hooks for context.started.event_name and context.ended.event_name
-with event_name being the name of the events stored in event_names attribute.
-
-Subscribers also allow to compose hook capabilities: you can specialized a Subscriber by inheriting it.
-
-Finally, subscribers can listen to multiple event names to allow integration specific events that wants to trigger
-the same subscriber.
-"""
+"""Explicit event subscribers with inherited handler composition."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 from importlib import import_module
-import logging
 import sys
 from types import ModuleType
 from types import TracebackType
@@ -33,9 +18,6 @@ from ddtrace.internal import core
 from .events import EventType
 
 
-log = logging.getLogger(__name__)
-
-
 class RegistrableSubscriber(Protocol):
     def register(self) -> None: ...
 
@@ -46,8 +28,7 @@ class RegistrableSubscriber(Protocol):
 class SubscriberBundle:
     """Subscribers exported by one lazily imported product module.
 
-    Subscriber classes must disable auto_register so importing the module does not
-    activate listeners before explicit registration. Named listener registration
+    Importing subscriber modules does not activate listeners. Named registration
     supplies idempotency; bundles deliberately do not cache registration state.
     """
 
@@ -79,12 +60,9 @@ class SubscriberBundle:
 class Subscriber:
     """Base class for event subscribers.
 
-    Subclasses that define ``event_names`` automatically register themselves to handle those events.
-    This provides a clean pattern for handling events from the Events API (Event class).
-
-    The subscriber pattern automatically:
-    - Registers the subscriber when the class is defined
-    - Collects all ``on_event`` methods from the inheritance chain and calls them in order (parent to child)
+    Call register() to activate the events in event_names, or include the class in a
+    SubscriberBundle. Class definition only collects inherited on_event handlers
+    in parent-to-child order; it never installs listeners.
 
     Example:
         @dataclass
@@ -99,19 +77,15 @@ class Subscriber:
             def on_event(cls, event_instance):
                 print(f"Received: {event_instance.data}")
 
-        # Subscriber is automatically registered, just dispatch:
+        MySubscriber.register()
         core.dispatch_event(MyEvent(data="hello"))
     """
 
     event_names: Sequence[str]
-    auto_register: ClassVar[bool] = True
     _event_handlers: tuple = ()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Automatically register listeners at subclass definition.
-        Handlers are registered from Base class to Children classes to allow
-        behavior composition (a child class benefit from the parent class hook)
-        """
+        """Collect inherited handlers in parent-to-child order without activating listeners."""
         super().__init_subclass__(**kwargs)
 
         cls._event_handlers = tuple(
@@ -119,15 +93,6 @@ class Subscriber:
             for base_cls in reversed(cls.__mro__[:-1])
             if issubclass(base_cls, Subscriber) and "on_event" in base_cls.__dict__ and base_cls is not Subscriber
         )
-
-        # Register only classes that define their own event_names.
-        # This avoids auto-registering abstract/shared base subscribers that inherit event_names.
-        if "event_names" not in cls.__dict__:
-            log.debug("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
-            return
-
-        if cls.auto_register:
-            cls.register()
 
     @classmethod
     def register(cls) -> None:
@@ -160,7 +125,7 @@ class Subscriber:
 class ContextSubscriber(Generic[EventType]):
     """Base class for context event subscribers.
 
-    Subclasses that define ``event_names`` automatically register themselves to handle context lifecycle events:
+    Call register() to listen to these lifecycle events for each name in event_names:
     - ``context.started.{event_name}`` when the context begins
     - ``context.ended.{event_name}`` when the context ends
 
@@ -184,20 +149,17 @@ class ContextSubscriber(Generic[EventType]):
                 if exc_info[1]:
                     print(f"Context ended with error: {exc_info[1]}")
 
+        MyContextSubscriber.register()
         with core.context_with_event(MyContextEvent(url="/api", user_id="123")):
             pass
     """
 
     event_names: ClassVar[Sequence[str]]
-    auto_register: ClassVar[bool] = True
     _started_handlers: tuple = ()
     _ended_handlers: tuple = ()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Automatically register listeners at subclass definition.
-        Handlers are registered from Base class to Children classes to allow
-        behavior composition (a child class benefit from the parent class hook)
-        """
+        """Collect inherited handlers in parent-to-child order without activating listeners."""
 
         super().__init_subclass__(**kwargs)
 
@@ -215,15 +177,6 @@ class ContextSubscriber(Generic[EventType]):
             and "on_ended" in base_cls.__dict__
             and base_cls is not ContextSubscriber
         )
-
-        # Register only classes that define their own event_names.
-        # This avoids auto-registering abstract/shared base subscribers that inherit event_names.
-        if "event_names" not in cls.__dict__:
-            log.debug("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
-            return
-
-        if cls.auto_register:
-            cls.register()
 
     @classmethod
     def register(cls) -> None:

@@ -7,6 +7,7 @@ import urllib3
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace._registration import HTTP_CLIENT_SUBSCRIBERS
 from ddtrace._trace.otel.http.tags import otel_client_url
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
@@ -48,6 +49,8 @@ def _supported_versions() -> dict[str, str]:
 
 def patch():
     """Enable tracing for all urllib3 requests"""
+    HTTP_CLIENT_SUBSCRIBERS.register()
+
     if getattr(urllib3, "__datadog_patch", False):
         return
     urllib3.__datadog_patch = True

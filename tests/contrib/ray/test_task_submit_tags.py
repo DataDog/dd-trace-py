@@ -1,7 +1,9 @@
 """Tests for task scheduling-hint tags on ray.task.submit spans."""
 
+import pytest
+
 from ddtrace import config
-import ddtrace._trace.subscribers.ray  # noqa: F401 — registers RaySubmissionSubscriber
+from ddtrace._trace._registration import RAY_SUBSCRIBERS
 from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_ACCELERATOR_TYPE
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_FUNCTION_MODULE
@@ -24,6 +26,11 @@ from ddtrace.internal.span_bus import span_from_context
 # ---------------------------------------------------------------------------
 # Helper: build a minimal RaySubmissionEvent for task submission.
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def ray_subscribers():
+    RAY_SUBSCRIBERS.register()
 
 
 def _make_submission_event(**extra):
