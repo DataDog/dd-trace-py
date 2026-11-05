@@ -508,11 +508,7 @@ async def test_distributed_tracing_sub_span(app, tracer, test_spans, aiohttp_cli
 
 
 def _assert_200_parenting(client, traces):
-    """Helper to assert parenting when handling aiohttp requests.
-
-    This is used to ensure that parenting is consistent between Datadog
-    and OpenTracing implementations of tracing.
-    """
+    """Assert parenting when handling aiohttp requests."""
     assert 2 == len(traces)
     assert 1 == len(traces[0])
 
