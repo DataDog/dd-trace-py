@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where a child process could wait forever in its first profile upload.
+    The issue could occur if the parent process called ``fork()`` while another thread prepared a profile upload.
+    The profiler now delays the ``fork()`` until the upload is complete, as it already did for the upload request.

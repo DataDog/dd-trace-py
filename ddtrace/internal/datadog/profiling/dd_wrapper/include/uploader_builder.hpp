@@ -24,7 +24,8 @@ class UploaderBuilder
     static inline std::string profiler_version;
     static inline std::string url{ "http://localhost:8126" };
     static inline ExporterTagset user_tags{};
-    static inline std::string output_filename{ "" };
+    // A host can finalize Python from a late C exit handler. Keep the file destination alive for that flush.
+    static inline std::string* output_filename = nullptr;
     static inline uint64_t max_timeout_ms{ g_default_max_timeout_ms };
 
     static constexpr std::string_view language{ g_language_name };
@@ -40,10 +41,11 @@ class UploaderBuilder
     static void set_profiler_version(std::string_view _profiler_version);
     static void set_url(std::string_view _url);
     static void set_tag(std::string_view _key, std::string_view _val);
+    static bool exports_to_file() { return output_filename != nullptr; }
     static void set_output_filename(std::string_view _output_filename);
     static void set_max_timeout_ms(uint64_t _max_timeout_ms);
 
-    static std::variant<Uploader, std::string> build();
+    static std::variant<Uploader, std::string> build(std::string_view upload_runtime_id, std::string_view upload_url);
 
     static void postfork_child();
 };

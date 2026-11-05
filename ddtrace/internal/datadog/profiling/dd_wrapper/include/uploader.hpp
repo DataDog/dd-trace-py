@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fork_safe_mutex.hpp"
 #include "sample.hpp"
 #include "types.hpp"
 
@@ -14,10 +15,13 @@ extern "C"
 
 namespace Datadog {
 
+void
+drop_profile_exporter(ddog_prof_ProfileExporter& exporter);
+
 class Uploader
 {
   private:
-    static inline std::mutex upload_lock{};
+    static inline ForkSafeMutex upload_lock{};
     std::string errmsg;
     static inline ddog_CancellationToken cancel{ .inner = nullptr };
     static inline std::atomic<uint64_t> upload_seq{ 0 };
@@ -27,7 +31,8 @@ class Uploader
     bool export_to_file(ddog_prof_EncodedProfile* encoded);
 
   public:
-    bool upload(ddog_prof_Profile& profile);
+    // The caller holds the upload lock for the exporter's lifetime.
+    bool upload(ddog_prof_EncodedProfile& encoded);
     static void cancel_inflight();
     static void lock();
     static void unlock();
@@ -42,9 +47,11 @@ class Uploader
         // as their inner pointers are allocated on the Rust side. And since
         // there could be a request in flight, we first need to cancel it. Then,
         // we drop the exporter and the cancellation token.
-        ddog_CancellationToken_cancel(&cancel);
-        ddog_prof_Exporter_drop(&ddog_exporter);
-        ddog_CancellationToken_drop(&cancel);
+        if (ddog_exporter.inner != nullptr) {
+            ddog_CancellationToken_cancel(&cancel);
+            drop_profile_exporter(ddog_exporter);
+            ddog_CancellationToken_drop(&cancel);
+        }
     }
 
     // Disable copy constructor and copy assignment operator to avoid double-free
@@ -75,7 +82,7 @@ class Uploader
     Uploader& operator=(Uploader&& other) noexcept
     {
         if (this != &other) {
-            ddog_prof_Exporter_drop(&ddog_exporter);
+            drop_profile_exporter(ddog_exporter);
             ddog_exporter = other.ddog_exporter;
             other.ddog_exporter = { .inner = nullptr };
             output_filename = std::move(other.output_filename);

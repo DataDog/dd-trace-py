@@ -7,6 +7,8 @@
 #include <string_view>
 #include <thread>
 
+Datadog::Profile& Datadog::Sample::profile_state = *new Datadog::Profile;
+
 Datadog::internal::StringArena::StringArena()
 {
     chunks.emplace_back();

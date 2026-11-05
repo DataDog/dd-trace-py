@@ -15,7 +15,8 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 9
+    # Installing Valgrind alone can take over 10 minutes on a slow Ubuntu mirror.
+    timeout-minutes: ${{ matrix.sanitizer == 'valgrind' && 25 || 9 }}
     strategy:
       fail-fast: false
       matrix:

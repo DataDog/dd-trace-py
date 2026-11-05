@@ -8,11 +8,13 @@ from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
 from libcpp.unordered_map cimport unordered_map
+from libcpp.utility cimport move
 from libcpp.utility cimport pair
 
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
+from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
@@ -31,6 +33,7 @@ cdef extern from "stdint.h":
 
 cdef extern from "<string_view>" namespace "std" nogil:
     cdef cppclass string_view:
+        string_view()
         string_view(const char* s, size_t count)
 
 cdef extern from "sample.hpp" namespace "Datadog":
@@ -44,7 +47,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_runtime(string_view runtime)
     void ddup_config_runtime_version(string_view runtime_version)
     void ddup_config_profiler_version(string_view profiler_version)
-    void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
     void ddup_config_output_filename(string_view output_filename)
@@ -54,11 +56,10 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_sample_type(unsigned int type)
 
     void ddup_start()
-    void ddup_set_runtime_id(string_view _id)
-    void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
-    void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
-    bint ddup_upload() nogil
+    bint ddup_upload_with_metadata(string_view runtime_id, string_view url,
+                                   unordered_map[int64_t, string_view] span_ids_to_endpoints,
+                                   unordered_map[string_view, int64_t] endpoint_counts) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -129,20 +130,12 @@ cdef call_code_provenance_set_json_str(str json_str):
     if json_str_data != NULL:
         code_provenance_set_json_str(string_view(json_str_data, json_str_size))
 
-cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
-    # We want to make sure that endpoint strings outlive the for loop below
-    # and prevent them to be GC'ed. We do this by storing them in a list.
-    # This is necessary because we pass string_views to the C++ code, which is
-    # a view into the original string. If the original string is GC'ed, the view
-    # will point to garbage.
-    endpoint_list = []
-    cdef unordered_map[int64_t, string_view] span_ids_to_endpoints = unordered_map[int64_t, string_view]()
+cdef prepare_endpoints(endpoint_to_span_ids, unordered_map[int64_t, string_view]& span_ids_to_endpoints):
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, span_ids in endpoint_to_span_ids.items():
         if not endpoint:
             continue
-        endpoint_list.append(endpoint)
         if isinstance(endpoint, bytes):
             for span_id in span_ids:
                 span_ids_to_endpoints.insert(
@@ -161,22 +154,13 @@ cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
                         string_view(utf8_data, utf8_size)
                     )
                 )
-    ddup_profile_set_endpoints(span_ids_to_endpoints)
 
-cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
-    # We want to make sure that endpoint strings outlive the for loop below
-    # and prevent them to be GC'ed. We do this by storing them in a list.
-    # This is necessary because we pass string_views to the C++ code, which is
-    # a view into the original string. If the original string is GC'ed, the view
-    # will point to garbage.
-    endpoint_list = []
-    cdef unordered_map[string_view, int64_t] trace_endpoints_to_counts = unordered_map[string_view, int64_t]()
+cdef prepare_endpoint_counts(endpoint_counts, unordered_map[string_view, int64_t]& trace_endpoints_to_counts):
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, count in endpoint_counts.items():
         if not endpoint:
             continue
-        endpoint_list.append(endpoint)
         if isinstance(endpoint, bytes):
             trace_endpoints_to_counts.insert(
                 pair[string_view, int64_t](
@@ -193,7 +177,6 @@ cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
                     clamp_to_int64_unsigned(count)
                 )
             )
-    ddup_profile_add_endpoint_counts(trace_endpoints_to_counts)
 
 cdef call_ddup_push_lock_name(Sample* sample, lock_name: StringType):
     if not lock_name:
@@ -385,23 +368,24 @@ def _get_endpoint(tracer)-> str:
 def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
     global _code_provenance_set
 
-    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
+    cdef bytes runtime_id = ensure_binary(get_runtime_id(), errors="strict")
+    cdef bytes endpoint = ensure_binary(_get_endpoint(tracer), errors="strict")
+    cdef string_view runtime_id_view = string_view(<const char*>runtime_id, len(runtime_id))
+    cdef string_view endpoint_view = string_view(<const char*>endpoint, len(endpoint))
 
-    processor = tracer._endpoint_call_counter_span_processor
-    endpoint_counts, endpoint_to_span_ids = processor.reset()
-
-    call_ddup_profile_set_endpoints(endpoint_to_span_ids)
-    call_ddup_profile_add_endpoint_counts(endpoint_counts)
-
-    endpoint = _get_endpoint(tracer)
-    call_func_with_str(ddup_config_url, endpoint)
+    # Keep both dictionaries alive while the native maps borrow their endpoint strings.
+    endpoint_counts, endpoint_to_span_ids = tracer._endpoint_call_counter_span_processor.reset()
+    cdef unordered_map[int64_t, string_view] spans
+    cdef unordered_map[string_view, int64_t] counts
+    prepare_endpoints(endpoint_to_span_ids, spans)
+    prepare_endpoint_counts(endpoint_counts, counts)
 
     if enable_code_provenance and not _code_provenance_set:
         call_code_provenance_set_json_str(json_str_to_export())
         _code_provenance_set = True
 
     with nogil:
-        ddup_upload()
+        ddup_upload_with_metadata(runtime_id_view, endpoint_view, move(spans), move(counts))
 
 
 cdef class SampleHandle:

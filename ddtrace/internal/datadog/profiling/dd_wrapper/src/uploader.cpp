@@ -51,29 +51,15 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
 }
 
 bool
-Datadog::Uploader::upload(ddog_prof_Profile& profile)
+Datadog::Uploader::upload(ddog_prof_EncodedProfile& encoded)
 {
-    // Serialize the profile
-    ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
-    if (serialize_result.tag !=
-        DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = serialize_result.err;         // NOLINT (cppcoreguidelines-pro-type-union-access)
-        errmsg = err_to_msg(&err, "Error serializing pprof");
-        std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&err);
-        return false;
-    }
-    ddog_prof_EncodedProfile* encoded = &serialize_result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-
     if (!output_filename.empty()) {
-        bool ret = export_to_file(encoded);
-        ddog_prof_EncodedProfile_drop(encoded);
-        return ret;
+        return export_to_file(&encoded);
     }
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
 
-    std::string_view json_str = CodeProvenance::get_instance().get_json_str();
+    const std::string json_str = CodeProvenance::get_instance().get_json_snapshot();
 
     if (!json_str.empty()) {
         to_compress_files.reserve(1);
@@ -85,7 +71,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
 
     auto build_res = ddog_prof_Exporter_Request_build(
       &ddog_exporter,
-      encoded,
+      &encoded,
       // files_to_compress_and_export
       {
         .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
@@ -96,7 +82,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
       nullptr,                               // optional_internal_metadata_json
       nullptr                                // optional_info_json
     );
-    ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==
         DDOG_PROF_REQUEST_RESULT_ERR_HANDLE_REQUEST) { // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -109,10 +94,9 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
 
     bool ret = true;
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
-    // we ensure exclusivity here.
+    // the caller holds the upload lock.
     {
         // If we're here, we're about to create a new upload, so cancel any inflight ones
-        const std::lock_guard<std::mutex> lock_guard(upload_lock);
         cancel_inflight();
 
         // We have to create a new cancellation token, as cancel_inflight() drops the previous one.
@@ -173,6 +157,5 @@ Datadog::Uploader::postfork_parent()
 void
 Datadog::Uploader::postfork_child()
 {
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&upload_lock) std::mutex();
+    upload_lock.postfork_child();
 }
