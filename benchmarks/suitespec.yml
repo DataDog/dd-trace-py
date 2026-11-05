@@ -402,6 +402,10 @@ suites:
       - '@tracing'
       - '@flask'
       - '@django'
+      - ddtrace/llmobs/_llmobs.py
+      - ddtrace/llmobs/_product.py
+      - ddtrace/llmobs/_registration.py
+      - ddtrace/llmobs/_subscribers.py
       - benchmarks/startup/*
       - benchmarks/suitespec.yml
     cpus_per_run: 2
