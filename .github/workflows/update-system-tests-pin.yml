@@ -58,7 +58,16 @@ jobs:
           body: |
             Automated bump of the system-tests SHA pin to the latest `main`.
 
-            Run by the [Update system-tests pin](https://github.com/DataDog/dd-trace-py/actions/workflows/update-system-tests.yml) workflow.
+            Run by the [Update system-tests pin](https://github.com/DataDog/dd-trace-py/actions/workflows/update-system-tests-pin.yml) workflow.
+
+      - name: Enable auto-merge
+        if: steps.changes.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+        run: |
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json number,autoMergeRequest
 
       - name: Notify Slack on PR created
         if: steps.changes.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-operation == 'created'
