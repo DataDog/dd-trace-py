@@ -905,7 +905,7 @@ AI Guard
      default: True
      description: |
        Enabled by default; set to False to stop sending MCP server details, evaluating MCP approval
-       requests and checking the calls of Anthropic SDK MCP tools. When AI Guard is enabled,
+       requests and checking the calls of Anthropic SDK and LangChain MCP tools. When AI Guard is enabled,
        evaluations of remote MCP tools run by the OpenAI Responses API (tools of type ``mcp``)
        identify the MCP server each call goes to: its configured name, the scheme, host and port of
        its URL, and the tools called through it.
@@ -929,6 +929,12 @@ AI Guard
        on a transport opened before the Anthropic integration was patched, get no MCP server details and
        no call check. The non-streaming tool runner calls ``messages.parse``, which is not instrumented,
        so its MCP tool calls are checked without the conversation that requested them.
+
+       LangChain tool calls to MCP tools loaded with langchain-mcp-adapters (0.2.0 or later) are
+       evaluated with their MCP server: its configured name, transport, the scheme, host and port of
+       its URL or, for stdio servers, the command and package or module name, and the tools called
+       through it. Calls made outside an agent are evaluated before the MCP request is sent. Headers,
+       environment variables and other command arguments are never sent.
 
 Code Security
 -------------
