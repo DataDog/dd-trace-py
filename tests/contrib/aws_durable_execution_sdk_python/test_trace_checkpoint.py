@@ -8,6 +8,7 @@ import json
 from types import SimpleNamespace
 from unittest import mock
 
+from aws_durable_execution_sdk_python.state import ExecutionState
 import pytest
 
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python import trace_checkpoint
@@ -120,6 +121,9 @@ def test_save_uses_execute_span_id_on_first_invocation():
     assert is_sync is True
     assert update.name == "_datadog_0"
     assert update.parent_id is None  # AWS-side parent stays None at top level
+    # The wire form must be a succeeded Step on every supported SDK version.
+    wire = update.to_dict()
+    assert (wire["Type"], wire["Action"], wire["SubType"]) == ("STEP", "SUCCEED", "Step")
     payload = json.loads(update.payload)
     # First invocation anchors to aws.durable.execute span id.
     assert payload["x-datadog-parent-id"] == str(0x1234_1234_1234_1234)
@@ -491,6 +495,21 @@ def test_mark_visited_swallows_track_replay_errors():
     trace_checkpoint.mark_trace_context_checkpoints_visited(state)  # does not raise
 
 
+def test_mark_visited_no_op_without_track_replay():
+    """SDK 3.x states have no ``track_replay``: marking is a silent no-op, not a
+    swallowed AttributeError that would emit an integration error every invocation.
+    """
+    state = SimpleNamespace(operations={"d-0": SimpleNamespace(name="_datadog_0")})
+
+    with mock.patch.object(trace_checkpoint, "_record_integration_error") as mock_record:
+        trace_checkpoint.mark_trace_context_checkpoints_visited(state)
+
+    mock_record.assert_not_called()
+
+
+@pytest.mark.skipif(
+    not hasattr(ExecutionState, "track_replay"), reason="SDK 3.x tracks replay status per DurableContext"
+)
 def test_mark_visited_unblocks_sdk_replay_transition():
     """End-to-end with a real ``ExecutionState``: after marking, the SDK
     transitions REPLAY → NEW as soon as user code visits its own op.
@@ -502,7 +521,6 @@ def test_mark_visited_unblocks_sdk_replay_transition():
     from aws_durable_execution_sdk_python.lambda_service import Operation
     from aws_durable_execution_sdk_python.lambda_service import OperationStatus
     from aws_durable_execution_sdk_python.lambda_service import OperationType
-    from aws_durable_execution_sdk_python.state import ExecutionState
     from aws_durable_execution_sdk_python.state import ReplayStatus
 
     def _op(op_id, name):
