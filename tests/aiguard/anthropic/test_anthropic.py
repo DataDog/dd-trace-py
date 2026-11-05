@@ -1201,7 +1201,7 @@ def _deny_assistant_turn(endpoint, payload):
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_after_hook_blocks_tool_use_with_raw_response(mock_execute_request, anthropic_client_tool_use):
-    """``with_raw_response`` hands the after-hook the parsed ``Message``, not the wrapper."""
+    """with_raw_response hands the after-hook the parsed Message, not the wrapper."""
     mock_execute_request.side_effect = _deny_assistant_turn
 
     with pytest.raises(AIGuardAbortError):
@@ -1212,7 +1212,7 @@ def test_after_hook_blocks_tool_use_with_raw_response(mock_execute_request, anth
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_after_hook_blocks_tool_use_with_streaming_response(mock_execute_request, anthropic_client_tool_use):
-    """``with_streaming_response`` on a non-streaming request reaches the after-hook parsed."""
+    """with_streaming_response on a non-streaming request reaches the after-hook parsed."""
     mock_execute_request.side_effect = _deny_assistant_turn
 
     with pytest.raises(AIGuardAbortError):

@@ -39,15 +39,15 @@ config._add("anthropic", {})
 
 
 def _is_wrapped_response(resp: Any) -> bool:
-    # ``messages.with_raw_response`` and ``messages.with_streaming_response`` return an
-    # APIResponse/LegacyAPIResponse wrapper; the parsed ``Message`` sits behind ``parse()``.
+    # messages.with_raw_response and messages.with_streaming_response return an
+    # APIResponse/LegacyAPIResponse wrapper; the parsed Message sits behind parse().
     return resp is not None and hasattr(resp, "parse") and hasattr(resp, "http_response")
 
 
 def _parse_wrapped_response(resp: Any) -> Any:
-    """Return the parsed ``Message`` behind a raw or streaming response wrapper.
+    """Return the parsed Message behind a raw or streaming response wrapper.
 
-    ``parse()`` caches its result on the wrapper, so the caller's own ``parse()`` returns
+    parse() caches its result on the wrapper, so the caller's own parse() returns
     the same object. Any other response, or a failed parse, is returned unchanged.
     """
     if not _is_wrapped_response(resp):
@@ -60,9 +60,9 @@ def _parse_wrapped_response(resp: Any) -> Any:
 
 
 async def _async_parse_wrapped_response(resp: Any) -> Any:
-    """Async counterpart of ``_parse_wrapped_response``.
+    """Async counterpart of _parse_wrapped_response.
 
-    ``AsyncAPIResponse.parse()`` is a coroutine, while ``LegacyAPIResponse.parse()`` stays
+    AsyncAPIResponse.parse() is a coroutine, while LegacyAPIResponse.parse() stays
     synchronous on the async client, so the result is awaited only when it is awaitable.
     """
     if not _is_wrapped_response(resp):
