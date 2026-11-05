@@ -96,8 +96,14 @@ def stop(join=False):
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
-and resolves every declared name before registering listeners. Classes must use
-`auto_register = False` so importing their module does not register them implicitly.
+and resolves every declared name before registering listeners. Bundle-managed
+subscribers must set `auto_register = False` so importing their module does not
+register them implicitly.
+
+Existing subscribers retain automatic registration until their activation paths
+are migrated. Once all consumers register explicitly, automatic registration and
+the `auto_register` flag can be removed.
+
 Repeated registration uses named-listener deduplication and can restore listeners
 after a reset. Import and callback failures propagate to the caller; registration
 is not a transaction across callback failures.
