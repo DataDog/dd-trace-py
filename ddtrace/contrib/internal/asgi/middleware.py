@@ -144,24 +144,22 @@ def _call_route_resource_resolver(scope: Mapping[str, Any], span: Span) -> None:
         log.debug("failed to resolve route pattern for span resource", exc_info=True)
 
 
+def _complete_request_span(span: Span, finish_time: float, completing: Optional[Callable[[], None]]) -> None:
+    try:
+        if completing is not None:
+            completing()
+    finally:
+        span.finish(finish_time=finish_time)
+
+
 def _finish_request_span(
     scope: Mapping[str, Any],
     span: Span,
     completing: Optional[Callable[[], None]] = None,
-    scope_exiting: bool = False,
 ) -> None:
     request_spans = scope.get("datadog", {}).get("request_spans")
-    pending = scope.get("datadog", {}).get("request_spans_to_finish", {})
-    if scope_exiting or not request_spans or len(request_spans) == 1:
-        if span in pending:
-            finish_time, completing = pending.pop(span)
-        else:
-            finish_time = Time.time()
-        try:
-            if completing is not None:
-                completing()
-        finally:
-            span.finish(finish_time=finish_time)
+    if not request_spans or len(request_spans) == 1:
+        _complete_request_span(span, Time.time(), completing)
         return
 
     # Outer send wrappers return first. Preserve their response completion time
@@ -172,12 +170,7 @@ def _finish_request_span(
         pending[span] = (Time.time(), completing)
     for request_span in reversed(request_spans):
         if request_span in pending:
-            finish_time, complete = pending.pop(request_span)
-            try:
-                if complete is not None:
-                    complete()
-            finally:
-                request_span.finish(finish_time=finish_time)
+            _complete_request_span(request_span, *pending.pop(request_span))
         elif not request_span.finished:
             break
 
@@ -588,16 +581,16 @@ class TraceMiddleware:
                 # template so the span does not keep a raw path resource.
                 if not scope.get("datadog", {}).get("resource_paths") and scope["type"] == "http":
                     _call_route_resource_resolver(scope, span)
-                if scope["type"] == "http" and not span.finished:
-                    # Let each enclosing scope record its exception before finishing.
-                    try:
-                        _finish_request_span(scope, span, completing, scope_exiting=True)
-                    except Exception:
-                        log.exception("error closing ASGI request span")
                 # missing datadog scope should not crash request teardown.
                 request_spans = scope.get("datadog", {}).get("request_spans")
                 if request_spans and span in request_spans:
                     request_spans.remove(span)
+                pending = scope.get("datadog", {}).get("request_spans_to_finish")
+                if pending and span in pending:
+                    try:
+                        _complete_request_span(span, *pending.pop(span))
+                    except Exception:
+                        log.exception("error closing ASGI request span")
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:
