@@ -148,8 +148,8 @@ def _wrap_close_open_fds(close_open_fds: Callable[..., Any]) -> Callable[..., An
         if runtime is None or runtime._shut_down:
             return close_open_fds(*args, **kwargs)
 
-        # Celery closes every inherited file descriptor this way, e.g. in the
-        # embedded beat process, which keeps using the runtime afterwards. Stop
+        # Celery closes every inherited file descriptor with this function, e.g.
+        # in the embedded beat process, which keeps using the runtime. Stop
         # the runtime while its descriptors are still valid, then rebuild it
         # and reset its workers as in a fork child, so that no worker keeps a
         # handle on a closed descriptor.
@@ -163,8 +163,11 @@ def _wrap_close_open_fds(close_open_fds: Callable[..., Any]) -> Callable[..., An
     return wrapper
 
 
-@ModuleWatchdog.after_module_imported("billiard.compat")
-def _(compat: Any) -> None:
-    # ddtrace loads before application code, so celery.platforms, which binds
-    # the function at import, picks up the wrapper.
-    compat.close_open_fds = _wrap_close_open_fds(compat.close_open_fds)
+@ModuleWatchdog.after_module_imported("celery.platforms")
+def _(platforms: Any) -> None:
+    # Every Celery call site goes through celery.platforms.close_open_fds:
+    # beat and the worker reload by attribute, DaemonContext by module global.
+    # Up to Celery 5.6 it is billiard's function; from 5.7 Celery closes the
+    # descriptors listed in /proc/self/fd itself and only falls back to
+    # billiard's, so wrapping billiard would not cover it.
+    platforms.close_open_fds = _wrap_close_open_fds(platforms.close_open_fds)

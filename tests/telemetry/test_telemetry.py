@@ -287,15 +287,16 @@ def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subproc
     """Celery's embedded beat closes inherited FDs after Python at-fork hooks return.
 
     The child rebuilds the native runtime in a fork hook, so its descriptors are
-    among those closed. Celery closes them with billiard.compat.close_open_fds,
+    among those closed. Celery closes them with celery.platforms.close_open_fds,
     which the runtime wraps to stop before and rebuild after, instead of
     panicking with EBADF.
     """
-    # A stand-in for billiard.compat.close_open_fds.
-    billiard = tmp_path / "billiard"
-    billiard.mkdir()
-    (billiard / "__init__.py").write_text("")
-    (billiard / "compat.py").write_text(
+    # A stand-in for celery.platforms.close_open_fds, closing what Celery 5.7
+    # closes: every descriptor listed in the fd directory but those to keep.
+    celery = tmp_path / "celery"
+    celery.mkdir()
+    (celery / "__init__.py").write_text("")
+    (celery / "platforms.py").write_text(
         """
 import os
 
@@ -333,13 +334,13 @@ from ddtrace.trace import tracer
 
 
 sys.path.insert(0, %r)
-from billiard.compat import close_open_fds
+from celery import platforms
 
 assert telemetry_writer._worker is not None
 
 pid = os.fork()
 if pid == 0:
-    close_open_fds([0, 1, 2])
+    platforms.close_open_fds([0, 1, 2])
     with tracer.trace("celery-beat-like"):
         pass
     telemetry_writer.periodic(force_flush=True)
