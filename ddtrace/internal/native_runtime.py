@@ -1,4 +1,5 @@
 from functools import cache
+from functools import wraps
 import logging
 import sys
 from typing import Any
@@ -7,6 +8,7 @@ from typing import Optional
 
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.native import SharedRuntime
 
 
@@ -32,8 +34,7 @@ class NativeRuntime(SharedRuntime):
     def __init__(self) -> None:
         super().__init__()
         self.register_at_fork()
-        forksafe.register_before_child_hooks(self.defer_after_fork_child)
-        forksafe.register_after_child_hooks(self.allow_after_fork_child)
+        self._shut_down = False
         self._original_fork_exec: Optional[Callable[..., Any]] = None
         self._wrapped_fork_exec: Optional[Callable[..., Any]] = None
         self._install_subprocess_fork_hook()
@@ -106,10 +107,12 @@ class NativeRuntime(SharedRuntime):
             super().shutdown_in_thread(timeout_ms=timeout_ms)
         else:
             super().shutdown(timeout_ms=timeout_ms)
+        self._shut_down = True
         self._uninstall_subprocess_fork_hook()
         atexit.unregister(self._atexit)
-        forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
-        forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
+
+
+_runtime: Optional[NativeRuntime] = None
 
 
 @cache
@@ -118,4 +121,50 @@ def get_native_runtime() -> NativeRuntime:
 
     The first call also registers an atexit hook to shut the runtime down.
     """
-    return NativeRuntime()
+    global _runtime
+
+    _runtime = NativeRuntime()
+    return _runtime
+
+
+def _rebuild_after_fork() -> None:
+    # Rebuild the runtime in the child before any other child hook can use it,
+    # rather than lazily on whichever thread uses it first.
+    runtime = _runtime
+    if runtime is not None and not runtime._shut_down:
+        runtime.rebuild_after_fork()
+
+
+forksafe.register_before_child_hooks(_rebuild_after_fork)
+
+
+def _wrap_close_open_fds(close_open_fds: Callable[..., Any]) -> Callable[..., Any]:
+    if getattr(close_open_fds, "__ddtrace_native_runtime__", False):
+        return close_open_fds
+
+    @wraps(close_open_fds)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        runtime = _runtime
+        if runtime is None or runtime._shut_down:
+            return close_open_fds(*args, **kwargs)
+
+        # Celery closes every inherited file descriptor this way, e.g. in the
+        # embedded beat process, which keeps using the runtime afterwards. Stop
+        # the runtime while its descriptors are still valid, then rebuild it
+        # and reset its workers as in a fork child, so that no worker keeps a
+        # handle on a closed descriptor.
+        runtime.before_fork()
+        try:
+            return close_open_fds(*args, **kwargs)
+        finally:
+            runtime.after_fork_child()
+
+    setattr(wrapper, "__ddtrace_native_runtime__", True)
+    return wrapper
+
+
+@ModuleWatchdog.after_module_imported("billiard.compat")
+def _(compat: Any) -> None:
+    # ddtrace loads before application code, so celery.platforms, which binds
+    # the function at import, picks up the wrapper.
+    compat.close_open_fds = _wrap_close_open_fds(compat.close_open_fds)

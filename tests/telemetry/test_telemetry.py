@@ -283,32 +283,29 @@ for _ in range(64):
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
-def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subprocess):
-    """Celery beat closes inherited FDs after Python at-fork hooks return.
+def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subprocess, tmp_path):
+    """Celery's embedded beat closes inherited FDs after Python at-fork hooks return.
 
-    Rebuilding the native telemetry worker must not unpark the inherited Tokio
-    I/O driver, which panics with EBADF once those descriptors are gone.
+    The child rebuilds the native runtime in a fork hook, so its descriptors are
+    among those closed. Celery closes them with billiard.compat.close_open_fds,
+    which the runtime wraps to stop before and rebuild after, instead of
+    panicking with EBADF.
     """
-    code = """
+    # A stand-in for billiard.compat.close_open_fds.
+    billiard = tmp_path / "billiard"
+    billiard.mkdir()
+    (billiard / "__init__.py").write_text("")
+    (billiard / "compat.py").write_text(
+        """
 import os
-import warnings
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-import ddtrace
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.trace import tracer
 
 
-assert telemetry_writer._worker is not None
-
-pid = os.fork()
-if pid == 0:
-    keep = {0, 1, 2}
+def close_open_fds(keep=None):
+    keep = set(keep or ())
     try:
         names = os.listdir("/proc/self/fd")
     except OSError:
-        names = [str(fd) for fd in range(3, 256)]
+        names = [str(fd) for fd in range(256)]
     for name in names:
         try:
             fd = int(name)
@@ -320,9 +317,79 @@ if pid == 0:
             os.close(fd)
         except OSError:
             pass
+"""
+    )
+
+    code = """
+import os
+import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+sys.path.insert(0, %r)
+from billiard.compat import close_open_fds
+
+assert telemetry_writer._worker is not None
+
+pid = os.fork()
+if pid == 0:
+    close_open_fds([0, 1, 2])
     with tracer.trace("celery-beat-like"):
         pass
+    telemetry_writer.periodic(force_flush=True)
     os._exit(0)
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+""" % str(tmp_path)
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_ready_for_child_hooks(run_python_code_in_subprocess):
+    """The child rebuilds the native runtime in a fork hook that runs before any other.
+
+    A regular child hook can use the runtime straight away; nothing rebuilds it
+    lazily on an application thread.
+    """
+    code = """
+import os
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal import forksafe
+from ddtrace.internal.http_client import HTTPClient
+from ddtrace.internal.native_runtime import get_native_runtime
+
+
+get_native_runtime()
+used = []
+
+
+def child_hook():
+    # Building a client takes the runtime, which used to raise a deferred
+    # restart error during the child hooks.
+    HTTPClient("http://localhost:8126")
+    used.append(True)
+
+
+forksafe.register(child_hook)
+
+pid = os.fork()
+if pid == 0:
+    os._exit(0 if used else 1)
 
 _, status = os.waitpid(pid, 0)
 assert os.waitstatus_to_exitcode(status) == 0
@@ -331,7 +398,6 @@ assert os.waitstatus_to_exitcode(status) == 0
     _, stderr, status, _ = run_python_code_in_subprocess(code)
 
     assert status == 0, stderr
-    assert b"panic" not in stderr.lower(), stderr
 
 
 def test_trace_exporter_propagates_telemetry_runtime_restart_errors(run_python_code_in_subprocess):

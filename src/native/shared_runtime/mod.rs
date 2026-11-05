@@ -314,6 +314,26 @@ impl SharedRuntimePy {
         result
     }
 
+    /// Replace the runtime inherited by a fork child with a fresh one. Called from
+    /// a Python child hook that runs before any other, so the runtime is ready
+    /// for every later hook and is never rebuilt lazily on an application
+    /// thread. The inherited runtime is leaked, not dropped: its worker threads
+    /// are gone, and dropping it would deregister its I/O resources.
+    fn rebuild_after_fork(&self) -> PyResult<()> {
+        let current_pid = std::process::id();
+        if self.inner.pid.load(Ordering::Acquire) == current_pid {
+            return Ok(());
+        }
+        let mut runtime = self.inner.runtime.write().unwrap_or_else(|e| e.into_inner());
+        if self.inner.pid.load(Ordering::Acquire) == current_pid {
+            return Ok(());
+        }
+        replace_inherited_runtime(&mut runtime, &self.inner, current_pid)?;
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
+        Ok(())
+    }
+
     fn defer_after_fork_child(&self) {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
