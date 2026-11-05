@@ -14,7 +14,6 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._asm_request_context import set_block_request_callable
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._contrib.django.user import _DjangoUserInfoRetriever
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -29,6 +28,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 

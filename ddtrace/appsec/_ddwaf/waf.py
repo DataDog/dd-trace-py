@@ -6,7 +6,6 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.ddwaf_types import DEFAULT_ALLOCATOR
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_builder
@@ -38,6 +37,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 LOGGER = get_logger(__name__)
@@ -324,10 +324,12 @@ class DDWaf:
         self,
         target: Union[DDWafContext, DDWafSubContext],
         data: DDWafInputType,
-        timeout_ms: float = DEFAULT.WAF_TIMEOUT,
+        timeout_ms: Optional[float] = None,
     ) -> DDWaf_result:
         # Single data object per call; persistence depends on the eval target chosen by the caller
         # (main context for request data, subcontext for non-persisting RASP data).
+        if timeout_ms is None:
+            timeout_ms = asm_config._waf_timeout
         start = time.monotonic()
         if not target:
             LOGGER.debug("DDWaf.run: dry run. no context created.")

@@ -5,13 +5,13 @@ import pytest
 
 from ddtrace import config
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._processor import AppSecSpanProcessor  # noqa: F401
 from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
+from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span

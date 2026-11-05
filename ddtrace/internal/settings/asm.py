@@ -14,10 +14,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_DEFAULT
 from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_ENV
-from ddtrace.internal.settings._asm_constants import APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
-from ddtrace.internal.settings._asm_constants import APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
 from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE
-from ddtrace.internal.settings._asm_constants import WAF_TIMEOUT
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
 
@@ -109,16 +106,27 @@ class ASMConfig(DDConfig):
     _waf_timeout = DDConfig.var(
         float,
         "DD_APPSEC_WAF_TIMEOUT",
-        default=WAF_TIMEOUT,
+        default=5.0,  # milliseconds
         help_type="float",
         help="Timeout in milliseconds for WAF computations",
     )
     _asm_deduplication_enabled = DDConfig.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
     _asm_obfuscation_parameter_key_regexp = DDConfig.var(
-        str, "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", default=APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+        str,
+        "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP",
+        default=r"(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?"
+        r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\.net[_-]sessionid|sid|jwt",
     )
     _asm_obfuscation_parameter_value_regexp = DDConfig.var(
-        str, "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", default=APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
+        str,
+        "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP",
+        default=r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
+        r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
+        r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
+        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})'
+        r"|gh[opsu]_([0-9a-zA-Z]{36})"
+        r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
+        r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})",
     )
 
     _iast_redaction_enabled = DDConfig.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)

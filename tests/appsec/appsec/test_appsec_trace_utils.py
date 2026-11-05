@@ -6,7 +6,6 @@ import pytest
 
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.appsec.trace_utils import should_block_user
@@ -18,6 +17,7 @@ from ddtrace.appsec.track_user_sdk import track_user
 from ddtrace.appsec.track_user_sdk import track_user_id
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
+from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE
 import ddtrace.internal.telemetry
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context

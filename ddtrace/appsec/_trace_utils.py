@@ -9,7 +9,6 @@ from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _hash_user_id
@@ -21,6 +20,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.security._trace_utils import _asm_manual_keep as _asm_manual_keep
+from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE
 from ddtrace.internal.settings.asm import config as asm_config
 
 
