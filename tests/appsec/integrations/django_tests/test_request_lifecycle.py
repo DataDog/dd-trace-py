@@ -27,6 +27,7 @@ from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
 from tests.appsec.iast.iast_utils import load_iast_report
+from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -179,7 +180,7 @@ def test_django_admission(request_events, tracer, monkeypatch, tracing_enabled, 
         oce.reconfigure()
 
 
-async def invoke_asgi(application, disconnect=None):
+async def invoke_asgi(application, disconnect=None, headers=None):
     received = False
 
     async def receive():
@@ -204,20 +205,22 @@ async def invoke_asgi(application, disconnect=None):
         path="/lifecycle",
         root_path="",
         query_string=b"table=sqlite_master",
-        headers=[],
+        headers=headers or [],
         server=("localhost", 80),
         client=("127.0.0.1", 1234),
     )
     await application(scope, receive, send)
 
 
-@pytest.mark.skipif(django.VERSION < (4, 2), reason="Async streaming responses require Django 4.2+")
+@pytest.mark.skipif(django.VERSION < (3, 1), reason="Django ASGI instrumentation requires Django 3.1+")
 @pytest.mark.parametrize(
     "mode", ["normal", "error", "propagate_error", "stream", "stream_error", "cancel", "disconnect", "setup_error"]
 )
 def test_asgi_request_lifecycle(request_events, tracer, mode):
     from django.core.asgi import get_asgi_application
 
+    if mode in ("stream", "stream_error") and django.VERSION < (4, 2):
+        pytest.skip("Async streaming responses require Django 4.2+")
     if mode == "disconnect" and django.VERSION < (5, 0):
         pytest.skip("Django cancels disconnected request handlers on 5.0+")
     urls = ModuleType("asgi_lifecycle_urls")
@@ -325,6 +328,88 @@ def test_wsgi_listener_interruption(request_events, event_type):
     assert Client().get("/appsec/weak-hash/").status_code == 200
     assert IAST_CONTEXT.get() is None
     assert len(request_events) == 4
+
+
+def test_wsgi_earlier_finishing_listener_releases_analysis(iast_span, tracer):
+    tracer._recreate()
+    free_slots = debug_context_array_free_slots_number()
+    spans = []
+    context_ids = []
+    finishing = _request_lifecycle.IastRequestFinishingSubscriber
+    event_name = "span.finishing.django.traced_get_response"
+
+    def observe_started(ctx):
+        spans.append(span_from_context(ctx))
+        context_ids.append(IAST_CONTEXT.get())
+
+    def interrupt(ctx):
+        raise KeyboardInterrupt("earlier finishing listener")
+
+    # Exercise an interruption before IAST, rather than after its cleanup.
+    finishing.unregister()
+    core.on(event_name, interrupt)
+    finishing.register()
+    core.on("span.started.django.traced_get_response", observe_started)
+    try:
+        try:
+            with pytest.raises(KeyboardInterrupt, match="earlier finishing listener"):
+                Client().get("/appsec/weak-hash/")
+            assert spans[0].finished
+            assert spans[0].get_metric(IAST.ENABLED) == 1.0
+            assert IAST_CONTEXT.get() is None
+            assert debug_context_array_free_slots_number() == free_slots
+        finally:
+            core.reset_listeners(event_name, interrupt)
+            finishing.unregister()
+            finishing.register()
+        assert Client().get("/appsec/weak-hash/").status_code == 200
+        assert len(context_ids) == 2 and all(context_ids)
+        assert context_ids[0] != context_ids[1]
+        assert IAST_CONTEXT.get() is None
+        assert debug_context_array_free_slots_number() == free_slots
+    finally:
+        core.reset_listeners("span.started.django.traced_get_response", observe_started)
+
+
+@pytest.mark.skipif(django.VERSION < (3, 1), reason="Django ASGI instrumentation requires Django 3.1+")
+def test_nested_asgi_django_admits_accepted_inner_trace(iast_span, tracer):
+    from django.core.asgi import get_asgi_application
+
+    from ddtrace import config
+    from ddtrace.appsec._iast._overhead_control_engine import oce
+    from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+
+    tracer._recreate()
+    free_slots = debug_context_array_free_slots_number()
+    urls = ModuleType("nested_admission_urls")
+    owners = []
+
+    def view(request):
+        owners.append(tracer.current_root_span())
+        value = request.GET["table"]
+        assert get_tainted_ranges(value)
+        query(value)
+        return HttpResponse("ok")
+
+    urls.urlpatterns = [path("lifecycle", view)]
+    with (
+        override_settings(ROOT_URLCONF=urls, MIDDLEWARE=[]),
+        override_config("asgi", dict(distributed_tracing=False)),
+        override_config("django", dict(distributed_tracing=True)),
+        mock.patch.object(oce._sampler, "sample", side_effect=lambda trace_id: trace_id == 12345),
+    ):
+        application = TraceMiddleware(get_asgi_application(), integration_config=config.asgi)
+        asyncio.run(
+            invoke_asgi(
+                application,
+                headers=[(b"x-datadog-trace-id", b"12345"), (b"x-datadog-parent-id", b"999")],
+            )
+        )
+    assert len(owners) == 1 and owners[0].trace_id == 12345
+    assert owners[0].get_metric(IAST.ENABLED) == 1.0
+    assert [v["type"] for v in load_iast_report(owners[0])["vulnerabilities"]] == [VULN_SQL_INJECTION]
+    assert IAST_CONTEXT.get() is None
+    assert debug_context_array_free_slots_number() == free_slots
 
 
 @pytest.mark.parametrize("protocol", ["wsgi", "asgi"])
