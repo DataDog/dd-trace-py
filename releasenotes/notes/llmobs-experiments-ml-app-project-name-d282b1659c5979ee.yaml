@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    LLM Observability: Experiment spans now default their ``ml_app`` to the experiment's project name
+    instead of ``DD_SERVICE`` or ``unnamed-ml-app``. Set ``DD_LLMOBS_ML_APP`` or pass
+    ``agent_service`` to ``LLMObs.enable()`` to override it.
