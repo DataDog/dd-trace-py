@@ -147,6 +147,30 @@ async def test_async_with_streaming_response_cancelled_body_read_finishes_span(a
     assert body.closed
 
 
+class _FailingCloseBody(_FailingBody):
+    async def aclose(self):
+        self.closed = True
+        raise RuntimeError("close failed")
+
+
+async def test_async_with_streaming_response_close_error_keeps_read_error(anthropic, anthropic_llmobs, test_spans):
+    body = _FailingCloseBody(httpx.ReadTimeout("body read timed out"))
+
+    async def handler(request):
+        return _failing_body_response(body)(request)
+
+    client = anthropic.AsyncAnthropic(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        max_retries=0,
+    )
+    with pytest.raises(httpx.ReadTimeout):
+        async with client.messages.with_streaming_response.create(**CREATE_KWARGS) as raw:
+            await raw.parse()
+    _assert_errored(test_spans, httpx.ReadTimeout)
+    assert body.closed
+
+
 def test_with_streaming_response_body_stays_readable(anthropic, anthropic_llmobs, test_spans):
     with _sync_client(anthropic).messages.with_streaming_response.create(**CREATE_KWARGS) as raw:
         assert json.loads(b"".join(raw.iter_bytes()))["content"][0]["text"] == "hi there"

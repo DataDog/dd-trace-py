@@ -95,7 +95,12 @@ async def _async_parse_wrapped_response(resp: Any) -> Any:
         except BaseException:
             closed = _close_wrapped_response(resp)
             if inspect.isawaitable(closed):
-                await closed
+                # The coroutine only raises when awaited, outside _close_wrapped_response's
+                # handler, and a close error must not replace the read error being re-raised.
+                try:
+                    await closed
+                except Exception:
+                    log.debug("Failed to close anthropic response wrapper", exc_info=True)
             raise
     try:
         parsed = resp.parse()
