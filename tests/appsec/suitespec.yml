@@ -261,6 +261,25 @@ suites:
         - name: appsec_integrations_langchain
           python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, 'langchain>=1,<2', 'langchain-classic>=1,<2', 'langchain-community~=0.4', 'langchain-experimental~=0.4', 'pydantic>=2.14']
+  appsec_integrations_llmobs:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@llmobs'
+      - '@openai'
+      - '@anthropic'
+      - tests/appsec/integrations/llmobs_tests/*
+    matrix:
+      command: pytest -vvv {cmdargs} tests/appsec/integrations/llmobs_tests/
+      env:
+        AGENT_VERSION: testagent
+        DD_TRACE_AGENT_URL: http://testagent:9126
+      variants:
+        - name: appsec_integrations_llmobs
+          python: ['3.9', '3.12', '3.14']
+          dependencies: [pytest-randomly, requests, httpx, openai, anthropic]
   appsec_integrations_flask:
     pattern: appsec_integrations_flask$
     paths:

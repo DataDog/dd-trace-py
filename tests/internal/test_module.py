@@ -92,46 +92,57 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module)
 
 
-@pytest.mark.subprocess
-def test_pre_exec_hook_runs_wrapt_post_import_hooks():
-    # A pre-exec hook (e.g. IAST) that executes the module itself must not skip
-    # the post-import hooks of a wrapt loader wrapped by the watchdog loader.
-    from pathlib import Path
-    import sys
-    import tempfile
+@pytest.mark.parametrize("pre_exec_falls_back", [False, True])
+def test_pre_exec_hook_runs_wrapt_post_import_hooks(pre_exec_falls_back, run_python_code_in_subprocess):
+    # A pre-exec hook (e.g. IAST) must not skip the post-import hooks of a wrapt loader
+    # wrapped by the watchdog loader, whether it executes the module itself or falls back
+    # to the wrapped loader. The hooks must run exactly once.
+    code = f"""
+from pathlib import Path
+import sys
+import tempfile
 
-    from wrapt.importer import ImportHookFinder
-    from wrapt.importer import register_post_import_hook
+from wrapt.importer import ImportHookFinder
+from wrapt.importer import register_post_import_hook
 
-    from ddtrace.internal.module import ModuleWatchdog
-    from ddtrace.internal.module import _UniversalModuleWatchdog
+from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.module import _UniversalModuleWatchdog
 
-    module_name = "dd_wrapt_pre_exec_target"
-    module_dir = tempfile.mkdtemp()
-    Path(module_dir, module_name + ".py").write_text("source_executed = True\n")
-    sys.path.insert(0, module_dir)
+module_name = "dd_wrapt_pre_exec_target"
+module_dir = tempfile.mkdtemp()
+Path(module_dir, module_name + ".py").write_text("source_executed = True\\n")
+sys.path.insert(0, module_dir)
 
-    calls = []
-    register_post_import_hook(lambda module: calls.append(module.__name__), module_name)
+calls = []
+register_post_import_hook(lambda module: calls.append(module.__name__), module_name)
 
-    def pre_exec_hook(loader, module):
-        exec(compile("pre_exec_executed = True\n", module.__file__, "exec"), module.__dict__)
 
-    ModuleWatchdog.register_pre_exec_module_hook(lambda name: name == module_name, pre_exec_hook)
+def pre_exec_hook(loader, module):
+    if {pre_exec_falls_back}:
+        loader.loader.exec_module(module)
+    else:
+        exec(compile("source_executed = False\\n", module.__file__, "exec"), module.__dict__)
 
-    class LateWatchdog(ModuleWatchdog):
-        pass
 
-    # Registering a watchdog after wrapt's finder moves the watchdog finder ahead of it.
-    LateWatchdog.install()
-    wrapt_finder = next(f for f in sys.meta_path if isinstance(f, ImportHookFinder))
-    assert sys.meta_path.index(_UniversalModuleWatchdog._instance) < sys.meta_path.index(wrapt_finder)
+ModuleWatchdog.register_pre_exec_module_hook(lambda name: name == module_name, pre_exec_hook)
 
-    module = __import__(module_name)
 
-    assert module.pre_exec_executed
-    assert not hasattr(module, "source_executed")
-    assert calls == [module_name], calls
+class LateWatchdog(ModuleWatchdog):
+    pass
+
+
+# Registering a watchdog after wrapt's finder moves the watchdog finder ahead of it.
+LateWatchdog.install()
+wrapt_finder = next(f for f in sys.meta_path if isinstance(f, ImportHookFinder))
+assert sys.meta_path.index(_UniversalModuleWatchdog._instance) < sys.meta_path.index(wrapt_finder)
+
+module = __import__(module_name)
+
+assert module.source_executed is {pre_exec_falls_back}
+assert calls == [module_name], calls
+"""
+    out, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, (out, err)
 
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=str(origin(tests.test_module))))
