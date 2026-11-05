@@ -89,6 +89,33 @@ Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
     - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
+Web request events and subscribers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Web integrations publish ``WebFrameworkRequestEvent`` through
+``core.context_with_event(event)``. The generic ``web.request`` context emits
+started and ended events that product-owned subscribers consume. The tracing
+product registers ``WebFrameworkRequestSubscriber`` from its own lifecycle;
+``TracingSubscriber`` owns propagation, span creation, and span completion.
+
+Bottle wraps its matched route callback directly in this context. It extracts
+request metadata before entry and response metadata before exit. Returned and
+raised ``HTTPResponse`` objects supply the response status and headers. Bottle
+sets ``response_from_exception`` for raised responses, and the tracing subscriber
+applies status-based OpenTelemetry error semantics. The event channel remains
+``web.request``; the tracing operation remains ``bottle.request``.
+
+Bottle captures its tracing decision in ``tracing_enabled`` at request entry.
+When false, metadata events still run, while the tracing subscriber skips span
+creation, distributed-header activation, and HTTP tagging. A span started before
+tracing is disabled still finishes when the context exits.
+
+Ordinary metadata extraction failures preserve the application's result or
+exception. Completion occurs at the synchronous callback boundary; returned
+iterables are neither wrapped nor consumed. Bottle continues to own plugin
+ordering, skip settings, response hooks, and callback-cache resets.
+
+
 Are there norms for integrating with database libraries?
 --------------------------------------------------------
 

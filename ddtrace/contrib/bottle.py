@@ -12,6 +12,15 @@ plugin to your app::
 
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
+Request lifecycle
+~~~~~~~~~~~~~~~~~
+
+The plugin traces the matched route callback. The span finishes when the callback
+returns or raises, including when it returns a response iterator. Response
+iteration, later response hooks, and transport delivery occur outside this span.
+Bottle manages plugin ordering, route skip settings, and callback-cache resets.
+Unmatched requests and routes that skip the plugin do not create a Bottle span.
+
 Configuration
 ~~~~~~~~~~~~~
 
