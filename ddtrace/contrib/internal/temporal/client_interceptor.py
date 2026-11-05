@@ -13,13 +13,14 @@ from ddtrace.trace import tracer
 from .constants import COMMON_ATTRIBUTE_MAP
 from .constants import OperationNames
 from .constants import SpanAttributes
+from .span_lifecycle import SpanLifecycle
 
 
 class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.client.OutboundInterceptor,
-        root: Any,  # DatadogTracingInterceptor; not imported to avoid a circular import with .interceptor
+        root: SpanLifecycle,
     ) -> None:
         super().__init__(next)
         self.root = root
