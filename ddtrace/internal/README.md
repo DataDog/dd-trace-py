@@ -72,6 +72,56 @@ gets extended to add support for additional features.
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
 
+## Subscriber bundles
+
+Products can group related subscribers with `SubscriberBundle` from
+`ddtrace.internal.core.subscriber`:
+
+```python
+from ddtrace.internal.core.subscriber import SubscriberBundle
+
+REQUEST_SUBSCRIBERS = SubscriberBundle(
+    module="example_product.subscribers",
+    subscribers=("RequestSubscriber", "RequestContextSubscriber"),
+)
+
+def start():
+    # Initialize product state before activating its listeners.
+    REQUEST_SUBSCRIBERS.register()
+
+
+def stop(join=False):
+    # Drain active work before removing its completion listeners.
+    REQUEST_SUBSCRIBERS.unregister()
+```
+
+Declarations do not import subscriber modules. Calling `register()` loads the module
+and resolves every declared name before registering listeners. Bundle-managed
+subscribers must set `auto_register = False` so importing their module does not
+activate them.
+
+Existing subscribers retain automatic registration until their activation paths
+are migrated. Once all consumers register explicitly, automatic registration and
+the `auto_register` flag can be removed.
+
+Repeated registration uses named-listener deduplication and can restore listeners
+after a reset. Import and callback failures propagate to the caller; registration
+is not a transaction across callback failures.
+
+Products call bundle `register()` and `unregister()` explicitly from their own
+`start()` and `stop()` functions. `ProductManager` only invokes the existing product
+lifecycle; it does not discover or manage bundles. Products choose registration
+ordering, enablement, and failure handling. A registration error propagating out of
+`start()` is handled as a product startup failure by the manager.
+
+Keep completion listeners registered while draining active contexts. Call
+`unregister()` only after draining succeeds; if draining raises, retain the listeners.
+Products that cannot guarantee all active contexts have drained must retain their
+completion listeners after `stop()` returns.
+`unregister()` never imports an unused module. Products registering listeners outside
+`start()`, or remaining active while `enabled()` is false, must arrange their own
+cleanup because the manager skips `stop()` for disabled products.
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from
