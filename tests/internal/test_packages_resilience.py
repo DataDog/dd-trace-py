@@ -608,6 +608,30 @@ def test_prefetch_never_raises(reset_packages_caches, monkeypatch: pytest.Monkey
     assert _p._INSTALLED is None
 
 
+def test_prefetch_scans_inline_in_uwsgi_master(reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A uWSGI master forks its workers without the fork hooks that join the prefetch thread, and a worker
+    forked while that thread holds the GIL hangs. The master must scan inline and start no thread.
+    """
+    import types
+
+    from ddtrace.internal import packages as _p
+
+    fake = types.ModuleType("uwsgi")
+    fake.opt = {"enable-threads": True, "master": True}
+    fake.numproc = 2
+    fake.worker_id = lambda: 0
+    monkeypatch.setitem(sys.modules, "uwsgi", fake)
+
+    lazy = _p._installed_distributions()
+    _p._reset_installed_distributions()
+
+    _p.prefetch_distributions()
+
+    assert _p._PREFETCH_THREAD is None
+    assert _p._INSTALLED is not None
+    assert _p._installed_distributions() == lazy
+
+
 def test_concurrent_callers_scan_once(reset_packages_caches, monkeypatch: pytest.MonkeyPatch) -> None:
     """The boot-time prefetch and a lazy caller must not both run the scan."""
     import threading

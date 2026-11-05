@@ -53,6 +53,9 @@ _SETTINGS: dict[str, tuple[str, type]] = {
     "pythonMemoryMemDomain": ("memory.mem_domain_enabled", bool),
 }
 
+# The settings of the schema that only apply to the tracers of other languages.
+_OTHER_LANGUAGE_SETTINGS: frozenset[str] = frozenset(("rubySignalWorkaround",))
+
 # The profiling_config variables by dotted name, to validate remote config values like the environment variables.
 _SETTING_VARIABLES: dict[str, t.Any] = dict(type(profiling_config).items(recursive=True))
 
@@ -65,10 +68,11 @@ def _profilers_from_env() -> dict[str, bool]:
     return {
         "cpuTime": stack,
         "wallTime": stack,
+        "heapObjects": memory,
         "heapSize": memory,
         "allocations": memory,
-        "exception": enabled and bool(profiling_config.exception.enabled),
-        "lock": enabled and bool(profiling_config.lock.enabled),
+        "exceptions": enabled and bool(profiling_config.exception.enabled),
+        "locks": enabled and bool(profiling_config.lock.enabled),
     }
 
 
@@ -325,7 +329,7 @@ def _merge_configs(configs: list[dict[str, t.Any]]) -> dict[str, t.Any]:
             continue
 
         for name, value in settings.items():
-            if value is None:
+            if value is None or name in _OTHER_LANGUAGE_SETTINGS:
                 continue
 
             if name not in _SETTINGS:
@@ -344,16 +348,18 @@ def _merge_configs(configs: list[dict[str, t.Any]]) -> dict[str, t.Any]:
 def _wanted_collectors(profilers: dict[str, bool]) -> dict[str, bool]:
     """Map the remote config profilers to the Profiler arguments in _COLLECTOR_ARGUMENTS.
 
-    The stack collector produces both CPU and wall time profiles, and the memory collector both heap and allocation
-    profiles, so each pair can only be enabled together.
+    The stack collector produces both CPU and wall time profiles, and the memory collector the heap live objects, heap
+    live size and allocation profiles, so the profiles of a collector can only be enabled together.
 
     Unavailable collectors are ignored.
     """
     return {
         "_stack_collector_enabled": stack_is_available and bool(profilers.get("cpuTime") or profilers.get("wallTime")),
-        "_memory_collector_enabled": bool(profilers.get("heapSize") or profilers.get("allocations")),
-        "_lock_collector_enabled": bool(profilers.get("lock")),
-        "_exception_profiling_enabled": exception_is_available and bool(profilers.get("exception")),
+        "_memory_collector_enabled": bool(
+            profilers.get("heapObjects") or profilers.get("heapSize") or profilers.get("allocations")
+        ),
+        "_lock_collector_enabled": bool(profilers.get("locks")),
+        "_exception_profiling_enabled": exception_is_available and bool(profilers.get("exceptions")),
     }
 
 
