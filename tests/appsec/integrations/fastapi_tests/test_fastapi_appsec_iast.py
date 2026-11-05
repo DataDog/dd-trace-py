@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import closing
+from copy import deepcopy
 import io
 import json
 import logging
@@ -41,6 +42,7 @@ from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_hea
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.internal.security._constants import STACK_TRACE
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
@@ -1219,7 +1221,7 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
 
 @pytest.mark.parametrize("mounted", [False, True])
 @pytest.mark.parametrize("inferred_proxy", [False, True])
-def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted, inferred_proxy):
+def test_iast_analysis_survives_response_middleware(tracer, test_spans, monkeypatch, mounted, inferred_proxy):
     import sqlite3
 
     with override_global_config(
@@ -1232,6 +1234,20 @@ def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted,
     ):
         _aux_appsec_prepare_tracer(tracer)
         baseline = debug_context_array_free_slots_number()
+        monkeypatch.setattr(tracer._span_aggregator, "partial_flush_enabled", True)
+        monkeypatch.setattr(tracer._span_aggregator, "partial_flush_min_spans", 1)
+        exported = []
+        write = test_spans.writer.write
+
+        def capture(spans):
+            # Snapshot at export: later mutations cannot repair an already sent span.
+            exported.extend(
+                (span.span_id, deepcopy(load_iast_report(span)), deepcopy(span._get_struct_tag(STACK_TRACE.TAG)))
+                for span in spans
+            )
+            return write(spans)
+
+        monkeypatch.setattr(test_spans.writer, "write", capture)
         child = FastAPI()
         application = FastAPI() if mounted else child
         if mounted:
@@ -1294,6 +1310,13 @@ def test_iast_analysis_survives_response_middleware(tracer, test_spans, mounted,
         assert span.span_id == owners[0].span_id
         assert span.get_tag("component") == "fastapi"
         assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+        exported_findings = [(span_id, report, stacks) for span_id, report, stacks in exported if report]
+        assert len(exported_findings) == 1
+        span_id, report, stacks = exported_findings[0]
+        assert span_id == owners[0].span_id
+        for vulnerability in report["vulnerabilities"]:
+            assert vulnerability["location"]["spanId"] == span_id
+            assert vulnerability["location"]["stackId"] in {stack["id"] for stack in stacks[STACK_TRACE.IAST]}
         assert debug_context_array_free_slots_number() == baseline
 
 

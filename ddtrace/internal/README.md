@@ -96,10 +96,14 @@ def stop(join=False):
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
-and resolves every declared name before registering listeners. Subscriber classes
-never register on definition or import; activate them with an explicit `register()`
-call or through a bundle. Each bundle names one module and one or more subscriber
-classes. Products can compose multiple bundles when subscribers span modules.
+and resolves every declared name before registering listeners. Bundle-managed
+subscribers must set `auto_register = False` so importing their module does not
+register them implicitly.
+
+Existing subscribers retain automatic registration until their activation paths
+are migrated. Once all consumers register explicitly, automatic registration and
+the `auto_register` flag can be removed.
+
 Repeated registration uses named-listener deduplication and can restore listeners
 after a reset. Import and callback failures propagate to the caller; registration
 is not a transaction across callback failures.
@@ -142,6 +146,13 @@ paths, and shared listeners remain available for in-flight completion.
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping also retains the bundle listeners as described above.
+AppSec declares exploit-prevention bundles in
+`ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
+only after AppSec is active and exploit prevention is enabled. Direct activation,
+remote activation, and runtime switches share `load_appsec()` / `disable_appsec()`;
+product `stop()` also removes the operation listeners. These bundles do not own
+request cleanup, whose listeners remain registered separately. Repeated activation
+restores listeners after a reset without caching registration state.
 
 ## Remote Configuration Callbacks
 
