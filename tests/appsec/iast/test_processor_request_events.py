@@ -24,7 +24,10 @@ from ddtrace.trace import Span
 @contextmanager
 def active_context(identifier, integration, protocol="http"):
     ctx = core.ExecutionContext(
-        identifier, parent=core.current, integration_config=integration, scope={"type": protocol}
+        identifier,
+        parent=core.current,
+        integration_config=integration,
+        **({"scope": {"type": protocol}} if identifier == "asgi.request" else {}),
     )
     with mock.patch.object(core, "dispatch"), ctx:
         yield ctx
@@ -45,7 +48,9 @@ def processor(monkeypatch):
         ("asgi.request", "fastapi", "http", True, True),
         ("asgi.request", "fastapi", "http", False, False),
         ("asgi.request", "fastapi", "websocket", True, False),
-        ("wsgi.__call__", "flask", "http", True, False),
+        ("wsgi.__call__", "flask", "http", True, True),
+        ("wsgi.__call__", "flask", "http", False, False),
+        ("wsgi.__call__", "wsgi", "http", True, False),
         ("asgi.request", "django", "http", True, False),
         ("fastapi.serialize_response", "fastapi", "http", True, False),
     ],
@@ -56,7 +61,7 @@ def test_request_route_survives_context_exit_and_processor_replacement(
     monkeypatch.setattr(
         core,
         "has_listeners",
-        lambda event: listening and event in ("span.started.asgi.request", "span.finishing.asgi.request"),
+        lambda event: listening and event in (f"span.started.{identifier}", f"span.finishing.{identifier}"),
     )
     with (
         mock.patch.object(module, "_iast_start_request", return_value=None) as start,

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import ExitStack
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -22,6 +24,7 @@ from urllib.parse import unquote_to_bytes
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -40,6 +43,9 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
+
+_SPAN_STARTED_EVENT = f"{SpanLifecycleEvents.SPAN_STARTED.value}.wsgi.__call__"
+_SPAN_FINISHING_EVENT = f"{SpanLifecycleEvents.SPAN_FINISHING.value}.wsgi.__call__"
 
 propagator = HTTPPropagator
 
@@ -109,22 +115,30 @@ class _DDWSGIMiddlewareBase:
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
-        with core.context_with_data(
-            "wsgi.__call__",
-            remote_addr=environ.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            service=trace_utils.int_service(None, self._config),
-            span_type=SpanTypes.WEB,
-            span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
-            middleware_config=self._config,
-            integration_config=self._config,
-            distributed_headers=environ,
-            environ=environ,
-            middleware=self,
-            span_key="req_span",
-            activate_distributed_headers=True,
-        ) as ctx:
+        with (
+            core.context_with_data(
+                "wsgi.__call__",
+                remote_addr=environ.get("REMOTE_ADDR"),
+                headers=headers,
+                headers_case_sensitive=True,
+                service=trace_utils.int_service(None, self._config),
+                span_type=SpanTypes.WEB,
+                span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
+                middleware_config=self._config,
+                integration_config=self._config,
+                distributed_headers=environ,
+                environ=environ,
+                middleware=self,
+                span_key="req_span",
+                activate_distributed_headers=True,
+            ) as ctx,
+            ExitStack() if core.has_listeners(_SPAN_FINISHING_EVENT) else nullcontext() as cleanup,
+        ):
+            # Analysis ends with the app call; response iteration can keep tracing open.
+            if cleanup is not None:
+                cleanup.callback(core.dispatch, _SPAN_FINISHING_EVENT, (ctx,))
+            core.dispatch(_SPAN_STARTED_EVENT, (ctx,))
+
             ctx.set_item("wsgi.construct_url", construct_url)
 
             def blocked_view():
@@ -155,6 +169,8 @@ class _DDWSGIMiddlewareBase:
                     content, status, headers = blocked_view()
                     start_response(str(status), headers)
                     closing_iterable = [content]
+                    if cleanup is not None:
+                        cleanup.close()
                     core.dispatch("wsgi.app.exception", (ctx,))
                 except StopIteration as e:
                     """
@@ -174,8 +190,12 @@ class _DDWSGIMiddlewareBase:
                         content, status, headers = blocked_view()
                         start_response(str(status), headers)
                         closing_iterable = [content]
+                        if cleanup is not None:
+                            cleanup.close()
                         core.dispatch("wsgi.app.exception", (ctx,))
                     else:
+                        if cleanup is not None:
+                            cleanup.close()
                         core.dispatch("wsgi.app.exception", (ctx,))
                         raise
                 else:
@@ -193,6 +213,8 @@ class _DDWSGIMiddlewareBase:
             if stop_iteration_exception:
                 if result.value:
                     # Close the request and app spans
+                    if cleanup is not None:
+                        cleanup.close()
                     result.value._finish_spans()
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
                 raise stop_iteration_exception

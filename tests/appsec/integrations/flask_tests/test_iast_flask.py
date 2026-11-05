@@ -1,16 +1,24 @@
+from contextlib import closing
+from functools import partial
 import json
 import traceback
+from types import SimpleNamespace
+from unittest import mock
 
 from flask import request
 from flask_babel import Babel
 import pytest
+from werkzeug.test import EnvironBuilder
 
+from ddtrace.appsec._iast import _iast_request_context_base as request_base
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -22,8 +30,13 @@ from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_hea
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as patch_unvalidated_redirect
 from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
+from ddtrace.appsec._iast_context import IAST_CONTEXT
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.span_bus import span_from_context
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.flask_tests.utils import flask_version
@@ -64,6 +77,138 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             self.babel = Babel(self.app)
             self.app.config["BABEL_DEFAULT_LOCALE"] = "en"
             self.app.config["BABEL_TRANSLATION_DIRECTORIES"] = "translations"
+
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+    def test_flask_request_lifecycle(self):
+        import sqlite3
+
+        self.app.testing = True
+        notifications = []
+        request_spans = {}
+
+        def observe(phase, ctx):
+            event = SimpleNamespace(phase=phase, ctx=ctx, span=span_from_context(ctx))
+            if phase == SpanLifecycleEvents.SPAN_STARTED:
+                request_spans[event.span.name] = event.span
+            if event.span.name != "flask.request":
+                return
+            assert not event.span.finished
+            if phase == SpanLifecycleEvents.SPAN_FINISHING:
+                report = load_iast_report(event.span)
+                if mode == "nested":
+                    assert report is None
+                else:
+                    assert event.span.get_metric(IAST.ENABLED) == 1.0
+                    assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+            notifications.append(event)
+
+        @self.app.route("/lifecycle")
+        def endpoint():
+            value = request.args["value"]
+            mode = request.args["mode"]
+            assert is_pyobject_tainted(value)
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(add_aspect("SELECT 1 FROM ", value))
+            if mode == "app_error":
+                raise RuntimeError("application error")
+            if mode == "stop_iteration":
+                raise StopIteration
+
+            def chunks():
+                yield b"ok"
+                if mode == "iterator_error":
+                    raise RuntimeError("iterator error")
+
+            return self.app.response_class(chunks())
+
+        phases = (SpanLifecycleEvents.SPAN_STARTED, SpanLifecycleEvents.SPAN_FINISHING)
+        listeners = {f"{phase.value}.wsgi.__call__": partial(observe, phase) for phase in phases}
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100)
+        ):
+            for event_name, listener in listeners.items():
+                core.on(event_name, listener)
+            try:
+                for mode in ("complete", "app_error", "stop_iteration", "iterator_error", "early_close", "nested"):
+                    with self.subTest(mode=mode):
+                        notifications.clear()
+                        request_spans.clear()
+                        baseline = debug_context_array_free_slots_number()
+                        with closing(
+                            EnvironBuilder(path="/lifecycle", query_string=dict(value="sqlite_master", mode=mode))
+                        ) as builder:
+                            environ = builder.get_environ()
+                        application = DDWSGIMiddleware(self.app.wsgi_app) if mode == "nested" else self.app.wsgi_app
+                        if mode in ("app_error", "stop_iteration"):
+                            with pytest.raises(RuntimeError if mode == "app_error" else StopIteration):
+                                application(environ, mock.Mock())
+                        else:
+                            with closing(application(environ, mock.Mock())) as response:
+                                assert IAST_CONTEXT.get() is None
+                                if mode == "nested":
+                                    assert load_iast_report(request_spans["wsgi.request"])
+                                if mode == "iterator_error":
+                                    with pytest.raises(RuntimeError, match="iterator error"):
+                                        list(response)
+                                elif mode == "early_close":
+                                    assert next(response) == b"ok"
+                                else:
+                                    assert list(response) == [b"ok"]
+                        assert debug_context_array_free_slots_number() == baseline
+                        assert [event.phase for event in notifications] == list(phases)
+                        ready, complete = notifications
+                        assert ready.ctx is complete.ctx and ready.span is complete.span
+                        assert ready.span.name == "flask.request" and ready.span.finished
+                        assert ready.span.get_metric(IAST.ENABLED) == (None if mode == "nested" else 1.0)
+            finally:
+                for event_name, listener in listeners.items():
+                    core.reset_listeners(event_name, listener)
+
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+    def test_flask_early_span_finish_reports_once(self):
+        import sqlite3
+
+        self.app.testing = True
+        exported_reports = []
+        contexts_after_finish = []
+        writer = self.tracer._span_aggregator.writer
+        write = writer.write
+        free_slots = debug_context_array_free_slots_number()
+
+        def capture_export(spans=None):
+            for span in spans or ():
+                if span.name == "flask.request":
+                    exported_reports.append(load_iast_report(span))
+            return write(spans)
+
+        @self.app.route("/early-finish")
+        def endpoint():
+            value = request.args["table"]
+            assert is_pyobject_tainted(value)
+            with closing(sqlite3.connect(":memory:")) as connection:
+                connection.execute(add_aspect("SELECT 1 FROM ", value))
+            # Match the Lambda impending-timeout path before the WSGI call returns.
+            self.tracer.current_span()._finish_with_ancestors()
+            contexts_after_finish.append(IAST_CONTEXT.get())
+            return "ok"
+
+        with (
+            override_global_config(
+                dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100)
+            ),
+            mock.patch.object(writer, "write", side_effect=capture_export),
+            mock.patch.object(
+                request_base, "update_global_vulnerability_limit", wraps=request_base.update_global_vulnerability_limit
+            ) as update_limit,
+        ):
+            response = self.client.get("/early-finish?table=sqlite_master")
+            response.close()
+            update_limit.assert_called_once()
+        assert contexts_after_finish == [None]
+        assert len(exported_reports) == 1
+        assert [v["type"] for v in exported_reports[0]["vulnerabilities"]] == [VULN_SQL_INJECTION]
+        assert IAST_CONTEXT.get() is None
+        assert debug_context_array_free_slots_number() == free_slots
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
