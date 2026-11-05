@@ -264,7 +264,10 @@ class BackendConnector(threading.local):
         parsed_url = urlparse(url)
         self.conn = self._make_connection(parsed_url, timeout_seconds)
         self.default_headers = default_headers or {}
-        self.base_path = base_path if base_path is not None else parsed_url.path.rstrip("/")
+        if base_path is None:
+            # The path of a unix:// URL is the socket's, not a prefix of the request paths.
+            base_path = "" if parsed_url.scheme == "unix" else parsed_url.path.rstrip("/")
+        self.base_path = base_path
         self.use_gzip = use_gzip
         if self.use_gzip:
             self.default_headers["Accept-Encoding"] = "gzip"

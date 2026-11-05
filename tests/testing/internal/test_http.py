@@ -66,6 +66,39 @@ class TestBackendConnector:
         assert connector.default_headers == {}
         assert connector.base_path == "/evp_proxy/over9000"
 
+    @patch("ddtrace.testing.internal.http.UnixDomainSocketHTTPConnection")
+    def test_init_unix_domain_socket_without_base_path(self, mock_unix_connection: Mock) -> None:
+        """The path of a Unix domain socket URL is the socket's, not a base path for requests."""
+        connector = BackendConnector(url="unix:///var/run/datadog/apm.socket")
+
+        mock_unix_connection.assert_called_once_with(
+            host="localhost", port=80, timeout=DEFAULT_TIMEOUT_SECONDS, path="/var/run/datadog/apm.socket"
+        )
+        assert connector.base_path == ""
+
+    @patch("ddtrace.testing.internal.http.UnixDomainSocketHTTPConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_get_json_unix_domain_socket_requests_path(self, mock_time: Mock, mock_unix_connection: Mock) -> None:
+        """The agent check over a Unix domain socket requests /info, not <socket path>/info."""
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": 33}
+        mock_response.read.return_value = b'{"endpoints": ["/evp_proxy/v4/"]}'
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_unix_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="unix:///var/run/datadog/apm.socket")
+
+        result = connector.get_json("/info", max_attempts=1)
+
+        assert mock_conn.request.call_args_list == [
+            call("GET", "/info", body=None, headers={"Content-Type": "application/json"})
+        ]
+        assert result.error_type is None
+        assert result.parsed_response == {"endpoints": ["/evp_proxy/v4/"]}
+
     @patch("http.client.HTTPSConnection")
     @patch("time.perf_counter", return_value=0.0)
     def test_post_json_ok(self, mock_time: Mock, mock_https_connection: Mock) -> None:
