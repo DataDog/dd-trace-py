@@ -1,7 +1,13 @@
 # Native telemetry extraction: Phase A inventory
 
-Status: inventory and proposal. No code moved. Names and boundaries are open
-decisions under `docs/package-split/plan.md`; nothing here pre-approves them.
+Status: **superseded in scope** — telemetry is now slice 1 of the shared-native
+campaign (see the sequencing revision in `plan.md`, approved 2025-11-05):
+`telemetry` + `http_client` + `data_pipeline` + `remote_config`/`rc_shm` + the
+real `shared_runtime` are extracted together into
+`datadog-apm-python/packages/ddtrace-internal-native` under one freeze window.
+This document remains the inventory for the telemetry slice and records the
+extraction provenance. Names and boundaries remain open decisions under
+`docs/package-split/plan.md`; nothing here pre-approves them.
 
 Target: the native telemetry implementation that backs
 `ddtrace.internal.telemetry`, extracted as the first native slice of the
@@ -67,10 +73,15 @@ Python side:
 
 ## Proposed first slice (Phase B per the skill)
 
+Executed 2025-11-05 for the telemetry portion; the remaining cluster members
+follow under the same campaign and freeze.
+
 1. Gate the telemetry module behind a Cargo feature on `src/native` mirroring
    the `ffe` pattern (feature in `Cargo.toml`, conditional `mod telemetry` +
    registration in `lib.rs`, `try/except ImportError` on the Python import
    sites that already exist).
+   **Superseded**: the campaign moves the code outright instead of feature-gating
+   it in place, per the sequencing revision in `plan.md`.
 2. Run the `boundaries`, `lifecycle` and `artifacts` gates on a candidate tree
    with the feature on and off, including the native-free build variant.
 3. Port the consumer-relevant behavior from `tests/telemetry/` into behavioral
@@ -78,6 +89,35 @@ Python side:
 4. Re-run `api-usage`/`api-surface` after the change to record the new used
    surface of both `ddtrace.internal.telemetry` and
    `ddtrace.internal.native`.
+
+## Extraction provenance (frozen)
+
+- Destination: `datadog-apm-python` branch `gnufede/native-telemetry`, commit
+  `03e115f2b` (package `packages/ddtrace-internal-native`, maturin-built abi3
+  wheel, import root `_ddtrace_internal_native`).
+- Source file states copied: `src/native/telemetry.rs` (minus `clone_handle`,
+  whose only consumer `data_pipeline` stays in dd-trace-py for this slice),
+  `src/native/shared_runtime/{mod,exceptions}.rs`,
+  `src/native/native_proc_macro/{Cargo.toml,src/lib.rs}` (verbatim).
+- Extraction revision: `58dc111a530d8059759d3ce11c874edca4b03295` (identical
+  file states in the sub-branch head at copy time).
+- Build inputs: libdatadog rev `v46.1.1`, pyo3 0.29, strum 0.26 — the
+  destination pins the same libdatadog revision for byte-comparable payloads.
+- Pinning: `package-freeze.toml` (repo root), verified by
+  `scripts/package-split freeze --base origin/main` — PASS. The manifest
+  covers the whole campaign scope: the already-copied telemetry files pinned
+  as extraction provenance, plus `http_client/`, `data_pipeline/`,
+  `remote_config.rs` and `rc_shm.rs` pre-frozen at the same baseline so they
+  cannot drift while the campaign is in flight. Enforcement begins when the
+  manifest lands on the protected base branch.
+- Destination validation: `boundaries`, `lifecycle`, `artifacts` gates PASS;
+  behavioral fixtures 9/9 pass against the installed wheel outside the
+  checkout (evidence in the destination repository,
+  `.package-split/`).
+- Temporary duplication: the destination package owns a private minimal
+  runtime while dd-trace-py's `_native` keeps its own — removed when the
+  campaign moves the real `shared_runtime` (see the destination package
+  README's "Known temporary duplication").
 
 ## Evidence
 

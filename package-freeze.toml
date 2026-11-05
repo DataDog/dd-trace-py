@@ -1,0 +1,66 @@
+# Protected freeze manifest for the dd-trace-py package split (schema v1).
+#
+# Pins the extraction provenance of the shared-native campaign copied to
+# datadog-apm-python: the telemetry worker (already extracted, slice 1) plus
+# the rest of the shared-runtime cluster (http_client, data_pipeline,
+# remote_config/rc_shm) that the campaign migrates into
+# packages/ddtrace-internal-native. The not-yet-copied files are pre-frozen at
+# the same baseline revision so they cannot drift while the campaign is in
+# flight; each copy records its provenance here as it happens. While this manifest
+# is in force, the frozen paths may only change through the harness's
+# exception mechanism (owner, reason, expiry, synchronization record) or an
+# approved rewrite -- never silently. See docs/package-split/plan.md
+# (Deliverable 4, "Freeze and transfer") and the sequencing revision recorded
+# there: the shared-native campaign (telemetry, http_client, data_pipeline,
+# remote_config/rc_shm, shared_runtime proper) is extracted under this freeze
+# as one campaign with a standard compatibility window; the freeze ends when
+# the dd-trace-py copies are deleted at bridge retirement, not at
+# publication.
+#
+# Owner: @DataDog/apm-core-python.
+
+schema_version = 1
+
+[[frozen]]
+destination_repository = "https://github.com/DataDog/datadog-apm-python"
+# The dd-trace-py revision whose file states were copied into
+# packages/ddtrace-internal-native (branch gnufede/native-telemetry, commit
+# 03e115f2b). The frozen paths are identical in both revisions.
+extraction_revision = "58dc111a530d8059759d3ce11c874edca4b03295"
+owner = "@DataDog/apm-core-python"
+source_paths = [
+    "src/native/telemetry.rs",
+    "src/native/shared_runtime",
+    "src/native/native_proc_macro",
+    "src/native/http_client",
+    "src/native/data_pipeline",
+    "src/native/remote_config.rs",
+    "src/native/rc_shm.rs",
+]
+# Removal condition: the frozen dd-trace-py copies are deleted at bridge
+# retirement, after the approved compatibility window (plan Deliverable 4,
+# step 6). The manifest entry is dropped in that same change.
+
+# Build inputs that determine the extracted artifact's behavior. The
+# destination package pins the same libdatadog revision so payloads stay
+# byte-comparable during the compatibility window.
+build_inputs = [
+    "src/native/Cargo.toml: libdatadog git dependency rev v46.1.1 (libdd-telemetry, libdd-shared-runtime, libdd-capabilities-impl)",
+    "src/native/Cargo.toml: pyo3 0.29 and strum 0.26 dependency pins used by the copied code",
+]
+
+[frozen.hashes]
+"src/native/telemetry.rs" = "6dd022a8a5b7c8f368cb3df3319109078098567f2249d5c41819484cfb32aef5"
+"src/native/shared_runtime/mod.rs" = "31bdf42f2153e50f0a85bb09a4eb71f0f54103e76f059e8dd45d222c97a498d0"
+"src/native/shared_runtime/exceptions.rs" = "c3b90c2ec0ede0038a3d2927e56f21e8b9a895f02bc2127faa91bcd0e84f128a"
+"src/native/native_proc_macro/Cargo.toml" = "a65bf03f1b88b073bbaf194382e7533ab2c6084c5a83df197724369693d981ec"
+"src/native/native_proc_macro/src/lib.rs" = "af318f85fa09b024b58d4f9514764b4e0765131fa524df1979df53a3ef793275"
+"src/native/http_client/client.rs" = "9cbb3c2c7c858a85ef8282cca2c8b41aa38a3e9e4fb493065cd4e86c6df16781"
+"src/native/http_client/errors.rs" = "9625c415249ea0dc9c0e944cf0e206539681bfcf0812c4036b2c4382c00844da"
+"src/native/http_client/mod.rs" = "6c03322f8e65aabfc648a2c806b6f05f6d61354a8ece9569abd7f7c205b40188"
+"src/native/http_client/response.rs" = "6efbb384d28262ce3e094ba954a8178a6b86ecd5a190bd82e1832d33eed3c8dd"
+"src/native/data_pipeline/agent_response.rs" = "138183086cc49f39d78e06a1521873a6d19e55720855b7b0c3bfab269e534cc0"
+"src/native/data_pipeline/exceptions.rs" = "ee131c9d95dd25830da959fb2a18f7efbbccc08d8dde73cd138e7bf6533aac65"
+"src/native/data_pipeline/mod.rs" = "622ef0de4d15753cd4364c01dca28c31272bc88d3d4e0cecd1ac536e8ddc3449"
+"src/native/remote_config.rs" = "a39cff3c7007fed513cfe278c463bf69066720c789bd5ec28ab95dc1f98b2a14"
+"src/native/rc_shm.rs" = "645cd9a72acf40ce6db5f2685d0db4fd1460db436ff12e7caa1600324187043c"
