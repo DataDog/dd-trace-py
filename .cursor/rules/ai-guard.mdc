@@ -93,9 +93,11 @@ top-level SDK. Legacy imports under `ddtrace.appsec.ai_guard` and
 `ddtrace.appsec.ai_guard.integrations.strands` use compatibility shims.
 Preserve their lazy forwarding and deprecation behavior when changing public exports.
 
-`new_ai_guard_client()` reads both `DD_API_KEY` and `DD_APP_KEY` from configuration and rejects
-missing credentials. Direct `AIGuardClient` construction takes both credentials explicitly;
-see `_api_client.py` for the signatures.
+`new_ai_guard_client()` reads `DD_API_KEY` and `DD_APP_KEY` from configuration. With both set it
+calls the AI Guard API directly; otherwise it returns an Agent-transport client that sends
+evaluations to the Agent's `/ai_guard/proxy/` route (resolved per evaluation from `/info`, so a
+missing route fails the evaluation, never the setup). Direct `AIGuardClient` construction takes
+the credentials explicitly; see `_api_client.py` for the signatures.
 
 MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (server IDs, `mcp_servers` entries,
 the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners and

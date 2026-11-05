@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    AI Guard: evaluations can now go through the Datadog Agent, so a service instrumented by
+    Single Step Instrumentation no longer needs ``DD_API_KEY`` and ``DD_APP_KEY`` of its own.
+    When those two are not set and the Agent advertises its AI Guard proxy, the SDK sends
+    evaluations to the Agent, which adds its own credentials. Services that set both keys keep
+    calling the AI Guard API directly, unchanged. Requires an Agent configured with an
+    application key.
