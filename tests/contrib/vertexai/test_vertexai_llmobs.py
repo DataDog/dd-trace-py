@@ -1,9 +1,11 @@
+import json
 import sys
 from unittest import mock
 
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_REASONING
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
@@ -36,6 +38,19 @@ else:
 SCHEMA_TYPE_KEY = (
     "type" if aiplatform_module is not None and parse_version(aiplatform_module.__version__) >= (2, 0, 0) else "type_"
 )
+
+
+def _sort_tool_result_keys(llmobs_data):
+    """Re-serialize tool results with sorted keys.
+
+    google-cloud-aiplatform 2.x does not keep the key order of function responses, so the
+    tests compare tool results by content.
+    """
+    messages = llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(LLMOBS_STRUCT.MESSAGES, [])
+    for message in messages:
+        for tool_result in message.get("tool_results", []):
+            tool_result["result"] = json.dumps(json.loads(tool_result["result"]), sort_keys=True)
+    return llmobs_data
 
 
 class TestLLMObsVertexai:
@@ -123,7 +138,9 @@ class TestLLMObsVertexai:
         # Validate second call (tool result)
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_result_span_data())
+        assert_llmobs_span_data(
+            _sort_tool_result_keys(_get_llmobs_data_metastruct(spans[0])), **expected_llmobs_tool_result_span_data()
+        )
 
     def test_completion_multiple_messages(self, vertexai, vertexai_llmobs, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -278,7 +295,9 @@ class TestLLMObsVertexai:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_result_span_data())
+        assert_llmobs_span_data(
+            _sort_tool_result_keys(_get_llmobs_data_metastruct(spans[0])), **expected_llmobs_tool_result_span_data()
+        )
 
     async def test_completion_async(self, vertexai, vertexai_llmobs, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -421,7 +440,9 @@ class TestLLMObsVertexai:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_result_span_data())
+        assert_llmobs_span_data(
+            _sort_tool_result_keys(_get_llmobs_data_metastruct(spans[0])), **expected_llmobs_tool_result_span_data()
+        )
 
     def test_chat(self, vertexai, vertexai_llmobs, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
