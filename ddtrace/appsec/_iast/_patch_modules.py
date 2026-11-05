@@ -12,6 +12,7 @@ functions and enable taint tracking and vulnerability detection.
 """
 
 import functools
+from typing import Any
 from typing import Callable
 from typing import Optional
 
@@ -128,7 +129,7 @@ class WrapFunctonsForIAST:
         self.functions: set[IASTFunction] = set()
         self.testing: bool = asm_config._iast_is_testing
 
-    def wrap_function(self, name, function, hook):
+    def wrap_function(self, name: str, function: str, hook: Callable[..., Any]) -> None:
         """Add a function for lazy patching.
 
         Args:
@@ -148,7 +149,7 @@ class WrapFunctonsForIAST:
         """
         self.functions.add(IASTFunction(name, function, hook, True))
 
-    def patch(self):
+    def patch(self) -> None:
         """Apply patches to all registered functions.
 
         This method attempts to patch all functions in the functions set. If in testing
