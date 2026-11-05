@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the profiler aborted the process when it ran out of
+    memory preparing sample types for export. That profile is dropped instead.
