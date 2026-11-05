@@ -88,12 +88,11 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
 
         return result
     except BaseException as exc:
-        if not isinstance(exc, (Exception, asyncio.CancelledError)):
-            # The MCP SDK requires AnyIO, but an unrelated module can also be named mcp.
-            from anyio import get_cancelled_exc_class
-
-            if not isinstance(exc, get_cancelled_exc_class()):
-                raise
+        # Trio is optional. A coroutine can be closed after its event loop stops,
+        # so asking AnyIO for the current backend can mask the original exception.
+        trio_cancelled = getattr(sys.modules.get("trio"), "Cancelled", ())
+        if not isinstance(exc, (Exception, asyncio.CancelledError, trio_cancelled)):
+            raise
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )
