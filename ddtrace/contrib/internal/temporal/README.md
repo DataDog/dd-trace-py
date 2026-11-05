@@ -154,6 +154,13 @@ directly:
 from ddtrace.contrib.temporal import span_from_workflow_context
 ```
 
+This requires the integration to be enabled in the same process: the
+passthrough registration happens when a `DatadogTracingInterceptor` is
+constructed — automatically with `patch(temporal=True)` or `ddtrace-run`, or
+manually via `interceptors=[...]`. In a process where Temporal tracing was
+never enabled, importing these helpers from workflow code fails at load
+time, because the sandbox cannot import `ddtrace` without the registration.
+
 ### Extern-function bridge
 
 The sandbox receives the interceptor *class* (from `workflow_interceptor_class`)

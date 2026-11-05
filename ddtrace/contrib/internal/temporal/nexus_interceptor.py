@@ -9,13 +9,14 @@ import temporalio.worker
 
 from .constants import OperationNames
 from .constants import SpanAttributes
+from .span_lifecycle import SpanLifecycle
 
 
 class _NexusOperationInboundInterceptor(temporalio.worker.NexusOperationInboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.worker.NexusOperationInboundInterceptor,
-        root: Any,  # DatadogTracingInterceptor; not imported to avoid a circular import with .interceptor
+        root: SpanLifecycle,
     ) -> None:
         super().__init__(next)
         self.root = root

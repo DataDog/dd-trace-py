@@ -11,13 +11,14 @@ from ddtrace.internal.utils.fnv import fnv1_64
 
 from .constants import OperationNames
 from .constants import SpanAttributes
+from .span_lifecycle import SpanLifecycle
 
 
 class _ActivityInboundInterceptor(temporalio.worker.ActivityInboundInterceptor):  # type: ignore[misc]
     def __init__(
         self,
         next: temporalio.worker.ActivityInboundInterceptor,
-        root: Any,  # DatadogTracingInterceptor; not imported to avoid a circular import with .interceptor
+        root: SpanLifecycle,
     ) -> None:
         super().__init__(next)
         self.root = root
