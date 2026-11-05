@@ -55,11 +55,9 @@ class MCPTool(NamedTuple):
 _tools_by_schema: "WeakValueDictionary[int, Any]" = WeakValueDictionary()
 _client: Optional[AIGuardClient] = None
 _wrapped_helpers: list[Any] = []
-# Root span key and (tool, arguments) of the MCP tool calls of the last response evaluated in this context,
-# each consumed once by its call. Context and trace scoped so other conversations and requests are checked.
-_evaluated_calls: "ContextVar[Optional[tuple[Optional[int], list[tuple[Any, str]]]]]" = ContextVar(
-    "aiguard_mcp_evaluated_calls", default=None
-)
+# [root span key, (tool, arguments) of the MCP tool calls of the last evaluated response], each consumed once by
+# its call. Updated in place so evaluations in a copied context (asyncio.to_thread) reach the caller's context.
+_evaluated_calls: "ContextVar[Optional[list[Any]]]" = ContextVar("aiguard_mcp_evaluated_calls", default=None)
 
 
 def _trace_key() -> Optional[int]:
@@ -218,15 +216,19 @@ def attach_mcp(messages: list[Message], tools: dict[str, Any]) -> Optional[list[
 
 def mark_evaluated(messages: list[Message], tools: dict[str, Any]) -> None:
     """Replace the evaluated MCP tool calls of this context with those of messages; [] clears them."""
-    evaluated_calls = []
+    evaluated_calls: list[tuple[Any, str]] = []
     try:
         for message in messages:
             for tool_call in message.get("tool_calls") or []:
                 tool = tools.get(tool_call["function"]["name"])
                 if tool is not None and "mcp" in tool_call:
                     evaluated_calls.append((tool, tool_call["function"]["arguments"]))
-        if evaluated_calls or _evaluated_calls.get() is not None:
-            _evaluated_calls.set((_trace_key(), evaluated_calls) if evaluated_calls else None)
+        key = _trace_key()
     except Exception:
         logger.debug("AI Guard anthropic: failed to record evaluated MCP tool calls", exc_info=True)
-        _evaluated_calls.set(None)
+        evaluated_calls, key = [], None
+    holder = _evaluated_calls.get()
+    if holder is None:
+        _evaluated_calls.set([key, evaluated_calls])
+    else:
+        holder[:] = [key, evaluated_calls]
