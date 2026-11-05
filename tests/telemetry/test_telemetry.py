@@ -220,7 +220,8 @@ libc = ctypes.CDLL(None)
 libc.fork.restype = ctypes.c_int
 pid = libc.fork()
 if pid == 0:
-    for _ in range(4096):
+    # Keep the burst below the ring capacity so every child point must arrive.
+    for _ in range(128):
         worker.add_point(context, 1)
         worker.add_point_with_tags(context, 1, ["fork:child"])
     telemetry_writer.periodic(force_flush=True)
@@ -249,10 +250,8 @@ assert os.waitstatus_to_exitcode(status) == 0
         for metric in event["payload"]["series"]
         if metric["metric"] == "native_fork" and metric["tags"] == ["fork:child"]
     ]
-    assert len(child_metrics) == 1, child_metrics
-    assert child_metrics[0]["type"] == "count"
-    # A burst can fill the bounded ring and drop points before the worker drains it.
-    assert 0 < child_metrics[0]["points"][0][1] <= 4096
+    assert all(metric["type"] == "count" for metric in child_metrics)
+    assert sum(value for metric in child_metrics for _, value in metric["points"]) == 128
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires native atfork handlers")
@@ -1019,7 +1018,8 @@ if pid == 0:
     def produce_metrics():
         try:
             barrier.wait(timeout=2)
-            for _ in range(512):
+            # The eight producers together stay below the ring capacity.
+            for _ in range(16):
                 worker.add_point(context, 1)
                 worker.add_point_with_tags(context, 1, ["fork:child"])
         except Exception as e:
@@ -1058,7 +1058,5 @@ assert os.waitstatus_to_exitcode(status) == 0
         for metric in event["payload"]["series"]
         if metric["metric"] == "concurrent_native_fork" and metric["tags"] == ["fork:child"]
     ]
-    assert len(child_metrics) == 1, child_metrics
-    assert child_metrics[0]["type"] == "count"
-    # A burst can fill the bounded ring and drop points before the worker drains it.
-    assert 0 < child_metrics[0]["points"][0][1] <= 4096
+    assert all(metric["type"] == "count" for metric in child_metrics)
+    assert sum(value for metric in child_metrics for _, value in metric["points"]) == 128
