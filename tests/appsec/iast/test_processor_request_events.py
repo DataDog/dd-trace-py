@@ -109,3 +109,39 @@ def test_processor_does_not_retain_unfinished_spans(processor):
     del span
     gc.collect()
     assert reference() is None
+
+
+def test_early_finish_completes_once_before_late_notification(processor):
+    with (
+        mock.patch.object(module, "_iast_end_request") as end,
+        mock.patch.object(lifecycle, "_iast_start_request"),
+        mock.patch.object(lifecycle, "_iast_end_request") as event_end,
+    ):
+        with active_context("asgi.request", config.fastapi) as ctx:
+            span = Span("request", span_type="web")
+            processor.on_span_start(span)
+            span_bus.store_span_on_context(ctx, span)
+            lifecycle.IastRequestStartedSubscriber.on_event(ctx)
+            processor.on_span_finish(span)
+        # A replacement processor and late notification must not complete again.
+        AppSecIastSpanProcessor().on_span_finish(span)
+        lifecycle.IastRequestFinishingSubscriber.on_event(ctx)
+        end.assert_called_once_with(span)
+        event_end.assert_not_called()
+        span.finish()
+
+
+def test_subapp_without_notifications_keeps_legacy_route(processor):
+    with (
+        mock.patch.object(module, "_iast_start_request") as start,
+        mock.patch.object(module, "_iast_end_request") as end,
+        active_context("asgi.request", config.fastapi) as ctx,
+    ):
+        ctx.set_item("is_subapp", True)
+        span = Span("request", span_type="web")
+        processor.on_span_start(span)
+        span_bus.store_span_on_context(ctx, span)
+        processor.on_span_finish(span)
+        start.assert_called_once_with(span)
+        end.assert_called_once_with(span)
+        span.finish()

@@ -1470,7 +1470,10 @@ def test_request_events_admit_once_and_release_streaming_analysis(
         assert len(spans) == (2 if mounted else 1)
         assert owner.get_metric(IAST.ENABLED) == float(sampled)
         assert bool(load_iast_report(owner)) is sampled
-        assert all(span.get_metric(IAST.ENABLED) is None for span in spans if span is not owner)
+        # Sub-apps keep legacy completion: rejected spans get the disabled marker,
+        # while admitted sub-apps borrow their owner's analysis without reporting.
+        assert all(span.get_metric(IAST.ENABLED) == (None if sampled else 0.0) for span in spans if span is not owner)
+        assert all(load_iast_report(span) is None for span in spans if span is not owner)
         if sampled:
             assert owner.get_metric("_dd.iast.telemetry.request.tainted") > 0
             assert owner.get_metric("_dd.iast.telemetry.executed.sink.sql_injection") > 0

@@ -65,8 +65,13 @@ class AppSecIastSpanProcessor(SpanProcessor[SpanData]):
         """
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
-        if span not in _SPAN_ROUTES:
-            _iast_end_request(span)
+        pending = _SPAN_ROUTES.get(span)
+        if pending is False:
+            return
+        # Forced finishes and interrupted notifications still need completion.
+        if pending:
+            _SPAN_ROUTES[span] = False
+        _iast_end_request(span)
 
     def on_span_discard(self, span: SpanData) -> None:
         if span.span_type != SpanTypes.WEB:

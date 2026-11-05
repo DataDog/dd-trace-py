@@ -19,6 +19,7 @@ from ddtrace.internal.span_bus import span_from_context
 
 
 _EVENT_MANAGED_REQUESTS: dict[str, frozenset[str]] = {"asgi.request": frozenset({"fastapi"})}
+# True means completion is pending; False keeps a completed event route idempotent.
 _SPAN_ROUTES: WeakKeyDictionary[SpanData, bool] = WeakKeyDictionary()
 
 
@@ -31,6 +32,7 @@ def uses_request_events(ctx: core.ExecutionContext[Event], span: SpanData) -> bo
     if not (
         getattr(integration, "integration_name", None) in integrations
         and ctx.get_item("scope", {}).get("type") == "http"
+        and not ctx.get_item("is_subapp", False)
         and core.has_listeners(f"{SpanLifecycleEvents.SPAN_STARTED.value}.{ctx.identifier}")
         and core.has_listeners(f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{ctx.identifier}")
     ):
@@ -49,7 +51,7 @@ class IastRequestStartedSubscriber(Subscriber):
     @classmethod
     def on_event(cls, ctx: core.ExecutionContext[Event]) -> None:
         span = span_from_context(ctx)
-        if span in _SPAN_ROUTES:
+        if _SPAN_ROUTES.get(span, False):
             _iast_start_request(span)
 
 
@@ -62,5 +64,6 @@ class IastRequestFinishingSubscriber(Subscriber):
     @classmethod
     def on_event(cls, ctx: core.ExecutionContext[Event]) -> None:
         span = span_from_context(ctx)
-        if span in _SPAN_ROUTES:
+        if _SPAN_ROUTES.get(span, False):
+            _SPAN_ROUTES[span] = False
             _iast_end_request(span, context=ctx)
