@@ -3,7 +3,6 @@ import os
 import pytest
 import pytest_asyncio
 
-from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import ERROR_MSG
@@ -13,6 +12,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
 from ddtrace.internal.otel_semantics import http as otel_http
+from ddtrace.internal.rate_sampler import RateSampler
 from ddtrace.internal.utils.version import parse_version
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -508,11 +508,7 @@ async def test_distributed_tracing_sub_span(app, tracer, test_spans, aiohttp_cli
 
 
 def _assert_200_parenting(client, traces):
-    """Helper to assert parenting when handling aiohttp requests.
-
-    This is used to ensure that parenting is consistent between Datadog
-    and OpenTracing implementations of tracing.
-    """
+    """Assert parenting when handling aiohttp requests."""
     assert 2 == len(traces)
     assert 1 == len(traces[0])
 
