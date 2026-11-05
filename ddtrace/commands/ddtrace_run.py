@@ -21,7 +21,13 @@ def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Option
 
 
 # The launcher must not initialize ddtrace before replacing itself with the application.
-log = logging.getLogger("ddtrace.commands.ddtrace_run")
+# Do not use `ddtrace.internal.logger.get_logger` here
+# DEV: It isn't really necessary to use `DDLogger` here so we want to
+#        defer importing `ddtrace` until we actually need it.
+#      As well, no actual rate limiting would apply here since we only
+#        have a few logged lines
+log = logging.getLogger(__name__)
+# The launcher must not initialize ddtrace before replacing itself with the application.
 
 USAGE = """
 Execute the given Python command after configuring it to emit Datadog traces
