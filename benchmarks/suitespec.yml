@@ -17,6 +17,7 @@ components:
     - ddtrace/internal/_tagset.py*
     - ddtrace/internal/_utils.*
     - ddtrace/internal/constants.py
+    - ddtrace/internal/container.py
     - ddtrace/internal/encoding.py
     - ddtrace/internal/flare/*
     - ddtrace/internal/pack.h

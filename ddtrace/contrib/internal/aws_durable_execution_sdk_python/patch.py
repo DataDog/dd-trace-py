@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import contextvars
 import functools
+import inspect
 from typing import Any
 from typing import Callable
 
@@ -12,6 +13,7 @@ from aws_durable_execution_sdk_python.exceptions import SuspendExecution
 from aws_durable_execution_sdk_python.lambda_service import OperationSubType
 from aws_durable_execution_sdk_python.operation.base import OperationExecutor
 from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
+from aws_durable_execution_sdk_python.state import ExecutionState
 
 from ddtrace.contrib._events.aws_durable import AwsDurableExecuteEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
@@ -61,6 +63,17 @@ _RETRYABLE_OPERATIONS = frozenset({aws_durable_ext.SPAN_STEP, aws_durable_ext.SP
 _RETRYABLE_OPERATIONS = frozenset({"aws.durable.step", "aws.durable.wait_for_condition"})
 
 
+# SDK 3.x runs plugin end hooks on checkpoint reads unless the caller only inspects
+# the checkpoint. _traced_process only inspects, so it must not claim the hook.
+# Feature-detected rather than version-gated: untested releases between 1.4 and 3.0
+# are in the supported range.
+_CHECKPOINT_INSPECT_KWARGS = (
+    {"claim_end_hook": False}
+    if "claim_end_hook" in inspect.signature(ExecutionState.get_checkpoint_result).parameters
+    else {}
+)
+
+
 def get_version() -> str:
     return getattr(aws_durable_execution_sdk_python, "__version__", "")
 
@@ -97,11 +110,13 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
-def _read_execution_state(state):
-    """Return (execution_arn, is_replay_execution) from an ExecutionState."""
+def _read_execution_state(durable_context):
+    """Return (execution_arn, is_replay_execution) for the invocation of a DurableContext."""
+    state = durable_context.state
     arn = getattr(state, "durable_execution_arn", None) or None
-    status_enum = getattr(state, "_replay_status", None)
-    is_replay = (status_enum.name == "REPLAY") if status_enum is not None else None
+    # SDK 3.x tracks replay status on the DurableContext; 1.x tracks it on the ExecutionState.
+    is_replaying = getattr(durable_context, "is_replaying", None) or getattr(state, "is_replaying", None)
+    is_replay = is_replaying() if callable(is_replaying) else None
     return arn, is_replay
 
 
@@ -122,10 +137,11 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
     def traced_user_func(*inner_args, **inner_kwargs):
         durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context")
         state = durable_context.state
-        arn, is_replay = _read_execution_state(state)
+        arn, is_replay = _read_execution_state(durable_context)
 
         # Mark our _datadog_* checkpoints visited so the SDK's replay tracker
-        # transitions REPLAY → NEW; without this it stays stuck in REPLAY.
+        # transitions REPLAY → NEW; without this it stays stuck in REPLAY (SDK 1.x;
+        # a no-op on 3.x, which tracks replay per context).
         # always-on even when cross_invocation_tracing is off — if
         # the writer was previously enabled, those ops still exist on resume and
         # must be marked or the SDK pins to REPLAY forever.
@@ -148,12 +164,16 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
                 ctx.event.suspended = True
                 # Workflow is pausing; another invocation will resume it. This
                 # is the only branch where it's worth persisting trace context.
-                if (
-                    span_from_context(ctx) is not None
-                    and config.aws_durable_execution_sdk_python.cross_invocation_tracing
-                ):
-                    maybe_save_trace_context_checkpoint(durable_context, span_from_context(ctx))
-                ctx.dispatch_ended_event()
+                # finally: SDK 3.x raises SuspendExecution from create_checkpoint when the
+                # service revokes the checkpoint token; the span must still end untagged.
+                try:
+                    if (
+                        span_from_context(ctx) is not None
+                        and config.aws_durable_execution_sdk_python.cross_invocation_tracing
+                    ):
+                        maybe_save_trace_context_checkpoint(durable_context, span_from_context(ctx))
+                finally:
+                    ctx.dispatch_ended_event()
                 raise
 
     new_args, new_kwargs = set_argument_value(args, kwargs, 0, "func", traced_user_func)
@@ -164,7 +184,11 @@ def _is_top_level_for_span(operation_executor: OperationExecutor):
     """Skip executors that don't need to be tagged because they don't have corresponding spans.
     MapIteration and ParallelBranch are not traced as they are internal.
     """
-    return getattr(operation_executor, "sub_type", None) not in (
+    sub_type = getattr(operation_executor, "sub_type", None)
+    if sub_type is None:
+        # SDK 3.x records the subtype on the operation identifier instead of the executor.
+        sub_type = getattr(operation_executor.operation_identifier, "sub_type", None)
+    return sub_type not in (
         OperationSubType.MAP_ITERATION,
         OperationSubType.PARALLEL_BRANCH,
     )
@@ -176,7 +200,7 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
         event = core.current.event
         if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
             operation_id = instance.operation_identifier.operation_id
-            checkpoint = instance.state.get_checkpoint_result(operation_id)
+            checkpoint = instance.state.get_checkpoint_result(operation_id, **_CHECKPOINT_INSPECT_KWARGS)
             # A terminal checkpoint (SUCCEEDED or FAILED) is served from the checkpoint on
             # replay rather than executed: the SDK reloads a succeeded result or re-raises a
             # failed error without running the user function, so both count as a replay.
