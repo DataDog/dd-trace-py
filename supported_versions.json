@@ -3251,10 +3251,31 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=2.9.10",
+                "tested": [
+                    "2.9.12"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.10",
                         "3.11",
                         "3.12",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.9.10",
+                "tested": [
+                    "2.9.13"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.13",
                         "3.14"
                     ]
@@ -3262,17 +3283,6 @@
                 "supportedRange": ">=2.9.10",
                 "tested": [
                     "2.9.10"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.15"
-                    ]
-                },
-                "supportedRange": ">=2.9.10",
-                "tested": [
-                    "2.9.13"
                 ]
             }
         ]
