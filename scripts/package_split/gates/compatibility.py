@@ -1,16 +1,4 @@
-"""compatibility gate: exact candidate/released version-combination matrix.
-
-Pass criteria (docs/package-split/plan.md):
-
-- every scenario in the matrix installs an exact, recorded set of artifacts
-  (candidate wheel built from this checkout plus released wheels or pinned
-  requirements) into a fresh venv and runs its checks;
-- ``imports_ok`` targets import cleanly, ``imports_fail`` targets raise
-  (unsupported combinations must be rejected clearly, not silently);
-- behavioral commands run inside the scenario venv and pass;
-- a required scenario that could not execute (missing artifact or
-  prerequisite) fails the gate; optional scenarios are recorded as skipped.
-"""
+"""Candidate/released combinations in fresh venvs; required unrun scenarios fail."""
 
 from __future__ import annotations
 

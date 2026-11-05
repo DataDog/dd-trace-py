@@ -1,15 +1,4 @@
-"""artifacts gate: isolated builds, sdist rebuild parity and install checks.
-
-Pass criteria (docs/package-split/plan.md):
-
-- wheel and sdist build successfully in an isolated (PEP 517) environment;
-- the wheel can be rebuilt from the sdist with identical package contents;
-- the wheel installs into a fresh virtual environment created outside the
-  checkout, with no editable installs, no source-path leakage, metadata,
-  entry points and declared resources present and consistent;
-- for ``native-free`` packages: no native files in the wheel and no native
-  artifacts anywhere in the resolved runtime dependency graph.
-"""
+"""Isolated builds, sdist content parity, installed artifacts and native policy."""
 
 from __future__ import annotations
 
@@ -17,6 +6,10 @@ import json
 from pathlib import Path
 import tempfile
 from typing import Any
+import zipfile
+
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 from .. import wheelhouse
 from ..evidence import FAIL
@@ -108,13 +101,18 @@ def _rebuild_check(manifest: Manifest, report: Any, artifacts: dict[str, Path], 
     rebuilt_files = set(rebuilt_wheel.package_files())
     missing = sorted(original_files - rebuilt_files)
     extra = sorted(rebuilt_files - original_files)
-    if missing or extra:
+    with zipfile.ZipFile(artifacts["wheel"]) as original, zipfile.ZipFile(rebuilt["wheel"]) as rebuilt_zip:
+        changed = sorted(
+            name for name in original_files & rebuilt_files if original.read(name) != rebuilt_zip.read(name)
+        )
+    if missing or extra or changed:
         report.record(
             "sdist-rebuild",
             FAIL,
             "package contents differ when rebuilt from the sdist",
             missing_from_rebuild=missing[:100],
             extra_in_rebuild=extra[:100],
+            changed_in_rebuild=changed[:100],
         )
         return
     report.record(
@@ -145,7 +143,7 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
         return
 
     installed = installed_distributions(venv_dir)
-    if manifest.distribution.lower() not in {name.lower() for name in installed}:
+    if canonicalize_name(manifest.distribution) not in {canonicalize_name(name) for name in installed}:
         report.record(
             "fresh-install",
             FAIL,
@@ -274,10 +272,11 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
 
 def _metadata_consistency(manifest: Manifest, report: Any, wheel: Any) -> None:
     problems: list[str] = []
-    requires = [r for r in wheel.metadata.get("requires-dist", [])]
-    declared = set(manifest.runtime_dependencies)
+    requires = wheel.metadata.get("requires-dist", [])
+    declared = {canonicalize_name(Requirement(r).name) for r in manifest.runtime_dependencies}
+    declared.update(canonicalize_name(Requirement(r).name) for deps in manifest.extras.values() for r in deps)
     for requirement in requires:
-        name = requirement.split(";")[0].split(" ")[0].split("[")[0].strip().lower().replace("_", "-")
+        name = canonicalize_name(Requirement(requirement).name)
         if name and name not in declared:
             problems.append("wheel requires %r which is not declared in [dependencies].runtime" % name)
     if problems:

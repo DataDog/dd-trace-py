@@ -35,6 +35,12 @@ NOT_RUN = "not_run"
 GATE_STATUSES = (PASS, FAIL)
 
 
+def _json_default(value: Any) -> str:
+    if isinstance(value, Path):
+        return str(value)
+    raise TypeError("cannot serialize %s" % type(value).__name__)
+
+
 def _utc_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 
@@ -43,12 +49,13 @@ def _git_revision(path: Path) -> str:
     try:
         return subprocess.run(  # nosec B603, B607 - fixed argv, PATH-resolved git
             ["git", "rev-parse", "HEAD"],
+            check=True,
             cwd=str(path),
             capture_output=True,
             text=True,
             timeout=10,
         ).stdout.strip()
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         return "unknown"
 
 
@@ -153,7 +160,7 @@ class GateReport:
     def write(self, output_dir: Path) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         evidence = output_dir / ("%s.json" % self.gate)
-        evidence.write_text(json.dumps(self.to_dict(), indent=2, sort_keys=False) + "\n")
+        evidence.write_text(json.dumps(self.to_dict(), indent=2, default=_json_default) + "\n")
         return evidence
 
     def finish(self, output_dir: Path) -> Path:

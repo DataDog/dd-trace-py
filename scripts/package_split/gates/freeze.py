@@ -1,19 +1,4 @@
-"""freeze gate: protected source paths against the extraction baseline.
-
-Pass criteria (docs/package-split/plan.md):
-
-- ``--base <target-revision>`` is required: the revision (typically the PR's
-  merge target) whose freeze manifest is authoritative, so a pull request
-  cannot bypass the gate by editing its own rules;
-- drift is measured between the pinned extraction revision and the head
-  under test (``--head``, default: the current HEAD -- CI passes the PR head),
-  restricted to frozen paths;
-- every frozen source path matches the hash recorded at extraction time;
-- any addition, deletion, rename or edit to frozen paths is rejected unless
-  it is an approved rewrite;
-- approved rewrites and freeze exceptions carry owner, reason, expiry and a
-  synchronization record, and exceptions must not be expired.
-"""
+"""Compare extraction-to-head drift using only the protected base's freeze rules."""
 
 from __future__ import annotations
 
@@ -23,11 +8,12 @@ import subprocess  # nosec B404
 from typing import Any
 from typing import Optional
 
+from .._toml import tomllib
 from ..evidence import FAIL
 from ..evidence import NOT_RUN
 from ..evidence import PASS
 from ..freeze_manifest import FreezeManifestError
-from ..freeze_manifest import load_freeze
+from ..freeze_manifest import validate_freeze
 from ..manifest import Manifest
 
 
@@ -44,33 +30,24 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
     content = _content_at_revision(manifest.root, base, freeze_path)
     source = "git revision %s" % base
     if content is None:
-        if not freeze_path.is_file():
-            report.record(
-                "freeze-manifest",
-                NOT_RUN,
-                "no package-freeze.toml at revision %r or on disk; freeze not "
-                "yet established (per the plan, freeze happens after boundary "
-                "validation)" % base,
-            )
-            return
-        content = freeze_path.read_text(encoding="utf-8")
-        source = "working tree (not found at base revision; a PR could have "
-        "added or edited it -- verify against the target branch)"
+        report.record("freeze-manifest", NOT_RUN, "no readable protected freeze manifest at %r" % base)
+        return
 
     try:
-        import tempfile
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as handle:
-            handle.write(content)
-            path = Path(handle.name)
-        data = load_freeze(path)
-        path.unlink(missing_ok=True)
-    except (FreezeManifestError, OSError) as exc:
+        data = tomllib.loads(content)
+        issues = validate_freeze(data)
+        if issues:
+            raise FreezeManifestError(freeze_path, issues)
+    except (FreezeManifestError, tomllib.TOMLDecodeError) as exc:
         report.record("freeze-manifest", FAIL, str(exc)[:2000])
         return
     report.record("freeze-manifest", PASS, "validated (read from %s)" % source)
 
-    problems = _verify_freeze(manifest.root, data, report, head=getattr(args, "head", None) or "HEAD")
+    try:
+        problems = _verify_freeze(manifest.root, data, report, head=getattr(args, "head", None) or "HEAD")
+    except RuntimeError as exc:
+        report.record("source-freeze", FAIL, str(exc))
+        return
     if problems:
         report.record(
             "source-freeze",
@@ -104,8 +81,8 @@ def _git_lines(root: Path, args: list[str]) -> list[str]:
         timeout=120,
     )
     if result.returncode != 0:
-        return []
-    return [line for line in result.stdout.splitlines() if line]
+        raise RuntimeError("git failed: %s" % result.stderr.strip())
+    return result.stdout.rstrip("\0").split("\0") if result.stdout else []
 
 
 def _path_content(root: Path, path: str, revision: Optional[str]) -> Optional[bytes]:
@@ -160,27 +137,19 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
             [
                 "diff",
                 "--name-status",
-                "--find-renames",
-                "%s...%s" % (extraction_revision, head),
+                "--no-renames",
+                "-z",
+                extraction_revision,
+                head,
                 "--",
             ]
-            + source_paths,
+            + source_paths
+            + entry.get("build_inputs", []),
         )
-        for line in name_status:
-            parts = line.split("\t")
-            status = parts[0][0]
-            paths = parts[1:]
-            for path in paths:
-                if path in approved:
-                    continue
-                if status == "M":
-                    problems.append("unauthorized edit to frozen path %r" % path)
-                elif status == "A":
-                    problems.append("unauthorized addition under frozen path %r" % path)
-                elif status == "D":
-                    problems.append("unauthorized deletion of frozen path %r" % path)
-                elif status == "R":
-                    problems.append("unauthorized rename involving %r" % path)
+        for status, path in zip(name_status[::2], name_status[1::2]):
+            if path not in approved:
+                change = {"M": "edit", "A": "addition", "D": "deletion"}.get(status, "change")
+                problems.append("unauthorized %s to frozen path %r" % (change, path))
 
         # 3. Approved rewrites must still differ from the frozen baseline only
         # in the ways their owners approved; record them as evidence.

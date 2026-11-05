@@ -34,7 +34,7 @@ from pathlib import Path
 from .api_usage import ApiUsageReport
 from .api_usage import Usage
 from .api_usage import _UsageCollector
-from .astdeps import build_graph
+from .astdeps import _module_names_for
 
 
 FOUNDATION_ZONE = "foundation"
@@ -98,14 +98,8 @@ def zone_of(module: str, zones: dict[str, str]) -> str:
 
 
 def _default_zones(roots: Iterable[str]) -> dict[str, str]:
-    """Fallback clustering when no layers.json exists: second-level packages."""
-    zones: dict[str, str] = {}
-    for root in roots:
-        zones[root] = FOUNDATION_ZONE
-        parts = root.split(".")
-        if len(parts) >= 1:
-            zones[".".join(parts)] = FOUNDATION_ZONE
-    return zones
+    """Unclassified roots belong to the foundation zone."""
+    return dict.fromkeys(roots, FOUNDATION_ZONE)
 
 
 def _package_root(module: str, modules: dict[str, Path]) -> str:
@@ -134,23 +128,20 @@ def analyze_api_surfaces(
     zones: dict[str, str] | None = None,
 ) -> ApiSurfaceReport:
     """Single static pass computing per-owner consumed-symbol surfaces."""
-    graph = build_graph(root, source_paths, import_roots)
-    modules = set(graph.modules)
+    module_paths = _module_names_for(root, source_paths, ("vendor", "node_modules"))
+    modules = set(module_paths)
     report = ApiSurfaceReport(
         roots=list(import_roots),
         zones=zones if zones is not None else _default_zones(import_roots),
     )
-    report.files_scanned = len(graph.modules)
+    report.files_scanned = len(modules)
 
     # Reuse the api-usage machinery in surface mode (target=None): the sink
     # collects every usage rooted at the import roots, attribution happens
     # afterwards.
     sink = ApiUsageReport(target="<surfaces>")
-    for module, path in sorted(graph.modules.items()):
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError, OSError):
-            continue
+    for module, path in sorted(module_paths.items()):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         collector = _UsageCollector(module, str(path.relative_to(root)), None, sink, roots=set(import_roots))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -171,7 +162,7 @@ def analyze_api_surfaces(
         per_consumer.setdefault(usage.importer, []).append(usage.kind)
         report.raw_usages.append(usage)
     for module in report.owners:
-        report.package_roots[module] = _package_root(module, graph.modules)
+        report.package_roots[module] = _package_root(module, module_paths)
     return report
 
 

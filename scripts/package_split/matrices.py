@@ -52,6 +52,7 @@ from typing import Any
 from typing import Optional
 
 from . import MATRIX_SCHEMA_VERSION
+from ._toml import tomllib
 
 
 class MatrixError(Exception):
@@ -82,19 +83,59 @@ class Matrix:
     scenarios: list[Scenario]
 
 
-def parse_matrix(path: Path, kind: str) -> Matrix:
-    from ._toml import tomllib
+def _unknown_fields(data: dict[str, Any], allowed: set[str], issues: list[str]) -> None:
+    for key in sorted(set(data) - allowed):
+        issues.append("unknown field %r" % key)
 
-    data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
+
+def _validate_checks(data: Any, allowed: set[str], issues: list[str]) -> None:
+    if not isinstance(data, dict):
+        issues.append("checks/expectations must be tables")
+        return
+    _unknown_fields(data, allowed, issues)
+    for key in ("imports_ok", "imports_fail"):
+        value = data.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(v, str) and v.strip() for v in value):
+            issues.append("%s must be an array of module names" % key)
+    if "commands" in data:
+        try:
+            scenario_commands(data["commands"])
+        except MatrixError as exc:
+            issues.append(str(exc))
+    if "file_ownership" in data and type(data["file_ownership"]) is not bool:
+        issues.append("file_ownership must be a boolean")
+    for key, required in (("identity", {"bridge", "expect_module"}), ("entry_points", {"group"})):
+        if key not in data:
+            continue
+        value = data[key]
+        if not isinstance(value, dict):
+            issues.append("%s must be a table" % key)
+            continue
+        _unknown_fields(value, required | ({"count"} if key == "entry_points" else set()), issues)
+        if any(not isinstance(value.get(k), str) or not value[k].strip() for k in required):
+            issues.append("%s needs %s" % (key, sorted(required)))
+        if key == "entry_points" and (type(value.get("count", 1)) is not int or value.get("count", 1) < 0):
+            issues.append("entry_points.count must be a non-negative integer")
+
+
+def parse_matrix(path: Path, kind: str) -> Matrix:
+    if kind not in ("compatibility", "migration"):
+        raise MatrixError("unknown matrix kind: %s" % kind)
+    try:
+        data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise MatrixError("cannot read matrix %s: %s" % (path, exc)) from exc
     issues: list[str] = []
+    _unknown_fields(data, {"schema_version", "scenario"}, issues)
 
     version = data.get("schema_version")
-    if version != MATRIX_SCHEMA_VERSION:
+    if type(version) is not int or version != MATRIX_SCHEMA_VERSION:
         issues.append("schema_version must be %d, got %r" % (MATRIX_SCHEMA_VERSION, version))
 
     raw_scenarios = data.get("scenario", [])
     if not isinstance(raw_scenarios, list) or not raw_scenarios:
         issues.append("at least one [[scenario]] is required")
+        raw_scenarios = []
 
     scenarios: list[Scenario] = []
     for i, raw in enumerate(raw_scenarios):
@@ -105,19 +146,34 @@ def parse_matrix(path: Path, kind: str) -> Matrix:
         if not isinstance(name, str) or not name:
             issues.append("[[scenario]] #%d: missing name" % i)
             continue
-        scenario = Scenario(
-            name=name,
-            required=bool(raw.get("required", True)),
-            expectations=dict(raw.get("expectations", {})),
-            checks=dict(raw.get("checks", {})),
+        _unknown_fields(
+            raw,
+            {"name", "required", "installs", "expectations"}
+            if kind == "compatibility"
+            else {"name", "required", "step", "steps", "checks"},
+            issues,
         )
+        if any(s.name == name for s in scenarios):
+            issues.append("duplicate scenario name: %s" % name)
+        if type(raw.get("required", True)) is not bool:
+            issues.append("scenario %r: required must be a boolean" % name)
+        expectations = raw.get("expectations", {})
+        checks = raw.get("checks", {})
+        _validate_checks(expectations, {"imports_ok", "imports_fail", "commands"}, issues)
+        _validate_checks(checks, {"file_ownership", "imports_ok", "imports_fail", "identity", "entry_points"}, issues)
+        scenario = Scenario(name=name, required=raw.get("required", True), expectations=expectations, checks=checks)
         if kind == "compatibility":
             installs = raw.get("installs", [])
             if not isinstance(installs, list):
                 issues.append("scenario %r: installs must be an array" % name)
             else:
                 for j, install in enumerate(installs):
-                    if not isinstance(install, dict) or not (("artifact" in install) ^ ("requirement" in install)):
+                    if (
+                        not isinstance(install, dict)
+                        or len(install) != 1
+                        or not set(install) <= {"artifact", "requirement"}
+                        or not all(isinstance(v, str) and v.strip() for v in install.values())
+                    ):
                         issues.append(
                             "scenario %r: installs[%d] must have exactly one of 'artifact' or 'requirement'" % (name, j)
                         )
@@ -126,6 +182,8 @@ def parse_matrix(path: Path, kind: str) -> Matrix:
             # ``[[scenario.step]]`` in TOML yields the key "step" on each
             # scenario table; an inline ``steps = [{...}]`` yields "steps".
             # Accept both spellings.
+            if "step" in raw and "steps" in raw:
+                issues.append("scenario %r: use step or steps, not both" % name)
             steps = raw.get("step", raw.get("steps", []))
             if not isinstance(steps, list):
                 issues.append("scenario %r: steps must be an array" % name)
@@ -134,10 +192,10 @@ def parse_matrix(path: Path, kind: str) -> Matrix:
                     if not isinstance(step, dict) or step.get("action") not in ("install", "uninstall"):
                         issues.append("scenario %r: steps[%d] must be install/uninstall" % (name, j))
                         continue
-                    if step["action"] == "install" and "artifact" not in step:
-                        issues.append("scenario %r: steps[%d] install needs 'artifact'" % (name, j))
-                    if step["action"] == "uninstall" and "distribution" not in step:
-                        issues.append("scenario %r: steps[%d] uninstall needs 'distribution'" % (name, j))
+                    field = "artifact" if step["action"] == "install" else "distribution"
+                    _unknown_fields(step, {"action", field}, issues)
+                    if not isinstance(step.get(field), str) or not step[field].strip():
+                        issues.append("scenario %r: steps[%d] %s needs %r" % (name, j, step["action"], field))
                     scenario.steps.append(
                         Step(
                             action=step["action"],
@@ -159,14 +217,12 @@ def scenario_commands(entry: Any) -> list[list[str]]:
     or an argv vector appended to the scenario venv's interpreter.
     """
     commands: list[list[str]] = []
-    if not entry:
-        return commands
     if not isinstance(entry, list):
         raise MatrixError("commands must be an array, got %r" % (entry,))
     for command in entry:
         if isinstance(command, str):
             commands.append(["-c", command])
-        elif isinstance(command, list) and all(isinstance(part, str) for part in command):
+        elif isinstance(command, list) and command and all(isinstance(part, str) for part in command):
             commands.append(command)
         else:
             raise MatrixError("each command must be a string or an array of parts: %r" % (command,))

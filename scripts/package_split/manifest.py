@@ -122,19 +122,8 @@ class Manifest:
 
 
 def _type_of(value: Any) -> str:
-    if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, int):
-        return "int"
-    if isinstance(value, float):
-        return "float"
-    if isinstance(value, str):
-        return "string"
-    if isinstance(value, list):
-        return "list"
-    if isinstance(value, dict):
-        return "table"
-    return type(value).__name__
+    name = type(value).__name__
+    return {"str": "string", "dict": "table"}.get(name, name)
 
 
 def _check_table(issues: list[str], data: dict[str, Any], table: str, fields: dict[str, str]) -> None:
@@ -158,7 +147,7 @@ def _check_table(issues: list[str], data: dict[str, Any], table: str, fields: di
 
 
 def _validate_str_list(issues: list[str], data: Any, where: str, require_nonempty: bool = True) -> None:
-    if not isinstance(data, list) or not all(isinstance(v, str) for v in data):
+    if not isinstance(data, list) or not all(isinstance(v, str) and v.strip() for v in data):
         issues.append("%s: expected a list of strings" % where)
         return
     if require_nonempty and not data:
@@ -262,11 +251,8 @@ def validate_manifest(data: Any) -> list[str]:
                 unknown = set(edge) - {"from_prefix", "to_prefixes", "external"}
                 for key in sorted(unknown):
                     issues.append("%s: unknown field %r" % (where, key))
-                for field in ("from_prefix", "to_prefixes", "external"):
-                    if field in edge and not isinstance(edge[field], list):
-                        if field == "from_prefix":
-                            if not isinstance(edge[field], str):
-                                issues.append("%s.from_prefix: expected a string" % where)
+                if "from_prefix" in edge and not isinstance(edge["from_prefix"], str):
+                    issues.append("%s.from_prefix: expected a string" % where)
                 if "from_prefix" not in edge:
                     issues.append("%s: missing required field 'from_prefix'" % where)
                 elif isinstance(edge["from_prefix"], str) and not _PREFIX_RE.match(edge["from_prefix"]):
@@ -325,16 +311,17 @@ def validate_manifest(data: Any) -> list[str]:
         fixtures = contracts.get("behavioral_fixtures", [])
         if isinstance(fixtures, list):
             for i, fixture in enumerate(fixtures):
-                if not isinstance(fixture, list) or not all(isinstance(c, str) for c in fixture):
-                    issues.append("[contracts].behavioral_fixtures[%d]: expected an array of command parts" % i)
+                _validate_str_list(issues, fixture, "[contracts].behavioral_fixtures[%d]" % i)
         api = contracts.get("activation_api")
         if isinstance(api, dict):
             unknown = set(api) - {"module", "activate", "deactivate"}
             for key in sorted(unknown):
                 issues.append("[contracts].activation_api: unknown field %r" % key)
-            for field in ("module", "activate"):
-                if field not in api:
+            for field in ("module", "activate", "deactivate"):
+                if field not in api and field != "deactivate":
                     issues.append("[contracts].activation_api: missing required field %r" % field)
+                elif field in api and (not isinstance(api[field], str) or not _PREFIX_RE.fullmatch(api[field])):
+                    issues.append("[contracts].activation_api.%s: expected a dotted identifier" % field)
 
     _check_table(
         issues,
@@ -362,10 +349,10 @@ def validate_manifest(data: Any) -> list[str]:
             value = release.get(field)
             if isinstance(value, str) and not value.strip():
                 issues.append("[release].%s: must not be empty" % field)
-        for field in ("artifact_expectations", "resources"):
+        for field in ("build_command", "artifact_expectations", "resources"):
             value = release.get(field)
             if value is not None:
-                _validate_str_list(issues, value, "[release].%s" % field)
+                _validate_str_list(issues, value, "[release].%s" % field, require_nonempty=field != "build_command")
         entry_points = release.get("entry_points")
         if isinstance(entry_points, dict):
             for group, entries in entry_points.items():
@@ -376,7 +363,7 @@ def validate_manifest(data: Any) -> list[str]:
 
 def load_manifest(path: Path) -> Manifest:
     """Parse and validate package-contract.toml; raise ManifestError on failure."""
-    path = Path(path)
+    path = Path(path).resolve()
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:

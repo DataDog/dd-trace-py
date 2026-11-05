@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from collections.abc import Iterable
+import csv
 from dataclasses import dataclass
 import email.parser
 import hashlib
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess  # nosec B404
 import sys
@@ -65,11 +67,15 @@ def _parse_entry_points(text: str) -> dict[str, dict[str, str]]:
     """Parse an entry_points.txt (INI format) into {group: {name: value}}."""
     import configparser
 
-    parser = configparser.ConfigParser()
+    class EntryPointParser(configparser.ConfigParser):
+        def optionxform(self, optionstr: str) -> str:
+            return optionstr
+
+    parser = EntryPointParser()
     try:
         parser.read_string(text)
-    except configparser.Error:
-        return {}
+    except configparser.Error as exc:
+        raise BuildError("invalid entry_points.txt: %s" % exc) from exc
     return {section: {name: value for name, value in parser.items(section)} for section in parser.sections()}
 
 
@@ -105,7 +111,7 @@ def unpack_wheel(path: Path, destination: Path) -> Path:
         for member in zf.namelist():
             # Defensive member sanitization (no absolute paths or ..).
             target = (destination / member).resolve()
-            if not str(target).startswith(str(destination.resolve())):
+            if destination.resolve() not in target.parents and target != destination.resolve():
                 raise BuildError("wheel %s contains unsafe path %r" % (path.name, member))
         zf.extractall(destination)  # nosec B202 - members validated above
     return destination
@@ -118,12 +124,14 @@ def unpack_sdist(path: Path, destination: Path) -> Path:
         members = tf.getmembers()
         for member in members:
             target = (destination / member.name).resolve()
-            if not str(target).startswith(str(destination.resolve())):
+            if destination.resolve() not in target.parents and target != destination.resolve():
                 raise BuildError("sdist %s contains unsafe path %r" % (path.name, member.name))
-        tf.extractall(destination)  # nosec B202 - members validated above
-    roots = sorted({m.name.split("/")[0] for m in members if m.name and "/" in m.name})
-    if not roots:
-        raise BuildError("sdist %s is empty" % path.name)
+            if not (member.isfile() or member.isdir()):
+                raise BuildError("sdist %s contains link or special file %r" % (path.name, member.name))
+        tf.extractall(destination)  # nosec B202 - paths and member types validated above
+    roots = sorted({Path(m.name).parts[0] for m in members if Path(m.name).parts})
+    if len(roots) != 1:
+        raise BuildError("sdist %s must contain exactly one root directory" % path.name)
     root_dir = destination / roots[0]
     if not (root_dir / "pyproject.toml").is_file() and not (root_dir / "setup.py").is_file():
         raise BuildError("sdist %s has no build metadata at its root" % path.name)
@@ -227,9 +235,14 @@ def _collect_artifacts(output_dir: Path) -> dict[str, Path]:
     for path in sorted(output_dir.iterdir()):
         # NOTE: Path.suffix on "x.tar.gz" is ".gz"; match on the name.
         if path.name.endswith(".whl"):
-            artifacts["wheel"] = path
-        elif path.name.endswith((".tar.gz", ".tgz", ".zip")):
-            artifacts["sdist"] = path
+            kind = "wheel"
+        elif path.name.endswith((".tar.gz", ".tgz")):
+            kind = "sdist"
+        else:
+            continue
+        if kind in artifacts:
+            raise BuildError("multiple %s artifacts in %s" % (kind, output_dir))
+        artifacts[kind] = path
     return artifacts
 
 
@@ -239,17 +252,12 @@ def wheel_native_files(wheel: WheelInfo) -> list[str]:
 
 def venv_native_files(venv_dir: Path, installed: dict[str, str]) -> list[str]:
     """Scan every installed distribution's RECORD for native content."""
-    native = []
-    site_packages = _site_packages(venv_dir)
-    for distribution, version in sorted(installed.items()):
-        dist_info = site_packages / ("%s-%s.dist-info" % (distribution.replace("-", "_"), version))
-        record = dist_info / "RECORD"
-        if record.is_file():
-            for line in record.read_text(encoding="utf-8").splitlines():
-                path = line.split(",")[0]
-                if path and is_native_file(path):
-                    native.append("%s:%s" % (distribution, path))
-    return native
+    return [
+        "%s:%s" % (distribution, path)
+        for distribution, files in distribution_record_files(venv_dir, installed).items()
+        for path in files
+        if is_native_file(path)
+    ]
 
 
 def _site_packages(venv_dir: Path) -> Path:
@@ -260,27 +268,27 @@ def _site_packages(venv_dir: Path) -> Path:
     return venv_dir / "lib" / ("python%s.%s" % sys.version_info[:2]) / "site-packages"
 
 
+def _normalized_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def distribution_record_files(venv_dir: Path, installed: dict[str, str]) -> dict[str, list[str]]:
     """Map installed distribution -> list of files it owns (from RECORD).
 
-    Distributions without a RECORD (e.g. certain editable installs) own
-    nothing we can verify: attributing them the whole site-packages would
-    fabricate ownership conflicts that do not exist.
+    Missing RECORDs fail closed: ownership and native content cannot be verified.
     """
     site_packages = _site_packages(venv_dir)
     owned: dict[str, list[str]] = {}
-    for distribution, version in sorted(installed.items()):
-        dist_info = site_packages / ("%s-%s.dist-info" % (distribution.replace("-", "_"), version))
-        record = dist_info / "RECORD"
-        if not record.is_file():
-            owned[distribution] = []
-            continue
-        files = []
-        for line in record.read_text(encoding="utf-8").splitlines():
-            path = line.split(",")[0]
-            if path:
-                files.append(path)
-        owned[distribution] = files
+    records = {}
+    for dist_info in site_packages.glob("*.dist-info"):
+        metadata = email.parser.Parser().parsestr((dist_info / "METADATA").read_text(encoding="utf-8"))
+        records[_normalized_name(metadata["Name"])] = dist_info / "RECORD"
+    for distribution in sorted(installed):
+        record = records.get(_normalized_name(distribution))
+        if record is None or not record.is_file():
+            raise BuildError("cannot verify %s: missing RECORD" % distribution)
+        with record.open(encoding="utf-8", newline="") as handle:
+            owned[distribution] = [os.path.normpath(row[0]) for row in csv.reader(handle) if row and row[0]]
     return owned
 
 

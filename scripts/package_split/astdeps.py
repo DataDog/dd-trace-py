@@ -73,9 +73,13 @@ def _module_names_for(root: Path, source_paths: Iterable[Path], exclude_dirs: tu
     """
     modules: dict[str, Path] = {}
     for source_path in source_paths:
-        base = source_path if source_path.is_dir() else source_path.parent
-        for py_file in sorted(base.rglob("*.py")):
+        if not source_path.exists():
+            raise ValueError("source path does not exist: %s" % source_path)
+        files = sorted(source_path.rglob("*.py")) if source_path.is_dir() else [source_path]
+        for py_file in files:
             rel = py_file.relative_to(root)
+            if rel.parts[0] == "src":
+                rel = Path(*rel.parts[1:])
             if any(part in exclude_dirs for part in rel.parts):
                 continue
             parts = list(rel.with_suffix("").parts)
@@ -136,12 +140,12 @@ class _ImportCollector(ast.NodeVisitor):
         return False
 
     def visit_Import(self, node: ast.Import) -> None:
-        guarded = bool(self._guarded)
+        guarded = any(self._guarded)
         for alias in node.names:
             self._record(alias.name, "static", guarded, self._location(node))
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        guarded = bool(self._guarded)
+        guarded = any(self._guarded)
         location = self._location(node)
         if node.level:  # relative import: resolve against the importing package
             # The reference package for relative imports is __package__: for a
@@ -210,10 +214,7 @@ def build_graph(
         external={},
     )
     for module, path in modules.items():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError, OSError):
-            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         collector = _ImportCollector(module, str(path.relative_to(root)), graph)
         collector.visit(tree)
     graph.external = _collect_external(graph)

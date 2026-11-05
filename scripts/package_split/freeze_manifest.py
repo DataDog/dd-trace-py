@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
+import re
 from typing import Any
 
 from . import FREEZE_SCHEMA_VERSION
@@ -59,7 +60,7 @@ def validate_freeze(data: Any) -> list[str]:
         issues.append("unknown top-level table %r" % key)
 
     version = data.get("schema_version")
-    if version != FREEZE_SCHEMA_VERSION:
+    if type(version) is not int or version != FREEZE_SCHEMA_VERSION:
         issues.append("schema_version must be %d, got %r" % (FREEZE_SCHEMA_VERSION, version))
 
     frozen_entries = data.get("frozen", [])
@@ -79,8 +80,12 @@ def validate_freeze(data: Any) -> list[str]:
         if not isinstance(paths, list) or not paths or not all(isinstance(p, str) for p in paths):
             issues.append("%s: source_paths must be a non-empty list of strings" % where)
         hashes = entry.get("hashes")
-        if not isinstance(hashes, dict) or not hashes:
-            issues.append("%s: [frozen.hashes] with at least one path is required" % where)
+        if (
+            not isinstance(hashes, dict)
+            or not hashes
+            or not all(isinstance(h, str) and re.fullmatch(r"[0-9a-f]{64}", h) for h in hashes.values())
+        ):
+            issues.append("%s: [frozen.hashes] must map paths to SHA-256 hashes" % where)
         build_inputs = entry.get("build_inputs", [])
         if not isinstance(build_inputs, list) or not all(isinstance(p, str) for p in build_inputs):
             issues.append("%s: build_inputs must be a list of strings" % where)
@@ -92,7 +97,7 @@ def validate_freeze(data: Any) -> list[str]:
             if not isinstance(rewrite, dict):
                 issues.append("%s.approved_rewrites[%d]: expected a table" % (where, j))
                 continue
-            for field in ("path", "reason", "approver"):
+            for field in ("path", "reason", "approver", "sync_record"):
                 value = rewrite.get(field)
                 if not isinstance(value, str) or not value.strip():
                     issues.append("%s.approved_rewrites[%d]: missing or empty %r" % (where, j, field))

@@ -1,22 +1,9 @@
-"""contracts gate: supported-API comparison against a released baseline.
-
-Pass criteria (docs/package-split/plan.md):
-
-- a baseline artifact is supplied and readable (``--baseline <wheel>``) --
-  missing baselines are never accepted automatically;
-- every export declared in ``[contracts].supported_exports`` exists in both
-  the baseline and the candidate, with the same kind, signature, defaults,
-  annotations and (for exceptions) base classes;
-- consumer-owned behavioral fixtures (``[contracts].behavioral_fixtures``)
-  run against the candidate and pass.
-
-The gate never writes or updates the baseline itself: it is purely
-comparative, so there is no automatic baseline acceptance path.
-"""
+"""Compare supported exports to an immutable wheel; run candidate behavior fixtures."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess  # nosec B404
 import sys
@@ -56,8 +43,8 @@ def _snapshot(wheel: Path, workdir: Path, manifest: Manifest) -> dict[str, Any]:
     if result.returncode != 0:
         raise RuntimeError("snapshot probe failed: %s" % (result.stderr or result.stdout)[-2000:])
     snapshot: dict[str, Any] = json.loads(result.stdout)
-    if not snapshot.get("contracts"):
-        raise RuntimeError("snapshot probe produced no contracts section")
+    if snapshot.get("error") or not snapshot.get("contracts"):
+        raise RuntimeError("snapshot probe failed: %s" % snapshot.get("error", "no contracts section"))
     contracts: dict[str, Any] = snapshot["contracts"]
     return contracts
 
@@ -69,14 +56,11 @@ def _diff(baseline: dict[str, Any], candidate: dict[str, Any]) -> list[dict[str,
             differences.append({"module": module, "change": "module missing from candidate"})
             continue
         for export, description in exports.items():
-            if export == "<module>":
-                if "error" in description and "error" not in candidate[module].get(export, {}):
-                    differences.append(
-                        {"module": module, "export": export, "change": "baseline import error, candidate imports"}
-                    )
+            if export == "<module>" or description.get("missing"):
+                differences.append({"module": module, "export": export, "change": "baseline module/export missing"})
                 continue
             current = candidate[module].get(export, {})
-            if current.get("missing"):
+            if not current or current.get("missing"):
                 differences.append({"module": module, "export": export, "change": "removed from candidate"})
                 continue
             for key in _BREAKING_KEYS:
@@ -164,13 +148,13 @@ def _behavioral_fixtures(manifest: Manifest, report: Any, candidate: Path, workd
         )
         return
     failures: list[dict[str, Any]] = []
+    unpacked = wheelhouse.unpack_wheel(candidate, workdir / "candidate-unpack")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
+    env["PYTHONPATH"] = str(unpacked)
     for command in manifest.behavioral_fixtures:
-        # Commands run in a clean subprocess with the candidate wheel's
-        # unpacked tree prepended to the import path.
-        unpacked = wheelhouse.unpack_wheel(candidate, workdir / "candidate-unpack")
-        env_runner = _fixture_runner(command, unpacked)
         result = subprocess.run(  # nosec B603
-            [sys.executable, "-I", str(env_runner)],
+            command,
+            env=env,
             capture_output=True,
             text=True,
             timeout=600,
@@ -191,21 +175,3 @@ def _behavioral_fixtures(manifest: Manifest, report: Any, candidate: Path, workd
             PASS,
             "%d behavioral fixture(s) passed against the candidate" % len(manifest.behavioral_fixtures),
         )
-
-
-def _fixture_runner(command: list[str], unpacked: Path) -> Path:
-    """Write a small runner that executes the fixture command with the
-    candidate importable, and returns its path.
-    """
-    script = "\n".join(
-        [
-            "import os, subprocess, sys",
-            "env = dict(os.environ)",
-            "env['PYTHONPATH'] = %r + os.pathsep + env.get('PYTHONPATH', '')" % str(unpacked),
-            "raise SystemExit(subprocess.call(%r, env=env))" % (command,),
-        ]
-    )
-    runner = unpacked.parent / "fixture-runner.py"
-    runner.parent.mkdir(parents=True, exist_ok=True)
-    runner.write_text(script, encoding="utf-8")
-    return runner

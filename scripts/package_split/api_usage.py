@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 
-from .astdeps import build_graph
+from .astdeps import _module_names_for
 
 
 @dataclass(frozen=True)
@@ -256,30 +256,26 @@ def analyze_api_usage(
     ``import_roots`` only seeds the module graph (module naming); usages are
     matched purely on the resolved target prefix.
     """
-    graph = build_graph(root, source_paths, import_roots)
-    report = ApiUsageReport(target=target)
-    report.files_scanned = len(graph.modules)
+    modules = _module_names_for(root, source_paths, ("vendor", "node_modules"))
+    report = ApiUsageReport(target=target, files_scanned=len(modules))
 
     consumers = 0
-    for module, path in sorted(graph.modules.items()):
+    for module, path in sorted(modules.items()):
         # The target's own modules consume themselves by definition; only
         # external consumers define the extraction surface.
         if module == target or module.startswith(target + "."):
             continue
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError, OSError):
-            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         collector = _UsageCollector(module, str(path.relative_to(root)), target, report)
         # Pass 1: bindings (imports). Pass 2 must see assignments inside
         # function bodies too, so a plain two-visit order is not enough --
         # bindings are collected first, usages scanned after.
+        before = len(report.usages)
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 collector.visit_Import(node)
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
-        before = len(report.usages)
         collector._scan_usages(tree)
         if len(report.usages) > before:
             consumers += 1

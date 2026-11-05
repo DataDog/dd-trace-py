@@ -1,19 +1,4 @@
-"""migration gate: old/new coexistence, upgrade order, removal and rollback.
-
-Pass criteria (docs/package-split/plan.md):
-
-- scenarios drive a fresh venv through install/uninstall steps (old-only,
-  new-only, coexistence, supported upgrade orders, removal of either
-  product, rollback) using exact artifacts;
-- file ownership: installed distributions never claim overlapping files;
-- canonical identity: bridge modules resolve the declared attribute to the
-  expected provider module (a broken new installation must fail loudly, not
-  silently fall back to the old provider);
-- exactly one effective plugin/entry point per declared group;
-- ``imports_ok``/``imports_fail`` verify install and removal behavior,
-  including that compatibility shims and entry points only refer to
-  installed implementations.
-"""
+"""Install/removal sequences, bridge identity, file ownership and plugin counts."""
 
 from __future__ import annotations
 
@@ -192,6 +177,9 @@ def _run_scenario(
             imports_ok=checks.get("imports_ok", []),
             imports_fail=checks.get("imports_fail", []),
         )
+
+    if result.get("probe_error") or result.get("error"):
+        failures.append("identity probe failed: %s" % (result.get("probe_error") or result.get("error")))
 
     for target, entry in (result.get("identity", {}).get("imports_ok", {}) or {}).items():
         if not entry.get("ok"):

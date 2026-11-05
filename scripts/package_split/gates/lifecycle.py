@@ -1,16 +1,4 @@
-"""lifecycle gate: import-time inertness and activation correctness.
-
-Pass criteria (docs/package-split/plan.md):
-
-- importing each declared import target in a fresh subprocess causes no
-  application-visible side effects: no threads started, no network or
-  process creation attempts, no logging configuration changes, no import
-  hooks registered, no signal handlers installed, no atexit callbacks, and
-  no replacement of the manifest's protected callables;
-- the manifest's activation API is idempotent (second activation registers
-  nothing new), deactivation cleans up its resources, and activation works
-  exactly once per process in supported fork/spawn children.
-"""
+"""Fresh-process import inertness, activation idempotency/cleanup and fork/spawn."""
 
 from __future__ import annotations
 
@@ -76,6 +64,9 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
         report.record("probe", FAIL, "probe did not emit a single JSON document")
         return
 
+    if probe.get("error"):
+        report.record("probe", FAIL, probe["error"][-2000:])
+        return
     _report_import_side_effects(report, probe)
     _report_activation(report, probe)
 

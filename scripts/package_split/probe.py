@@ -19,6 +19,7 @@ interpreter, including inside minimal virtual environments.
 from __future__ import annotations
 
 import atexit
+from contextlib import redirect_stdout
 import importlib
 import io
 import json
@@ -147,8 +148,8 @@ def _meta_snapshot() -> dict[str, Any]:
 def _meta_delta(before: dict[str, Any]) -> dict[str, int]:
     after = _meta_snapshot()
     return {
-        "meta_path": len(after["meta_path"]) - len(before["meta_path"]),
-        "path_hooks": len(after["path_hooks"]) - len(before["path_hooks"]),
+        "meta_path": int(after["meta_path"] != before["meta_path"]),
+        "path_hooks": int(after["path_hooks"] != before["path_hooks"]),
         "atexit_callbacks": after["atexit_callbacks"] - before["atexit_callbacks"],
     }
 
@@ -235,9 +236,10 @@ def _activation(spec: dict[str, Any]) -> dict[str, Any]:
     module = importlib.import_module(api["module"])
     singletons: list[str] = api.get("singletons", [])
     activate: Callable[[], Any] = getattr(module, api["activate"])
-    deactivate: Callable[[], Any] | None = getattr(module, api["deactivate"], None)
+    deactivate: Callable[[], Any] | None = getattr(module, api.get("deactivate", ""), None)
 
     baseline_threads = _threads_snapshot()
+    baseline_singletons = _singleton_lengths(singletons)
     PHASE = "activation"
     activate()
     after_first: dict[str, Any] = {
@@ -267,7 +269,9 @@ def _activation(spec: dict[str, Any]) -> dict[str, Any]:
         # that was alive before activate() (interpreter machinery) is fine.
         import time
 
-        started_by_activation = [t for t in after_first["threads"] if t not in baseline_threads]
+        if _singleton_lengths(singletons) != baseline_singletons:
+            _violation("activation-cleanup", "registries not restored after deactivate()")
+        started_by_activation = [t for t in after_second["threads"] if t not in baseline_threads]
         deadline = time.time() + 5.0
         leftover: list[Any] = []
         while time.time() < deadline:
@@ -290,6 +294,9 @@ def _activation(spec: dict[str, Any]) -> dict[str, Any]:
             )
             process.start()
             process.join(timeout=60)
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
             child: Any = None
             if process.exitcode == 0:
                 try:
@@ -359,7 +366,7 @@ def _describe(value: Any) -> dict[str, Any]:
     import inspect
 
     described: dict[str, Any] = {"kind": type(value).__name__}
-    if inspect.isfunction(value) or inspect.ismethod(value) or inspect.isbuiltin(value):
+    if callable(value):
         try:
             signature = inspect.signature(value)
         except (TypeError, ValueError):
@@ -455,16 +462,22 @@ def main(argv: list[str]) -> int:
         "identity": {},
     }
     try:
-        _install_interceptors()
-        result["import_side_effects"] = _import_side_effects(spec)
-        if spec.get("activation"):
-            result["activation"] = _activation(spec)
-        if spec.get("supported_exports"):
-            result["contracts"] = _contracts_snapshot(spec)
-        if spec.get("identity") or spec.get("imports_ok") or spec.get("imports_fail") or spec.get("entry_point_counts"):
-            result["identity"] = _identity_probe(spec)
-        result["violations"] = list(VIOLATIONS)
-        result["ok"] = not VIOLATIONS
+        with redirect_stdout(sys.stderr):
+            _install_interceptors()
+            result["import_side_effects"] = _import_side_effects(spec)
+            if spec.get("activation"):
+                result["activation"] = _activation(spec)
+            if spec.get("supported_exports"):
+                result["contracts"] = _contracts_snapshot(spec)
+            if (
+                spec.get("identity")
+                or spec.get("imports_ok")
+                or spec.get("imports_fail")
+                or spec.get("entry_point_counts")
+            ):
+                result["identity"] = _identity_probe(spec)
+            result["violations"] = list(VIOLATIONS)
+            result["ok"] = not VIOLATIONS
     except Exception:
         result["ok"] = False
         result["error"] = traceback.format_exc()

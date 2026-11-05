@@ -1,26 +1,13 @@
-"""boundaries gate: static import, dependency and build-metadata checks.
-
-Pass criteria (docs/package-split/plan.md):
-
-- no import cycles among the manifest's source modules;
-- no import edges that the manifest's ``allowed_edges`` policy does not
-  declare (longest matching ``from_prefix`` wins), including edges reached
-  through parent-package initializers;
-- no imports of the manifest's ``forbidden_namespaces`` (static, dynamic or
-  parent-initializer);
-- every dynamic import either resolves to a literal checked like a static
-  edge, or matches an explicit allowlist entry (non-literal dynamic imports
-  are rejected by default);
-- for ``native-free`` packages: no native build requirements or extension
-  modules in build metadata, and no runtime dependency outside the declared
-  set (a hidden native dependency cannot sneak in as an undeclared edge).
-"""
+"""Static import policy, cycles, dynamic imports and dependency/build metadata."""
 
 from __future__ import annotations
 
 import fnmatch
 from typing import Any
 from typing import Optional
+
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 from .._toml import tomllib
 from ..astdeps import ImportEdge
@@ -52,8 +39,8 @@ def _check_edge(edge: ImportEdge, manifest: Manifest, policy: list[dict[str, Any
     """Return a violation string when the edge is not allowed by policy."""
     imported = edge.imported
     top = imported.split(".")[0]
-    if top in manifest.forbidden_namespaces:
-        return "forbidden namespace %r" % top
+    if any(_prefix_matches(imported, prefix) for prefix in manifest.forbidden_namespaces):
+        return "forbidden namespace %r" % imported
 
     if top not in manifest.import_roots:
         # External import: allowed only if some matching rule lists it. The
@@ -63,6 +50,7 @@ def _check_edge(edge: ImportEdge, manifest: Manifest, policy: list[dict[str, Any
             if _prefix_matches(edge.importer, rule.get("from_prefix", "")):
                 if "*" in rule.get("external", []) or top in rule.get("external", []):
                     return None
+                break
         return "undeclared external dependency %r" % top
 
     # Internal edge: the most specific matching rule must allow the target.
@@ -91,7 +79,7 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
             "import-cycles",
             FAIL,
             "%d strongly connected components with more than one module" % len(cycles),
-            cycles=[[" <-> ".join(c) for c in cycle] for cycle in cycles],
+            cycles=cycles,
         )
     else:
         report.record("import-cycles", PASS, "no import cycles among %d modules" % len(graph.modules))
@@ -196,7 +184,7 @@ def _metadata_checks(manifest: Manifest, report: Any) -> None:
     # the manifest (runtime or a named extras group); an undeclared
     # dependency is how native requirements hide.
     project = pyproject.get("project", {})
-    declared = set(manifest.runtime_dependencies)
+    declared = {_dep_name(r) for r in manifest.runtime_dependencies}
     for group, requirements in manifest.extras.items():
         declared.update(_dep_name(r) for r in requirements)
     extras = project.get("optional-dependencies", {})
@@ -234,12 +222,5 @@ def _metadata_checks(manifest: Manifest, report: Any) -> None:
 
 
 def _dep_name(requirement: str) -> str:
-    """Extract the distribution name from a PEP 508 requirement string.
-
-    Handles version specifiers, extras and environment markers, e.g.
-    ``bytecode>=0.16.0,<1; python_version~='3.12.0'`` -> ``bytecode``.
-    """
-    import re
-
-    name = re.split(r"[<>=!~;\[(\s]", requirement.strip(), maxsplit=1)[0]
-    return name.lower().replace("_", "-")
+    """Canonical distribution name of a PEP 508 requirement."""
+    return canonicalize_name(Requirement(requirement).name)
