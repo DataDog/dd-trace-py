@@ -4,14 +4,14 @@ attrs==26.1.0
 certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.2
-coverage[toml]==7.17.0
+coverage[toml]==7.17.1
 cryptography==50.0.2
 distro==1.9.0
 docstring-parser==0.18.0
 google-ai-generativelanguage==0.12.1
 google-api-core[grpc]==2.43.2
-google-auth[pyopenssl]==2.62.0
-google-auth[requests]==2.62.0
+google-auth[pyopenssl]==2.62.1
+google-auth[requests]==2.62.1
 google-cloud-aiplatform==2.7.0
 google-cloud-bigquery==3.47.0
 google-cloud-core==2.8.0
@@ -56,5 +56,4 @@ tenacity==9.1.4
 typing-extensions==4.16.0
 typing-inspection==0.4.4
 urllib3==2.8.0
-vertexai==1.43.0
 websockets==17.4

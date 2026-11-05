@@ -32,6 +32,11 @@ if sys.version_info >= (3, 10):
 else:
     aiplatform_module = None
 
+# google-cloud-aiplatform 2.x serializes tool schemas with "type" instead of the proto field name "type_".
+SCHEMA_TYPE_KEY = (
+    "type" if aiplatform_module is not None and parse_version(aiplatform_module.__version__) >= (2, 0, 0) else "type_"
+)
+
 
 class TestLLMObsVertexai:
     def test_completion(self, vertexai, vertexai_llmobs, test_spans):
@@ -758,14 +763,14 @@ def expected_llmobs_tool_span_data():
                 "name": "get_current_weather",
                 "description": "Get the current weather in a given location",
                 "schema": {
-                    "type_": "OBJECT",
+                    SCHEMA_TYPE_KEY: "OBJECT",
                     "properties": {
                         "location": {
-                            "type_": "STRING",
+                            SCHEMA_TYPE_KEY: "STRING",
                             "description": "The city and state, e.g. San Francisco, CA",
                         },
                         "unit": {
-                            "type_": "STRING",
+                            SCHEMA_TYPE_KEY: "STRING",
                             "enum": ["celsius", "fahrenheit"],
                         },
                     },
@@ -891,14 +896,14 @@ def expected_llmobs_tool_result_span_data():
                 "name": "get_current_weather",
                 "description": "Get the current weather in a given location",
                 "schema": {
-                    "type_": "OBJECT",
+                    SCHEMA_TYPE_KEY: "OBJECT",
                     "properties": {
                         "location": {
-                            "type_": "STRING",
+                            SCHEMA_TYPE_KEY: "STRING",
                             "description": "The city and state, e.g. San Francisco, CA",
                         },
                         "unit": {
-                            "type_": "STRING",
+                            SCHEMA_TYPE_KEY: "STRING",
                             "enum": ["celsius", "fahrenheit"],
                         },
                     },

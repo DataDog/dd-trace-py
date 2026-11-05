@@ -180,10 +180,15 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
-      python: ['3.9', '3.10', '3.11', '3.12', '3.14', '3.15']
       variants:
         - name: vertexai
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
+        # The standalone vertexai distribution stops at 1.71.1, which pins google-cloud-aiplatform
+        # 1.71.1; newer google-cloud-aiplatform releases ship the vertexai module themselves.
+        - name: vertexai
+          python: ['3.14', '3.15']
+          dependencies: [pytest-asyncio, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
     venvs_per_job: 5
     paths:
