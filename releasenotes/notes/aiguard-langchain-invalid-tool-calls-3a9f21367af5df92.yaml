@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where LangChain tool calls with malformed arguments are not
+    evaluated, so a model response containing only such calls bypasses AI Guard.

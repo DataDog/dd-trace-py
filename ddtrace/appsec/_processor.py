@@ -8,7 +8,6 @@ from typing import ClassVar
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -19,7 +18,6 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf import DDWafContext
-from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -36,8 +34,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.security.stack_traces import report_stack
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.span_processor import SpanProcessor
 
 
 log = get_logger(__name__)
@@ -83,7 +83,7 @@ def _get_rate_limiter() -> RateLimiter:
 
 
 @dataclasses.dataclass(eq=False)
-class AppSecSpanProcessor(SpanProcessor):
+class AppSecSpanProcessor(SpanProcessor[SpanData]):
     rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)

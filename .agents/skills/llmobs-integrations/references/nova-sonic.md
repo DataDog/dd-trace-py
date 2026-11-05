@@ -65,3 +65,12 @@ Preserve explicit zeros and derive total_tokens only when both input and output
 counts are known. Audio fallback markers require per-turn, per-direction
 audio evidence; empty failures and tool-only content must not invent audio.
 When an audio part is retained, empty transcript content can remain empty.
+
+## Named token breakdowns
+
+Difference textTokens into input_text_tokens/output_text_tokens using the same
+turn attribution and independent baselines as audio. Missing or invalid text
+must not discard valid speech. Across aggregate gaps spanning turns, recover both
+modality baselines and omit both counts until attribution is known again.
+The combined audio/text delta must fit within its aggregate delta. Preserve valid
+audio and omit conflicting text for that turn, while continuing to track baselines.

@@ -1,6 +1,7 @@
 from unittest import mock
 
 from llama_index.core.llms import ChatMessage
+from llama_index.core.llms import ChatResponse
 from llama_index.llms.openai import OpenAI
 import pytest
 
@@ -416,3 +417,81 @@ def test_shadow_tags_llm_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.input_tokens") == 14
     assert span.get_metric("_dd.llmobs.output_tokens") == 15
     assert span.get_metric("_dd.llmobs.total_tokens") == 29
+
+
+@pytest.mark.parametrize("repatch", [False, True])
+def test_stream_finalizes_after_unpatch(llama_index, llama_index_llmobs, test_spans, repatch):
+    from ddtrace.contrib.internal.llama_index.patch import patch
+    from ddtrace.contrib.internal.llama_index.patch import unpatch
+
+    llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content="Hello"),
+        delta="Hello",
+        raw={"usage": {"prompt_tokens": 8, "completion_tokens": 1, "total_tokens": 9}},
+    )
+    with mock.patch.object(OpenAI, "_stream_chat", return_value=(chunk for chunk in [response])):
+        stream = llm.stream_chat(messages=[ChatMessage(role="user", content="Hi")])
+        unpatch()
+        if repatch:
+            patch()
+        list(stream)
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="llm",
+        model_name="gpt-4o-mini",
+        model_provider="openai",
+        input_messages=[{"content": "Hi", "role": "user"}],
+        output_messages=[{"content": "Hello", "role": "assistant"}],
+        metadata={"max_tokens": 100},
+        metrics={"input_tokens": 8, "output_tokens": 1, "total_tokens": 9},
+        tags=EXPECTED_TAGS,
+    )
+
+
+def test_shared_subscribers_isolate_components_and_repatch(monkeypatch):
+    from ddtrace import config
+    from ddtrace.contrib._events.llm import LlmRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.llmobs._contrib import _subscribers
+
+    monkeypatch.setattr(_subscribers, "_integration_classes", {})
+    monkeypatch.setattr(_subscribers, "_integrations", {})
+    first = mock.Mock(llmobs_enabled=False)
+    replacement = mock.Mock(llmobs_enabled=False)
+    other = mock.Mock(llmobs_enabled=False)
+    for integration in (first, replacement, other):
+        integration._is_instrumented_proxy_url.return_value = False
+    factory = mock.Mock(side_effect=[first, replacement])
+    other_factory = mock.Mock(return_value=other)
+    _subscribers.register("llama_index", factory)
+    _subscribers.register("anthropic", other_factory)
+
+    def request(component):
+        return core.context_with_event(
+            LlmRequestEvent(
+                component=component,
+                integration_config=getattr(config, component),
+                provider="test",
+            )
+        )
+
+    with request("llama_index"):
+        _subscribers.unregister("llama_index")
+        with request("llama_index"):
+            pass
+        first.llmobs_set_tags.assert_not_called()
+        with request("anthropic"):
+            pass
+        other.llmobs_set_tags.assert_called_once()
+        _subscribers.register("llama_index", factory)
+        _subscribers.register("llama_index", factory)
+        with request("llama_index"):
+            pass
+        replacement.llmobs_set_tags.assert_called_once()
+        first.llmobs_set_tags.assert_not_called()
+    first.llmobs_set_tags.assert_called_once()
+    assert factory.call_count == 2

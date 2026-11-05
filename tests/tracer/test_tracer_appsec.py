@@ -62,9 +62,9 @@ def test_aggregator_reset_with_args():
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
     assert aggr.writer._api_version == "v0.5"
-    # Expect the default value of apm_opt_out and compute_stats to be False
+    # Expect the default value of apm_opt_out to be False and compute_stats to be True
     assert aggr.sampling_processor.apm_opt_out is False
-    assert aggr.sampling_processor._compute_stats_enabled is False
+    assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.tags_processor.apm_opt_out is False
     # Reset the aggregator with new args and new user processors and expect the new values to be set
     aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
@@ -244,7 +244,9 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled,
         assert tracer._sampler.limiter.rate_limit == 1
         assert tracer._sampler.limiter.time_window == 60e9
 
-        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
+        # Stats computation stays enabled and is only shadowed by the opt-out.
+        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is True
+        assert tracer._span_aggregator.sampling_processor.apm_opt_out is True
 
     # reset tracer values
     with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):

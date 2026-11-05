@@ -1,6 +1,8 @@
 """Single owner of the bootstrap profiler, ddtrace.profiling.bootstrap.profiler.
 
-Code that starts or stops that profiler must hold lock while it builds the profiler, and swaps it.
+Both ddtrace.profiling.auto and the remote config product start and stop that profiler. With ddtrace-run, the remote
+config poller starts before ddtrace.profiling.auto is imported, so the two can run at the same time. They must hold
+lock while they build the profiler, and swap it.
 """
 
 import importlib
@@ -15,14 +17,13 @@ if t.TYPE_CHECKING:
 
 
 # Importing ddtrace.profiling loads the whole profiler and installs its hooks, which every process that loads the
-# profiling product would pay for, even with profiling disabled. A profiler can only run once ddtrace.profiling was
+# remote config product would pay for, even with profiling disabled. A profiler can only run once ddtrace.profiling was
 # imported, so this module looks for it in sys.modules instead of importing it.
 _BOOTSTRAP_MODULE: t.Final[str] = "ddtrace.profiling.bootstrap"
 
-# A fork can happen while a thread holds the lock, e.g. the main thread in start_profiler when uWSGI forks workers in
-# C without running the before-fork hooks. That thread does not exist in the child, so the
+# A fork can happen while a thread holds the lock, e.g. the main thread in start_profiler, or the remote config thread
+# when uWSGI forks workers in C without running the before-fork hooks. That thread does not exist in the child, so the
 # lock must be reset there.
-# TODO: Remote Config will also start and stop the profiler from its own thread, and will need this lock.
 lock = forksafe.Lock()
 
 

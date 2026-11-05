@@ -373,13 +373,15 @@ class TestModuloAspectEdgeCases:
         result = mod.do_modulo("Hello, %s!", "世界")
         assert result == "Hello, 世界!"
 
-    def test_modulo_with_tainted_named_parameters(self):
+    def test_modulo_with_tainted_named_parameters(self, mapping_factory):
         """Test modulo operation with tainted named parameters."""
         template = "%(greeting)s, %(name)s!"
-        params = {
-            "greeting": _to_tainted_string_with_origin(":+-<input1>Hello<input1>-+:"),
-            "name": _to_tainted_string_with_origin(":+-<input2>World<input2>-+:"),
-        }
+        params = mapping_factory(
+            {
+                "greeting": _to_tainted_string_with_origin(":+-<input1>Hello<input1>-+:"),
+                "name": _to_tainted_string_with_origin(":+-<input2>World<input2>-+:"),
+            }
+        )
         result = mod.do_modulo(template, params)
         assert result == "Hello, World!"
 
