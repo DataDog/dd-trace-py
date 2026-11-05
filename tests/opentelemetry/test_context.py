@@ -323,8 +323,14 @@ def test_otel_lazy_sampling_with_nonrecording_span(oteltracer):
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
 @pytest.mark.subprocess(
-    env={"DD_TRACE_OTEL_ENABLED": "true", "DD_LOGS_OTEL_ENABLED": "true", "DD_METRICS_OTEL_ENABLED": "true"},
+    env={
+        "DD_TRACE_OTEL_ENABLED": "true",
+        "DD_LOGS_OTEL_ENABLED": "true",
+        "DD_METRICS_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_TIMEOUT": "1",
+    },
     ddtrace_run=True,
+    err=None,
 )
 def test_providers_are_set():
     from opentelemetry._logs import get_logger_provider

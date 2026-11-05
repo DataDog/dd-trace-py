@@ -7,12 +7,10 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.opentelemetry.utils import set_http_exporter_marker
+from ddtrace.internal.opentelemetry.exporters import get_logs_exporter
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -34,7 +32,7 @@ def set_otel_logs_provider() -> None:
         return
 
     protocol = otel_config.exporter.LOGS_PROTOCOL
-    exporter_class = _import_exporter(protocol)
+    exporter_class = get_logs_exporter(protocol)
     if exporter_class is None:
         return
 
@@ -103,74 +101,8 @@ def _build_resource() -> Optional[Any]:
         return Resource.create(resource_attributes)
     except ImportError:
         log.warning(
-            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
-            "OTLP logs export."
-        )
-        return None
-
-
-def _dd_logs_exporter(otel_exporter: type[Any], protocol: str, encoding: str) -> type[Any]:
-    """Create a custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
-
-    class DDLogsExporter(otel_exporter):
-        """A custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
-
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, **kwargs)
-            if protocol == "http":
-                set_http_exporter_marker(self)
-
-        def export(self, batch: Any, *args: Any, **kwargs: Any) -> Any:
-            """Export logs and queues telemetry metrics."""
-            telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.TRACERS,
-                "otel.log_records",
-                len(batch),
-                (
-                    ("protocol", protocol),
-                    ("encoding", encoding),
-                ),
-            )
-            log.debug(
-                "Exporting %d OpenTelemetry Logs with %s protocol and %s encoding", len(batch), protocol, encoding
-            )
-            return super().export(batch, *args, **kwargs)
-
-    return DDLogsExporter
-
-
-def _import_exporter(protocol):
-    """Import the appropriate OpenTelemetry Logs exporter based on the set protocol"""
-    try:
-        if protocol == "grpc":
-            from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
-            from opentelemetry.exporter.otlp.proto.grpc.version import __version__ as exporter_version
-        elif protocol == "http/protobuf":
-            from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-            from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
-        else:
-            log.warning(
-                "OpenTelemetry Logs exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
-                protocol,
-            )
-            return None
-
-        if tuple(int(x) for x in exporter_version.split(".")[:3]) < MINIMUM_SUPPORTED_VERSION:
-            log.warning(
-                "OpenTelemetry Logs exporter for %s requires version %r or higher, but found version %r. "
-                "Please upgrade the appropriate opentelemetry-exporter package.",
-                protocol,
-                MINIMUM_SUPPORTED_VERSION,
-                exporter_version,
-            )
-            return None
-
-        return _dd_logs_exporter(OTLPLogExporter, protocol.split("/")[0], "protobuf")
-
-    except ImportError:
-        log.warning(
-            "Install opentelemetry-exporter-otlp, which includes both gRPC and HTTP exporters, before enabling "
-            "OTLP logs export."
+            "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
+            "Install ddtrace[opentelemetry] before enabling OpenTelemetry Logs support."
         )
         return None
 
@@ -186,7 +118,7 @@ class _SelfTelemetryLogFilter(logging.Filter):
     feed its own telemetry-pipeline logs back into its own telemetry export.
     """
 
-    _EXCLUDED_NAMESPACES = ("ddtrace", "opentelemetry")
+    _EXCLUDED_NAMESPACES = ("ddtrace", "opentelemetry", "grpclib", "h2", "hpack", "hyperframe")
 
     def filter(self, record: logging.LogRecord) -> bool:
         name = record.name
