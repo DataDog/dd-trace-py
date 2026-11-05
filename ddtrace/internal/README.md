@@ -144,6 +144,13 @@ for AppSec processing. Other subscriber families continue to register automatica
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping also retains the bundle listeners as described above.
+AppSec declares exploit-prevention bundles in
+`ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
+only after AppSec is active and exploit prevention is enabled. Direct activation,
+remote activation, and runtime switches share `load_appsec()` / `disable_appsec()`;
+product `stop()` also removes the operation listeners. These bundles do not own
+request cleanup, whose listeners remain registered separately. Repeated activation
+restores listeners after a reset without caching registration state.
 
 ## Remote Configuration Callbacks
 
