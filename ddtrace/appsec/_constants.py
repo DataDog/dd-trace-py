@@ -9,6 +9,12 @@ from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 from ddtrace.internal.constants import Constant_Class  # noqa:F401
 from ddtrace.internal.security._constants import STACK_TRACE as STACK_TRACE
+from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_DEFAULT
+from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_ENV
+from ddtrace.internal.settings._asm_constants import APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+from ddtrace.internal.settings._asm_constants import APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
+from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE as LOGIN_EVENTS_MODE
+from ddtrace.internal.settings._asm_constants import WAF_TIMEOUT
 
 
 class APPSEC(metaclass=Constant_Class):
@@ -19,9 +25,9 @@ class APPSEC(metaclass=Constant_Class):
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
-    ENABLED_ORIGIN_DEFAULT: Literal["default"] = "default"
+    ENABLED_ORIGIN_DEFAULT: Literal["default"] = APPSEC_ENABLED_ORIGIN_DEFAULT
     ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
-    ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
+    ENABLED_ORIGIN_ENV: Literal["env_var"] = APPSEC_ENABLED_ORIGIN_ENV
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -253,41 +259,13 @@ class PRODUCTS(metaclass=Constant_Class):
     ASM_FEATURES: Literal["ASM_FEATURES"] = "ASM_FEATURES"
 
 
-class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
-    """
-    string identifier for the mode of the user login events. Can be:
-    DISABLED: automatic login events are disabled. Can still be enabled by Remote Config.
-    ANONYMIZATION: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
-    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
-    email, ...).
-    SDK: manually issued login events using the SDK.
-    """
-
-    DISABLED: Literal["disabled"] = "disabled"
-    IDENT: Literal["identification"] = "identification"
-    ANON: Literal["anonymization"] = "anonymization"
-    SDK: Literal["sdk"] = "sdk"
-    AUTO: Literal["auto"] = "auto"
-
-
 class DEFAULT(metaclass=Constant_Class):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
     TRACE_RATE_LIMIT = 100
-    WAF_TIMEOUT = 5.0  # float (milliseconds)
-    APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
-        r"(?i)pass|pw(?:or)?d|secret|(?:api|private|public|access)[_-]?key|token|consumer[_-]?"
-        r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization|jsessionid|phpsessid|asp\.net[_-]sessionid|sid|jwt"
-    )
-    APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
-        r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
-        r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
-        r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})'
-        r"|gh[opsu]_([0-9a-zA-Z]{36})"
-        r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
-        r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
-    )
+    WAF_TIMEOUT = WAF_TIMEOUT  # float (milliseconds)
+    APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+    APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     ENDPOINT_COLLECTION_LIMIT = 300
 
 

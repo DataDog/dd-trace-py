@@ -5,11 +5,6 @@ import sys
 from typing import Callable
 from typing import Optional
 
-from ddtrace.appsec._constants import API_SECURITY
-from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _libddwaf_platform
@@ -17,6 +12,12 @@ from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_DEFAULT
+from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_ENV
+from ddtrace.internal.settings._asm_constants import APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+from ddtrace.internal.settings._asm_constants import APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
+from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE
+from ddtrace.internal.settings._asm_constants import WAF_TIMEOUT
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
 
@@ -58,11 +59,11 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
-    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
-    _asm_agentic_onboarding = DDConfig.var(str, APPSEC.AGENTIC_ONBOARDING, default="")
+    _asm_enabled_origin = APPSEC_ENABLED_ORIGIN_DEFAULT
+    _asm_agentic_onboarding = DDConfig.var(str, "DD_APPSEC_AGENTIC_ONBOARDING", default="")
     _asm_static_rule_file = DDConfig.var(
         Optional[str],
-        APPSEC.RULE_FILE,
+        "DD_APPSEC_RULES",
         default=None,
         parser=_parse_optional_string,
     )
@@ -83,19 +84,21 @@ class ASMConfig(DDConfig):
 
     _auto_user_instrumentation_local_mode = DDConfig.var(
         str,
-        APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
+        "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE",
         default=LOGIN_EVENTS_MODE.IDENT,
         parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
     )
     _auto_user_instrumentation_rc_mode: Optional[str] = None
-    _auto_user_instrumentation_enabled = DDConfig.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
+    _auto_user_instrumentation_enabled = DDConfig.var(
+        bool, "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", default=True
+    )
 
-    _user_model_login_field = DDConfig.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
-    _user_model_email_field = DDConfig.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
-    _user_model_name_field = DDConfig.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
-    _api_security_enabled = DDConfig.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
-    _api_security_sample_delay = DDConfig.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
-    _api_security_parse_response_body = DDConfig.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+    _user_model_login_field = DDConfig.var(str, "DD_USER_MODEL_LOGIN_FIELD", default="")
+    _user_model_email_field = DDConfig.var(str, "DD_USER_MODEL_EMAIL_FIELD", default="")
+    _user_model_name_field = DDConfig.var(str, "DD_USER_MODEL_NAME_FIELD", default="")
+    _api_security_enabled = DDConfig.var(bool, "DD_API_SECURITY_ENABLED", default=True)
+    _api_security_sample_delay = DDConfig.var(float, "DD_API_SECURITY_SAMPLE_DELAY", default=30.0)
+    _api_security_parse_response_body = DDConfig.var(bool, "DD_API_SECURITY_PARSE_RESPONSE_BODY", default=True)
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
     _api_security_active = False
@@ -106,16 +109,16 @@ class ASMConfig(DDConfig):
     _waf_timeout = DDConfig.var(
         float,
         "DD_APPSEC_WAF_TIMEOUT",
-        default=DEFAULT.WAF_TIMEOUT,
+        default=WAF_TIMEOUT,
         help_type="float",
         help="Timeout in milliseconds for WAF computations",
     )
     _asm_deduplication_enabled = DDConfig.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
     _asm_obfuscation_parameter_key_regexp = DDConfig.var(
-        str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+        str, "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", default=APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
     )
     _asm_obfuscation_parameter_value_regexp = DDConfig.var(
-        str, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
+        str, "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", default=APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
     _iast_redaction_enabled = DDConfig.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
@@ -153,20 +156,20 @@ class ASMConfig(DDConfig):
     _iast_is_testing = False
 
     # default will be set to True once the feature is GA. For now it's always False
-    _ep_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
-    _ep_stack_trace_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
+    _ep_enabled = DDConfig.var(bool, "DD_APPSEC_RASP_ENABLED", default=True)
+    _ep_stack_trace_enabled = DDConfig.var(bool, "DD_APPSEC_STACK_TRACE_ENABLED", default=True)
     # for max_stack_traces, 0 == unlimited
     _ep_max_stack_traces = DDConfig.var(
-        int, EXPLOIT_PREVENTION.MAX_STACK_TRACES, default=2, validator=_validate_non_negative_int
+        int, "DD_APPSEC_MAX_STACK_TRACES", default=2, validator=_validate_non_negative_int
     )
     # for max_stack_trace_depth, 0 == unlimited
     _ep_max_stack_trace_depth = DDConfig.var(
-        int, EXPLOIT_PREVENTION.MAX_STACK_TRACE_DEPTH, default=32, validator=_validate_non_negative_int
+        int, "DD_APPSEC_MAX_STACK_TRACE_DEPTH", default=32, validator=_validate_non_negative_int
     )
 
     # percentage of stack trace reported on top, in case depth is larger than max_stack_trace_depth
     _ep_stack_top_percent = DDConfig.var(
-        float, EXPLOIT_PREVENTION.STACK_TOP_PERCENT, default=75.0, validator=_validate_percentage
+        float, "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", default=75.0, validator=_validate_percentage
     )
 
     _iast_stack_trace_enabled = DDConfig.var(bool, "DD_IAST_STACK_TRACE_ENABLED", default=True)
@@ -292,7 +295,7 @@ class ASMConfig(DDConfig):
     @property
     def asm_enabled_origin(self):
         if APPSEC_ENV in env:
-            return APPSEC.ENABLED_ORIGIN_ENV
+            return APPSEC_ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
     def reset(self):
