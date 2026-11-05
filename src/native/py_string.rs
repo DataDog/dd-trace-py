@@ -1,9 +1,7 @@
 use std::{borrow::Borrow, ops::Deref as _};
 
 use libdd_trace_model::{AttributeValue, TraceText, ValueTypes};
-use libdd_trace_utils::span::{
-    v04::VecMap, SpanBytes, SpanText, TraceData,
-};
+use libdd_trace_utils::span::{v04::VecMap, SpanBytes, SpanText, TraceData};
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAnyMethods as _, PyBytesMethods as _, PyString, PyStringMethods as _},
