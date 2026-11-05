@@ -442,6 +442,7 @@ dependencies = [
  "libdd-remote-config",
  "libdd-shared-runtime",
  "libdd-telemetry",
+ "libdd-trace-model",
  "libdd-trace-utils",
  "libdd-tracer-flare",
  "native-proc-macro",
