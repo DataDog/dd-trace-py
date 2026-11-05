@@ -7,6 +7,7 @@ from _thread import get_ident
 import asyncio
 from collections.abc import Mapping
 from contextvars import ContextVar
+import functools
 import inspect
 import json
 from types import ModuleType
@@ -129,6 +130,25 @@ def _evaluate_tool_call(tool: Any, arguments: str) -> None:
         logger.debug("AI Guard anthropic: failed to evaluate MCP tool call", exc_info=True)
 
 
+def _check(tool: Any, tool_input: Any) -> None:
+    arguments = _tool_call_to_check(tool, tool_input)
+    if arguments is not None:
+        _evaluate_tool_call(tool, arguments)
+
+
+async def _check_async(tool: Any, tool_input: Any) -> None:
+    arguments = _tool_call_to_check(tool, tool_input)
+    if arguments is None:
+        return
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        _evaluate_tool_call(tool, arguments)
+    else:
+        # A blocking HTTP call: run it off the event loop.
+        await asyncio.to_thread(_evaluate_tool_call, tool, arguments)
+
+
 def _guard_tool(tool: Any, mcp_tool: Any, session: Any) -> None:
     """Attach the MCP metadata of session to a converted tool and check its calls; no-op if unknown."""
     if not aiguard_config._ai_guard_mcp_enabled:
@@ -142,31 +162,33 @@ def _guard_tool(tool: Any, mcp_tool: Any, session: Any) -> None:
     setattr(tool, _TOOL_ATTR, MCPTool(server, original_name))
     _tools_by_schema[id(tool.input_schema)] = tool
 
-    call = tool.call
+    # call() runs the validated original function captured at init, and tool(...) returns tool.func:
+    # guarding both covers every way to run the tool, each with a single check.
+    call, func = tool.call, tool.func
     if inspect.iscoroutinefunction(call):
 
         async def guarded_async_call(input: Any) -> Any:  # noqa: A002 (same signature as call)
-            arguments = _tool_call_to_check(tool, input)
-            if arguments is not None:
-                try:
-                    asyncio.get_running_loop()
-                except RuntimeError:
-                    _evaluate_tool_call(tool, arguments)
-                else:
-                    # A blocking HTTP call: run it off the event loop.
-                    await asyncio.to_thread(_evaluate_tool_call, tool, arguments)
+            await _check_async(tool, input)
             return await call(input)
 
-        tool.call = guarded_async_call
+        @functools.wraps(func)
+        async def guarded_async_func(*args: Any, **kwargs: Any) -> Any:
+            await _check_async(tool, kwargs)
+            return await func(*args, **kwargs)
+
+        tool.call, tool.func = guarded_async_call, guarded_async_func
     else:
 
         def guarded_call(input: Any) -> Any:  # noqa: A002 (same signature as call)
-            arguments = _tool_call_to_check(tool, input)
-            if arguments is not None:
-                _evaluate_tool_call(tool, arguments)
+            _check(tool, input)
             return call(input)
 
-        tool.call = guarded_call
+        @functools.wraps(func)
+        def guarded_func(*args: Any, **kwargs: Any) -> Any:
+            _check(tool, kwargs)
+            return func(*args, **kwargs)
+
+        tool.call, tool.func = guarded_call, guarded_func
 
 
 def _convert_mcp_tool(f: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:

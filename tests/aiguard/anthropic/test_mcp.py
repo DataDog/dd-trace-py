@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from contextlib import contextmanager
 import contextvars
 import hashlib
+import inspect
 import json
 import os
 import sys
@@ -854,3 +855,50 @@ async def test_iterable_tools_param(mock_execute_request, anthropic_sdk):
 
     session.call_tool.assert_awaited_once()
     _assert_single_mcp_check(mock_execute_request)
+
+
+@pytest.mark.parametrize("invoke", ["call", "dunder_call", "func"])
+@patch(EXECUTE_REQUEST)
+async def test_every_async_invocation_is_checked_once(mock_execute_request, anthropic_sdk, invoke):
+    """tool.call, tool(...) and tool.func(...) all reach the session, and each is checked exactly once."""
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        run = {
+            "call": lambda: tool.call({"text": "hi"}),
+            "dunder_call": lambda: tool(text="hi"),
+            "func": lambda: tool.func(text="hi"),
+        }[invoke]
+        with pytest.raises(AIGuardAbortError):
+            await run()
+        session.call_tool.assert_not_called()
+
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        await run()
+
+    session.call_tool.assert_awaited_once()
+    payloads = _payloads(mock_execute_request)
+    assert len(payloads) == 2
+    _assert_direct_call(payloads[1], _remote_server())
+
+
+@pytest.mark.parametrize("invoke", ["dunder_call", "func"])
+@patch(EXECUTE_REQUEST)
+async def test_every_sync_invocation_is_checked(mock_execute_request, anthropic_sdk, invoke):
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    async with _remote_session() as session:
+        tool = mcp_tool(_mcp_tool_def(), session)
+        run = {"dunder_call": lambda: tool(text="hi"), "func": lambda: tool.func(text="hi")}[invoke]
+        with pytest.raises(AIGuardAbortError):
+            await anyio.to_thread.run_sync(run)
+
+    session.call_tool.assert_not_called()
+    _assert_direct_call(_payloads(mock_execute_request)[0], _remote_server())
+
+
+async def test_guarded_func_keeps_the_tool_metadata(anthropic_sdk):
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        assert inspect.iscoroutinefunction(tool.func)
+        assert tool.func.__wrapped__.__name__ == "call_mcp"
+        assert tool.to_dict()["name"] == "echo"

@@ -132,6 +132,8 @@ Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic
   unscoped to the trace: thread-pool servers reuse a thread's context. Unmarked calls (the parse-based
   tool runner, streams without stream analysis, direct calls) are evaluated as a lone assistant tool
   call with a local ID, off the event loop for async tools.
+- Guard both `tool.call` and `tool.func`: `tool(...)` is a property returning `tool.func`, while `call()`
+  runs the validated original function captured at init, so each path is checked exactly once.
 - A call check raises the bare `AIGuardAbortError`: the tool runner converts any `Exception`,
   including the Anthropic-compatible wrapper, into a tool result and would keep running.
 - Do not wrap async generator functions with `ddtrace.internal.wrapping.wrap`: its trampoline calls
