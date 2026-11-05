@@ -86,7 +86,9 @@ void
 Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
 {
     if (!_output_filename.empty()) {
-        output_filename = _output_filename;
+        static auto* const filename = new std::string;
+        *filename = _output_filename;
+        output_filename = filename;
     }
 }
 
@@ -117,6 +119,13 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build(std::string_view upload_runtime_id, std::string_view upload_url)
 {
+    // File export only needs the encoded bytes. Creating or dropping an HTTP exporter can access Tokio TLS.
+    if (exports_to_file()) {
+        return std::variant<Uploader, std::string>{ std::in_place_type<Uploader>,
+                                                    *output_filename,
+                                                    ddog_prof_ProfileExporter{ .inner = nullptr } };
+    }
+
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
@@ -185,13 +194,13 @@ Datadog::UploaderBuilder::build(std::string_view upload_runtime_id, std::string_
     }
 
     // We create a std::variant here instead of creating a temporary Uploader object.
-    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter }
+    // i.e. return Datadog::Uploader{ {}, *ddog_exporter }
     // because above code creates a temporary Uploader object, moves it into the
     // variant, and then the destructor of the temporary Uploader object is called
     // when the temporary Uploader object goes out of scope.
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
     return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         output_filename,
+                                                         std::string_view{},
                                                          *ddog_exporter };
 }

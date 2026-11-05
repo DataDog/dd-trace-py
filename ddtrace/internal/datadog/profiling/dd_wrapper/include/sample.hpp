@@ -58,7 +58,8 @@ class SampleManager; // friend
 class Sample
 {
   private:
-    static inline Profile profile_state{}; // TODO pointer to global state?
+    // File export can still serialize the last samples from a host's C exit handler.
+    static Profile& profile_state;
     unsigned int max_nframes;
     SampleType type_mask;
     std::string errmsg;

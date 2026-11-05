@@ -47,9 +47,11 @@ class Uploader
         // as their inner pointers are allocated on the Rust side. And since
         // there could be a request in flight, we first need to cancel it. Then,
         // we drop the exporter and the cancellation token.
-        ddog_CancellationToken_cancel(&cancel);
-        drop_profile_exporter(ddog_exporter);
-        ddog_CancellationToken_drop(&cancel);
+        if (ddog_exporter.inner != nullptr) {
+            ddog_CancellationToken_cancel(&cancel);
+            drop_profile_exporter(ddog_exporter);
+            ddog_CancellationToken_drop(&cancel);
+        }
     }
 
     // Disable copy constructor and copy assignment operator to avoid double-free

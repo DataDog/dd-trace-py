@@ -20,9 +20,12 @@
 
 // State
 std::atomic<bool> is_ddup_initialized{ false }; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
-Datadog::ForkSafeMutex ddup_init_lock;          // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+Datadog::ForkSafeMutex ddup_config_lock;        // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace {
+
+// Guarded by ddup_config_lock. A callback registered before profiler startup can run after exporter settings are gone.
+bool http_export_stopped = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
 // True once a sentinel has observed thread-local teardown on the current thread.
 // The flag has no destructor, so it is safe to read during teardown.
@@ -73,10 +76,10 @@ ddup_postfork_child()
 {
     Datadog::CodeProvenance::get_instance().postfork_child();
     if (is_ddup_initialized.load()) {
-        Datadog::Uploader::postfork_child();
         Datadog::SampleManager::postfork_child();
     }
-    ddup_init_lock.postfork_child();
+    ddup_config_lock.postfork_child();
+    Datadog::Uploader::postfork_child();
 }
 
 void
@@ -85,20 +88,18 @@ ddup_postfork_parent()
     Datadog::CodeProvenance::get_instance().postfork_parent();
     if (is_ddup_initialized.load()) {
         Datadog::Sample::profile_release();
-        Datadog::Uploader::postfork_parent();
-    } else {
-        ddup_init_lock.unlock();
     }
+    ddup_config_lock.unlock();
+    Datadog::Uploader::postfork_parent();
 }
 
 void
 ddup_prefork()
 {
-    ddup_init_lock.lock();
+    // Match the upload path: wait for the exporter before locking its settings or the profile.
+    Datadog::Uploader::prefork();
+    ddup_config_lock.lock();
     if (is_ddup_initialized.load()) {
-        // Initialization is complete. Do not block its callers while waiting for an upload.
-        ddup_init_lock.unlock();
-        Datadog::Uploader::prefork();
         // The child resets the copied profile. Finish any native sample write before taking that copy.
         (void)Datadog::Sample::profile_borrow();
     }
@@ -118,54 +119,63 @@ namespace {
 void
 ddup_config_env(std::string_view dd_env) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_env(dd_env);
 }
 
 void
 ddup_config_service(std::string_view service) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_service(service);
 }
 
 void
 ddup_config_version(std::string_view version) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_version(version);
 }
 
 void
 ddup_config_runtime(std::string_view runtime) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_runtime(runtime);
 }
 
 void
 ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_runtime_id(runtime_id);
 }
 
 void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
 }
 
 void
 ddup_config_profiler_version(std::string_view profiler_version) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_profiler_version(profiler_version);
 }
 
 void
 ddup_config_url(std::string_view url) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_url(url);
 }
 
 void
 ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_tag(key, val);
 }
 
@@ -190,6 +200,7 @@ ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
 void
 ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppress unusedFunction
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_output_filename(output_filename);
 }
 
@@ -202,6 +213,7 @@ ddup_config_sample_pool_capacity(uint64_t capacity) // cppcheck-suppress unusedF
 void
 ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 {
+    const std::lock_guard lock(ddup_config_lock);
     Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
 }
 
@@ -218,9 +230,13 @@ ddup_start() // cppcheck-suppress unusedFunction
         return;
     }
     // A fork must not copy partially initialized profiler state.
-    const std::lock_guard lock(ddup_init_lock);
+    const std::lock_guard lock(ddup_config_lock);
     if (!is_ddup_initialized.load()) {
         Datadog::SampleManager::init();
+        std::atexit([] {
+            const std::lock_guard guard(ddup_config_lock);
+            http_export_stopped = true;
+        });
         watch_thread_locals();
         is_ddup_initialized.store(true);
     }
@@ -415,20 +431,22 @@ ddup_upload_with_metadata(std::string_view runtime_id,
         return false;
     }
 
-    // Do not upload after a sentinel observes thread-local teardown on this thread. libdatadog keeps the state of its
-    // HTTP client in thread-local data, and ddog_prof_Exporter_send() aborts the process when that state is destroyed.
-    // This occurs when an embedder finalizes Python in an atexit handler, as uWSGI does: the profiler stops there,
-    // and tries to upload the last profile.
-    if (thread_locals_destroyed) {
-        return false;
-    }
-    watch_thread_locals();
-
     // Hold the upload lock from before the Uploader is built until after it is destroyed. The prefork handler takes
     // the same lock, so fork() cannot occur while this thread builds or uses the libdatadog exporter. A child process
     // would get a copy of the exporter that it cannot free, and a copy of the libdatadog state that this thread was
     // initializing.
     const UploadLockGuard upload_lock_guard;
+
+    std::unique_lock settings_lock(ddup_config_lock);
+    // uWSGI can finalize Python from a C exit handler. HTTP uses Tokio TLS and exporter settings
+    // that may already be destroyed. File export only needs the process-lifetime profile and filename.
+    if (thread_locals_destroyed || http_export_stopped) {
+        if (!Datadog::UploaderBuilder::exports_to_file()) {
+            return false;
+        }
+    } else {
+        watch_thread_locals();
+    }
 
     // Apply this caller's metadata only after earlier uploads have finished.
     if (!span_ids_to_endpoints.empty()) {
@@ -438,6 +456,7 @@ ddup_upload_with_metadata(std::string_view runtime_id,
         ddup_profile_add_endpoint_counts(std::move(endpoint_counts));
     }
     auto uploader_or_err = Datadog::UploaderBuilder::build(runtime_id, url);
+    settings_lock.unlock();
 
     if (std::holds_alternative<std::string>(uploader_or_err)) {
         static bool already_warned = false;

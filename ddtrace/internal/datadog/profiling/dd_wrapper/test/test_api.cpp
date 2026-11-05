@@ -169,6 +169,37 @@ struct UploadOnThreadExit
 };
 
 void
+configure_during_exporter_build()
+{
+    ddup_config_url("http://[");
+    ddup_start();
+    std::atomic<bool> configured{ false };
+    std::atomic<bool> done{ false };
+    std::thread writer([&] {
+        const std::string service(128, 's');
+        do {
+            ddup_config_service(service);
+            ddup_config_user_tag("key", "value");
+            configured.store(true);
+        } while (!done.load());
+    });
+    while (!configured.load()) {
+        std::this_thread::yield();
+    }
+    for (int i = 0; i < 32; ++i) {
+        ddup_upload();
+    }
+    done.store(true);
+    writer.join();
+    std::exit(0);
+}
+
+TEST(UploadDeathTest, ConfigureDuringExporterBuild)
+{
+    EXPECT_EXIT(configure_during_exporter_build(), ::testing::ExitedWithCode(0), "");
+}
+
+void
 upload_from_thread_local_destructor()
 {
     configure("my_test_service", "my_test_env", "0.0.1", "http://127.0.0.1:1", "cpython", "3.10.6", "3.100", 256);
@@ -189,27 +220,13 @@ TEST(UploadDeathTest, UploadFromThreadLocalDestructor)
 }
 
 void
-upload_after_file_export()
-{
-    configure("my_test_service", "my_test_env", "0.0.1", "http://127.0.0.1:1", "cpython", "3.10.6", "3.100", 256);
-    ddup_config_output_filename("/dev/null/profile");
-    thread_local UploadOnThreadExit upload_on_exit;
-    (void)upload_on_exit;
-    ddup_upload();
-    std::exit(0);
-}
-
-TEST(UploadDeathTest, UploadFromThreadLocalDestructorAfterFileExport)
-{
-    EXPECT_EXIT(upload_after_file_export(), ::testing::ExitedWithCode(0), "thread-local upload skipped");
-}
-
-void
 upload_from_unwatched_exit_thread()
 {
     std::atexit([] {
-        ddup_upload();
-        std::cerr << "atexit upload returned" << std::endl;
+        if (ddup_upload()) {
+            std::_Exit(1);
+        }
+        std::cerr << "atexit upload skipped" << std::endl;
     });
     configure("my_test_service", "my_test_env", "0.0.1", "http://127.0.0.1:1", "cpython", "3.10.6", "3.100", 256);
     code_provenance_set_json_str(std::string(128 * 1024, 'x'));
@@ -219,7 +236,7 @@ upload_from_unwatched_exit_thread()
 
 TEST(UploadDeathTest, UploadFromUnwatchedExitThread)
 {
-    EXPECT_EXIT(upload_from_unwatched_exit_thread(), ::testing::ExitedWithCode(0), "atexit upload returned");
+    EXPECT_EXIT(upload_from_unwatched_exit_thread(), ::testing::ExitedWithCode(0), "atexit upload skipped");
 }
 
 void
