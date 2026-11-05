@@ -1,6 +1,7 @@
 #pragma once
 
-#include <mutex>
+#include "fork_safe_mutex.hpp"
+
 #include <string>
 #include <string_view>
 
@@ -29,11 +30,11 @@ class CodeProvenance
     void postfork_child();
 
   private:
-    std::mutex json_mutex;
+    ForkSafeMutex json_mutex;
     std::string json_str;
 
     // Private Constructor/Destructor to prevent instantiation/deletion from outside
-    CodeProvenance();
+    CodeProvenance() = default;
     ~CodeProvenance() = default;
 };
 }

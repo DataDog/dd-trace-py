@@ -81,7 +81,7 @@ TEST(CodeProvenanceDeathTest, ForkBeforeProfilerStart)
 }
 
 void
-fork_during_profiler_start()
+fork_during_profiler_start(void (*lock)(), void (*unlock)())
 {
     alarm(20);
     if (pthread_atfork(pause_fork_prepare, nullptr, nullptr) != 0) {
@@ -105,21 +105,30 @@ fork_during_profiler_start()
     }
 
     ddup_start();
-    Datadog::Uploader::lock();
+    lock();
     fork_prepare_continue.store(true);
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
     while (!fork_finished.load() && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    const bool crossed_upload = fork_finished.load();
-    Datadog::Uploader::unlock();
+    const bool crossed_lock = fork_finished.load();
+    unlock();
     forker.join();
-    std::_Exit(!crossed_upload && child_succeeded.load() ? 0 : 1);
+    std::_Exit(!crossed_lock && child_succeeded.load() ? 0 : 1);
 }
 
 TEST(UploadDeathTest, ForkStartedBeforeProfilerInitialization)
 {
-    EXPECT_EXIT(fork_during_profiler_start(), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(
+      fork_during_profiler_start(Datadog::Uploader::lock, Datadog::Uploader::unlock), ::testing::ExitedWithCode(0), "");
+}
+
+TEST(UploadDeathTest, ForkWaitsForProfileWriter)
+{
+    EXPECT_EXIT(
+      fork_during_profiler_start([] { (void)Datadog::Sample::profile_borrow(); }, Datadog::Sample::profile_release),
+      ::testing::ExitedWithCode(0),
+      "");
 }
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the

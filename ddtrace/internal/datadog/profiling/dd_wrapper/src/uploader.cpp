@@ -13,12 +13,9 @@
 
 using namespace Datadog;
 
-Datadog::Uploader::Uploader(std::string_view _output_filename,
-                            ddog_prof_ProfileExporter _ddog_exporter,
-                            ddog_prof_EncodedProfile _encoded_profile)
+Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter _ddog_exporter)
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
-  , encoded_profile{ _encoded_profile }
 {
     // Increment the upload sequence number every time we build an uploader.
     // Upoloaders are use-once-and-destroy.
@@ -26,7 +23,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
 }
 
 bool
-Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded)
+Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
 {
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
@@ -38,7 +35,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded)
         std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
-    auto bytes_res = ddog_prof_EncodedProfile_bytes(&encoded);
+    auto bytes_res = ddog_prof_EncodedProfile_bytes(encoded);
     if (bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_ERR_BYTE_SLICE) {
         std::cerr << "Error getting bytes from encoded profile: "
                   << err_to_msg(&bytes_res.err, "Error getting bytes from encoded profile") << std::endl;
@@ -54,12 +51,10 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded)
 }
 
 bool
-Datadog::Uploader::upload()
+Datadog::Uploader::upload(ddog_prof_EncodedProfile& encoded)
 {
-    // The profile was serialized when this uploader was built (see UploaderBuilder::build), so this
-    // function does not use the profile and its lock.
     if (!output_filename.empty()) {
-        return export_to_file(encoded_profile);
+        return export_to_file(&encoded);
     }
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
@@ -76,7 +71,7 @@ Datadog::Uploader::upload()
 
     auto build_res = ddog_prof_Exporter_Request_build(
       &ddog_exporter,
-      &encoded_profile,
+      &encoded,
       // files_to_compress_and_export
       {
         .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
@@ -87,10 +82,6 @@ Datadog::Uploader::upload()
       nullptr,                               // optional_internal_metadata_json
       nullptr                                // optional_info_json
     );
-    // If the build failed before consuming the profile, free it before sending the request.
-    if (encoded_profile.inner != nullptr) {
-        ddog_prof_EncodedProfile_drop(&encoded_profile);
-    }
 
     if (build_res.tag ==
         DDOG_PROF_REQUEST_RESULT_ERR_HANDLE_REQUEST) { // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -103,7 +94,7 @@ Datadog::Uploader::upload()
 
     bool ret = true;
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
-    // we ensure exclusivity here: the caller holds the upload lock (see ddup_upload).
+    // the caller holds the upload lock.
     {
         // If we're here, we're about to create a new upload, so cancel any inflight ones
         cancel_inflight();
@@ -166,6 +157,5 @@ Datadog::Uploader::postfork_parent()
 void
 Datadog::Uploader::postfork_child()
 {
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&upload_lock) std::mutex();
+    upload_lock.postfork_child();
 }

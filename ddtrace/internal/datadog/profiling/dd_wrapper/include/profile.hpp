@@ -1,6 +1,7 @@
 #pragma once
 
 #include "constants.hpp"
+#include "fork_safe_mutex.hpp"
 #include "types.hpp"
 
 #include <atomic>
@@ -25,7 +26,7 @@ class Profile
     // - string table
     // - ddog_profile
     std::atomic<bool> first_time{ true };
-    std::mutex profile_mtx{};
+    ForkSafeMutex profile_mtx{};
 
     // Configuration
     SampleType type_mask{ 0 };

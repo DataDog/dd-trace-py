@@ -40,7 +40,7 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
 bool
 Datadog::Profile::reset_profile()
 {
-    const std::lock_guard<std::mutex> lock(profile_mtx);
+    const std::lock_guard lock(profile_mtx);
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
     // Clear the profile before using it
@@ -154,7 +154,7 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     }
 
     // Threads need to serialize at this point
-    const std::lock_guard<std::mutex> lock(profile_mtx);
+    const std::lock_guard lock(profile_mtx);
 
     // nframes
     max_nframes = _max_nframes;
@@ -199,7 +199,7 @@ bool
 Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    const std::lock_guard<std::mutex> lock(profile_mtx);
+    const std::lock_guard lock(profile_mtx);
     auto res = ddog_prof_Profile_add(&cur_profile, sample, endtime_ns);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -217,7 +217,7 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 void
 Datadog::Profile::postfork_child()
 {
-    new (&profile_mtx) std::mutex();
+    profile_mtx.postfork_child();
     // Reset the profile to clear any samples collected in the parent process
     reset_profile();
 }

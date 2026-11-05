@@ -1,7 +1,6 @@
 #include "uploader_builder.hpp"
 
 #include "libdatadog_helpers.hpp"
-#include "sample.hpp"
 
 #include <mutex>
 #include <numeric>
@@ -116,7 +115,7 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 }
 
 std::variant<Datadog::Uploader, std::string>
-Datadog::UploaderBuilder::build()
+Datadog::UploaderBuilder::build(std::string_view upload_runtime_id, std::string_view upload_url)
 {
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -131,7 +130,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::version, version },
         { ExportTagKey::language, language },
         { ExportTagKey::runtime, runtime },
-        { ExportTagKey::runtime_id, runtime_id },
+        { ExportTagKey::runtime_id, upload_runtime_id.empty() ? runtime_id : upload_runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
     };
@@ -159,11 +158,12 @@ Datadog::UploaderBuilder::build()
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                                                                  to_slice(profiler_version),
-                                                                  to_slice(family),
-                                                                  &tags,
-                                                                  ddog_prof_Endpoint_agent(to_slice(url)));
+    ddog_prof_ProfileExporter_Result res =
+      ddog_prof_Exporter_new(to_slice("dd-trace-py"),
+                             to_slice(profiler_version),
+                             to_slice(family),
+                             &tags,
+                             ddog_prof_Endpoint_agent(to_slice(upload_url.empty() ? url : upload_url)));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
@@ -184,28 +184,14 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    // Serialize the profile before the Uploader is created. Serialization also resets the profile.
-    // Hold the profile lock only for this operation, and not while the Uploader sends the request: threads
-    // that add samples wait for this lock, and some of them hold the GIL while they wait.
-    ddog_prof_Profile_SerializeResult encoded =
-      ddog_prof_Profile_serialize(&Datadog::Sample::profile_borrow(), nullptr, nullptr);
-    Datadog::Sample::profile_release();
-    if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto& err = encoded.err;                                // NOLINT (cppcoreguidelines-pro-type-union-access)
-        std::string errmsg = Datadog::err_to_msg(&err, "Error serializing pprof");
-        ddog_Error_drop(&err); // errmsg contains a copy of err.message
-        Datadog::drop_profile_exporter(*ddog_exporter);
-        return errmsg;
-    }
-
     // We create a std::variant here instead of creating a temporary Uploader object.
-    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter, encoded.ok }
+    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter }
     // because above code creates a temporary Uploader object, moves it into the
     // variant, and then the destructor of the temporary Uploader object is called
     // when the temporary Uploader object goes out of scope.
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Datadog::Uploader, std::string>{
-        std::in_place_type<Datadog::Uploader>, output_filename, *ddog_exporter, encoded.ok
-    }; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
+                                                         output_filename,
+                                                         *ddog_exporter };
 }

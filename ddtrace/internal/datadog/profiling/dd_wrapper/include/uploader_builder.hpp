@@ -43,7 +43,7 @@ class UploaderBuilder
     static void set_output_filename(std::string_view _output_filename);
     static void set_max_timeout_ms(uint64_t _max_timeout_ms);
 
-    static std::variant<Uploader, std::string> build();
+    static std::variant<Uploader, std::string> build(std::string_view upload_runtime_id, std::string_view upload_url);
 
     static void postfork_child();
 };

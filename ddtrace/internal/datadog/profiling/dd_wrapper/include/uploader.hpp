@@ -1,5 +1,6 @@
 #pragma once
 
+#include "fork_safe_mutex.hpp"
 #include "sample.hpp"
 #include "types.hpp"
 
@@ -20,19 +21,18 @@ drop_profile_exporter(ddog_prof_ProfileExporter& exporter);
 class Uploader
 {
   private:
-    static inline std::mutex upload_lock{};
+    static inline ForkSafeMutex upload_lock{};
     std::string errmsg;
     static inline ddog_CancellationToken cancel{ .inner = nullptr };
     static inline std::atomic<uint64_t> upload_seq{ 0 };
     std::string output_filename;
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
-    ddog_prof_EncodedProfile encoded_profile{ .inner = nullptr };
 
-    bool export_to_file(ddog_prof_EncodedProfile& encoded);
+    bool export_to_file(ddog_prof_EncodedProfile* encoded);
 
   public:
-    // The caller must hold the upload lock (see lock() and unlock())
-    bool upload();
+    // The caller holds the upload lock for the exporter's lifetime.
+    bool upload(ddog_prof_EncodedProfile& encoded);
     static void cancel_inflight();
     static void lock();
     static void unlock();
@@ -40,7 +40,7 @@ class Uploader
     static void postfork_parent();
     static void postfork_child();
 
-    Uploader(std::string_view _url, ddog_prof_ProfileExporter ddog_exporter, ddog_prof_EncodedProfile encoded);
+    Uploader(std::string_view _url, ddog_prof_ProfileExporter ddog_exporter);
     ~Uploader()
     {
         // We need to call _drop() on the exporter and the cancellation token,
@@ -50,11 +50,6 @@ class Uploader
         ddog_CancellationToken_cancel(&cancel);
         drop_profile_exporter(ddog_exporter);
         ddog_CancellationToken_drop(&cancel);
-        // The request takes the encoded profile when it is built, so this
-        // frees the encoded profile only if no request was built from it.
-        if (encoded_profile.inner != nullptr) {
-            ddog_prof_EncodedProfile_drop(&encoded_profile);
-        }
     }
 
     // Disable copy constructor and copy assignment operator to avoid double-free
@@ -78,8 +73,6 @@ class Uploader
     {
         ddog_exporter = other.ddog_exporter;
         other.ddog_exporter = { .inner = nullptr };
-        encoded_profile = other.encoded_profile;
-        other.encoded_profile = { .inner = nullptr };
         output_filename = std::move(other.output_filename);
         errmsg = std::move(other.errmsg);
     }
@@ -88,13 +81,8 @@ class Uploader
     {
         if (this != &other) {
             drop_profile_exporter(ddog_exporter);
-            if (encoded_profile.inner != nullptr) {
-                ddog_prof_EncodedProfile_drop(&encoded_profile);
-            }
             ddog_exporter = other.ddog_exporter;
             other.ddog_exporter = { .inner = nullptr };
-            encoded_profile = other.encoded_profile;
-            other.encoded_profile = { .inner = nullptr };
             output_filename = std::move(other.output_filename);
             errmsg = std::move(other.errmsg);
         }

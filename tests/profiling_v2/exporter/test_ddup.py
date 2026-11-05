@@ -60,16 +60,24 @@ def test_upload_does_not_block_sample_flush():
     Before the fix, flush_sample() in another thread waited for that lock, with the GIL held, until the
     agent answered or the upload timed out.
     """
+    from email.parser import BytesParser
+    from email.policy import default
     from http.server import BaseHTTPRequestHandler
     from http.server import HTTPServer
+    import io
+    import json
     import threading
     import time
 
+    import zstandard
+
     from ddtrace.internal.datadog.profiling import ddup
+    from tests.profiling.collector.pprof_utils import get_sample_type_index
+    from tests.profiling.collector.pprof_utils import pprof_pb2
 
     request_received = threading.Event()
     send_response = threading.Event()
-    request_bodies = []
+    requests = []
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -85,7 +93,15 @@ def test_upload_does_not_block_sample_flush():
                     self.rfile.read(2)
             else:
                 body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-            request_bodies.append(body)
+            header = ("Content-Type: %s\r\n\r\n" % self.headers["Content-Type"]).encode()
+            message = BytesParser(policy=default).parsebytes(header + body)
+            parts = {part.get_filename(): part.get_payload(decode=True) for part in message.iter_parts()}
+            counts = json.loads(parts["event.json"])["endpoint_counts"]
+            profile = pprof_pb2.Profile()
+            with zstandard.ZstdDecompressor().stream_reader(io.BytesIO(parts["profile.pprof"])) as reader:
+                profile.ParseFromString(reader.read())
+            wall = get_sample_type_index(profile, "wall-time")
+            requests.append((self.headers["Host"], counts, [sample.value[wall] for sample in profile.sample]))
             request_received.set()
             # Keep the upload in flight until the test has added a sample
             send_response.wait(timeout=30)
@@ -95,19 +111,24 @@ def test_upload_does_not_block_sample_flush():
         def log_message(self, _format, *args):
             pass
 
-    class EndpointProcessor:
-        def reset(self):
-            return {}, {}
-
     class Tracer:
-        _endpoint_call_counter_span_processor = EndpointProcessor()
+        def __init__(self, host, port, label):
+            self.host = "%s:%s" % (host, port)
+            self.label = label
+            self.prepared = threading.Event()
+            self._endpoint_call_counter_span_processor = self
 
-        def __init__(self, agent_trace_url):
-            self.agent_trace_url = agent_trace_url
+        @property
+        def agent_trace_url(self):
+            self.prepared.set()
+            return "http://" + self.host
 
-    def add_sample():
+        def reset(self):
+            return {self.label: 1}, {}
+
+    def add_sample(value):
         sample = ddup.SampleHandle()
-        sample.push_walltime(1, 1)
+        sample.push_walltime(value, 1)
         sample.flush_sample()
 
     upload_timeout = 3.0
@@ -115,13 +136,14 @@ def test_upload_does_not_block_sample_flush():
     with HTTPServer(("127.0.0.1", 0), Handler) as server:
         server_thread = threading.Thread(target=server.serve_forever, daemon=True)
         server_thread.start()
-        tracer = Tracer("http://127.0.0.1:%d" % server.server_address[1])
+        port = server.server_port
+        tracer = Tracer("127.0.0.1", port, "first")
 
         ddup.config(
             env="my_env", service="my_service", version="my_version", tags={}, timeout=int(upload_timeout * 1000)
         )
         ddup.start()
-        add_sample()
+        add_sample(11)
 
         upload_thread = threading.Thread(target=ddup.upload, kwargs=dict(tracer=tracer), daemon=True)
         upload_thread.start()
@@ -129,18 +151,33 @@ def test_upload_does_not_block_sample_flush():
 
         # The upload now waits for the response of the agent
         start = time.monotonic()
-        add_sample()
+        add_sample(22)
         elapsed = time.monotonic() - start
         upload_in_flight = upload_thread.is_alive()
 
+        # Queue two more callers behind the first upload. Each must keep its Agent and endpoint counts.
+        pending = []
+        for caller in (Tracer("localhost", port, "second"), Tracer("127.0.0.1", port, "third")):
+            thread = threading.Thread(target=ddup.upload, kwargs=dict(tracer=caller), daemon=True)
+            thread.start()
+            pending.append(thread)
+            assert caller.prepared.wait(timeout=10)
         send_response.set()
-        upload_thread.join(timeout=10)
+        for thread in [upload_thread] + pending:
+            thread.join(timeout=10)
+            assert not thread.is_alive()
         server.shutdown()
         server_thread.join()
 
     assert upload_in_flight, "the upload ended before the sample was added, so the test proved nothing"
     assert elapsed < upload_timeout / 2, "flush_sample() waited %.3f s for the upload" % elapsed
-    assert request_bodies[0], "the agent did not read the profile request"
+    assert requests[0] == (tracer.host, {"first": 1}, [11])
+    assert len(requests) == 3
+    assert {host: counts for host, counts, _ in requests[1:]} == {
+        "localhost:%d" % port: {"second": 1},
+        tracer.host: {"third": 1},
+    }
+    assert sorted(value for _, _, samples in requests[1:] for value in samples) == [22]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
