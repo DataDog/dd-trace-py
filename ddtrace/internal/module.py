@@ -35,7 +35,6 @@ log = get_logger(__name__)
 
 
 _run_code = None
-_run_module_transformers: list[TransformerType] = []
 _post_run_module_hooks: list[ModuleHookType] = []
 
 
@@ -44,19 +43,10 @@ def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> dict[str, t.Any]:
     # the original runpy._run_code.
     assert _run_code is not None
 
-    code = t.cast(CodeType, get_argument_value(args, kwargs, 0, "code"))
     mod_name = t.cast(str, get_argument_value(args, kwargs, 3, "mod_name"))
 
-    module = sys.modules[mod_name]
-
-    for transformer in _run_module_transformers:
-        code = transformer(code, module)
-
-    kwargs.pop("code", None)
-    new_args = (code, *args[1:])
-
     try:
-        return _run_code(*new_args, **kwargs)
+        return _run_code(*args, **kwargs)
     finally:
         module = sys.modules[mod_name]
         for hook in _post_run_module_hooks:
@@ -69,19 +59,6 @@ def _patch_run_code() -> None:
     if _run_code is None:
         _run_code = runpy._run_code  # type: ignore[attr-defined]
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
-
-
-def register_run_module_transformer(transformer: TransformerType) -> None:
-    """Register a run module transformer."""
-    _run_module_transformers.append(transformer)
-
-
-def unregister_run_module_transformer(transformer: TransformerType) -> None:
-    """Unregister a run module transformer.
-
-    If the transformer was not registered, a ``ValueError`` exception is raised.
-    """
-    _run_module_transformers.remove(transformer)
 
 
 def register_post_run_module_hook(hook: ModuleHookType) -> None:
