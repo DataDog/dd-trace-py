@@ -324,7 +324,11 @@ impl SharedRuntimePy {
         if self.inner.pid.load(Ordering::Acquire) == current_pid {
             return Ok(());
         }
-        let mut runtime = self.inner.runtime.write().unwrap_or_else(|e| e.into_inner());
+        let mut runtime = self
+            .inner
+            .runtime
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         if self.inner.pid.load(Ordering::Acquire) == current_pid {
             return Ok(());
         }
