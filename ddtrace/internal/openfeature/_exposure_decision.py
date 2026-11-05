@@ -14,24 +14,6 @@ ExposureCacheKey = tuple[str, str]
 ExposureCacheValue = tuple[typing.Optional[str], typing.Optional[str], typing.Optional[int]]
 
 
-class FlagMetadata(dict[str, typing.Any]):
-    """Flag metadata that carries the pending exposure decision and the evaluated context.
-
-    The OpenFeature SDK hands the provider's metadata object to every hook unchanged, so
-    both travel with it without becoming metadata entries. The SDK does not write the
-    context returned by before hooks back into the hook context, so hooks need this one.
-    The slots are set only when used, so read them with getattr(..., None).
-    """
-
-    __slots__ = ("_dd_exposure_decision", "_dd_evaluation_context")
-    _dd_exposure_decision: "typing.Optional[ExposureDecision]"
-    _dd_evaluation_context: typing.Optional[EvaluationContext]
-
-    def __reduce__(self) -> tuple[typing.Any, ...]:
-        # Copies and pickles are plain dicts: the decision holds the cache and its lock.
-        return (dict, (dict(self),))
-
-
 class ExposureDecision:
     """Check and record an exposure once, after the evaluation has succeeded."""
 
@@ -65,6 +47,24 @@ class ExposureDecision:
                 self._cache[self._key] = self._value
             self._completed = True
         metadata[METADATA_EXPOSURE_CACHE_HIT] = hit
+
+
+class FlagMetadata(dict[str, typing.Any]):
+    """Flag metadata that carries the pending exposure decision and the evaluated context.
+
+    The OpenFeature SDK hands the provider's metadata object to every hook unchanged, so
+    both travel with it without becoming metadata entries. The SDK does not write the
+    context returned by before hooks back into the hook context, so hooks need this one.
+    The slots are set only when used, so read them with getattr(..., None).
+    """
+
+    __slots__ = ("_dd_exposure_decision", "_dd_evaluation_context")
+    _dd_exposure_decision: typing.Optional[ExposureDecision]
+    _dd_evaluation_context: typing.Optional[EvaluationContext]
+
+    def __reduce__(self) -> tuple[typing.Any, ...]:
+        # Copies and pickles are plain dicts: the decision holds the cache and its lock.
+        return (dict, (dict(self),))
 
 
 def complete_exposure_decision(details: FlagEvaluationDetails[typing.Any]) -> typing.Optional[ExposureDecision]:
