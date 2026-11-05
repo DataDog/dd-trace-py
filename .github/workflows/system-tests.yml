@@ -115,7 +115,13 @@ jobs:
 
       - name: Run INTEGRATIONS
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh INTEGRATIONS
+        run: |
+          # Agent 7.85 reports obfuscated SQL in the span resource. Backport system-tests#7998 to the 3.19 test pin.
+          if [[ $(git rev-parse HEAD) == 9daccd578f30ad15d66011b3550f4f35b2e9be52 ]]; then
+            git fetch --no-tags --filter=blob:none --depth=1 origin 1c446923053f1fb87a1d4b8204abcc714e56fe52
+            git restore --source=FETCH_HEAD -- tests/integrations/test_db_integrations_sql.py
+          fi
+          ./run.sh INTEGRATIONS
 
       - name: Run CROSSED_TRACING_LIBRARIES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
