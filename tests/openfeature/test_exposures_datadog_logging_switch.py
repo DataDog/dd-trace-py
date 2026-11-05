@@ -87,6 +87,31 @@ def test_deprecated_switch_in_every_source(monkeypatch, fleet, env, local, expec
     assert config.value_source(NEW) == source
 
 
+@pytest.mark.parametrize(
+    "source, env, expected, value_source",
+    [
+        ({OLD: "false"}, {}, False, "code"),
+        ({NEW: "true", OLD: "false"}, {}, True, "code"),
+        ({NEW: "false"}, {OLD: "true"}, False, "code"),
+        ({OLD: "false"}, {OLD: "true"}, True, "env_var"),
+    ],
+)
+def test_deprecated_switch_in_programmatic_source(monkeypatch, source, env, expected, value_source):
+    from ddtrace.internal.settings import _core
+
+    monkeypatch.delenv(NEW, raising=False)
+    monkeypatch.delenv(OLD, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(_core, "FLEET_CONFIG", {})
+    monkeypatch.setattr(_core, "LOCAL_CONFIG", {})
+
+    config = OpenFeatureConfig(source=source)
+
+    assert config.exposures_datadog_logging_enabled is expected
+    assert config.value_source(NEW) == value_source
+
+
 @pytest.mark.parametrize("name", [NEW, OLD])
 def test_fleet_config_id_is_reported_for_either_name(monkeypatch, name):
     from ddtrace.internal.settings import _core
