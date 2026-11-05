@@ -31,7 +31,7 @@ def uses_request_events(ctx: core.ExecutionContext[Event], span: SpanData) -> bo
     # Keep legacy ownership unless both lifecycle notifications can be handled.
     if not (
         getattr(integration, "integration_name", None) in integrations
-        and ctx.get_item("scope", {}).get("type") == "http"
+        and (ctx.identifier != "asgi.request" or ctx.get_item("scope", {}).get("type") == "http")
         and not ctx.get_item("is_subapp", False)
         and core.has_listeners(f"{SpanLifecycleEvents.SPAN_STARTED.value}.{ctx.identifier}")
         and core.has_listeners(f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{ctx.identifier}")
