@@ -13,10 +13,12 @@ from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
+from ddtrace.aiguard._types import MCP  # noqa:F401
 from ddtrace.aiguard._types import ContentPart  # noqa:F401
 from ddtrace.aiguard._types import Evaluation
 from ddtrace.aiguard._types import Function  # noqa:F401
 from ddtrace.aiguard._types import ImageURL  # noqa:F401
+from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import Message
 from ddtrace.aiguard._types import ToolCall  # noqa:F401
 from ddtrace.aiguard.middleware import _MIDDLEWARES
@@ -54,7 +56,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.version import __version__
 
 
-__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation"]
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL", "Evaluation", "MCP", "MCPServer"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -401,6 +403,7 @@ class AIGuardClient:
         source: str = AI_GUARD.SOURCE_SDK,
         integration: str = AI_GUARD.INTEGRATION_NONE,
         tags: Optional[dict[str, Any]] = None,
+        mcp_servers: Optional[list[MCPServer]] = None,
     ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
@@ -416,18 +419,25 @@ class AIGuardClient:
                 telemetry tag. Only meaningful when source is auto; otherwise reported as none.
             tags: Optional custom tags set on the AI Guard span, e.g. to filter evaluations in
                 queries. Keys under the reserved ai_guard. prefix are ignored.
+            mcp_servers: MCP servers referenced by the mcp.server_id of the tool calls in
+                messages. Sent along with the messages; omitted when empty.
 
         Returns:
             EvaluationResult containing action and reason
 
         Raises:
             AIGuardAbortError: If execution should be aborted and block is set to true
-            AIGuardClientError: If evaluation request fails
+            AIGuardClientError: If evaluation request fails or no global tracer has been initialized
         """
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        from ddtrace.trace import tracer
+        # The tracer comes from the core registry rather than ddtrace.trace so AI Guard doesn't depend on the
+        # tracing product. The verdict is reported on the ai_guard span, so evaluating without a tracer would
+        # silently drop it.
+        tracer = core.root.get_item("tracer")
+        if tracer is None:
+            raise AIGuardClientError("AI Guard requires the global tracer, but no tracer has been initialized")
 
         # Classifies the error metric when a raise below escapes. Transport and response paths
         # each set their own type, so anything still holding the default failed inside our own
@@ -470,7 +480,10 @@ class AIGuardClient:
                     if not key.startswith(_RESERVED_TAG_PREFIX):
                         span.set_tag(key, value)
             try:
-                payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
+                request_attributes: dict[str, Any] = {"messages": messages, "meta": self._meta}
+                if mcp_servers:
+                    request_attributes["mcp_servers"] = mcp_servers
+                payload = {"data": {"attributes": request_attributes}}
                 span.set_tag(AI_GUARD.TARGET_TAG, target.value)
                 if target is EvaluationTarget.TOOL:
                     # The tool name is best effort: a tool result whose call is not in the

@@ -19,6 +19,7 @@ from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import SERVER_TOOL_PROMPT
 from tests.contrib.openai.utils import SERVER_TOOL_VECTOR_STORE
@@ -483,6 +484,7 @@ class TestLLMObsOpenaiV1:
             metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+        assert "decision_provider" not in get_llmobs_tags(spans[0])
 
     def test_chat_completion_multimodal_content(self, openai, openai_llmobs, test_spans):
         """Multimodal content renders as readable text, and input audio is captured as audio_parts."""
@@ -2507,7 +2509,12 @@ MUL: "*"
                 "cache_write_input_tokens": 0,
                 "reasoning_output_tokens": 0,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
         )
         assert "decisions" not in get_llmobs_metadata(spans[0])
 
@@ -2545,7 +2552,12 @@ MUL: "*"
             model_provider="openai",
             input_messages=[{"content": DECISION_INPUT, "role": "user"}],
             metadata={"questions": DECISION_QUESTIONS},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
         )
 
     @pytest.mark.skipif(
@@ -2569,7 +2581,12 @@ MUL: "*"
             output_messages=[{"content": ""}],
             metadata={"questions": DECISION_QUESTIONS},
             error=mock.ANY,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.openai",
+                "integration": "openai",
+                "decision_provider": "openai",
+            },
         )
         assert spans[0].error == 1
 
@@ -2730,18 +2747,20 @@ MUL: "*"
     def test_responses_prompt_caching_cache_write(self, openai, openai_llmobs, test_spans):
         """Test that cache write token metrics are captured for the responses API.
 
-        Newer OpenAI models (GPT-5.6+) report ``cache_write_tokens`` on
-        ``usage.input_tokens_details`` for the responses API.
+        Newer OpenAI models (GPT-5.6+) report cache_write_tokens on usage.input_tokens_details for the
+        responses API, split by cache TTL in cache_write_tokens_details. The openai SDK does not type
+        prompt_cache_options yet, so it is sent through extra_body.
         """
         client = openai.OpenAI()
         model = "gpt-5.6-sol"
         base_instructions = "You are an expert software engineer " * 200
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_5_6_cache_write_ttl.yaml"):
             resp = client.responses.create(
                 model=model,
                 instructions=base_instructions,
                 input="What are the best practices for API design?",
                 max_output_tokens=100,
+                extra_body={"prompt_cache_options": {"ttl": "12h"}},
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
@@ -2758,7 +2777,9 @@ MUL: "*"
                 "total_tokens": 1320,
                 "cache_read_input_tokens": 0,
                 "cache_write_input_tokens": 1217,
-                "reasoning_output_tokens": 54,
+                "ephemeral_30m_input_tokens": 0,
+                "ephemeral_12h_input_tokens": 1217,
+                "reasoning_output_tokens": 62,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )

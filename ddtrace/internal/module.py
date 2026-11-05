@@ -5,11 +5,14 @@ from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from importlib.util import spec_from_loader
 from pathlib import Path
+import runpy
 import sys
 from types import CodeType
 from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
+
+from wrapt import importer as wrapt_importer
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -64,8 +67,6 @@ def _patch_run_code() -> None:
     global _run_code
 
     if _run_code is None:
-        import runpy
-
         _run_code = runpy._run_code  # type: ignore[attr-defined]
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
 
@@ -295,6 +296,10 @@ class _ImportHookChainedLoader:
 
         if pre_exec_hook:
             pre_exec_hook(self, module)
+            # The hook (e.g. IAST) executes the module itself, bypassing self.loader.
+            # Run wrapt's post-import hooks it would have run (once: wrapt pops them).
+            if type(self.loader) is getattr(wrapt_importer, "_ImportHookChainedLoader", None):
+                wrapt_importer.notify_module_loaded(module)
         else:
             if self.loader is None:
                 spec = getattr(module, "__spec__", None)

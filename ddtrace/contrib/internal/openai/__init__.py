@@ -49,6 +49,19 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI
     # patch(openai=True, aiohttp=True)
 
 
+Realtime token usage
+~~~~~~~~~~~~~~~~~~~~
+
+LLM Observability preserves the Realtime API's audio and cached-token breakdown
+when reported: ``input_audio_tokens``, ``output_audio_tokens``,
+``cache_audio_read_tokens``, and ``cache_read_input_tokens``. It also records
+``input_text_tokens``, ``output_text_tokens``, ``input_image_tokens``,
+``cache_text_read_tokens``, and ``cache_image_read_tokens`` when reported. Modality and cache counts
+are subsets of the existing input/output totals, so those totals remain unchanged.
+Missing breakdowns remain absent rather than being reported as zero. These metrics
+allow the backend to apply separate text, audio, and cached-audio rates.
+
+
 Configuration
 ~~~~~~~~~~~~~
 
