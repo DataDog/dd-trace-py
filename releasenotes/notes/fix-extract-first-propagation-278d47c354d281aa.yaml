@@ -1,0 +1,6 @@
+fixes:
+  - |
+    tracing: Fixes broken distributed traces when
+    ``DD_TRACE_PROPAGATION_EXTRACT_FIRST=true`` and an earlier configured
+    propagation format has missing or invalid headers, or baggage is configured
+    before trace propagation formats.
