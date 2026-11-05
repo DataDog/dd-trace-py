@@ -1,6 +1,6 @@
 """Static CVE data loader for SCA detection.
 
-Loads vulnerability targets from a bundled JSON file at startup time.
+Loads vulnerability targets from a bundled or configured JSON file at startup time.
 This emulates the Remote Config payload that will be used in production.
 The JSON is loaded once and filtered against the currently installed
 package versions so only applicable vulnerabilities are registered.
@@ -15,6 +15,7 @@ from typing import cast
 from ddtrace.appsec.sca._types import CveDataEntry
 from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.vendor.packaging.version import InvalidVersion
 from ddtrace.vendor.packaging.version import Version
 
@@ -124,11 +125,12 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[CveTarget]:
     Returns:
         List of CVE target entries that apply to the installed packages.
     """
+    cve_data_path = env.get("_DD_APPSEC_SCA_CVE_FILE", _CVE_DATA_PATH)
     try:
-        with open(_CVE_DATA_PATH) as f:
+        with open(cve_data_path) as f:
             data = cast(_CveData, json.load(f))
     except (OSError, json.JSONDecodeError) as e:
-        log.debug("Failed to load CVE data from %s: %s", _CVE_DATA_PATH, e)
+        log.debug("Failed to load CVE data from %s: %s", cve_data_path, e)
         return []
 
     applicable_targets: list[CveTarget] = []

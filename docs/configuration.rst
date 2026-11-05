@@ -746,6 +746,16 @@ Application & API Security
      default: None
      description: Whether to enable/disable SCA (Software Composition Analysis).
 
+   _DD_APPSEC_SCA_CVE_FILE:
+     type: String
+     default: None
+     description: |
+       Internal override for the local JSON file containing SCA vulnerability targets.
+       When set, this file replaces the bundled CVE data at startup without merging.
+       It must use the same schema as the bundled data. When unset, the bundled file is used.
+       If the file cannot be read or contains invalid JSON, no targets are loaded and
+       the tracer does not fall back to the bundled file. This option does not enable SCA.
+
    DD_APPSEC_MAX_STACK_TRACES:
      type: Integer
      default: 2
