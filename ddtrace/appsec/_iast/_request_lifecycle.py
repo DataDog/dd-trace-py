@@ -18,7 +18,10 @@ from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.span_bus import span_from_context
 
 
-_EVENT_MANAGED_REQUESTS: dict[str, frozenset[str]] = {"asgi.request": frozenset({"fastapi"})}
+_EVENT_MANAGED_REQUESTS: dict[str, frozenset[str]] = {
+    "asgi.request": frozenset({"fastapi", "django"}),
+    "django.traced_get_response": frozenset({"django"}),
+}
 # True means completion is pending; False keeps a completed event route idempotent.
 _SPAN_ROUTES: WeakKeyDictionary[SpanData, bool] = WeakKeyDictionary()
 
