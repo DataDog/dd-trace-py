@@ -35,7 +35,11 @@ jobs:
 
   download-s3-wheels:
     needs: [should-run]
-    if: needs.should-run.outputs.run == 'true' && (github.event_name != 'schedule' || github.event.repository.fork == false)
+    # GitLab publishes S3 wheels for branches in this repository, so skip fork PRs.
+    if: >-
+      needs.should-run.outputs.run == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
+      (github.event_name != 'schedule' || github.event.repository.fork == false)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
