@@ -15,7 +15,7 @@ from typing import cast
 from ddtrace.appsec.sca._types import CveDataEntry
 from ddtrace.appsec.sca._types import CveTarget
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings import env
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.vendor.packaging.version import InvalidVersion
 from ddtrace.vendor.packaging.version import Version
 
@@ -125,7 +125,9 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[CveTarget]:
     Returns:
         List of CVE target entries that apply to the installed packages.
     """
-    cve_data_path = env.get("_DD_APPSEC_SCA_CVE_FILE", _CVE_DATA_PATH)
+    cve_data_path = appsec_telemetry_config.SCA_CVE_FILE
+    if cve_data_path is None:
+        cve_data_path = _CVE_DATA_PATH
     try:
         with open(cve_data_path) as f:
             data = cast(_CveData, json.load(f))

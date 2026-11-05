@@ -11,6 +11,7 @@ from ddtrace.appsec.sca._cve_loader import _any_version_matches
 from ddtrace.appsec.sca._cve_loader import _compound_constraint_matches
 from ddtrace.appsec.sca._cve_loader import _version_matches
 from ddtrace.appsec.sca._cve_loader import load_cve_targets
+from ddtrace.internal.settings.appsec_telemetry import AppSecTelemetryConfig
 
 
 def test_bundled_cve_data_conforms_to_schema():
@@ -124,6 +125,7 @@ class TestLoadCveTargets:
         json_path = tmp_path / "custom_cves.json"
         json_path.write_text(json.dumps({"targets": [entry]}))
         monkeypatch.setenv("_DD_APPSEC_SCA_CVE_FILE", str(json_path))
+        monkeypatch.setattr("ddtrace.appsec.sca._cve_loader.appsec_telemetry_config", AppSecTelemetryConfig())
 
         # The installed requests version matches the bundle, which must not be merged.
         assert load_cve_targets({"testpkg": "1.0.0", "requests": "2.28.0"}) == [entry]
@@ -133,6 +135,7 @@ class TestLoadCveTargets:
         json_path = tmp_path / "empty_cves.json"
         json_path.write_text(json.dumps({"targets": []}))
         monkeypatch.setenv("_DD_APPSEC_SCA_CVE_FILE", str(json_path))
+        monkeypatch.setattr("ddtrace.appsec.sca._cve_loader.appsec_telemetry_config", AppSecTelemetryConfig())
 
         assert load_cve_targets({"requests": "2.28.0"}) == []
 
@@ -142,6 +145,7 @@ class TestLoadCveTargets:
         if contents is not None:
             json_path.write_text(contents)
         monkeypatch.setenv("_DD_APPSEC_SCA_CVE_FILE", str(json_path))
+        monkeypatch.setattr("ddtrace.appsec.sca._cve_loader.appsec_telemetry_config", AppSecTelemetryConfig())
 
         assert load_cve_targets({"requests": "2.28.0"}) == []
 
