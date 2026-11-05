@@ -18,6 +18,11 @@ class AI_GUARD(metaclass=Constant_Class):
     REDACTED_TAG: str = TAG + ".redacted"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
     EVENT_TAG: str = TAG + ".event"
+    # OpenAI runs hosted MCP tools itself and does not report whether it reached the server over
+    # streamable HTTP or SSE, so their servers carry the unknown transport.
+    MCP_TRANSPORT_UNKNOWN: Literal["unknown"] = "unknown"
+    # managed_by of an MCP server whose client is run by the model provider (OpenAI hosted MCP).
+    MCP_MANAGED_BY_PROVIDER: Literal["provider"] = "provider"
 
     # Core-context key for the (client_ip, peer_ip) pair, applied to the service-entry
     # span only if an ai_guard span is created during the request.
