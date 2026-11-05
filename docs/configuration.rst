@@ -602,6 +602,9 @@ Trace Context propagation
 Metrics
 -------
 
+When exporting traces over OTLP, the tracing library delegates APM RED metrics
+computation to the OpenTelemetry Collector or Datadog intake by default.
+
 .. ddtrace-configuration-options::
 
    DD_RUNTIME_METRICS_ENABLED:
@@ -912,7 +915,9 @@ AI Guard
 
        MCP approval requests are evaluated before your application can approve them. Streamed
        responses of requests whose MCP tools can ask for approval are buffered until that
-       evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off.
+       evaluation completes, even when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is off. So
+       are streamed responses of requests that use a reusable prompt, unless DD_AI_GUARD_BLOCK
+       is false.
        Responses read through ``with_raw_response`` or ``with_streaming_response`` are not evaluated.
 
        MCP tools converted with the Anthropic SDK ``mcp_tool`` and ``async_mcp_tool`` helpers are
@@ -1074,6 +1079,33 @@ Test Visibility
 
      version_added:
         v4.15.0:
+
+   DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        When enabled, the pytest plugin may deepen shallow clones to fetch missing git history
+        (for example running ``git fetch --deepen=1`` or ``git fetch --shallow-since="1 month ago"``).
+        When disabled, no fetch is ever issued: the git metadata upload and any head-commit
+        metadata use only the locally available history.
+
+     version_added:
+        v4.17.0:
+
+   DD_CIVISIBILITY_GIT_UPLOAD_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+        When enabled, the pytest plugin uploads git metadata (commit packfiles) to Datadog.
+        When disabled, the upload is skipped entirely — useful to upload git metadata once per
+        pipeline instead (for example with ``datadog-ci git-metadata upload`` in a single setup
+        job, using the same repository URL and commit). The pull request merge-base is still
+        computed from local history when possible.
+
+     version_added:
+        v4.17.0:
 
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean

@@ -1,7 +1,7 @@
 import collections
 from typing import Any
 
-from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
 
 
 def reconstruct_openai_chat(chunks: list[Any]) -> Any:

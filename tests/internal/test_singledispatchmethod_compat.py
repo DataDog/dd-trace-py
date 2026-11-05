@@ -1,9 +1,9 @@
 """Regression for the Python <3.9.8 singledispatchmethod.register patch.
 
-``hasattr(classmethod, "__func__")`` is True because the type exposes a
+hasattr(classmethod, "__func__") is True because the type exposes a
 member_descriptor; the old compat patch then raised
-``AttributeError: 'member_descriptor' object has no attribute '__annotations__'``
-when Symbol Database did ``@_get_from.register(classmethod)``.
+AttributeError: 'member_descriptor' object has no attribute '__annotations__'
+when Symbol Database did @_get_from.register(classmethod).
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def _install_compat_register(generic_method: Any) -> None:
 
 
 def test_register_classmethod_type_under_compat_patch() -> None:
-    """``@register(classmethod)`` must succeed under the <3.9.8 compat patch."""
+    """@register(classmethod) must succeed under the <3.9.8 compat patch."""
     # The type itself has __func__, which is what made hasattr the wrong check.
     assert hasattr(classmethod, "__func__")
 
@@ -44,7 +44,7 @@ def test_register_classmethod_type_under_compat_patch() -> None:
 
 
 def test_register_staticmethod_type_under_compat_patch() -> None:
-    """``@register(staticmethod)`` must succeed under the <3.9.8 compat patch."""
+    """@register(staticmethod) must succeed under the <3.9.8 compat patch."""
     assert hasattr(staticmethod, "__func__")
 
     class Host:
@@ -65,7 +65,7 @@ def test_register_staticmethod_type_under_compat_patch() -> None:
 
 
 def test_compat_register_classmethod_type_matches_cpython_guard() -> None:
-    """Directly exercise the patched register with the classmethod *type*."""
+    """Directly exercise the patched register with the classmethod type."""
     registered: dict[type, Callable[..., str]] = {}
 
     class FakeDispatcher:

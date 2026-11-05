@@ -14,6 +14,7 @@ from typing import Optional
 from weakref import WeakKeyDictionary
 
 from ddtrace.aiguard._types import MCP
+from ddtrace.aiguard._types import Action
 from ddtrace.aiguard._types import MCPManagedBy
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import MCPTransport
@@ -145,7 +146,7 @@ def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]
 
 class ApprovalDecision(NamedTuple):
     blocked: bool
-    action: str
+    action: Action
     reason: str
     tags: Optional[list[str]]
 

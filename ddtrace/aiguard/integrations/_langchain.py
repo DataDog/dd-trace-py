@@ -1,3 +1,4 @@
+import asyncio
 import contextvars
 from functools import partial
 import importlib
@@ -926,7 +927,8 @@ async def _langchain_arun_end(func: Callable[..., Any], instance: Any, args: Any
     if scope is not None:
         held = scope.held.pop(_run_key(instance), ())
         try:
-            scope.evaluate_run_end(get_argument_value(args, kwargs, 0, "response"))
+            # Off the event loop: the evaluation is a blocking HTTP call.
+            await asyncio.to_thread(scope.evaluate_run_end, get_argument_value(args, kwargs, 0, "response"))
         except AIGuardAbortError as error:
             try:
                 await instance.on_llm_error(error)

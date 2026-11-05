@@ -70,7 +70,7 @@ services:
         environment:
             - MOTO_PORT=3000
     rabbitmq:
-        image: rabbitmq:4.3.4-alpine
+        image: rabbitmq:4.3.7-alpine
     ddagent:
         image: datadog/agent:latest
         environment:

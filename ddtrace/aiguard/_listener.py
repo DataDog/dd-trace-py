@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from collections.abc import Mapping
 from collections.abc import Sequence
 from functools import partial
@@ -13,6 +14,7 @@ from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.aiguard._streaming import BufferedAIGuardStream
 from ddtrace.aiguard._streaming import EnabledFn
+from ddtrace.aiguard._streaming import ReconstructFn
 from ddtrace.aiguard._streaming import _is_async_plain_stream
 from ddtrace.aiguard._streaming import _is_async_traced_stream
 from ddtrace.aiguard._streaming import _is_plain_stream
@@ -128,10 +130,32 @@ def _openai_listen(client: AIGuardClient) -> None:
     core.on("openai.unpatch", _uninstall_openai_wrappers)
 
 
+def _with_listed_tools(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """kwargs with an iterable tools argument turned into a list, so the SDK and every AI Guard hook
+    see the same tools instead of an iterator the SDK consumes first.
+    """
+    tools = kwargs.get("tools")
+    if tools is None or isinstance(tools, (list, tuple, str, bytes, Mapping)) or not isinstance(tools, Iterable):
+        return kwargs
+    return {**kwargs, "tools": list(tools)}
+
+
+# An after-listener: (client, request kwargs, response), as registered on the contrib's .after event.
+AfterListenerFn = Callable[[AIGuardClient, dict[str, Any], Any], None]
+
+
+def _listed_tools_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    return func(*args, **_with_listed_tools(kwargs))
+
+
+async def _async_listed_tools_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+    return await func(*args, **_with_listed_tools(kwargs))
+
+
 def _make_openai_stream_wrappers(
     client: AIGuardClient,
-    reconstruct: Callable[..., Any],
-    evaluate_after: Callable[..., Any],
+    reconstruct: ReconstructFn,
+    evaluate_after: AfterListenerFn,
     should_buffer: Optional[Callable[[dict[str, Any]], bool]] = None,
     enabled: EnabledFn = _stream_analysis_enabled,
 ) -> tuple[Callable[..., Any], Callable[..., Any]]:
@@ -163,9 +187,11 @@ def _make_openai_stream_wrappers(
         return BufferedAIGuardStream(result, reconstruct=reconstruct, evaluate=evaluate, enabled=enabled)
 
     def sync_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+        kwargs = _with_listed_tools(kwargs)
         return wrap_stream(func(*args, **kwargs), kwargs, is_async=False)
 
     async def async_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
+        kwargs = _with_listed_tools(kwargs)
         return wrap_stream(await func(*args, **kwargs), kwargs, is_async=True)
 
     return sync_wrapper, async_wrapper
@@ -192,9 +218,9 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
 
     # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/openai/patch.py::patch() (the
-    # ``_RESOURCES`` loop). ``parse`` is intentionally skipped: it is non-streaming
-    # in the inspected SDKs. If the contrib adds/renames a streaming target, that
-    # surface silently goes unbuffered here.
+    # ``_RESOURCES`` loop). ``parse`` is non-streaming in the inspected SDKs, so it only gets its
+    # tools listed. If the contrib adds/renames a streaming target, that surface silently goes
+    # unbuffered here.
     targets = []
     if analyze_streams:
         chat_sync, chat_async = _make_openai_stream_wrappers(
@@ -209,10 +235,18 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
             client,
             reconstruct_openai_responses,
             partial(_openai_response_create_after, approvals_only=True),
-            should_buffer=lambda kwargs: may_request_mcp_approval(kwargs.get("tools")),
+            # A reusable prompt can configure hosted MCP tools without a tools argument; buffering it
+            # only matters when a verdict can block, so monitor mode streams it untouched.
+            should_buffer=lambda kwargs: (bool(kwargs.get("prompt")) and aiguard_config._ai_guard_block)
+            or may_request_mcp_approval(kwargs.get("tools")),
             enabled=_mcp_enabled,
         )
     targets += [("responses.Responses", "create", resp_sync), ("responses.AsyncResponses", "create", resp_async)]
+    # parse consumes tools and posts directly, bypassing create, so it needs its tools listed too.
+    targets += [
+        ("responses.Responses", "parse", _listed_tools_wrapper),
+        ("responses.AsyncResponses", "parse", _async_listed_tools_wrapper),
+    ]
 
     for path, attr, wrapper in targets:
         owner = deep_getattr(openai.resources, path)
