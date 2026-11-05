@@ -15,8 +15,8 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    # A valgrind job usually takes about 8 minutes. Keep a margin for a slow package download.
-    timeout-minutes: 15
+    # Installing Valgrind alone can take over 10 minutes on a slow Ubuntu mirror.
+    timeout-minutes: ${{ matrix.sanitizer == 'valgrind' && 25 || 9 }}
     strategy:
       fail-fast: false
       matrix:
