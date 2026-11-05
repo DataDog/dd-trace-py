@@ -19,7 +19,7 @@ from ddtrace.trace import tracer as _dd_tracer
 
 @pytest.fixture(scope="session")
 def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
@@ -58,7 +58,13 @@ class _SpanCollector(TraceWriter):
     def stop(self, timeout: float | None = None) -> None:
         pass
 
-    def recreate(self, appsec_enabled: bool | None = None, llmobs_enabled: bool | None = None) -> _SpanCollector:
+    def recreate(
+        self,
+        appsec_enabled: bool | None = None,
+        llmobs_enabled: bool | None = None,
+        compute_stats_enabled: bool | None = None,
+        stats_opt_out: bool | None = None,
+    ) -> _SpanCollector:
         return self
 
     @property
