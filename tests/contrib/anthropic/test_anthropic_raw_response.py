@@ -84,6 +84,13 @@ async def test_async_with_streaming_response_records_output(anthropic, anthropic
 class _FailingBody(httpx.SyncByteStream, httpx.AsyncByteStream):
     def __init__(self, exc):
         self._exc = exc
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+    async def aclose(self):
+        self.closed = True
 
     def __iter__(self):
         raise self._exc
@@ -94,9 +101,9 @@ class _FailingBody(httpx.SyncByteStream, httpx.AsyncByteStream):
         yield b""
 
 
-def _failing_body_response(exc):
+def _failing_body_response(body):
     def handler(request):
-        return httpx.Response(200, headers={"content-type": "application/json"}, stream=_FailingBody(exc))
+        return httpx.Response(200, headers={"content-type": "application/json"}, stream=body)
 
     return handler
 
@@ -109,21 +116,24 @@ def _assert_errored(test_spans, exc_type):
 
 
 def test_with_streaming_response_body_read_error_propagates(anthropic, anthropic_llmobs, test_spans):
-    timeout = httpx.ReadTimeout("body read timed out")
+    body = _FailingBody(httpx.ReadTimeout("body read timed out"))
     client = anthropic.Anthropic(
         api_key="<not-a-real-key>",
-        http_client=httpx.Client(transport=httpx.MockTransport(_failing_body_response(timeout))),
+        http_client=httpx.Client(transport=httpx.MockTransport(_failing_body_response(body))),
         max_retries=0,
     )
     with pytest.raises(httpx.ReadTimeout):
         with client.messages.with_streaming_response.create(**CREATE_KWARGS) as raw:
             raw.parse()
     _assert_errored(test_spans, httpx.ReadTimeout)
+    assert body.closed
 
 
 async def test_async_with_streaming_response_cancelled_body_read_finishes_span(anthropic, anthropic_llmobs, test_spans):
+    body = _FailingBody(asyncio.CancelledError())
+
     async def handler(request):
-        return _failing_body_response(asyncio.CancelledError())(request)
+        return _failing_body_response(body)(request)
 
     client = anthropic.AsyncAnthropic(
         api_key="<not-a-real-key>",
@@ -134,6 +144,7 @@ async def test_async_with_streaming_response_cancelled_body_read_finishes_span(a
         async with client.messages.with_streaming_response.create(**CREATE_KWARGS) as raw:
             await raw.parse()
     _assert_errored(test_spans, asyncio.CancelledError)
+    assert body.closed
 
 
 def test_with_streaming_response_body_stays_readable(anthropic, anthropic_llmobs, test_spans):
