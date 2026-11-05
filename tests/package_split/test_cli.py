@@ -68,3 +68,23 @@ def test_current_directory_source_path(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
 
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "."]) == 0
+
+
+def test_zones_file_without_mapping_exits_two(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    (tmp_path / "layers.json").write_text('{"zone": {}}', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["api-surface", "--source-path", "pkg", "--zones", "layers.json"]) == 2
+    assert "no 'zones' mapping" in capsys.readouterr().err
+
+
+def test_unparsable_files_are_skipped_and_reported(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES | {"broken.py": "def (:\n"})
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
+    assert "pkg/broken.py" in capsys.readouterr().err
+    data = json.loads((tmp_path / "out" / "api-usage" / "api-usage.json").read_text())
+    assert data["consumer_files"] == 1
+    assert data["unparsed"][0].startswith("pkg/broken.py")

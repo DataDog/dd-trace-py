@@ -35,6 +35,7 @@ from .api_usage import ApiUsageReport
 from .api_usage import Usage
 from .api_usage import _UsageCollector
 from .api_usage import module_names_for
+from .api_usage import parse_source
 
 
 FOUNDATION_ZONE = "foundation"
@@ -65,6 +66,7 @@ class ApiSurfaceReport:
     zones: dict[str, str]
     owners: dict[str, OwnerSurface] = field(default_factory=dict)
     files_scanned: int = 0
+    unparsed: list[str] = field(default_factory=list)
     raw_usages: list[Usage] = field(default_factory=list)
     # Owner module -> its package root (the extraction unit that moves
     # wholesale; consumers under it relocate with the package).
@@ -74,6 +76,7 @@ class ApiSurfaceReport:
         return {
             "roots": self.roots,
             "files_scanned": self.files_scanned,
+            "unparsed": self.unparsed,
             "owners": {
                 module: {
                     "symbols": {
@@ -140,8 +143,14 @@ def analyze_api_surfaces(
     # collects every usage rooted at the import roots, attribution happens
     # afterwards.
     sink = ApiUsageReport(target="<surfaces>")
+    # Package -> name bound in its __init__ -> modules or symbols it re-exports.
+    reexports: dict[str, dict[str, set[str]]] = {}
     for module, path in sorted(module_paths.items()):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        try:
+            tree = parse_source(path)
+        except (SyntaxError, UnicodeDecodeError) as exc:
+            report.unparsed.append("%s: %s" % (path.relative_to(root), exc))
+            continue
         collector = _UsageCollector(module, str(path.relative_to(root)), None, sink, roots=set(import_roots))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -149,21 +158,52 @@ def analyze_api_surfaces(
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
         collector._scan_usages(tree)
+        if path.name == "__init__.py":
+            reexports[module] = collector.bindings
 
     # Attribute each usage to its owning module: the longest module prefix
-    # of the resolved path that exists in the module index.
+    # of the resolved path that exists in the module index. A use through a
+    # package re-export is also attributed to the module it re-exports, so
+    # the implementation does not look private.
     for usage in sink.usages:
-        owner = _owning_module(usage.symbol, modules, import_roots)
-        if owner is None:
-            continue
-        symbol = usage.symbol[len(owner) + 1 :] if usage.symbol != owner else "<module>"
-        surface = report.owners.setdefault(owner, OwnerSurface(module=owner))
-        per_consumer = surface.symbols.setdefault(symbol, {})
-        per_consumer.setdefault(usage.importer, []).append(usage.kind)
+        for owner, symbol in _attributions(usage.symbol, modules, import_roots, reexports):
+            surface = report.owners.setdefault(owner, OwnerSurface(module=owner))
+            per_consumer = surface.symbols.setdefault(symbol, {})
+            per_consumer.setdefault(usage.importer, []).append(usage.kind)
         report.raw_usages.append(usage)
     for module in report.owners:
         report.package_roots[module] = _package_root(module, module_paths)
     return report
+
+
+def _attributions(
+    resolved: str,
+    modules: set[str],
+    import_roots: list[str],
+    reexports: dict[str, dict[str, set[str]]],
+) -> list[tuple[str, str]]:
+    """(owner, symbol relative to owner) pairs for a resolved path, following re-exports."""
+    attributions: list[tuple[str, str]] = []
+    pending = [resolved]
+    seen: set[str] = set()
+    while pending:
+        path = pending.pop()
+        if path in seen:
+            continue
+        seen.add(path)
+        owner = _owning_module(path, modules, import_roots)
+        if owner is None:
+            continue
+        if path == owner:
+            attributions.append((owner, "<module>"))
+            continue
+        rest = path[len(owner) + 1 :]
+        attributions.append((owner, rest))
+        name, _, tail = rest.partition(".")
+        for target in reexports.get(owner, {}).get(name, ()):
+            if target != path:
+                pending.append(target + "." + tail if tail else target)
+    return attributions
 
 
 def _owning_module(resolved: str, modules: set[str], import_roots: list[str]) -> str | None:

@@ -239,3 +239,19 @@ def test_unknown_target_is_an_error(tmp_path):
     make_tree(tmp_path, "pkg", TARGET_FILES)
     with pytest.raises(ValueError, match="no scanned module matches pkg.missing"):
         analyze(tmp_path, "pkg", {}, target="pkg.missing")
+
+
+def test_chain_prefix_is_read_not_call(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "consumer14.py").write_text("import pkg.lib as L\nL.f()\n", encoding="utf-8")
+    symbols = symbols_of(analyze(tmp_path, "pkg", {}))
+    assert symbols["f"] == ["call"]
+    assert symbols["<module>"] == ["import", "read"]
+
+
+def test_source_encoding_declaration_is_honored(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "consumer15.py").write_bytes(
+        "# -*- coding: euc-jp -*-\nfrom pkg.lib import f\nf('日本')\n".encode("euc-jp")
+    )
+    assert "call" in symbols_of(analyze(tmp_path, "pkg", {}))["f"]

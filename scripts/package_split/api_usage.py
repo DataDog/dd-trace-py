@@ -28,6 +28,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
+import tokenize
 
 
 _EXCLUDED_DIRS = ("vendor", "node_modules")
@@ -47,6 +48,8 @@ class ApiUsageReport:
     usages: list[Usage] = field(default_factory=list)
     files_scanned: int = 0
     consumer_files: int = 0
+    # Files this interpreter cannot parse (e.g. newer syntax), skipped and reported.
+    unparsed: list[str] = field(default_factory=list)
 
     def symbols(self) -> dict[str, dict[str, list[dict[str, str]]]]:
         """Aggregate per symbol: kind -> usage records."""
@@ -188,6 +191,11 @@ class _UsageCollector(ast.NodeVisitor):
         # Priority: how the symbol's *identity* is load-bearing.
         priority = ["exception-caught", "raised", "subclassed", "call", "read"]
         candidates = set()
+        parent = self.parents.get(node)
+        if isinstance(parent, ast.Attribute) and parent.value is node:
+            # A prefix of a longer chain (L in L.f()): the chain's last
+            # attribute carries the usage context, the prefix is only read.
+            return "read"
         current = node
         for _ in range(4):
             parent = self.parents.get(current)
@@ -272,6 +280,12 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
     return modules
 
 
+def parse_source(path: Path) -> ast.Module:
+    """Parse a Python file, honoring its PEP 263 encoding declaration."""
+    with tokenize.open(path) as f:
+        return ast.parse(f.read(), filename=str(path))
+
+
 def analyze_api_usage(root: Path, source_paths: Iterable[Path], target: str) -> ApiUsageReport:
     """Compute the used-API report for target across the source paths."""
     modules = module_names_for(root, source_paths)
@@ -286,7 +300,11 @@ def analyze_api_usage(root: Path, source_paths: Iterable[Path], target: str) -> 
         # external consumers define the extraction surface.
         if module == target or module.startswith(target + "."):
             continue
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        try:
+            tree = parse_source(path)
+        except (SyntaxError, UnicodeDecodeError) as exc:
+            report.unparsed.append("%s: %s" % (path.relative_to(root), exc))
+            continue
         collector = _UsageCollector(module, str(path.relative_to(root)), target, report)
         # Pass 1: bindings (imports). Pass 2 must see assignments inside
         # function bodies too, so a plain two-visit order is not enough --

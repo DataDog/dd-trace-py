@@ -64,6 +64,13 @@ def _inventory_inputs(args: argparse.Namespace) -> tuple[Path, list[Path], list[
     return root, source_paths, import_roots
 
 
+def _warn_unparsed(unparsed: list[str]) -> None:
+    if unparsed:
+        print("package-split: skipped %d unparsable file(s):" % len(unparsed), file=sys.stderr)
+        for entry in unparsed:
+            print("  %s" % entry, file=sys.stderr)
+
+
 def _api_usage_command(args: argparse.Namespace) -> int:
     """Informational command: report the used-API surface of a module.
 
@@ -82,6 +89,7 @@ def _api_usage_command(args: argparse.Namespace) -> int:
                 "target": report.target,
                 "files_scanned": report.files_scanned,
                 "consumer_files": report.consumer_files,
+                "unparsed": report.unparsed,
                 "symbols": report.symbols(),
                 "usages": [usage.__dict__ for usage in report.usages],
             },
@@ -91,6 +99,7 @@ def _api_usage_command(args: argparse.Namespace) -> int:
         encoding="utf-8",
     )
     print(report.summary())
+    _warn_unparsed(report.unparsed)
     print("evidence: %s" % evidence)
     return 0
 
@@ -111,6 +120,8 @@ def _api_surface_command(args: argparse.Namespace) -> int:
     zones_path = Path(args.zones) if args.zones else root / "scripts" / "import-analysis" / "layers.json"
     if args.zones or zones_path.is_file():
         zones = json.loads(zones_path.read_text(encoding="utf-8")).get("zones")
+        if not isinstance(zones, dict):
+            raise ValueError("%s has no 'zones' mapping" % zones_path)
 
     report = analyze_api_surfaces(root, source_paths, import_roots, zones)
 
@@ -131,6 +142,7 @@ def _api_surface_command(args: argparse.Namespace) -> int:
         encoding="utf-8",
     )
     print(summarize(report, suggestions, top=args.top))
+    _warn_unparsed(report.unparsed)
     print("evidence: %s" % evidence)
     return 0
 

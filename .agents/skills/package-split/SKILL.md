@@ -6,6 +6,7 @@ description: Inventory the APIs other modules consume, to choose package-split e
 
 Run from the repository root; `--help` lists options. Both commands are static, over-approximating
 inventories, not compatibility proofs, and always exit 0 on success (2 on usage or input errors).
+Files the interpreter cannot parse are skipped and listed on stderr and in the JSON `unparsed` field.
 
 ```bash
 scripts/package-split api-usage --module ddtrace.internal.coverage [--source-path ddtrace ...]

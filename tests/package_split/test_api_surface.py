@@ -171,6 +171,23 @@ def test_differently_zoned_subpackage_consumer_blocks_bundling(tmp_path):
     assert {s.owner for s in bundling_suggestions(report)} == set()
 
 
+def test_reexported_symbol_is_attributed_to_defining_module(tmp_path):
+    build_repo(
+        tmp_path,
+        {
+            "shared/__init__.py": "from shared.impl import exposed\n",
+            "shared/impl.py": "def exposed():\n    pass\n",
+            "app/__init__.py": "",
+            "app/consumer.py": "from shared import exposed\nexposed()\n",
+        },
+    )
+    report = analyze(tmp_path)
+    assert "app.consumer" in report.owners["shared.impl"].consumers_of("exposed")
+    assert "app.consumer" in report.owners["shared"].consumers_of("exposed")
+    suggestions = {s.owner: s for s in bundling_suggestions(report)}
+    assert suggestions["shared.impl"].symbols == ["exposed"]
+
+
 def test_zone_of_longest_prefix_wins():
     zones = {
         "ddtrace.internal": "internal-core",
