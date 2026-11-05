@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import sys
+import threading
 from unittest.mock import AsyncMock
 from unittest.mock import patch
 
@@ -780,3 +781,76 @@ async def test_create_then_call_in_web_request(mock_execute_request, anthropic_s
     session.call_tool.assert_awaited_once()
     payload = _assert_single_mcp_check(mock_execute_request)
     assert payload["messages"][-1]["tool_calls"][0]["id"] == "toolu_1"
+
+
+@patch(EXECUTE_REQUEST)
+async def test_sibling_tasks_do_not_consume_each_others_evaluations(mock_execute_request, anthropic_sdk):
+    """Tasks inheriting one context never consume the marks of their parent or of a sibling request."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _sync_client(anthropic_sdk, [_tool_use_body(), _tool_use_body()])
+        create = dict(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
+        response = client.beta.messages.create(**create)
+        sibling_evaluated = asyncio.Event()
+
+        async def evaluating_branch():
+            client.beta.messages.create(**create)
+            sibling_evaluated.set()
+
+        async def calling_branch():
+            await sibling_evaluated.wait()
+            await tool.call(response.content[0].input)
+
+        await asyncio.gather(evaluating_branch(), calling_branch())
+        # Only the calling branch was checked again; the parent still consumes its own mark once.
+        assert len(_tool_call_payloads(mock_execute_request)) == 3
+        _assert_direct_call(_payloads(mock_execute_request)[-1], _remote_server())
+        await tool.call(response.content[0].input)
+        assert len(_tool_call_payloads(mock_execute_request)) == 3
+
+
+@patch(EXECUTE_REQUEST)
+async def test_parse_ends_the_previous_operation(mock_execute_request, anthropic_sdk):
+    """messages.parse, used by the non-streaming tool runner without hooks, clears earlier evaluations."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _sync_client(anthropic_sdk, [_tool_use_body(), _text_body()])
+        response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=[tool.to_dict()])
+        client.beta.messages.parse(model=MODEL, max_tokens=64, messages=_USER)
+        await tool.call(response.content[0].input)
+
+    assert len(_tool_call_payloads(mock_execute_request)) == 2
+    _assert_direct_call(_payloads(mock_execute_request)[-1], _remote_server())
+
+
+@patch(EXECUTE_REQUEST)
+async def test_direct_async_call_is_evaluated_off_the_event_loop(mock_execute_request, anthropic_sdk):
+    threads = []
+
+    def execute(*args, **kwargs):
+        threads.append(threading.get_ident())
+        return mock_evaluate_response("ALLOW")
+
+    mock_execute_request.side_effect = execute
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        await tool.call({"text": "hi"})
+
+    session.call_tool.assert_awaited_once()
+    assert len(threads) == 1 and threads[0] != threading.get_ident()
+
+
+@patch(EXECUTE_REQUEST)
+async def test_iterable_tools_param(mock_execute_request, anthropic_sdk):
+    """An iterable tools param is resolved by both hooks, so the call of its tool_use is not evaluated again."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    async with _remote_session() as session:
+        tool = async_mcp_tool(_mcp_tool_def(), session)
+        client = _sync_client(anthropic_sdk, [_tool_use_body()])
+        response = client.beta.messages.create(model=MODEL, max_tokens=64, messages=_USER, tools=iter([tool.to_dict()]))
+        await tool.call(response.content[0].input)
+
+    session.call_tool.assert_awaited_once()
+    _assert_single_mcp_check(mock_execute_request)

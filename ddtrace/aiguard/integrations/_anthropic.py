@@ -17,7 +17,9 @@ the rest) so AI Guard still scans the request rather than silently bypassing
 it, and support can spot integration drift.
 """
 
+from collections.abc import Iterable
 from collections.abc import Iterator
+from collections.abc import Mapping
 from collections.abc import Sequence
 import json
 from typing import Any
@@ -42,6 +44,7 @@ from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._anthropic_mcp import attach_mcp
 from ddtrace.aiguard.integrations._anthropic_mcp import mark_evaluated
 from ddtrace.aiguard.integrations._anthropic_mcp import request_mcp_tools
+from ddtrace.aiguard.integrations._anthropic_mcp import start_request
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -602,7 +605,11 @@ def _attach_mcp_servers(
 ) -> tuple[Optional[list[MCPServer]], dict[str, Any]]:
     """Reference the client-managed MCP tools of this request in messages; fails open without MCP metadata."""
     try:
-        mcp_tools = request_mcp_tools(kwargs.get("tools"))
+        tools = kwargs.get("tools")
+        if isinstance(tools, Iterable) and not isinstance(tools, (list, tuple, str, bytes, Mapping)):
+            # Materialized for the SDK too, like messages and system, so both hooks resolve the same tools.
+            tools = kwargs["tools"] = list(tools)
+        mcp_tools = request_mcp_tools(tools)
         return attach_mcp(messages, mcp_tools), mcp_tools
     except Exception:
         logger.debug("AI Guard anthropic: failed to attach MCP metadata", exc_info=True)
@@ -669,7 +676,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
     mcp_servers, mcp_tools = _attach_mcp_servers(ai_guard_messages, kwargs)
     if mcp_tools:
         # A new request with MCP tools starts a new turn: no earlier response spares its calls.
-        mark_evaluated([], mcp_tools)
+        start_request()
     try:
         evaluate_auto(client, ai_guard_messages, AI_GUARD.INTEGRATION_ANTHROPIC, mcp_servers)
     except AIGuardAbortError as e:

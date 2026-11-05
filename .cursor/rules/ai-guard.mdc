@@ -120,17 +120,18 @@ Client-managed MCP (Anthropic `anthropic.lib.tools.mcp`) is wired in `_anthropic
   own copy of `input_schema` (to_dict() copies share it, which is how listeners resolve a request's
   MCP tools) and a guarded `call` that evaluates before `tools/call` is sent. Sessions without a
   transport-derived key (in-memory) produce no MCP metadata and no call check.
-- One check per operation: the after-hook of a request with MCP tools stores, in a ContextVar, the
-  root span ID and (tool, arguments) of the MCP tool calls it evaluated (cleared on block, failure or
-  middleware skip). The before-hook of such a request creates or clears that holder in the caller's
-  context, and the after-hook updates it in place: async buffered streams evaluate in asyncio.to_thread,
-  whose copied context cannot set the caller's ContextVar. `call` consumes a matching entry under the
-  same root span instead of evaluating again. The key is the root span_id, or None without a root or
-  when the root is the `anthropic.request` span itself; use the same rule at mark and call time. Never
-  keep these marks process-wide, nor unscoped to the trace: thread-pool servers reuse a thread's
-  context. Unmarked calls (the
-  non-streaming tool runner uses the uninstrumented `beta.messages.parse`, streams without stream
-  analysis, direct calls) are evaluated as a lone assistant tool call with a local ID.
+- One check per operation: each request with MCP tools gets its own ContextVar holder in its
+  before-hook, owned by the current asyncio task (else thread). The after-hook stores in it the root
+  span ID and (tool, arguments) of the MCP tool calls it evaluated (cleared on block, failure or
+  middleware skip), in place, because async buffered streams evaluate in asyncio.to_thread whose copied
+  context cannot set the caller's ContextVar. `call` consumes a matching entry only from its owner and
+  under the same root span; tasks inheriting a holder never consume it. The key is the root span_id, or
+  None without a root or when the root is the `anthropic.request` span itself; use the same rule at mark
+  and call time. `beta.messages.parse` (the non-streaming tool runner, which fires no hook) is wrapped
+  only to clear the holder at that operation boundary. Never keep these marks process-wide, nor
+  unscoped to the trace: thread-pool servers reuse a thread's context. Unmarked calls (the parse-based
+  tool runner, streams without stream analysis, direct calls) are evaluated as a lone assistant tool
+  call with a local ID, off the event loop for async tools.
 - A call check raises the bare `AIGuardAbortError`: the tool runner converts any `Exception`,
   including the Anthropic-compatible wrapper, into a tool result and would keep running.
 - Do not wrap async generator functions with `ddtrace.internal.wrapping.wrap`: its trampoline calls

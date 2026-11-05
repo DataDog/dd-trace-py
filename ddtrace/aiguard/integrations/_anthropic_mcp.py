@@ -3,6 +3,8 @@
 A converted tool checks each call before tools/call is sent, unless its response was already evaluated.
 """
 
+from _thread import get_ident
+import asyncio
 from collections.abc import Mapping
 from contextvars import ContextVar
 import inspect
@@ -39,6 +41,7 @@ from ddtrace.internal.wrapping import wrap
 logger = ddlogger.get_logger(__name__)
 
 _HELPERS_MODULE = "anthropic.lib.tools.mcp"
+_BETA_MESSAGES_MODULE = "anthropic.resources.beta.messages.messages"
 _TOOL_ATTR = "_dd_aiguard_mcp"
 # Operation name of the span the Anthropic contrib opens around a messages request.
 _PROVIDER_SPAN_NAME = "anthropic.request"
@@ -55,9 +58,18 @@ class MCPTool(NamedTuple):
 _tools_by_schema: "WeakValueDictionary[int, Any]" = WeakValueDictionary()
 _client: Optional[AIGuardClient] = None
 _wrapped_helpers: list[Any] = []
-# [root span key, (tool, arguments) of the MCP tool calls of the last evaluated response], each consumed once by
-# its call. Updated in place so evaluations in a copied context (asyncio.to_thread) reach the caller's context.
+# [owner task or thread, root span key, (tool, arguments) of the MCP tool calls of the last evaluated response],
+# one holder per request; updated in place so an evaluation in asyncio.to_thread reaches the caller's context.
 _evaluated_calls: "ContextVar[Optional[list[Any]]]" = ContextVar("aiguard_mcp_evaluated_calls", default=None)
+
+
+def _owner() -> Any:
+    """Current asyncio task, else the current thread: only the owner of a holder consumes its marks."""
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        task = None
+    return task if task is not None else get_ident()
 
 
 def _trace_key() -> Optional[int]:
@@ -74,20 +86,32 @@ def _tool_arguments(tool_input: Any) -> str:
     return json.dumps(tool_input, default=str)
 
 
-def _check_tool_call(tool: Any, tool_input: Any) -> None:
-    """Evaluate a direct MCP tool call as a lone assistant tool call, unless a response already did."""
+def _tool_call_to_check(tool: Any, tool_input: Any) -> Optional[str]:
+    """Arguments of an MCP tool call to evaluate; None when checks are off or its response was evaluated."""
     if not aiguard_config._ai_guard_mcp_enabled or _client is None:
+        return None
+    try:
+        arguments = _tool_arguments(tool_input)
+        holder = _evaluated_calls.get()
+        if holder is not None and holder[2] and holder[0] == _owner() and holder[1] == _trace_key():
+            try:
+                holder[2].remove((tool, arguments))
+                return None
+            except ValueError:
+                pass
+        return arguments
+    except Exception:
+        logger.debug("AI Guard anthropic: failed to prepare MCP tool call check", exc_info=True)
+        return None
+
+
+def _evaluate_tool_call(tool: Any, arguments: str) -> None:
+    """Evaluate a direct MCP tool call as a lone assistant tool call."""
+    client = _client
+    if client is None:
         return
     try:
         info: MCPTool = getattr(tool, _TOOL_ATTR)
-        arguments = _tool_arguments(tool_input)
-        evaluated = _evaluated_calls.get()
-        if evaluated is not None and evaluated[1] and evaluated[0] == _trace_key():
-            try:
-                evaluated[1].remove((tool, arguments))
-                return
-            except ValueError:
-                pass
         server = info.server.copy()
         server["tools"] = {}
         # No provider ID exists for a call made outside a model response.
@@ -96,7 +120,7 @@ def _check_tool_call(tool: Any, tool_input: Any) -> None:
         )
         tool_call["mcp"] = mcp_reference(server, tool.name, info.original_name)
         evaluate_auto(
-            _client, [Message(role="assistant", tool_calls=[tool_call])], AI_GUARD.INTEGRATION_ANTHROPIC, [server]
+            client, [Message(role="assistant", tool_calls=[tool_call])], AI_GUARD.INTEGRATION_ANTHROPIC, [server]
         )
     except AIGuardAbortError:
         # Raised bare: the tool runner turns any Exception, the SDK-compatible wrapper too, into a tool result.
@@ -122,14 +146,24 @@ def _guard_tool(tool: Any, mcp_tool: Any, session: Any) -> None:
     if inspect.iscoroutinefunction(call):
 
         async def guarded_async_call(input: Any) -> Any:  # noqa: A002 (same signature as call)
-            _check_tool_call(tool, input)
+            arguments = _tool_call_to_check(tool, input)
+            if arguments is not None:
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    _evaluate_tool_call(tool, arguments)
+                else:
+                    # A blocking HTTP call: run it off the event loop.
+                    await asyncio.to_thread(_evaluate_tool_call, tool, arguments)
             return await call(input)
 
         tool.call = guarded_async_call
     else:
 
         def guarded_call(input: Any) -> Any:  # noqa: A002 (same signature as call)
-            _check_tool_call(tool, input)
+            arguments = _tool_call_to_check(tool, input)
+            if arguments is not None:
+                _evaluate_tool_call(tool, arguments)
             return call(input)
 
         tool.call = guarded_call
@@ -155,6 +189,24 @@ def _wrap_helpers(module: ModuleType) -> None:
             logger.debug("AI Guard anthropic: failed to wrap %s.%s", _HELPERS_MODULE, attr, exc_info=True)
 
 
+def _reset_on_parse(f: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    # messages.parse (the non-streaming tool runner) fires no hook, so it ends the previous operation here.
+    if _evaluated_calls.get() is not None:
+        _evaluated_calls.set(None)
+    return f(*args, **kwargs)
+
+
+def _wrap_parse(module: ModuleType) -> None:
+    for owner in ("Messages", "AsyncMessages"):
+        try:
+            function = getattr(module, owner).parse
+            if not is_wrapped_with(function, _reset_on_parse):
+                wrap(function, _reset_on_parse)
+                _wrapped_helpers.append(function)
+        except Exception:
+            logger.debug("AI Guard anthropic: failed to wrap %s.%s.parse", _BETA_MESSAGES_MODULE, owner, exc_info=True)
+
+
 def install_anthropic_mcp(client: AIGuardClient) -> None:
     """Wrap the Anthropic MCP helpers and the MCP SDK transports when imported (DD_AI_GUARD_MCP_ENABLED)."""
     global _client
@@ -163,6 +215,7 @@ def install_anthropic_mcp(client: AIGuardClient) -> None:
     _client = client
     capture_mcp_transports()
     ModuleWatchdog.register_module_hook(_HELPERS_MODULE, _wrap_helpers)
+    ModuleWatchdog.register_module_hook(_BETA_MESSAGES_MODULE, _wrap_parse)
 
 
 def uninstall_anthropic_mcp() -> None:
@@ -171,11 +224,12 @@ def uninstall_anthropic_mcp() -> None:
         return
     _client = None
     ModuleWatchdog.unregister_module_hook(_HELPERS_MODULE, _wrap_helpers)
+    ModuleWatchdog.unregister_module_hook(_BETA_MESSAGES_MODULE, _wrap_parse)
     release_mcp_transports()
     while _wrapped_helpers:
         function = _wrapped_helpers.pop()
         try:
-            unwrap(function, _convert_mcp_tool)
+            unwrap(function, _reset_on_parse if is_wrapped_with(function, _reset_on_parse) else _convert_mcp_tool)
         except Exception:
             logger.debug("AI Guard anthropic: failed to unwrap %r", function, exc_info=True)
 
@@ -214,8 +268,13 @@ def attach_mcp(messages: list[Message], tools: dict[str, Any]) -> Optional[list[
     return list(servers.values()) or None
 
 
+def start_request() -> None:
+    """Give the current request its own holder, so sibling tasks never share or consume its marks."""
+    _evaluated_calls.set([_owner(), None, []])
+
+
 def mark_evaluated(messages: list[Message], tools: dict[str, Any]) -> None:
-    """Replace the evaluated MCP tool calls of this context with those of messages; [] clears them."""
+    """Replace the evaluated MCP tool calls of this request with those of messages; [] clears them."""
     evaluated_calls: list[tuple[Any, str]] = []
     try:
         for message in messages:
@@ -228,7 +287,9 @@ def mark_evaluated(messages: list[Message], tools: dict[str, Any]) -> None:
         logger.debug("AI Guard anthropic: failed to record evaluated MCP tool calls", exc_info=True)
         evaluated_calls, key = [], None
     holder = _evaluated_calls.get()
-    if holder is None:
-        _evaluated_calls.set([key, evaluated_calls])
+    owner = _owner()
+    # In place only for the holder's owner or a worker thread evaluating for its task (asyncio.to_thread).
+    if holder is not None and (holder[0] == owner or (isinstance(holder[0], asyncio.Task) and isinstance(owner, int))):
+        holder[1:] = [key, evaluated_calls]
     else:
-        holder[:] = [key, evaluated_calls]
+        _evaluated_calls.set([owner, key, evaluated_calls])
