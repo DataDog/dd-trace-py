@@ -357,6 +357,155 @@ assert os.waitstatus_to_exitcode(status) == 0
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_survives_daemonization(run_python_code_in_subprocess):
+    """Daemonizing like python-daemon: double fork, os.closerange, keep running.
+
+    The runtime rebuilt in the child's fork hook loses its descriptors to
+    os.closerange, which the runtime wraps to stop before and rebuild after.
+    """
+    code = """
+import os
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+assert telemetry_writer._worker is not None
+
+r, w = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.setsid()
+    if os.fork() != 0:
+        os._exit(0)
+    # The daemon: close everything but the reporting pipe, as python-daemon does.
+    os.closerange(3, w)
+    os.closerange(w + 1, 1024)
+    try:
+        with tracer.trace("daemon"):
+            pass
+        telemetry_writer.periodic(force_flush=True)
+        tracer.flush()
+        result = b"ok"
+    except BaseException as e:
+        result = repr(e).encode()
+    os.write(w, result)
+    os._exit(0)
+
+os.close(w)
+os.waitpid(pid, 0)
+result = os.read(r, 4096)
+assert result == b"ok", result
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_nested_fd_cleanup(run_python_code_in_subprocess, tmp_path):
+    """A wrapped cleanup function calling os.closerange rebuilds the runtime once, at the end."""
+    celery = tmp_path / "celery"
+    celery.mkdir()
+    (celery / "__init__.py").write_text("")
+    (celery / "platforms.py").write_text(
+        """
+import os
+
+
+def close_open_fds(keep=None):
+    # Closing more after the inner, wrapped call would close the descriptors of
+    # a runtime it rebuilt, if it did.
+    os.closerange(3, 1024)
+    for fd in range(3, 1024):
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+"""
+    )
+
+    code = """
+import os
+import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+sys.path.insert(0, %r)
+from celery import platforms
+
+pid = os.fork()
+if pid == 0:
+    platforms.close_open_fds([0, 1, 2])
+    with tracer.trace("after-nested-cleanup"):
+        pass
+    telemetry_writer.periodic(force_flush=True)
+    os._exit(0)
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+""" % str(tmp_path)
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_stopped_for_exec(run_python_code_in_subprocess):
+    """os.exec* replaces the process image with the runtime stopped, and a failed exec resumes it."""
+    code = """
+import os
+import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+pid = os.fork()
+if pid == 0:
+    os.execv(sys.executable, [sys.executable, "-c", "pass"])
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+
+try:
+    os.execvp("ddtrace-no-such-executable", ["ddtrace-no-such-executable"])
+except OSError:
+    pass
+else:
+    raise AssertionError("expected the exec to fail")
+
+with tracer.trace("after-failed-exec"):
+    pass
+telemetry_writer.periodic(force_flush=True)
+tracer.flush()
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
 def test_native_runtime_ready_for_child_hooks(run_python_code_in_subprocess):
     """The child rebuilds the native runtime in a fork hook that runs before any other.
 

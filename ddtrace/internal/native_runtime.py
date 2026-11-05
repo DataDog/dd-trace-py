@@ -1,6 +1,7 @@
 from functools import cache
 from functools import wraps
 import logging
+import os
 import sys
 from typing import Any
 from typing import Callable
@@ -10,6 +11,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.native import SharedRuntime
+from ddtrace.internal.threads import original_local
 
 
 log = logging.getLogger(__name__)
@@ -138,29 +140,71 @@ def _rebuild_after_fork() -> None:
 forksafe.register_before_child_hooks(_rebuild_after_fork)
 
 
-def _wrap_close_open_fds(close_open_fds: Callable[..., Any]) -> Callable[..., Any]:
-    if getattr(close_open_fds, "__ddtrace_native_runtime__", False):
-        return close_open_fds
+# Wrappers can nest, e.g. a wrapped cleanup function calling os.closerange:
+# only the outermost one stops and rebuilds the runtime, otherwise the outer
+# cleanup would close the descriptors of a runtime rebuilt by the inner one.
+_fd_cleanup = original_local()
 
-    @wraps(close_open_fds)
+
+def _stop_while_closing_fds(close: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap a function that closes inherited file descriptors.
+
+    The runtime's own descriptors are among those closed. Stop the runtime while
+    they are still valid, then rebuild it and reset its workers as in a fork
+    child, so that no worker keeps a handle on a closed descriptor.
+    """
+    if getattr(close, "__ddtrace_native_runtime__", False):
+        return close
+
+    @wraps(close)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         runtime = _runtime
-        if runtime is None or runtime._shut_down:
-            return close_open_fds(*args, **kwargs)
+        depth = getattr(_fd_cleanup, "depth", 0)
+        if runtime is None or runtime._shut_down or depth:
+            return close(*args, **kwargs)
 
-        # Celery closes every inherited file descriptor with this function, e.g.
-        # in the embedded beat process, which keeps using the runtime. Stop
-        # the runtime while its descriptors are still valid, then rebuild it
-        # and reset its workers as in a fork child, so that no worker keeps a
-        # handle on a closed descriptor.
         runtime.before_fork()
+        _fd_cleanup.depth = depth + 1
         try:
-            return close_open_fds(*args, **kwargs)
+            return close(*args, **kwargs)
         finally:
+            _fd_cleanup.depth = depth
             runtime.after_fork_child()
 
     setattr(wrapper, "__ddtrace_native_runtime__", True)
     return wrapper
+
+
+def _stop_before_exec(execute: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap an exec function so the process image is replaced with the runtime stopped."""
+    if getattr(execute, "__ddtrace_native_runtime__", False):
+        return execute
+
+    @wraps(execute)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        runtime = _runtime
+        if runtime is None or runtime._shut_down:
+            return execute(*args, **kwargs)
+
+        runtime.before_fork()
+        try:
+            return execute(*args, **kwargs)
+        except BaseException:
+            # The exec failed and this process carries on: resume the runtime
+            # with its workers' state intact, as in a fork parent.
+            runtime.after_fork_parent()
+            raise
+
+    setattr(wrapper, "__ddtrace_native_runtime__", True)
+    return wrapper
+
+
+# Daemonizing libraries such as python-daemon fork, close every inherited
+# descriptor with os.closerange and keep running. Every os.exec* function goes
+# through os.execv or os.execve, which os looks up by name on each call.
+setattr(os, "closerange", _stop_while_closing_fds(os.closerange))
+setattr(os, "execv", _stop_before_exec(os.execv))
+setattr(os, "execve", _stop_before_exec(os.execve))
 
 
 @ModuleWatchdog.after_module_imported("celery.platforms")
@@ -170,4 +214,4 @@ def _(platforms: Any) -> None:
     # Up to Celery 5.6 it is billiard's function; from 5.7 Celery closes the
     # descriptors listed in /proc/self/fd itself and only falls back to
     # billiard's, so wrapping billiard would not cover it.
-    platforms.close_open_fds = _wrap_close_open_fds(platforms.close_open_fds)
+    platforms.close_open_fds = _stop_while_closing_fds(platforms.close_open_fds)
