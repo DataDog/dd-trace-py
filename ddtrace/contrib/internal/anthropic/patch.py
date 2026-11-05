@@ -49,9 +49,14 @@ def _parse_wrapped_response(resp: Any) -> Any:
 
     parse() caches its result on the wrapper, so the caller's own parse() returns
     the same object. Any other response, or a failed parse, is returned unchanged.
+    A failed body read propagates: the stream is spent by then, so the caller would
+    only get StreamAlreadyConsumed in place of the transport error. LegacyAPIResponse
+    has no read() because its body is already in memory.
     """
     if not _is_wrapped_response(resp):
         return resp
+    if hasattr(resp, "read"):
+        resp.read()
     try:
         return resp.parse()
     except Exception:
@@ -67,6 +72,10 @@ async def _async_parse_wrapped_response(resp: Any) -> Any:
     """
     if not _is_wrapped_response(resp):
         return resp
+    if hasattr(resp, "read"):
+        body = resp.read()
+        if inspect.isawaitable(body):
+            await body
     try:
         parsed = resp.parse()
         if inspect.isawaitable(parsed):
@@ -108,7 +117,11 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(resp, args, kwargs, ctx)
-        parsed_resp = _parse_wrapped_response(resp) if not kwargs.get("stream") else resp
+        try:
+            parsed_resp = _parse_wrapped_response(resp) if not kwargs.get("stream") else resp
+        except BaseException:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         # Attach the response to the event before the after-hook so that an AI
         # Guard block raised by that hook still records the model output in
         # LLMObs, even though the block errors the span (APPSEC-68147).
@@ -134,7 +147,12 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(resp, args, kwargs, ctx)
-        parsed_resp = await _async_parse_wrapped_response(resp) if not kwargs.get("stream") else resp
+        try:
+            parsed_resp = await _async_parse_wrapped_response(resp) if not kwargs.get("stream") else resp
+        except BaseException:
+            # BaseException, so a cancelled body read still finishes the span.
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         # Attach the response to the event before the after-hook so that an AI
         # Guard block raised by that hook still records the model output in
         # LLMObs, even though the block errors the span (APPSEC-68147).
