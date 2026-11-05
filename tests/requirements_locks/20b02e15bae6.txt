@@ -7,12 +7,7 @@ greenlet==3.0.3
 hypothesis==6.45.0
 iniconfig==2.3.1
 mock==5.2.0
-<<<<<<< HEAD:tests/requirements_locks/8a009453b65a.txt
-mysql-connector-python==26.10.0
-opentracing==2.4.0
-=======
 mysql-connector-python==26.7.0
->>>>>>> main:tests/requirements_locks/20b02e15bae6.txt
 packaging==26.3
 pluggy==1.7.0
 psycopg2-binary==2.9.13

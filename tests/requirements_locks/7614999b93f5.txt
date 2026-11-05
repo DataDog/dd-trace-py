@@ -10,18 +10,10 @@ hypothesis==6.45.0
 idna==3.20
 iniconfig==2.3.1
 mock==5.2.0
-<<<<<<< HEAD:tests/requirements_locks/0203d4c754ba.txt
-opentracing==2.4.0
-packaging==26.3
-pluggy==1.7.0
-pygments==2.21.0
-pytest==9.2.0
-=======
 packaging==25.0
 pluggy==1.6.0
 pygments==2.19.2
 pytest==8.4.2
->>>>>>> main:tests/requirements_locks/7614999b93f5.txt
 pytest-asyncio==0.21.1
 pytest-cov==7.1.0
 pytest-mock==3.17.0
