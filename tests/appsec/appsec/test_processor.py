@@ -116,8 +116,9 @@ def test_waf_address_refresh_failure_on_rules_update_is_reported():
 
 
 def test_log_waf_error_does_not_count_a_config_error():
-    with mock.patch("ddtrace.appsec._metrics.telemetry.telemetry_writer") as telemetry_writer:
-        log_waf_error("appsec.waf.error::address_discovery::test_log_waf_error_does_not_count", "1.19.0")
+    with override_global_config(dict(_asm_deduplication_enabled=False)):
+        with mock.patch("ddtrace.appsec._metrics.telemetry.telemetry_writer") as telemetry_writer:
+            log_waf_error("appsec.waf.error::address_discovery::test_log_waf_error_does_not_count", "1.19.0")
 
     telemetry_writer.add_log.assert_called_once()
     telemetry_writer.add_count_metric.assert_not_called()
