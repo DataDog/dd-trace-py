@@ -3,7 +3,7 @@ name: Update system-tests pin
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '0 14 * * 1-5' # weekdays at 09:00 EST (14:00 UTC)
+    - cron: '0 14 * * 1' # Mondays at 09:00 EST (14:00 UTC)
 
 permissions:
   id-token: write
