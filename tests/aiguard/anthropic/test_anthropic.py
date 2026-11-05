@@ -1194,6 +1194,36 @@ def test_after_hook_blocks_tool_use_response(mock_execute_request, anthropic_cli
     assert mock_execute_request.call_count == 2
 
 
+def _deny_assistant_turn(endpoint, payload):
+    roles = [m.get("role") for m in payload["data"]["attributes"]["messages"]]
+    return mock_evaluate_response("DENY" if "assistant" in roles else "ALLOW")
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_after_hook_blocks_tool_use_with_raw_response(mock_execute_request, anthropic_client_tool_use):
+    """``with_raw_response`` hands the after-hook the parsed ``Message``, not the wrapper."""
+    mock_execute_request.side_effect = _deny_assistant_turn
+
+    with pytest.raises(AIGuardAbortError):
+        anthropic_client_tool_use.messages.with_raw_response.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    assert mock_execute_request.call_count == 2
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_after_hook_blocks_tool_use_with_streaming_response(mock_execute_request, anthropic_client_tool_use):
+    """``with_streaming_response`` on a non-streaming request reaches the after-hook parsed."""
+    mock_execute_request.side_effect = _deny_assistant_turn
+
+    with pytest.raises(AIGuardAbortError):
+        with anthropic_client_tool_use.messages.with_streaming_response.create(
+            messages=_user_messages(), **CHAT_PARAMS
+        ):
+            pass
+
+    assert mock_execute_request.call_count == 2
+
+
 # ---------------------------------------------------------------------------
 # Collision suppression
 # ---------------------------------------------------------------------------
