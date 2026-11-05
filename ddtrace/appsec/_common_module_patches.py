@@ -18,8 +18,6 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._contrib.filesystem.patch import patch as patch_filesystem_for_appsec
-from ddtrace.appsec._contrib.filesystem.patch import unpatch as unpatch_filesystem_for_appsec
 from ddtrace.appsec._contrib.httpx.subscribers import APPSEC_SSRF_ANALYZE_BODY_KEY
 from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
@@ -30,6 +28,8 @@ from ddtrace.appsec._contrib.webbrowser.patch import unpatch as unpatch_webbrows
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
+from ddtrace.contrib.internal.filesystem.patch import patch as patch_filesystem
+from ddtrace.contrib.internal.filesystem.patch import unpatch as unpatch_filesystem
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
@@ -64,7 +64,7 @@ def patch_common_modules() -> None:
     try_wrap_context("aiohttp.client_reqrep", "ClientResponse.start", _SsrfAiohttpResponseStart)
     try_wrap_context("aiohttp.client_reqrep", "ClientResponse.read", _SsrfAiohttpResponseRead)
 
-    patch_filesystem_for_appsec()
+    patch_filesystem()
     patch_stripe_for_appsec()
     patch_subprocess_for_appsec()
     patch_webbrowser_for_appsec()
@@ -90,7 +90,7 @@ def unpatch_common_modules():
     try_unwrap_context("aiohttp.connector", "BaseConnector.connect")
     try_unwrap_context("aiohttp.client_reqrep", "ClientResponse.start")
     try_unwrap_context("aiohttp.client_reqrep", "ClientResponse.read")
-    unpatch_filesystem_for_appsec()
+    unpatch_filesystem()
     unpatch_stripe_for_appsec()
     unpatch_subprocess_for_appsec()
     unpatch_webbrowser_for_appsec()

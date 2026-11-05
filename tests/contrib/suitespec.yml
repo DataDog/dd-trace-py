@@ -213,6 +213,9 @@ components:
     - ddtrace/contrib/internal/structlog/*
   subprocess:
     - ddtrace/contrib/internal/subprocess/*
+  filesystem:
+    - ddtrace/contrib/internal/filesystem/*
+    - ddtrace/contrib/_events/filesystem.py
   tornado:
     - ddtrace/contrib/internal/tornado/*
   trio:
@@ -2578,6 +2581,16 @@ suites:
           dependencies: ['structlog~=20.2.0', pytest-randomly]
         - name: structlog
           dependencies: [structlog, pytest-randomly]
+  filesystem:
+    paths:
+      - '@bootstrap'
+      - '@contrib'
+      - '@filesystem'
+      - tests/contrib/filesystem/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/filesystem
+      variants:
+        - name: filesystem
   subprocess:
     paths:
       - '@bootstrap'
