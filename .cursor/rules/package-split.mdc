@@ -1,0 +1,6 @@
+---
+description: Package extraction guardrails and gates
+globs: scripts/package_split/**,scripts/package-split,package-contract.toml,package-freeze.toml,tests/package_split/**,.github/workflows/package-split-freeze-guard.yml,docs/package-split/**
+alwaysApply: false
+---
+Follow `.agents/skills/package-split/SKILL.md`, `docs/package-split/plan.md` and `scripts/package_split/README.md`. Keep gates fail-closed, schemas versioned and negative fixtures covering violations; never weaken baselines/freeze rules or report unrun checks as passing.

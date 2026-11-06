@@ -1,0 +1,74 @@
+# Package-split freeze guard
+#
+# Enforces docs/package-split/plan.md Deliverable 4 ("Freeze and transfer")
+# at the pull-request level: once a package-freeze.toml exists on the target
+# branch, frozen source paths may only change through approved rewrites.
+#
+# Why pull_request_target: the workflow definition, the harness
+# (scripts/package_split/) and the freeze rules (package-freeze.toml) are
+# always taken from the PR's BASE branch, so a pull request cannot weaken,
+# bypass or unfreeze itself. Adding frozen paths (freezing more) from a PR
+# has no effect until it lands on the base branch, which is maintainer
+# controlled; unfreezing likewise requires a landed change. Freeze
+# tightening is therefore open to anyone while unfreezing is restricted --
+# the same asymmetry as .github/workflows/team-freeze-guard.yml.
+#
+# The PR head is only ever inspected (git diff, hashing, AST parsing), never
+# executed: no code from the pull request runs in this privileged context.
+
+name: Package split freeze guard
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  freeze-guard:
+    name: Package split freeze guard
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the base branch (protected harness and freeze rules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          # Full history: the freeze gate diffs the extraction revision
+          # against the PR head.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the pull request head (inspected, never executed)
+        run: |
+          git fetch --no-tags origin "refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/head"
+
+      - name: Is a package freeze active on the base branch?
+        id: active
+        run: |
+          if git show "${{ github.event.pull_request.base.sha }}:package-freeze.toml" > /dev/null 2>&1; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            # No freeze has been established yet (plan phase 4 not reached):
+            # there are no protected paths to enforce. The freeze gate itself
+            # stays fail-closed; this guard only runs when a freeze exists.
+            echo "active=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the freeze gate
+        if: steps.active.outputs.active == 'true'
+        run: |
+          scripts/package-split freeze \
+            --manifest package-contract.toml \
+            --output .package-split \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head refs/remotes/pr/head
+
+      - name: No active freeze
+        if: steps.active.outputs.active != 'true'
+        run: |
+          echo "No package-freeze.toml on ${{ github.event.pull_request.base.ref }}: package-split freeze not yet established."
