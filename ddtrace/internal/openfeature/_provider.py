@@ -24,6 +24,7 @@ from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _FfeSnapshot
@@ -132,6 +133,8 @@ class DataDogProvider(AbstractProvider):
         # to guard the first-config path and by _emit_ready_event() timing.
         self._config_received = Event()
         self._initialization_failed = False
+        # Makes the failure decision in initialize() atomic with on_configuration_received().
+        self._initialization_lock = forksafe.Lock()
 
         # Read through a fresh config instance so values reflect the environment at
         # provider-construction time rather than at import time (see the killswitch
@@ -322,8 +325,10 @@ class DataDogProvider(AbstractProvider):
 
         if self._configuration_source_error is not None:
             # No configuration can arrive, so fail now instead of waiting for the timeout.
-            self._initialization_failed = True
-            raise ProviderNotReadyError(self._configuration_source_error)
+            if self._mark_initialization_failed():
+                raise ProviderNotReadyError(self._configuration_source_error)
+            logger.debug("Feature Flags: provider initialized successfully (configuration received meanwhile)")
+            return  # SDK will dispatch PROVIDER_READY
 
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
@@ -341,6 +346,9 @@ class DataDogProvider(AbstractProvider):
         # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
         # non-blocking registration and propagates it for blocking registration.
+        if not self._mark_initialization_failed():
+            logger.debug("Feature Flags: provider initialized successfully (configuration received at the timeout)")
+            return  # SDK will dispatch PROVIDER_READY
         # Warning rather than error: errors are forwarded to telemetry, and a routine
         # initialization timeout should not inflate its volume.
         logger.warning(
@@ -348,8 +356,19 @@ class DataDogProvider(AbstractProvider):
             "evaluations will return default values until configuration arrives",
             self._initialization_timeout,
         )
-        self._initialization_failed = True
         raise ProviderNotReadyError("No Feature Flagging configuration received before the initialization timeout")
+
+    def _mark_initialization_failed(self) -> bool:
+        """Record an initialization failure, unless configuration arrived first.
+
+        Returns False when configuration arrived, so initialize() succeeds. Otherwise a
+        configuration that arrives later sees the failure and emits the recovery event.
+        """
+        with self._initialization_lock:
+            if self._config_received.is_set():
+                return False
+            self._initialization_failed = True
+            return True
 
     def shutdown(self) -> None:
         """
@@ -781,18 +800,21 @@ class DataDogProvider(AbstractProvider):
         Updates status first, then signals the event for observers.
         Emits PROVIDER_READY for late arrivals after initialization fails.
         """
-        if not self._config_received.is_set():
-            self._status = ProviderStatus.READY
+        with self._initialization_lock:
+            first = not self._config_received.is_set()
+            if first:
+                self._status = ProviderStatus.READY
             # The SDK emits READY after successful initialization. The provider only
             # owns the recovery event after initialization reported an error.
-            if self._initialization_failed:
-                logger.debug("Feature Flags: provider recovered: configuration received after initialization failed")
-                self._emit_ready_event()
-            else:
-                logger.debug("First FFE configuration received, provider is now READY")
+            recovered = first and self._initialization_failed
+            # Signal the event after status is updated.
+            self._config_received.set()
 
-        # Signal the event last after status is updated.
-        self._config_received.set()
+        if recovered:
+            logger.debug("Feature Flags: provider recovered: configuration received after initialization failed")
+            self._emit_ready_event()
+        elif first:
+            logger.debug("First FFE configuration received, provider is now READY")
 
     def _emit_ready_event(self) -> None:
         """

@@ -396,6 +396,23 @@ class TestProviderInitializationAsync:
             api.remove_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
             api.clear_providers()
 
+    def test_configuration_received_at_the_timeout_initializes(self, mocker):
+        """Configuration that lands as the wait times out makes initialization succeed, not fail."""
+        provider = DataDogProvider(initialization_timeout=0.2)
+
+        def deliver_then_time_out(timeout=None):
+            process_ffe_configuration(create_config(create_boolean_flag("test-flag", enabled=True)))
+            return False
+
+        mocker.patch.object(provider._config_received, "wait", side_effect=deliver_then_time_out)
+        try:
+            provider.initialize(EvaluationContext())
+
+            assert provider._status == ProviderStatus.READY
+            assert not provider._initialization_failed
+        finally:
+            provider.shutdown()
+
     def test_initialize_waits_for_config_and_becomes_ready(self):
         """initialize() blocks until config arrives, so READY implies flags are resolvable."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):

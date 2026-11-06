@@ -318,6 +318,25 @@ def test_existing_configuration_wins_over_missing_api_key(agentless_source):
             provider.shutdown()
 
 
+def test_configuration_received_during_the_failure_initializes(agentless_source, mocker):
+    """Configuration that lands after the fast-path check but before the failure makes initialization succeed."""
+
+    def deliver_then_report_none():
+        process_ffe_configuration(create_config(create_boolean_flag("my-flag", enabled=True)))
+        return None
+
+    mocker.patch("ddtrace.internal.openfeature._provider._get_ffe_snapshot", side_effect=deliver_then_report_none)
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            provider.initialize(EvaluationContext())
+
+            assert provider._status == ProviderStatus.READY
+            assert not provider._initialization_failed
+        finally:
+            provider.shutdown()
+
+
 def test_late_configuration_after_missing_api_key_emits_ready(agentless_source, mocker):
     """A configuration applied after the failure still makes the provider ready."""
     with override_global_config({"_dd_api_key": None}):
