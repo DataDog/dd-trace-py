@@ -123,7 +123,6 @@ def get_original_test_name(request_or_item):
 
 # Hack to try and capture more logging data from pytest failing on `internal` jobs on
 # pytest shutdown. This is a temporary workaround until we can figure out... why....
-# https://app.circleci.com/pipelines/github/DataDog/dd-trace-py/68751/workflows/8939123d-e0bf-4fd5-a4f2-2368eb9fc141/jobs/4201092
 # OSError: [Errno 9] Bad file descriptor
 if os.environ.get("CI") == "true":
     try:
