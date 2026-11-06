@@ -51,8 +51,9 @@ synchronous instrumentation setup (middleware or plugin constructors, enabled tw
 creation, or patching), rather than registering subscriber classes directly. Keep
 conditional enablement outside the decorated helper and never decorate request
 handlers. The decorator activates bundles at setup invocation, not module import.
-This preserves manual instrumentation when tracing product startup is skipped. Registration is
-idempotent; do not unregister the shared subscriber when unpatching one integration,
+This preserves manual instrumentation when tracing product startup is skipped. Active
+bundles skip repeated registration; core listener resets invalidate activation so the
+next setup restores listeners. Registration is idempotent; do not unregister the shared subscriber when unpatching one integration,
 since other integrations and active requests still need its listeners.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use

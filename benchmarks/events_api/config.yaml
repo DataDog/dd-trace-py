@@ -8,3 +8,10 @@ dispatch_event:
   api: dispatch_event
 trace_api:
   api: trace_api
+# Subscriber configurations require a baseline supporting SubscriberBundle.
+subscriber_setup:
+  api: subscriber_setup
+subscriber_first_activation:
+  api: subscriber_first_activation
+subscriber_reset_recovery:
+  api: subscriber_reset_recovery

@@ -104,9 +104,16 @@ Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
 the `auto_register` flag can be removed.
 
-Repeated registration uses named-listener deduplication and can restore listeners
-after a reset. Import and callback failures propagate to the caller; registration
-is not a transaction across callback failures.
+`register()` delegates to `ensure_registered()`: the first activation resolves the
+classes and installs their listeners; later calls reuse the active bundle without
+resolution or listener lookup. Core `reset()` / `reset_listeners()` calls invalidate
+all bundles, including when removing a single callback. The next activation restores
+listeners using the cached classes. Bundle activation and removal share a fork-safe
+lock, so concurrent setup calls activate a shared bundle once. Imports happen outside
+that lock. Import and callback failures propagate and can be retried; registration
+is not a transaction across callback failures. A reset within a registration callback
+leaves activation uncached so the next setup retries. Subscriber implementations must
+use the core event hub for listener removal.
 
 Products call bundle `register()` and `unregister()` explicitly from their own
 `start()` and `stop()` functions. `ProductManager` only invokes the existing product
@@ -149,8 +156,8 @@ Apply the decorator to synchronous setup functions, including middleware or plug
 constructors. Decoration does not import or activate subscribers; invocation registers
 the bundles before setup runs. The wrapper preserves the callable's signature and
 metadata. Direct calls work without tracing product startup or the common patching
-machinery. Each invocation registers again so setup can restore listeners after a
-reset; named listener registration prevents duplicates. Registration errors propagate
+machinery. Each invocation ensures activation, skipping registration while the bundle
+is still active and restoring listeners after a reset. Registration errors propagate
 before setup runs. Keep enablement checks outside decorated helpers when disabled
 setup must remain inactive, as in Pyramid's tween factory. Keep the decorator off
 request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
