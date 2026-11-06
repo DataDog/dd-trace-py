@@ -13,7 +13,6 @@ from types import ModuleType
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
-import uuid
 from weakref import WeakKeyDictionary
 
 from ddtrace.aiguard._types import MCP
@@ -26,6 +25,7 @@ from ddtrace.aiguard._types import ToolCall
 from ddtrace.internal import forksafe
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils.http import url_origin
 from ddtrace.internal.wrapping import is_wrapped_with
@@ -151,7 +151,7 @@ def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]
 
 def local_tool_call_id() -> str:
     """ID for a tool call no model issued, prefixed so it is never mistaken for a provider ID."""
-    return f"dd_mcp_{uuid.uuid4().hex}"
+    return f"dd_mcp_{uuid4().replace('-', '')}"
 
 
 class _ModelToolCall(NamedTuple):

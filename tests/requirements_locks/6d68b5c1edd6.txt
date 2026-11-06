@@ -5,7 +5,7 @@ certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0
-coverage[toml]==7.17.0
+coverage[toml]==7.17.1
 cryptography==50.0.2
 griffelib==2.4.1
 h11==0.16.0
@@ -20,10 +20,9 @@ jsonschema-specifications==2025.9.1
 mcp==2.3.0
 mcp-types==2.3.0
 mock==5.2.0
-openai==3.42.1
+openai==3.45.0
 openai-agents==0.24.0
 opentelemetry-api==1.45.2
-opentracing==2.4.0
 packaging==26.3
 pluggy==1.7.0
 pycparser==3.12
