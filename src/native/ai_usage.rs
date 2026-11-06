@@ -12,9 +12,9 @@ pub mod ai_usage {
     use std::sync::Mutex;
 
     use libdd_ai_usage::{
-        project_result, with_deployment_attributes, Issues, Json, JsonObject, MetricBatch,
-        MetricError, MetricPoint, OtlpBinding, OtlpScope, OtlpWindow, Profile, Projection,
-        ProviderResponse, StreamOutcome, UsageFormat, UsageStream,
+        project_result, with_deployment_attributes, Json, JsonObject, MetricBatch, MetricError,
+        OtlpBinding, OtlpScope, OtlpWindow, Profile, ProviderResponse, StreamOutcome, UsageFormat,
+        UsageStream,
     };
     use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
     use pyo3::prelude::*;
@@ -156,13 +156,28 @@ pub mod ai_usage {
 
     /// The `error.type` of a failure from its name and HTTP status; `failed`
     /// makes one nothing names `api_error`.
-    // TODO: use libdatadog#2827's failure fallback once it is published.
     #[pyfunction]
     #[pyo3(signature = (name=None, status=None, failed=false))]
     fn error_type(name: Option<&str>, status: Option<i64>, failed: bool) -> Option<&'static str> {
         let status = status.and_then(|status| u16::try_from(status).ok());
-        libdd_ai_usage::classify_error(name, status)
-            .or(failed.then_some(libdd_ai_usage::ERROR_TYPE_API))
+        match failed {
+            true => Some(libdd_ai_usage::classify_failure(name, status)),
+            false => libdd_ai_usage::classify_error(name, status),
+        }
+    }
+
+    /// An account, project or key id as written, trimmed: non-blank and at
+    /// most 128 bytes, else `None`.
+    #[pyfunction]
+    fn billing_id(value: &str) -> Option<&str> {
+        libdd_ai_usage::billing_id(value)
+    }
+
+    /// The rejected data points and message of an OTLP export response's
+    /// partial success, when it states one.
+    #[pyfunction]
+    fn otlp_partial_success(body: &[u8]) -> Option<(u64, String)> {
+        libdd_ai_usage::parse_export_partial_success(body)
     }
 
     #[pyfunction]
@@ -201,12 +216,17 @@ pub mod ai_usage {
         Ok(ids.into_iter().collect())
     }
 
-    /// DogStatsD lines packed into datagrams of at most `max_payload` bytes,
-    /// and how many lines were dropped for being longer.
-    // TODO: use libdatadog#2827's datagram repacking once it is published.
+    /// A datagram's lines packed again into datagrams of at most
+    /// `max_payload` bytes, NUL-separated, and how many lines were dropped
+    /// for being longer.
     #[pyfunction]
-    fn pack_dogstatsd(lines: Vec<String>, max_payload: usize) -> (Vec<String>, usize) {
-        libdd_ai_usage::pack_dogstatsd_counted(&lines, &[] as &[&str], max_payload)
+    fn repack_dogstatsd<'py>(
+        py: Python<'py>,
+        datagram: &str,
+        max_payload: usize,
+    ) -> (Bound<'py, PyBytes>, usize) {
+        let (text, dropped) = libdd_ai_usage::repack_dogstatsd(datagram, max_payload, '\0');
+        (PyBytes::new(py, text.as_bytes()), dropped)
     }
 
     /// The metric points of one export window. Safe to share between threads.
@@ -323,6 +343,7 @@ pub mod ai_usage {
         /// `max_bytes` each, split by series; `[]` when there are none.
         /// `datadog` selects the binding for a Datadog intake.
         #[pyo3(signature = (scope_name, scope_version, start_time_unix_nano, time_unix_nano, max_bytes, datadog=false))]
+        #[allow(clippy::too_many_arguments)]
         fn take_otlp<'py>(
             &self,
             py: Python<'py>,
@@ -334,9 +355,6 @@ pub mod ai_usage {
             datadog: bool,
         ) -> PyResult<Vec<Bound<'py, PyBytes>>> {
             let batch = self.take()?;
-            if batch.is_empty() {
-                return Ok(Vec::new());
-            }
             let binding = if datadog {
                 OtlpBinding::Datadog
             } else {
@@ -350,10 +368,7 @@ pub mod ai_usage {
                 start_time_unix_nano,
                 time_unix_nano,
             };
-            let encode = |batch: &MetricBatch| batch.encode_otlp_with(scope, window, binding);
-            let mut parts = Vec::new();
-            py.detach(|| split_otlp(series_of(&batch), &encode, max_bytes, &mut parts))
-                .map_err(rejected)?;
+            let parts = py.detach(|| batch.encode_otlp_parts(scope, window, binding, max_bytes));
             Ok(parts.iter().map(|part| PyBytes::new(py, part)).collect())
         }
 
@@ -365,71 +380,10 @@ pub mod ai_usage {
             max_payload: usize,
         ) -> PyResult<(Bound<'py, PyBytes>, usize)> {
             let batch = self.take()?;
-            let lines = py.detach(|| batch.dogstatsd_lines()).map_err(rejected)?;
-            let (text, dropped) = libdd_ai_usage::pack_dogstatsd_joined(
-                lines.iter().map(String::as_str),
-                &[] as &[&str],
-                max_payload,
-                '\0',
-            );
+            let (text, dropped) = py
+                .detach(|| batch.dogstatsd_datagrams_joined(&[] as &[&str], max_payload, '\0'))
+                .map_err(rejected)?;
             Ok((PyBytes::new(py, text.as_bytes()), dropped))
         }
-    }
-
-    // TODO: use libdatadog#2827's size-bounded OTLP encoding once it is published.
-    type Series = (libdd_ai_usage::Attributes, Profile, Vec<MetricPoint>);
-
-    /// A batch's series in order: a Counter's sum, or every sample of a Histogram.
-    fn series_of(batch: &MetricBatch) -> Vec<Series> {
-        let mut series: Vec<Series> = Vec::new();
-        for (resource, profile, points) in batch.points() {
-            let start = series.len();
-            for point in points {
-                let fresh = series.len() == start;
-                match series.last_mut() {
-                    Some(last)
-                        if !fresh
-                            && last.2[0].name == point.name
-                            && last.2[0].instrument == point.instrument
-                            && last.2[0].attributes == point.attributes =>
-                    {
-                        last.2.push(point)
-                    }
-                    _ => series.push((resource.clone(), profile, vec![point])),
-                }
-            }
-        }
-        series
-    }
-
-    /// Encode `series` into requests of at most `max_bytes`, halving any that
-    /// does not fit. One series is never split, so it can exceed `max_bytes`.
-    fn split_otlp(
-        series: Vec<Series>,
-        encode: &dyn Fn(&MetricBatch) -> Vec<u8>,
-        max_bytes: usize,
-        parts: &mut Vec<Vec<u8>>,
-    ) -> Result<(), MetricError> {
-        let count = series.len();
-        let mut batch = MetricBatch::new();
-        for (resource, profile, points) in &series {
-            batch.add(
-                *profile,
-                &Projection {
-                    points: points.clone(),
-                    issues: Issues::new(),
-                    resource: resource.clone(),
-                },
-            )?;
-        }
-        let payload = encode(&batch);
-        if payload.len() <= max_bytes || count <= 1 {
-            parts.push(payload);
-            return Ok(());
-        }
-        let mut series = series;
-        let second = series.split_off(count / 2);
-        split_otlp(series, encode, max_bytes, parts)?;
-        split_otlp(second, encode, max_bytes, parts)
     }
 }
