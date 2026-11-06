@@ -181,12 +181,12 @@ def patch() -> None:
 
     client._datadog_patch = True
 
-    wrap("mistralai.client.chat", "Chat.complete", traced_chat_generate)
-    wrap("mistralai.client.chat", "Chat.complete_async", traced_async_chat_generate)
-    wrap("mistralai.client.chat", "Chat.stream", traced_generate_stream)
-    wrap("mistralai.client.chat", "Chat.stream_async", traced_async_generate_stream)
-    wrap("mistralai.client.embeddings", "Embeddings.create", traced_embed_generate)
-    wrap("mistralai.client.embeddings", "Embeddings.create_async", async_traced_embed_generate)
+    wrap(Chat, "complete", traced_chat_generate)
+    wrap(Chat, "complete_async", traced_async_chat_generate)
+    wrap(Chat, "stream", traced_generate_stream)
+    wrap(Chat, "stream_async", traced_async_generate_stream)
+    wrap(Embeddings, "create", traced_embed_generate)
+    wrap(Embeddings, "create_async", async_traced_embed_generate)
 
     # Let products (LLMObs) attach their shared lifecycle subscribers without this
     # module importing them.

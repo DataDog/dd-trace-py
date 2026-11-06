@@ -1,4 +1,5 @@
 from collections import deque
+import io
 import os
 import sys
 import sysconfig
@@ -18,6 +19,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
+import ddtrace.internal.telemetry.writer as telemetry_writer_module
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -2289,3 +2291,74 @@ def test_telemetry_debug_not_enabled_by_tracer_debug():
     from ddtrace.internal.telemetry import telemetry_writer
 
     assert telemetry_writer._debug is False
+
+
+_APP = ("/app/main.py", "__main__")
+_DDTRACE = ("/site-packages/ddtrace/internal/fake_caller.py", "ddtrace.internal.fake_caller")
+_CONTRIB = (
+    "/site-packages/ddtrace/contrib/internal/fakeintegration/patch.py",
+    "ddtrace.contrib.internal.fakeintegration",
+)
+_WRAPT = ("/site-packages/wrapt/wrappers.py", "wrapt.wrappers")
+_WRAPPER = ("/site-packages/ddtrace/appsec/fake_wrapper.py", "ddtrace.appsec.fake_wrapper")
+
+
+def _forwarder(name: str, location: tuple[str, str]):
+    filename, module_name = location
+    namespace: dict[str, Any] = {"__name__": module_name}
+    source = f"def {name}(target, *args):\n    return target(*args)\n"
+    exec(compile(source, filename, "exec"), namespace)
+    return namespace[name]
+
+
+def _excepthook_calls(telemetry_writer, layers, registered, missing_path):
+    """Raise FileNotFoundError from io.open through the layers, outermost first, and run the excepthook on it."""
+    functions = [_forwarder(f"layer_{index}", location) for index, location in enumerate(layers)]
+    with mock.patch.object(telemetry_writer_module, "_PASSTHROUGH_CODES", set()):
+        for index in registered:
+            telemetry_writer.add_passthrough_wrapper(functions[index])
+        with pytest.raises(FileNotFoundError) as exc_info:
+            functions[0](*functions[1:], io.open, missing_path)
+        exc = exc_info.value
+        with mock.patch.object(telemetry_writer, "add_error_log") as add_error_log:
+            with mock.patch.object(telemetry_writer, "add_count_metric") as add_count_metric:
+                with mock.patch.object(telemetry_writer, "add_integration"):
+                    with mock.patch.object(telemetry_writer, "app_shutdown") as app_shutdown:
+                        telemetry_writer._telemetry_excepthook(type(exc), exc, exc.__traceback__)
+    app_shutdown.assert_called_once()
+    return add_error_log, add_count_metric
+
+
+@pytest.mark.parametrize(
+    "layers,registered,reported",
+    [
+        pytest.param([_APP, _WRAPPER], [1], False, id="application-caller"),
+        pytest.param([_DDTRACE, _WRAPPER], [1], True, id="ddtrace-caller"),
+        pytest.param([_APP, _WRAPPER], [], True, id="unregistered-wrapper"),
+        pytest.param([_APP, _WRAPPER, _WRAPPER], [1, 2], False, id="application-caller-two-wrappers"),
+        pytest.param([_DDTRACE, _WRAPPER, _WRAPPER], [1, 2], True, id="ddtrace-caller-two-wrappers"),
+        pytest.param([_APP, _WRAPT, _WRAPPER], [2], False, id="application-caller-wrapt-fallback"),
+        pytest.param([_DDTRACE, _WRAPT, _WRAPPER], [2], True, id="ddtrace-caller-wrapt-fallback"),
+    ],
+)
+def test_excepthook_attributes_passthrough_wrapper_errors_to_the_caller(
+    telemetry_writer, tmp_path, layers, registered, reported
+):
+    add_error_log, _ = _excepthook_calls(telemetry_writer, layers, registered, str(tmp_path / "missing"))
+
+    assert add_error_log.called is reported
+
+
+@pytest.mark.parametrize(
+    "layers",
+    [
+        pytest.param([_CONTRIB, _WRAPPER], id="contrib-caller"),
+        pytest.param([_APP, _CONTRIB, _WRAPPER], id="application-callable-run-by-contrib"),
+    ],
+)
+def test_excepthook_does_not_count_passthrough_wrapper_errors_against_an_integration(
+    telemetry_writer, tmp_path, layers
+):
+    _, add_count_metric = _excepthook_calls(telemetry_writer, layers, [len(layers) - 1], str(tmp_path / "missing"))
+
+    add_count_metric.assert_not_called()
