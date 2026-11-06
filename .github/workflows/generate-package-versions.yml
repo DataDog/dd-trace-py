@@ -104,8 +104,8 @@ jobs:
             # Restore the batch PR's files, then revert the locks of packages whose CI suites failed.
             pr=$(gh pr view "$BATCH_BRANCH" --json number,state,statusCheckRollup) || exit 0
             [[ "$(jq -r .state <<<"$pr")" == "OPEN" ]] || exit 0
-            # Wait until every check has finished.
-            jq -e '.statusCheckRollup | any(.[]; (.status // "COMPLETED") != "COMPLETED" or ((.state // "") | IN("PENDING", "EXPECTED")))' <<<"$pr" >/dev/null && exit 0
+            # Wait until every GitLab check has finished (other checks, like the merge gate, can stay pending).
+            jq -e '.statusCheckRollup | any(.[]; ((.name // .context) | startswith("dd-gitlab/")) and ((.status // "COMPLETED") != "COMPLETED" or ((.state // "") | IN("PENDING", "EXPECTED"))))' <<<"$pr" >/dev/null && exit 0
             git fetch --depth=1 origin "$BATCH_BRANCH"
             gh api --paginate "repos/$GH_REPO/pulls/$(jq .number <<<"$pr")/files" --jq '.[] | [.status, .filename] | @tsv' |
               while IFS=$'\t' read -r status path; do
