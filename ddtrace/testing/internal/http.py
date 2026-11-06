@@ -66,6 +66,10 @@ MAX_RETRY_AFTER_SECONDS = 120.0
 T = t.TypeVar("T")
 
 
+# How long a request run on gevent's threadpool may take beyond its own timeout, waiting for a free thread.
+_THREADPOOL_GRACE_SECONDS = 1.0
+
+
 def _timeout_ms(timeout_seconds: float) -> int:
     # The native client rejects a timeout of 0.
     return max(1, int(timeout_seconds * 1000))
@@ -78,20 +82,41 @@ def _reason(status: int) -> str:
         return ""
 
 
-def _call_without_blocking_gevent(function: t.Callable[..., T], *args: t.Any, **kwargs: t.Any) -> T:
-    """Call function, a native call that blocks its thread, without blocking gevent's other greenlets.
+def _call_without_blocking_gevent(
+    function: t.Callable[..., T], timeout_seconds: float, *args: t.Any, **kwargs: t.Any
+) -> T:
+    """Call function, a native call that blocks its thread, without blocking gevent's greenlets.
 
-    Once gevent has patched threading, the plugin's threads are greenlets on the thread of the tests, and a native call
-    would stop the tests until it returns, where Python's sockets let them run. Run it on one of gevent's own threads
-    then, as gevent does for blocking calls.
+    Where a gevent hub runs, greenlets share the thread: once gevent has patched threading, the plugin's own threads
+    are greenlets on the thread of the tests. A native call would stop them until it returns, where gevent's sockets
+    let them run, so it runs on the hub's threadpool instead, as gevent does for blocking calls. Waiting for a free
+    thread in the pool counts against timeout_seconds, and a call that hasn't started when the wait ends doesn't run.
     """
-    gevent_monkey = sys.modules.get("gevent.monkey")
-    if gevent_monkey is None or not gevent_monkey.is_module_patched("threading"):
+    # The hub of this thread, without creating one: gevent's own helper, in gevent since 1.3.
+    get_hub_if_exists = getattr(sys.modules.get("gevent._hub_local"), "get_hub_if_exists", None)
+    hub = get_hub_if_exists() if get_hub_if_exists is not None else None
+    if hub is None:
         return function(*args, **kwargs)
 
-    import gevent
+    from gevent import Timeout
+    from gevent import getcurrent
 
-    return gevent.get_hub().threadpool.apply(function, args, kwargs)
+    if getcurrent() is hub:
+        return function(*args, **kwargs)
+
+    abandoned = False
+
+    def call() -> T:
+        if abandoned:
+            raise TimedOutError("Gave up waiting for a thread to send the request")
+        return function(*args, **kwargs)
+
+    pending = hub.threadpool.spawn(call)
+    try:
+        return pending.get(timeout=timeout_seconds + _THREADPOOL_GRACE_SECONDS)
+    except Timeout:
+        abandoned = True
+        raise TimedOutError(f"Request did not complete within {timeout_seconds + _THREADPOOL_GRACE_SECONDS:.1f}s")
 
 
 class BackendError(Exception):
@@ -335,7 +360,7 @@ class BackendConnector(threading.local):
         kwargs: dict[str, t.Any] = {"headers": list(headers.items()), "timeout_ms": _timeout_ms(self.timeout_seconds)}
         if data is not None:
             kwargs["body"] = data
-        return _call_without_blocking_gevent(getattr(self.client, method.lower()), path, **kwargs)
+        return _call_without_blocking_gevent(getattr(self.client, method.lower()), self.timeout_seconds, path, **kwargs)
 
     def _do_single_request(
         self,
