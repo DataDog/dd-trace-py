@@ -11,6 +11,7 @@ import logging
 import os
 import random
 import socket
+import sys
 import threading
 import time
 import typing as t
@@ -586,14 +587,28 @@ class NoOpBackendConnectorSetup(BackendConnectorSetup):
         return NoOpBackendConnector()
 
 
-# Test suites may block the socket module's functions while their tests run, as pytest-socket does by replacing
-# socket.socket and socket.socket.connect, and the plugin sends its payloads from the same processes, while tests run.
-# Its connections use the functions as they were when this module was imported, when pytest loads the plugin and before
-# any test blocks them: otherwise its requests fail during the tests, their payloads are lost, and the blocking counts
-# them against the tests.
-_socket_class = socket.socket
-_socket_connect = socket.socket.connect
-_getaddrinfo = socket.getaddrinfo
+# pytest-socket blocks network access while tests run by replacing socket.socket and socket.socket.connect, and the
+# plugin sends its payloads from the same processes, while tests run: its connections would fail, their payloads would
+# be lost, and the blocking would count them against the tests. pytest-socket keeps the functions it replaces, and the
+# plugin's connections use those instead of its replacements. Any other replacement, such as gevent's monkey patching,
+# is used as it is.
+def _pytest_socket_original(name: str, current: t.Any) -> t.Any:
+    """What pytest-socket replaced with current, when current is one of its replacements; else current."""
+    if getattr(current, "__module__", None) == "pytest_socket":
+        return getattr(sys.modules.get("pytest_socket"), name, current)
+    return current
+
+
+def _new_socket(*args: t.Any) -> socket.socket:
+    return _pytest_socket_original("_true_socket", socket.socket)(*args)
+
+
+def _connect(sock: socket.socket, address: t.Any) -> None:
+    true_connect = _pytest_socket_original("_true_connect", socket.socket.connect)
+    if true_connect is socket.socket.connect:
+        sock.connect(address)
+    else:
+        true_connect(sock, address)
 
 
 def _create_connection(
@@ -601,18 +616,18 @@ def _create_connection(
     timeout: t.Optional[float] = socket._GLOBAL_DEFAULT_TIMEOUT,  # type: ignore[attr-defined]
     source_address: t.Optional[tuple[str, int]] = None,
 ) -> socket.socket:
-    """socket.create_connection, with the socket functions from before the tests could block them."""
+    """socket.create_connection, with sockets that pytest-socket's blocking doesn't reach."""
     host, port = address
     error: t.Optional[OSError] = None
-    for family, socket_type, proto, _, sockaddr in _getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+    for family, socket_type, proto, _, sockaddr in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
         sock = None
         try:
-            sock = _socket_class(family, socket_type, proto)
+            sock = _new_socket(family, socket_type, proto)
             if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:  # type: ignore[attr-defined]
                 sock.settimeout(timeout)
             if source_address:
                 sock.bind(source_address)
-            _socket_connect(sock, sockaddr)
+            _connect(sock, sockaddr)
             return sock
         except OSError as e:
             error = e
@@ -631,7 +646,7 @@ class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
         self.path = path
 
     def connect(self) -> None:
-        sock = _socket_class(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock = _new_socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
-        _socket_connect(sock, self.path)
+        _connect(sock, self.path)
         self.sock = sock
