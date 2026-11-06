@@ -472,7 +472,7 @@ class TestCheckCommitShaConsistency:
 
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
-            _PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy"
+            _PROVIDER_GIT_CLIENT, _PROVIDER_CI, "commit_discrepancy"
         )
 
     def test_user_supplied_vs_git_client_sha_mismatch(self, mock_telemetry: mock.Mock) -> None:
@@ -497,7 +497,7 @@ class TestCheckCommitShaConsistency:
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         calls = mock_telemetry.record_commit_sha_discrepancy.call_args_list
         assert len(calls) == 3
-        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
+        assert mock.call(_PROVIDER_GIT_CLIENT, _PROVIDER_CI, "commit_discrepancy") in calls
         assert mock.call(_PROVIDER_USER_SUPPLIED, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
         assert mock.call(_PROVIDER_USER_SUPPLIED, _PROVIDER_CI, "commit_discrepancy") in calls
 
@@ -506,7 +506,7 @@ class TestCheckCommitShaConsistency:
 
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
-            _PROVIDER_CI, _PROVIDER_GIT_CLIENT, "repository_discrepancy"
+            _PROVIDER_GIT_CLIENT, _PROVIDER_CI, "repository_discrepancy"
         )
 
     def test_user_supplied_vs_git_client_url_mismatch(self, mock_telemetry: mock.Mock) -> None:
@@ -530,8 +530,8 @@ class TestCheckCommitShaConsistency:
 
         mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
         calls = mock_telemetry.record_commit_sha_discrepancy.call_args_list
-        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
-        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "repository_discrepancy") in calls
+        assert mock.call(_PROVIDER_GIT_CLIENT, _PROVIDER_CI, "commit_discrepancy") in calls
+        assert mock.call(_PROVIDER_GIT_CLIENT, _PROVIDER_CI, "repository_discrepancy") in calls
 
     def test_all_six_discrepancies_when_all_differ(self, mock_telemetry: mock.Mock) -> None:
         self._call(
@@ -556,3 +556,49 @@ class TestCheckCommitShaConsistency:
         monkeypatch.setattr(TelemetryAPI, "_instance", None)
         # Should not raise
         self._call(ci=self.SHA1, git=self.SHA2)
+
+
+@pytest.mark.parametrize("source", ["git", "provider", "override", "partial"])
+def test_git_metadata_precedence(monkeypatch, source):
+    keys = [
+        "git.commit.sha",
+        "git.repository_url",
+        "git.branch",
+        "git.tag",
+        "git.commit.message",
+        "git.commit.author.name",
+        "git.commit.author.email",
+        "git.commit.author.date",
+        "git.commit.committer.name",
+        "git.commit.committer.email",
+        "git.commit.committer.date",
+    ]
+    local = {key: "local-" + key for key in keys}
+    local["git.commit.sha"] = "a" * 40
+    provider = {key: "provider-" + key for key in keys}
+    provider.update({"ci.provider.name": "github", "ci.job.name": "tests", "git.commit.head.sha": "head-sha"})
+    environment = {"GITHUB_SHA": "b" * 40}
+    if source == "override":
+        environment.update({"DD_" + key.upper().replace(".", "_"): "user-" + key for key in keys})
+    if source == "provider":
+        local = {}
+    elif source == "partial":
+        local = {"git.commit.sha": "a" * 40}
+    monkeypatch.setattr(os, "environ", environment)
+    with (
+        mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value=local),
+        mock.patch("ddtrace.testing.internal.ci.get_ci_tags", return_value=provider),
+        mock.patch("ddtrace.testing.internal.git.get_git_head_tags_from_git_command", return_value={}),
+    ):
+        tags = get_env_tags()
+    for key in keys:
+        if source == "override":
+            assert tags[key] == "user-" + key
+        elif source == "provider":
+            assert tags[key] == provider[key]
+        elif key in local:
+            assert tags[key] == local[key]
+        else:
+            assert key not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags["git.commit.head.sha"] == "head-sha"

@@ -426,7 +426,7 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata."""
     tags: dict[str, Optional[str]] = {}
     try:
-        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
+        tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
         users = extract_user_info(cwd=cwd)
         tags[COMMIT_AUTHOR_NAME] = users["author"][0]
@@ -435,8 +435,13 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
         tags[COMMIT_COMMITTER_NAME] = users["committer"][0]
         tags[COMMIT_COMMITTER_EMAIL] = users["committer"][1]
         tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
-        tags[BRANCH] = extract_branch(cwd=cwd)
-        tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
+        branch = extract_branch(cwd=cwd)
+        if branch != "HEAD":
+            tags[BRANCH] = branch
+        local_tags = _git_subprocess_cmd(["tag", "--points-at", "HEAD"], cwd=cwd).splitlines()
+        if local_tags:
+            tags[TAG] = local_tags[0]
+        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:

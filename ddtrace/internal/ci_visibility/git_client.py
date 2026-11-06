@@ -279,7 +279,14 @@ class CIVisibilityGitClient:
                     )
                     if packfiles_details.returncode == 0:
                         if cls._upload_packfiles(
-                            requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=cwd
+                            requests_mode,
+                            base_url,
+                            repo_url,
+                            packfiles_prefix,
+                            serializer,
+                            _response,
+                            cwd=cwd,
+                            commit_sha=_tags.get(ci.git.COMMIT_SHA),
                         ):
                             _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                             return
@@ -408,8 +415,9 @@ class CIVisibilityGitClient:
         serializer: CIVisibilityGitClientSerializerV1,
         _response: Optional[Response],
         cwd: Optional[str] = None,
+        commit_sha: Optional[str] = None,
     ) -> bool:
-        sha = extract_commit_sha(cwd=cwd)
+        sha = commit_sha or extract_commit_sha(cwd=cwd)
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
         rand = parts[-1]
