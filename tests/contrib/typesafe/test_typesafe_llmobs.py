@@ -224,13 +224,15 @@ def _call_with_recording_transport(typesafe_sdk, test_spans, attach=(), client_k
 
 @pytest.mark.parametrize(
     "overrides",
-    [{}, {"extra_body": {"model": "jev-latest", "debug": True}}, {"state": range(3)}],
+    [{}, {"extra_body": {"model": "jev-latest", "provider_token": "secret"}}, {"state": range(3)}],
     ids=["plain", "extra_body", "sequence_state"],
 )
 def test_system_one_span_io_matches_http_bodies(typesafe_sdk, typesafe_llmobs, test_spans, overrides):
+    """The input is the sent body, except extra_body fields other than request fields, which can carry credentials."""
     kwargs = {"state": STATE, "questions": build_questions(typesafe_sdk), **overrides}
     span, input_body, sent_body, output = _call_with_recording_transport(typesafe_sdk, test_spans, **kwargs)
-    assert input_body == sent_body
+    assert input_body == {k: v for k, v in sent_body.items() if k != "provider_token"}
+    assert "provider_token" not in input_body
     assert output == STUB_RESPONSE
     assert span.get_tag("typesafe.request.model") == sent_body["model"]
 

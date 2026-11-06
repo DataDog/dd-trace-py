@@ -1474,31 +1474,58 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
+OPENAI_DECISION_REQUEST_KEYS = (
+    "model",
+    "input",
+    "questions",
+    "prompt_cache_key",
+    "prompt_cache_options",
+    "safety_identifier",
+)
+
+
 def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
-    """Extract input, questions, and answers from a decisions api call."""
-    metadata: dict[str, Any] = {}
-    questions = kwargs.get("questions")
-    if isinstance(questions, (list, tuple)):
-        metadata["questions"] = [load_data_value(q) for q in questions]
-    _annotate_llmobs_span_data(
-        span,
-        input_messages=openai_get_input_messages_from_response_input(kwargs.get("input")),
-        metadata=metadata,
-    )
+    """Record the decisions request body as the input and the response body as the output.
+
+    The questions decide what the model answers, so they stay with the input instead of in metadata. Inline images are
+    captured as image parts and replaced in the body by a marker. Only known request fields are taken from extra_body,
+    since its other fields can carry credentials.
+    """
+    extra_body = kwargs.get("extra_body")
+    sources = (kwargs, extra_body) if isinstance(extra_body, dict) else (kwargs,)
+    body = {}
+    for source in sources:
+        body.update(
+            {k: v for k, v in source.items() if k in OPENAI_DECISION_REQUEST_KEYS and not _is_openai_sentinel(v)}
+        )
+    image_parts: list[ImagePart] = []
+    input_message = Message(role="user", content=safe_json(_openai_decision_body(body, image_parts)) or "")
+    if image_parts:
+        input_message["image_parts"] = image_parts
+    _annotate_llmobs_span_data(span, input_messages=[input_message])
     if not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
-    answers = [_openai_decision_answer_to_dict(answer) for answer in _get_attr(response, "answers", None) or []]
-    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(answers) or "")])
+    if hasattr(response, "model_dump"):
+        output = response.model_dump(mode="json", exclude_unset=True)
+    else:
+        output = load_data_value(response)
+    _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(output) or "")])
 
 
-def _openai_decision_answer_to_dict(answer: Any) -> dict[str, Any]:
-    if hasattr(answer, "model_dump"):
-        return answer.model_dump(mode="json", exclude_none=True)
-    if isinstance(answer, dict):
-        return {k: v for k, v in answer.items() if v is not None}
-    return {}
+def _openai_decision_body(value: Any, image_parts: list[ImagePart]) -> Any:
+    if _is_data_url(value):
+        image_part, marker = _capture_inline_image(value)
+        if image_part:
+            image_parts.append(image_part)
+            return IMAGE_DETECTED_MARKER
+        return marker or IMAGE_FALLBACK_MARKER
+    if isinstance(value, dict):
+        return {str(k): _openai_decision_body(v, image_parts) for k, v in value.items() if not _is_openai_sentinel(v)}
+    if isinstance(value, (list, tuple)):
+        return [_openai_decision_body(v, image_parts) for v in value]
+    return load_data_value(value)
 
 
 # OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,
