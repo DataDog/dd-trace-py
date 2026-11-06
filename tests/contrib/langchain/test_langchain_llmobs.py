@@ -181,6 +181,30 @@ def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, lan
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_stream_ignores_prompt_from_earlier_invoke(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url
+):
+    if parse_version(importlib.metadata.version("langchain_openai")) < (0, 2, 0):
+        pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
+    prompt_template = langchain_core.prompts.PromptTemplate(
+        input_variables=["question"], template="Please answer this question: {question}"
+    )
+    (prompt_template | chat_model).invoke({"question": "What is the capital of France?"})
+    test_spans.pop_traces()
+
+    for _ in chat_model.stream(
+        [langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")]
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    assert len(spans) == 1
+    assert get_llmobs_input_prompt(spans[0]) is None
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
 def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans):
     mock_generate.return_value = mock_langchain_chat_generate_response
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
