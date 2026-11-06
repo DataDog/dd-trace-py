@@ -111,12 +111,20 @@ def _call_without_blocking_gevent(
             raise TimedOutError("Gave up waiting for a thread to send the request")
         return function(*args, **kwargs)
 
-    pending = hub.threadpool.spawn(call)
+    # One deadline for both handing the call to the pool, which waits when every thread is busy, and its result.
+    deadline_seconds = timeout_seconds + _THREADPOOL_GRACE_SECONDS
+    deadline = Timeout(deadline_seconds)
+    deadline.start()
     try:
-        return pending.get(timeout=timeout_seconds + _THREADPOOL_GRACE_SECONDS)
-    except Timeout:
+        return hub.threadpool.spawn(call).get()
+    except Timeout as e:
+        if e is not deadline:
+            raise  # Someone else's timeout, such as the tests'.
+        raise TimedOutError(f"Request did not complete within {deadline_seconds:.1f}s")
+    finally:
+        deadline.cancel()
+        # However the wait ended, a call that hasn't started by now must not run.
         abandoned = True
-        raise TimedOutError(f"Request did not complete within {timeout_seconds + _THREADPOOL_GRACE_SECONDS:.1f}s")
 
 
 class BackendError(Exception):

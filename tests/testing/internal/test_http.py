@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import types
+import typing as t
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
@@ -1379,39 +1380,53 @@ class TestConnectionsWhenTestsBlockSockets:
 
 
 class _FakeGevent:
-    """Stand-ins for the parts of gevent the connector uses: the hub of this thread, if any, its threadpool, and the
-    current greenlet.
+    """Stand-ins for the parts of gevent the connector uses: the hub of this thread, if any, its threadpool, the current
+    greenlet, and Timeout, which like gevent's is a BaseException raised by the instance that expired.
     """
-
-    class Timeout(Exception):
-        pass
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch, hub_exists: bool = True, in_hub: bool = False) -> None:
         self.spawned: list = []
-        self.timeouts: list = []
-        self.time_out = False
+        self.deadlines: list = []
+        self.expire_while_spawning = False
+        self.expire_while_waiting = False
+        self.foreign_timeout: t.Optional[BaseException] = None
         fake = self
+
+        class Timeout(BaseException):
+            def __init__(self, seconds: t.Optional[float] = None) -> None:
+                self.seconds = seconds
+                self.cancelled = False
+
+            def start(self) -> None:
+                fake.deadlines.append(self)
+
+            def cancel(self) -> None:
+                self.cancelled = True
 
         class Pending:
             def __init__(self, call) -> None:
                 self.call = call
 
-            def get(self, timeout=None):
-                fake.timeouts.append(timeout)
-                if fake.time_out:
-                    raise fake.Timeout()
+            def get(self):
+                if fake.foreign_timeout is not None:
+                    raise fake.foreign_timeout
+                if fake.expire_while_waiting:
+                    raise fake.deadlines[-1]
                 return self.call()
 
         class Threadpool:
             def spawn(self, call):
+                if fake.expire_while_spawning:
+                    raise fake.deadlines[-1]
                 fake.spawned.append(call)
                 return Pending(call)
 
+        self.Timeout = Timeout
         self.hub = types.SimpleNamespace(threadpool=Threadpool())
         gevent = types.ModuleType("gevent")
         hub_local = types.ModuleType("gevent._hub_local")
         hub_local.get_hub_if_exists = lambda: self.hub if hub_exists else None  # type: ignore[attr-defined]
-        gevent.Timeout = self.Timeout  # type: ignore[attr-defined]
+        gevent.Timeout = Timeout  # type: ignore[attr-defined]
         gevent.getcurrent = lambda: self.hub if in_hub else object()  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, "gevent", gevent)
         monkeypatch.setitem(sys.modules, "gevent._hub_local", hub_local)
@@ -1444,7 +1459,9 @@ class TestGevent:
         assert result.error_type is None
         assert len(gevent.spawned) == 1
         assert client.post.call_count == 1
-        assert gevent.timeouts == [5.0 + _http_module._THREADPOOL_GRACE_SECONDS]
+        [deadline] = gevent.deadlines
+        assert deadline.seconds == 5.0 + _http_module._THREADPOOL_GRACE_SECONDS
+        assert deadline.cancelled
 
     @pytest.mark.parametrize("hub_exists,in_hub", [(False, False), (True, True)])
     @patch("ddtrace.testing.internal.http.HTTPClient")
@@ -1461,11 +1478,11 @@ class TestGevent:
         assert client.post.call_count == 1
 
     @patch("ddtrace.testing.internal.http.HTTPClient")
-    def test_a_request_waiting_too_long_for_the_threadpool_times_out_and_never_runs(
+    def test_a_request_waiting_too_long_for_its_result_times_out_and_never_runs(
         self, mock_http_client: Mock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         gevent = _FakeGevent(monkeypatch)
-        gevent.time_out = True
+        gevent.expire_while_waiting = True
         client = _ok_client(mock_http_client)
 
         result = BackendConnector(url="http://localhost:8126", timeout_seconds=1.0).request(
@@ -1474,6 +1491,41 @@ class TestGevent:
 
         assert result.error_type == ErrorType.TIMEOUT
         # When a thread frees up later, the abandoned call gives up without sending.
+        with pytest.raises(TimedOutError):
+            gevent.spawned[0]()
+        assert client.post.call_count == 0
+
+    @patch("ddtrace.testing.internal.http.HTTPClient")
+    def test_a_request_waiting_too_long_to_reach_the_threadpool_times_out(
+        self, mock_http_client: Mock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gevent = _FakeGevent(monkeypatch)
+        gevent.expire_while_spawning = True
+        client = _ok_client(mock_http_client)
+
+        result = BackendConnector(url="http://localhost:8126", timeout_seconds=1.0).request(
+            "POST", "/x", data=b"x", max_attempts=2
+        )
+
+        assert result.error_type == ErrorType.TIMEOUT
+        assert len(gevent.deadlines) == 2  # The connector retried a timeout.
+        assert gevent.spawned == []
+        assert client.post.call_count == 0
+
+    @patch("ddtrace.testing.internal.http.HTTPClient")
+    def test_someone_elses_timeout_propagates_and_the_request_never_runs(
+        self, mock_http_client: Mock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gevent = _FakeGevent(monkeypatch)
+        foreign_timeout = gevent.Timeout(0.1)
+        gevent.foreign_timeout = foreign_timeout
+        client = _ok_client(mock_http_client)
+
+        with pytest.raises(gevent.Timeout) as raised:
+            BackendConnector(url="http://localhost:8126").request("POST", "/x", data=b"x", max_attempts=1)
+
+        assert raised.value is foreign_timeout
+        assert gevent.deadlines[0].cancelled
         with pytest.raises(TimedOutError):
             gevent.spawned[0]()
         assert client.post.call_count == 0
