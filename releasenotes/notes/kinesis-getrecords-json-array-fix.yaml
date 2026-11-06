@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: Fixes an issue where Kinesis ``GetRecords`` could fail when
+    record data was a JSON array instead of a JSON object.
