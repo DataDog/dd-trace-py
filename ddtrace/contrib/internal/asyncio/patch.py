@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 
+from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.contrib.internal.asyncio import _context_switch
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
@@ -52,6 +53,12 @@ def _wrapped_create_task(wrapped, args, kwargs):
     core.dispatch("asyncio.create_task", (task_data,))
 
     dd_active = tracer.current_trace_context()
+    task_context = kwargs.get("context")
+    if task_context is not None:
+        # AIDEV-NOTE: create_task(context=...) must use the Datadog context from
+        # the supplied contextvars.Context, not the caller's current context.
+        task_active = task_context.get(_DD_CONTEXTVAR)
+        dd_active = task_active.context if hasattr(task_active, "context") else task_active
     # Only wrap the coroutine if we have an active trace context
     if not dd_active:
         return wrapped(*args, **kwargs)
