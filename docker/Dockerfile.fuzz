@@ -20,7 +20,7 @@
 # (one thin layer each with the correct FUZZ_APP, FUZZ_BUILD_ID, and symlink).
 
 # ── Build stage ───────────────────────────────────────────────────────────────
-ARG FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py:v146235341-f921d57-fuzz_base
+ARG FUZZ_BASE_IMAGE=registry.ddbuild.io/dd-trace-py:v150993084-bbc05ac-fuzz_base
 FROM ${FUZZ_BASE_IMAGE} AS ca-remediated
 
 # The newest published fuzz base still contains NSS's built-in roots.
@@ -56,6 +56,7 @@ RUN pyenv global "${PYTHON_VERSION}"
 # ── Build and package all fuzz targets ────────────────────────────────────────
 WORKDIR /src
 COPY . /src
+RUN python3 .gitlab/scripts/check-libclang.py
 
 # Discover and build all fuzz targets (0-click onboarding)
 RUN find /src -path '*/fuzz/build.sh' -type f | while IFS= read -r script; do \

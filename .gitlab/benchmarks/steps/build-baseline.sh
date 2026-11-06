@@ -35,6 +35,7 @@ else
     else
       echo "Rust toolchain already available, skipping rustup install"
     fi
+    python3.12 .gitlab/scripts/check-libclang.py
     echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
     git checkout "${BASELINE_COMMIT_SHA}"
     mkdir ./tmp
