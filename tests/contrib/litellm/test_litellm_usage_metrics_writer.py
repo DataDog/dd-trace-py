@@ -887,10 +887,11 @@ def test_a_dogstatsd_send_in_progress_stops_at_the_close_deadline(monkeypatch):
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     sender = writer._dogstatsd
-    sender._max_packet = 1
     connect = sender._connect
+    connects = []
 
     def connect_then_close_starts():
+        connects.append(1)
         connected = connect()
         sender.stop_by(time.monotonic() - 1)
         return connected
@@ -898,6 +899,7 @@ def test_a_dogstatsd_send_in_progress_stops_at_the_close_deadline(monkeypatch):
     monkeypatch.setattr(sender, "_connect", connect_then_close_starts)
     writer.record(PROVIDER_ATTEMPT, *observation())
     writer.flush()
+    assert connects == [1]
     assert receiver.stop() == []
     assert sender._socket is None
 

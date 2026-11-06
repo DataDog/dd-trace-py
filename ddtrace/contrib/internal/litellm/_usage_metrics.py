@@ -38,8 +38,6 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import datetime
-import json
-import re
 import time
 from typing import Any
 from typing import Optional
@@ -59,6 +57,7 @@ except ImportError:
     # LiteLLM before 1.104 charges nothing for a failed request.
     guardrail_information_cost = None  # type: ignore[assignment, unused-ignore]
 
+from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.trace import tracer
@@ -73,6 +72,8 @@ GATEWAY_REQUEST = "trajectory.gen_ai.gateway.request@0.1.0"
 # The span attribute that lists the profiles recorded for a call, so the backend does not derive them again.
 RECORDED_PROFILES_TAG = "trajectory.metrics.recorded"
 ATTEMPT_PROFILES = ",".join((PROVIDER_ATTEMPT, TOKEN_BREAKDOWN))
+_ATTEMPT_AND_BREAKDOWN = [PROVIDER_ATTEMPT, TOKEN_BREAKDOWN]
+_ATTEMPT_ONLY = [PROVIDER_ATTEMPT]
 GATEWAY_PROFILES = GATEWAY_REQUEST
 
 # The metrics exported by default. The profiles define more, which can be added here later.
@@ -97,26 +98,6 @@ _OPERATIONS = {
     "atext_completion": "text_completion",
     "embedding": "embeddings",
     "aembedding": "embeddings",
-}
-
-# LiteLLM's provider names that differ from the OpenTelemetry well-known values.
-_PROVIDERS = {
-    "text-completion-openai": "openai",
-    "anthropic_text": "anthropic",
-    "bedrock": "aws.bedrock",
-    "bedrock_converse": "aws.bedrock",
-    "azure": "azure.ai.openai",
-    "azure_text": "azure.ai.openai",
-    "azure_ai": "azure.ai.inference",
-    "vertex_ai": "gcp.vertex_ai",
-    "vertex_ai_beta": "gcp.vertex_ai",
-    "gemini": "gcp.gemini",
-    "cohere_chat": "cohere",
-    "watsonx": "ibm.watsonx.ai",
-    "watsonx_text": "ibm.watsonx.ai",
-    "xai": "x_ai",
-    "mistral": "mistral_ai",
-    "moonshot": "moonshot_ai",
 }
 
 # Opt-in tags: (configuration name) -> (attribute, LiteLLM metadata keys, the first one set wins). user.id is only
@@ -145,31 +126,13 @@ _OPERATOR_IDS = (
     ("datadog_project_id", PROJECT_ID),
 )
 _MAX_ID_LENGTH = 128
-# The response headers that name the account and project at a provider: (provider, attribute, header). No other
-# header is read.
-_ID_HEADERS = (
-    ("anthropic", PROVIDER_ACCOUNT_ID, "anthropic-organization-id"),
-    # The organization's name, not its org- id.
-    ("openai", PROVIDER_ACCOUNT_ID, "openai-organization"),
-    ("openai", PROJECT_ID, "openai-project"),
-)
-# The AWS account a Bedrock model ARN names, such as an inference profile's.
-_BEDROCK_ARN_ACCOUNT = re.compile(r"(?:^|/)arn:aws[a-z-]*:bedrock:[a-z0-9-]+:([0-9]{12}):")
-# A service tier, in the provider's own words: what the native module accepts.
-_SERVICE_TIER = re.compile(r"[A-Za-z0-9._-]{1,32}")
 
 # Providers whose usage LiteLLM counts itself on a call that is not streamed: it gets no count from them, or fills in
 # a missing one in a way a callback cannot tell apart from a reported count (Ollama, and Bedrock's invoke route).
 _LOCALLY_COUNTED_PROVIDERS = frozenset(
     {"replicate", "sagemaker", "langgraph", "predibase", "anthropic_text", "petals", "ollama", "ollama_chat"}
 )
-# LiteLLM's usage detail fields that carry a provider's own counts by modality. LiteLLM fills text_tokens itself on
-# several routes (Bedrock Converse, the text left after a stream's reasoning split), so text is never read from it.
-_MODALITIES = (("image_tokens", "image"), ("audio_tokens", "audio"))
 _GEMINI_PROVIDERS = frozenset({"gcp.gemini", "gcp.vertex_ai"})
-_USAGE_METADATA = ("usageMetadata",)
-# The usageMetadata counts that add up to its total when candidatesTokenCount already includes the thoughts.
-_GEMINI_NON_THINKING_COUNTS = ("promptTokenCount", "candidatesTokenCount", "toolUsePromptTokenCount")
 # Google's OpenAI-compatible Gemini endpoint, reached through an openai/ deployment with this base URL.
 _GEMINI_COMPAT_HOST = "generativelanguage.googleapis.com"
 # The error class LiteLLM's proxy gives a stream whose client left before the proxy's own generator finished.
@@ -178,17 +141,6 @@ _CLIENT_DISCONNECTED = "ClientDisconnected"
 # Requests that never end (a lost callback) are forgotten after this long, and at most this many are kept.
 _REQUEST_TTL_SECONDS = 15 * 60
 _MAX_REQUESTS = 10_000
-
-_IDENTIFIER_INVALID = re.compile(r"[^a-z0-9_.-]")
-_CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
-
-
-def _identifier(value: Any) -> Optional[str]:
-    """A low-cardinality identifier: lower case, [a-z0-9_.-], starting with a letter."""
-    if not isinstance(value, str) or not value:
-        return None
-    text = _IDENTIFIER_INVALID.sub("_", value.strip().lower())
-    return text if text[:1].isalpha() else None
 
 
 def operation_name(call_type: Any) -> Optional[str]:
@@ -203,16 +155,21 @@ def operation_name(call_type: Any) -> Optional[str]:
 def provider_name(custom_llm_provider: Any) -> Optional[str]:
     if not isinstance(custom_llm_provider, str):
         return None
-    return _PROVIDERS.get(custom_llm_provider) or _identifier(custom_llm_provider)
+    return ai_usage.gen_ai_provider_name(custom_llm_provider)
 
 
-def error_type(error_class: Any) -> Optional[str]:
-    """RateLimitError -> rate_limit_error."""
-    if isinstance(error_class, BaseException):
-        error_class = type(error_class).__name__
-    if not isinstance(error_class, str) or not error_class:
-        return None
-    return _identifier(_CAMEL_BOUNDARY.sub("_", error_class))
+def error_type(error: Any, status: Any = None, failed: bool = False) -> Optional[str]:
+    """The shared error.type of an exception, or of an error class name, and an HTTP status. failed says the call
+    failed even when nothing names why.
+    """
+    if isinstance(error, BaseException):
+        status = getattr(error, "status_code", None) if status is None else status
+        error = type(error).__name__
+    name = error if isinstance(error, str) and error else None
+    if isinstance(status, str) and status.isdigit():
+        status = int(status)
+    status = status if isinstance(status, int) and not isinstance(status, bool) else None
+    return ai_usage.classify_error(name, status, failed)
 
 
 def _count(value: Any) -> Optional[int]:
@@ -225,78 +182,59 @@ def _get(obj: Any, key: str) -> Any:
     return getattr(obj, key, None)
 
 
-def usage_fields(usage: Any, embeddings: bool, modality: bool = True) -> dict[str, Any]:
-    """The token fields of an observation from LiteLLM's usage object.
+def _plain(value: Any, depth: int = 0) -> Any:
+    """A LiteLLM object as plain JSON values (dict, list, str, int, float, bool, None), for the native module."""
+    if value is None or isinstance(value, bool) or depth > 32:
+        return value if depth <= 32 else None
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float):
+        return float(value)
+    if isinstance(value, str):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _plain(item, depth + 1) for key, item in value.items() if isinstance(key, str)}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item, depth + 1) for item in value]
+    dump = getattr(value, "model_dump", None)
+    if callable(dump):
+        try:
+            return _plain(dump(), depth + 1)
+        except Exception:
+            return None
+    members = getattr(value, "__dict__", None)
+    return _plain(members, depth + 1) if isinstance(members, dict) else None
 
-    LiteLLM normalizes usage to the Chat Completions shape on every route, including the Anthropic Messages and
-    Responses routes: prompt_tokens includes cached input and cache writes, and completion_tokens includes
-    reasoning. LiteLLM 1.6x hands over the response's own usage instead, which on those routes has the Responses
-    shape (input_tokens and output_tokens, also inclusive) or the native Anthropic Messages shape, whose
-    input_tokens leaves cache reads and writes out. A usage object of zeros is LiteLLM's placeholder for unknown
-    usage. modality is False when the modality details are LiteLLM's own split rather than the provider's.
+
+def usage_fields(
+    usage: Any,
+    embeddings: bool,
+    modality: bool = True,
+    drop_reasoning: bool = False,
+    usage_format: str = "auto",
+) -> dict[str, Any]:
+    """The token fields of an observation from LiteLLM's usage object, read by the native module's shared rules.
+
+    LiteLLM normalizes usage to the Chat Completions shape on every route; LiteLLM 1.6x hands over the response's own
+    usage instead, in the Responses or native Anthropic Messages shape, which the module tells apart. A usage object
+    of zeros is LiteLLM's placeholder for unknown usage. modality is False when the modality details are LiteLLM's own
+    split rather than the provider's; drop_reasoning leaves out a reasoning count LiteLLM split out itself.
     """
-    if usage is None:
+    plain = _plain(usage)
+    if not isinstance(plain, dict):
         return {}
-    input_tokens = _count(_get(usage, "prompt_tokens"))
-    output_tokens = _count(_get(usage, "completion_tokens"))
-    input_basis = "includes_cache"
-    prompt_details = _get(usage, "prompt_tokens_details")
-    completion_details = _get(usage, "completion_tokens_details")
-    if input_tokens is None and output_tokens is None:
-        input_tokens = _count(_get(usage, "input_tokens"))
-        output_tokens = _count(_get(usage, "output_tokens"))
-        prompt_details = _get(usage, "input_tokens_details")
-        completion_details = _get(usage, "output_tokens_details")
-        if _count(_get(usage, "cache_read_input_tokens")) is not None or (
-            _count(_get(usage, "cache_creation_input_tokens")) is not None
-        ):
-            input_basis = "excludes_cache"
-    # All zeros is LiteLLM's placeholder for unknown usage, unless a cache count is set: the native Anthropic shape
-    # leaves cache reads and writes out of its input count, so input served wholly from cache reads zero.
-    cache_counts = (_get(usage, "cache_read_input_tokens"), _get(usage, "cache_creation_input_tokens"))
-    if not input_tokens and not output_tokens and not any(_count(count) for count in cache_counts):
-        return {}
-    fields: dict[str, Any] = {"input_tokens": input_tokens, "input_basis": input_basis}
-    if not embeddings:
-        fields["output_tokens"] = output_tokens
-        fields["output_basis"] = "includes_reasoning"
-    cache_read = _count(_get(usage, "cache_read_input_tokens"))
-    if cache_read is None:
-        cache_read = _count(_get(prompt_details, "cached_tokens"))
-    if cache_read is not None:
-        fields["cache_read_input_tokens"] = cache_read
-    cache_write = _count(_get(usage, "cache_creation_input_tokens"))
-    if cache_write is None:
-        cache_write = _count(_get(prompt_details, "cache_creation_tokens"))
-    if cache_write is not None:
-        fields["cache_write_input_tokens"] = cache_write
-    lifetimes = _get(prompt_details, "cache_creation_token_details") or _get(usage, "cache_creation")
-    for key, field in (
-        ("ephemeral_5m_input_tokens", "cache_write_5m_input_tokens"),
-        ("ephemeral_1h_input_tokens", "cache_write_1h_input_tokens"),
-    ):
-        value = _count(_get(lifetimes, key))
-        if value is not None:
-            fields[field] = value
-    if not embeddings:
-        reasoning = _count(_get(completion_details, "reasoning_tokens"))
-        if reasoning is not None:
-            fields["reasoning_output_tokens"] = reasoning
-    if modality:
-        sides = [("input", prompt_details)]
-        if not embeddings:
-            sides.append(("output", completion_details))
-        for side, details in sides:
-            # Parts go to the projector as reported, zeros included: it counts what no part covers as unknown, and
-            # flags parts that add up to more than the total.
-            parts: dict[str, int] = {}
-            for key, name in _MODALITIES:
-                value = _count(_get(details, key))
-                if value is not None:
-                    parts[name] = value
-            if parts:
-                fields[f"{side}_tokens_by_modality"] = parts
-    return {key: value for key, value in fields.items() if value is not None}
+    if drop_reasoning:
+        for key in ("completion_tokens_details", "output_tokens_details"):
+            details = plain.get(key)
+            if isinstance(details, dict):
+                details.pop("reasoning_tokens", None)
+    if usage_format != "auto" and "prompt_tokens" not in plain:
+        usage_format = "auto"
+    fields = ai_usage.parse_provider_response(usage_format, plain, embeddings)["usage"] or {}
+    if not modality:
+        fields.pop("input_tokens_by_modality", None)
+        fields.pop("output_tokens_by_modality", None)
+    return fields
 
 
 def _priced_at_zero(kwargs: dict[str, Any]) -> bool:
@@ -319,166 +257,46 @@ def _priced_at_zero(kwargs: dict[str, Any]) -> bool:
     return all(price is not None for price in prices) and all(price == 0 for price in prices)
 
 
-# The characters a scan stops at, a whole JSON string, a number or literal, and what separates a key from its value.
-_JSON_DELIMITER = re.compile(r'["{}\[\]]')
-_JSON_STRING = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"')
-_JSON_SCALAR = re.compile(r"[^,}\]\s]+")
-_JSON_COLON = re.compile(r"\s*:\s*")
-
-
-def _json_value_end(text: str, start: int) -> int:
-    """Where the JSON value that starts at start ends, or -1 when it does not."""
-    if text.startswith('"', start):
-        string = _JSON_STRING.match(text, start)
-        return string.end() if string else -1
-    if not text.startswith(("{", "["), start):
-        scalar = _JSON_SCALAR.match(text, start)
-        return scalar.end() if scalar else -1
-    depth = 0
-    position = start
-    while True:
-        delimiter = _JSON_DELIMITER.search(text, position)
-        if delimiter is None:
-            return -1
-        if delimiter.group() == '"':
-            string = _JSON_STRING.match(text, delimiter.start())
-            if string is None:
-                return -1
-            position = string.end()
-            continue
-        position = delimiter.end()
-        depth += 1 if delimiter.group() in "{[" else -1
-        if depth == 0:
-            return position
-
-
-def _json_paths(text: str, paths: frozenset[tuple[str, ...]]) -> dict[tuple[str, ...], str]:
-    """The raw JSON of the values at the given key paths of a JSON object, read without decoding the rest: a provider
-    response or stream event can hold the whole generated output. One pass, each character read at most once; any
-    other value is stepped over whole, and malformed input ends the scan.
+def _original_response(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """What the provider's own response reported. LiteLLM rewrites the response's model to the client's route and
+    normalizes its usage, so read the provider's original response when it is available.
     """
-    found: dict[tuple[str, ...], str] = {}
-    containers = {path[:length] for path in paths for length in range(1, len(path))}
-    start = text.find("{")
-    if start < 0:
-        return found
-    # The key path of each object being read, innermost last.
-    objects: list[tuple[str, ...]] = [()]
-    position = start + 1
-    while objects and len(found) < len(paths):
-        delimiter = _JSON_DELIMITER.search(text, position)
-        if delimiter is None or delimiter.group() not in ('"', "}"):
-            break
-        if delimiter.group() == "}":
-            objects.pop()
-            position = delimiter.end()
-            continue
-        key = _JSON_STRING.match(text, delimiter.start())
-        colon = _JSON_COLON.match(text, key.end()) if key else None
-        if key is None or colon is None:
-            break
-        try:
-            path = objects[-1] + (json.loads(key.group()),)
-        except ValueError:
-            break
-        if path in containers and text.startswith("{", colon.end()):
-            objects.append(path)
-            position = colon.end() + 1
-            continue
-        end = _json_value_end(text, colon.end())
-        if end < 0:
-            break
-        if path in paths:
-            found[path] = text[colon.end() : end]
-        position = end
-    return found
-
-
-def _json_string(raw: Optional[str]) -> Optional[str]:
-    """A non-empty JSON string value from its raw text."""
-    if raw is None or not raw.startswith('"'):
-        return None
+    original = kwargs.get("original_response")
     try:
-        value = json.loads(raw)
-    except ValueError:
-        return None
-    return value if isinstance(value, str) and value else None
-
-
-def _json_object(raw: Optional[str]) -> Optional[dict[str, Any]]:
-    """A JSON object from its raw text."""
-    if raw is None or not raw.startswith("{"):
-        return None
-    try:
-        value = json.loads(raw)
-    except ValueError:
-        return None
-    return value if isinstance(value, dict) else None
-
-
-_MODEL = ("model",)
-_EVENT_TYPE = ("type",)
-_EVENT_MODEL = ("response", "model")
-_EVENT_USAGE = ("response", "usage")
-_RESPONSES_EVENT_FIELDS = frozenset({_EVENT_TYPE, _EVENT_MODEL, _EVENT_USAGE})
-
-
-def _top_level_model(text: str) -> Optional[str]:
-    """The top-level "model" of a JSON object; providers put it near the start."""
-    return _json_string(_json_paths(text, frozenset({_MODEL})).get(_MODEL))
+        if isinstance(original, str) and original.startswith("{"):
+            return ai_usage.parse_provider_body("auto", original)[0]
+        if isinstance(original, dict):
+            return ai_usage.parse_provider_response("auto", _plain(original))
+    except Exception:
+        log.debug("LiteLLM usage metrics: failed to read the provider's response", exc_info=True)
+    return {}
 
 
 def _response_model(kwargs: dict[str, Any]) -> Optional[str]:
-    """The model the provider's response names. LiteLLM rewrites the response's model to the client's route,
-    so read the provider's own response when it is available.
-    """
-    original = kwargs.get("original_response")
-    if isinstance(original, str) and original.startswith("{"):
-        return _top_level_model(original)
-    if isinstance(original, dict):
-        model = original.get("model")
-        return model if isinstance(model, str) and model else None
-    return None
+    """The model the provider's response names."""
+    return _original_response(kwargs).get("response_model")
 
 
-def _gemini_dropped_thoughts(kwargs: dict[str, Any], output_tokens: Any) -> Optional[int]:
+def _gemini_dropped_thoughts(original: dict[str, Any], output_tokens: Any) -> Optional[int]:
     """The thinking count a Gemini response reported that LiteLLM left out of its output count, else None.
 
-    LiteLLM adds thoughtsTokenCount to the output count, except on a response a content filter stopped (finish reason
-    SAFETY, RECITATION and the like), whose output count is candidatesTokenCount alone; LiteLLM before 1.67 never
-    adds it. The thoughts are billed all the same. candidatesTokenCount already includes them when the prompt,
-    candidates and tool use prompt counts add up to the total, as LiteLLM decides it on every other response.
+    LiteLLM adds thoughtsTokenCount to the output count, except on a response a content filter stopped, whose output
+    count is candidatesTokenCount alone; LiteLLM before 1.67 never adds it. The thoughts are billed all the same: the
+    provider's own output count includes them.
     """
-    original = kwargs.get("original_response")
-    if not isinstance(original, str) or not original.startswith("{"):
+    usage = original.get("usage") or {}
+    reasoning = usage.get("reasoning_output_tokens")
+    if not reasoning or not isinstance(output_tokens, int) or output_tokens + reasoning != usage.get("output_tokens"):
         return None
-    usage_metadata = _json_object(_json_paths(original, frozenset({_USAGE_METADATA})).get(_USAGE_METADATA))
-    if usage_metadata is None:
-        return None
-    thoughts = _count(usage_metadata.get("thoughtsTokenCount"))
-    if not thoughts or _count(usage_metadata.get("candidatesTokenCount")) != output_tokens:
-        return None
-    counted = sum(_count(usage_metadata.get(key)) or 0 for key in _GEMINI_NON_THINKING_COUNTS)
-    if counted == _count(usage_metadata.get("totalTokenCount")):
-        return None
-    return thoughts
+    return reasoning
 
 
-def _gemini_compat_thoughts(kwargs: dict[str, Any], usage_object: Any) -> Optional[int]:
-    """The thinking count of a call to Google's OpenAI-compatible Gemini endpoint, else None.
-
-    That endpoint leaves thinking out of completion_tokens and names no reasoning count, but its total_tokens includes
-    it: the difference is a count the provider reported. A total LiteLLM computed itself never exceeds the sum.
+def _gemini_compat(kwargs: dict[str, Any]) -> bool:
+    """Whether a call went to Google's OpenAI-compatible Gemini endpoint, which leaves thinking out of
+    completion_tokens while its total_tokens counts it.
     """
     api_base = (kwargs.get("litellm_params") or {}).get("api_base")
-    if not isinstance(api_base, str) or _GEMINI_COMPAT_HOST not in api_base:
-        return None
-    prompt = _count(_get(usage_object, "prompt_tokens"))
-    completion = _count(_get(usage_object, "completion_tokens"))
-    total = _count(_get(usage_object, "total_tokens"))
-    if prompt is None or completion is None or total is None or total <= prompt + completion:
-        return None
-    return total - prompt - completion
+    return isinstance(api_base, str) and _GEMINI_COMPAT_HOST in api_base
 
 
 def _metadata(kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -512,16 +330,6 @@ def _operator_ids(model_info: dict[str, Any]) -> dict[str, str]:
         if value is not None:
             ids[attribute] = value
     return ids
-
-
-def _bedrock_account(*models: Any) -> Optional[str]:
-    """The AWS account of the first Bedrock model ARN among models."""
-    for model in models:
-        if isinstance(model, str):
-            match = _BEDROCK_ARN_ACCOUNT.search(model)
-            if match:
-                return match.group(1)
-    return None
 
 
 def _header(headers: Any, name: str) -> Optional[str]:
@@ -568,7 +376,7 @@ def service_tier(payload: dict[str, Any]) -> Optional[str]:
 
 
 def valid_service_tier(tier: Any) -> Optional[str]:
-    return tier if isinstance(tier, str) and _SERVICE_TIER.fullmatch(tier) else None
+    return tier if isinstance(tier, str) and ai_usage.is_service_tier(tier) else None
 
 
 def _now_like(start: Any) -> datetime.datetime:
@@ -638,87 +446,46 @@ def _failure_payload(request_data: dict[str, Any]) -> Optional[dict[str, Any]]:
     return {"response_cost": request_data.get("response_cost"), "metadata": {"usage_object": usage}}
 
 
-# Server-sent events end lines only with CR, LF or CRLF. str.splitlines also splits at characters such as U+2028,
-# which a JSON string can hold unescaped.
-_SSE_LINE_END = re.compile(r"\r\n|\r|\n")
-
-
-def _sse_data(chunks: Any) -> Any:
-    """The JSON text of each server-sent event in chunks; a chunk can hold several events, or be one bare event."""
-    for chunk in chunks:
-        if isinstance(chunk, bytes):
-            chunk = chunk.decode("utf-8", errors="replace")
-        if not isinstance(chunk, str):
-            continue
-        for line in _SSE_LINE_END.split(chunk):
-            line = line.strip()
-            if line.startswith("data:"):
-                line = line[5:].strip()
-            if line.startswith("{"):
-                yield line
-
-
-def _sse_events(chunks: Any, kinds: tuple[str, ...]) -> Any:
-    """The JSON events of server-sent event chunks whose text names one of kinds. Only those are decoded: content
-    events, which hold the generated output, are skipped. A quote inside a JSON string is escaped, so generated text
-    cannot name a kind.
-    """
-    quoted = tuple(f'"{kind}"' for kind in kinds)
-    for line in _sse_data(chunks):
-        if not any(kind in line for kind in quoted):
-            continue
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(event, dict):
-            yield event
-
-
 def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str], Optional[str], bool]:
     """Which sides of a native Anthropic Messages stream the provider reported, the model and service tier it
     named, and whether the provider ended the stream with message_stop.
 
-    message_start carries the input count, a placeholder output count and the tier the call was served at;
-    message_delta carries the output count. A stream that ends without one leaves LiteLLM to estimate that side.
+    message_start carries the input count and a placeholder output count; message_delta carries the output count,
+    just before message_stop. A stream that ends without one leaves LiteLLM to estimate that side.
     """
-    input_reported = output_reported = completed = False
-    model = tier = None
-    for event in _sse_events(chunks, ("message_start", "message_delta", "message_stop")):
-        kind = event.get("type")
-        if kind == "message_start":
-            message = event.get("message") or {}
-            usage = message.get("usage")
-            input_reported = input_reported or _count(_get(usage, "input_tokens")) is not None
-            name = message.get("model")
-            model = model or (name if isinstance(name, str) and name else None)
-            tier = tier or valid_service_tier(_get(usage, "service_tier"))
-        elif kind == "message_delta":
-            output_reported = output_reported or _count(_get(event.get("usage"), "output_tokens")) is not None
-        elif kind == "message_stop":
-            completed = True
-    return input_reported, output_reported, model, tier, completed
+    stream = ai_usage.UsageStream("anthropic")
+    # LiteLLM keeps each raw line of the stream without its line ending.
+    for chunk in chunks:
+        if isinstance(chunk, (str, bytes)):
+            stream.feed(chunk)
+            stream.feed("\n")
+    response, outcome, _ = stream.take()
+    usage = response["usage"] or {}
+    # message_start's placeholder output count is not reported: only message_delta reports the output.
+    return (
+        "input_tokens" in usage,
+        "output_tokens" in usage,
+        response["response_model"],
+        response["service_tier"],
+        outcome == "completed",
+    )
 
 
 def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str], bool]:
     """What one Responses API stream event says: whether its usage reports the input, output and reasoning counts,
     the model the provider named, and whether it is the provider's last event of a response it finished.
     """
-    input_reported = output_reported = reasoning_reported = completed = False
-    model = None
-    # The final event holds the whole response, generated output included: only these fields are decoded.
-    for line in _sse_data([chunk]):
-        fields = _json_paths(line, _RESPONSES_EVENT_FIELDS)
-        model = model or _json_string(fields.get(_EVENT_MODEL))
-        kind = _json_string(fields.get(_EVENT_TYPE))
-        if kind in ("response.completed", "response.incomplete", "response.failed"):
-            completed = kind != "response.failed"
-            usage = _json_object(fields.get(_EVENT_USAGE))
-            input_reported = _count(_get(usage, "input_tokens")) is not None
-            output_reported = _count(_get(usage, "output_tokens")) is not None
-            reasoning = _get(_get(usage, "output_tokens_details"), "reasoning_tokens")
-            reasoning_reported = _count(reasoning) is not None
-    return input_reported, output_reported, reasoning_reported, model, completed
+    stream = ai_usage.UsageStream("openai_responses")
+    stream.feed(chunk)
+    response, outcome, _ = stream.take()
+    usage = response["usage"] or {}
+    return (
+        "input_tokens" in usage,
+        "output_tokens" in usage,
+        "reasoning_output_tokens" in usage,
+        response["response_model"],
+        outcome == "completed",
+    )
 
 
 class _Attempt:
@@ -815,14 +582,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
     Every hook catches its own errors: a failure here never affects the proxied request.
     """
 
-    def __init__(
-        self, writer: Any, tags: frozenset[str], client_source: Optional[str], resource: dict[str, str]
-    ) -> None:
+    def __init__(self, writer: Any, tags: frozenset[str], client_source: Optional[str]) -> None:
         super().__init__()
         self._writer = writer
         self._tags = tags
         self._client_source = client_source
-        self._resource = resource
         self._requests: OrderedDict[str, _Request] = OrderedDict()
         # When each request recorded or evicted lately was forgotten, so that a late hook does not start it again.
         self._forgotten: OrderedDict[str, float] = OrderedDict()
@@ -950,7 +714,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
                 self._record_attempt(
-                    request, attempt, kwargs, _now_like(attempt.start), error_type(exception) or "error", None
+                    request, attempt, kwargs, _now_like(attempt.start), error_type(exception, failed=True), None
                 )
                 self._forget_if_done(call_id, request)
         except Exception:
@@ -966,17 +730,16 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         """
         found: dict[str, str] = {}
         enabled = {attribute for tag, attribute in _OPT_IN_PROVIDER_ID_TAGS.items() if tag in self._tags}
-        if enabled:
-            for provider, attribute, header in _ID_HEADERS:
-                if attempt.provider == provider and attribute in enabled and attribute not in found:
-                    value = _response_header(header, kwargs, payload, response)
-                    if value is not None:
-                        found[attribute] = value
-            if attempt.provider == "aws.bedrock" and PROVIDER_ACCOUNT_ID in enabled:
-                params = kwargs.get("litellm_params") or {}
-                account = _bedrock_account(attempt.model, params.get("model_id"), kwargs.get("model_id"))
-                if account is not None:
-                    found.setdefault(PROVIDER_ACCOUNT_ID, account)
+        if enabled and attempt.provider is not None:
+            headers = {}
+            for name in ai_usage.provider_id_headers(attempt.provider):
+                value = _response_header(name, kwargs, payload, response)
+                if value is not None:
+                    headers[name] = value
+            params = kwargs.get("litellm_params") or {}
+            models = [m for m in (attempt.model, params.get("model_id"), kwargs.get("model_id")) if isinstance(m, str)]
+            ids = ai_usage.provider_ids(attempt.provider, headers, models)
+            found.update((attribute, value) for attribute, value in ids.items() if attribute in enabled)
         found.update(attempt.operator_ids or _operator_ids(_model_info(kwargs)))
         return found
 
@@ -987,8 +750,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         destination: Any,
         provider_ids: Optional[dict[str, str]] = None,
     ) -> dict[str, str]:
-        attributes = dict(self._resource)
-        attributes.update(provider_ids or {})
+        attributes = dict(provider_ids or {})
         for tag, (attribute, keys) in _OPT_IN_METADATA_TAGS.items():
             if tag not in self._tags:
                 continue
@@ -1037,7 +799,8 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         if error:
             observation["error_type"] = error
         if payload is not None:
-            response_model = _response_model(kwargs) or attempt.response_model
+            original = _original_response(kwargs)
+            response_model = original.get("response_model") or attempt.response_model
             if response_model:
                 observation["response_model"] = response_model
             if attempt.stream:
@@ -1048,20 +811,29 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             usage_object = (payload.get("metadata") or {}).get("usage_object")
             if usage_object is None:
                 usage_object = getattr(response, "usage", None)
-            usage = usage_fields(usage_object, attempt.operation == "embeddings", modality=not attempt.claude)
-            # LiteLLM splits a reasoning count out of the output itself on the Anthropic shapes, and on a stream
-            # whose provider reported none: the output total stays reported and the part is left out.
-            if attempt.claude or (attempt.stream and not attempt.reasoning_reported):
-                usage.pop("reasoning_output_tokens", None)
+            usage = usage_fields(
+                usage_object,
+                attempt.operation == "embeddings",
+                modality=not attempt.claude,
+                # LiteLLM splits a reasoning count out of the output itself on the Anthropic shapes, and on a stream
+                # whose provider reported none: the output total stays reported and the part is left out.
+                drop_reasoning=attempt.claude or (attempt.stream and not attempt.reasoning_reported),
+                usage_format=(
+                    "gemini_openai_compat" if attempt.provider == "openai" and _gemini_compat(kwargs) else "auto"
+                ),
+            )
             dropped_thoughts = None
-            if attempt.provider in _GEMINI_PROVIDERS and not attempt.stream and "reasoning_output_tokens" not in usage:
-                dropped_thoughts = _gemini_dropped_thoughts(kwargs, usage.get("output_tokens"))
-            elif attempt.provider == "openai" and "reasoning_output_tokens" not in usage and "output_tokens" in usage:
-                dropped_thoughts = _gemini_compat_thoughts(kwargs, usage_object)
-            if dropped_thoughts is not None:
-                # The projector adds the thoughts to the output, which then includes reasoning as the spec requires.
-                usage["reasoning_output_tokens"] = dropped_thoughts
-                usage["output_basis"] = "excludes_reasoning"
+            if usage.get("output_basis") == "excludes_reasoning":
+                # Google's OpenAI-compatible endpoint: the thinking its total counts beyond the completion.
+                dropped_thoughts = usage.get("reasoning_output_tokens")
+            elif (
+                attempt.provider in _GEMINI_PROVIDERS and not attempt.stream and "reasoning_output_tokens" not in usage
+            ):
+                dropped_thoughts = _gemini_dropped_thoughts(original, usage.get("output_tokens"))
+                if dropped_thoughts is not None:
+                    # The projector adds the thoughts to the output, which then includes reasoning as the spec requires.
+                    usage["reasoning_output_tokens"] = dropped_thoughts
+                    usage["output_basis"] = "excludes_reasoning"
             observation.update(usage)
             if usage:
                 input_estimated, output_estimated = attempt.estimated_sides()
@@ -1087,9 +859,10 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         attributes = self._deployment_attributes(
             identity, request.route or metadata.get("original_model_group"), attempt.model_id, attempt.provider_ids
         )
-        self._writer.record(PROVIDER_ATTEMPT, observation, attributes)
-        if "input_tokens" in observation:
-            self._writer.record(TOKEN_BREAKDOWN, observation, attributes)
+        # An attempt and its token breakdown are recorded together, or neither is.
+        self._writer.record_all(
+            _ATTEMPT_AND_BREAKDOWN if "input_tokens" in observation else _ATTEMPT_ONLY, observation, attributes
+        )
 
     def _record_request(
         self,
@@ -1232,7 +1005,12 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             attempt = self._latest_open_attempt(request)
             if attempt is not None:
                 self._record_attempt(
-                    request, attempt, request_data, _now_like(attempt.start), error_type(exception) or "error", None
+                    request,
+                    attempt,
+                    request_data,
+                    _now_like(attempt.start),
+                    error_type(exception, failed=True),
+                    None,
                 )
                 self._forget_if_done(call_id, request)
         except Exception:
@@ -1249,7 +1027,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             cache_hit = payload.get("cache_hit") is True
             error_information = payload.get("error_information") or {}
             # A client that disconnects mid-stream ends the request with a success event and partial usage.
-            error = error_type(error_information.get("error_class"))
+            error = error_type(error_information.get("error_class"), error_information.get("error_code"))
             attempt = None if cache_hit else self._open_attempt(request, kwargs)
             self._close_unreported_attempts(request, attempt)
             if attempt is not None:
@@ -1285,7 +1063,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
                 return
             payload = kwargs.get("standard_logging_object") or {}
             error_information = payload.get("error_information") or {}
-            error = error_type(error_information.get("error_class") or kwargs.get("exception")) or "error"
+            error = error_type(
+                error_information.get("error_class") or kwargs.get("exception"),
+                error_information.get("error_code"),
+                failed=True,
+            )
             self._record_attempt(request, attempt, kwargs, end_time, error, payload)
             self._forget_if_done(call_id, request)
         except Exception:
@@ -1298,7 +1080,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             call_id = request_data.get("litellm_call_id")
             request = self._failed_request(request_data, user_api_key_dict)
             if request is not None:
-                error = error_type(original_exception) or "error"
+                error = error_type(original_exception, failed=True)
                 # The last attempt, if no other hook closed it, is the one this failure ends: a stream that broke
                 # partway, when this hook comes before LiteLLM's failure event, or a route whose failures fire no
                 # failure event at all (native Anthropic Messages streams before 1.104).

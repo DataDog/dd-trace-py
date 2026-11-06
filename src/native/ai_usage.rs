@@ -88,6 +88,288 @@ pub mod ai_usage {
         )))
     }
 
+    // What a provider reported, read by the crate's shared rules.
+
+    fn format_named(name: &str) -> PyResult<libdd_ai_usage::UsageFormat> {
+        libdd_ai_usage::UsageFormat::from_name(name)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown usage format: {name}")))
+    }
+
+    fn usage_dict<'py>(
+        py: Python<'py>,
+        usage: &libdd_ai_usage::ProviderUsage,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        let counts = [
+            ("input_tokens", usage.input_tokens),
+            ("output_tokens", usage.output_tokens),
+            ("cache_read_input_tokens", usage.cache_read_input_tokens),
+            ("cache_write_input_tokens", usage.cache_write_input_tokens),
+            (
+                "cache_write_5m_input_tokens",
+                usage.cache_write_5m_input_tokens,
+            ),
+            (
+                "cache_write_1h_input_tokens",
+                usage.cache_write_1h_input_tokens,
+            ),
+            ("reasoning_output_tokens", usage.reasoning_output_tokens),
+        ];
+        for (key, value) in counts {
+            if let Some(value) = value {
+                dict.set_item(key, value)?;
+            }
+        }
+        if let Some(basis) = usage.input_basis {
+            dict.set_item("input_basis", basis)?;
+        }
+        if let Some(basis) = usage.output_basis {
+            dict.set_item("output_basis", basis)?;
+        }
+        if let Some(parts) = &usage.input_tokens_by_modality {
+            dict.set_item("input_tokens_by_modality", parts.clone())?;
+        }
+        if let Some(parts) = &usage.output_tokens_by_modality {
+            dict.set_item("output_tokens_by_modality", parts.clone())?;
+        }
+        Ok(dict)
+    }
+
+    fn response_dict<'py>(
+        py: Python<'py>,
+        response: &libdd_ai_usage::ProviderResponse,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        match &response.usage {
+            Some(usage) => dict.set_item("usage", usage_dict(py, usage)?)?,
+            None => dict.set_item("usage", py.None())?,
+        }
+        dict.set_item("response_model", response.response_model.clone())?;
+        dict.set_item("service_tier", response.service_tier.clone())?;
+        Ok(dict)
+    }
+
+    /// What one provider response or stream event (a dict, or a list of
+    /// events) reported: `{"usage": dict | None, "response_model", "service_tier"}`.
+    /// `usage_format` is a `UsageFormat` name (`auto`, `openai_chat`, ...).
+    #[pyfunction]
+    #[pyo3(signature = (usage_format, payload, embeddings=false))]
+    fn parse_provider_response<'py>(
+        py: Python<'py>,
+        usage_format: &str,
+        payload: &Bound<'py, PyAny>,
+        embeddings: bool,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let format = format_named(usage_format)?;
+        let payload = to_json(payload, 0)?;
+        let response = libdd_ai_usage::parse_provider_response(format, &payload, embeddings);
+        response_dict(py, &response)
+    }
+
+    /// What a whole response body or stream (str or bytes, JSON or
+    /// server-sent events) reported: `(response, outcome, error_name)`, with
+    /// `outcome` one of `open`, `completed`, `failed`.
+    #[pyfunction]
+    #[pyo3(signature = (usage_format, body, embeddings=false))]
+    fn parse_provider_body<'py>(
+        py: Python<'py>,
+        usage_format: &str,
+        body: &Bound<'py, PyAny>,
+        embeddings: bool,
+    ) -> PyResult<(Bound<'py, PyDict>, &'static str, Option<String>)> {
+        let format = format_named(usage_format)?;
+        let (response, outcome, error) = if let Ok(bytes) = body.cast::<PyBytes>() {
+            let bytes = bytes.as_bytes();
+            py.detach(|| libdd_ai_usage::parse_provider_body(format, bytes, embeddings))
+        } else if let Ok(text) = body.cast::<PyString>() {
+            let text = text.to_str()?;
+            py.detach(|| libdd_ai_usage::parse_provider_body(format, text.as_bytes(), embeddings))
+        } else {
+            return Err(PyTypeError::new_err("body must be str or bytes"));
+        };
+        Ok((response_dict(py, &response)?, outcome.as_str(), error))
+    }
+
+    /// A provider's stream read as it arrives, by the crate's shared rules:
+    /// whole bytes with `feed`, server-sent events the caller already split
+    /// with `feed_event`, or decoded events with `event`. `report` says what
+    /// it reported so far; `take` reads a last unterminated line and ends it.
+    #[pyclass]
+    struct UsageStream {
+        inner: Option<libdd_ai_usage::UsageStream>,
+    }
+
+    impl UsageStream {
+        fn live(&mut self) -> PyResult<&mut libdd_ai_usage::UsageStream> {
+            self.inner
+                .as_mut()
+                .ok_or_else(|| PyRuntimeError::new_err("the stream was taken"))
+        }
+    }
+
+    #[pymethods]
+    impl UsageStream {
+        #[new]
+        #[pyo3(signature = (usage_format, embeddings=false))]
+        fn new(usage_format: &str, embeddings: bool) -> PyResult<Self> {
+            Ok(Self {
+                inner: Some(libdd_ai_usage::UsageStream::new(
+                    format_named(usage_format)?,
+                    embeddings,
+                )),
+            })
+        }
+
+        /// The next bytes of the stream (str or bytes); a chunk can end anywhere.
+        fn feed(&mut self, chunk: &Bound<'_, PyAny>) -> PyResult<()> {
+            let stream = self.live()?;
+            if let Ok(bytes) = chunk.cast::<PyBytes>() {
+                stream.feed(bytes.as_bytes());
+            } else if let Ok(text) = chunk.cast::<PyString>() {
+                stream.feed(text.to_str()?.as_bytes());
+            } else {
+                return Err(PyTypeError::new_err("a stream chunk must be str or bytes"));
+            }
+            Ok(())
+        }
+
+        /// One server-sent event already split from the stream: its `event`
+        /// field (empty when it had none) and its `data`.
+        #[pyo3(signature = (event_name, data))]
+        fn feed_event(&mut self, event_name: &str, data: &str) -> PyResult<()> {
+            self.live()?.feed_event(event_name, data);
+            Ok(())
+        }
+
+        /// One event an SDK already decoded (a dict of JSON values).
+        fn event(&mut self, event: &Bound<'_, PyAny>) -> PyResult<()> {
+            let event = to_json(event, 0)?;
+            self.live()?.event(&event);
+            Ok(())
+        }
+
+        /// What the stream reported so far: `(response, outcome, error_name)`,
+        /// with `outcome` one of `open`, `completed`, `failed`.
+        fn report<'py>(
+            &self,
+            py: Python<'py>,
+        ) -> PyResult<(Bound<'py, PyDict>, &'static str, Option<String>)> {
+            let stream = self
+                .inner
+                .as_ref()
+                .ok_or_else(|| PyRuntimeError::new_err("the stream was taken"))?;
+            let (response, outcome, error) = stream.report();
+            Ok((response_dict(py, &response)?, outcome.as_str(), error))
+        }
+
+        /// `report`, reading a last line that had no line ending, and end the
+        /// stream: it cannot be fed afterwards.
+        fn take<'py>(
+            &mut self,
+            py: Python<'py>,
+        ) -> PyResult<(Bound<'py, PyDict>, &'static str, Option<String>)> {
+            let stream = self
+                .inner
+                .take()
+                .ok_or_else(|| PyRuntimeError::new_err("the stream was taken"))?;
+            let (response, outcome, error) = stream.finish();
+            Ok((response_dict(py, &response)?, outcome.as_str(), error))
+        }
+    }
+
+    /// The `gen_ai.provider.name` of a provider as a gateway or SDK names it.
+    #[pyfunction]
+    fn gen_ai_provider_name(name: &str) -> Option<String> {
+        libdd_ai_usage::gen_ai_provider_name(name)
+    }
+
+    /// The `error.type` of an error, from its name (class name, provider error
+    /// type or code) and HTTP status. `failed` says the operation failed even
+    /// when neither names a cause: it is then `api_error`.
+    #[pyfunction]
+    #[pyo3(signature = (name=None, status=None, failed=false))]
+    fn classify_error(
+        name: Option<&str>,
+        status: Option<i64>,
+        failed: bool,
+    ) -> Option<&'static str> {
+        let status = status.and_then(|status| u16::try_from(status).ok());
+        libdd_ai_usage::classify_error(name, status)
+            .or(failed.then_some(libdd_ai_usage::ERROR_TYPE_API))
+    }
+
+    #[pyfunction]
+    fn is_service_tier(value: &str) -> bool {
+        libdd_ai_usage::is_service_tier(value)
+    }
+
+    /// The lower-case names of the response headers that can name the account
+    /// or project `provider_name` billed, in the order they are read.
+    #[pyfunction]
+    fn provider_id_headers(provider_name: &str) -> Vec<&'static str> {
+        let mut names: Vec<&'static str> = Vec::new();
+        for (provider, _, name) in libdd_ai_usage::PROVIDER_ID_HEADERS {
+            if (provider_name.is_empty() || provider == provider_name) && !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        names
+    }
+
+    /// The deployment attributes a provider's response names: the account
+    /// and project from its `headers` (lower-case names), and for
+    /// `aws.bedrock` the account the first model ARN among `models` names.
+    #[pyfunction]
+    #[pyo3(signature = (provider_name, headers, models=Vec::new()))]
+    fn provider_ids(
+        provider_name: &str,
+        headers: BTreeMap<String, String>,
+        models: Vec<String>,
+    ) -> BTreeMap<String, String> {
+        let mut attributes: Attributes =
+            libdd_ai_usage::provider_id_attributes(provider_name, |name| {
+                headers.get(name).map(String::as_str)
+            });
+        if provider_name.is_empty() || provider_name == "aws.bedrock" {
+            if let Some(account) = models
+                .iter()
+                .find_map(|model| libdd_ai_usage::bedrock_arn_account(model))
+            {
+                attributes
+                    .entry("trajectory.request.provider_account_id".to_owned())
+                    .or_insert_with(|| account.to_owned());
+            }
+        }
+        attributes.into_iter().collect()
+    }
+
+    /// The metric names of `profile_id`, or of every profile when it is empty.
+    #[pyfunction]
+    #[pyo3(signature = (profile_id=""))]
+    fn known_metrics(profile_id: &str) -> PyResult<Vec<&'static str>> {
+        let profiles = if profile_id.is_empty() {
+            Profile::ALL.to_vec()
+        } else {
+            vec![profile(profile_id)?]
+        };
+        Ok(profiles
+            .iter()
+            .flat_map(|profile| profile.metric_names().iter().copied())
+            .collect())
+    }
+
+    /// DogStatsD lines packed into datagrams of at most `max_payload` bytes,
+    /// and the number of lines dropped for being longer than that.
+    #[pyfunction]
+    #[pyo3(signature = (lines, max_payload, constant_tags=Vec::new()))]
+    fn pack_dogstatsd(
+        lines: Vec<String>,
+        max_payload: usize,
+        constant_tags: Vec<String>,
+    ) -> (Vec<String>, usize) {
+        libdd_ai_usage::pack_dogstatsd_counted(&lines, &constant_tags, max_payload)
+    }
+
     /// A rejected observation: `ValueError(error_code, message)`.
     fn rejected(error: MetricError) -> PyErr {
         PyValueError::new_err((error.code().as_str(), error.message().to_owned()))
@@ -251,9 +533,46 @@ pub mod ai_usage {
         batch: Mutex<MetricBatch>,
         /// The metrics to keep; every metric of a profile when `None`.
         metrics: Option<BTreeSet<String>>,
+        /// The deployment attributes of every observation, such as the
+        /// service, env and version; an observation's own win.
+        deployment_attributes: BTreeMap<String, String>,
     }
 
     impl UsageMetrics {
+        /// Project one observation under `profile` with the batch's and the
+        /// observation's deployment attributes, keeping the batch's metrics.
+        fn project(
+            &self,
+            profile: Profile,
+            observation: &Json,
+            deployment_attributes: Option<BTreeMap<String, String>>,
+        ) -> Result<(Projection, Vec<String>), MetricError> {
+            let mut projection = project_result(profile, observation)?;
+            let attributes = match deployment_attributes {
+                Some(own) if !self.deployment_attributes.is_empty() => {
+                    let mut merged = self.deployment_attributes.clone();
+                    merged.extend(own);
+                    merged
+                }
+                Some(own) => own,
+                None => self.deployment_attributes.clone(),
+            };
+            if !attributes.is_empty() {
+                projection = with_deployment_attributes(projection, &attributes)?;
+            }
+            let issues = projection
+                .issues
+                .iter()
+                .map(|issue| issue.as_str().to_owned())
+                .collect();
+            if let Some(metrics) = &self.metrics {
+                projection
+                    .points
+                    .retain(|point| metrics.contains(&point.name));
+            }
+            Ok((projection, issues))
+        }
+
         fn take(&self) -> PyResult<MetricBatch> {
             let mut batch = self
                 .batch
@@ -266,14 +585,29 @@ pub mod ai_usage {
     #[pymethods]
     impl UsageMetrics {
         /// `metrics` lists the metric names to keep; by default every metric
-        /// a profile defines is kept.
+        /// a profile defines is kept. A name no profile defines raises
+        /// `ValueError("metric_unknown", name)`. `deployment_attributes` go on
+        /// every observation recorded, under the observation's own.
         #[new]
-        #[pyo3(signature = (metrics=None))]
-        fn new(metrics: Option<Vec<String>>) -> Self {
-            Self {
+        #[pyo3(signature = (metrics=None, deployment_attributes=None))]
+        fn new(
+            metrics: Option<Vec<String>>,
+            deployment_attributes: Option<BTreeMap<String, String>>,
+        ) -> PyResult<Self> {
+            if let Some(names) = &metrics {
+                let known: BTreeSet<&str> = Profile::ALL
+                    .iter()
+                    .flat_map(|profile| profile.metric_names().iter().copied())
+                    .collect();
+                if let Some(unknown) = names.iter().find(|name| !known.contains(name.as_str())) {
+                    return Err(PyValueError::new_err(("metric_unknown", unknown.clone())));
+                }
+            }
+            Ok(Self {
                 batch: Mutex::new(MetricBatch::new()),
                 metrics: metrics.map(|names| names.into_iter().collect()),
-            }
+                deployment_attributes: deployment_attributes.unwrap_or_default(),
+            })
         }
 
         /// Project one observation under `profile` (a versioned profile id such
@@ -292,25 +626,56 @@ pub mod ai_usage {
             let profile = profile(profile_id)?;
             let observation = to_json(observation.as_any(), 0)?;
             py.detach(|| {
-                let mut projection = project_result(profile, &observation).map_err(rejected)?;
-                if let Some(attributes) = deployment_attributes {
-                    projection =
-                        with_deployment_attributes(projection, &attributes).map_err(rejected)?;
-                }
-                let issues = projection
-                    .issues
-                    .iter()
-                    .map(|issue| issue.as_str().to_owned())
-                    .collect();
-                if let Some(metrics) = &self.metrics {
-                    projection
-                        .points
-                        .retain(|point| metrics.contains(&point.name));
+                let (projection, issues) = self
+                    .project(profile, &observation, deployment_attributes)
+                    .map_err(rejected)?;
+                self.batch
+                    .lock()
+                    .map_err(|_| PyRuntimeError::new_err("usage metrics lock poisoned"))?
+                    .try_add_owned(profile, projection)
+                    .map_err(rejected)?;
+                Ok(issues)
+            })
+        }
+
+        /// `record` under each of `profile_ids` (as one provider attempt and
+        /// its token breakdown): every projection is added, or none. Returns
+        /// the issue codes of each profile, in order. Raises
+        /// `ValueError(error_code, message)` naming the profile that rejected
+        /// the observation; nothing is recorded then.
+        #[pyo3(signature = (profile_ids, observation, deployment_attributes=None))]
+        fn record_all(
+            &self,
+            py: Python<'_>,
+            profile_ids: Vec<String>,
+            observation: &Bound<'_, PyDict>,
+            deployment_attributes: Option<BTreeMap<String, String>>,
+        ) -> PyResult<Vec<Vec<String>>> {
+            let profiles = profile_ids
+                .iter()
+                .map(|id| profile(id))
+                .collect::<PyResult<Vec<Profile>>>()?;
+            let observation = to_json(observation.as_any(), 0)?;
+            py.detach(|| {
+                let mut projections = Vec::with_capacity(profiles.len());
+                let mut issues = Vec::with_capacity(profiles.len());
+                for profile in &profiles {
+                    let (projection, found) = self
+                        .project(*profile, &observation, deployment_attributes.clone())
+                        .map_err(|error| {
+                            PyValueError::new_err((
+                                error.code().as_str(),
+                                error.message().to_owned(),
+                                profile.id(),
+                            ))
+                        })?;
+                    projections.push((*profile, projection));
+                    issues.push(found);
                 }
                 self.batch
                     .lock()
                     .map_err(|_| PyRuntimeError::new_err("usage metrics lock poisoned"))?
-                    .add(profile, &projection)
+                    .try_add_all(projections)
                     .map_err(rejected)?;
                 Ok(issues)
             })
@@ -412,6 +777,29 @@ pub mod ai_usage {
         fn take_dogstatsd(&self, py: Python<'_>) -> PyResult<Vec<String>> {
             let batch = self.take()?;
             py.detach(|| batch.dogstatsd_lines()).map_err(rejected)
+        }
+
+        /// Take the points recorded so far as DogStatsD datagrams of at most
+        /// `max_payload` bytes, NUL-separated in one bytes object, and the
+        /// number of lines dropped for being longer than `max_payload`.
+        fn take_dogstatsd_datagrams<'py>(
+            &self,
+            py: Python<'py>,
+            max_payload: usize,
+        ) -> PyResult<(Bound<'py, PyBytes>, usize)> {
+            let batch = self.take()?;
+            let (text, dropped) = py
+                .detach(|| {
+                    let lines = batch.dogstatsd_lines()?;
+                    Ok(libdd_ai_usage::pack_dogstatsd_joined(
+                        lines.iter().map(String::as_str),
+                        &[] as &[&str],
+                        max_payload,
+                        '\0',
+                    ))
+                })
+                .map_err(rejected)?;
+            Ok((PyBytes::new(py, text.as_bytes()), dropped))
         }
     }
 }
