@@ -15,6 +15,15 @@ pub mod ffe {
         EvaluationError, Str, UniversalFlagConfig,
     };
 
+    /// UFC extensions supported by both the linked evaluator and this binding.
+    /// Only add a token after its evaluation semantics, error propagation, and
+    /// exposure reporting are supported. In particular, the linked evaluator does not support dependent
+    /// flags yet, so transports must not advertise that capability.
+    #[pyfunction]
+    fn get_evaluator_capabilities() -> Vec<&'static str> {
+        Vec::new()
+    }
+
     #[pyclass(frozen)]
     #[pyo3(name = "Configuration")]
     struct FfeConfiguration {
