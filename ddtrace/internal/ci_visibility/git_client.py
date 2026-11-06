@@ -307,7 +307,7 @@ class CIVisibilityGitClient:
         result = tags.get(ci.git.REPOSITORY_URL, "")
         if not result:
             result = extract_remote_url(cwd=cwd)
-        return result
+        return ci._filter_sensitive_info(result) or ""
 
     @classmethod
     def _get_latest_commits(cls, cwd: Optional[str] = None) -> list[str]:

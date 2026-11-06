@@ -538,6 +538,18 @@ def test_git_client_get_repository_url(git_repo):
     assert remote_url == "git@github.com:test-repo-url.git"
 
 
+@pytest.mark.parametrize("tags", [{}, {ci.git.COMMIT_SHA: "a" * 40}])
+def test_git_client_get_repository_url_redacts_partial_metadata_fallback(tags):
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client.extract_remote_url",
+        return_value="https://user:secret-token@example.com/repository.git",
+    ):
+        remote_url = CIVisibilityGitClient._get_repository_url(tags=tags)
+
+    assert remote_url == "https://example.com/repository.git"
+    assert "secret-token" not in remote_url
+
+
 def test_git_client_get_repository_url_env_var_precedence(git_repo):
     remote_url = CIVisibilityGitClient._get_repository_url(
         tags={ci.git.REPOSITORY_URL: "https://github.com/Datadog/dd-trace-py"}, cwd=git_repo

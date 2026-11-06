@@ -68,14 +68,13 @@ def test_git_extract_user_info(git_repo):
     assert extracted_users["committer"] == expected_committer
 
 
-def test_git_extract_user_info_with_commas():
-    with mock.patch(
-        "ddtrace.ext.git._git_subprocess_cmd",
-        return_value="Do, Jo|||jo@do.com|||2021-01-19T09:24:53-0400|||Do, Ja|||ja@do.com|||2021-01-20T04:37:21-0400",
-    ):
+@pytest.mark.parametrize("author,committer", [("Do, Jo", "Do, Ja"), ("Do|||Jo", "Do|||Ja")])
+def test_git_extract_user_info_with_separators(author, committer):
+    fields = (author, "jo@do.com", "2021-01-19T09:24:53-0400", committer, "ja@do.com", "2021-01-20T04:37:21-0400")
+    with mock.patch("ddtrace.ext.git._git_subprocess_cmd", return_value="\0".join(fields)):
         extracted_users = git.extract_user_info()
-        assert extracted_users["author"] == ("Do, Jo", "jo@do.com", "2021-01-19T09:24:53-0400")
-        assert extracted_users["committer"] == ("Do, Ja", "ja@do.com", "2021-01-20T04:37:21-0400")
+        assert extracted_users["author"] == fields[:3]
+        assert extracted_users["committer"] == fields[3:]
 
 
 def test_git_extract_user_info_error(git_repo_empty):
