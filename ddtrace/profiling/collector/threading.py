@@ -1,5 +1,3 @@
-import threading
-from types import ModuleType
 import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
@@ -33,43 +31,48 @@ class _ProfiledThreadingCondition(_lock._ProfiledLock):
     pass
 
 
-class ThreadingLockCollector(_lock.LockCollector):
+class _ThreadingLockCollectorBase(_lock.LockCollector):
+    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        # threading is imported only when a collector is created: this module is imported at startup, and importing
+        # threading there would load it before the application can e.g. monkey-patch it with gevent.
+        import threading
+
+        self.MODULE = threading
+        super().__init__(*args, **kwargs)
+
+
+class ThreadingLockCollector(_ThreadingLockCollectorBase):
     """Record threading.Lock usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingLock] = _ProfiledThreadingLock
-    MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "Lock"
 
 
-class ThreadingRLockCollector(_lock.LockCollector):
+class ThreadingRLockCollector(_ThreadingLockCollectorBase):
     """Record threading.RLock usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingRLock] = _ProfiledThreadingRLock
-    MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "RLock"
 
 
-class ThreadingSemaphoreCollector(_lock.LockCollector):
+class ThreadingSemaphoreCollector(_ThreadingLockCollectorBase):
     """Record threading.Semaphore usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingSemaphore] = _ProfiledThreadingSemaphore
-    MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "Semaphore"
 
 
-class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
+class ThreadingBoundedSemaphoreCollector(_ThreadingLockCollectorBase):
     """Record threading.BoundedSemaphore usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingBoundedSemaphore] = _ProfiledThreadingBoundedSemaphore
-    MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "BoundedSemaphore"
 
 
-class ThreadingConditionCollector(_lock.LockCollector):
+class ThreadingConditionCollector(_ThreadingLockCollectorBase):
     """Record threading.Condition usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition
-    MODULE: ModuleType = threading
     PATCHED_LOCK_NAME: str = "Condition"
 
 
@@ -80,7 +83,7 @@ _installed_thread_hooks: dict[str, typing.Callable[..., None]] = {}
 _active_thread_hooks = ddtrace_threading.local()
 
 
-def _install_thread_hook(name: str, after: typing.Callable[[threading.Thread], None]) -> None:
+def _install_thread_hook(name: str, after: typing.Callable[[ddtrace_threading.Thread], None]) -> None:
     Thread = ddtrace_threading.Thread
     original = typing.cast(typing.Callable[..., None], getattr(Thread, name))
     # The hooks are never removed, so installing them again on every profiler restart would nest
@@ -88,7 +91,7 @@ def _install_thread_hook(name: str, after: typing.Callable[[threading.Thread], N
     if original is _installed_thread_hooks.get(name):
         return
 
-    def hook(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
+    def hook(self: ddtrace_threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
         # Another library may have wrapped a previous hook, which then stays in the call chain beneath the new one.
         # Only the outermost hook of the call chain acts so that each thread is registered and unregistered once.
         # This is decided per call, because a thread that started before a restart only has the previous hooks
@@ -109,7 +112,7 @@ def _install_thread_hook(name: str, after: typing.Callable[[threading.Thread], N
     setattr(Thread, name, hook)
 
 
-def _register_thread(thread: threading.Thread) -> None:
+def _register_thread(thread: ddtrace_threading.Thread) -> None:
     if thread.ident is not None and thread.native_id is not None:
         # CPython calls _set_native_id before setting the started event, so an exception here
         # would make Thread.start block forever.
@@ -119,7 +122,7 @@ def _register_thread(thread: threading.Thread) -> None:
             log.debug("[profiling] Failed to register thread %r with the stack profiler", thread.ident, exc_info=True)
 
 
-def _unregister_thread(thread: threading.Thread) -> None:
+def _unregister_thread(thread: ddtrace_threading.Thread) -> None:
     if thread.ident is not None:
         stack.unregister_thread(thread.ident)
 
