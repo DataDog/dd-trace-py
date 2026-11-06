@@ -366,6 +366,18 @@ class TestExposureDecision:
         assert [e.should_send for e in evaluations] == [True]
         assert writer.enqueue.call_count == 1
 
+    def test_exposure_cache_clear_does_not_iterate(self):
+        # Readers look up the cache without the lock, so clearing it must not iterate entries.
+        from ddtrace.internal.openfeature._provider import LRUCache
+
+        cache = LRUCache(maxsize=4)
+        cache[("flag", "user")] = ("alloc", "on", 1)
+
+        with mock.patch.object(LRUCache, "__iter__", side_effect=AssertionError("clear() iterated")):
+            cache.clear()
+
+        assert len(cache) == 0
+
     def test_exposure_features_reach_the_exposure_event_but_not_the_cache(self, provider, writer):
         process_ffe_configuration(_config([{"key": "k", "value": "v1", "destinations": ["EXPOSURE"]}]))
         _evaluate()
