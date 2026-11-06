@@ -76,6 +76,26 @@ jobs:
         with:
           platforms: all
 
+      - name: Install libclang for the ARM64 Rust build host
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Join-Path $env:RUNNER_TEMP 'llvm-installer.exe'
+          curl.exe --fail --location --retry 5 --retry-delay 2 --retry-connrefused `
+            --output $installer `
+            'https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-woa64.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'LLVM download failed' }
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne `
+              '7c4ac97eb2ae6b960ca5f9caf3ff6124c8d2a18cc07a7840a4d2ea15537bad8e') {
+            throw 'LLVM installer SHA256 mismatch'
+          }
+          $process = Start-Process $installer -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "LLVM installation failed: $($process.ExitCode)" }
+          $env:LIBCLANG_PATH = 'C:\Program Files\LLVM\bin'
+          "LIBCLANG_PATH=$env:LIBCLANG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+          python .gitlab/scripts/check-libclang.py
+          if ($LASTEXITCODE -ne 0) { throw 'libclang C API check failed' }
+
       - name: Build wheels
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:

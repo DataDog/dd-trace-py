@@ -44,6 +44,20 @@ RUN Invoke-WebRequest `
         throw "VS Build Tools installer failed with exit code $($p.ExitCode)" `
     }
 
+# Install the libclang C API used by Rust bindgen (the Rust build host is x64).
+ENV LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+RUN Invoke-WebRequest `
+        -Uri 'https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-win64.exe' `
+        -OutFile C:\llvm-installer.exe; `
+    if ((Get-FileHash C:\llvm-installer.exe -Algorithm SHA256).Hash -ne `
+        '3197846a2b19063687dd56e93e34cd941e3548d907f23a6131571321bdf9fe7b') { `
+        throw 'LLVM installer SHA256 mismatch' `
+    }; `
+    $p = Start-Process C:\llvm-installer.exe -ArgumentList '/S' -Wait -PassThru -NoNewWindow; `
+    if ($p.ExitCode -ne 0) { throw "LLVM installation failed: $($p.ExitCode)" }; `
+    Remove-Item C:\llvm-installer.exe -Force; `
+    if (-not (Test-Path 'C:\Program Files\LLVM\bin\libclang.dll')) { throw 'libclang.dll is missing' }
+
 # Install 32-bit VC++ redistributable (needed for x86 wheel builds)
 RUN Invoke-WebRequest `
         -Uri 'https://aka.ms/vs/17/release/vc_redist.x86.exe' `

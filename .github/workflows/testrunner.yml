@@ -15,7 +15,7 @@ jobs:
       contents: read
       packages: write
     with:
-      tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
+      tags: ${{ github.ref == 'refs/heads/main' && format('ghcr.io/datadog/dd-trace-py/testrunner:{0},ghcr.io/datadog/dd-trace-py/testrunner:latest', github.sha) || format('ghcr.io/datadog/dd-trace-py/testrunner:{0}', github.sha) }}
       # No "/v8": buildx publishes arm64 without a variant, so the USER check can't find it.
       platforms: 'linux/amd64,linux/arm64'
       build-args: ''

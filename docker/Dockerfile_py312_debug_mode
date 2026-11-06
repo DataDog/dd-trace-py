@@ -27,6 +27,7 @@ RUN \
       gnupg \
       jq \
       libbz2-dev \
+      libclang-dev \
       libenchant-dev \
       libffi-dev \
       liblzma-dev \

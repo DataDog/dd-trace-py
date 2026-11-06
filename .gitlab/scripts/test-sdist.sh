@@ -52,6 +52,8 @@ tar -xzf "${SDIST_FILE}" -C "${SDIST_DIR}" --strip-components=1
 cd "$(mktemp -d)"
 twine check "${SDIST_FILE}"
 
+python "${CI_PROJECT_DIR}/.gitlab/scripts/check-libclang.py"
+
 section_start "install_sdist" "Installing ${SDIST_FILE##*/}"
 # DEV: the image ships pip 21.2.4, which copies a local project to a random directory unless
 # in-tree builds are enabled. Drop PIP_USE_FEATURE once the image has pip>=21.3, where in-tree is
