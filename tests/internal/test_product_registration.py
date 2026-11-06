@@ -53,10 +53,12 @@ def test_direct_integration_import_does_not_register_web_subscribers() -> None:
 def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     import sys
 
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
     from ddtrace._trace.product import subscriber_bundles
 
     assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
+    assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
 
 
 @pytest.mark.parametrize("tracing_enabled", [True, False])

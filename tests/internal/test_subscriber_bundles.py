@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import inspect
 import sys
 from types import ModuleType
 from types import TracebackType
@@ -13,6 +14,7 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.core.subscriber import SubscriberBundle
+from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.products import ProductManager
 
 
@@ -203,3 +205,68 @@ def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.
         assert calls == ["start", "end"]
     finally:
         RequestSubscriber.unregister()
+
+
+def test_setup_declaration_is_lazy_and_preserves_call_contract() -> None:
+    calls: list[object] = []
+    first = Mock(spec=SubscriberBundle)
+    second = Mock(spec=SubscriberBundle)
+    first.register.side_effect = lambda: calls.append("first")
+    second.register.side_effect = lambda: calls.append("second")
+
+    def setup(value: str, *, enabled: bool = True) -> str:
+        """Install instrumentation."""
+        calls.append((value, enabled))
+        return value
+
+    decorated = requires_subscribers(first, second)(setup)
+    assert calls == []
+    assert decorated.__name__ == setup.__name__
+    assert decorated.__doc__ == setup.__doc__
+    assert inspect.signature(decorated) == inspect.signature(setup)
+    assert decorated("service", enabled=False) == "service"
+    assert calls == ["first", "second", ("service", False)]
+
+
+def test_setup_declaration_supports_constructor_and_listener_reset() -> None:
+    calls = []
+
+    class RequestSubscriber(Subscriber):
+        auto_register = False
+        event_names = (RegistrationEvent.event_name,)
+
+        @classmethod
+        def on_event(cls, event: RegistrationEvent) -> None:
+            calls.append(event)
+
+    module = ModuleType("example.setup")
+    setattr(module, "RequestSubscriber", RequestSubscriber)
+    bundle = SubscriberBundle(module.__name__, ("RequestSubscriber",))
+
+    class Middleware:
+        @requires_subscribers(bundle)
+        def __init__(self, service: str) -> None:
+            self.service = service
+
+    try:
+        with patch("ddtrace.internal.core.subscriber.import_module", return_value=module):
+            assert Middleware("test").service == "test"
+            Middleware("test")
+            event = RegistrationEvent()
+            core.dispatch_event(event)
+            assert calls == [event]
+            RequestSubscriber.unregister()
+            Middleware("restored")
+            core.dispatch_event(event)
+            assert calls == [event, event]
+    finally:
+        RequestSubscriber.unregister()
+
+
+def test_setup_declaration_registration_error_prevents_setup() -> None:
+    setup = Mock()
+    decorated = requires_subscribers(SubscriberBundle("missing.subscribers", ("Subscriber",)))(setup)
+    with patch("ddtrace.internal.core.subscriber.import_module", side_effect=ImportError("unavailable")):
+        with pytest.raises(ImportError, match="unavailable"):
+            decorated()
+    setup.assert_not_called()

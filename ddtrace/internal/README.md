@@ -122,8 +122,9 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
-Tracing groups its web framework subscribers in
-`ddtrace._trace.product.subscriber_bundles`, an ordinary product-local tuple. Its
+Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`
+and includes it in `ddtrace._trace.product.subscriber_bundles`, an ordinary
+product-local tuple. Its
 `start()` registers the bundles. Its `stop()` shuts down the tracer but keeps the
 bundles registered: tracer shutdown flushes finished traces and stops processors;
 it does not drain request execution contexts. Requests completing afterward still
@@ -132,9 +133,27 @@ Keeping listeners registered does not guarantee those spans are exported after
 tracer shutdown.
 
 Importing `ddtrace._trace.subscribers` or its web framework module does not register
-the web framework subscriber. Integrations register it explicitly when installing
-their middleware, plugin, tween, or patches so manual instrumentation also works
-without tracing product startup. Registration is idempotent. Span-dependent
+the web framework subscriber. Integrations declare setup dependencies with the
+shared `requires_subscribers` decorator:
+
+```python
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+from ddtrace.internal.core.subscriber import requires_subscribers
+
+@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
+def patch() -> None:
+    ...
+```
+
+Apply the decorator to synchronous setup functions, including middleware or plugin
+constructors. Decoration does not import or activate subscribers; invocation registers
+the bundles before setup runs. The wrapper preserves the callable's signature and
+metadata. Direct calls work without tracing product startup or the common patching
+machinery. Each invocation registers again so setup can restore listeners after a
+reset; named listener registration prevents duplicates. Registration errors propagate
+before setup runs. Keep enablement checks outside decorated helpers when disabled
+setup must remain inactive, as in Pyramid's tween factory. Keep the decorator off
+request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
 integrations retain their request span creation and completion listeners. Aiohttp
 records its tracing decision on each request event and can emit metadata-only
 lifecycle events with

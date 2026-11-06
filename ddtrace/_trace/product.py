@@ -3,7 +3,7 @@ import typing as t
 
 from envier import En
 
-from ddtrace.internal.core.subscriber import SubscriberBundle
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -17,12 +17,7 @@ log = get_logger(__name__)
 requires = ["remote-configuration"]
 
 
-subscriber_bundles = (
-    SubscriberBundle(
-        module="ddtrace._trace.subscribers.web_framework",
-        subscribers=("WebFrameworkRequestSubscriber",),
-    ),
-)
+subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS,)
 
 
 class _Config(En):

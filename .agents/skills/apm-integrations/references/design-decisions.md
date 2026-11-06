@@ -44,11 +44,14 @@ creates a fallback span when no tracing subscriber is registered.
 For span-independent web integrations, capture `is_tracing_enabled()` in the request
 event's `tracing_enabled` field at entry, as aiohttp does. This accounts for
 standalone security, which still needs request spans when tracing is disabled.
-Existing span-dependent integrations retain the default and direct subscriber
-registration until their lifecycle can run without spans. Register the shared web
-framework subscriber at instrumentation setup (middleware, plugin, or tween
-installation, or patching), rather than at module import. This preserves manual
-instrumentation when tracing product startup is skipped. Registration is
+Existing span-dependent integrations retain the default tracing behavior
+until their lifecycle can run without spans. Declare the shared web
+framework bundle with `@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)` on
+synchronous instrumentation setup (middleware or plugin constructors, enabled tween
+creation, or patching), rather than registering subscriber classes directly. Keep
+conditional enablement outside the decorated helper and never decorate request
+handlers. The decorator activates bundles at setup invocation, not module import.
+This preserves manual instrumentation when tracing product startup is skipped. Registration is
 idempotent; do not unregister the shared subscriber when unpatching one integration,
 since other integrations and active requests still need its listeners.
 
