@@ -587,28 +587,36 @@ class NoOpBackendConnectorSetup(BackendConnectorSetup):
         return NoOpBackendConnector()
 
 
-# pytest-socket blocks network access while tests run by replacing socket.socket and socket.socket.connect, and the
-# plugin sends its payloads from the same processes, while tests run: its connections would fail, their payloads would
-# be lost, and the blocking would count them against the tests. pytest-socket keeps the functions it replaces, and the
-# plugin's connections use those instead of its replacements. Any other replacement, such as gevent's monkey patching,
-# is used as it is.
+# pytest-socket blocks network access while tests run by replacing socket.socket, socket.socket.connect and
+# socket.getaddrinfo, and the plugin sends its payloads from the same processes, while tests run: its connections would
+# fail, their payloads would be lost, and the blocking would count them against the tests. The plugin's connections
+# undo pytest-socket's replacements, and only those: any other, such as gevent's monkey patching, is used as it is.
 def _pytest_socket_original(name: str, current: t.Any) -> t.Any:
-    """What pytest-socket replaced with current, when current is one of its replacements; else current."""
+    """The function pytest-socket kept as name, when current is its replacement for it; else current."""
     if getattr(current, "__module__", None) == "pytest_socket":
         return getattr(sys.modules.get("pytest_socket"), name, current)
     return current
 
 
 def _new_socket(*args: t.Any) -> socket.socket:
-    return _pytest_socket_original("_true_socket", socket.socket)(*args)
+    socket_class: t.Any = socket.socket
+    if isinstance(socket_class, type) and socket_class.__module__ == "pytest_socket":
+        # disable_socket()'s GuardedSocket subclasses the socket class that was in place: make one of those.
+        socket_class = next((c for c in socket_class.__mro__ if c.__module__ != "pytest_socket"), socket_class)
+    return socket_class(*args)
 
 
 def _connect(sock: socket.socket, address: t.Any) -> None:
-    true_connect = _pytest_socket_original("_true_connect", socket.socket.connect)
-    if true_connect is socket.socket.connect:
-        sock.connect(address)
-    else:
-        true_connect(sock, address)
+    # socket_allow_hosts() replaces the connect of the socket class; pytest-socket connects with the one it kept,
+    # which only applies to sockets of the class it kept.
+    if getattr(getattr(type(sock), "connect", None), "__module__", None) == "pytest_socket":
+        pytest_socket = sys.modules.get("pytest_socket")
+        true_socket = getattr(pytest_socket, "_true_socket", None)
+        true_connect = getattr(pytest_socket, "_true_connect", None)
+        if isinstance(true_socket, type) and isinstance(sock, true_socket) and true_connect is not None:
+            true_connect(sock, address)
+            return
+    sock.connect(address)
 
 
 def _create_connection(
@@ -619,7 +627,8 @@ def _create_connection(
     """socket.create_connection, with sockets that pytest-socket's blocking doesn't reach."""
     host, port = address
     error: t.Optional[OSError] = None
-    for family, socket_type, proto, _, sockaddr in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+    getaddrinfo = _pytest_socket_original("_true_getaddrinfo", socket.getaddrinfo)
+    for family, socket_type, proto, _, sockaddr in getaddrinfo(host, port, 0, socket.SOCK_STREAM):
         sock = None
         try:
             sock = _new_socket(family, socket_type, proto)
