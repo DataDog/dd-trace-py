@@ -36,6 +36,7 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
+    # Keep completion listeners and disabled-LLMObs shadow tags for patched integrations.
     pass
 
 

@@ -172,12 +172,22 @@ in-flight spans and runtime enable does not start tracing a previously skipped r
 The decision must not be inferred from `_inner_span`: AppSec can populate that slot
 with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events with
 `DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
-behavior until their request code can run without spans. Other subscriber families
-continue to register automatically.
+behavior until their request code can run without spans. Subscriber families not yet
+migrated to bundles continue to register automatically.
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping also retains the bundle listeners as described above.
+
+LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
+LLMObs registers the shared lifecycle listener, including when product startup calls
+`LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
+integration adapters also register it when an integration is patched, including direct
+patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
+component removes its factory and cached integration; shared listeners stay registered
+so other components and in-flight requests can finish. Product stop and LLMObs disable
+also retain these completion listeners.
+
 AppSec declares exploit-prevention bundles in
 `ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
 only after AppSec is active and exploit prevention is enabled. Direct activation,

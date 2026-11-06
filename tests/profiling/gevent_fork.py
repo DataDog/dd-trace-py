@@ -1,7 +1,13 @@
+import faulthandler
 import os
 import sys
 
 import gevent.monkey
+
+
+# On a hang, test_fork_gevent sends SIGABRT to this process and its child: dump every thread's stack (the child
+# inherits the handler).
+faulthandler.enable()
 
 
 gevent.monkey.patch_all()
