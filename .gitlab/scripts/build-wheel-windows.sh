@@ -25,9 +25,20 @@ IMAGE="${WINDOWS_BUILD_IMAGE:?WINDOWS_BUILD_IMAGE is required}"
 
 setup_env
 
-# Diagnostics: concurrent jobs on different VMs have been seen sharing this
-# workspace (each finding the other's wheel in dist/). Record who we are and
-# leave a marker so other jobs using the same directory show up below.
+# Canceling a job kills this script but not the container started by `docker run`.
+# That container keeps building and writes its wheel into dist/ of the next job
+# scheduled on this VM (same project dir), which then finds two wheels.
+# Remove containers left by a previous job before building.
+CONTAINER_LABEL="dd-trace-py.build-windows"
+stale_containers=$(docker ps -aq --filter "label=${CONTAINER_LABEL}")
+if [[ -n "${stale_containers}" ]]; then
+    echo "Removing containers left by a previous job: ${stale_containers//$'\n'/ }"
+    # shellcheck disable=SC2086
+    docker rm -f ${stale_containers}
+fi
+
+# Diagnostics: record who we are and leave a marker, so any other job using
+# the same directory shows up below.
 MARKER_DIR="${PROJECT_DIR}/.job-markers"
 print_workspace_diagnostics() {
     echo "=== Workspace diagnostics ==="
@@ -53,6 +64,7 @@ section_end "docker_pull"
 section_start "build_wheel" "Building wheel (${UV_PYTHON}, ${WINDOWS_ARCH})"
 
 docker run --rm \
+  --label "${CONTAINER_LABEL}" \
   -v "${PROJECT_DIR_WIN}:C:\\workspace" \
   -e "UV_PYTHON=${UV_PYTHON}" \
   -e "UV_PYTHON_INSTALL_DIR=C:\\tools\\uv-python" \
@@ -73,6 +85,7 @@ finalize
 
 section_start "test_wheel" "Testing wheel (${UV_PYTHON})"
 docker run --rm \
+  --label "${CONTAINER_LABEL}" \
   -v "${PROJECT_DIR_WIN}:C:\\workspace" \
   -e "UV_PYTHON_INSTALL_DIR=C:\\tools\\uv-python" \
   -w 'C:\workspace' \
