@@ -81,7 +81,7 @@ def _check_commit_sha_consistency(
     telemetry = TelemetryAPI.get()
 
     provider_pairs = [
-        (_PROVIDER_CI, ci_provider_tags, _PROVIDER_GIT_CLIENT, git_client_tags),
+        (_PROVIDER_GIT_CLIENT, git_client_tags, _PROVIDER_CI, ci_provider_tags),
         (_PROVIDER_USER_SUPPLIED, user_supplied_tags, _PROVIDER_GIT_CLIENT, git_client_tags),
         (_PROVIDER_USER_SUPPLIED, user_supplied_tags, _PROVIDER_CI, ci_provider_tags),
     ]
@@ -135,7 +135,14 @@ def get_env_tags() -> dict[str, str]:
     ci_provider_tags = ci.get_ci_tags(os.environ)
     user_supplied_tags = git.get_git_tags_from_dd_variables(os.environ)
 
-    merge_tags(tags, local_git_tags, ci_provider_tags, user_supplied_tags, get_custom_dd_tags(os.environ))
+    provider_tags = ci_provider_tags
+    if local_git_tags.get(GitTag.COMMIT_SHA):
+        provider_tags = {
+            key: value
+            for key, value in ci_provider_tags.items()
+            if not key.startswith("git.") or key.startswith(("git.commit.head.", "git.pull_request."))
+        }
+    merge_tags(tags, local_git_tags, provider_tags, user_supplied_tags, get_custom_dd_tags(os.environ))
 
     _check_commit_sha_consistency(user_supplied_tags, ci_provider_tags, local_git_tags)
 

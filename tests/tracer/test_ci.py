@@ -41,7 +41,8 @@ def git_repo(git_repo_empty):
 def test_ci_providers(monkeypatch, name, environment, tags):
     """Make sure all provided environment variables from each CI provider are tagged correctly."""
     _updateenv(monkeypatch, environment)
-    extracted_tags = ci.tags(environment)
+    with mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value={}):
+        extracted_tags = ci.tags(environment)
 
     # Verify ci.job.id is in the expected tags for providers that support it
     provider = name.split(":")[0]
@@ -319,8 +320,8 @@ def test_git_executable_not_found_error(git_repo_empty):
     assert extracted_tags == {}
 
 
-def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
-    """If non-Falsey values from CI provider env, should not be overwritten by extracted git metadata."""
+def test_git_executable_overwrites_conflicting_ci_provider_tags(git_repo):
+    """A readable checkout supplies standard Git metadata even when provider values are populated."""
     ci_provider_env = {
         "APPVEYOR": "true",
         "APPVEYOR_BUILD_FOLDER": "/foo/bar",
@@ -337,10 +338,12 @@ def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
 
     extracted_tags = ci.tags(environ=ci_provider_env, cwd=git_repo)
 
-    assert extracted_tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
-    assert extracted_tags["git.commit.message"] == "this is the correct commit message"
-    assert extracted_tags["git.commit.author.name"] == "John Jack"
-    assert extracted_tags["git.commit.author.email"] == "john@jack.com"
+    assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
+    assert extracted_tags["git.commit.sha"] == git.extract_commit_sha(cwd=git_repo)
+    assert extracted_tags["git.commit.message"] == "this is a commit msg"
+    assert extracted_tags["git.commit.author.name"] == "John Doe"
+    assert extracted_tags["git.commit.author.email"] == "john@doe.com"
+    assert extracted_tags["ci.pipeline.id"] == "appveyor-build-id"
 
 
 def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
@@ -673,3 +676,48 @@ def test_extract_git_head_metadata():
     assert tags[git.COMMIT_HEAD_COMMITTER_EMAIL] == "c@committer.com"
     assert tags[git.COMMIT_HEAD_COMMITTER_DATE] == "date2"
     assert tags[git.COMMIT_HEAD_MESSAGE] == "commit message"
+
+
+@pytest.mark.parametrize("source", ["git", "provider", "override", "partial"])
+def test_git_metadata_precedence(monkeypatch, source):
+    keys = [
+        "git.commit.sha",
+        "git.repository_url",
+        "git.branch",
+        "git.tag",
+        "git.commit.message",
+        "git.commit.author.name",
+        "git.commit.author.email",
+        "git.commit.author.date",
+        "git.commit.committer.name",
+        "git.commit.committer.email",
+        "git.commit.committer.date",
+    ]
+    local = {key: "local-" + key for key in keys}
+    local["git.commit.sha"] = "a" * 40
+    provider = {key: "provider-" + key for key in keys}
+    provider.update({"ci.provider.name": "github", "ci.job.name": "tests", "git.commit.head.sha": "head-sha"})
+    environment = {"GITHUB_SHA": "b" * 40}
+    if source == "override":
+        environment.update({"DD_" + key.upper().replace(".", "_"): "user-" + key for key in keys})
+    if source == "provider":
+        local = {}
+    elif source == "partial":
+        local = {"git.commit.sha": "a" * 40}
+    monkeypatch.setattr(ci, "PROVIDERS", [("GITHUB_SHA", lambda env: provider)])
+    with (
+        mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value=local),
+        mock.patch("ddtrace.ext.ci.git.extract_git_head_metadata", return_value={}),
+    ):
+        tags = ci.tags(environment)
+    for key in keys:
+        if source == "override":
+            assert tags[key] == "user-" + key
+        elif source == "provider":
+            assert tags[key] == provider[key]
+        elif key in local:
+            assert tags[key] == local[key]
+        else:
+            assert key not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags["git.commit.head.sha"] == "head-sha"
