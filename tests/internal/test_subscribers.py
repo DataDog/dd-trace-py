@@ -262,7 +262,7 @@ def test_tracing_subscriber_entry_decision(test_spans, monkeypatch, tracing_enab
 
     event = TestTracingEvent(component="test-component", integration_config={})
     # Model the internal decision set by a tracing subscriber at entry.
-    event.tracing_enabled = tracing_enabled
+    event.span_creation_enabled = tracing_enabled
     with core.context_with_event(event) as ctx:
         span = ctx.get_item("_inner_span")
         assert (span is not None) is tracing_enabled
@@ -519,7 +519,7 @@ def test_web_subscriber_owns_enablement_at_entry(
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 
     policy = Mock(apm_opt_out=standalone)
-    monkeypatch.setattr(web_framework.trace_utils, "standalone_config", policy)
+    monkeypatch.setattr(web_framework, "standalone_config", policy)
     monkeypatch.setattr(tracer, "enabled", tracing_enabled)
     monkeypatch.setitem(core.root._data, "tracer", tracer if tracer_available else None)
     web_framework.WebFrameworkRequestSubscriber.register()
@@ -572,7 +572,7 @@ def test_skipped_web_request_does_not_finish_parent_span(test_spans, monkeypatch
     from ddtrace._trace.subscribers import web_framework
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 
-    monkeypatch.setattr(web_framework.trace_utils, "standalone_config", Mock(apm_opt_out=False))
+    monkeypatch.setattr(web_framework, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
     web_framework.WebFrameworkRequestSubscriber.register()
@@ -648,7 +648,7 @@ def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_sp
     from ddtrace.appsec._contrib import aiohttp as appsec_aiohttp
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 
-    monkeypatch.setattr(web_framework.trace_utils, "standalone_config", Mock(apm_opt_out=False))
+    monkeypatch.setattr(web_framework, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
     web_framework.WebFrameworkRequestSubscriber.register()
@@ -701,12 +701,13 @@ def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_sp
 
 
 @pytest.mark.parametrize("use_factory", [False, True])
-def test_tracing_enablement_is_not_an_event_constructor_argument(use_factory):
-    kwargs = {"component": "test", "integration_config": {}, "tracing_enabled": False}
+@pytest.mark.parametrize("field_name", ["tracing_enabled", "span_creation_enabled"])
+def test_span_enablement_is_not_an_event_constructor_argument(use_factory, field_name):
+    kwargs = {"component": "test", "integration_config": {}, field_name: False}
     if use_factory:
         kwargs.update(operation_name="test.request", span_type="web", span_kind="server")
         create = TracingEvent.create
     else:
         create = TracingEvent
-    with pytest.raises(TypeError, match="tracing_enabled"):
+    with pytest.raises(TypeError, match=field_name):
         create(**kwargs)

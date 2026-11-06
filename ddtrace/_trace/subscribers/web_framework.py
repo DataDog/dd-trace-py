@@ -15,6 +15,7 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.span_bus import span_from_context
 
 
@@ -31,7 +32,11 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
         # Other frameworks still require a span in their request lifecycle.
         if ctx.event.component == "aiohttp":
-            ctx.event.tracing_enabled = trace_utils.is_tracing_enabled()
+            tracer = core.root.get_item("tracer")
+            apm_enabled = tracer is not None and tracer.enabled
+            standalone_spans_required = tracer is not None and standalone_config.apm_opt_out
+            # Standalone products need span lifecycle without enabling APM tracing.
+            ctx.event.span_creation_enabled = apm_enabled or standalone_spans_required
         super()._on_context_started(ctx)
 
     @classmethod

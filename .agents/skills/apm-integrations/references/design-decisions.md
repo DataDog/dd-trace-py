@@ -41,10 +41,11 @@ Lifecycle dispatch must not depend on a tracing span being present: with tracing
 disabled, other products can still consume the same events. Do not call
 `span_from_context()` simply to check whether a request can be finalized, since it
 creates a fallback span when no tracing subscriber is registered.
-Emit events without computing tracing product enablement. TracingEvent.tracing_enabled
+Emit events without computing tracing product enablement. TracingEvent.span_creation_enabled
 is internal state excluded from constructor/factory arguments. The web tracing
-subscriber sets it at aiohttp request entry using the tracing/standalone enablement
-helper; the base's existing guards retain that decision through completion. Do not
+subscriber sets it at aiohttp request entry from two separate inputs: tracer APM
+enablement and standalone products' span requirements. The field describes span
+lifecycle, not APM enablement; the base guards retain it through completion. Do not
 infer ownership from `_inner_span`, since AppSec can populate it with a borrowed parent
 span. Existing span-dependent integrations retain the default tracing behavior until
 their lifecycle can run without spans. Declare the shared web
