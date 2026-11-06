@@ -17,6 +17,7 @@ from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.aiguard.integrations._mcp import record_model_tool_calls
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
 
@@ -217,4 +218,5 @@ def _openai_chat_completion_after(client: AIGuardClient, kwargs: dict[str, Any],
         raise _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion response", exc_info=True)
+    record_model_tool_calls(all_messages, len(request_messages))
     return None

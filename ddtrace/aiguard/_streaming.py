@@ -15,6 +15,7 @@ module exists to prevent).
 import asyncio
 from collections.abc import AsyncIterator
 from collections.abc import Iterator
+import contextvars
 import inspect
 from typing import Any
 from typing import Callable
@@ -23,6 +24,7 @@ from typing import Optional
 import wrapt
 
 from ddtrace.aiguard._context import is_aiguard_context_active
+from ddtrace.aiguard.integrations._mcp import adopt_model_tool_calls
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import BaseStreamHandler
 import ddtrace.internal.logger as ddlogger
@@ -275,10 +277,13 @@ class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wr
         if self._self_buffer is None:
             self._self_buffer = [chunk async for chunk in self.__wrapped__]
         if off_loop:
-            # The evaluation is a blocking HTTP call: run it off the event loop (contextvars are copied).
+            # The evaluation is a blocking HTTP call: run it off the event loop in a copy of the context,
+            # then keep the model tool calls it recorded for the MCP calls this task runs next.
+            context = contextvars.copy_context()
             await asyncio.to_thread(
-                _reconstruct_and_evaluate, self._self_reconstruct, self._self_evaluate, self._self_buffer
+                context.run, _reconstruct_and_evaluate, self._self_reconstruct, self._self_evaluate, self._self_buffer
             )
+            adopt_model_tool_calls(context)
         else:
             _reconstruct_and_evaluate(self._self_reconstruct, self._self_evaluate, self._self_buffer)
         self._self_chunks = self._self_buffer

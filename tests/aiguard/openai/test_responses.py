@@ -22,6 +22,7 @@ from ddtrace.aiguard.integrations._mcp import ApprovalDecision
 from ddtrace.aiguard.integrations._mcp import approval_decisions
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
+from ddtrace.aiguard.integrations._mcp import referenced_mcp_servers
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_input
 from ddtrace.aiguard.integrations._openai_responses import _convert_openai_response_output
 from ddtrace.aiguard.integrations._openai_responses import _hosted_mcp_servers
@@ -1441,6 +1442,33 @@ def test_hosted_mcp_servers_share_the_entry_of_one_server(mcp_enabled):
     servers = _hosted_mcp_servers(tools)
     assert servers["wiki"] is servers["wiki_admin"]
     assert servers["wiki"]["id"] == DEEPWIKI_ID
+
+
+def test_referenced_mcp_servers_merge_the_tools_of_entries_sharing_an_id():
+    """Distinct entries for one endpoint (e.g. hosted and client-managed) keep every reference resolvable."""
+    hosted = {**DEEPWIKI_SERVER, "tools": {"ask_question": "ask_question"}}
+    client = {**DEEPWIKI_SERVER, "managed_by": "client", "transport": "streamable_http", "tools": {"wiki_read": "read"}}
+    messages = [
+        {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "mcp_1",
+                    "function": {"name": "ask_question", "arguments": "{}"},
+                    "mcp": {"server_id": DEEPWIKI_ID},
+                },
+                {
+                    "id": "call_1",
+                    "function": {"name": "wiki_read", "arguments": "{}"},
+                    "mcp": {"server_id": DEEPWIKI_ID},
+                },
+            ],
+        }
+    ]
+
+    assert referenced_mcp_servers(messages, [hosted, client]) == [
+        {**DEEPWIKI_SERVER, "tools": {"ask_question": "ask_question", "wiki_read": "read"}}
+    ]
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

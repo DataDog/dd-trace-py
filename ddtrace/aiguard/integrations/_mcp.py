@@ -1,9 +1,12 @@
 """MCP helpers for model SDK integrations: mcp_servers entries and their server_id fingerprint,
-the decisions taken on OpenAI hosted MCP approval requests, and the MCP SDK client transport capture.
+the model tool calls MCP adapters look up to evaluate with their real ID and conversation, the
+decisions taken on OpenAI hosted MCP approval requests, and the MCP SDK client transport capture.
 """
 
 from collections import OrderedDict
 from collections.abc import Sequence
+from contextvars import Context
+from contextvars import ContextVar
 import hashlib
 import os.path
 import re
@@ -19,9 +22,12 @@ from ddtrace.aiguard._types import MCPManagedBy
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import MCPTransport
 from ddtrace.aiguard._types import Message
+from ddtrace.aiguard._types import ToolCall
 from ddtrace.internal import forksafe
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.native import uuid4
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils.http import url_origin
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
@@ -124,16 +130,23 @@ def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]
     """The servers the tool calls of messages reference, with only the tools they call; None if none.
 
     Restricting to referenced servers keeps every entry resolvable and every tools map non-empty.
+    Servers on the same endpoint share an ID: the first one describes it and all add their tools.
     """
-    by_id = {server["id"]: server for server in servers}
+    by_id: dict[str, MCPServer] = {}
+    tools_by_id: dict[str, dict[str, str]] = {}
+    for server in servers:
+        by_id.setdefault(server["id"], server)
+        tools = tools_by_id.setdefault(server["id"], {})
+        for name, original_name in server["tools"].items():
+            tools.setdefault(name, original_name)
     called: dict[str, dict[str, str]] = {}
     for message in messages:
         for tool_call in message.get("tool_calls") or []:
             mcp = tool_call.get("mcp")
-            server = by_id.get(mcp["server_id"]) if mcp else None
+            server_tools = tools_by_id.get(mcp["server_id"]) if mcp else None
             name = tool_call["function"]["name"]
-            if server is not None and name in server["tools"]:
-                called.setdefault(server["id"], {})[name] = server["tools"][name]
+            if mcp and server_tools is not None and name in server_tools:
+                called.setdefault(mcp["server_id"], {})[name] = server_tools[name]
     if not called:
         return None
     result = []
@@ -142,6 +155,67 @@ def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]
         server["tools"] = tools
         result.append(server)
     return result
+
+
+def local_tool_call_id() -> str:
+    """ID for a tool call no model issued, prefixed so it is never mistaken for a provider ID."""
+    return f"dd_mcp_{uuid4().replace('-', '')}"
+
+
+class _ModelToolCall(NamedTuple):
+    messages: list[Message]
+    message_index: int
+    mcp_servers: Sequence[MCPServer]
+
+
+# Tool calls of the last model response evaluated in this context, keyed by call ID.
+_model_tool_calls: ContextVar[Optional[dict[str, _ModelToolCall]]] = ContextVar(
+    "ai_guard_model_tool_calls", default=None
+)
+
+
+def record_model_tool_calls(messages: list[Message], start: int, mcp_servers: Sequence[MCPServer] = ()) -> None:
+    """Remember the tool calls in messages[start:], the model response part of a conversation.
+
+    mcp_servers are the servers the conversation's own MCP tool calls reference.
+    """
+    if not aiguard_config._ai_guard_mcp_enabled:
+        return
+    calls = {
+        tool_call["id"]: _ModelToolCall(messages, index, mcp_servers)
+        for index in range(start, len(messages))
+        for tool_call in messages[index].get("tool_calls") or []
+        if tool_call.get("id")
+    }
+    # Replaced even when empty: a newer response supersedes the calls of an older one.
+    _model_tool_calls.set(calls or None)
+
+
+def adopt_model_tool_calls(context: Context) -> None:
+    """Keep the tool calls recorded in context, a copy of the current context run in a worker thread."""
+    calls = context.get(_model_tool_calls)
+    if calls is not _model_tool_calls.get():
+        _model_tool_calls.set(calls)
+
+
+def tool_call_conversation(
+    tool_call: ToolCall, server: Optional[MCPServer]
+) -> tuple[list[Message], Optional[list[MCPServer]]]:
+    """Return the conversation evaluated before tool_call runs on server, and its mcp_servers.
+
+    A call from a recorded model response keeps its real history, with tool_call replacing the
+    model's calls in the assistant turn since siblings are evaluated when they run. Otherwise only
+    the tool call is sent: no history is fabricated.
+    """
+    calls = _model_tool_calls.get()
+    model_call = calls.get(tool_call["id"]) if calls else None
+    if model_call is None:
+        return [Message(role="assistant", tool_calls=[tool_call])], [server] if server else None
+    messages, message_index, history_servers = model_call
+    assistant = messages[message_index].copy()
+    assistant["tool_calls"] = [tool_call]
+    messages = messages[:message_index] + [assistant]
+    return messages, referenced_mcp_servers(messages, [*history_servers, *([server] if server else [])])
 
 
 class ApprovalDecision(NamedTuple):

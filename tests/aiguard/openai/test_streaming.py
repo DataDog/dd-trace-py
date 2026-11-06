@@ -15,6 +15,8 @@ from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard._listener import _make_openai_stream_wrappers
 from ddtrace.aiguard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.aiguard._streaming import BufferedAIGuardStream
+from ddtrace.aiguard.integrations._mcp import _model_tool_calls
+from ddtrace.aiguard.integrations._mcp import record_model_tool_calls
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 
@@ -309,6 +311,27 @@ async def test_async_buffered_stream_concurrent_and_later_callers_share_the_verd
             await stream.get_final_message()
 
     assert evaluated and all(response == ["a", "b"] for response in evaluated)
+
+
+def test_async_stream_keeps_the_model_tool_calls_its_evaluation_records():
+    """The evaluation runs in a worker thread; the tool calls it records must reach the task reading the stream."""
+    tool_call = {"id": "call_1", "function": {"name": "search_issues", "arguments": "{}"}}
+    messages = [{"role": "user", "content": "Find issues"}, {"role": "assistant", "tool_calls": [tool_call]}]
+
+    async def source():
+        yield "a"
+
+    async def consume():
+        stream = BufferedAIGuardAsyncStream(
+            source(), reconstruct=list, evaluate=lambda response: record_model_tool_calls(messages, 1)
+        )
+        assert [chunk async for chunk in stream] == ["a"]
+        return _model_tool_calls.get()
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True, _ai_guard_mcp_enabled=True)):
+        calls = asyncio.run(consume())
+
+    assert list(calls or {}) == ["call_1"]
 
 
 # ---------------------------------------------------------------------------
