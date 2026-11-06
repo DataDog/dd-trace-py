@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pytest
 
@@ -365,6 +366,7 @@ def test_native_runtime_survives_daemonization(run_python_code_in_subprocess):
     """
     code = """
 import os
+import select
 import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -398,6 +400,8 @@ if pid == 0:
 
 os.close(w)
 os.waitpid(pid, 0)
+ready, _, _ = select.select([r], [], [], 30)
+assert ready, "the daemon hung"
 result = os.read(r, 4096)
 assert result == b"ok", result
 """
@@ -595,6 +599,143 @@ assert result == "ok", result
 
     assert status == 0, stderr
     assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_rebuild_keeps_standard_fds_free(run_python_code_in_subprocess):
+    """Daemonizing code closes 0-2 too, then redirects the standard streams onto them.
+
+    The runtime rebuilt in between must not take those descriptors, or the dup2
+    calls redirecting the streams would overwrite its own.
+    """
+    code = """
+import os
+import select
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+r, w = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.setsid()
+    if os.fork() != 0:
+        os._exit(0)
+    os.closerange(0, w)
+    os.closerange(w + 1, 1024)
+    # Redirect the standard streams to the null device, as python-daemon does.
+    null = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        if fd != null:
+            os.dup2(null, fd)
+    try:
+        with tracer.trace("daemon"):
+            pass
+        tracer.flush()
+        telemetry_writer.periodic(force_flush=True)
+        result = b"ok"
+    except BaseException as e:
+        result = repr(e).encode()
+    os.write(w, result)
+    os._exit(0)
+
+os.close(w)
+os.waitpid(pid, 0)
+ready, _, _ = select.select([r], [], [], 30)
+assert ready, "the daemon hung"
+result = os.read(r, 4096)
+assert result == b"ok", result
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+def test_native_runtime_replacement_sends_app_started_once(test_agent_session, run_python_code_in_subprocess):
+    """Replacing the runtime in the root process does not send app-started again."""
+    code = """
+import os
+
+import ddtrace
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+telemetry_writer.periodic(force_flush=True)
+assert telemetry_writer.started
+
+# Close an open descriptor: the runtime is replaced and the worker rebuilt.
+fd = os.open(os.devnull, os.O_RDONLY)
+os.closerange(fd, fd + 1)
+telemetry_writer.periodic(force_flush=True)
+assert telemetry_writer.started
+
+print(get_runtime_id())
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+
+    runtime_id = stdout.strip().decode("utf-8")
+    app_started = [e for e in test_agent_session.get_events("app-started") if e["runtime_id"] == runtime_id]
+    assert len(app_started) == 1, app_started
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="counts threads via /proc")
+def test_native_runtime_replacements_do_not_leak_threads(run_python_code_in_subprocess):
+    """Each replacement stops the old runtime's threads instead of leaving them parked."""
+    code = """
+import os
+import time
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+def tokio_threads():
+    count = 0
+    for tid in os.listdir("/proc/self/task"):
+        try:
+            with open("/proc/self/task/%s/comm" % tid) as f:
+                count += f.read().startswith("tokio-rt")
+        except OSError:
+            pass
+    return count
+
+
+def use():
+    with tracer.trace("span"):
+        pass
+    tracer.flush()
+    telemetry_writer.periodic(force_flush=True)
+
+
+use()
+before = tokio_threads()
+assert before > 0
+
+for _ in range(10):
+    fd = os.open(os.devnull, os.O_RDONLY)
+    os.closerange(fd, fd + 1)
+    use()
+
+deadline = time.monotonic() + 5
+while tokio_threads() > before and time.monotonic() < deadline:
+    time.sleep(0.05)
+assert tokio_threads() <= before, (tokio_threads(), before)
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")

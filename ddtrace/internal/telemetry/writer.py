@@ -200,6 +200,10 @@ class TelemetryWriter:
         self._payload_file_dir: Optional[str] = None
         self._test_session_token: Optional[str] = get_test_session_token()
         self.started = False
+        # Set once the root process has sent app-started, and kept across runtime
+        # replacements so the replacement worker does not send it again.
+        self._app_started_sent = False
+        self._replaced_after_app_started = False
         # Preserve lifecycle state across a failed identity refresh so a retry starts the replacement.
         self._identity_refresh_started = False
         # Set once the bootstrap configurations are recorded in _configurations for MicroVM replay.
@@ -233,7 +237,7 @@ class TelemetryWriter:
             from ddtrace.internal.native_runtime import on_runtime_replaced
 
             forksafe.register(self._fork_writer)
-            on_runtime_replaced(self._drop_worker)
+            on_runtime_replaced(self._replace_worker)
             error_handler = DDTelemetryErrorHandler(self)
             if self._is_microvm:
                 on_runtime_identity_refresh(self._refresh_runtime_identity)
@@ -300,8 +304,10 @@ class TelemetryWriter:
             extended_heartbeat_interval_secs=config.EXTENDED_HEARTBEAT_INTERVAL,
             debug_enabled=self._debug,
             # Only the root process emits app-started/app-closing; forked children
-            # heartbeat with their own session id but must not re-emit them.
-            emit_app_lifecycle=get_parent_runtime_id() is None,
+            # heartbeat with their own session id but must not re-emit them. Neither does
+            # a worker rebuilt after a runtime replacement in a root that already sent
+            # app-started; app-closing is then not sent either.
+            emit_app_lifecycle=get_parent_runtime_id() is None and not self._replaced_after_app_started,
             endpoints_message_limit=appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT,
             test_session_token=self._test_session_token,
             # Single-step-instrumentation install metadata
@@ -480,6 +486,8 @@ class TelemetryWriter:
             log.debug("Failed to start the native telemetry worker", exc_info=True)
             return
         self.started = True
+        if get_parent_runtime_id() is None:
+            self._app_started_sent = True
 
     def _get_shared_worker(self):
         """Return the native telemetry worker for this process, so the trace exporter can
@@ -1199,6 +1207,12 @@ class TelemetryWriter:
         self._drop_worker()
         # Re-discover dependencies from scratch so the child reports its own imports.
         self._dependency_tracker.reset()
+
+    def _replace_worker(self) -> None:
+        # The process is the same, so its lifecycle already started: the replacement worker
+        # heartbeats without sending app-started again.
+        self._replaced_after_app_started = self._app_started_sent
+        self._drop_worker()
 
     def _drop_worker(self) -> None:
         # The worker runs on a runtime that was replaced. Drop its handle without shutting it
