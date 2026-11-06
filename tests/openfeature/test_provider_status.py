@@ -339,8 +339,7 @@ class TestProviderInitializationAsync:
             provider.shutdown()
 
         assert (
-            "Feature Flags: provider recovered: configuration received after initialization timed out"
-            in caplog.messages
+            "Feature Flags: provider recovered: configuration received after initialization failed" in caplog.messages
         )
 
     def test_shutdown_debug_logs_start_and_completion(self, caplog):

@@ -27,8 +27,16 @@ log = get_logger(__name__)
 
 MISSING_API_KEY_MESSAGE = (
     "DD_API_KEY is required for the default Datadog Feature Flagging endpoint; "
-    "set DD_API_KEY or DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL"
+    "set DD_API_KEY, set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL, "
+    "or set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=remote_config to load flags through the Datadog Agent"
 )
+
+
+class MissingApiKeyError(ValueError):
+    """The default Datadog endpoint needs DD_API_KEY."""
+
+    def __init__(self) -> None:
+        super().__init__(MISSING_API_KEY_MESSAGE)
 
 
 def create_agentless_source(
@@ -56,8 +64,8 @@ def create_agentless_source(
     has_custom_endpoint = bool(base_url and base_url.strip())
     api_key = dd_config._dd_api_key
 
-    if not has_custom_endpoint and not api_key:
-        raise ValueError(MISSING_API_KEY_MESSAGE)
+    if not has_custom_endpoint and not (api_key and api_key.strip()):
+        raise MissingApiKeyError()
 
     endpoint = build_agentless_endpoint(dd_config._dd_site, dd_config.env, base_url)
 

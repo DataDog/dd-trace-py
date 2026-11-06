@@ -5,6 +5,7 @@ import pytest
 from ddtrace.internal.openfeature._source_selection import AGENTLESS
 from ddtrace.internal.openfeature._source_selection import DISABLED
 from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
+from ddtrace.internal.openfeature._source_selection import MissingApiKeyError
 from ddtrace.internal.openfeature._source_selection import create_agentless_source
 from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
@@ -103,22 +104,23 @@ def test_create_remote_config_does_not_require_api_key():
         assert create_agentless_source(cfg, lambda _: None) is None
 
 
-@pytest.mark.parametrize("api_key", [None, ""])
+@pytest.mark.parametrize("api_key", [None, "", "   "])
 def test_create_default_endpoint_requires_api_key(api_key):
     cfg = _config()
     with override_global_config({"_dd_api_key": api_key}):
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(MissingApiKeyError) as excinfo:
             create_agentless_source(cfg, lambda _: None)
     assert str(excinfo.value) == (
         "DD_API_KEY is required for the default Datadog Feature Flagging endpoint; "
-        "set DD_API_KEY or DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL"
+        "set DD_API_KEY, set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL, "
+        "or set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=remote_config to load flags through the Datadog Agent"
     )
 
 
 def test_create_blank_custom_endpoint_requires_api_key():
     cfg = _config(DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL="   ")
     with override_global_config({"_dd_api_key": None}):
-        with pytest.raises(ValueError, match="^DD_API_KEY is required"):
+        with pytest.raises(MissingApiKeyError):
             create_agentless_source(cfg, lambda _: None)
 
 
