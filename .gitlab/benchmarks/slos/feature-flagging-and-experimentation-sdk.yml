@@ -21,6 +21,17 @@ experiments:
         run: fail_on_breach
         scenarios:
 
+          # Full client/provider path, including per-evaluation hook creation.
+          - name: openfeatureoptout-disabled
+            thresholds:
+              - execution_time < 0.100 ms
+          - name: openfeatureoptout-enabled-emitting
+            thresholds:
+              - execution_time < 0.100 ms
+          - name: openfeatureoptout-enabled-suppressed
+            thresholds:
+              - execution_time < 0.100 ms
+
           # openfeatureflagevaluation (class OpenFeatureFlagEvaluation)
           - name: openfeatureflagevaluation-aggregate-protected-typical
             thresholds:

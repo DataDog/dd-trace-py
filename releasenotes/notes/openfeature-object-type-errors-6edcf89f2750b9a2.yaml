@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    openfeature: Object flag evaluations return the supplied default with a
+    ``TYPE_MISMATCH`` error for scalar or null JSON values, including asynchronous
+    evaluations. Per-subject evaluation telemetry opt-out still applies to these
+    errors.

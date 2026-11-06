@@ -1,0 +1,9 @@
+disabled:
+  enabled: false
+  opted_out: false
+enabled-emitting:
+  enabled: true
+  opted_out: false
+enabled-suppressed:
+  enabled: true
+  opted_out: true
