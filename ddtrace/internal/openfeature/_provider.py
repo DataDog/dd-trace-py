@@ -125,6 +125,10 @@ class LRUCache(MutableMapping, typing.Generic[K, V]):
         """Return number of items in cache."""
         return len(self._cache)
 
+    def clear(self) -> None:
+        # MutableMapping.clear() iterates, which fails while an unlocked reader reorders entries.
+        self._cache.clear()
+
 
 class DataDogProvider(AbstractProvider):
     """
