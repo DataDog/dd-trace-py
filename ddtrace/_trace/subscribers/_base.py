@@ -115,7 +115,8 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
-    override on_started/on_ended for their specific logic.
+    override on_started/on_ended for their specific logic. Events may set
+    tracing_enabled to False to skip tracing handlers for the entire context.
 
     Example:
         class MySpanSubscriber(SpanTracingSubscriber):
@@ -136,6 +137,8 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
+        if not getattr(ctx.event, "tracing_enabled", True):
+            return
         _start_span(ctx)
         for handler in cls._started_handlers:
             handler(ctx)
@@ -146,6 +149,9 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         ctx: core.ExecutionContext[TracingEventType],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
+        # Use the entry decision so a runtime disable does not leave an existing span unfinished.
+        if not getattr(ctx.event, "tracing_enabled", True):
+            return
         try:
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)

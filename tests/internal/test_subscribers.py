@@ -237,6 +237,43 @@ def test_base_tracing_subscriber(test_spans):
     assert span.resource == "/api/endpoint"
 
 
+@pytest.mark.parametrize("tracing_enabled", [True, False])
+def test_tracing_subscriber_entry_decision(test_spans, monkeypatch, tracing_enabled):
+    @dataclass
+    class TestTracingEvent(TracingEvent):
+        event_name = "test.subscriber.tracing.enabled"
+        span_type = "custom"
+        span_kind = "internal"
+        tracing_enabled: bool = event_field(default=True)
+
+        def __post_init__(self):
+            self.operation_name = "test.subscriber.span"
+
+    class TestTracingSubscriber(TracingSubscriber):
+        event_names = (TestTracingEvent.event_name,)
+
+        @classmethod
+        def on_started(cls, ctx):
+            called.append("started")
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            called.append("ended")
+
+    event = TestTracingEvent(component="test-component", integration_config={}, tracing_enabled=tracing_enabled)
+    with core.context_with_event(event) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert (span is not None) is tracing_enabled
+        # Runtime changes must not override the decision captured on the event.
+        monkeypatch.setattr(tracer, "enabled", not tracing_enabled)
+
+    assert called == (["started", "ended"] if tracing_enabled else [])
+    if tracing_enabled:
+        assert span.finished
+    else:
+        test_spans.assert_span_count(0)
+
+
 def test_span_context_event_missing_required_field(test_spans):
     """Test that missing required tracing attributes raises an AttributeError."""
 
