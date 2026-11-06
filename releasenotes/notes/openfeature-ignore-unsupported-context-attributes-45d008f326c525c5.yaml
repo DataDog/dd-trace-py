@@ -1,7 +1,8 @@
 ---
 fixes:
   - |
-    openfeature: Fixes an issue where flag evaluations returned the default value with an
-    ``INVALID_CONTEXT`` error when an evaluation context attribute was a dict, a list or another
-    value that is not a string, number, boolean or ``None``. Such attributes are now ignored, and
-    the flag is evaluated as if they were absent.
+    openfeature: Fixes an issue where flag evaluations return the default value with an
+    ``INVALID_CONTEXT`` error when an evaluation context attribute is not a ``str``, ``int``,
+    ``float``, ``bool`` or ``None`` value, for example a ``dict``, a ``list`` or a ``datetime``.
+    Such attributes are now ignored: the flag returns its evaluated value instead of the default,
+    and targeting rules that reference such an attribute treat it as absent.

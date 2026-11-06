@@ -8,6 +8,7 @@ from typing import Optional
 from openfeature.evaluation_context import EvaluationContext
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._native import _native_attributes
 from ddtrace.internal.openfeature.writer import ExposureEvent
 
 
@@ -59,7 +60,7 @@ def build_exposure_event(
         "variant": {"key": variant_key},
         "subject": {
             "id": evaluation_context.targeting_key or "",
-            "attributes": evaluation_context.attributes or {},
+            "attributes": _native_attributes(evaluation_context.attributes or {}),
         },
     }
 
