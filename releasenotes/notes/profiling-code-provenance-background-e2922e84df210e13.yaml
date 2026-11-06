@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: code provenance data is now prepared in the background when the
+    profiler starts, so short-lived processes spend less time in the final
+    profile upload at exit.
