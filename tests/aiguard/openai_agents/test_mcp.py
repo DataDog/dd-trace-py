@@ -399,6 +399,31 @@ def test_unidentifiable_server_is_evaluated_as_an_ordinary_tool(mock_execute_req
     assert _mcp_servers(mock_execute_request) is None
 
 
+def test_openai_kill_switch_keeps_the_mcp_listeners():
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_openai_enabled=False, _ai_guard_mcp_enabled=True)):
+        with patch.object(_listener.core, "on") as core_on:
+            _listener.ai_guard_listen()
+
+    events = {c.args[0] for c in core_on.call_args_list}
+    assert {"openai_agents.mcp.invoke_tool.before", "openai_agents.mcp.call_tool.before"} <= events
+    assert not any(event.startswith("openai.") for event in events)
+
+
+@patch(EXECUTE_REQUEST)
+def test_openai_kill_switch_still_guards_mcp_calls(mock_execute_request):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", block=True)
+    server = _atlassian_server()
+
+    # The listeners read the configuration per call: the OpenAI switch must not stop them.
+    with override_ai_guard_config(dict(_ai_guard_openai_enabled=False, _ai_guard_mcp_enabled=True)):
+        with pytest.raises(AIGuardAbortError):
+            asyncio.run(server.call_tool("search_issues", {"query": "APPSEC"}))
+
+    assert server.session.calls == []
+
+
 @patch(EXECUTE_REQUEST)
 def test_mcp_disabled_skips_the_mcp_evaluations(mock_execute_request):
     server = _atlassian_server()

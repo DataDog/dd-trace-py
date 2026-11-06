@@ -2,6 +2,10 @@ import asyncio
 from contextvars import ContextVar
 import importlib
 import inspect
+from typing import Any
+from typing import Awaitable
+from typing import Callable
+from typing import Optional
 
 import agents
 from agents.tracing import add_trace_processor
@@ -70,7 +74,7 @@ _MODULE_RUN_LOOP_WRAP_TARGETS = [
 ]
 
 
-async def _dispatch_mcp_event(event: str, args: tuple) -> None:
+async def _dispatch_mcp_event(event: str, args: tuple[Any, ...]) -> None:
     # Listeners may block on network calls, so they run off the event loop; skipped with no listener.
     if core.has_listeners(event):
         await asyncio.to_thread(core.dispatch, event, args, allow_raise=True)
@@ -81,16 +85,20 @@ class _AgentMCPCall:
 
     __slots__ = ("server", "tool_name", "consumed")
 
-    def __init__(self, server, tool_name) -> None:
+    def __init__(self, server: Any, tool_name: Optional[str]) -> None:
         self.server = server
         self.tool_name = tool_name
         self.consumed = False
 
 
-_agent_mcp_call: ContextVar = ContextVar("dd_openai_agents_agent_mcp_call", default=None)
+_agent_mcp_call: ContextVar[Optional[_AgentMCPCall]] = ContextVar("dd_openai_agents_agent_mcp_call", default=None)
+
+_MCPWrapper = Callable[[Callable[..., Awaitable[Any]], Any, tuple[Any, ...], dict[str, Any]], Awaitable[Any]]
 
 
-async def _patched_invoke_mcp_tool(func, instance, args, kwargs):
+async def _patched_invoke_mcp_tool(
+    func: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     # Agent-driven MCP tool run: the model-visible tool and its call context are only known here.
     server = get_argument_value(args, kwargs, 0, "server", optional=True)
     tool = get_argument_value(args, kwargs, 1, "tool", optional=True)
@@ -116,7 +124,9 @@ async def _patched_invoke_mcp_tool(func, instance, args, kwargs):
 _in_mcp_server_call_tool: ContextVar[bool] = ContextVar("dd_openai_agents_in_mcp_call_tool", default=False)
 
 
-async def _patched_mcp_server_call_tool(func, instance, args, kwargs):
+async def _patched_mcp_server_call_tool(
+    func: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     # Lowest MCP call boundary of the SDK servers, also reached by direct server.call_tool calls.
     if _in_mcp_server_call_tool.get():
         return await func(*args, **kwargs)
@@ -142,7 +152,7 @@ async def _patched_mcp_server_call_tool(func, instance, args, kwargs):
         _in_mcp_server_call_tool.reset(token)
 
 
-def _mcp_wrap_targets() -> list:
+def _mcp_wrap_targets() -> list[tuple[Any, str, _MCPWrapper]]:
     """(owner, attribute, wrapper) for the MCP adapter, empty when agents.mcp is unavailable.
 
     agents.mcp needs the optional mcp package, which is not installable on every Python version.
@@ -152,7 +162,7 @@ def _mcp_wrap_targets() -> list:
         from agents.mcp.util import MCPUtil
     except ImportError:
         return []
-    targets: list = [(MCPUtil, "invoke_mcp_tool", _patched_invoke_mcp_tool)]
+    targets: list[tuple[Any, str, _MCPWrapper]] = [(MCPUtil, "invoke_mcp_tool", _patched_invoke_mcp_tool)]
     # Concrete SDK servers may override call_tool without calling super(), so each class that
     # implements it gets wrapped. The abstract MCPServer.call_tool is never reached.
     for _, cls in inspect.getmembers(mcp_server, inspect.isclass):

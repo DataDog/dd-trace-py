@@ -65,6 +65,7 @@ def ai_guard_listen() -> None:
     client = new_ai_guard_client()
     _langchain_listen(client)
     _openai_listen(client)
+    _openai_agents_listen(client)
     _anthropic_listen(client)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_ai_guard)
 
@@ -130,7 +131,11 @@ def _openai_listen(client: AIGuardClient) -> None:
     core.on("openai.responses.create.after", partial(_openai_response_create_after, client))
     core.on("openai.patch", partial(_install_openai_wrappers, client))
     core.on("openai.unpatch", _uninstall_openai_wrappers)
-    # openai-agents MCP server tools; DD_AI_GUARD_MCP_ENABLED is checked per call by the listeners.
+
+
+def _openai_agents_listen(client: AIGuardClient) -> None:
+    # openai-agents MCP server tools run whatever the model provider, so DD_AI_GUARD_OPENAI_ENABLED does
+    # not gate them; DD_AI_GUARD_MCP_ENABLED is checked per call by the listeners.
     core.on("openai_agents.mcp.invoke_tool.before", partial(_openai_agents_mcp_invoke_tool_before, client))
     core.on("openai_agents.mcp.call_tool.before", partial(_openai_agents_mcp_call_tool_before, client))
 
