@@ -161,11 +161,17 @@ is still active and restoring listeners after a reset. Registration errors propa
 before setup runs. Keep enablement checks outside decorated helpers when disabled
 setup must remain inactive, as in Pyramid's tween factory. Keep the decorator off
 request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
-integrations retain their request span creation and completion listeners. Aiohttp
-records its tracing decision on each request event and can emit metadata-only
-lifecycle events with
-`DD_TRACE_ENABLED=false`. Standalone security still creates the request span needed
-for AppSec processing. Other subscriber families continue to register automatically.
+integrations retain their request span creation and completion listeners. Integrations
+cannot supply `TracingEvent.tracing_enabled` to the constructor or factory. The web
+tracing subscriber sets this internal field when an aiohttp request starts, using the
+existing tracing/standalone enablement helper. The base subscriber's existing guards
+reuse the captured decision through completion, so runtime disable still finishes
+in-flight spans and runtime enable does not start tracing a previously skipped request.
+The decision must not be inferred from `_inner_span`: AppSec can populate that slot
+with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events with
+`DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
+behavior until their request code can run without spans. Other subscriber families
+continue to register automatically.
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product

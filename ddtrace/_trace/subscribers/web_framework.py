@@ -28,6 +28,13 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        # Other frameworks still require a span in their request lifecycle.
+        if ctx.event.component == "aiohttp":
+            ctx.event.tracing_enabled = trace_utils.is_tracing_enabled()
+        super()._on_context_started(ctx)
+
+    @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: WebFrameworkRequestEvent = ctx.event
 

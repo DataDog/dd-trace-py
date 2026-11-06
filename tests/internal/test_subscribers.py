@@ -1,5 +1,6 @@
 from dataclasses import InitVar
 from dataclasses import dataclass
+from unittest.mock import Mock
 
 import pytest
 
@@ -259,7 +260,9 @@ def test_tracing_subscriber_entry_decision(test_spans, monkeypatch, tracing_enab
         def on_ended(cls, ctx, exc_info):
             called.append("ended")
 
-    event = TestTracingEvent(component="test-component", integration_config={}, tracing_enabled=tracing_enabled)
+    event = TestTracingEvent(component="test-component", integration_config={})
+    # Model the internal decision set by a tracing subscriber at entry.
+    event.tracing_enabled = tracing_enabled
     with core.context_with_event(event) as ctx:
         span = ctx.get_item("_inner_span")
         assert (span is not None) is tracing_enabled
@@ -491,8 +494,7 @@ def test_span_context_event_end_span_false(test_spans):
     test_spans.assert_span_count(0)
 
 
-@pytest.mark.parametrize("tracing_enabled", [True, False])
-def test_tracing_event_factory_enablement(test_spans, tracing_enabled):
+def test_tracing_event_factory_preserves_span_dependent_default(test_spans):
     TracingSubscriber.register()
     event = TracingEvent.create(
         component="test-component",
@@ -500,8 +502,211 @@ def test_tracing_event_factory_enablement(test_spans, tracing_enabled):
         operation_name="test.subscriber.span",
         span_type="custom",
         span_kind="internal",
-        tracing_enabled=tracing_enabled,
     )
     with core.context_with_event(event) as ctx:
-        assert (ctx.get_item("_inner_span") is not None) is tracing_enabled
-    test_spans.assert_span_count(int(tracing_enabled))
+        assert ctx.get_item("_inner_span") is not None
+    test_spans.assert_span_count(1)
+
+
+@pytest.mark.parametrize("tracing_enabled", [True, False])
+@pytest.mark.parametrize("standalone", [True, False])
+@pytest.mark.parametrize("tracer_available", [True, False])
+def test_web_subscriber_owns_enablement_at_entry(
+    test_spans, monkeypatch, tracing_enabled, standalone, tracer_available
+):
+    from ddtrace import config
+    from ddtrace._trace.subscribers import web_framework
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+
+    policy = Mock(apm_opt_out=standalone)
+    monkeypatch.setattr(web_framework.trace_utils, "standalone_config", policy)
+    monkeypatch.setattr(tracer, "enabled", tracing_enabled)
+    monkeypatch.setitem(core.root._data, "tracer", tracer if tracer_available else None)
+    web_framework.WebFrameworkRequestSubscriber.register()
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="aiohttp",
+        integration_config=config.aiohttp,
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert (span is not None) is (tracer_available and (tracing_enabled or standalone))
+        monkeypatch.setattr(tracer, "enabled", not tracing_enabled)
+        policy.apm_opt_out = not standalone
+    if span is not None:
+        assert span.finished
+    else:
+        assert ctx.get_item("_inner_span") is None
+        test_spans.assert_span_count(0)
+
+
+@pytest.mark.parametrize("component", ["bottle", "cherrypy", "falcon", "molten", "pyramid", "sanic"])
+def test_web_subscriber_preserves_span_dependent_integrations(test_spans, monkeypatch, component):
+    from ddtrace import config
+    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+
+    monkeypatch.setattr(tracer, "enabled", False)
+    WebFrameworkRequestSubscriber.register()
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component=component,
+        integration_config=config.aiohttp,
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+    assert span.finished
+
+
+def test_skipped_web_request_does_not_finish_parent_span(test_spans, monkeypatch):
+    from ddtrace import config
+    from ddtrace._trace.subscribers import web_framework
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+
+    monkeypatch.setattr(web_framework.trace_utils, "standalone_config", Mock(apm_opt_out=False))
+    monkeypatch.setattr(tracer, "enabled", True)
+    monkeypatch.setitem(core.root._data, "tracer", tracer)
+    web_framework.WebFrameworkRequestSubscriber.register()
+
+    def event():
+        return WebFrameworkRequestEvent(
+            http_operation="test.request",
+            component="aiohttp",
+            integration_config=config.aiohttp,
+            request_url="http://localhost/",
+            request_method="GET",
+            request_headers={},
+            headers_case_sensitive=True,
+        )
+
+    with core.context_with_event(event()) as parent:
+        span = parent.get_item("_inner_span")
+        assert span is not None
+        monkeypatch.setattr(tracer, "enabled", False)
+        with core.context_with_event(event()) as child:
+            assert child.get_item("_inner_span") is None
+        assert child.get_item("_inner_span") is None
+        assert not span.finished
+        monkeypatch.setattr(tracer, "enabled", True)
+    assert span.finished
+    test_spans.assert_span_count(1)
+
+
+def test_web_subscriber_owns_span_observed_by_metadata_consumers(test_spans, monkeypatch):
+    from ddtrace import config
+    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+
+    monkeypatch.setattr(tracer, "enabled", True)
+    monkeypatch.setitem(core.root._data, "tracer", tracer)
+    WebFrameworkRequestSubscriber.register()
+    observed = []
+
+    class MetadataSubscriber(ContextSubscriber):
+        event_names = (WebFrameworkRequestEvent.event_name,)
+
+        @classmethod
+        def on_started(cls, ctx):
+            observed.append((ctx.get_item("_inner_span"), "started"))
+
+        @classmethod
+        def on_ended(cls, ctx, exc_info):
+            observed.append((ctx.get_item("_inner_span"), "ended"))
+
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="aiohttp",
+        integration_config=config.aiohttp,
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        assert span.name == event.operation_name
+        assert tracer.current_span() is span
+    assert observed == [(span, "started"), (span, "ended")]
+    assert span.finished
+    test_spans.assert_span_count(1)
+
+
+def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_spans, monkeypatch):
+    from ddtrace import config
+    from ddtrace._trace.subscribers import web_framework
+    from ddtrace.appsec import _asm_request_context
+    from ddtrace.appsec._contrib import aiohttp as appsec_aiohttp
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+
+    monkeypatch.setattr(web_framework.trace_utils, "standalone_config", Mock(apm_opt_out=False))
+    monkeypatch.setattr(tracer, "enabled", True)
+    monkeypatch.setitem(core.root._data, "tracer", tracer)
+    web_framework.WebFrameworkRequestSubscriber.register()
+
+    def event():
+        return WebFrameworkRequestEvent(
+            http_operation="test.request",
+            component="aiohttp",
+            integration_config=config.aiohttp,
+            request_url="http://localhost/",
+            request_method="GET",
+            request_headers={},
+            headers_case_sensitive=True,
+        )
+
+    with core.context_with_event(event()) as parent:
+        span = parent.get_item("_inner_span")
+        parent.set_item(
+            _asm_request_context._ASM_CONTEXT,
+            _asm_request_context.ASM_Environment(waf_callable=None, span=span),
+        )
+        monkeypatch.setattr(appsec_aiohttp.asm_config, "_asm_enabled", True)
+        monkeypatch.setattr(tracer, "enabled", False)
+        headers = Mock()
+        headers.items.return_value = ()
+        headers.getall.return_value = ()
+        request = Mock(
+            method="GET",
+            headers=headers,
+            scheme="http",
+            host="localhost",
+            raw_path="/",
+            query={},
+            remote=None,
+            match_info={},
+            body_exists=False,
+        )
+        with core.context_with_event(event()) as child:
+            assert child.get_item("_inner_span") is None
+            assert appsec_aiohttp.get_active_asm_context() is parent.get_item(_asm_request_context._ASM_CONTEXT)
+            appsec_aiohttp._on_request_start(child, request, 0)
+            # The existing AppSec consumer uses span_from_context, which borrows
+            # the active parent when tracing skipped creating a request span.
+            assert child.get_item("_inner_span") is span
+        assert not span.finished
+        monkeypatch.setattr(appsec_aiohttp.asm_config, "_asm_enabled", False)
+        monkeypatch.setattr(tracer, "enabled", True)
+    assert span.finished
+    test_spans.assert_span_count(1)
+
+
+@pytest.mark.parametrize("use_factory", [False, True])
+def test_tracing_enablement_is_not_an_event_constructor_argument(use_factory):
+    kwargs = {"component": "test", "integration_config": {}, "tracing_enabled": False}
+    if use_factory:
+        kwargs.update(operation_name="test.request", span_type="web", span_kind="server")
+        create = TracingEvent.create
+    else:
+        create = TracingEvent
+    with pytest.raises(TypeError, match="tracing_enabled"):
+        create(**kwargs)

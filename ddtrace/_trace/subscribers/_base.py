@@ -115,8 +115,8 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
-    override on_started/on_ended for their specific logic. Events may set
-    tracing_enabled to False to skip tracing handlers for the entire context.
+    override on_started/on_ended for their specific logic. Tracing subscribers set
+    tracing_enabled at entry to skip tracing handlers for the entire context.
 
     Example:
         class MySpanSubscriber(SpanTracingSubscriber):
