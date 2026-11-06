@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Any
 from typing import AsyncGenerator
 from typing import Generator
 from typing import Optional
@@ -14,8 +15,25 @@ log = get_logger(__name__)
 
 
 class BaseOpenAIStreamHandler:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._finished_choices: set[int] = set()
+
     def initialize_chunk_storage(self):
         return defaultdict(list)
+
+    def _all_choices_finished(self, chunk: Any) -> bool:
+        """Return whether this chunk finishes the last of the n requested choices.
+
+        With n > 1 the choices finish independently, so the chunk after the first finish_reason
+        can still carry content for another choice.
+        """
+        finished = [c for c in getattr(chunk, "choices", None) or [] if getattr(c, "finish_reason", None)]
+        if not finished:
+            return False
+        self._finished_choices.update(getattr(c, "index", 0) for c in finished)
+        n = self.request_kwargs.get("n")
+        return len(self._finished_choices) >= (n if isinstance(n, int) and n > 1 else 1)
 
     def finalize_stream(self, exception=None):
         _process_finished_stream(
@@ -37,12 +55,8 @@ class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
         if not self.primary_span._get_ctx_item("_dd.auto_extract_token_chunk"):
             return
-        choices = getattr(chunk, "choices")
-        if not choices:
-            return
-        choice = choices[0]
-        if not getattr(choice, "finish_reason", None):
-            # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
+        if not self._all_choices_finished(chunk):
+            # The usage chunk follows the chunk that finishes the last choice
             return
         try:
             # User isn't expecting last token chunk to be present since it's not part of the default streamed response,
@@ -62,11 +76,7 @@ class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
         if not self.primary_span._get_ctx_item("_dd.auto_extract_token_chunk"):
             return
-        choices = getattr(chunk, "choices")
-        if not choices:
-            return
-        choice = choices[0]
-        if not getattr(choice, "finish_reason", None):
+        if not self._all_choices_finished(chunk):
             return
         try:
             usage_chunk = await iterator.__anext__()
