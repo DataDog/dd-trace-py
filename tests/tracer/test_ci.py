@@ -159,6 +159,19 @@ def test_extract_git_metadata(git_repo):
     assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
 
 
+def test_tag_metadata_ignores_forced_column_formatting(git_repo):
+    git._git_subprocess_cmd(["config", "column.ui", "always"], cwd=git_repo)
+    git._git_subprocess_cmd(["config", "column.tag", "always"], cwd=git_repo)
+    git._git_subprocess_cmd(["update-ref", "refs/tags/v1", "HEAD"], cwd=git_repo)
+    assert "git.tag" not in git.extract_git_metadata(cwd=git_repo)
+
+    git._git_subprocess_cmd(["checkout", "--detach", "HEAD"], cwd=git_repo)
+    assert git.extract_git_metadata(cwd=git_repo)["git.tag"] == "v1"
+
+    git._git_subprocess_cmd(["update-ref", "refs/tags/stable", "HEAD"], cwd=git_repo)
+    assert "git.tag" not in git.extract_git_metadata(cwd=git_repo)
+
+
 def test_git_safe_directory_override_added_for_repo_root(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
