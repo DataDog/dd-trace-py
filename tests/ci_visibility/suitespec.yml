@@ -100,7 +100,7 @@ suites:
           dependencies: ['pytest==7.4.4', msgpack, 'more_itertools<8.11.0', pytest-randomly, 'pytest-bdd>=6.0,<6.1']
         - name: pytest_bdd
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: ['pytest~=9.2', msgpack, 'more_itertools<8.11.0', pytest-randomly, 'pytest-bdd>=9.0.1']
+          dependencies: ['pytest~=9.2', msgpack, 'more_itertools<8.11.0', pytest-randomly, pytest-bdd]
   pytest_flaky:
     paths:
       - '@pytest'
