@@ -133,7 +133,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     appsec_product_subscribers.register()
     if reconfigure_tracer:
         if origin:
-            asm_config._asm_enabled_origin = origin  # type: ignore[assignment]
+            asm_config._asm_enabled_origin = origin
         core.dispatch("asm.tracer.reconfigure", (True, origin), allow_raise=True)
 
     _report_asm_enabled()

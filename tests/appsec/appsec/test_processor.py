@@ -11,6 +11,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf.waf import ddwaf_context_eval
 from ddtrace.appsec._ddwaf.waf import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
@@ -19,6 +20,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import get_waf_addresses
@@ -450,8 +452,8 @@ def test_ddwaf_not_raises_exception():
         rules_json_str = rules.read()
         DDWaf(
             rules_json_str,
-            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
-            DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
+            asm_config._asm_obfuscation_parameter_key_regexp.encode("utf-8"),
+            asm_config._asm_obfuscation_parameter_value_regexp.encode("utf-8"),
         )
 
 
@@ -629,13 +631,29 @@ def test_ddwaf_run():
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
         ctx = _ddwaf._at_request_start()
-        res = _ddwaf.run(ctx, data, timeout_ms=DEFAULT.WAF_TIMEOUT)  # res is a serialized json
+        res = _ddwaf.run(ctx, data, timeout_ms=asm_config._waf_timeout)  # res is a serialized json
         assert res.data
         assert res.data[0]["rule"]["id"] == "crs-942-100"
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime
         assert res.timeout is False
+
+
+@pytest.mark.parametrize("timeout_ms,expected_timeout_us", [(None, 7500), (0.0, 0), (1.25, 1250)])
+def test_ddwaf_run_uses_configured_timeout(timeout_ms, expected_timeout_us):
+    with open(rules.RULES_GOOD_PATH, "br") as rule_set:
+        waf = DDWaf(rule_set.read(), b"", b"")
+    ctx = waf._at_request_start()
+    with (
+        override_global_config({"_waf_timeout": 7.5}),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_context_eval", wraps=ddwaf_context_eval) as evaluate,
+    ):
+        if timeout_ms is None:
+            waf.run(ctx, {})
+        else:
+            waf.run(ctx, {}, timeout_ms=timeout_ms)
+    assert evaluate.call_args.args[-1] == expected_timeout_us
 
 
 def test_ddwaf_run_timeout():
