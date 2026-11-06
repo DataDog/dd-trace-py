@@ -10,6 +10,7 @@ import pytest
 
 import ddtrace.appsec._common_module_patches as cmp
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._contrib.filesystem import subscribers as filesystem_subscribers
 from ddtrace.appsec._contrib.filesystem.subscribers import AppSecFileOpenSubscriber
@@ -19,8 +20,11 @@ from ddtrace.contrib._events.filesystem import FileOpenEvent
 from ddtrace.contrib.internal.filesystem import patch as filesystem
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.security.stack_traces import report_stack
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 import ddtrace.internal.telemetry.writer as telemetry_writer_module
+from ddtrace.trace import Span
 
 
 @pytest.fixture(autouse=True)
@@ -142,6 +146,63 @@ def test_registration_restores_after_disable_and_listener_reset(tmp_path) -> Non
         filesystem.unpatch()
 
 
+def test_other_consumer_survives_appsec_unregistration(tmp_path) -> None:
+    events = []
+    core.on(FileOpenEvent.event_name, events.append, name="test.independent.filesystem")
+    filesystem.patch()
+    AppSecFileOpenSubscriber.register()
+    try:
+        with (
+            mock.patch.object(filesystem_subscribers, "get_rasp_capability", return_value=True),
+            mock.patch.object(filesystem_subscribers, "call_waf_callback", return_value=None) as waf,
+        ):
+            with open(tmp_path / "active", "w"):
+                pass
+            assert waf.call_count == 1
+            AppSecFileOpenSubscriber.unregister()
+            with open(tmp_path / "other-consumer", "w"):
+                pass
+            assert waf.call_count == 1
+            assert len(events) == 2
+            AppSecFileOpenSubscriber.register()
+            with open(tmp_path / "reactivated", "w"):
+                pass
+            assert waf.call_count == 2
+            assert len(events) == 3
+    finally:
+        AppSecFileOpenSubscriber.unregister()
+        core.reset_listeners(FileOpenEvent.event_name, events.append)
+        filesystem.unpatch()
+
+
+@pytest.mark.parametrize("method", ["builtin", "pathlib"])
+def test_reported_stack_starts_at_application_call(tmp_path, method) -> None:
+    span = Span("filesystem-stack")
+
+    def capture_stack(addresses, *, crop_trace, rule_type):
+        assert report_stack(span=span, crop_stack=crop_trace, stack_id="filesystem", namespace=STACK_TRACE.RASP)
+
+    AppSecFileOpenSubscriber.register()
+    filesystem.patch()
+    try:
+        with (
+            mock.patch.object(filesystem_subscribers, "get_rasp_capability", return_value=True),
+            mock.patch.object(filesystem_subscribers, "call_waf_callback", side_effect=capture_stack),
+            mock.patch.object(asm_config, "_asm_enabled", True),
+            mock.patch.object(asm_config, "_ep_enabled", True),
+            mock.patch.object(asm_config, "_ep_stack_trace_enabled", True),
+        ):
+            target = tmp_path / "stack.txt"
+            with target.open("w") if method == "pathlib" else open(target, "w"):
+                pass
+        frames = span._get_struct_tag(STACK_TRACE.TAG)[STACK_TRACE.RASP][0]["frames"]
+        assert frames[0]["file"] == __file__
+        assert frames[0]["function"].endswith("test_reported_stack_starts_at_application_call")
+    finally:
+        AppSecFileOpenSubscriber.unregister()
+        filesystem.unpatch()
+
+
 def test_handle_lfi_blocks_lfi() -> None:
     result = DDWaf_result(
         1,
@@ -255,9 +316,8 @@ def _reported_as_ddtrace_error(exc: BaseException) -> bool:
 
 @pytest.mark.usefixtures("isolated_passthrough_wrappers")
 def test_application_open_error_through_builtin_open_wrapper_is_not_reported(tmp_path: Path) -> None:
-    with mock.patch.object(filesystem_patch, "try_wrap_function_wrapper"):
-        filesystem_patch.patch()
+    filesystem.patch()
     with pytest.raises(FileNotFoundError) as exc_info:
-        wrapped_builtin_open(io.open, None, (str(tmp_path / "missing"),), {})
+        filesystem.wrapped_builtin_open(io.open, None, (str(tmp_path / "missing"),), {})
 
     assert not _reported_as_ddtrace_error(exc_info.value)

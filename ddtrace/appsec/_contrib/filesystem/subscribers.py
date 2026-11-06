@@ -22,7 +22,7 @@ class AppSecFileOpenSubscriber(Subscriber):
 
         result = call_waf_callback(
             {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
-            crop_trace="on_event",
+            crop_trace=event.stack_trace_boundary or "on_event",
             rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
         )
         if result and _must_block(result.actions):

@@ -1,5 +1,6 @@
 import builtins
 from collections.abc import Generator
+from functools import wraps
 import os
 from pathlib import Path
 from unittest import mock
@@ -47,7 +48,19 @@ def test_open_publishes_before_creating_file(tmp_path: Path, events: list[FileOp
     finally:
         core.reset_listeners(FileOpenEvent.event_name, before_open)
     assert target.exists()
-    assert events
+    assert [event.filename for event in events] == [str(target)]
+
+
+@pytest.mark.parametrize("method", ["read_text", "read_bytes", "write_text", "write_bytes"])
+def test_path_helpers_publish_once(tmp_path: Path, events: list[FileOpenEvent], method: str) -> None:
+    target = tmp_path / "contents.txt"
+    target.write_bytes(b"contents")
+    events.clear()
+    if method.startswith("read"):
+        getattr(target, method)()
+    else:
+        getattr(target, method)(b"replacement" if method.endswith("bytes") else "replacement")
+    assert [event.filename for event in events] == [str(target)]
 
 
 @pytest.mark.parametrize("method", ["builtin", "pathlib"])
@@ -98,6 +111,78 @@ def test_no_event_allocated_without_listeners() -> None:
     ):
         assert filesystem.wrapped_builtin_open(original, None, ("file.txt",), {}) == "opened"
     event.assert_not_called()
+
+
+def test_no_path_event_allocated_without_listeners(events: list[FileOpenEvent]) -> None:
+    assert filesystem._PathOpenContext.is_wrapped(Path.open)
+    with (
+        mock.patch.object(core, "has_listeners", return_value=False),
+        mock.patch.object(filesystem, "FileOpenEvent", wraps=FileOpenEvent) as event,
+        Path(os.devnull).open(),
+    ):
+        pass
+    event.assert_not_called()
+
+
+@pytest.mark.parametrize("variadic", [False, True])
+def test_replacement_receiver_name(events: list[FileOpenEvent], variadic: bool) -> None:
+    filesystem.unpatch()
+    original = Path.open
+
+    def named_receiver(path, *args, **kwargs):
+        return original(path, *args, **kwargs)
+
+    def variadic_receiver(*args, mode="r", **kwargs):
+        return original(*args, mode=mode, **kwargs)
+
+    Path.open = variadic_receiver if variadic else named_receiver
+    try:
+        filesystem.patch()
+        assert filesystem._PathOpenContext.is_wrapped(Path.open)
+        with Path(os.devnull).open():
+            pass
+        assert [event.filename for event in events] == [os.devnull]
+    finally:
+        filesystem.unpatch()
+        Path.open = original
+
+
+@pytest.mark.parametrize("replacement", ["decorator", "mock", "alias"])
+def test_retained_builtin_wrapper_is_inactive_after_unpatch(events: list[FileOpenEvent], replacement: str) -> None:
+    filesystem.unpatch()
+    original = builtins.open
+    filesystem.patch()
+    retained = builtins.open
+
+    @wraps(retained)
+    def outer(*args, **kwargs):
+        return retained(*args, **kwargs)
+
+    try:
+        if replacement == "decorator":
+            builtins.open = outer
+        if replacement == "mock":
+            with mock.patch("builtins.open"):
+                filesystem.unpatch()
+        else:
+            filesystem.unpatch()
+        with builtins.open(os.devnull):
+            pass
+        assert events == []
+
+        for _ in range(2):
+            filesystem.patch()
+            events.clear()
+            with retained(os.devnull):
+                pass
+            assert events == []
+            with builtins.open(os.devnull):
+                pass
+            assert [event.filename for event in events] == [os.devnull]
+            filesystem.unpatch()
+    finally:
+        filesystem.unpatch()
+        builtins.open = original
 
 
 def test_patch_cycles_and_bytecode_wrapping() -> None:
