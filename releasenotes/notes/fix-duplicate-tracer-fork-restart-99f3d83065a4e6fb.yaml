@@ -1,4 +1,0 @@
-fixes:
-  - |
-    tracing: Fixes unnecessary overhead after a fork caused by initializing
-    the child process tracing state twice when automatic instrumentation is enabled.

@@ -50,7 +50,6 @@ def start():
 
 
 def restart(join=False):
-    # Each tracer instance registers its own fork hook, including without bootstrap.
     pass
 
 
