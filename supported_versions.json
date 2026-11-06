@@ -699,6 +699,17 @@
                 "tested": [
                     "1.24.0"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "2.3.0"
+                ]
             }
         ]
     },
@@ -732,6 +743,17 @@
                 "tested": [
                     "1.2.1",
                     "1.5.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=1.2.1",
+                "tested": [
+                    "1.7.0"
                 ]
             }
         ]
@@ -2412,6 +2434,18 @@
                     "0.3.86",
                     "1.5.3"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14",
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=0.1",
+                "tested": [
+                    "1.7.5"
+                ]
             }
         ]
     },
@@ -2854,6 +2888,17 @@
                 "tested": [
                     "3.17.2"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.11.4",
+                "tested": [
+                    "3.18.0"
+                ]
             }
         ]
     },
@@ -2874,6 +2919,17 @@
                 "tested": [
                     "3.17.2"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.11.4",
+                "tested": [
+                    "3.18.0"
+                ]
             }
         ]
     },
@@ -2893,6 +2949,17 @@
                 "supportedRange": ">=2.11.4",
                 "tested": [
                     "3.17.2"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=2.11.4",
+                "tested": [
+                    "3.18.0"
                 ]
             }
         ]
@@ -3759,9 +3826,19 @@
                     "2.46.0",
                     "2.54.1"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=2.46.0",
+                "tested": [
+                    "2.60.0"
+                ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "ray",
@@ -4176,6 +4253,17 @@
                 "supportedRange": "*",
                 "tested": [
                     "0.5.2.post3"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "0.5.4.post2"
                 ]
             }
         ]
@@ -4642,6 +4730,17 @@
                 "tested": [
                     "0.10.2",
                     "0.27.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=0.10.2",
+                "tested": [
+                    "0.33.0"
                 ]
             }
         ]

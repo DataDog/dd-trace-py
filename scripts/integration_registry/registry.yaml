@@ -192,10 +192,10 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.24.0
-      max: 1.24.0
+      max: 2.3.0
     azure-functions-durable:
       min: 1.2.1
-      max: 1.5.0
+      max: 1.7.0
 
 - integration_name: azure_eventhubs
   is_external_package: true
@@ -591,7 +591,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 1.5.3
+      max: 1.7.5
 
 - integration_name: langgraph
   is_external_package: true
@@ -713,13 +713,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.5
-      max: 3.17.2
+      max: 3.18.0
     mlflow-skinny:
       min: 3.17.2
-      max: 3.17.2
+      max: 3.18.0
     mlflow-tracing:
       min: 3.17.2
-      max: 3.17.2
+      max: 3.18.0
 
 - integration_name: molten
   is_external_package: true
@@ -919,7 +919,7 @@ integrations:
   tested_versions_by_dependency:
     ray:
       min: 2.46.0
-      max: 2.54.1
+      max: 2.60.0
 
 - integration_name: ray_serve
   is_external_package: true
@@ -1125,7 +1125,7 @@ integrations:
   tested_versions_by_dependency:
     vllm:
       min: 0.10.2
-      max: 0.27.1
+      max: 0.33.0
 
 - integration_name: webbrowser
   is_external_package: false

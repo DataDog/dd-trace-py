@@ -210,9 +210,6 @@ suites:
           python: ['3.14', '3.15']
           dependencies: [pytest-asyncio, vcrpy, llama-index-core, llama-index-llms-openai, llama-index-embeddings-openai]
   langchain:
-    # TODO(py-315): every variant pins greenlet==3.0.3, which requires python
-    # <3.15, so the 3.15 environments fail to build. Re-add 3.15 with a
-    # greenlet pin that supports it.
     venvs_per_job: 4
     retry: 2
     paths:
@@ -235,6 +232,10 @@ suites:
         - name: langchain
           python: ['3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
+        # greenlet 3.0.3 and numexpr 2.8.5 predate 3.14, so these rows leave them unpinned.
+        - name: langchain
+          python: ['3.14', '3.15']
+          dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', numexpr, greenlet, respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
   litellm:
     venvs_per_job: 3
     paths:
@@ -507,11 +508,9 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'vcrpy==7.0.0', typing_extensions, 'pydantic-ai-slim[openai]==1.63.0']
   vllm:
-    # TODO(py-315): torch has no cp315 wheels yet (2.14.1 ships cp310–cp314t
-    # only), and the pinned 'vllm~=0.10.2' row also resolves an onnxruntime
-    # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
-    # run on Python 3.15 yet. Add 3.15 to the python lists once those
-    # dependencies publish 3.15 wheels.
+    # TODO(py-315): vllm declares requires-python <3.15 (0.33.0), and onnxruntime
+    # (1.31.1) ships cp311-cp314t only, so this suite cannot run on Python 3.15
+    # yet. Add 3.15 to the python lists once vllm supports it.
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -531,5 +530,5 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, 'vllm~=0.10.2', 'transformers<5']
         - name: vllm
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, torch, vllm]
