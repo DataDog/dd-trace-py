@@ -15,7 +15,7 @@ specific existing split rather than renaming files just to match this convention
 | Standard requests, messages, tools and usage | `tests/contrib/anthropic/test_anthropic_llmobs.py` |
 | Agent runs and tool children | `tests/contrib/claude_agent_sdk/test_claude_agent_sdk_llmobs.py` |
 | OpenAI operations and response shapes | `tests/contrib/openai/test_openai_llmobs.py` |
-| Google GenAI direct integration lifecycle | `tests/contrib/google_genai/test_google_genai_llmobs.py` |
+| Embeddings and streamed responses (Google GenAI) | `tests/contrib/google_genai/test_google_genai_llmobs.py` |
 
 ## Choose the existing transport
 
