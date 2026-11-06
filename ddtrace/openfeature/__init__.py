@@ -15,6 +15,8 @@ except PackageNotFoundError:
 
 if _HAS_OPENFEATURE:
     try:
+        from ddtrace.internal.openfeature._exposure_hook import ExposureEvaluation as ExposureEvaluation
+        from ddtrace.internal.openfeature._exposure_hook import ExposureHook as ExposureHook
         from ddtrace.internal.openfeature._provider import DataDogProvider as DataDogProvider
     except ImportError:
         # openfeature imports failed in _provider.py
@@ -60,3 +62,12 @@ if not _HAS_OPENFEATURE:
 
         def resolve_object_details(self, *args, **kwargs):
             pass
+
+    class ExposureEvaluation:  # type: ignore[no-redef]
+        """Stub ExposureEvaluation when openfeature-sdk is not installed."""
+
+    class ExposureHook:  # type: ignore[no-redef]
+        """Stub ExposureHook when openfeature-sdk is not installed; it never calls the callback."""
+
+        def __init__(self, callback: typing.Callable[..., None]) -> None:
+            log.warning("ExposureHook could not be loaded because openfeature-sdk is not installed or is incompatible.")
