@@ -44,6 +44,11 @@ static const size_t page_size = []() -> size_t {
 struct sigaction g_old_segv;
 struct sigaction g_old_bus;
 
+static_assert(std::atomic<ProfilingFaultRecover>::is_always_lock_free,
+              "profiling fault handler requires a lock-free recovery callback atomic");
+
+static std::atomic<ProfilingFaultRecover> g_external_recover{ nullptr };
+
 // Set once a saved SA_RESETHAND handler has run, meaning its disposition is now
 // SIG_DFL. We cannot rewrite g_old_* from the handler: other threads may read it
 // concurrently and see a torn struct. Atomic so that concurrent faults on
@@ -136,6 +141,13 @@ disarm_fault_handler()
 static void
 segv_handler(int signo, siginfo_t* info, void* ucontext)
 {
+    const int saved_errno = errno;
+    ProfilingFaultRecover recover = g_external_recover.load(std::memory_order_relaxed);
+    if (recover != nullptr && recover(signo, info, ucontext)) {
+        errno = saved_errno;
+        return;
+    }
+
     if (!t_handler_armed) {
         const uintptr_t frame = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
         if (t_unarmed_chain_frame != 0 && frame < t_unarmed_chain_frame &&
@@ -202,22 +214,19 @@ segv_handler(int signo, siginfo_t* info, void* ucontext)
         return;
     }
 
+    errno = saved_errno;
     // Jump back to the armed site. Use 1 so sigsetjmp returns nonzero.
     siglongjmp(t_jmpenv, 1);
 }
 
 int
-init_segv_catcher()
+init_profiling_fault_handler()
 {
-    if (t_altstack.ensure_installed() != 0) {
-        return -1;
-    }
-
     struct sigaction sa
-
     {};
     sa.sa_sigaction = segv_handler;
     sigemptyset(&sa.sa_mask);
+    sigaddset(&sa.sa_mask, SIGPROF);
     // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to use savemask
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
 
@@ -268,6 +277,22 @@ handler_is_ours(const struct sigaction& current)
     // The pointer alone is not enough: safe_memcpy's recovery is delivered through the
     // three-argument form, so a disposition with SA_SIGINFO stripped is not ours to use.
     return current.sa_sigaction == segv_handler && (current.sa_flags & SA_SIGINFO) != 0;
+}
+
+bool
+profiling_fault_handler_still_installed()
+{
+    constexpr int required_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+    struct sigaction current;
+    if (sigaction(SIGSEGV, nullptr, &current) != 0 || current.sa_sigaction != segv_handler ||
+        (current.sa_flags & required_flags) != required_flags) {
+        return false;
+    }
+    if (sigaction(SIGBUS, nullptr, &current) != 0 || current.sa_sigaction != segv_handler ||
+        (current.sa_flags & required_flags) != required_flags) {
+        return false;
+    }
+    return true;
 }
 
 bool
@@ -404,6 +429,29 @@ restorable_old_action(const struct sigaction& old, std::atomic<int>& reset, cons
     }
 
     return &old;
+}
+
+void
+register_profiling_fault_recover(ProfilingFaultRecover recover)
+{
+    g_external_recover.store(recover, std::memory_order_release);
+}
+
+void
+unregister_profiling_fault_recover(ProfilingFaultRecover recover)
+{
+    ProfilingFaultRecover current = recover;
+    (void)g_external_recover.compare_exchange_strong(current, nullptr, std::memory_order_acq_rel);
+}
+
+int
+init_segv_catcher()
+{
+    if (t_altstack.ensure_installed() != 0) {
+        return -1;
+    }
+
+    return init_profiling_fault_handler();
 }
 
 void
