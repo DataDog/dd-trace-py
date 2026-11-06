@@ -75,6 +75,7 @@
       DD_STS_API_KEY=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab")
       export DD_API_KEY=$(echo "$DD_STS_API_KEY" | jq -re '.api_key')
       echo -e "\e[0Ksection_end:`date +%s`:dd_sts\r\e[0K"
+    - datadog-ci tag --level job --tags "ci.framework.name:system-tests"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:upload_junit\r\e[0KUpload junit xml results"
       datadog-ci junit upload ${CI_PROJECT_DIR}/system-tests/logs*/reportJunit.xml --service system-tests --env ci --verbose --xpath-tag "test.codeowners=/testcase/properties/property[@name='test.codeowners']"
@@ -102,7 +103,6 @@ system-tests dependent flags:
   variables:
     SYSTEM_TESTS_REF: "d3cec0314166889cf31555252c94d94b9140c4d8"
   script:
-    - datadog-ci tag --level job --tags "ci.framework.name:system-tests"
     - cd ${CI_PROJECT_DIR}/system-tests
     - source venv/bin/activate
     - >-
