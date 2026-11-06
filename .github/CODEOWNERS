@@ -169,6 +169,13 @@ tests/testing/                                        @DataDog/ci-app-libraries
 # scripts
 scripts/ci_visibility/*                               @DataDog/ci-app-libraries
 
+# Temporal
+# Owned by the Atlas control plane team; the integration originated as the in-house
+# Atlas tracing interceptor and shares its behavioral contract with the Atlas SDK.
+ddtrace/contrib/internal/temporal/                     @DataDog/atlas-control-plane
+ddtrace/contrib/temporal.py                            @DataDog/atlas-control-plane
+tests/contrib/temporal/                                 @DataDog/atlas-control-plane
+
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
 ddtrace/internal/settings/dynamic_instrumentation.py     @DataDog/debugger-python
