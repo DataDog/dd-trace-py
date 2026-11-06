@@ -137,7 +137,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
-        if not getattr(ctx.event, "tracing_enabled", True):
+        if not ctx.event.tracing_enabled:
             return
         _start_span(ctx)
         for handler in cls._started_handlers:
@@ -150,7 +150,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         # Use the entry decision so a runtime disable does not leave an existing span unfinished.
-        if not getattr(ctx.event, "tracing_enabled", True):
+        if not ctx.event.tracing_enabled:
             return
         try:
             for handler in cls._ended_handlers:

@@ -244,7 +244,6 @@ def test_tracing_subscriber_entry_decision(test_spans, monkeypatch, tracing_enab
         event_name = "test.subscriber.tracing.enabled"
         span_type = "custom"
         span_kind = "internal"
-        tracing_enabled: bool = event_field(default=True)
 
         def __post_init__(self):
             self.operation_name = "test.subscriber.span"
@@ -490,3 +489,19 @@ def test_span_context_event_end_span_false(test_spans):
 
     # Span should be started but not finished
     test_spans.assert_span_count(0)
+
+
+@pytest.mark.parametrize("tracing_enabled", [True, False])
+def test_tracing_event_factory_enablement(test_spans, tracing_enabled):
+    TracingSubscriber.register()
+    event = TracingEvent.create(
+        component="test-component",
+        integration_config={},
+        operation_name="test.subscriber.span",
+        span_type="custom",
+        span_kind="internal",
+        tracing_enabled=tracing_enabled,
+    )
+    with core.context_with_event(event) as ctx:
+        assert (ctx.get_item("_inner_span") is not None) is tracing_enabled
+    test_spans.assert_span_count(int(tracing_enabled))

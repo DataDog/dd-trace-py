@@ -7,6 +7,7 @@ from typing import ClassVar
 from typing import Optional
 
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.core.events import event_field
 from ddtrace.internal.settings.integration import IntegrationConfig
 
 
@@ -23,6 +24,7 @@ class TracingEvents(Enum):
 class TracingEvent(Event):
     """TracingEvent is a specialization of Event. It enforces minimal tracing attributes
     on any TracingEvent. Its purpose is to be used with core.context_with_event.
+    tracing_enabled carries the integration's entry-time decision through the context.
     """
 
     event_name = TracingEvents.SPAN_LIFECYCLE.value
@@ -52,6 +54,9 @@ class TracingEvent(Event):
     measured: bool = True
     activate_distributed_headers: bool = False
 
+    # Capture the integration's tracing decision at entry, independently of metadata events.
+    tracing_enabled: bool = event_field(default=True)
+
     @classmethod
     def create(
         cls,
@@ -68,6 +73,7 @@ class TracingEvent(Event):
         resource: Optional[str] = None,
         measured: bool = True,
         activate_distributed_headers: bool = False,
+        tracing_enabled: bool = True,
     ) -> "TracingEvent":
         """This methods allow to dispatch a TracingEvent to create/finish a span
         without having to define a subclass when the span has no additional properties.
@@ -87,6 +93,7 @@ class TracingEvent(Event):
             resource=resource,
             measured=measured,
             activate_distributed_headers=activate_distributed_headers,
+            tracing_enabled=tracing_enabled,
         )
         event.operation_name = operation_name
         setattr(event, "span_type", span_type)
