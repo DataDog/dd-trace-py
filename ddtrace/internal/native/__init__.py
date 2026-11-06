@@ -1,5 +1,7 @@
 from typing import Optional
 
+from ddtrace._logger import _configure_ddtrace_native_logger
+from ddtrace._logger import _get_env
 from ddtrace.internal.settings import env
 
 from ._native import AgentError  # noqa: F401
@@ -39,7 +41,7 @@ from ._native import TelemetryWorker  # noqa: F401
 from ._native import TimedOutError  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
-from ._native import config  # noqa: F401
+from ._native import config
 from ._native import generate_128bit_trace_id  # noqa: F401
 from ._native import logger  # noqa: F401
 from ._native import process_metrics  # noqa: F401
@@ -49,6 +51,11 @@ from ._native import seed  # noqa: F401
 from ._native import store_metadata  # noqa: F401
 from ._native import total_memory_bytes  # noqa: F401
 from ._native import uuid4  # noqa: F401
+
+
+_configure_ddtrace_native_logger(logger, _get_env)
+
+config.set_raise(env.get("DD_TESTING_RAISE", "false").lower() in ("true", "1"))
 
 
 try:

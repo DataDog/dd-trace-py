@@ -1,5 +1,6 @@
 baseline: &defaults
   env: {}
+  sdk_action: ""
   ddtrace_run: false
   send_span: false
   import_ddtrace: false
@@ -68,3 +69,17 @@ ddtrace_run_runtime_metrics:
   <<: *defaults
   env: {"DD_RUNTIME_METRICS_ENABLED": "true"}
   ddtrace_run: true
+import_tracer:
+  <<: *defaults
+  sdk_action: "from ddtrace.trace import tracer"
+import_then_tracer:
+  <<: *defaults
+  import_ddtrace: true
+  sdk_action: "from ddtrace import tracer"
+import_then_first_span:
+  <<: *defaults
+  import_ddtrace: true
+  sdk_action: "from ddtrace import tracer; tracer.enabled = False; tracer.trace('startup').finish()"
+configure_logger:
+  <<: *defaults
+  sdk_action: "from ddtrace._logger import configure_ddtrace_logger; configure_ddtrace_logger()"

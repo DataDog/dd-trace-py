@@ -930,7 +930,7 @@ class TracerTestCases(TracerTestCase):
 
 @pytest.mark.subprocess(env=dict(DD_AGENT_PORT=None, DD_AGENT_HOST=None, DD_TRACE_AGENT_URL=None))
 def test_tracer_url_default():
-    import ddtrace
+    import ddtrace.trace
 
     assert ddtrace.trace.tracer._span_aggregator.writer.intake_url == "http://localhost:8126"
 
@@ -2271,7 +2271,7 @@ def test_detect_agent_config_with_lambda_extension():
 def test_multiple_tracer_instances():
     from unittest import mock
 
-    import ddtrace
+    import ddtrace.trace
 
     assert ddtrace.trace.tracer is not None
     with mock.patch("ddtrace._trace.tracer.log") as log:

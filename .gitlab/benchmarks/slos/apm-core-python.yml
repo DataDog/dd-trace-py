@@ -294,3 +294,15 @@ experiments:
           - name: startup-ddtrace_run_runtime_metrics
             thresholds:
               - execution_time < 10000 ms
+          - name: startup-import_tracer
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_then_tracer
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_then_first_span
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-configure_logger
+            thresholds:
+              - execution_time < 10000 ms

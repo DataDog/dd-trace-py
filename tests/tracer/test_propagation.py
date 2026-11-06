@@ -3868,6 +3868,24 @@ def test_baggage_span_tags_wildcard():
     assert "baggage.session.id" not in context._meta
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_PROPAGATION_STYLE": "datadog"})
+def test_inject_context_without_global_tracer():
+    import sys
+    from unittest import mock
+
+    from ddtrace._trace.context import Context
+    from ddtrace.internal import core
+    from ddtrace.propagation import http
+
+    assert core.root.get_item("tracer") is None
+    headers = {}
+    with mock.patch.object(http.log, "error") as error:
+        http.HTTPPropagator.inject(Context(trace_id=123, span_id=456), headers)
+    error.assert_not_called()
+    assert headers == {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
+    assert core.root.get_item("tracer") is sys.modules["ddtrace.trace"].tracer
+
+
 def test_inject_context_without_sampling_priority_active_trace():
     """Test injecting a Context without sampling priority when there's an active trace."""
     headers = {}

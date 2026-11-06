@@ -1,3 +1,4 @@
+import sys
 import typing as t
 import warnings
 
@@ -69,3 +70,16 @@ def deprecate(
         prefix, postfix=postfix, version=version, message=message, removal_version=removal_version
     )
     warnings.warn(out_message, category=category, stacklevel=stacklevel)
+
+
+def check_supported_python_version() -> None:
+    if sys.version_info < (3, 10):
+        deprecation_message = (
+            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 5.0.0."
+        )
+        if sys.version_info < (3, 9):
+            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.0.0."
+        deprecate(
+            (deprecation_message % (sys.version_info[0], sys.version_info[1])),
+            category=DDTraceDeprecationWarning,
+        )

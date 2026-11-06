@@ -11,8 +11,8 @@ import weakref
 import wrapt
 
 from ddtrace.internal import _unpatched
+from ddtrace.internal._exceptions import is_panic_exception
 from ddtrace.internal.locks import RLock as _RLock
-from ddtrace.internal.native.exceptions import is_panic_exception
 
 
 log = logging.getLogger(__name__)

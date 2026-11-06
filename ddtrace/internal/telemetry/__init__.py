@@ -1,12 +1,15 @@
 """
 Instrumentation Telemetry API.
-This is normally started automatically when ``ddtrace`` is imported. It can be disabled by setting
+This starts when instrumentation or configuration requiring telemetry is initialized. It can be disabled by setting
 ``DD_INSTRUMENTATION_TELEMETRY_ENABLED`` variable to ``False``.
 """
 
 import typing as t
 
+from ddtrace._logger import _configure_ddtrace_native_logger
+from ddtrace._logger import configure_ddtrace_logger
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import logger as native_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import FLEET_CONFIG
@@ -131,6 +134,8 @@ else:
     from .noop_writer import NoOpTelemetryWriter as TelemetryWriter  # type: ignore[assignment]
 
 telemetry_writer = TelemetryWriter()
+configure_ddtrace_logger(get_config)
+_configure_ddtrace_native_logger(native_logger, get_config)
 
 
 def report_configuration(config: DDConfig) -> None:

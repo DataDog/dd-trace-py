@@ -735,7 +735,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env["OTEL_SDK_DISABLED"] = "true"
     env["OTEL_UNSUPPORTED_CONFIG"] = "value"
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("from ddtrace import config", env=env)
     assert status == 0, stderr
 
     configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}

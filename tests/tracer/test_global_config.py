@@ -213,13 +213,15 @@ def test_agentless_enabled_requires_an_api_key():
             AgentlessConfig()
 
 
-def test_agentless_enabled_requires_an_api_key_at_import(run_python_code_in_subprocess):
-    """The api key check has to fail the process, not just AgentlessConfig()."""
+def test_agentless_enabled_requires_an_api_key_at_tracer_initialization(run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_AGENTLESS_ENABLED"] = "true"
     env.pop("DD_API_KEY", None)
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 0, stderr
+
+    _, stderr, status, _ = run_python_code_in_subprocess("from ddtrace.trace import tracer", env=env)
 
     assert status != 0
     assert b"DD_AGENTLESS_ENABLED is set but DD_API_KEY is not" in stderr
