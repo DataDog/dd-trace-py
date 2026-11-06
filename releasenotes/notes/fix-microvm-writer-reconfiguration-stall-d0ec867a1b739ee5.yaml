@@ -1,0 +1,7 @@
+fixes:
+  - |
+    tracing: Reduces delays to tracing and the first ``/run`` request in AWS
+    Lambda MicroVMs during tracer reconfiguration when trace delivery is slow,
+    and prevents cleanup failures from interrupting reconfiguration or shutdown.
+    Native exporter shutdown can still delay Python threads and send pending
+    trace statistics after identity refresh.

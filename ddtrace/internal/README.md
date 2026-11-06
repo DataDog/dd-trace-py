@@ -122,6 +122,14 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+AppSec declares exploit-prevention bundles in
+`ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
+only after AppSec is active and exploit prevention is enabled. Direct activation,
+remote activation, and runtime switches share `load_appsec()` / `disable_appsec()`;
+product `stop()` also removes the operation listeners. These bundles do not own
+request cleanup, whose listeners remain registered separately. Repeated activation
+restores listeners after a reset without caching registration state.
+
 ## Remote Configuration Callbacks
 
 Remote Configuration (RC) allows products to receive configuration updates from
