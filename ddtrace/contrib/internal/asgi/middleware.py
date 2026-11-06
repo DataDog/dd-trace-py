@@ -256,9 +256,14 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
+        # A top-level request must not inherit from a context that already exited, otherwise
+        # every earlier request on the same connection stays reachable. Sub-apps keep
+        # inheriting from their still-active parent request context.
+        parent = core._CURRENT_CONTEXT.get() if is_subapp else core.nearest_active_context()
         with (
             core.context_with_data(
                 "asgi.request",
+                parent=parent,
                 remote_addr=scope.get("REMOTE_ADDR"),
                 headers=headers,
                 headers_case_sensitive=True,
