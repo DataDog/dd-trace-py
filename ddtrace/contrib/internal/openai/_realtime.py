@@ -80,6 +80,7 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._context import _DD_LLMOBS_CONTEXTVAR
 from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE
 from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES
 from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
@@ -89,6 +90,7 @@ from ddtrace.llmobs._integrations.audio_utils import g711_variant
 from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
+from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
@@ -134,6 +136,8 @@ _BARGE_IN_MAX_TURNS = 32
 _BARGE_IN_MAX_MARKERS = 128
 _BARGE_IN_MAX_SPEECH_IDS = 4096
 _BARGE_IN_MAX_MARKER_BYTES = 32_768
+_RECOVERY_MAX_BYTES = 1_048_576
+_RECOVERY_MAX_EVENTS = 1024
 _MISSING = object()
 
 
@@ -419,6 +423,7 @@ class _RealtimeState:
         self._response_prompt_uncertain = False
         self._finalizing: list[tuple[_ResponseTurn, bool]] = []
         self._creating_responses: dict[str, _ResponseTurn] = {}
+        self._input_buffer_clock_lost = False
 
     # -- event entry points -------------------------------------------------
 
@@ -509,10 +514,10 @@ class _RealtimeState:
         self._speech_active = False
         self._speech = None
 
-    def on_client_event(self, event: Any, observed_send: bool = False) -> None:
+    def on_client_event(self, event: Any, observed_send: bool = False) -> bool:
         with self._event_lock:
             if self._closed:
-                return
+                return False
             try:
                 if not observed_send:
                     self.before_client_send(event)
@@ -524,6 +529,7 @@ class _RealtimeState:
             finally:
                 finalizing, self._finalizing = self._finalizing, []
         self._complete_turns(finalizing)
+        return True
 
     def _handle_client_event(self, event: Any) -> None:
         try:
@@ -739,6 +745,8 @@ class _RealtimeState:
         the projection unavailable: the backlog simply never converts and `_input_buffer_ms_at_ns`
         stays None, which is what marks the clock dead.
         """
+        if self._input_buffer_clock_lost:
+            return
         self._pending_input_bytes += decoded_bytes
         bytes_per_second = _bytes_per_second(self._input_audio_mime, self._input_audio_rate)
         if not bytes_per_second:
@@ -1113,6 +1121,17 @@ class _RealtimeState:
         self._finalizing.append((turn, True))
 
     def _create_turn_spans(self, turn: _ResponseTurn) -> None:
+        # LLMObs activation is independent of APM activate=False. Keep duplex
+        # spans from becoming ambient parents while another thread finishes them.
+        token = _DD_LLMOBS_CONTEXTVAR.set(_DD_LLMOBS_CONTEXTVAR.get())
+        routing_token = _ROUTING_CONTEXTVAR.set(_ROUTING_CONTEXTVAR.get())
+        try:
+            self._create_turn_spans_scoped(turn)
+        finally:
+            _ROUTING_CONTEXTVAR.reset(routing_token)
+            _DD_LLMOBS_CONTEXTVAR.reset(token)
+
+    def _create_turn_spans_scoped(self, turn: _ResponseTurn) -> None:
         # Finish detached predecessors before creating these spans, so the LLMObs
         # context does not accidentally parent a new turn beneath an unfinished old turn.
         root = span = None
@@ -1817,10 +1836,80 @@ def _attach_session(instance: Any, connection: Any) -> None:
 
 
 def _register_session_finalizer(connection: Any, state: _RealtimeState) -> None:
+    _recovery_lock(connection)
     previous = getattr(connection, "_dd_realtime_finalizer", None)
     if previous is not None:
         previous.detach()
     connection._dd_realtime_finalizer = weakref.finalize(connection, _finish_session_on_gc, state)
+
+
+def _recovery_lock(connection: Any) -> Any:
+    lock = getattr(connection, "_dd_realtime_recovery_lock", None)
+    if lock is None:
+        lock = RLock()
+        connection._dd_realtime_recovery_lock = lock
+    return lock
+
+
+def _buffer_recovery_event(connection: Any, event: Any) -> None:
+    # The caller holds the connection's recovery lock. Retain a bounded copy,
+    # not mutable application-owned objects or SDK-private queue contents.
+    try:
+        to_json = getattr(event, "to_json", None)
+        encoded = (
+            to_json(use_api_names=True, exclude_defaults=True, exclude_unset=True)
+            if callable(to_json)
+            else json.dumps(event)
+        )
+        fields = safe_load_json(encoded)
+        events = getattr(connection, "_dd_realtime_recovery_events", None)
+        if events is None:
+            events = connection._dd_realtime_recovery_events = []
+        size = getattr(connection, "_dd_realtime_recovery_bytes", 0) + len(encoded.encode("utf-8"))
+        if not isinstance(fields, dict) or len(events) >= _RECOVERY_MAX_EVENTS or size > _RECOVERY_MAX_BYTES:
+            connection._dd_realtime_recovery_lost = True
+            return
+        events.append(fields)
+        connection._dd_realtime_recovery_bytes = size
+    except Exception:
+        connection._dd_realtime_recovery_lost = True
+        log.debug("error retaining realtime recovery observation", exc_info=True)
+
+
+def _observe_successful_send(connection: Any, original: Any, event: Any) -> None:
+    try:
+        while True:
+            current = getattr(connection, "_dd_realtime_state", None)
+            if current is None or getattr(connection, "_intentionally_closed", False):
+                return
+            if current.on_client_event(event, observed_send=current is original) is not False:
+                return
+            with _recovery_lock(connection):
+                current = getattr(connection, "_dd_realtime_state", None)
+                if getattr(connection, "_intentionally_closed", False):
+                    return
+                if current is None or current._closed:
+                    _buffer_recovery_event(connection, event)
+                    return
+                # Replacement won the race: observe on that generation instead.
+    except Exception:
+        log.debug("error observing realtime send completion", exc_info=True)
+
+
+def _observe_failed_send(connection: Any, event: Any, error: BaseException) -> None:
+    try:
+        with _recovery_lock(connection):
+            if getattr(connection, "_intentionally_closed", False):
+                return
+            if _is_connection_closed(error):
+                # The SDK queues a closed-socket send before re-raising it.
+                _buffer_recovery_event(connection, event)
+            else:
+                # Other failures/cancellation do not prove that a queued frame
+                # reached the replacement; never invent a valid buffer clock.
+                connection._dd_realtime_recovery_lost = True
+    except Exception:
+        log.debug("error observing failed realtime send", exc_info=True)
 
 
 def _rearm_session(connection: Any) -> None:
@@ -1836,8 +1925,24 @@ def _rearm_session(connection: Any) -> None:
         # Their prompt overrides were invisible to the closed observer; a session
         # default cannot establish which prompt produced a recovered response.
         replacement._response_prompt_uncertain = replacement._barge_in_enabled
-        connection._dd_realtime_state = replacement
-        _register_session_finalizer(connection, replacement)
+        with _recovery_lock(connection):
+            # This state is not published yet and has no spans. Replaying client
+            # input cannot finish/export spans while the recovery lock is held.
+            for event in getattr(connection, "_dd_realtime_recovery_events", []):
+                replacement.on_client_event(event)
+            if getattr(connection, "_dd_realtime_recovery_lost", False):
+                replacement._input_buffer_clock_lost = True
+                replacement._input_buffer_ms_at_ns = None
+                replacement._pending_input.audio_base_ms = None
+                replacement._settings_observation_lost = True
+                replacement._pending_input.audio.chunks = []
+                replacement._pending_input.audio.oversize = True
+            replacement._client_truncates |= state._client_truncates
+            connection._dd_realtime_recovery_events = []
+            connection._dd_realtime_recovery_bytes = 0
+            connection._dd_realtime_recovery_lost = False
+            connection._dd_realtime_state = replacement
+            _register_session_finalizer(connection, replacement)
         if getattr(connection, "_intentionally_closed", False):
             replacement.finish_session()
     except Exception:
@@ -1891,13 +1996,12 @@ def patched_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...],
     pending = state.before_client_send(event) if state is not None else None
     try:
         result = func(*args, **kwargs)
-    except BaseException:
+    except BaseException as error:
         if state is not None:
             state.client_send_failed(pending)
+            _observe_failed_send(instance, event, error)
         raise
-    current = getattr(instance, "_dd_realtime_state", None)
-    if current is not None:
-        current.on_client_event(event, observed_send=current is state)
+    _observe_successful_send(instance, state, event)
     return result
 
 
@@ -1909,13 +2013,12 @@ async def patched_async_send(
     pending = state.before_client_send(event) if state is not None else None
     try:
         result = await func(*args, **kwargs)
-    except BaseException:
+    except BaseException as error:
         if state is not None:
             state.client_send_failed(pending)
+            _observe_failed_send(instance, event, error)
         raise
-    current = getattr(instance, "_dd_realtime_state", None)
-    if current is not None:
-        current.on_client_event(event, observed_send=current is state)
+    _observe_successful_send(instance, state, event)
     return result
 
 

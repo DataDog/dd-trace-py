@@ -33,6 +33,14 @@ The observer uses the effective response audio format when the server supplies a
 output override. Unsupported observation policies retain the existing late-audio
 truncation behavior after the client has been seen to truncate. Automatic SDK
 reconnects establish fresh observation state and a fresh conversation session ID.
+Successful audio, text, and tool-result sends queued during recovery are replayed
+into the replacement observer before it is published. Recovery observation is
+bounded to 1 MiB of serialized events and 1024 events, independently of the SDK's
+transport queue. Exceeding either limit, or an ambiguous failed send, leaves the
+input clock unknown for the recovered session: later speech onsets use receipt
+time and do not trim audio against an invented origin. Ambiguous audio from the
+first recovered turn uses the existing oversize placeholder. These observation
+limits do not discard traffic from the SDK's transport queue.
 
 Settings uncertainty is recorded before sending a session update. Only the nested
 `error.event_id` can correlate an error with a client request; the top-level ID
@@ -53,6 +61,10 @@ prompt override. Normal initial-session attribution is unchanged. No outbound ID
 provider requests, or model/provider guesses are added.
 
 Span creation, completion callbacks, and export run outside the observation lock.
+Turn span creation restores the caller's LLMObs and routing contexts even when a
+prior turn remains held or is finishing on another thread. Consecutive turn roots
+remain siblings under the caller's workflow, or independent roots without one;
+turns do not become ambient parents of later caller work.
 The concurrency regression uses Events and a blocking finish fake to verify that
 microphone input can progress and concurrent close still finishes each turn once.
 The complete serialized marker metadata envelope is capped independently of the

@@ -3067,3 +3067,266 @@ async def test_realtime_corrective_initial_async_manager_prompt(
             clock.advance_ms(1300)
             conn._dd_realtime_state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
     _assert_initial_manager_prompt(test_spans, socket, override, annotated)
+
+
+# Final SDK corrections: recovery traffic and caller context are observable contracts.
+
+
+def _recovery_traffic_events(budget):
+    audio = _agent_pcm(100)
+    if budget == "bytes":
+        audio = b"\x01\x02" * (1024 * 1024)
+    elif budget == "events":
+        audio = b"\x01\x02"
+    events = [{"type": "input_audio_buffer.append", "audio": _b64(audio)}]
+    if budget == "events":
+        events *= 1025
+    events += [
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "queued text"}]},
+        },
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": "call", "output": "queued result"},
+        },
+    ]
+    return events, len(audio) * (1025 if budget == "events" else 1) / 48
+
+
+def _recovery_input_turn(conn, response_id, onset_ms=None):
+    if onset_ms is not None:
+        conn.parse_event(
+            json.dumps(
+                {"type": "input_audio_buffer.speech_started", "item_id": response_id, "audio_start_ms": onset_ms}
+            )
+        )
+    conn.parse_event(json.dumps({"type": "response.created", "response": {"id": response_id}}))
+    conn.parse_event(json.dumps({"type": "response.done", "response": {"id": response_id, "status": "completed"}}))
+
+
+def _assert_recovery_traffic(test_spans, socket, events, budget, receipt_ns):
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    # The SDK must still deliver every queued event, even if observation hits its budget.
+    assert [json.loads(data) for data in socket.sent[: len(events)]] == events
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    responses = sorted(
+        (span for span in spans if span.resource == "createRealtimeResponse"), key=lambda span: span.start_ns
+    )
+    roots = sorted((span for span in spans if span.resource == "createRealtimeTurn"), key=lambda span: span.start_ns)
+    assert len(responses) == len(roots) == 3
+    messages = [_get_llmobs_data_metastruct(span)["meta"].get("input", {}).get("messages", []) for span in responses]
+    if budget == "normal":
+        assert messages[0] == [
+            {
+                "role": "user",
+                "content": "queued text",
+                "audio_parts": [{"mime_type": "audio/wav", "content": _wav_b64(_agent_pcm(100))}],
+                "tool_results": [{"tool_id": "call", "result": "queued result", "type": "function_call_output"}],
+            }
+        ]
+    else:
+        # Partial recovery history cannot establish where retained audio starts.
+        assert not any(part.get("content") for message in messages[0] for part in message.get("audio_parts", []))
+    for index in (1, 2):
+        expected = _agent_pcm(200) if budget == "normal" else _agent_pcm(100) + _agent_pcm(200)
+        assert messages[index][0]["audio_parts"] == [{"mime_type": "audio/wav", "content": _wav_b64(expected)}]
+        # With a known clock, onset is 200 ms before receipt. An unknown recovery
+        # origin must use receipt time instead of projecting a fabricated offset.
+        assert roots[index].start_ns == receipt_ns[index - 1] - (200_000_000 if budget == "normal" else 0)
+
+
+@pytest.mark.skipif(
+    RealtimeConnection is None or not hasattr(RealtimeConnection, "_reconnect"), reason="SDK has no reconnect lifecycle"
+)
+@pytest.mark.parametrize("callback", ["on_reconnecting", "make_ws"])
+@pytest.mark.parametrize("budget", ["normal", "bytes", "events"])
+def test_realtime_final_sync_reconnect_preserves_queued_input(
+    openai, openai_llmobs, test_spans, monkeypatch, reconnect_errors, callback, budget
+):
+    from openai._send_queue import SendQueue
+
+    ConnectionClosedError, _ = reconnect_errors
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+
+    class BrokenSocket(_FakeWebSocket):
+        def recv(self, decode=False):
+            raise ConnectionClosedError(None, None)
+
+    replacement = _FakeWebSocket([_server_messages()[0]])
+    events, queued_ms = _recovery_traffic_events(budget)
+
+    def queue():
+        for event in events:
+            conn.send(event)
+
+    def on_reconnecting(event):
+        if callback == "on_reconnecting":
+            queue()
+
+    def make_ws(query, headers):
+        if callback == "make_ws":
+            queue()
+        return replacement
+
+    conn = RealtimeConnection(
+        BrokenSocket([]),
+        make_ws=make_ws,
+        on_reconnecting=on_reconnecting,
+        max_retries=1,
+        initial_delay=0,
+        send_queue=SendQueue(max_bytes=16 * 1024 * 1024),
+    )
+    _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+    try:
+        assert next(iter(conn)).type == "session.created"
+        _recovery_input_turn(conn, "queued")
+        receipt_ns = []
+        for index in range(2):
+            for _ in range(3):
+                clock.advance_ms(100)
+                conn.input_audio_buffer.append(audio=_b64(_agent_pcm(100)))
+            receipt_ns.append(clock.now)
+            _recovery_input_turn(conn, "later-" + str(index), queued_ms + index * 300 + 100)
+    finally:
+        conn.close()
+    _assert_recovery_traffic(test_spans, replacement, events, budget, receipt_ns)
+
+
+@pytest.mark.skipif(
+    AsyncRealtimeConnection is None or not hasattr(AsyncRealtimeConnection, "_reconnect"),
+    reason="SDK has no reconnect lifecycle",
+)
+@pytest.mark.asyncio
+@pytest.mark.parametrize("callback", ["on_reconnecting", "make_ws"])
+@pytest.mark.parametrize("budget", ["normal", "bytes", "events"])
+async def test_realtime_final_async_reconnect_preserves_queued_input(
+    openai, openai_llmobs, test_spans, monkeypatch, reconnect_errors, callback, budget
+):
+    import asyncio
+
+    from openai._send_queue import SendQueue
+
+    ConnectionClosedError, _ = reconnect_errors
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+
+    class BrokenSocket(_FakeAsyncWebSocket):
+        async def recv(self, decode=False):
+            raise ConnectionClosedError(None, None)
+
+    replacement = _FakeAsyncWebSocket([_server_messages()[0]])
+    events, queued_ms = _recovery_traffic_events(budget)
+
+    async def queue():
+        for event in events:
+            await conn.send(event)
+
+    queued = None
+
+    def on_reconnecting(event):
+        nonlocal queued
+        if callback == "on_reconnecting":
+            queued = asyncio.create_task(queue())
+
+    async def make_ws(query, headers):
+        if queued is not None:
+            await asyncio.wait_for(queued, 5)
+        if callback == "make_ws":
+            await queue()
+        return replacement
+
+    conn = AsyncRealtimeConnection(
+        BrokenSocket([]),
+        make_ws=make_ws,
+        on_reconnecting=on_reconnecting,
+        max_retries=1,
+        initial_delay=0,
+        send_queue=SendQueue(max_bytes=16 * 1024 * 1024),
+    )
+    _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+    try:
+        assert (await conn.__aiter__().__anext__()).type == "session.created"
+        _recovery_input_turn(conn, "queued")
+        receipt_ns = []
+        for index in range(2):
+            for _ in range(3):
+                clock.advance_ms(100)
+                await conn.input_audio_buffer.append(audio=_b64(_agent_pcm(100)))
+            receipt_ns.append(clock.now)
+            _recovery_input_turn(conn, "later-" + str(index), queued_ms + index * 300 + 100)
+    finally:
+        await conn.close()
+    _assert_recovery_traffic(test_spans, replacement, events, budget, receipt_ns)
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="SDK has no realtime connection")
+@pytest.mark.parametrize("wrapped", [False, True])
+@pytest.mark.parametrize("phase", ["held", "finishing"])
+def test_realtime_final_turn_creation_restores_caller_context(
+    openai, openai_llmobs, test_spans, monkeypatch, wrapped, phase
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import nullcontext
+    from threading import Event
+
+    from ddtrace import config
+    from ddtrace.llmobs._llmobs import LLMObsExportSpanError
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+
+    def active_id():
+        try:
+            return openai_llmobs.export_span()["span_id"]
+        except LLMObsExportSpanError:
+            return "undefined"
+
+    entered, release = Event(), Event()
+    caller = openai_llmobs.workflow(name="caller") if wrapped else nullcontext()
+    with caller as wrapper:
+        conn = RealtimeConnection(_FakeWebSocket(_barge_connection_messages()[:4]))
+        _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+        integration = conn._dd_realtime_state._integration
+        original = integration._llmobs_set_tags_from_realtime_response
+
+        def tag_response(*args, **kwargs):
+            entered.set()
+            assert release.wait(5), "T1 completion was not released"
+            return original(*args, **kwargs)
+
+        for _ in range(4):
+            conn.recv()
+        contexts = [active_id()]
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            completing = None
+            try:
+                if phase == "finishing":
+                    monkeypatch.setattr(integration, "_llmobs_set_tags_from_realtime_response", tag_response)
+                    clock.advance_ms(1300)
+                    completing = pool.submit(
+                        conn.send, {"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")}
+                    )
+                    assert entered.wait(5), "mic thread did not start T1 completion"
+                conn.parse_event(json.dumps({"type": "response.created", "response": {"id": "r2"}}))
+                contexts.append(active_id())
+            finally:
+                release.set()
+                if completing is not None:
+                    completing.result(timeout=5)
+                conn.close()
+        contexts.append(active_id())
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    roots = sorted((span for span in spans if span.resource == "createRealtimeTurn"), key=lambda span: span.start_ns)
+    assert len(roots) == 2
+    expected = str(wrapper.span_id) if wrapped else "undefined"
+    parents = [_get_llmobs_data_metastruct(span)["parent_id"] for span in roots]
+    assert parents == [expected, expected], "each turn must be a sibling under the caller, even while T1 is unfinished"
+    assert contexts == [expected] * 3, "turn creation must restore caller context"
