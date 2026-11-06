@@ -238,8 +238,8 @@ Fastapi
 
 .. _filesystem:
 
-Filesystem
-^^^^^^^^^^
+File system
+^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.filesystem
 
 
