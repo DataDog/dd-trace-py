@@ -4,13 +4,13 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 import gzip
-import http.client
+from http import HTTPStatus
 import io
 import json
 import logging
 import os
 import random
-import socket
+import sys
 import threading
 import time
 import typing as t
@@ -18,6 +18,11 @@ from urllib.parse import ParseResult
 from urllib.parse import urlparse
 import uuid
 
+from ddtrace.internal.http_client import HTTPClient
+from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.native import HttpIoError
+from ddtrace.internal.native import HttpResponse
+from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.testing.internal._protocols import BackendConnectorSetupProtocol
@@ -61,6 +66,34 @@ MAX_RETRY_AFTER_SECONDS = 120.0
 T = t.TypeVar("T")
 
 
+def _timeout_ms(timeout_seconds: float) -> int:
+    # The native client rejects a timeout of 0.
+    return max(1, int(timeout_seconds * 1000))
+
+
+def _reason(status: int) -> str:
+    try:
+        return HTTPStatus(status).phrase
+    except ValueError:
+        return ""
+
+
+def _call_without_blocking_gevent(function: t.Callable[..., T], *args: t.Any, **kwargs: t.Any) -> T:
+    """Call function, a native call that blocks its thread, without blocking gevent's other greenlets.
+
+    Once gevent has patched threading, the plugin's threads are greenlets on the thread of the tests, and a native call
+    would stop the tests until it returns, where Python's sockets let them run. Run it on one of gevent's own threads
+    then, as gevent does for blocking calls.
+    """
+    gevent_monkey = sys.modules.get("gevent.monkey")
+    if gevent_monkey is None or not gevent_monkey.is_module_patched("threading"):
+        return function(*args, **kwargs)
+
+    import gevent
+
+    return gevent.get_hub().threadpool.apply(function, args, kwargs)
+
+
 class BackendError(Exception):
     pass
 
@@ -69,7 +102,7 @@ class BackendError(Exception):
 class BackendResult:
     error_type: t.Optional[ErrorType] = None
     error_description: t.Optional[str] = None
-    response: t.Optional[http.client.HTTPResponse] = None
+    response: t.Optional[HttpResponse] = None
     request_length: t.Optional[int] = None
     response_length: t.Optional[int] = None
     response_body: t.Optional[bytes] = None
@@ -253,6 +286,12 @@ class BackendConnectorEVPProxySetup(BackendConnectorSetup):
 
 
 class BackendConnector(threading.local):
+    """Sends requests to Datadog or to the agent with ddtrace's native HTTP client.
+
+    The native client opens its connections outside Python's socket module, so the libraries tests use to block or
+    record network access, such as pytest-socket or vcrpy, don't reach them.
+    """
+
     def __init__(
         self,
         url: str,
@@ -262,52 +301,41 @@ class BackendConnector(threading.local):
         use_gzip: bool = False,
     ):
         parsed_url = urlparse(url)
-        self.conn = self._make_connection(parsed_url, timeout_seconds)
+        self.base_url = self._base_url(parsed_url)
+        self.timeout_seconds = timeout_seconds
+        self.client = HTTPClient(
+            self.base_url, timeout_ms=_timeout_ms(timeout_seconds), treat_http_errors_as_errors=False
+        )
         self.default_headers = default_headers or {}
-        self.base_path = base_path if base_path is not None else parsed_url.path.rstrip("/")
+        if base_path is None:
+            # The path of a unix:// URL is the socket's, not a prefix of the request paths.
+            base_path = "" if parsed_url.scheme == "unix" else parsed_url.path.rstrip("/")
+        self.base_path = base_path
         self.use_gzip = use_gzip
         if self.use_gzip:
             self.default_headers["Accept-Encoding"] = "gzip"
 
     def close(self) -> None:
-        # http.client.HTTPConnection.close() raises AttributeError when
-        # sock is None (never connected). Guard against that so callers can
-        # always call close() safely, including thread-teardown code.
-        try:
-            self.conn.close()
-        except AttributeError:
-            pass
+        # The native client pools and closes its connections itself.
+        pass
 
-    def _make_connection(self, parsed_url: ParseResult, timeout_seconds: float) -> http.client.HTTPConnection:
-        if parsed_url.scheme == "http":
+    @staticmethod
+    def _base_url(parsed_url: ParseResult) -> str:
+        if parsed_url.scheme in ("http", "https"):
             if not parsed_url.hostname:
                 raise SetupError(f"No hostname provided in {parsed_url.geturl()}")
-
-            return http.client.HTTPConnection(
-                host=parsed_url.hostname, port=parsed_url.port or 80, timeout=timeout_seconds
-            )
-
-        if parsed_url.scheme == "https":
-            if not parsed_url.hostname:
-                raise SetupError(f"No hostname provided in {parsed_url.geturl()}")
-
-            return http.client.HTTPSConnection(
-                host=parsed_url.hostname, port=parsed_url.port or 443, timeout=timeout_seconds
-            )
-
+            # Without the path, which goes into base_path, or any user info.
+            return f"{parsed_url.scheme}://{parsed_url.netloc.rpartition('@')[2]}"
         if parsed_url.scheme == "unix":
-            # These URLs usually have an empty hostname component, e.g., unix:///var/run/datadog/apm.socket, that is,
-            # unix:// + empty hostname + /var/run/datadog/apm.socket (pathname of the socket). We need to ensure some
-            # hostname is used so the `Host` header will be passed correctly in requests to the agent, so we use the
-            # default hostname (localhost) if none is provided.
-            return UnixDomainSocketHTTPConnection(
-                host=parsed_url.hostname or DEFAULT_AGENT_HOSTNAME,
-                port=parsed_url.port or 80,
-                timeout=timeout_seconds,
-                path=parsed_url.path,
-            )
-
+            # The native client sends requests over the socket with localhost as the Host header.
+            return f"unix://{parsed_url.path}"
         raise SetupError(f"Unknown scheme {parsed_url.scheme} in {parsed_url.geturl()}")
+
+    def _send(self, method: str, path: str, data: t.Optional[bytes], headers: dict[str, str]) -> HttpResponse:
+        kwargs: dict[str, t.Any] = {"headers": list(headers.items()), "timeout_ms": _timeout_ms(self.timeout_seconds)}
+        if data is not None:
+            kwargs["body"] = data
+        return _call_without_blocking_gevent(getattr(self.client, method.lower()), path, **kwargs)
 
     def _do_single_request(
         self,
@@ -329,22 +357,22 @@ class BackendConnector(threading.local):
         start_time = time.perf_counter()
 
         try:
-            self.conn.request(method, self.base_path + path, body=data, headers=full_headers)
-            result.response = self.conn.getresponse()
-            result.response_length = int(result.response.headers.get("Content-Length") or "0")
-            result.is_gzip_response = result.response.headers.get("Content-Encoding") == "gzip"
+            result.response = response = self._send(method, self.base_path + path, data, full_headers)
+            status = response.status_code
+            result.response_length = int(response.header("Content-Length") or "0")
+            result.is_gzip_response = response.header("Content-Encoding") == "gzip"
             if result.is_gzip_response:
-                result.response_body = response_body = gzip.open(result.response).read()
+                result.response_body = response_body = gzip.decompress(response.body())
             else:
-                result.response_body = response_body = result.response.read()
+                result.response_body = response_body = response.body()
 
-            if not (200 <= result.response.status <= 299):
-                result.error_description = f"{result.response.status} {result.response.reason}"
-                if result.response.status >= 500:
+            if not (200 <= status <= 299):
+                result.error_description = f"{status} {_reason(status)}"
+                if status >= 500:
                     result.error_type = ErrorType.CODE_5XX
-                elif result.response.status == 429:
+                elif status == 429:
                     result.error_type = ErrorType.RATE_LIMITED
-                    reset_header = result.response.headers.get("X-RateLimit-Reset")
+                    reset_header = response.header("X-RateLimit-Reset")
                     if reset_header is not None:
                         try:
                             reset_value = int(reset_header)
@@ -359,14 +387,14 @@ class BackendConnector(threading.local):
                             result.retry_after_seconds = min(delay, MAX_RETRY_AFTER_SECONDS)
                         except ValueError:
                             pass  # Fall back to exponential backoff in the retry loop
-                elif result.response.status >= 400:
+                elif status >= 400:
                     result.error_type = ErrorType.CODE_4XX
                 else:
                     result.error_type = ErrorType.NETWORK
-        except (TimeoutError, socket.timeout) as e:
+        except TimedOutError as e:
             result.error_type = ErrorType.TIMEOUT
             result.error_description = str(e)
-        except (ConnectionError, http.client.HTTPException) as e:
+        except (ConnectionFailedError, HttpIoError) as e:
             result.error_type = ErrorType.NETWORK
             result.error_description = str(e)
         except Exception as e:
@@ -386,9 +414,6 @@ class BackendConnector(threading.local):
                 log.warning("Error parsing response for %s %s", method, path)
                 result.error_type = ErrorType.UNKNOWN
                 result.error_description = str(e)
-
-        if result.error_type:
-            self.conn.close()  # Clean up bad state, ensure subsequent requests start with a fresh connection.
 
         return result
 
@@ -580,19 +605,3 @@ class NoOpBackendConnectorSetup(BackendConnectorSetup):
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> NoOpBackendConnector:  # type: ignore[override]
         return NoOpBackendConnector()
-
-
-class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
-    """An HTTP connection established over a Unix Domain Socket."""
-
-    # It's important to keep the hostname and port arguments here; while there are not used by the connection
-    # mechanism, they are actually used as HTTP headers such as `Host`.
-    def __init__(self, path: str, *args: t.Any, **kwargs: t.Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.path = path
-
-    def connect(self) -> None:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(self.timeout)
-        sock.connect(self.path)
-        self.sock = sock
