@@ -1,6 +1,7 @@
 use std::{borrow::Borrow, ops::Deref as _};
 
-use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
+use libdd_trace_model::{AttributeValue, TraceText, ValueTypes};
+use libdd_trace_utils::span::{vec_map::VecMap, SpanBytes, SpanText, TraceData};
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAnyMethods as _, PyBytesMethods as _, PyString, PyStringMethods as _},
@@ -323,6 +324,26 @@ impl std::fmt::Debug for PyBackedString {
     }
 }
 
+// `TraceText` requires `Clone`, but cloning a `PyObject`-tagged value needs the GIL to incref.
+// Callers that already hold the GIL should use `clone_ref`.
+impl Clone for PyBackedString {
+    fn clone(&self) -> Self {
+        Python::attach(|py| self.clone_ref(py))
+    }
+}
+
+impl From<String> for PyBackedString {
+    fn from(value: String) -> Self {
+        Self::from_box(value.into_boxed_str())
+    }
+}
+
+impl TraceText for PyBackedString {
+    fn from_static(s: &'static str) -> Self {
+        <Self as SpanText>::from_static_str(s)
+    }
+}
+
 impl SpanText for PyBackedString {
     fn from_static_str(value: &'static str) -> Self {
         Self {
@@ -355,7 +376,10 @@ impl Borrow<[u8]> for Bytes {
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct PyTraceData;
-impl TraceData for PyTraceData {
+impl ValueTypes for PyTraceData {
     type Text = PyBackedString;
     type Bytes = Bytes;
+    type Array = Vec<AttributeValue<Self>>;
+    type Map = VecMap<PyBackedString, AttributeValue<Self>>;
 }
+impl TraceData for PyTraceData {}
