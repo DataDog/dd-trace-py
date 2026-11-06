@@ -254,6 +254,7 @@ class TestGetGitTags:
         mock_git.get_repository_url.return_value = "https://github.com/user/repo.git"
         mock_git.get_commit_sha.return_value = "abc123"
         mock_git.get_branch.return_value = "main"
+        mock_git.get_tag.return_value = "v1.0"
         mock_git.get_commit_message.return_value = "Test commit"
         mock_git.get_user_info.return_value = GitUserInfo(
             author_name="John Doe",
@@ -271,6 +272,7 @@ class TestGetGitTags:
             GitTag.REPOSITORY_URL: "https://github.com/user/repo.git",
             GitTag.COMMIT_SHA: "abc123",
             GitTag.BRANCH: "main",
+            GitTag.TAG: "v1.0",
             GitTag.COMMIT_MESSAGE: "Test commit",
             GitTag.COMMIT_AUTHOR_NAME: "John Doe",
             GitTag.COMMIT_AUTHOR_EMAIL: "john@example.com",
