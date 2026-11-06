@@ -777,7 +777,8 @@ def openai_set_meta_tags_from_chat(
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
-            content = streamed_message.get("content", "")
+            # a refusal arrives in place of content
+            content = streamed_message.get("content", "") or streamed_message.get("refusal", "")
             finish_reasons.append(streamed_message.get("finish_reason", None))
 
             reasoning_content = streamed_message.get("reasoning_content", None)
@@ -800,7 +801,8 @@ def openai_set_meta_tags_from_chat(
         for idx, choice in enumerate(choices):
             choice_message = _get_attr(choice, "message", {})
             role = _get_attr(choice_message, "role", "")
-            content = _get_attr(choice_message, "content", "") or ""
+            # a refusal arrives in place of content
+            content = _get_attr(choice_message, "content", "") or _get_attr(choice_message, "refusal", "") or ""
             finish_reasons.append(_get_attr(choice, "finish_reason", None))
 
             reasoning_content = _get_attr(choice_message, "reasoning_content", None)
