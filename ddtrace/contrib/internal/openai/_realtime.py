@@ -349,6 +349,12 @@ class _ResponseTurn:
         self.output_stopped = False
         self.audio_part_starts: dict[tuple[str, int], int] = {}
         self.audio_part_bytes: dict[tuple[str, int], int] = {}
+        self.output_audio_mime = ""
+        self.output_audio_rate = 24000
+        self.input_audio_mime = ""
+        self.input_audio_rate = 24000
+        self.metadata: dict[str, Any] = {}
+        self.created_ns = time.time_ns()
 
 
 class _RealtimeState:
@@ -402,19 +408,122 @@ class _RealtimeState:
         self._speech: Optional[dict[str, Any]] = None
         self._dedup_complete = True
         self._provider_prompt_tags: dict[str, str] = {}
+        self._pending_session_updates: list[dict[str, Any]] = []
+        self._session_update_acks = 0
+        self._unconfirmed_settings = False
+        self._queued_settings_uncertain = False
+        self._settings_observation_lost = False
+        self._session_event_ids: dict[str, None] = {}
+        # Responses do not echo their prompt or the client request ID. After an explicit
+        # override, session-derived prompt attribution cannot be assigned reliably.
+        self._response_prompt_uncertain = False
+        self._finalizing: list[tuple[_ResponseTurn, bool]] = []
+        self._creating_responses: dict[str, _ResponseTurn] = {}
 
     # -- event entry points -------------------------------------------------
 
-    def on_client_event(self, event: Any) -> None:
+    def before_client_send(self, event: Any) -> Optional[dict[str, Any]]:
+        try:
+            return self._before_client_send(event)
+        except Exception:
+            log.debug("error observing realtime settings send", exc_info=True)
+            return None
+
+    def _before_client_send(self, event: Any) -> Optional[dict[str, Any]]:
+        """Register settings uncertainty before transport I/O, without holding a lock over I/O."""
+        if not self._barge_in_enabled or _event_type(event) not in ("session.update", "response.create"):
+            return None
+        # Match the SDK's serialization of optional model fields, rather than treating
+        # model defaults as fields that the application actually sent.
+        to_json = getattr(event, "to_json", None)
+        if callable(to_json):
+            event = safe_load_json(to_json(use_api_names=True, exclude_defaults=True, exclude_unset=True))
+        with self._event_lock:
+            if self._closed:
+                return None
+            if _event_type(event) == "response.create":
+                if _get_attr(_get_attr(event, "response", None), "prompt", _MISSING) is not _MISSING:
+                    self._response_prompt_uncertain = True
+                return None
+            session = _get_attr(event, "session", None)
+            audio = _get_attr(session, "audio", None)
+            audio_input = _get_attr(audio, "input", None)
+            audio_output = _get_attr(audio, "output", None)
+            relevant = any(
+                _get_attr(obj, field, _MISSING) is not _MISSING
+                for obj, field in (
+                    (session, "turn_detection"),
+                    (session, "input_audio_format"),
+                    (session, "output_audio_format"),
+                    (session, "prompt"),
+                    (audio_input, "turn_detection"),
+                    (audio_input, "format"),
+                    (audio_output, "format"),
+                )
+            )
+            for turn in self._open_turns():
+                turn.barge_in_complete = False
+            if relevant:
+                self._reset_speech()
+            if self._queued_settings_uncertain:
+                # A failed send may still be retransmitted. Its acknowledgement cannot
+                # be distinguished from this update's, so this batch has no exact baseline.
+                self._settings_observation_lost = True
+            pending = {"event_id": _get_attr(event, "event_id", None), "relevant": relevant}
+            if len(self._pending_session_updates) < _BARGE_IN_MAX_TURNS:
+                self._pending_session_updates.append(pending)
+            else:
+                self._settings_observation_lost = True
+            return pending
+
+    def client_send_failed(self, pending: Optional[dict[str, Any]]) -> None:
+        if pending is None:
+            return
+        with self._event_lock:
+            if not any(entry is pending for entry in self._pending_session_updates):
+                return  # A newer authoritative acknowledgement already completed this batch.
+            self._pending_session_updates = [entry for entry in self._pending_session_updates if entry is not pending]
+            # The SDK may have queued a failed send for retransmission. Roll back the
+            # local request record, but await a server snapshot before trusting settings.
+            self._unconfirmed_settings |= pending["relevant"]
+            self._queued_settings_uncertain |= pending["relevant"]
+            if self._queued_settings_uncertain and self._pending_session_updates:
+                self._settings_observation_lost = True
+            self._clear_completed_updates()
+
+    def _settings_uncertain(self) -> bool:
+        return (
+            self._settings_observation_lost
+            or self._unconfirmed_settings
+            or any(entry["relevant"] for entry in self._pending_session_updates)
+        )
+
+    def _clear_completed_updates(self) -> None:
+        # Acknowledgements do not echo request IDs. Count outcomes without assigning
+        # individual acknowledgements to requests or assuming a FIFO identity mapping.
+        if self._session_update_acks >= len(self._pending_session_updates):
+            self._pending_session_updates.clear()
+            self._session_update_acks = 0
+
+    def _reset_speech(self) -> None:
+        self._speech_active = False
+        self._speech = None
+
+    def on_client_event(self, event: Any, observed_send: bool = False) -> None:
         with self._event_lock:
             if self._closed:
                 return
             try:
+                if not observed_send:
+                    self.before_client_send(event)
                 self._handle_client_event(event)
                 if self._barge_in_enabled:
                     self._flush_playing()
             except Exception:
                 log.debug("error completing realtime client observation", exc_info=True)
+            finally:
+                finalizing, self._finalizing = self._finalizing, []
+        self._complete_turns(finalizing)
 
     def _handle_client_event(self, event: Any) -> None:
         try:
@@ -429,12 +538,8 @@ class _RealtimeState:
                     _get_attr(event, "content_index", 0),
                 )
             elif event_type == "session.update":
-                if self._barge_in_enabled:
-                    self._barge_in_policy = None
-                    self._provider_prompt_tags = {}
-                    for turn in self._open_turns():
-                        turn.barge_in_complete = False
-                self._update_session_config(_get_attr(event, "session", None))
+                if not self._barge_in_enabled:
+                    self._update_session_config(_get_attr(event, "session", None))
             elif event_type == "input_audio_buffer.append":
                 audio = _get_attr(event, "audio", None)
                 if audio:
@@ -457,6 +562,9 @@ class _RealtimeState:
                     self._flush_playing()
             except Exception:
                 log.debug("error completing realtime server observation", exc_info=True)
+            finally:
+                finalizing, self._finalizing = self._finalizing, []
+        self._complete_turns(finalizing)
 
     def _handle_server_event(self, event: Any) -> None:
         try:
@@ -465,8 +573,36 @@ class _RealtimeState:
             event_type = _event_type(event)
             if event_type in ("session.created", "session.updated"):
                 if self._barge_in_enabled:
+                    event_id = _get_attr(event, "event_id", None)
+                    if isinstance(event_id, str):
+                        if event_id in self._session_event_ids:
+                            return
+                        if len(self._session_event_ids) >= _BARGE_IN_MAX_MARKERS:
+                            self._session_event_ids.pop(next(iter(self._session_event_ids)))
+                        self._session_event_ids[event_id] = None
                     self._update_barge_in_policy(_get_attr(event, "session", None))
+                    if event_type == "session.updated":
+                        self._unconfirmed_settings = False
+                        self._queued_settings_uncertain = False
+                        if self._pending_session_updates:
+                            self._session_update_acks += 1
+                            self._clear_completed_updates()
                 self._update_session_config(_get_attr(event, "session", None))
+                return
+            if event_type == "error" and self._barge_in_enabled:
+                error = _get_attr(event, "error", None)
+                client_id = _get_attr(error, "event_id", None)
+                matches = [
+                    entry
+                    for entry in self._pending_session_updates
+                    if isinstance(client_id, str) and entry["event_id"] == client_id
+                ]
+                if len(matches) == 1:
+                    pending = matches[0]
+                    self._pending_session_updates.remove(pending)
+                    if _get_attr(error, "type", None) != "invalid_request_error":
+                        self._unconfirmed_settings |= pending["relevant"]
+                    self._clear_completed_updates()
                 return
             if event_type == "conversation.item.truncated":
                 # The server's acknowledgement of a client truncation; `cap_to` is absolute, so
@@ -556,14 +692,16 @@ class _RealtimeState:
                     if turn.output_stopped:
                         return
                     duration = _segment_duration_ns(
-                        _decoded_b64_len(delta), self._output_audio_mime, self._output_audio_rate
+                        _decoded_b64_len(delta),
+                        turn.output_audio_mime or self._output_audio_mime,
+                        turn.output_audio_rate,
                     )
                     if duration is not None:
                         now = time.monotonic_ns()
                         turn.output_end_mono_ns = max(turn.output_end_mono_ns or now, now) + duration
                     else:
                         turn.barge_in_complete = False
-                turn.audio.append(delta, self._output_audio_mime, self._output_audio_rate)
+                turn.audio.append(delta, turn.output_audio_mime or self._output_audio_mime, turn.output_audio_rate)
         elif normalized == "response.audio_transcript.delta":
             turn.transcript += str(_get_attr(event, "delta", "") or "")
         elif normalized == "response.audio_transcript.done":
@@ -677,7 +815,8 @@ class _RealtimeState:
                 _get_attr(policy, "type", None) == "server_vad"
                 and _get_attr(policy, "interrupt_response", True) is True
             )
-            if self._barge_in_policy is not None and enabled != self._barge_in_policy:
+            if enabled != self._barge_in_policy:
+                self._reset_speech()
                 for turn in self._open_turns():
                     turn.barge_in_complete = False
             self._barge_in_policy = enabled
@@ -701,6 +840,10 @@ class _RealtimeState:
                 for turn in self._open_turns():
                     turn.barge_in_complete = False
         if self._speech_active:
+            # An exact event replay was handled above. A distinct start without an
+            # observed stop is ambiguous; retain dedup semantics without claiming zero.
+            for turn in self._open_turns():
+                turn.barge_in_complete = False
             return
         self._speech_active = True
         self._speech_sequence += 1
@@ -733,6 +876,7 @@ class _RealtimeState:
         episode = self._speech
         if (
             self._barge_in_policy is not True
+            or self._settings_uncertain()
             or not self._speech_active
             or episode is None
             or episode["counted"]
@@ -788,7 +932,10 @@ class _RealtimeState:
 
     def _open_turns(self) -> list[Any]:
         """Every turn we could still amend: in flight, awaiting a transcript, or awaiting playback."""
-        return list(self._responses.values()) + self._awaiting + self._playing
+        turns = (
+            list(self._responses.values()) + self._awaiting + self._playing + list(self._creating_responses.values())
+        )
+        return list({id(turn): turn for turn in turns}.values())
 
     def _on_truncate(self, item_id: Any, audio_end_ms: Any, content_index: Any = 0, acknowledged: bool = False) -> None:
         """Cap an assistant audio segment at what the listener actually heard.
@@ -815,7 +962,7 @@ class _RealtimeState:
                     turn.barge_in_complete = False
             return
         for turn in self._open_turns():
-            if self._barge_in_enabled:
+            if turn.barge_in_supported:
                 item_start = turn.audio_part_starts.get((item, content_index))
             else:
                 item_start = turn.audio_item_starts.get(item)
@@ -823,11 +970,11 @@ class _RealtimeState:
                 continue
             # Per turn: an older held turn's audio may have arrived under a format the session has
             # since changed, and the cut point is a byte offset into that turn's own bytes.
-            mime, rate = _segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate)
+            mime, rate = _segment_format(turn.audio, turn.output_audio_mime, turn.output_audio_rate)
             bytes_per_second = _bytes_per_second(mime, rate)
             if not bytes_per_second:
                 return
-            if self._barge_in_enabled:
+            if turn.barge_in_supported:
                 part_bytes = turn.audio_part_bytes[(item, content_index)]
                 if end_ms * bytes_per_second / 1000 > part_bytes:
                     turn.barge_in_complete = False
@@ -856,7 +1003,7 @@ class _RealtimeState:
                 turn.observation_deadline_ns = min(turn.observation_deadline_ns or deadline, deadline)
             cap = item_start + int(end_ms / 1000 * bytes_per_second)
             turn.audio.cap_to(cap - cap % 2)  # keep PCM16 samples whole; a byte is nothing for G.711
-            if turn in self._playing and not self._barge_in_enabled:
+            if turn in self._playing and not turn.barge_in_supported:
                 # Playback ended when the listener cut it off, so stop waiting on it.
                 self._playing.remove(turn)
                 self._finalize_turn(turn, force=True)
@@ -875,13 +1022,13 @@ class _RealtimeState:
         exactly as before, paying nothing. The cost of that trade is that the first interruption on a
         connection is still reported untruncated.
         """
-        if self._barge_in_enabled:
-            return self._park_observation(turn) if turn.barge_in_supported else False
+        if turn.barge_in_supported:
+            return self._park_observation(turn)
         if not self._client_truncates or turn.audio.start_ns is None:
             return False
         playback_ns = _segment_duration_ns(
             turn.audio.total_decoded_bytes,
-            *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
+            *_segment_format(turn.audio, turn.output_audio_mime, turn.output_audio_rate),
         )
         if playback_ns is None:
             return False
@@ -913,24 +1060,22 @@ class _RealtimeState:
         """
         if not self._playing:
             return
-        if self._barge_in_enabled:
-            now = time.monotonic_ns()
-            for turn in list(self._playing):
+        now_mono = time.monotonic_ns()
+        now_wall = time.time_ns()
+        for turn in list(self._playing):
+            if turn.barge_in_supported:
                 deadline = turn.observation_deadline_ns
-                if deadline is not None and deadline > now and not force:
+                if deadline is not None and deadline > now_mono and not force:
                     continue
-                if (deadline is not None and deadline > now) or (
+                if (deadline is not None and deadline > now_mono) or (
                     not turn.output_stopped
                     and turn.output_end_mono_ns is not None
                     and deadline is not None
                     and deadline < turn.output_end_mono_ns + _BARGE_IN_GRACE_NS
                 ):
                     turn.barge_in_complete = False
-                self._playing.remove(turn)
-                self._finalize_turn(turn, force=True)
-            return
-        now = time.time_ns()
-        for turn in [t for t in self._playing if force or t.playback_end_ns is None or t.playback_end_ns <= now]:
+            elif not force and turn.playback_end_ns is not None and turn.playback_end_ns > now_wall:
+                continue
             self._playing.remove(turn)
             self._finalize_turn(turn, force=True)
 
@@ -943,51 +1088,75 @@ class _RealtimeState:
         # anymore, and that any held playback is over (or was cut off without a truncation reaching
         # us), so flush both rather than let a span hang.
         self._flush_awaiting()
-        if not self._barge_in_enabled:
-            self._flush_playing(force=True)
+        # A new response ends the legacy hold, but does not end supported observation.
+        for prior in list(self._playing):
+            if not prior.barge_in_supported:
+                self._playing.remove(prior)
+                self._finalize_turn(prior, force=True)
         turn = _ResponseTurn(self._pending_input)
         turn.response_id = str(response_id)
         turn.barge_in_supported = self._barge_in_enabled and self._barge_in_policy is True
-        turn.barge_in_complete = self._dedup_complete
+        turn.barge_in_complete = self._dedup_complete and not self._settings_uncertain()
+        turn.output_audio_mime = self._output_audio_mime
+        turn.output_audio_rate = self._output_audio_rate
+        output = _get_attr(_get_attr(response, "audio", None), "output", None)
+        output_format = _get_attr(output, "format", None) or _get_attr(response, "output_audio_format", None)
+        if output_format is not None:
+            turn.output_audio_mime = realtime_audio_format_to_mime(output_format)
+            turn.output_audio_rate = _get_attr(output_format, "rate", None) or 24000
         self._pending_input = _InputTurn()
         turn.model = _get_attr(response, "model", None) or self._model
-        # Turn root (workflow): the whole perceived turn and the root of this turn's trace, grouped by
-        # session_id (or nested under the caller's own LLMObs context if there is one). Back-dated to
-        # when the user started speaking (or spoke-end) when known.
+        if not self._response_prompt_uncertain and not self._settings_uncertain():
+            turn.barge_in_tags.update(self._provider_prompt_tags)
+        self._responses[response_id] = turn
+        self._creating_responses[turn.response_id] = turn
+        self._finalizing.append((turn, True))
+
+    def _create_turn_spans(self, turn: _ResponseTurn) -> None:
+        # Finish detached predecessors before creating these spans, so the LLMObs
+        # context does not accidentally parent a new turn beneath an unfinished old turn.
+        root = span = None
+        attribution: dict[str, str] = {}
         try:
-            turn.root_span = self._integration.trace(
+            root = self._integration.trace(
                 "createRealtimeTurn",
                 submit_to_llmobs=True,
                 instance=SimpleNamespace(_client=self._client),
                 activate=False,
             )
-            turn_start = turn.input.speech_start_ns or turn.input.audio.start_ns or turn.input.speech_end_ns
-            if turn_start is not None:
-                turn.root_span.start_ns = int(turn_start)
+            root.start_ns = int(
+                turn.input.speech_start_ns or turn.input.audio.start_ns or turn.input.speech_end_ns or turn.created_ns
+            )
             if self._barge_in_enabled:
                 snapshot = getattr(self._integration, "_realtime_attribution", None)
                 if snapshot is not None:
-                    turn.barge_in_tags = snapshot(turn.root_span)
-                turn.barge_in_tags.update(self._provider_prompt_tags)
+                    attribution = snapshot(root)
         except Exception:
             log.debug("error starting realtime turn span", exc_info=True)
-            turn.root_span = None
-        # LLM span (generation): child of the turn root, back-dated to the end of user speech (buffer
-        # commit) so its duration is model work rather than the human's speaking time. Kept as
-        # `turn.span` so any child spans nest under it.
         try:
-            turn.span = self._integration.trace(
+            span = self._integration.trace(
                 "createRealtimeResponse",
                 instance=SimpleNamespace(_client=self._client),
                 activate=False,
-                parent_context=turn.root_span,
+                parent_context=root,
             )
-            llm_start = turn.input.speech_end_ns or turn.input.audio.start_ns
-            if llm_start is not None:
-                turn.span.start_ns = int(llm_start)
+            span.start_ns = int(turn.input.speech_end_ns or turn.input.audio.start_ns or turn.created_ns)
         except Exception:
             log.debug("error starting realtime response span", exc_info=True)
-        self._responses[response_id] = turn
+        with self._event_lock:
+            turn.root_span, turn.span = root, span
+            self._creating_responses.pop(turn.response_id, None)
+            turn.barge_in_tags = {**attribution, **turn.barge_in_tags}
+            # A close or concurrent observer may have completed the lifecycle while
+            # span creation ran outside the lock. Publish both handles atomically and
+            # reclaim them exactly once through the same detach path.
+            if self._closed:
+                turn.barge_in_complete = False
+                self._finalize_turn(turn, force=True)
+            elif turn.response_done_ns is not None and turn not in self._awaiting:
+                self._finalize_turn(turn)
+            finalizing, self._finalizing = self._finalizing, []
+        self._complete_turns(finalizing)
 
     def _finish_response(self, response_id: Optional[str], response: Any) -> None:
         if response_id is None:
@@ -1025,6 +1194,8 @@ class _RealtimeState:
     def finish_session(self) -> None:
         with self._event_lock:
             self._finish_session()
+            finalizing, self._finalizing = self._finalizing, []
+        self._complete_turns(finalizing)
 
     def _finish_session(self) -> None:
         if self._closed:
@@ -1035,16 +1206,18 @@ class _RealtimeState:
         # submitted.
         self._flush_awaiting()
         self._flush_playing(force=True)
-        for turn in list(self._responses.values()):
+        for turn in self._open_turns():
             turn.barge_in_complete = False
             if not turn.input.transcript and turn.input.item_id is not None:
                 turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
             self._finalize_turn(turn, force=True)
         self._responses.clear()
+        self._creating_responses.clear()
         self._input_transcripts.clear()
         self._tool_call_names.clear()
         self._speech = None
         self._speech_ids.clear()
+        self._pending_session_updates.clear()
 
     # -- tagging helpers ----------------------------------------------------
 
@@ -1063,6 +1236,25 @@ class _RealtimeState:
         # session (every finalize path goes through here).
         if turn.input.item_id is not None:
             self._input_transcripts.pop(turn.input.item_id, None)
+        # Detach immutable observation data under the lock. Span callbacks and export
+        # can block, and must not serialize microphone observations behind network I/O.
+        turn.metadata = self._session_metadata()
+        turn.input_audio_mime, turn.input_audio_rate = _segment_format(
+            turn.input.audio, self._input_audio_mime, self._input_audio_rate
+        )
+        self._finalizing.append((turn, False))
+
+    def _complete_turns(self, turns: list[tuple[_ResponseTurn, bool]]) -> None:
+        for turn, starting in sorted(turns, key=lambda entry: entry[1]):
+            try:
+                if starting:
+                    self._create_turn_spans(turn)
+                else:
+                    self._complete_turn(turn)
+            except Exception:
+                log.debug("error completing detached realtime turn", exc_info=True)
+
+    def _complete_turn(self, turn: _ResponseTurn) -> None:
         if turn.status == "failed":
             # Flag the whole turn, not just the generation: the root is the trace root, so leaving it
             # clean surfaces a successful turn containing a failed llm span, and error filters and
@@ -1108,10 +1300,17 @@ class _RealtimeState:
                     "version": 1,
                     "observation": "complete" if turn.barge_in_complete else "incomplete",
                     "playback_basis": "estimated_playback",
-                    "events": turn.barge_in_events,
+                    "events": list(turn.barge_in_events),
                     "events_truncated": turn.barge_in_count > len(turn.barge_in_events),
                 }
             }
+            observation = feature_tags["metadata"]["voice_barge_in"]
+            while (
+                observation["events"]
+                and len(json.dumps(feature_tags["metadata"]).encode("utf-8")) > _BARGE_IN_MAX_MARKER_BYTES
+            ):
+                observation["events"].pop()
+                observation["events_truncated"] = True
             if turn.barge_in_complete:
                 feature_tags["metrics"] = {"barge_in_count": turn.barge_in_count}
             feature_tags["tags"] = {
@@ -1148,7 +1347,7 @@ class _RealtimeState:
             if in_end is None:
                 dur = _segment_duration_ns(
                     turn.input.audio.total_decoded_bytes,
-                    *_segment_format(turn.input.audio, self._input_audio_mime, self._input_audio_rate),
+                    *_segment_format(turn.input.audio, turn.input_audio_mime, turn.input_audio_rate),
                 )
                 in_end = in_start + dur if dur else None
             self._emit_workflow_span(
@@ -1163,7 +1362,7 @@ class _RealtimeState:
         if out_start is not None:
             dur = _segment_duration_ns(
                 turn.audio.total_decoded_bytes,
-                *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
+                *_segment_format(turn.audio, turn.output_audio_mime, turn.output_audio_rate),
             )
             out_end = out_start + dur if dur else turn.response_done_ns
             self._emit_workflow_span(
@@ -1237,7 +1436,7 @@ class _RealtimeState:
         if turn.audio.start_ns is not None:
             dur = _segment_duration_ns(
                 turn.audio.total_decoded_bytes,
-                *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
+                *_segment_format(turn.audio, turn.output_audio_mime, turn.output_audio_rate),
             )
             if dur:
                 candidates.append(turn.audio.start_ns + dur)
@@ -1252,7 +1451,7 @@ class _RealtimeState:
             "user",
             turn.input.transcript or turn.input.text,
             turn.input.audio,
-            *_segment_format(turn.input.audio, self._input_audio_mime, self._input_audio_rate),
+            *_segment_format(turn.input.audio, turn.input_audio_mime, turn.input_audio_rate),
         )
         # Attach tool results the app fed back (function_call_output) to the input message.
         if turn.input.tool_results:
@@ -1264,7 +1463,7 @@ class _RealtimeState:
             "assistant",
             turn.transcript or turn.text,
             turn.audio,
-            *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
+            *_segment_format(turn.audio, turn.output_audio_mime, turn.output_audio_rate),
         )
         # Attach the model's tool calls (and inline MCP results) to the output message. A turn can be
         # tool-call-only with no audio/text, so create the message if _build_message returned None.
@@ -1281,7 +1480,7 @@ class _RealtimeState:
             turn.model,
             [input_message] if input_message else [],
             [output_message] if output_message else [],
-            metadata=self._session_metadata(),
+            metadata=turn.metadata,
             metrics=_usage_metrics(turn.usage),
             session_id=self._session_id,
             parent_span=turn.root_span,
@@ -1602,6 +1801,8 @@ def _attach_session(instance: Any, connection: Any) -> None:
         state = _start_realtime_state(
             integration, getattr(instance, "_dd_client", None), getattr(instance, "_dd_model", None)
         )
+        if state._barge_in_enabled and getattr(instance, "_dd_initial_prompt_override", False):
+            state._response_prompt_uncertain = True
         connection._dd_realtime_state = state
         # A turn held for playback (see `_park_for_playback`) is only submitted by a later event or
         # by `finish_session`, so a caller that drops the connection without `close()` - and
@@ -1610,9 +1811,53 @@ def _attach_session(instance: Any, connection: Any) -> None:
         # process exit. `finish_session` is idempotent, so it is safe alongside the close paths.
         # The state does not reference the connection, so this creates no cycle that would keep the
         # connection alive.
-        weakref.finalize(connection, _finish_session_on_gc, state)
+        _register_session_finalizer(connection, state)
     except Exception:
         log.debug("error starting realtime state", exc_info=True)
+
+
+def _register_session_finalizer(connection: Any, state: _RealtimeState) -> None:
+    previous = getattr(connection, "_dd_realtime_finalizer", None)
+    if previous is not None:
+        previous.detach()
+    connection._dd_realtime_finalizer = weakref.finalize(connection, _finish_session_on_gc, state)
+
+
+def _rearm_session(connection: Any) -> None:
+    try:
+        state = getattr(connection, "_dd_realtime_state", None)
+        if state is None or getattr(connection, "_intentionally_closed", False):
+            return
+        state.finish_session()
+        if getattr(connection, "_intentionally_closed", False):
+            return
+        replacement = _start_realtime_state(state._integration, state._client, state._model)
+        # The SDK flushes recovery-queued sends before returning from reconnect.
+        # Their prompt overrides were invisible to the closed observer; a session
+        # default cannot establish which prompt produced a recovered response.
+        replacement._response_prompt_uncertain = replacement._barge_in_enabled
+        connection._dd_realtime_state = replacement
+        _register_session_finalizer(connection, replacement)
+        if getattr(connection, "_intentionally_closed", False):
+            replacement.finish_session()
+    except Exception:
+        log.debug("error restarting realtime observation after reconnect", exc_info=True)
+
+
+def patched_reconnect(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    result = func(*args, **kwargs)
+    if result:
+        _rearm_session(instance)
+    return result
+
+
+async def patched_async_reconnect(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    result = await func(*args, **kwargs)
+    if result:
+        _rearm_session(instance)
+    return result
 
 
 def patched_enter(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -1641,23 +1886,57 @@ def patched_parse_event(func: Callable[..., Any], instance: Any, args: tuple[Any
 
 
 def patched_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    # Record the client event only after the send succeeds, so a failed send doesn't attribute
-    # unsent audio/text to the next turn.
-    result = func(*args, **kwargs)
     state = getattr(instance, "_dd_realtime_state", None)
-    if state is not None:
-        state.on_client_event(args[0] if args else kwargs.get("event"))
+    event = args[0] if args else kwargs.get("event")
+    pending = state.before_client_send(event) if state is not None else None
+    try:
+        result = func(*args, **kwargs)
+    except BaseException:
+        if state is not None:
+            state.client_send_failed(pending)
+        raise
+    current = getattr(instance, "_dd_realtime_state", None)
+    if current is not None:
+        current.on_client_event(event, observed_send=current is state)
     return result
 
 
 async def patched_async_send(
     func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
-    result = await func(*args, **kwargs)
     state = getattr(instance, "_dd_realtime_state", None)
-    if state is not None:
-        state.on_client_event(args[0] if args else kwargs.get("event"))
+    event = args[0] if args else kwargs.get("event")
+    pending = state.before_client_send(event) if state is not None else None
+    try:
+        result = await func(*args, **kwargs)
+    except BaseException:
+        if state is not None:
+            state.client_send_failed(pending)
+        raise
+    current = getattr(instance, "_dd_realtime_state", None)
+    if current is not None:
+        current.on_client_event(event, observed_send=current is state)
     return result
+
+
+def patched_manager_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    # Managers flush their queue before connection entry returns, before a state
+    # can be attached. Keep only whether provider-derived prompt identity is unknown.
+    if _integration() is None:
+        return func(*args, **kwargs)
+    try:
+        event = args[0] if args else kwargs.get("event")
+        to_json = getattr(event, "to_json", None)
+        if callable(to_json):
+            event = safe_load_json(to_json(use_api_names=True, exclude_defaults=True, exclude_unset=True))
+        if (
+            _event_type(event) == "response.create"
+            and _get_attr(_get_attr(event, "response", None), "prompt", _MISSING) is not _MISSING
+        ):
+            instance._dd_initial_prompt_override = True
+    except Exception:
+        log.debug("error observing queued realtime prompt override", exc_info=True)
+    return func(*args, **kwargs)
 
 
 def patched_close(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -1718,16 +1997,20 @@ _REALTIME_WRAPS = (
     ("AsyncRealtime", "connect", patched_connect),
     ("RealtimeConnectionManager", "__enter__", patched_enter),
     ("RealtimeConnectionManager", "enter", patched_enter),
+    ("RealtimeConnectionManager", "send", patched_manager_send),
     ("AsyncRealtimeConnectionManager", "__aenter__", patched_async_enter),
     ("AsyncRealtimeConnectionManager", "enter", patched_async_enter),
+    ("AsyncRealtimeConnectionManager", "send", patched_manager_send),
     ("RealtimeConnection", "parse_event", patched_parse_event),
     ("RealtimeConnection", "send", patched_send),
     ("RealtimeConnection", "recv", patched_recv),
     ("RealtimeConnection", "close", patched_close),
+    ("RealtimeConnection", "_reconnect", patched_reconnect),
     ("AsyncRealtimeConnection", "parse_event", patched_parse_event),
     ("AsyncRealtimeConnection", "send", patched_async_send),
     ("AsyncRealtimeConnection", "recv", patched_async_recv),
     ("AsyncRealtimeConnection", "close", patched_async_close),
+    ("AsyncRealtimeConnection", "_reconnect", patched_async_reconnect),
 )
 
 
