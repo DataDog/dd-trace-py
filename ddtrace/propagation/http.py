@@ -989,7 +989,11 @@ class _BaggageHeader:
         )
         for pair_index, key_value in enumerate(splitted_header):
             if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
-                log.warning("Baggage item limit exceeded, dropping excess items")
+                log.warning(
+                    "Baggage item limit exceeded (%d items), dropping excess items; retained %d items",
+                    DD_TRACE_BAGGAGE_MAX_ITEMS,
+                    len(baggage_data),
+                )
                 _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
                 break
             try:
@@ -998,7 +1002,13 @@ class _BaggageHeader:
                 return _BaggageHeader._record_malformed_and_return_empty()
             segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
             if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
-                log.warning("Baggage header size exceeded, dropping excess items")
+                log.warning(
+                    "Baggage header size exceeded, dropping excess items; "
+                    "size would be at least %d bytes (limit: %d bytes, parsed: %d bytes)",
+                    total_size + segment_bytes,
+                    DD_TRACE_BAGGAGE_MAX_BYTES,
+                    total_size,
+                )
                 _BAGGAGE_TRUNCATED_BYTE_COUNT.add()
                 break
             if "=" not in key_value:
