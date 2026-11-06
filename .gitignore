@@ -240,3 +240,6 @@ ddtrace/profiling/collector/build-test/
 # file created when running scripts/lint
 uv.lock
 benchmark-artifacts/
+
+# package-split gate evidence output
+.package-split/

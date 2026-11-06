@@ -423,6 +423,17 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities @DataDog/a
 # below the ASM globs so a future tests/**/* rule naming a product cannot claim it.
 tests/standalone/                       @DataDog/python-guild
 
+# Package-split contracts, guardrails and cross-package validation
+.agents/skills/package-split/             @DataDog/python-guild @DataDog/apm-core-python
+.cursor/rules/package-split.mdc           @DataDog/python-guild @DataDog/apm-core-python
+.github/workflows/package-split-freeze-guard.yml @DataDog/python-guild @DataDog/apm-core-python
+docs/package-split/                       @DataDog/python-guild @DataDog/apm-core-python
+/package-contract.toml                    @DataDog/python-guild @DataDog/apm-core-python
+/package-freeze.toml                      @DataDog/python-guild @DataDog/apm-core-python
+scripts/package-split                     @DataDog/python-guild @DataDog/apm-core-python
+scripts/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
+tests/package_split/                      @DataDog/python-guild @DataDog/apm-core-python
+
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
