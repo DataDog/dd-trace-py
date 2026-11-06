@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
 from ddtrace.appsec._iast._handlers import _iast_on_wrapped_view
+from ddtrace.appsec._iast._handlers import _on_aiohttp_request_start
 from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
@@ -72,6 +73,7 @@ def iast_listen() -> None:
     core.on("werkzeug.render_debugger_html", _on_werkzeug_render_debugger_html)
 
     core.on("starlette.route.handle", _iast_instrument_starlette_scope)
+    core.on("aiohttp.request.start", _on_aiohttp_request_start)
 
     core.on("context.ended.wsgi.__call__", _iast_context_end)
     core.on("context.ended.asgi.__call__", _iast_context_end)

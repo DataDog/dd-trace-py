@@ -25,6 +25,24 @@ IMAGE="${WINDOWS_BUILD_IMAGE:?WINDOWS_BUILD_IMAGE is required}"
 
 setup_env
 
+# Diagnostics: concurrent jobs on different VMs have been seen sharing this
+# workspace (each finding the other's wheel in dist/). Record who we are and
+# leave a marker so other jobs using the same directory show up below.
+MARKER_DIR="${PROJECT_DIR}/.job-markers"
+print_workspace_diagnostics() {
+    echo "=== Workspace diagnostics ==="
+    echo "host=$(hostname) job=${CI_JOB_ID:-?} concurrent_id=${CI_CONCURRENT_ID:-?} runner=${CI_RUNNER_ID:-?} (${CI_RUNNER_DESCRIPTION:-?})"
+    echo "project_dir=${PROJECT_DIR}"
+    echo "Job markers in ${MARKER_DIR} (one per job that used this directory since its last clean):"
+    for marker in "${MARKER_DIR}"/*; do
+        [[ -f "${marker}" ]] && echo "  $(basename "${marker}"): $(cat "${marker}")"
+    done
+    echo "Wheels in ${PROJECT_DIR}/dist:"
+    ls -la --time-style=full-iso "${PROJECT_DIR}/dist/"*.whl 2>/dev/null || echo "  (none)"
+}
+mkdir -p "${MARKER_DIR}"
+echo "host=$(hostname) started=$(date -u +%FT%TZ) python=${PYTHON_VERSION} arch=${WINDOWS_ARCH}" > "${MARKER_DIR}/${CI_JOB_ID:-local}"
+
 # Git Bash path → Windows path (required for docker -v flag on Windows)
 PROJECT_DIR_WIN=$(cygpath -w "${PROJECT_DIR}")
 
@@ -42,7 +60,8 @@ docker run --rm \
   "${IMAGE}" \
   powershell -NoProfile -NonInteractive \
     -File 'C:\workspace\.gitlab\scripts\windows-docker-build.ps1' \
-    -VcArch "${VC_ARCH}"
+    -VcArch "${VC_ARCH}" || { print_workspace_diagnostics; exit 1; }
+print_workspace_diagnostics
 
 export BUILT_WHEEL_FILE
 BUILT_WHEEL_FILE=$(ls "${PROJECT_DIR}/dist/"*.whl | head -n 1)
