@@ -97,10 +97,29 @@ def test_create_returns_none_when_not_agentless():
     assert create_agentless_source(cfg, lambda _: None) is None
 
 
-def test_create_default_endpoint_requires_api_key():
-    cfg = _config()
+def test_create_remote_config_does_not_require_api_key():
+    cfg = _config(DD_FEATURE_FLAGS_CONFIGURATION_SOURCE="remote_config")
     with override_global_config({"_dd_api_key": None}):
         assert create_agentless_source(cfg, lambda _: None) is None
+
+
+@pytest.mark.parametrize("api_key", [None, ""])
+def test_create_default_endpoint_requires_api_key(api_key):
+    cfg = _config()
+    with override_global_config({"_dd_api_key": api_key}):
+        with pytest.raises(ValueError) as excinfo:
+            create_agentless_source(cfg, lambda _: None)
+    assert str(excinfo.value) == (
+        "DD_API_KEY is required for the default Datadog Feature Flagging endpoint; "
+        "set DD_API_KEY or DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL"
+    )
+
+
+def test_create_blank_custom_endpoint_requires_api_key():
+    cfg = _config(DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL="   ")
+    with override_global_config({"_dd_api_key": None}):
+        with pytest.raises(ValueError, match="^DD_API_KEY is required"):
+            create_agentless_source(cfg, lambda _: None)
 
 
 def test_create_default_endpoint_with_api_key():
@@ -154,11 +173,19 @@ def test_create_passes_env_for_diagnostics():
     assert src._env == "staging"
 
 
-@pytest.mark.parametrize("bad_url", ["ftp://flags.example.test", "https://flags.example.test path"])
-def test_create_invalid_endpoint_returns_none(bad_url):
+@pytest.mark.parametrize(
+    "bad_url,message",
+    [
+        ("ftp://flags.example.test", "Feature Flagging agentless URL must use HTTP or HTTPS"),
+        ("https://flags.example.test path", "Invalid Feature Flagging agentless URL"),
+    ],
+)
+def test_create_invalid_endpoint_raises_without_the_url(bad_url, message):
     cfg = _config(DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL=bad_url)
     with override_global_config({"_dd_api_key": "secret"}):
-        assert create_agentless_source(cfg, lambda _: None) is None
+        with pytest.raises(ValueError) as excinfo:
+            create_agentless_source(cfg, lambda _: None)
+    assert str(excinfo.value) == message
 
 
 # ---------------------------------------------------------------------------

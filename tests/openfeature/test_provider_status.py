@@ -31,6 +31,7 @@ from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
 from tests.openfeature.conftest import set_openfeature_provider
+from tests.openfeature.conftest import use_configuration_source
 from tests.utils import override_global_config
 
 
@@ -40,6 +41,12 @@ def clear_config():
     _set_ffe_config(None)
     yield
     _set_ffe_config(None)
+
+
+@pytest.fixture(autouse=True)
+def remote_config_source(monkeypatch):
+    """Deliver configuration through Remote Config, as these tests do, so the wait does not need an API key."""
+    use_configuration_source(monkeypatch, DD_FEATURE_FLAGS_CONFIGURATION_SOURCE="remote_config")
 
 
 def _set_provider(provider: DataDogProvider) -> None:

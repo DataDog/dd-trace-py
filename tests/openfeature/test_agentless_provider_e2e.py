@@ -5,8 +5,15 @@ and the provider lifecycle that starts/stops the agentless poller.
 """
 
 import json
+import logging
+import time
 
+from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ErrorCode
+from openfeature.exception import ProviderNotReadyError
+from openfeature.flag_evaluation import Reason
+from openfeature.provider import ProviderStatus
 import pytest
 
 import ddtrace.internal.openfeature._agentless_source as source_mod
@@ -19,7 +26,14 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.conftest import set_openfeature_provider
+from tests.openfeature.conftest import use_configuration_source
 from tests.utils import override_global_config
+
+
+MISSING_API_KEY = "DD_API_KEY is required for the default Datadog Feature Flagging endpoint"
+# A provider that waits for this timeout instead of failing at once fails the elapsed checks.
+LONG_INITIALIZATION_TIMEOUT = 30.0
 
 
 def _jsonapi_response(*flags):
@@ -176,3 +190,99 @@ def test_disabled_provider_starts_no_source():
         provider.initialize(EvaluationContext())
 
         assert provider._configuration_source is None
+
+
+def test_initialize_fails_at_once_without_api_key(caplog):
+    """Without DD_API_KEY no configuration can arrive, so initialize() fails without waiting."""
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            with caplog.at_level(logging.ERROR, logger="ddtrace.internal.openfeature._provider"):
+                start = time.monotonic()
+                with pytest.raises(ProviderNotReadyError, match=f"^{MISSING_API_KEY}"):
+                    provider.initialize(EvaluationContext())
+                elapsed = time.monotonic() - start
+
+            assert elapsed < 10.0, f"initialize() waited {elapsed:.2f}s"
+            assert provider._configuration_source is None
+            assert any(
+                message.startswith(f"Feature Flags: agentless configuration source cannot start: {MISSING_API_KEY}")
+                for message in caplog.messages
+            ), caplog.messages
+        finally:
+            provider.shutdown()
+
+
+def test_openfeature_client_reports_error_without_api_key():
+    """Registration reports PROVIDER_ERROR at once and evaluations return the default value."""
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        try:
+            start = time.monotonic()
+            set_openfeature_provider(provider)
+            elapsed = time.monotonic() - start
+
+            client = api.get_client()
+            details = client.get_boolean_details("my-flag", True)
+
+            assert elapsed < 10.0, f"registration waited {elapsed:.2f}s"
+            assert client.get_provider_status() == ProviderStatus.ERROR
+            assert details.value is True
+            assert details.reason == Reason.ERROR
+            assert details.error_code == ErrorCode.PROVIDER_NOT_READY
+        finally:
+            api.clear_providers()
+
+
+def test_initialize_retries_source_start_after_shutdown(mock_cdn):
+    """Each initialization re-checks the source, so a later attempt with a key succeeds."""
+    mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+    provider = DataDogProvider(initialization_timeout=5.0)
+    try:
+        with override_global_config({"_dd_api_key": None}):
+            with pytest.raises(ProviderNotReadyError, match=f"^{MISSING_API_KEY}"):
+                provider.initialize(EvaluationContext())
+        provider.shutdown()
+
+        with override_global_config({"_dd_api_key": "secret", "_dd_site": "datadoghq.com"}):
+            provider.initialize(EvaluationContext())
+
+        assert provider._configuration_source is not None
+        assert provider.resolve_boolean_details("my-flag", False).value is True
+    finally:
+        provider.shutdown()
+
+
+def test_custom_endpoint_without_api_key_initializes(mock_cdn, monkeypatch):
+    """A custom endpoint needs no API key, so initialize() waits for and applies its configuration."""
+    mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+    use_configuration_source(
+        monkeypatch, DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL="http://127.0.0.1:8130"
+    )
+
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=5.0)
+        try:
+            provider.initialize(EvaluationContext())
+
+            assert provider._configuration_source is not None
+            assert provider._configuration_source._api_key is None
+            assert provider.resolve_boolean_details("my-flag", False).value is True
+        finally:
+            provider.shutdown()
+
+
+def test_remote_config_source_does_not_require_api_key(monkeypatch):
+    """Agent delivery needs no API key, so initialize() waits for configuration as before."""
+    use_configuration_source(monkeypatch, DD_FEATURE_FLAGS_CONFIGURATION_SOURCE="remote_config")
+
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=0.2)
+        try:
+            with pytest.raises(ProviderNotReadyError, match="before the initialization timeout"):
+                provider.initialize(EvaluationContext())
+
+            assert provider._configuration_source is None
+            assert provider._configuration_source_error is None
+        finally:
+            provider.shutdown()

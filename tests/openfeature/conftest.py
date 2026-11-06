@@ -7,6 +7,13 @@ from typing import Any
 import pytest
 
 
+def use_configuration_source(monkeypatch: pytest.MonkeyPatch, **env: str) -> None:
+    """Point DataDogProvider at a configuration where the given env vars are provided."""
+    from ddtrace.internal.settings.openfeature import OpenFeatureConfig
+
+    monkeypatch.setattr("ddtrace.internal.openfeature._provider.ffe_config", OpenFeatureConfig(source=env))
+
+
 def set_openfeature_provider(*args: Any, **kwargs: Any) -> None:
     """Register a provider and wait until initialize() finishes when the SDK allows it.
 

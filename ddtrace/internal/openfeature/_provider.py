@@ -175,6 +175,8 @@ class DataDogProvider(AbstractProvider):
         # Agentless configuration-source poller; started in initialize() when
         # agentless is the resolved source and stopped in shutdown().
         self._configuration_source: typing.Optional[AgentlessConfigurationSource] = None
+        # Why the selected source could not start; initialize() then fails without waiting.
+        self._configuration_source_error: typing.Optional[str] = None
 
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
@@ -269,12 +271,15 @@ class DataDogProvider(AbstractProvider):
         ErrorCode.PROVIDER_NOT_READY.
 
         If config already arrived before initialize() runs (e.g. in the master process of
-        a pre-fork server), the fast path sets READY without waiting.
+        a pre-fork server), the fast path sets READY without waiting. If the selected
+        source cannot start (e.g. agentless without DD_API_KEY), no configuration can
+        arrive, so it raises ProviderNotReadyError at once instead of waiting.
 
         Provider lifecycle:
             NOT_READY -> initialize() waits -> config arrives -> READY
             NOT_READY -> initialize() waits -> timeout -> ERROR
                       -> config arrives -> on_configuration_received() -> READY
+            NOT_READY -> initialize() -> source cannot start -> ERROR
         """
         if not self._active:
             return
@@ -314,6 +319,12 @@ class DataDogProvider(AbstractProvider):
             self._status = ProviderStatus.READY
             logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")
             return  # SDK will dispatch PROVIDER_READY
+
+        if self._configuration_source_error is not None:
+            # No configuration can arrive, so fail now instead of waiting for the timeout.
+            # The flag keeps the recovery READY event if configuration still arrives.
+            self._initialization_timed_out = True
+            raise ProviderNotReadyError(self._configuration_source_error)
 
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
@@ -411,7 +422,13 @@ class DataDogProvider(AbstractProvider):
 
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
-        source = create_agentless_source(ffe_config, _apply_agentless_configuration)
+        self._configuration_source_error = None
+        try:
+            source = create_agentless_source(ffe_config, _apply_agentless_configuration)
+        except ValueError as e:
+            self._configuration_source_error = str(e)
+            logger.error("Feature Flags: agentless configuration source cannot start: %s", e)
+            return
         if source is None:
             return
 
