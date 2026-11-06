@@ -7,6 +7,7 @@ from ddtrace import config as trace_config
 from ddtrace._trace.subscribers.http_client import HttpClientTracingSubscriber
 from ddtrace.appsec import _listeners
 from ddtrace.appsec._contrib.dbapi.subscribers import AppSecDbApiSubscriber
+from ddtrace.appsec._contrib.filesystem.subscribers import AppSecFileOpenSubscriber
 from ddtrace.appsec._contrib.httpx import subscribers as httpx_subscribers
 from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxRequestContextSubscriber
 from ddtrace.appsec._contrib.httpx.subscribers import AppSecHttpxSingleRequestContextSubscriber
@@ -23,6 +24,7 @@ from ddtrace.internal.span_bus import span_from_context
 
 EXPLOIT_PREVENTION_SUBSCRIBERS = (
     AppSecDbApiSubscriber,
+    AppSecFileOpenSubscriber,
     AppSecHttpxRequestContextSubscriber,
     AppSecHttpxSingleRequestContextSubscriber,
     AppSecSubprocessCommandSubscriber,

@@ -116,33 +116,34 @@ def test_subscriber_blocks_before_open(tmp_path, method) -> None:
 
 
 def test_registration_restores_after_disable_and_listener_reset(tmp_path) -> None:
-    from ddtrace.internal.appsec.product_subscribers import register as _register_exploit_prevention_listeners
-    from ddtrace.internal.appsec.product_subscribers import unregister as _unregister_exploit_prevention_listeners
+    from ddtrace.internal.appsec import product_subscribers
 
     filesystem.patch()
     try:
         with (
+            mock.patch.object(asm_config, "_asm_enabled", True),
+            mock.patch.object(asm_config, "_ep_enabled", True),
             mock.patch.object(filesystem_subscribers, "get_rasp_capability", return_value=True),
             mock.patch.object(filesystem_subscribers, "call_waf_callback", return_value=None) as waf,
         ):
-            _register_exploit_prevention_listeners()
-            _register_exploit_prevention_listeners()
+            product_subscribers.register()
+            product_subscribers.register()
             with open(tmp_path / "once", "w"):
                 pass
             assert waf.call_count == 1
-            _unregister_exploit_prevention_listeners()
+            product_subscribers.unregister()
             assert not core.has_listeners(FileOpenEvent.event_name)
             with open(tmp_path / "disabled", "w"):
                 pass
             assert waf.call_count == 1
-            _register_exploit_prevention_listeners()
+            product_subscribers.register()
             core.reset_listeners(FileOpenEvent.event_name)
-            _register_exploit_prevention_listeners()
+            product_subscribers.register()
             with open(tmp_path / "again", "w"):
                 pass
             assert waf.call_count == 2
     finally:
-        _unregister_exploit_prevention_listeners()
+        product_subscribers.unregister()
         filesystem.unpatch()
 
 
