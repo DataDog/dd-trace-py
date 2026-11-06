@@ -76,6 +76,7 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.integration_hooks']
 anthropic = "ddtrace.llmobs._contrib.anthropic"
+google_genai = "ddtrace.llmobs._contrib.google_genai"
 llama_index = "ddtrace.llmobs._contrib.llama_index"
 mistralai = "ddtrace.llmobs._contrib.mistralai"
 mlflow = "ddtrace.llmobs._contrib.mlflow"
