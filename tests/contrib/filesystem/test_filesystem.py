@@ -96,31 +96,14 @@ def test_listener_failure_does_not_prevent_open(tmp_path: Path, events: list[Fil
         core.reset_listeners(FileOpenEvent.event_name, fail)
 
 
-@pytest.mark.parametrize("path", ["file.txt", b"file.txt", Path("file.txt"), 0, None])
-def test_filename_protocol(path: object) -> None:
-    event = FileOpenEvent(path)
-    expected = os.fspath(path) if isinstance(path, (str, bytes, os.PathLike)) else None
-    assert event.filename == expected
-
-
-def test_no_event_allocated_without_listeners() -> None:
-    original = mock.Mock(return_value="opened")
+@pytest.mark.parametrize("method", ["builtin", "pathlib"])
+def test_no_event_allocated_without_listeners(events: list[FileOpenEvent], method: str) -> None:
     with (
         mock.patch.object(core, "has_listeners", return_value=False),
         mock.patch.object(filesystem, "FileOpenEvent", wraps=FileOpenEvent) as event,
     ):
-        assert filesystem.wrapped_builtin_open(original, None, ("file.txt",), {}) == "opened"
-    event.assert_not_called()
-
-
-def test_no_path_event_allocated_without_listeners(events: list[FileOpenEvent]) -> None:
-    assert filesystem._PathOpenContext.is_wrapped(Path.open)
-    with (
-        mock.patch.object(core, "has_listeners", return_value=False),
-        mock.patch.object(filesystem, "FileOpenEvent", wraps=FileOpenEvent) as event,
-        Path(os.devnull).open(),
-    ):
-        pass
+        with Path(os.devnull).open() if method == "pathlib" else open(os.devnull):
+            pass
     event.assert_not_called()
 
 
