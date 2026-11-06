@@ -7,7 +7,9 @@ from unittest import mock
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
+from openfeature.flag_evaluation import FlagEvaluationOptions
 from openfeature.flag_evaluation import Reason
+from openfeature.hook import Hook
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -279,8 +281,8 @@ def test_root_type_mismatch_never_evaluates_prerequisites(evaluated):
     assert not exposures.called
 
 
-@pytest.mark.parametrize("operator", ["ONE_OF", "NOT_ONE_OF"])
-def test_empty_prerequisite_variant_list_rejects_only_its_flag(evaluated, operator):
+@pytest.mark.parametrize("operator,matched", [("ONE_OF", False), ("NOT_ONE_OF", True)])
+def test_empty_prerequisite_variant_list_still_evaluates_the_prerequisite(evaluated, operator, matched):
     _, client, evaluations, exposures, _ = evaluated
     condition = prerequisite(operator=operator)
     condition["value"] = []
@@ -288,10 +290,10 @@ def test_empty_prerequisite_variant_list_rejects_only_its_flag(evaluated, operat
 
     details = client.get_boolean_details("root", True, EvaluationContext(targeting_key="subject"))
 
-    assert details.value is True
-    assert details.error_code == ErrorCode.PARSE_ERROR
-    assert event_keys(evaluations) == ["root"]
-    assert not exposures.called
+    assert details.value is matched
+    assert details.error_code is None
+    assert event_keys(evaluations) == ["parent", "root"]
+    assert exposure_keys(exposures) == (["parent", "root"] if matched else ["root"])
     assert client.get_boolean_value("parent", False) is True
 
 
@@ -302,3 +304,126 @@ def test_prerequisite_metric_failure_does_not_change_assignment_or_exposures(eva
 
     assert client.get_boolean_value("root", False, EvaluationContext(targeting_key="subject")) is True
     assert exposure_keys(exposures) == ["parent", "root"]
+
+
+class RejectAfter(Hook):
+    def after(self, hook_context, details, hints):
+        raise RuntimeError("application rejected the evaluation")
+
+
+def test_later_hook_failure_discards_graph_exposures_and_cache_admission(evaluated):
+    provider, client, evaluations, exposures, _ = evaluated
+    assert process_ffe_configuration(create_config(create_boolean_flag("parent"), dependent_flag()))
+    context = EvaluationContext(targeting_key="subject")
+
+    failed = client.get_boolean_details("root", False, context, FlagEvaluationOptions(hooks=[RejectAfter()]))
+
+    assert failed.reason == Reason.ERROR
+    assert failed.value is False
+    assert failed.error_code == ErrorCode.GENERAL
+    assert event_keys(evaluations) == ["parent", "root"]
+    assert not exposures.called
+    assert not provider._exposure_cache
+
+    assert client.get_boolean_value("root", False, context) is True
+    assert exposure_keys(exposures) == ["parent", "root"]
+    assert client.get_boolean_value("root", False, context) is True
+    assert exposure_keys(exposures) == ["parent", "root"]
+
+
+def test_reentrant_evaluation_commits_independently_of_failed_outer_hook(evaluated):
+    provider, client, evaluations, exposures, _ = evaluated
+    assert process_ffe_configuration(
+        create_config(create_boolean_flag("parent"), dependent_flag(), dependent_flag("inner"))
+    )
+    context = EvaluationContext(targeting_key="subject")
+
+    class EvaluateThenReject(Hook):
+        def after(self, hook_context, details, hints):
+            assert client.get_boolean_value("inner", False, context) is True
+            raise RuntimeError("reject outer evaluation")
+
+    result = client.get_boolean_details("root", False, context, FlagEvaluationOptions(hooks=[EvaluateThenReject()]))
+    assert result.reason == Reason.ERROR
+    assert exposure_keys(exposures) == ["parent", "inner"]
+    assert provider._exposure_cache.get(("root", "subject"), None) is None
+    assert client.get_boolean_value("root", False, context) is True
+    assert exposure_keys(exposures) == ["parent", "inner", "root"]
+
+
+def test_before_hook_failure_does_not_discard_a_reentrant_outer_batch(evaluated):
+    _, client, _, exposures, _ = evaluated
+    assert process_ffe_configuration(create_config(create_boolean_flag("parent"), dependent_flag()))
+    context = EvaluationContext(targeting_key="subject")
+
+    class RejectBefore(Hook):
+        def before(self, hook_context, hints):
+            raise RuntimeError("before hook rejected the evaluation")
+
+    class EvaluateRejectedCall(Hook):
+        def after(self, hook_context, details, hints):
+            result = client.get_boolean_details("root", False, context, FlagEvaluationOptions(hooks=[RejectBefore()]))
+            assert result.reason == Reason.ERROR
+
+    result = client.get_boolean_details("root", False, context, FlagEvaluationOptions(hooks=[EvaluateRejectedCall()]))
+    assert result.value is True
+    assert exposure_keys(exposures) == ["parent", "root"]
+
+
+def test_depth_rejected_prerequisite_has_its_own_error_event(evaluated):
+    _, client, evaluations, exposures, _ = evaluated
+    config = create_config(
+        create_boolean_flag("leaf"), dependent_flag("parent", [[prerequisite("leaf")]]), dependent_flag()
+    )
+    config["evaluatorParams"] = {"maxDependencyDepth": 1}
+    assert process_ffe_configuration(config)
+
+    result = client.get_boolean_details("root", True, EvaluationContext(targeting_key="subject"))
+
+    assert result.reason == Reason.ERROR
+    assert result.value is True
+    assert event_keys(evaluations) == ["leaf", "parent", "root"]
+    assert all(call.args[0].error_code for call in evaluations.call_args_list)
+    assert not exposures.called
+
+
+@pytest.mark.parametrize("do_log", [True, False])
+def test_selected_prerequisite_fallback_uses_the_ordinary_exposure_gate(evaluated, do_log):
+    _, client, evaluations, exposures, _ = evaluated
+    parent = create_boolean_flag("parent", default_value=False)
+    parent["allocations"][0]["doLog"] = do_log
+    assert process_ffe_configuration(create_config(parent, dependent_flag(rules=[[prerequisite(variants=["false"])]])))
+
+    assert client.get_boolean_value("root", False, EvaluationContext(targeting_key="subject")) is True
+    assert event_keys(evaluations) == ["parent", "root"]
+    assert exposure_keys(exposures) == (["parent", "root"] if do_log else ["root"])
+
+
+def test_overlapping_evaluations_commit_only_the_successful_graph(evaluated):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    _, client, evaluations, exposures, _ = evaluated
+    assert process_ffe_configuration(
+        create_config(create_boolean_flag("parent"), dependent_flag("success"), dependent_flag("failure"))
+    )
+    barrier = Barrier(2)
+
+    class HoldThenReject(Hook):
+        def after(self, hook_context, details, hints):
+            barrier.wait(timeout=5)
+            if hook_context.flag_key == "failure":
+                raise RuntimeError("reject one overlapping evaluation")
+
+    def evaluate(key):
+        return client.get_boolean_details(
+            key, False, EvaluationContext(targeting_key="subject"), FlagEvaluationOptions(hooks=[HoldThenReject()])
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        successful = executor.submit(evaluate, "success")
+        failed = executor.submit(evaluate, "failure")
+        assert successful.result(timeout=10).value is True
+        assert failed.result(timeout=10).reason == Reason.ERROR
+    assert sorted(exposure_keys(exposures)) == ["parent", "success"]
+    assert event_keys(evaluations).count("parent") == 2

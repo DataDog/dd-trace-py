@@ -94,3 +94,22 @@ system-tests parametric:
     when: always
     paths:
       - system-tests/logs*
+
+# The telemetry harness is still in system-tests #8051. Force this feature suite
+# for implementation wheels until the shared harness and release activation land.
+system-tests dependent flags:
+  extends: .system-tests-base
+  variables:
+    SYSTEM_TESTS_REF: "d3cec0314166889cf31555252c94d94b9140c4d8"
+  script:
+    - datadog-ci tag --level job --tags "ci.framework.name:system-tests"
+    - cd ${CI_PROJECT_DIR}/system-tests
+    - source venv/bin/activate
+    - >-
+      ./run.sh PARAMETRIC
+      -F tests/parametric/test_ffe/test_dynamic_evaluation.py::Test_Feature_Flag_Dynamic_Evaluation::test_ffe_dependent_flags
+      tests/parametric/test_ffe/test_dynamic_evaluation.py::Test_Feature_Flag_Dynamic_Evaluation::test_ffe_dependent_flags
+  artifacts:
+    when: always
+    paths:
+      - system-tests/logs*

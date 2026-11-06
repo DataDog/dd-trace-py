@@ -7,6 +7,7 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
+import copy
 import time
 import typing
 
@@ -36,6 +37,7 @@ from ddtrace.internal.openfeature._debug_logging_hook import log_provider_resolu
 from ddtrace.internal.openfeature._debug_logging_hook import warn_raw_evaluation_data_logged
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
+from ddtrace.internal.openfeature._exposure_hook import ExposureHook
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
@@ -51,6 +53,7 @@ from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
 from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
+from ddtrace.internal.openfeature.writer import ExposureEvent
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -58,6 +61,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import Event
+from ddtrace.internal.threads import RLock
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -155,6 +159,8 @@ class DataDogProvider(AbstractProvider):
         self._exposure_cache: LRUCache[
             tuple[str, str], tuple[typing.Optional[str], typing.Optional[str], typing.Optional[int]]
         ] = LRUCache(maxsize=65536)
+        self._exposure_lock = RLock()
+        self._exposure_hook = ExposureHook(self._publish_exposure)
 
         # Master gate: the resolved configuration source (stable kill switch +
         # source selection, with legacy grandfathering). Mirrors dd-trace-js,
@@ -247,6 +253,8 @@ class DataDogProvider(AbstractProvider):
            accumulates feature-flag metadata onto the local-root APM span.
         4. DebugLoggingHook (_debug_logging_hook.py) — registered only when debug logging is
            enabled (DD_TRACE_DEBUG=true); logs the details of every evaluation.
+        5. ExposureHook — commits staged exposures and deduplication only after
+           the final result is successful.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
@@ -257,6 +265,8 @@ class DataDogProvider(AbstractProvider):
             hooks.append(self._span_enrichment_hook)
         if self._debug_logging_hook is not None:
             hooks.append(self._debug_logging_hook)
+        if self._active:
+            hooks.append(self._exposure_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -484,7 +494,8 @@ class DataDogProvider(AbstractProvider):
         variation_type: VariationType = VariationType.Boolean,
     ) -> FlagResolutionDetails[ResolvedValue]:
         snapshot = _get_ffe_snapshot()
-        details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot)
+        with self._exposure_hook.resolution(flag_key):
+            details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot)
         if self._debug_logging_hook is not None:
             log_provider_resolution(
                 flag_key,
@@ -744,22 +755,25 @@ class DataDogProvider(AbstractProvider):
             if not exposure_event:
                 return
 
-            # Check cache to prevent duplicate exposure events
-            key = (flag_key, exposure_event["subject"]["id"])
-            value = (allocation_key, variant_key, serial_id)
-
-            cached_value = self._exposure_cache.get(key, None)
-            if cached_value and cached_value == value:
-                logger.debug("Skipping duplicate exposure event for %s->%s", key, value)
-                return
-
-            writer = get_exposure_writer()
-            writer.enqueue(exposure_event)
-
-            # Add to cache only after successful enqueue
-            self._exposure_cache[key] = value
+            # Application hooks can mutate their context. Retain the subject
+            # used for this assignment until successful finalization.
+            self._exposure_hook.stage(copy.deepcopy(exposure_event))
         except Exception as e:
             logger.debug("Failed to report exposure event: %s", e, exc_info=True)
+
+    def _publish_exposure(self, event: ExposureEvent) -> None:
+        try:
+            key = (event["flag"]["key"], event["subject"]["id"])
+            value = (event["allocation"]["key"], event["variant"]["key"], event.get("serial_id"))
+            # Cache admission and enqueue are one operation, after all after
+            # hooks succeed. Failed calls cannot suppress a successful retry.
+            with self._exposure_lock:
+                if self._exposure_cache.get(key, None) == value:
+                    return
+                get_exposure_writer().enqueue(event)
+                self._exposure_cache[key] = value
+        except Exception:
+            logger.debug("Failed to report exposure event", exc_info=True)
 
     def _map_reason_to_openfeature(self, native_reason) -> Reason:
         """Map native ffe.Reason to OpenFeature Reason."""
@@ -849,7 +863,8 @@ class DataDogProvider(AbstractProvider):
 
         This method is useful for testing to ensure fresh exposure events are sent.
         """
-        self._exposure_cache.clear()
+        with self._exposure_lock:
+            self._exposure_cache.clear()
         logger.debug("Exposure cache cleared")
 
 

@@ -238,7 +238,9 @@ def test_api_key_header_present_and_absent(harness):
         (("dependent-flag-variant-key-v1",), "v1"),
     ],
 )
-def test_evaluator_capability_parameter_on_initial_and_conditional_requests(harness, monkeypatch, capabilities, expected):
+def test_evaluator_capability_parameter_on_initial_and_conditional_requests(
+    harness, monkeypatch, capabilities, expected
+):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
     endpoint = ENDPOINT + "&token=preserved"
     src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)], endpoint=endpoint)
