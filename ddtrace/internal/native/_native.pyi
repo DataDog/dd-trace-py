@@ -1007,6 +1007,49 @@ class SerializationError(Exception):
 
     ...
 
+class ai_usage:
+    """LLM usage and cost metrics, read and projected by libdd-ai-usage. See ddtrace.internal.ai_usage."""
+
+    class UsageMetrics:
+        """The metric points of one export window. Safe to share between threads."""
+
+        def __init__(
+            self, metrics: Optional[list[str]] = None, deployment_attributes: Optional[dict[str, str]] = None
+        ) -> None: ...
+        def add(
+            self,
+            profile_ids: list[str],
+            observation: dict[str, Any],
+            deployment_attributes: Optional[dict[str, str]] = None,
+        ) -> list[list[str]]: ...
+        def is_empty(self) -> bool: ...
+        def take_otlp(
+            self,
+            scope_name: str,
+            scope_version: str,
+            start_time_unix_nano: int,
+            time_unix_nano: int,
+            max_bytes: int,
+            datadog: bool = False,
+        ) -> list[bytes]: ...
+        def take_dogstatsd(self, max_payload: int) -> tuple[bytes, int]: ...
+
+    # parse and parse_stream return {"response": {...}, "outcome": str, "error_name": str | None} as JSON.
+    @staticmethod
+    def parse(usage_format: str, payload: Any, embeddings: bool = False) -> str: ...
+    @staticmethod
+    def parse_stream(usage_format: str, chunks: Any, embeddings: bool = False) -> str: ...
+    @staticmethod
+    def provider_name(name: str) -> Optional[str]: ...
+    @staticmethod
+    def error_type(name: Optional[str] = None, status: Optional[int] = None, failed: bool = False) -> Optional[str]: ...
+    @staticmethod
+    def is_service_tier(value: str) -> bool: ...
+    @staticmethod
+    def provider_ids(provider_name: str, header: Any, models: list[str]) -> dict[str, str]: ...
+    @staticmethod
+    def pack_dogstatsd(lines: list[str], max_payload: int) -> tuple[list[str], int]: ...
+
 class ffe:
     """
     Native Feature Flags and Experimentation module.
