@@ -1792,8 +1792,6 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mariadb~=1.1.2']
   mlflow:
-    # TODO(py-315): mlflow pulls pyarrow, which has no cp315 wheels and whose
-    # sdist build fails on 3.15. Re-add 3.15 once pyarrow supports it.
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -1810,7 +1808,7 @@ suites:
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82', 'sqlalchemy<2.1']
         - name: mlflow
           # PR #20079: Python 3.14 is covered by the latest dependency row only.
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     venvs_per_job: 7
@@ -2530,7 +2528,7 @@ suites:
           dependencies: [gevent, pytest-randomly]
           command: pytest {cmdargs} tests/contrib/futures
         - name: sqlite3
-          python: ['3.9', '3.10', '3.11', '3.12']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.14']
           integration: sqlite3
           dependencies: [pytest-randomly, pysqlite3-binary]
           command: pytest {cmdargs} tests/contrib/sqlite3
