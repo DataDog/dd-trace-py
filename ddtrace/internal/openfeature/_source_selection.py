@@ -25,6 +25,19 @@ from ddtrace.internal.settings.openfeature import resolve_configuration_source a
 
 log = get_logger(__name__)
 
+MISSING_API_KEY_MESSAGE = (
+    "DD_API_KEY is required for the default Datadog Feature Flagging endpoint; "
+    "set DD_API_KEY, set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL, "
+    "or set DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=remote_config to load flags through the Datadog Agent"
+)
+
+
+class MissingApiKeyError(ValueError):
+    """The default Datadog endpoint needs DD_API_KEY."""
+
+    def __init__(self) -> None:
+        super().__init__(MISSING_API_KEY_MESSAGE)
+
 
 def create_agentless_source(
     ffe_config: OpenFeatureConfig, apply_configuration: Callable[["dict[str, Any]"], None]
@@ -34,6 +47,9 @@ def create_agentless_source(
     The default Datadog endpoint requires ``DD_API_KEY`` and sends it. A custom
     endpoint is operator-owned trust: it starts without an API key and omits the
     header, letting the endpoint report any authentication failure itself.
+
+    Raises ValueError when agentless is the resolved source but cannot start, so
+    the provider can fail initialization. The message never includes the key or URL.
     """
     source = resolve_configuration_source(ffe_config)
     if source == DISABLED:
@@ -48,15 +64,10 @@ def create_agentless_source(
     has_custom_endpoint = bool(base_url and base_url.strip())
     api_key = dd_config._dd_api_key
 
-    if not has_custom_endpoint and not api_key:
-        log.error("DD_API_KEY is required for the default Datadog Feature Flagging endpoint")
-        return None
+    if not has_custom_endpoint and not (api_key and api_key.strip()):
+        raise MissingApiKeyError()
 
-    try:
-        endpoint = build_agentless_endpoint(dd_config._dd_site, dd_config.env, base_url)
-    except ValueError as e:
-        log.error("Unable to configure Feature Flagging configuration source: %s", e)
-        return None
+    endpoint = build_agentless_endpoint(dd_config._dd_site, dd_config.env, base_url)
 
     log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
     return AgentlessConfigurationSource(

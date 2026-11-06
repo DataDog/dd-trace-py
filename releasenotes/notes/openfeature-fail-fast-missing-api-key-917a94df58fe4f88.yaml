@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    openfeature: Fixes an issue where provider initialization waits for the full initialization timeout
+    when the agentless configuration source cannot start, for example when ``DD_API_KEY`` is not set
+    for the default Datadog endpoint. Initialization now fails immediately with an error that names the
+    cause, and flag evaluations return their default values.
