@@ -623,10 +623,20 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             beat_service = celery.beat.EmbeddedService(self.app, thread=True)
             beat_service.start()
-            sleep(run_time_seconds + 0.3)
-            beat_service.stop()
 
-            actual_run_count = beat_service.service.get_scheduler().schedule["mytestschedule"].total_run_count
+            scheduler = beat_service.service.get_scheduler()
+            deadline = time.monotonic() + 10
+            try:
+                while (
+                    scheduler.schedule["mytestschedule"].total_run_count < target_task_run_count
+                    and time.monotonic() < deadline
+                ):
+                    sleep(0.05)
+            finally:
+                beat_service.stop()
+
+            actual_run_count = scheduler.schedule["mytestschedule"].total_run_count
+            assert actual_run_count >= target_task_run_count
             traces = self.pop_traces()
             assert len(traces) >= actual_run_count
             assert traces[0][0].name == "celery.beat.tick"
