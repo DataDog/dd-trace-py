@@ -1887,6 +1887,23 @@ def test_native_writer_stop_skips_join_only_for_discarded_microvm_writer(monkeyp
         writer.shutdown_exporter()
 
 
+def test_native_writer_microvm_refresh_during_final_flush_drops_exporter(monkeypatch):
+    """A refresh that lands during on_shutdown()'s final flush must turn the stats-flushing shutdown into a drop."""
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+    writer = NativeWriter("http://dne:1234")
+    real_exporter = writer._exporter
+    exporter = writer._exporter = mock.Mock()
+    try:
+        # The refresh discards the writer while on_shutdown() is inside its final flush.
+        with mock.patch.object(writer, "periodic", side_effect=writer.drop_buffered_traces):
+            writer.on_shutdown()
+
+        exporter.shutdown.assert_not_called()
+        exporter.drop.assert_called_once_with()
+    finally:
+        real_exporter.drop()
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
