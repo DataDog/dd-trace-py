@@ -138,6 +138,14 @@ def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] 
     tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
 
     user_specified_git_info = git.extract_user_git_metadata(environ)
+    explicit_sha = user_specified_git_info.get(git.COMMIT_SHA)
+    if explicit_sha and explicit_sha.lower() != (tags.get(git.COMMIT_SHA) or "").lower():
+        tags = {
+            key: value
+            for key, value in tags.items()
+            if key != git.TAG
+            and not (key.startswith("git.commit.") and key != git.COMMIT_SHA and not key.startswith("git.commit.head."))
+        }
 
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
