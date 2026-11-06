@@ -810,6 +810,9 @@ class PatchTestCase:
             versions = self._supported_versions()
 
             module_name = self.__module_name__
+            if module_name not in versions and self.__integration_name__ in versions:
+                # _get_integration_supported_versions falls back to the integration name too.
+                module_name = self.__integration_name__
             if module_name not in versions:
                 # some integration modules are not named the same as the module they are patching
                 from ddtrace._monkey import _MODULES_FOR_CONTRIB

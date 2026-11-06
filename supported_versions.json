@@ -2990,17 +2990,7 @@
                 "testedRuntimes": {
                     "python": [
                         "3.13",
-                        "3.14"
-                    ]
-                },
-                "supportedRange": "*",
-                "tested": [
-                    "2.2.6"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.14",
                         "3.15"
                     ]
                 },
