@@ -262,7 +262,7 @@ class ProfilingRCCallback(RCCallback):
         changed = False
         for raw_payload in payloads:
             config_id = raw_payload.metadata.id
-            content = raw_payload.content
+            content: t.Any = raw_payload.content
 
             # A removed configuration has no content. An updated configuration can also become invalid.
             if debug_configs.pop(config_id, None) is not None:
