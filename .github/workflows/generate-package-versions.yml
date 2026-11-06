@@ -9,12 +9,17 @@ on:
         default: false
   schedule:
     - cron: "0 0 * * *" # daily at midnight: lock every outdated package into the batch PR
-    - cron: "0 9 * * *" # daily at 09:00: drop failed packages from the batch PR
+  status: # the batch PR's GitLab pipeline finished: drop failed packages from it
 
 jobs:
   update-test-locks:
     name: Update test locks
-    if: github.event_name != 'schedule' || github.event.repository.fork == false
+    if: >-
+      (github.event_name != 'schedule' || github.event.repository.fork == false) &&
+      (github.event_name != 'status' || (
+        github.event.context == 'dd-gitlab/default-pipeline' &&
+        github.event.state != 'pending' &&
+        contains(github.event.branches.*.name, 'upgrade-latest-all-versions')))
     runs-on: ubuntu-22.04
     outputs:
       changed: ${{ steps.patch.outputs.changed }}
@@ -93,7 +98,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           BATCH_BRANCH: upgrade-latest-all-versions
-          DROP_FAILED: ${{ inputs.drop_failed || github.event.schedule == '0 9 * * *' }}
+          DROP_FAILED: ${{ inputs.drop_failed || github.event_name == 'status' }}
         run: |
           if [[ "$DROP_FAILED" == "true" ]]; then
             # Restore the batch PR's files, then revert the locks of packages whose CI suites failed.
@@ -192,7 +197,7 @@ jobs:
               1) Locks that use a package's `latest` get that package and its dependencies updated.
               2) Locks that pin a package but use the latest version of another package get those dependencies updated.
 
-            Packages whose CI suites fail are removed from this PR by the scheduled drop run and get their own
+            Packages whose CI suites fail are removed from this PR when its pipeline finishes and get their own
             `upgrade-latest-<package>-version` PR.
 
   split-dropped-packages:
