@@ -132,52 +132,6 @@ def _retry_after(value: Optional[str]) -> Optional[float]:
     return max((when - datetime.datetime.now(datetime.timezone.utc)).total_seconds(), 0.0)
 
 
-def _varint(data: bytes, position: int) -> tuple[int, int]:
-    value = shift = 0
-    while True:
-        byte = data[position]
-        position += 1
-        value |= (byte & 0x7F) << shift
-        if not byte & 0x80:
-            return value, position
-        shift += 7
-
-
-def _fields(data: bytes) -> Any:
-    """The (field number, value) pairs of a protobuf message: an int for a varint, bytes for a length-delimited
-    field. Other wire types end the walk.
-    """
-    position = 0
-    while position < len(data):
-        key, position = _varint(data, position)
-        if key & 7 == 0:
-            value, position = _varint(data, position)
-            yield key >> 3, value
-        elif key & 7 == 2:
-            length, position = _varint(data, position)
-            yield key >> 3, data[position : position + length]
-            position += length
-        else:
-            return
-
-
-def _partial_success(body: bytes) -> Optional[tuple[int, str]]:
-    """The rejected point count and message of an ExportMetricsServiceResponse's partial_success, if it states one."""
-    try:
-        for number, value in _fields(body):
-            if number == 1 and isinstance(value, bytes):
-                rejected, message = 0, ""
-                for inner, inner_value in _fields(value):
-                    if inner == 1 and isinstance(inner_value, int):
-                        rejected = inner_value
-                    elif inner == 2 and isinstance(inner_value, bytes):
-                        message = inner_value.decode("utf-8", errors="replace")
-                return (rejected, message) if rejected or message else None
-    except (IndexError, TypeError, ValueError):
-        pass
-    return None
-
-
 _compression_warned = False
 
 
@@ -298,7 +252,7 @@ class _OtlpSender:
                 status = response.status_code
                 if 200 <= status < 300:
                     # A partial success is not retried: the endpoint has kept what it accepted.
-                    partial = _partial_success(response.body())
+                    partial = ai_usage.otlp_partial_success(response.body())
                     if partial is not None:
                         log.warning(
                             "AI usage metrics: the OTLP endpoint at %s rejected %d data points: %s",
@@ -403,11 +357,10 @@ class _DogStatsdSender:
         """Send the lines, stopping when deadline, a time.monotonic() value, passes: a full Unix socket can make each
         packet wait for its send timeout.
         """
-        self._deadline = deadline
-        self._send_lines(lines)
+        self.send_datagrams(*ai_usage.repack_dogstatsd("\n".join(lines), self._max_packet), deadline)
 
     def send_datagrams(self, datagrams: bytes, dropped: int, deadline: Optional[float] = None) -> None:
-        """Send NUL-separated datagrams as UsageMetrics.take_dogstatsd_datagrams packs them, with the count of lines
+        """Send NUL-separated datagrams as UsageMetrics.take_dogstatsd packs them, with the count of lines
         it dropped for being longer than a datagram, stopping when deadline passes.
         """
         self._deadline = deadline
@@ -428,13 +381,6 @@ class _DogStatsdSender:
     def _past_deadline(self) -> bool:
         now = time.monotonic()
         return any(d is not None and now >= d for d in (self._deadline, self._stop_deadline))
-
-    def _send_lines(self, lines: list[str]) -> None:
-        # The native packer drops a line longer than a datagram, which the Agent would refuse.
-        datagrams, dropped = ai_usage.pack_dogstatsd(lines, self._max_packet)
-        self._log_dropped(dropped)
-        for datagram in datagrams:
-            self._send_packet(datagram.encode("utf-8"))
 
     def _send_packet(self, data: bytes) -> None:
         lines = data.count(b"\n") + 1
@@ -458,7 +404,11 @@ class _DogStatsdSender:
                         # The socket takes smaller datagrams than assumed (macOS limits Unix datagrams to 2 KiB by
                         # default): send smaller packets from now on.
                         self._max_packet = max(self._max_packet // 2, 512)
-                        self._send_lines(data.decode("utf-8").split("\n"))
+                        # The native packer drops a line longer than a datagram, which the Agent would refuse.
+                        datagrams, dropped = ai_usage.repack_dogstatsd(data.decode("utf-8"), self._max_packet)
+                        self._log_dropped(dropped)
+                        for datagram in datagrams.split(b"\0"):
+                            self._send_packet(datagram)
                     else:
                         log.debug(
                             "AI usage metrics: dropping a %d-byte DogStatsD line, longer than the socket takes",
