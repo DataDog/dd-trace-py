@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from typing import Optional
 
@@ -86,7 +87,12 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
         )
 
         return result
-    except Exception:
+    except BaseException as exc:
+        # Trio is optional. A coroutine can be closed after its event loop stops,
+        # so asking AnyIO for the current backend can mask the original exception.
+        trio_cancelled = getattr(sys.modules.get("trio"), "Cancelled", ())
+        if not isinstance(exc, (Exception, asyncio.CancelledError, trio_cancelled)):
+            raise
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )
