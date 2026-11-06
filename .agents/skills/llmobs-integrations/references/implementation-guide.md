@@ -50,6 +50,7 @@ Key points:
 - The event/subscriber path owns span creation and finishing; patch wrappers should not call `tracer.trace()`, `integration.trace()`, or create spans directly for standard request spans
 - Use `with core.context_with_event(event, dispatch_end_event=False) as ctx:` when streaming or when the wrapper needs to dispatch the ended event manually
 - For non-streaming success, set `event.response = resp` and call `ctx.dispatch_ended_event()`
+- When the call can return a response wrapper whose model output sits behind `parse()` (Anthropic's `with_raw_response` and `with_streaming_response`), put the parsed object on `event.response` and on the after-hook, and return the original wrapper to the caller. A body that is still unread must be read before the ended event and closed if that read fails, because the caller's context manager never exits. See `_parse_wrapped_response()` in `ddtrace/contrib/internal/anthropic/patch.py`
 - For errors, call `ctx.dispatch_ended_event(*sys.exc_info())` and re-raise; do not call `span.set_exc_info()` or `span.finish()` directly in the patch wrapper
 - LLMObs tag setting is handled by product subscribers, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
