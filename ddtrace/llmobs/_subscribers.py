@@ -7,6 +7,7 @@ from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib._events.span_lifecycle import SpanLifecycleListener
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal import forksafe
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -18,16 +19,19 @@ _CONTEXT_KEY = "llmobs.integration"
 
 _integration_classes: dict[str, type[BaseLLMIntegration]] = {}
 _integrations: dict[str, BaseLLMIntegration] = {}
+_integration_lock = forksafe.RLock()
 
 
 def register(component: str, integration_cls: type[BaseLLMIntegration]) -> None:
-    _integration_classes[component] = integration_cls
+    with _integration_lock:
+        _integration_classes[component] = integration_cls
     LLM_SUBSCRIBERS.register()
 
 
 def unregister(component: str) -> None:
-    _integration_classes.pop(component, None)
-    _integrations.pop(component, None)
+    with _integration_lock:
+        _integration_classes.pop(component, None)
+        _integrations.pop(component, None)
     # Shared listeners remain registered for other components and in-flight requests.
 
 
@@ -37,8 +41,16 @@ def integration_for(component: str) -> Optional[BaseLLMIntegration]:
         return None
     integration = _integrations.get(component)
     if integration is None:
-        integration = integration_cls(integration_config=getattr(config, component))
-        _integrations[component] = integration
+        # Serialize creation with unpatch so an old request cannot repopulate a cleared cache.
+        # Cached lookups retain a local reference and do not need the lock.
+        with _integration_lock:
+            integration_cls = _integration_classes.get(component)
+            if integration_cls is None:
+                return None
+            integration = _integrations.get(component)
+            if integration is None:
+                integration = integration_cls(integration_config=getattr(config, component))
+                _integrations[component] = integration
     return integration
 
 

@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from threading import Event
 from unittest import mock
 
 import pytest
@@ -126,7 +129,8 @@ def test_compatibility_get_integration():
     assert get_integration is integration_for
 
 
-def test_integration_for_keeps_local_after_concurrent_unregister(monkeypatch):
+@pytest.mark.parametrize("cached", [True, False])
+def test_integration_for_unregister_during_cache_lookup(monkeypatch, cached):
     integration = mock.Mock()
 
     class UnregisterOnLookup(dict):
@@ -141,6 +145,50 @@ def test_integration_for_keeps_local_after_concurrent_unregister(monkeypatch):
             return result
 
     monkeypatch.setattr(_subscribers, "_integration_classes", {"anthropic": mock.Mock()})
-    monkeypatch.setattr(_subscribers, "_integrations", UnregisterOnLookup(anthropic=integration))
-    assert integration_for("anthropic") is integration
+    monkeypatch.setattr(
+        _subscribers, "_integrations", UnregisterOnLookup(anthropic=integration) if cached else UnregisterOnLookup()
+    )
+    assert integration_for("anthropic") is (integration if cached else None)
     assert integration_for("anthropic") is None
+    assert "anthropic" not in _subscribers._integrations
+
+
+def test_unregister_during_creation_does_not_leave_cached_integration(subscriber, monkeypatch):
+    monkeypatch.setattr(_subscribers, "_integration_classes", {})
+    monkeypatch.setattr(_subscribers, "_integrations", {})
+    constructing = Event()
+    release_constructor = Event()
+    unregistering = Event()
+
+    def construct(**kwargs):
+        constructing.set()
+        assert release_constructor.wait(timeout=5)
+        return mock.Mock()
+
+    def unregister():
+        unregistering.set()
+        _subscribers.unregister("anthropic")
+
+    factory = mock.Mock(side_effect=construct)
+    _subscribers.register("anthropic", factory)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        lookup = pool.submit(integration_for, "anthropic")
+        try:
+            assert constructing.wait(timeout=5)
+            removal = pool.submit(unregister)
+            assert unregistering.wait(timeout=5)
+            # Removal must wait for creation, then clear the newly created instance.
+            with pytest.raises(FutureTimeoutError):
+                removal.result(timeout=0.1)
+        finally:
+            release_constructor.set()
+        first = lookup.result(timeout=5)
+        removal.result(timeout=5)
+
+    assert "anthropic" not in _subscribers._integrations
+    assert integration_for("anthropic") is None
+    _subscribers.register("anthropic", factory)
+    replacement = integration_for("anthropic")
+    assert replacement is not first
+    assert integration_for("anthropic") is replacement
+    assert factory.call_count == 2
