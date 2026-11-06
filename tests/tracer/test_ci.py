@@ -690,7 +690,7 @@ def test_extract_git_head_metadata():
     assert tags[git.COMMIT_HEAD_MESSAGE] == "commit message"
 
 
-@pytest.mark.parametrize("source", ["git", "provider", "override", "partial"])
+@pytest.mark.parametrize("source", ["git", "provider", "override", "partial", "sha-only"])
 def test_git_metadata_precedence(monkeypatch, source):
     keys = [
         "git.commit.sha",
@@ -712,6 +712,8 @@ def test_git_metadata_precedence(monkeypatch, source):
     environment = {"GITHUB_SHA": "b" * 40}
     if source == "override":
         environment.update({"DD_" + key.upper().replace(".", "_"): "user-" + key for key in keys})
+    elif source == "sha-only":
+        environment["DD_GIT_COMMIT_SHA"] = "c" * 40
     if source == "provider":
         local = {}
     elif source == "partial":
@@ -727,6 +729,10 @@ def test_git_metadata_precedence(monkeypatch, source):
             assert tags[key] == "user-" + key
         elif source == "provider":
             assert tags[key] == provider[key]
+        elif source == "sha-only" and key == git.COMMIT_SHA:
+            assert tags[key] == "c" * 40
+        elif source == "sha-only" and (key == git.TAG or key.startswith("git.commit.")):
+            assert key not in tags
         elif key in local:
             assert tags[key] == local[key]
         else:
