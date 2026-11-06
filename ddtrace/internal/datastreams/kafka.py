@@ -6,6 +6,7 @@ from confluent_kafka import TopicPartition
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.datastreams.pipelines import get_pipelines_reporter
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
@@ -159,6 +160,52 @@ def dsm_kafka_message_consume(instance, message, span):
         )
 
 
+def pipelines_kafka_message_produce(
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    is_serializing: bool,
+    span: Any,
+) -> None:
+    """Record a kafka produce side for automatic DSM pipelines (DSM2-531).
+
+    The cluster is the kafka_cluster_id context item the patch resolves via
+    list_topics, or "" when unknown — never raw bootstrap servers, which vary
+    per client config; the backend matches clusterless sides on (queue_type,
+    topic).
+    """
+    reporter = get_pipelines_reporter()
+    if reporter is None:
+        return
+    try:
+        cluster_id = core.find_item("kafka_cluster_id")
+        reporter.on_produce("kafka", str(cluster_id) if cluster_id else "", core.find_item("kafka_topic") or "")
+    except Exception:  # noqa: BLE001 - T-13: never raise into the application
+        log.debug("pipelines: failed to record kafka produce side", exc_info=True)
+
+
+def pipelines_kafka_message_consume(instance: Any, message: Any, span: Any) -> None:
+    """Record a kafka consume side and make it the thread's current context (DSM2-531).
+
+    Fired per polled message, before the user processes it: the side stays the
+    thread's current consumed-message context until the next consume on that
+    thread replaces it (PipelinesReporter.set_current_consume). The cluster is
+    the kafka_cluster_id context item the patch resolved, or "" when unknown.
+    """
+    reporter = get_pipelines_reporter()
+    if reporter is None:
+        return
+    try:
+        if message.error() is not None:
+            # transport-error event, not a consumed message; mirrors the DSM handler
+            return
+        cluster_id = getattr(instance, "_dd_cluster_id", None) or core.find_item("kafka_cluster_id")
+        reporter.set_current_consume("kafka", str(cluster_id) if cluster_id else "", str(message.topic()),
+            getattr(instance, "_group_id", None) or "")
+    except Exception:  # noqa: BLE001 - T-13: never raise into the application
+        log.debug("pipelines: failed to record kafka consume side", exc_info=True)
+
+
 def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
@@ -193,3 +240,8 @@ if config._data_streams_enabled:
     core.on("kafka.produce.start", dsm_kafka_message_produce)
     core.on("kafka.consume.start", dsm_kafka_message_consume)
     core.on("kafka.commit.start", dsm_kafka_message_commit)
+
+# Automatic pipelines (DSM2-531): subscribed unconditionally, the handlers are
+# a cheap no-op (get_pipelines_reporter() is None) while the feature is off.
+core.on("kafka.produce.start", pipelines_kafka_message_produce)
+core.on("kafka.consume.start", pipelines_kafka_message_consume)

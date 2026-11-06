@@ -1,0 +1,2 @@
+# Client libraries for the pipelines-demo apps and setup scripts.
+confluent-kafka>=2.3,<3
