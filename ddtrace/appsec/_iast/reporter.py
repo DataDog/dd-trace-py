@@ -252,12 +252,7 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        if not is_iast_request_enabled():
-            log.debug(
-                "iast::propagation::context::build_and_scrub_value_parts. "
-                "No request quota or this vulnerability is outside the context"
-            )
-            return {}
+        # Admission belongs to the lifecycle. Serialization may run in another execution.
         for vuln in self.vulnerabilities:
             scrubbing_result = sensitive_handler.scrub_evidence(
                 vuln.type, vuln.evidence, vuln.evidence._ranges, self.sources

@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import Context
 from contextvars import copy_context
 import hashlib
 from threading import Event
@@ -9,22 +10,27 @@ from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import _get_iast_env
+from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._iast_request_context_base import get_hash_object_tracking_len
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast.reporter import IastSpanReporter
+from ddtrace.appsec._iast_context import _get_iast_context_id
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.security._constants import STACK_TRACE
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Span
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -261,3 +267,39 @@ def test_iast_reporting_failure_allows_retry(processor_iast_context, tracer, mon
             assert (load_iast_report(span) is not None) is reported
             assert _get_iast_env() is None
             assert debug_context_array_free_slots_number() == baseline
+
+
+@pytest.mark.parametrize("sampled", [False, True])
+@pytest.mark.parametrize("other_request", [False, True])
+def test_saved_request_completion_preserves_another_execution(processor_iast_context, sampled, other_request):
+    baseline = debug_context_array_free_slots_number()
+    first = Span("first")
+    with core.context_with_data("test.request") as first_ctx:
+        with override_global_config(dict(_iast_request_sampling=100 if sampled else 0)):
+            oce.reconfigure()
+            first_id = _iast_start_request(first)
+            hashlib.md5(b"evidence").hexdigest()
+
+    def another_execution():
+        second = Span("second")
+        with core.context_with_data("test.request") as second_ctx:
+            with override_global_config(dict(_iast_request_sampling=100)):
+                oce.reconfigure()
+                second_id = _iast_start_request(second) if other_request else None
+            second_environment = _get_iast_env()
+            _iast_end_request(first, context=first_ctx)
+            assert first.get_metric(IAST.ENABLED) == float(sampled)
+            report = load_iast_report(first)
+            assert bool(report and report.get("vulnerabilities")) is sampled
+            assert first_ctx.find_item(IAST.REQUEST_CONTEXT_KEY) is None
+            assert _get_iast_context_id() == second_id
+            assert _get_iast_env() is second_environment
+            assert debug_context_array_free_slots_number() == baseline - int(other_request)
+            _iast_end_request(second, context=second_ctx)
+        second.finish()
+
+    Context().run(another_execution)
+    assert debug_context_array_free_slots_number() == baseline
+    # The caller can retain the expired identifier; native generation checks reject it.
+    assert _get_iast_context_id() == first_id
+    first.finish()

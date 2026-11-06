@@ -5,6 +5,7 @@ from functools import partial
 import logging
 import os
 import random
+import sys
 from typing import Any
 from typing import Callable
 from typing import TypedDict
@@ -25,6 +26,7 @@ from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import tracer
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -1044,6 +1046,28 @@ async def _send_complete_http_response(
         await send({"type": "http.response.body", "body": body})
 
 
+@pytest.fixture
+def request_events():
+    events = []
+
+    def record(event_name, ctx):
+        span = span_from_context(ctx)
+        assert not span.finished
+        if event_name == "span.started.asgi.request":
+            assert core.current is ctx
+        events.append((event_name, ctx, span))
+
+    listeners = {
+        event_name: partial(record, event_name)
+        for event_name in ("span.started.asgi.request", "span.finishing.asgi.request")
+    }
+    for event_name, listener in listeners.items():
+        core.on(event_name, listener)
+    yield events
+    for event_name, listener in listeners.items():
+        core.reset_listeners(event_name, listener)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "outcome, exc_type",
@@ -1060,7 +1084,7 @@ async def _send_complete_http_response(
         ("handled_exception", None),
     ],
 )
-async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, outcome, exc_type):
+async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, request_events, outcome, exc_type):
     requests, finished, response_times, finished_errors = [], [], [], []
 
     def record_finish(span):
@@ -1106,6 +1130,12 @@ async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, outco
         assert send.call_args_list[0].args[0]["status"] == (403 if outcome.startswith("blocked") else 200)
 
     assert len(requests) == 3
+    assert [event_name for event_name, _, _ in request_events] == [
+        "span.started.asgi.request",
+        "span.finishing.asgi.request",
+    ]
+    assert request_events[0][1] is request_events[1][1]
+    assert request_events[0][2] is request_events[1][2] is requests[0]
     assert finished == requests[::-1]
     assert all(child._parent is parent for parent, child in zip(requests, requests[1:]))
     assert not scope["datadog"]["request_spans"]
@@ -1119,6 +1149,56 @@ async def test_nested_request_spans_finish_inside_out(tracer, monkeypatch, outco
         queued = requests if outcome in ("response", "blocked") else requests[:-1]
         for span, end_time in zip(queued, response_times):
             assert span.start_ns + span.duration_ns == int(end_time * 1e9)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("depth", [1, 3])
+@pytest.mark.parametrize("exc_type", [RuntimeError, asyncio.CancelledError])
+@pytest.mark.parametrize(
+    "grouped",
+    [
+        False,
+        pytest.param(True, marks=pytest.mark.skipif(sys.version_info < (3, 11), reason="requires exception groups")),
+    ],
+)
+async def test_blocked_response_send_error_recorded_before_finish(tracer, request_events, depth, exc_type, grouped):
+    requests, finished = [], []
+
+    def record_finish(span):
+        finished.append((span, span.error, span.get_tag(ERROR_TYPE), span.get_tag(ERROR_MSG)))
+
+    async def app(scope, receive, send):
+        requests.extend(scope["datadog"]["request_spans"])
+        for span in requests:
+            span._on_finish_callbacks.insert(0, record_finish)
+        blocked = BlockingException({"type": "auto", "status_code": 403})
+        if grouped:
+            raise BaseExceptionGroup("blocked request", [blocked])  # noqa: F821
+        raise blocked
+
+    async def send(message):
+        assert message["type"] == "http.response.start"
+        assert message["status"] == 403
+        raise exc_type("blocked response send failed")
+
+    middleware = app
+    for _ in range(depth):
+        middleware = TraceMiddleware(middleware)
+    scope = _http_scope()
+    with pytest.raises(exc_type, match="blocked response send failed"):
+        await middleware(scope, mock.AsyncMock(), send)
+
+    assert [span for span, _, _, _ in finished] == requests[::-1]
+    for _, error, error_type, error_message in finished:
+        assert error == 1
+        assert error_type.endswith(exc_type.__name__)
+        assert error_message == "blocked response send failed"
+    assert [event_name for event_name, _, _ in request_events] == [
+        "span.started.asgi.request",
+        "span.finishing.asgi.request",
+    ]
+    assert not scope["datadog"]["request_spans"]
+    assert not scope["datadog"].get("request_spans_to_finish")
 
 
 @pytest.mark.asyncio

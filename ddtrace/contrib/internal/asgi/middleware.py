@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from contextlib import ExitStack
 from functools import wraps
 import sys
 from typing import Any
@@ -9,6 +10,7 @@ from urllib import parse
 from ddtrace import config
 from ddtrace._trace.http_tags import set_status_code_tag
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
@@ -70,6 +72,8 @@ config._add(
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
 _DD_ROUTE_RESOURCE_RESOLVER = "route_resource_resolver"
+_SPAN_STARTED_EVENT = f"{SpanLifecycleEvents.SPAN_STARTED.value}.asgi.request"
+_SPAN_FINISHING_EVENT = f"{SpanLifecycleEvents.SPAN_FINISHING.value}.asgi.request"
 
 
 def get_version() -> str:
@@ -140,20 +144,33 @@ def _call_route_resource_resolver(scope: Mapping[str, Any], span: Span) -> None:
         log.debug("failed to resolve route pattern for span resource", exc_info=True)
 
 
-def _finish_request_span(scope: Mapping[str, Any], span: Span) -> None:
+def _complete_request_span(span: Span, finish_time: float, completing: Optional[Callable[[], None]]) -> None:
+    try:
+        if completing is not None:
+            completing()
+    finally:
+        span.finish(finish_time=finish_time)
+
+
+def _finish_request_span(
+    scope: Mapping[str, Any],
+    span: Span,
+    completing: Optional[Callable[[], None]] = None,
+) -> None:
     request_spans = scope.get("datadog", {}).get("request_spans")
     if not request_spans or len(request_spans) == 1:
-        span.finish()
+        _complete_request_span(span, Time.time(), completing)
         return
 
     # Outer send wrappers return first. Preserve their response completion time
-    # while waiting to finish them after the inner wrapper.
-    # If a child waits for scope exit, its queued parents wait there too.
+    # while waiting to finish them after the inner wrapper. Analysis completion
+    # waits too, so the child can still use the request's state.
     pending = scope["datadog"].setdefault("request_spans_to_finish", {})
-    pending.setdefault(span, Time.time())
+    if span not in pending:
+        pending[span] = (Time.time(), completing)
     for request_span in reversed(request_spans):
         if request_span in pending:
-            request_span.finish(finish_time=pending.pop(request_span))
+            _complete_request_span(request_span, *pending.pop(request_span))
         elif not request_span.finished:
             break
 
@@ -275,7 +292,17 @@ class TraceMiddleware:
                 is_subapp=is_subapp,
             ) as ctx,
             span_from_context(ctx) as span,
+            ExitStack() as cleanup,
         ):
+            completing: Optional[Callable[[], None]] = None
+            if scope["type"] == "http" and not is_subapp:
+                # Keep the existing ASGI lifecycle owner. Finishing can run from
+                # response sending in another task, so carry this request's context.
+                if core.has_listeners(_SPAN_FINISHING_EVENT):
+                    cleanup.callback(core.dispatch, _SPAN_FINISHING_EVENT, (ctx,))
+                    completing = cleanup.close
+                if core.has_listeners(_SPAN_STARTED_EVENT):
+                    core.dispatch(_SPAN_STARTED_EVENT, (ctx,))
             if self.span_modifier:
                 self.span_modifier(span, scope)
 
@@ -493,7 +520,7 @@ class TraceMiddleware:
                             _call_route_resource_resolver(scope, span)
                         # If the span has an error status code delay finishing the span until the
                         # traceback and exception message is available
-                        _finish_request_span(scope, span)
+                        _finish_request_span(scope, span, completing)
 
             async def wrapped_blocked_send(message: Mapping[str, Any]):
                 result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -515,12 +542,16 @@ class TraceMiddleware:
                     core.dispatch("asgi.finalize_response", (content, None))
                 try:
                     return await send(message)
+                except BaseException:
+                    # This send runs inside the blocking handler, outside the request's exception handlers.
+                    span.set_exc_info(*sys.exc_info())
+                    raise
                 finally:
                     trace_utils.set_http_meta(
                         span, self.integration_config, status_code=status, response_headers=dict(headers)
                     )
                     if message.get("type") == "http.response.body" and span.error == 0:
-                        _finish_request_span(scope, span)
+                        _finish_request_span(scope, span, completing)
 
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
@@ -557,7 +588,7 @@ class TraceMiddleware:
                 pending = scope.get("datadog", {}).get("request_spans_to_finish")
                 if pending and span in pending:
                     try:
-                        span.finish(finish_time=pending.pop(span))
+                        _complete_request_span(span, *pending.pop(span))
                     except Exception:
                         log.exception("error closing ASGI request span")
 

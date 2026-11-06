@@ -14,6 +14,8 @@ from ._iast_env import _get_iast_env
 from ._iast_request_context import _iast_end_request
 from ._iast_request_context_base import _iast_finish_request
 from ._iast_request_context_base import _iast_start_request
+from ._request_lifecycle import _SPAN_ROUTES
+from ._request_lifecycle import uses_request_events
 
 
 log = get_logger(__name__)
@@ -48,6 +50,9 @@ class AppSecIastSpanProcessor(SpanProcessor[SpanData]):
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
 
+        if uses_request_events(core.current, span):
+            _SPAN_ROUTES[span] = True
+            return
         _iast_start_request(span)
 
     def on_span_finish(self, span: SpanData) -> None:
@@ -60,6 +65,12 @@ class AppSecIastSpanProcessor(SpanProcessor[SpanData]):
         """
         if span.span_type != SpanTypes.WEB or is_inferred_span(span):
             return
+        pending = _SPAN_ROUTES.get(span)
+        if pending is False:
+            return
+        # Forced finishes and interrupted notifications still need completion.
+        if pending:
+            _SPAN_ROUTES[span] = False
         _iast_end_request(span)
 
     def on_span_discard(self, span: SpanData) -> None:
