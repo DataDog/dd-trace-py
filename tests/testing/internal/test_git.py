@@ -146,24 +146,31 @@ class TestGit:
             result = git.get_commit_message()
 
         assert result == "Initial commit"
-        mock_git_output.assert_called_once_with(["show", "-s", "--format=%s"])
+        mock_git_output.assert_called_once_with(["show", "-s", "--no-show-signature", "--format=%s"])
 
+    @pytest.mark.parametrize("author_name", ["John Doe", "John, Doe", "John|||Doe"])
     @patch("shutil.which")
-    def test_get_user_info_success(self, mock_which: Mock) -> None:
+    def test_get_user_info_success(self, mock_which: Mock, author_name: str) -> None:
         """Test get_user_info method with valid output."""
         mock_which.return_value = "/usr/bin/git"
 
         git = Git()
-        mock_output = (
-            "John Doe|||john@example.com|||2023-01-01T12:00:00+0000|||"
-            "Jane Committer|||jane@example.com|||2023-01-01T12:30:00+0000"
+        mock_output = "\0".join(
+            (
+                author_name,
+                "john@example.com",
+                "2023-01-01T12:00:00+0000",
+                "Jane Committer",
+                "jane@example.com",
+                "2023-01-01T12:30:00+0000",
+            )
         )
 
         with patch.object(git, "_git_output", return_value=mock_output):
             result = git.get_user_info()
 
         expected = GitUserInfo(
-            author_name="John Doe",
+            author_name=author_name,
             author_email="john@example.com",
             author_date="2023-01-01T12:00:00+0000",
             committer_name="Jane Committer",

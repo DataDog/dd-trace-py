@@ -70,7 +70,9 @@ def test_git_extract_user_info_with_commas(monkeypatch: pytest.MonkeyPatch) -> N
     with mock.patch.object(
         Git,
         "_git_output",
-        return_value="Do, Jo|||jo@do.com|||2021-01-19T09:24:53-0400|||Do, Ja|||ja@do.com|||2021-01-20T04:37:21-0400",
+        return_value="\0".join(
+            ("Do, Jo", "jo@do.com", "2021-01-19T09:24:53-0400", "Do, Ja", "ja@do.com", "2021-01-20T04:37:21-0400")
+        ),
     ):
         tags = get_env_tags()
 

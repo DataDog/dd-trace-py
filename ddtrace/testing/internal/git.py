@@ -289,14 +289,20 @@ class Git:
         return tags[0] if len(tags) == 1 else ""
 
     def get_commit_message(self, commit_sha: t.Optional[str] = None) -> str:
-        command = ["show", "-s", "--format=%s"]
+        command = ["show", "-s", "--no-show-signature", "--format=%s"]
         if commit_sha:
             command.append(commit_sha)
 
         return self._git_output(command)
 
     def get_user_info(self, commit_sha: t.Optional[str] = None) -> t.Optional[GitUserInfo]:
-        command = ["show", "-s", "--format=%an|||%ae|||%ad|||%cn|||%ce|||%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"]
+        command = [
+            "show",
+            "-s",
+            "--no-show-signature",
+            "--format=%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd",
+            "--date=format:%Y-%m-%dT%H:%M:%S%z",
+        ]
         if commit_sha:
             command.append(commit_sha)
 
@@ -304,7 +310,7 @@ class Git:
         if not output:
             return None
 
-        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("|||")
+        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("\0")
         return GitUserInfo(
             author_name=author_name,
             author_email=author_email,
