@@ -1,6 +1,5 @@
 import builtins
 from collections.abc import Callable
-from contextlib import suppress
 from inspect import CO_VARARGS
 from types import FunctionType
 from typing import Any
@@ -30,11 +29,13 @@ def _supported_versions() -> dict[str, str]:
 def wrapped_builtin_open(
     original: Callable[..., Any], instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
-    with suppress(Exception):
+    try:
         if core.has_listeners(FileOpenEvent.event_name):
             core.dispatch_event(
                 FileOpenEvent(path=args[0] if args else kwargs.get("file"), stack_trace_boundary="wrapped_builtin_open")
             )
+    except Exception:  # nosec B110: listener errors must not affect application file operations.
+        pass
     return original(*args, **kwargs)
 
 
@@ -51,12 +52,14 @@ class _PathOpenContext(WrappingContext):
 
     def __enter__(self) -> "_PathOpenContext":
         super().__enter__()
-        with suppress(Exception):
+        try:
             if core.has_listeners(FileOpenEvent.event_name):
                 receiver = self.__frame__.f_locals[self._receiver_name]
                 if self._variadic_receiver:
                     receiver = receiver[0]
                 core.dispatch_event(FileOpenEvent(path=receiver, stack_trace_boundary=self._stack_trace_boundary))
+        except Exception:  # nosec B110: listener errors must not affect application file operations.
+            pass
         return self
 
 
