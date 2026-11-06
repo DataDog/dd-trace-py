@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-dd-trace-py works with Python 3.8 and above.
+dd-trace-py works with Python 3.9 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
