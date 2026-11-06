@@ -11,6 +11,7 @@ import logging
 import os
 import random
 import socket
+import sys
 import threading
 import time
 import typing as t
@@ -283,17 +284,21 @@ class BackendConnector(threading.local):
             if not parsed_url.hostname:
                 raise SetupError(f"No hostname provided in {parsed_url.geturl()}")
 
-            return http.client.HTTPConnection(
+            connection = http.client.HTTPConnection(
                 host=parsed_url.hostname, port=parsed_url.port or 80, timeout=timeout_seconds
             )
+            connection._create_connection = _create_connection  # type: ignore[attr-defined]
+            return connection
 
         if parsed_url.scheme == "https":
             if not parsed_url.hostname:
                 raise SetupError(f"No hostname provided in {parsed_url.geturl()}")
 
-            return http.client.HTTPSConnection(
+            connection = http.client.HTTPSConnection(
                 host=parsed_url.hostname, port=parsed_url.port or 443, timeout=timeout_seconds
             )
+            connection._create_connection = _create_connection  # type: ignore[attr-defined]
+            return connection
 
         if parsed_url.scheme == "unix":
             # These URLs usually have an empty hostname component, e.g., unix:///var/run/datadog/apm.socket, that is,
@@ -582,6 +587,64 @@ class NoOpBackendConnectorSetup(BackendConnectorSetup):
         return NoOpBackendConnector()
 
 
+# pytest-socket blocks network access while tests run by replacing socket.socket, socket.socket.connect and
+# socket.getaddrinfo, and the plugin sends its payloads from the same processes, while tests run: its connections would
+# fail, their payloads would be lost, and the blocking would count them against the tests. The plugin's connections
+# undo pytest-socket's replacements, and only those: any other, such as gevent's monkey patching, is used as it is.
+def _pytest_socket_original(name: str, current: t.Any) -> t.Any:
+    """The function pytest-socket kept as name, when current is its replacement for it; else current."""
+    if getattr(current, "__module__", None) == "pytest_socket":
+        return getattr(sys.modules.get("pytest_socket"), name, current)
+    return current
+
+
+def _new_socket(*args: t.Any) -> socket.socket:
+    socket_class: t.Any = socket.socket
+    if isinstance(socket_class, type) and socket_class.__module__ == "pytest_socket":
+        # disable_socket()'s GuardedSocket subclasses the socket class that was in place: make one of those.
+        socket_class = next((c for c in socket_class.__mro__ if c.__module__ != "pytest_socket"), socket_class)
+    return socket_class(*args)
+
+
+def _connect(sock: socket.socket, address: t.Any) -> None:
+    # socket_allow_hosts() replaces the connect of the socket class; pytest-socket connects with the one it kept,
+    # which only applies to sockets of the class it kept.
+    if getattr(getattr(type(sock), "connect", None), "__module__", None) == "pytest_socket":
+        pytest_socket = sys.modules.get("pytest_socket")
+        true_socket = getattr(pytest_socket, "_true_socket", None)
+        true_connect = getattr(pytest_socket, "_true_connect", None)
+        if isinstance(true_socket, type) and isinstance(sock, true_socket) and true_connect is not None:
+            true_connect(sock, address)
+            return
+    sock.connect(address)
+
+
+def _create_connection(
+    address: tuple[str, int],
+    timeout: t.Optional[float] = socket._GLOBAL_DEFAULT_TIMEOUT,  # type: ignore[attr-defined]
+    source_address: t.Optional[tuple[str, int]] = None,
+) -> socket.socket:
+    """socket.create_connection, with sockets that pytest-socket's blocking doesn't reach."""
+    host, port = address
+    error: t.Optional[OSError] = None
+    getaddrinfo = _pytest_socket_original("_true_getaddrinfo", socket.getaddrinfo)
+    for family, socket_type, proto, _, sockaddr in getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+        sock = None
+        try:
+            sock = _new_socket(family, socket_type, proto)
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:  # type: ignore[attr-defined]
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            _connect(sock, sockaddr)
+            return sock
+        except OSError as e:
+            error = e
+            if sock is not None:
+                sock.close()
+    raise error if error is not None else OSError(f"getaddrinfo returned no addresses for {host}")
+
+
 class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
 
@@ -592,7 +655,7 @@ class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
         self.path = path
 
     def connect(self) -> None:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock = _new_socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
-        sock.connect(self.path)
+        _connect(sock, self.path)
         self.sock = sock

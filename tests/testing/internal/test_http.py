@@ -3,6 +3,11 @@
 import http.client
 import logging
 import os
+import shutil
+import socket
+import sys
+import tempfile
+import types
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
@@ -1194,6 +1199,130 @@ class TestUnixDomainSocketTimeout:
 
             mock_sock.settimeout.assert_called_once_with(3.5)
             mock_sock.connect.assert_called_once_with("/tmp/nonexistent.sock")
+
+
+class TestConnectionsWhenPytestSocketBlocks:
+    """pytest-socket blocks sockets while tests run by replacing socket.socket, socket.socket.connect and
+    socket.getaddrinfo; the connections that send the plugin's payloads must not be blocked, and other replacements
+    must still be used.
+    """
+
+    @pytest.fixture
+    def block_like_pytest_socket(self, monkeypatch: pytest.MonkeyPatch):
+        """Blocks as pytest-socket's socket_allow_hosts() and disable_socket() do, from a module that keeps the
+        originals as pytest-socket does.
+        """
+        real_socket = socket.socket
+        module = types.ModuleType("pytest_socket")
+        module._true_socket = real_socket  # type: ignore[attr-defined]
+        module._true_connect = real_socket.connect  # type: ignore[attr-defined]
+        module._true_getaddrinfo = socket.getaddrinfo  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "pytest_socket", module)
+
+        def guarded_connect(*args, **kwargs):
+            raise RuntimeError("A test tried to use socket.socket.connect().")
+
+        def guarded_getaddrinfo(*args, **kwargs):
+            raise RuntimeError("A test tried to use socket.getaddrinfo.")
+
+        guarded_connect.__module__ = guarded_getaddrinfo.__module__ = "pytest_socket"
+
+        def block() -> None:
+            # As socket_allow_hosts() and then disable_socket(), whose GuardedSocket subclasses the class in place.
+            monkeypatch.setattr(real_socket, "connect", guarded_connect)
+
+            class GuardedSocket(socket.socket):  # type: ignore[valid-type,misc]
+                def __new__(cls, *args, **kwargs):
+                    raise RuntimeError("A test tried to use socket.socket.")
+
+            GuardedSocket.__module__ = "pytest_socket"
+            monkeypatch.setattr(socket, "socket", GuardedSocket)
+            monkeypatch.setattr(socket, "getaddrinfo", guarded_getaddrinfo)
+
+        return block
+
+    def test_http_connection(self, block_like_pytest_socket) -> None:
+        # The listening socket completes the connection without accept(), so no server thread is needed.
+        with socket.create_server(("127.0.0.1", 0)) as server:
+            port = server.getsockname()[1]
+            block_like_pytest_socket()
+            connector = BackendConnector(url=f"http://127.0.0.1:{port}")
+
+            connector.conn.connect()
+
+            assert connector.conn.sock.getpeername() == ("127.0.0.1", port)
+            connector.close()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix domain socket under /tmp")
+    def test_unix_domain_socket_connection(self, block_like_pytest_socket) -> None:
+        # Not tmp_path: a socket's path is limited to about 104 bytes on macOS.
+        directory = tempfile.mkdtemp(dir="/tmp")
+        path = os.path.join(directory, "agent.sock")
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+                server.bind(path)
+                server.listen()
+                block_like_pytest_socket()
+                connector = BackendConnector(url=f"unix://{path}")
+
+                connector.conn.connect()
+
+                assert connector.conn.sock.getpeername() == path
+                connector.close()
+        finally:
+            shutil.rmtree(directory)
+
+    def test_socket_class_under_the_guard_is_used(self, monkeypatch: pytest.MonkeyPatch, block_like_pytest_socket):
+        """When disable_socket() guards another socket class, such as gevent's, the connections make sockets of it."""
+        created = []
+        real_socket = socket.socket
+
+        class RecordingSocket(real_socket):  # type: ignore[valid-type,misc]
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        with socket.create_server(("127.0.0.1", 0)) as server:
+            port = server.getsockname()[1]
+            monkeypatch.setattr(socket, "socket", RecordingSocket)
+            block_like_pytest_socket()
+            connector = BackendConnector(url=f"http://127.0.0.1:{port}")
+
+            connector.conn.connect()
+
+            assert created == [connector.conn.sock]
+            connector.close()
+
+    def test_other_socket_replacements_are_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A replacement that isn't pytest-socket's, such as gevent's, is what the connections use."""
+        created = []
+        real_socket = socket.socket
+
+        class RecordingSocket(real_socket):  # type: ignore[valid-type,misc]
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        with socket.create_server(("127.0.0.1", 0)) as server:
+            port = server.getsockname()[1]
+            monkeypatch.setattr(socket, "socket", RecordingSocket)
+            connector = BackendConnector(url=f"http://127.0.0.1:{port}")
+
+            connector.conn.connect()
+
+            assert created == [connector.conn.sock]
+            connector.close()
+
+    def test_socket_factory_replacement(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A socket.socket replaced by a factory function still makes the Unix domain socket connection."""
+        fake_socket = Mock()
+        monkeypatch.setattr(socket, "socket", lambda *args: fake_socket)
+        connection = UnixDomainSocketHTTPConnection(path="/tmp/agent.sock", host="localhost", port=80, timeout=2.0)
+
+        connection.connect()
+
+        fake_socket.connect.assert_called_once_with("/tmp/agent.sock")
+        assert connection.sock is fake_socket
 
 
 class TestBackendTimeoutEnvVar:
