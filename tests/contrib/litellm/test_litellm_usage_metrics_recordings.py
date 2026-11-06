@@ -22,7 +22,7 @@ from ddtrace.contrib.internal.litellm._usage_metrics import GATEWAY_REQUEST
 from ddtrace.contrib.internal.litellm._usage_metrics import OPT_IN_TAGS
 from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
 from ddtrace.contrib.internal.litellm._usage_metrics import UsageMetricsLogger
-from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
+from ddtrace.internal.ai_usage import ai_usage
 
 
 RECORDINGS = json.loads((pathlib.Path(__file__).parent / "usage_metrics_recordings.json").read_text())
@@ -48,11 +48,15 @@ class Writer:
         self.rejected = []
         self.metrics = ai_usage.UsageMetrics() if ai_usage is not None else None
 
-    def record(self, profile_id, observation, deployment_attributes):
+    def record(self, profile_ids, observation, deployment_attributes):
+        for profile_id in profile_ids:
+            self.record_one(profile_id, observation, deployment_attributes)
+
+    def record_one(self, profile_id, observation, deployment_attributes):
         self.records.append((profile_id, dict(observation), dict(deployment_attributes or {})))
         if self.metrics is not None:
             try:
-                self.metrics.record(profile_id, observation, deployment_attributes)
+                self.metrics.add([profile_id], observation, deployment_attributes)
             except Exception as e:
                 self.rejected.append((profile_id, observation, e))
 

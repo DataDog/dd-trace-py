@@ -1008,31 +1008,20 @@ class SerializationError(Exception):
     ...
 
 class ai_usage:
-    """
-    Native LLM usage and cost metrics (libdd-ai-usage).
-    """
+    """LLM usage and cost metrics, read and projected by libdd-ai-usage. See ddtrace.internal.ai_usage."""
 
     class UsageMetrics:
-        """
-        The metric points of one export window. Safe to share between threads.
-        """
+        """The metric points of one export window. Safe to share between threads."""
 
-        def __init__(self, metrics: Optional[list[str]] = None) -> None:
-            """metrics lists the metric names to keep; by default every metric a profile defines is kept."""
-            ...
-        def record(
+        def __init__(
+            self, metrics: Optional[list[str]] = None, deployment_attributes: Optional[dict[str, str]] = None
+        ) -> None: ...
+        def add(
             self,
-            profile_id: str,
+            profile_ids: list[str],
             observation: dict[str, Any],
             deployment_attributes: Optional[dict[str, str]] = None,
-        ) -> list[str]:
-            """
-            Project one observation under a versioned profile id and add its points.
-
-            Returns the issue codes raised beside the points. Raises ValueError(error_code, message)
-            when the observation is rejected; nothing is recorded then.
-            """
-            ...
+        ) -> list[list[str]]: ...
         def is_empty(self) -> bool: ...
         def take_otlp(
             self,
@@ -1040,36 +1029,26 @@ class ai_usage:
             scope_version: str,
             start_time_unix_nano: int,
             time_unix_nano: int,
-            datadog: bool = False,
-        ) -> Optional[bytes]:
-            """
-            Take the points recorded so far as an OTLP ExportMetricsServiceRequest in protobuf, or None.
-
-            datadog selects the Datadog binding, for an export Datadog stores as it arrives: cost in USD and
-            versioned values with "/", as over DogStatsD.
-            """
-            ...
-        def take_otlp_parts(
-            self,
-            scope_name: str,
-            scope_version: str,
-            start_time_unix_nano: int,
-            time_unix_nano: int,
             max_bytes: int,
             datadog: bool = False,
-        ) -> list[bytes]:
-            """
-            Take the points recorded so far as OTLP ExportMetricsServiceRequests of at most max_bytes each, or [].
+        ) -> list[bytes]: ...
+        def take_dogstatsd(self, max_payload: int) -> tuple[bytes, int]: ...
 
-            The points are split by series; the points of one series always go in the same request, which can then
-            exceed max_bytes. A batch that fits gives one request, the same bytes take_otlp returns.
-            """
-            ...
-        def take_dogstatsd(self) -> list[str]:
-            """
-            Take the points recorded so far as DogStatsD lines, without newlines.
-            """
-            ...
+    # parse and parse_stream return {"response": {...}, "outcome": str, "error_name": str | None} as JSON.
+    @staticmethod
+    def parse(usage_format: str, payload: Any, embeddings: bool = False) -> str: ...
+    @staticmethod
+    def parse_stream(usage_format: str, chunks: Any, embeddings: bool = False) -> str: ...
+    @staticmethod
+    def provider_name(name: str) -> Optional[str]: ...
+    @staticmethod
+    def error_type(name: Optional[str] = None, status: Optional[int] = None, failed: bool = False) -> Optional[str]: ...
+    @staticmethod
+    def is_service_tier(value: str) -> bool: ...
+    @staticmethod
+    def provider_ids(provider_name: str, header: Any, models: list[str]) -> dict[str, str]: ...
+    @staticmethod
+    def pack_dogstatsd(lines: list[str], max_payload: int) -> tuple[list[str], int]: ...
 
 class ffe:
     """

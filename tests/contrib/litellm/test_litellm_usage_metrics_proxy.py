@@ -18,7 +18,7 @@ from ddtrace.contrib.internal.litellm._usage_metrics import GATEWAY_REQUEST
 from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
 from ddtrace.contrib.internal.litellm._usage_metrics import RECORDED_PROFILES_TAG
 from ddtrace.contrib.internal.litellm._usage_metrics import TOKEN_BREAKDOWN
-from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
+from ddtrace.internal.ai_usage import ai_usage
 from tests.contrib.litellm.usage_metrics_proxy import ANTHROPIC_ORGANIZATION
 from tests.contrib.litellm.usage_metrics_proxy import ANTHROPIC_SERVICE_TIER
 from tests.contrib.litellm.usage_metrics_proxy import DECLARED_ACCOUNT

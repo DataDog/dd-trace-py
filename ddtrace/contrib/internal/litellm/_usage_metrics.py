@@ -69,6 +69,8 @@ log = get_logger(__name__)
 PROVIDER_ATTEMPT = "gen_ai.client.provider_attempt@0.1.0"
 TOKEN_BREAKDOWN = "trajectory.gen_ai.client.token_breakdown@0.1.0"  # nosec B105: a profile id, not a secret
 GATEWAY_REQUEST = "trajectory.gen_ai.gateway.request@0.1.0"
+# The OTLP instrumentation scope of the exported metrics.
+SCOPE_NAME = "ddtrace.contrib.litellm"
 
 # The span attribute that lists the profiles recorded for a call, so the backend does not derive them again.
 RECORDED_PROFILES_TAG = "trajectory.metrics.recorded"
@@ -1087,9 +1089,9 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         attributes = self._deployment_attributes(
             identity, request.route or metadata.get("original_model_group"), attempt.model_id, attempt.provider_ids
         )
-        self._writer.record(PROVIDER_ATTEMPT, observation, attributes)
+        self._writer.record([PROVIDER_ATTEMPT], observation, attributes)
         if "input_tokens" in observation:
-            self._writer.record(TOKEN_BREAKDOWN, observation, attributes)
+            self._writer.record([TOKEN_BREAKDOWN], observation, attributes)
 
     def _record_request(
         self,
@@ -1140,7 +1142,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             last.model_id if last is not None else None,
             last.provider_ids if last is not None else None,
         )
-        self._writer.record(GATEWAY_REQUEST, observation, attributes)
+        self._writer.record([GATEWAY_REQUEST], observation, attributes)
 
     # LiteLLM hooks. Each catches its own errors and returns what LiteLLM expects from a no-op hook.
 

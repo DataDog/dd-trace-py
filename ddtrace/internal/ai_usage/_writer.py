@@ -1,8 +1,7 @@
-"""Periodic export of LiteLLM usage and cost metrics.
+"""Periodic export of LLM usage and cost metrics, over OTLP/HTTP or DogStatsD.
 
-Records are projected into metric points by the native ai_usage module as they arrive. Every
-interval the points recorded since the last flush are encoded once and sent, either as an OTLP/HTTP
-protobuf ExportMetricsServiceRequest (delta temporality), gzip-compressed by default, or as DogStatsD lines.
+An integration records plain observations; the native ai_usage module projects them into metric points and
+encodes each export window. This module only sends the bytes.
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ from typing import Optional
 from urllib import parse
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.ai_usage import ai_usage
 from ddtrace.internal.http_client import HTTPClient
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import ConnectionFailedError
@@ -35,22 +35,11 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.version import __version__
 
 
-try:
-    from ddtrace.internal.native import ai_usage
-except ImportError:
-    # Builds without the native ai_usage module (serverless) cannot record these metrics.
-    ai_usage = None  # type: ignore[misc,assignment]
-
-
 log = get_logger(__name__)
-
-SCOPE_NAME = "ddtrace.contrib.litellm"
 
 # Largest datagram sent to DogStatsD over UDP and over a Unix socket.
 _UDP_MAX_PACKET = 1432
 _UDS_MAX_PACKET = 8192
-# The Agent reads a DogStatsD datagram into an 8 KiB buffer by default, so a longer line would arrive cut.
-_MAX_LINE = 8192
 _SEND_TIMEOUT_SECONDS = 0.1
 _SEND_ATTEMPTS = 20
 
@@ -312,14 +301,14 @@ class _OtlpSender:
                     partial = _partial_success(response.body())
                     if partial is not None:
                         log.warning(
-                            "LiteLLM usage metrics: the OTLP endpoint at %s rejected %d data points: %s",
+                            "AI usage metrics: the OTLP endpoint at %s rejected %d data points: %s",
                             self.endpoint,
                             partial[0],
                             partial[1][:200],
                         )
                     return True
                 if status not in _RETRYABLE_STATUSES:
-                    log.warning("LiteLLM usage metrics: OTLP export to %s failed with status %s", self.endpoint, status)
+                    log.warning("AI usage metrics: OTLP export to %s failed with status %s", self.endpoint, status)
                     return True
                 failure = f"status {status}"
                 requested = _retry_after(response.header("Retry-After"))
@@ -331,7 +320,7 @@ class _OtlpSender:
         # silently.
         if self._to_agent:
             log.warning(
-                "LiteLLM usage metrics: OTLP export to the Datadog Agent at %s failed (%s), kept for the next flush. "
+                "AI usage metrics: OTLP export to the Datadog Agent at %s failed (%s), kept for the next flush. "
                 "Enable the Agent's OTLP receiver (DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318) or "
                 "set DD_LITELLM_USAGE_METRICS_EXPORTER=dogstatsd",
                 self.endpoint,
@@ -339,7 +328,7 @@ class _OtlpSender:
             )
         else:
             log.warning(
-                "LiteLLM usage metrics: OTLP export to %s failed (%s), kept for the next flush", self.endpoint, failure
+                "AI usage metrics: OTLP export to %s failed (%s), kept for the next flush", self.endpoint, failure
             )
         return False
 
@@ -415,7 +404,22 @@ class _DogStatsdSender:
         packet wait for its send timeout.
         """
         self._deadline = deadline
-        self._send_lines([line.encode("utf-8") for line in lines])
+        self._send_lines(lines)
+
+    def send_datagrams(self, datagrams: bytes, dropped: int, deadline: Optional[float] = None) -> None:
+        """Send NUL-separated datagrams as UsageMetrics.take_dogstatsd_datagrams packs them, with the count of lines
+        it dropped for being longer than a datagram, stopping when deadline passes.
+        """
+        self._deadline = deadline
+        self._log_dropped(dropped)
+        if datagrams:
+            for datagram in datagrams.split(b"\0"):
+                self._send_packet(datagram)
+
+    @staticmethod
+    def _log_dropped(dropped: int) -> None:
+        if dropped:
+            log.debug("AI usage metrics: dropping %d DogStatsD lines longer than a datagram", dropped)
 
     def stop_by(self, deadline: Optional[float]) -> None:
         """Make every send, the one in progress included, stop when deadline, a time.monotonic() value, passes."""
@@ -425,50 +429,39 @@ class _DogStatsdSender:
         now = time.monotonic()
         return any(d is not None and now >= d for d in (self._deadline, self._stop_deadline))
 
-    def _send_lines(self, lines: list[bytes]) -> None:
-        packet: list[bytes] = []
-        size = 0
-        for data in lines:
-            if len(data) > _MAX_LINE:
-                log.debug(
-                    "LiteLLM usage metrics: dropping a %d-byte DogStatsD line, longer than the Agent reads",
-                    len(data),
-                )
-                continue
-            if packet and size + 1 + len(data) > self._max_packet:
-                self._send_packet(packet)
-                packet, size = [], 0
-            size += len(data) + (1 if packet else 0)
-            packet.append(data)
-        if packet:
-            self._send_packet(packet)
+    def _send_lines(self, lines: list[str]) -> None:
+        # The native packer drops a line longer than a datagram, which the Agent would refuse.
+        datagrams, dropped = ai_usage.pack_dogstatsd(lines, self._max_packet)
+        self._log_dropped(dropped)
+        for datagram in datagrams:
+            self._send_packet(datagram.encode("utf-8"))
 
-    def _send_packet(self, packet: list[bytes]) -> None:
-        data = b"\n".join(packet)
+    def _send_packet(self, data: bytes) -> None:
+        lines = data.count(b"\n") + 1
         for attempt in range(_SEND_ATTEMPTS):
             # Checked before every attempt: a full buffer makes this loop wait between retries.
             if self._past_deadline():
-                log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
+                log.debug("AI usage metrics: dropping %d DogStatsD lines at exit", lines)
                 return
             try:
                 sock = self._connect()
                 # Resolving the host name is not bounded by the socket timeout and can outlast the deadline.
                 if self._past_deadline():
-                    log.debug("LiteLLM usage metrics: dropping %d DogStatsD lines at exit", len(packet))
+                    log.debug("AI usage metrics: dropping %d DogStatsD lines at exit", lines)
                     self.close()
                     return
                 sock.send(data)
                 return
             except OSError as e:
                 if e.errno == errno.EMSGSIZE:
-                    if len(packet) > 1:
+                    if lines > 1:
                         # The socket takes smaller datagrams than assumed (macOS limits Unix datagrams to 2 KiB by
                         # default): send smaller packets from now on.
                         self._max_packet = max(self._max_packet // 2, 512)
-                        self._send_lines(packet)
+                        self._send_lines(data.decode("utf-8").split("\n"))
                     else:
                         log.debug(
-                            "LiteLLM usage metrics: dropping a %d-byte DogStatsD line, longer than the socket takes",
+                            "AI usage metrics: dropping a %d-byte DogStatsD line, longer than the socket takes",
                             len(data),
                         )
                     return
@@ -479,12 +472,12 @@ class _DogStatsdSender:
                 # Rate-limited per call site, like the OTLP warning. Without it, a closed UDP port (refused on a later
                 # send), a missing socket or an Agent that does not read loses every metric silently.
                 log.warning(
-                    "LiteLLM usage metrics: sending to DogStatsD at %s failed (%s); %d lines dropped",
+                    "AI usage metrics: sending to DogStatsD at %s failed (%s); %d lines dropped",
                     self._target,
                     _os_error_name(e),
-                    len(packet),
+                    lines,
                 )
-                log.debug("LiteLLM usage metrics: failed to send a DogStatsD packet", exc_info=True)
+                log.debug("AI usage metrics: failed to send a DogStatsD packet", exc_info=True)
                 # A UDP connect succeeds without a listener, so only a failed send shows that an address is wrong.
                 self._failed_sends += 1
                 self.close()
@@ -501,11 +494,24 @@ class _DogStatsdSender:
 class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
     """Collects usage metric observations and exports them every interval seconds."""
 
-    def __init__(self, exporter: str, interval: float, metrics: Optional[list[str]] = None) -> None:
+    def __init__(
+        self,
+        exporter: str,
+        interval: float,
+        scope_name: str,
+        integration_name: str,
+        metrics: Optional[list[str]] = None,
+        deployment_attributes: Optional[dict[str, str]] = None,
+    ) -> None:
         super().__init__(interval=interval)
         self._exporter = exporter
+        # The OTLP instrumentation scope, and the integration_name of instrumentation telemetry.
+        self._scope_name = scope_name
+        self._integration_name = integration_name
         self._metric_names = metrics
-        self._usage = ai_usage.UsageMetrics(metrics)
+        # The attributes of every observation, such as the service and host: set once, under each observation's own.
+        self._deployment_attributes = deployment_attributes or None
+        self._usage = ai_usage.UsageMetrics(metrics, self._deployment_attributes)
         self._window_start_ns = time.time_ns()
         self._flush_lock = forksafe.Lock()
         # Set at exit: a flush in progress stops retrying, so the last flush does not wait behind it.
@@ -525,22 +531,27 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             self._otlp = _OtlpSender()
 
     def record(
-        self, profile_id: str, observation: dict[str, Any], deployment_attributes: Optional[dict[str, str]]
+        self, profile_ids: list[str], observation: dict[str, Any], deployment_attributes: Optional[dict[str, str]]
     ) -> None:
-        """Project and record one observation. Never raises."""
+        """Project one observation under each profile and record them all, or none. Never raises."""
         try:
-            issues = self._usage.record(profile_id, observation, deployment_attributes)
+            issues = self._usage.add(profile_ids, observation, deployment_attributes)
         except ValueError as e:
-            log.debug("LiteLLM usage metrics: %s observation not recorded: %s", profile_id, e.args)
-            _count_codes("usage_metrics.observations_rejected", profile_id, e.args[:1])
+            profile_id = e.args[2] if len(e.args) > 2 else profile_ids[0]
+            log.debug("AI usage metrics: %s observation not recorded: %s", profile_id, e.args[:2])
+            _count_codes(self._integration_name, "usage_metrics.observations_rejected", profile_id, e.args[:1])
             return
         except Exception:
-            log.debug("LiteLLM usage metrics: %s observation not recorded", profile_id, exc_info=True)
-            _count_codes("usage_metrics.observations_rejected", profile_id, ("internal_error",))
+            log.debug("AI usage metrics: %s observation not recorded", profile_ids, exc_info=True)
+            for profile_id in profile_ids:
+                _count_codes(
+                    self._integration_name, "usage_metrics.observations_rejected", profile_id, ("internal_error",)
+                )
             return
-        if issues:
-            log.debug("LiteLLM usage metrics: %s observation recorded with issues %s", profile_id, issues)
-            _count_codes("usage_metrics.observation_issues", profile_id, issues)
+        for profile_id, codes in zip(profile_ids, issues):
+            if codes:
+                log.debug("AI usage metrics: %s observation recorded with issues %s", profile_id, codes)
+                _count_codes(self._integration_name, "usage_metrics.observation_issues", profile_id, codes)
 
     def periodic(self) -> None:
         self.flush()
@@ -578,7 +589,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
     def reset(self) -> None:
         # In a forked child, drop the parent's points and pending exports (the parent exports them), and the
         # parent's connections.
-        self._usage = ai_usage.UsageMetrics(self._metric_names)
+        self._usage = ai_usage.UsageMetrics(self._metric_names, self._deployment_attributes)
         self._window_start_ns = time.time_ns()
         self._pending.clear()
         if self._otlp is not None:
@@ -594,25 +605,24 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             limit = time.monotonic() + _SHUTDOWN_SECONDS
             deadline = limit if deadline is None else min(deadline, limit)
         if not self._flush_lock.acquire(timeout=-1 if deadline is None else max(deadline - time.monotonic(), 0.0)):
-            log.debug("LiteLLM usage metrics: a flush in progress outlasted the shutdown time")
+            log.debug("AI usage metrics: a flush in progress outlasted the shutdown time")
             return
         try:
             # A wall clock set back must not end the window before it starts.
             end_ns = max(time.time_ns(), self._window_start_ns)
             start_ns, self._window_start_ns = self._window_start_ns, end_ns
             if self._otlp is not None:
-                parts = self._usage.take_otlp_parts(
-                    SCOPE_NAME, __version__, start_ns, end_ns, _MAX_REQUEST_BYTES, datadog=self._otlp.to_datadog
+                parts = self._usage.take_otlp(
+                    self._scope_name, __version__, start_ns, end_ns, _MAX_REQUEST_BYTES, datadog=self._otlp.to_datadog
                 )
                 if parts:
                     self._enqueue([self._otlp.encode(part) for part in parts])
                 self._send_pending(self._otlp, deadline)
             elif self._dogstatsd is not None:
-                lines = self._usage.take_dogstatsd()
-                if lines:
-                    self._dogstatsd.send(lines, deadline)
+                datagrams, dropped = self._usage.take_dogstatsd(self._dogstatsd._max_packet)
+                self._dogstatsd.send_datagrams(datagrams, dropped, deadline)
         except Exception:
-            log.debug("LiteLLM usage metrics: export failed", exc_info=True)
+            log.debug("AI usage metrics: export failed", exc_info=True)
         finally:
             self._flush_lock.release()
 
@@ -630,7 +640,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             dropped_bytes += len(body)
         if dropped:
             log.debug(
-                "LiteLLM usage metrics: dropping the %d oldest unsent OTLP requests (%d bytes)", dropped, dropped_bytes
+                "AI usage metrics: dropping the %d oldest unsent OTLP requests (%d bytes)", dropped, dropped_bytes
             )
 
     def _send_pending(self, sender: _OtlpSender, deadline: Optional[float]) -> None:
@@ -660,7 +670,7 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             if not self._send_one(sender, payload, deadline):
                 failed.append(payload)
         if failed and self._closing:
-            log.debug("LiteLLM usage metrics: dropping %d unsent OTLP exports at exit", len(failed))
+            log.debug("AI usage metrics: dropping %d unsent OTLP exports at exit", len(failed))
         elif failed:
             self._pending.extendleft(reversed(failed))
 
@@ -670,11 +680,11 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
             return sender.send(payload, self._stopping, retry=deadline is None, deadline=deadline)
         except Exception:
             # A failure that a retry would not fix, such as an invalid endpoint: drop the export.
-            log.debug("LiteLLM usage metrics: OTLP export failed", exc_info=True)
+            log.debug("AI usage metrics: OTLP export failed", exc_info=True)
             return True
 
 
-def _count_codes(metric: str, profile_id: str, codes: Any) -> None:
+def _count_codes(integration_name: str, metric: str, profile_id: str, codes: Any) -> None:
     """Count rejection or issue codes in instrumentation telemetry. Never raises."""
     try:
         for code in codes:
@@ -682,7 +692,7 @@ def _count_codes(metric: str, profile_id: str, codes: Any) -> None:
                 TELEMETRY_NAMESPACE.TRACERS,
                 metric,
                 1,
-                (("integration_name", "litellm"), ("profile", profile_id), ("code", str(code))),
+                (("integration_name", integration_name), ("profile", profile_id), ("code", str(code))),
             )
     except Exception:
-        log.debug("LiteLLM usage metrics: failed to count %s", metric, exc_info=True)
+        log.debug("AI usage metrics: failed to count %s", metric, exc_info=True)

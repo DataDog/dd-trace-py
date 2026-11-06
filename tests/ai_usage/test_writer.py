@@ -11,11 +11,10 @@ import time
 
 import pytest
 
-from ddtrace.contrib.internal.litellm import _usage_metrics_writer
-from ddtrace.contrib.internal.litellm._usage_metrics import PROVIDER_ATTEMPT
-from ddtrace.contrib.internal.litellm._usage_metrics_writer import UsageMetricsWriter
-from ddtrace.contrib.internal.litellm._usage_metrics_writer import _parse_headers
-from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
+from ddtrace.internal.ai_usage import _writer as _usage_metrics_writer
+from ddtrace.internal.ai_usage import ai_usage
+from ddtrace.internal.ai_usage._writer import UsageMetricsWriter as _UsageMetricsWriter
+from ddtrace.internal.ai_usage._writer import _parse_headers
 from ddtrace.internal.settings import _core as settings_core
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import config as agentless_config
@@ -23,6 +22,14 @@ from ddtrace.internal.settings._opentelemetry import otel_config
 
 
 pytestmark = pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+
+
+PROVIDER_ATTEMPT = "gen_ai.client.provider_attempt@0.1.0"
+SCOPE_NAME = "tests.ai_usage"
+
+
+def UsageMetricsWriter(exporter, **kwargs):
+    return _UsageMetricsWriter(exporter, scope_name=SCOPE_NAME, integration_name="test_integration", **kwargs)
 
 
 def observation(user="u1", input_tokens=12):
@@ -153,8 +160,8 @@ def test_parse_headers():
 
 def test_otlp_export_posts_protobuf_with_headers(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
-    writer.record(PROVIDER_ATTEMPT, *observation(user="u2"))
+    writer.record([PROVIDER_ATTEMPT], *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation(user="u2"))
     writer.flush()
     [(path, headers, body)] = Collector.requests
     assert path == "/v1/metrics"
@@ -173,13 +180,13 @@ def test_otlp_export_posts_protobuf_with_headers(otlp_endpoint):
 def test_otlp_export_decodes(otlp_endpoint):
     metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
     writer = UsageMetricsWriter("otlp", interval=60, metrics=["gen_ai.client.inference.usage.input_tokens"])
-    writer.record(PROVIDER_ATTEMPT, *observation(input_tokens=10))
-    writer.record(PROVIDER_ATTEMPT, *observation(input_tokens=32))
+    writer.record([PROVIDER_ATTEMPT], *observation(input_tokens=10))
+    writer.record([PROVIDER_ATTEMPT], *observation(input_tokens=32))
     writer.flush()
     request = metrics_service_pb2.ExportMetricsServiceRequest()
     request.ParseFromString(Collector.requests[0][2])
     [scope_metrics] = request.resource_metrics[0].scope_metrics
-    assert scope_metrics.scope.name == "ddtrace.contrib.litellm"
+    assert scope_metrics.scope.name == SCOPE_NAME
     # The default destination is Datadog, which keeps "/" and not "@" in tag values.
     assert [(a.key, a.value.string_value) for a in scope_metrics.scope.attributes] == [
         ("trajectory.profile", PROVIDER_ATTEMPT.replace("@", "/"))
@@ -214,8 +221,8 @@ def test_datadog_destinations_store_cost_as_dogstatsd_does(otlp_endpoint, monkey
     # With no endpoint configured, the export goes to the Agent's receiver or the intake, which store values as they
     # arrive: cost is sent in USD, the same value the DogStatsD exporter sends under the same name.
     writer = UsageMetricsWriter("otlp", interval=60, metrics=[COST])
-    writer.record(PROVIDER_ATTEMPT, *observation())
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     unit, otlp_value, profile = _otlp_cost(Collector.requests[0][2])
     assert unit == "USD"
@@ -226,8 +233,8 @@ def test_datadog_destinations_store_cost_as_dogstatsd_does(otlp_endpoint, monkey
     monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{sock.getsockname()[1]}")
     receiver = Receiver(sock)
     dogstatsd = UsageMetricsWriter("dogstatsd", interval=60, metrics=[COST])
-    dogstatsd.record(PROVIDER_ATTEMPT, *observation())
-    dogstatsd.record(PROVIDER_ATTEMPT, *observation())
+    dogstatsd.record([PROVIDER_ATTEMPT], *observation())
+    dogstatsd.record([PROVIDER_ATTEMPT], *observation())
     dogstatsd.flush()
     [line] = [line for packet in receiver.stop() for line in packet.decode().split("\n")]
     assert line.startswith(COST + ":")
@@ -241,7 +248,7 @@ def test_a_configured_endpoint_gets_the_opentelemetry_encoding(collector, monkey
         "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", f"http://127.0.0.1:{collector.server_address[1]}/v1/metrics"
     )
     writer = UsageMetricsWriter("otlp", interval=60, metrics=[COST])
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert _otlp_cost(Collector.requests[0][2]) == ("{nanoUSD}", 5700, PROVIDER_ATTEMPT)
 
@@ -267,7 +274,7 @@ def test_a_wall_clock_set_back_does_not_invert_the_window(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60, metrics=["gen_ai.client.inference.usage.input_tokens"])
     # As if the clock went back ten seconds since the window started.
     writer._window_start_ns = time.time_ns() + 10_000_000_000
-    writer.record(PROVIDER_ATTEMPT, *observation(input_tokens=10))
+    writer.record([PROVIDER_ATTEMPT], *observation(input_tokens=10))
     writer.flush()
     request = metrics_service_pb2.ExportMetricsServiceRequest()
     request.ParseFromString(Collector.requests[0][2])
@@ -281,7 +288,7 @@ def test_the_shutdown_deadline_is_capped(otlp_endpoint, monkeypatch):
     monkeypatch.setattr(_usage_metrics_writer, "_timeout_ms", lambda: 10_000)
     Collector.delay = 3
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     started = time.monotonic()
     writer.on_shutdown(time.monotonic() + 30)
     assert time.monotonic() - started < 2
@@ -290,20 +297,20 @@ def test_the_shutdown_deadline_is_capped(otlp_endpoint, monkeypatch):
 def test_otlp_export_failures_never_raise(otlp_endpoint, collector, monkeypatch, sleeps):
     Collector.status = 500
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert len(Collector.requests) == 1
 
     monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", "http://127.0.0.1:9/v1/metrics")
     unreachable = UsageMetricsWriter("otlp", interval=60)
-    unreachable.record(PROVIDER_ATTEMPT, *observation())
+    unreachable.record([PROVIDER_ATTEMPT], *observation())
     unreachable.flush()
 
 
 def test_retryable_failures_are_retried_within_a_flush(otlp_endpoint, sleeps):
     Collector.statuses = [503, 429]
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     bodies = [body for _, _, body in Collector.requests]
     assert len(bodies) == 3 and len(set(bodies)) == 1
@@ -315,10 +322,10 @@ def test_retryable_failures_are_retried_within_a_flush(otlp_endpoint, sleeps):
 def test_an_export_that_keeps_failing_waits_for_the_next_flush(otlp_endpoint, sleeps):
     Collector.statuses = [503, 503, 503]
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation(user="user-first"))
+    writer.record([PROVIDER_ATTEMPT], *observation(user="user-first"))
     writer.flush()
     assert len(Collector.requests) == 3
-    writer.record(PROVIDER_ATTEMPT, *observation(user="user-second"))
+    writer.record([PROVIDER_ATTEMPT], *observation(user="user-second"))
     writer.flush()
     # The kept export goes first, then the new one.
     first, second = [body for _, _, body in Collector.requests[3:]]
@@ -331,7 +338,7 @@ def test_an_export_that_keeps_failing_waits_for_the_next_flush(otlp_endpoint, sl
 def test_a_refused_connection_keeps_the_export(otlp_endpoint, collector, monkeypatch, sleeps):
     monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", "http://127.0.0.1:9/v1/metrics")
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert len(writer._pending) == 1
     assert len(sleeps) == 2
@@ -340,7 +347,7 @@ def test_a_refused_connection_keeps_the_export(otlp_endpoint, collector, monkeyp
 def test_a_rejected_export_is_not_retried(otlp_endpoint, sleeps):
     Collector.status = 400
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     writer.flush()
     assert len(Collector.requests) == 1
@@ -355,7 +362,7 @@ def test_a_redirect_is_not_taken_for_delivery(otlp_endpoint, collector, monkeypa
     Collector.status = 307
     Collector.location = f"http://127.0.0.1:{collector.server_address[1]}/elsewhere"
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert len(Collector.requests) == 1 and not writer._pending
     assert [args[2] for args in warnings] == [307]
@@ -374,7 +381,7 @@ def test_a_failing_export_warns(monkeypatch, sleeps, configured):
     else:
         monkeypatch.setattr(otel_config.exporter, "TRACE_METRICS_ENDPOINT", "http://127.0.0.1:9/v1/metrics")
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     [args] = warnings
     assert ("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT" in args[0]) is not configured
@@ -385,10 +392,10 @@ def test_a_failing_export_warns(monkeypatch, sleeps, configured):
 def test_retry_after_is_honored_up_to_a_bound(otlp_endpoint, sleeps):
     writer = UsageMetricsWriter("otlp", interval=60)
     Collector.statuses, Collector.retry_after = [503], "0.25"
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     Collector.statuses, Collector.retry_after = [429], "120"
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert sleeps == [0.25, 5.0]
 
@@ -417,7 +424,7 @@ def test_a_partial_success_is_reported_and_not_sent_again(otlp_endpoint, monkeyp
     warnings = []
     monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     writer.flush()
     assert len(Collector.requests) == 1
@@ -426,7 +433,7 @@ def test_a_partial_success_is_reported_and_not_sent_again(otlp_endpoint, monkeyp
 
 def test_a_periodic_flush_starts_no_export_once_close_began(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer._closing = True
     writer.flush()
     assert Collector.requests == []
@@ -438,7 +445,7 @@ def test_periodic_exports_continue_after_a_tracer_shutdown(otlp_endpoint):
     # An application can shut the global tracer down, which runs on_shutdown, and keep serving.
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.on_shutdown(time.monotonic() + 5)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert len(Collector.requests) == 1
 
@@ -455,7 +462,7 @@ def test_pending_exports_are_bounded(otlp_endpoint, monkeypatch, sleeps):
     Collector.status = 503
     writer = UsageMetricsWriter("otlp", interval=60)
     for user in ("user-one", "user-two", "user-three"):
-        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=user))
         writer.flush()
     Collector.status = 200
     sent = len(Collector.requests)
@@ -483,10 +490,10 @@ def test_the_flushes_of_one_exit_share_its_deadline(otlp_endpoint, monkeypatch):
 def test_on_shutdown_tries_pending_exports_once_without_waiting(otlp_endpoint, sleeps):
     Collector.status = 503
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     sent, waited = len(Collector.requests), len(sleeps)
-    writer.record(PROVIDER_ATTEMPT, *observation(user="u2"))
+    writer.record([PROVIDER_ATTEMPT], *observation(user="u2"))
     writer.on_shutdown()
     # Each export is tried once, the kept one first; none waits. The application may keep serving after a tracer
     # shutdown, so both stay queued for a later flush.
@@ -502,7 +509,7 @@ def test_close_discards_exports_that_still_failed(otlp_endpoint, sleeps):
     Collector.status = 503
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.start()
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     writer.close()
     assert not writer._pending
@@ -511,7 +518,7 @@ def test_close_discards_exports_that_still_failed(otlp_endpoint, sleeps):
 def test_shutdown_does_not_wait_behind_a_retrying_flush(otlp_endpoint):
     Collector.status, Collector.retry_after = 503, "5"
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     flushing = threading.Thread(target=writer.flush)
     flushing.start()
     while not Collector.requests:
@@ -528,7 +535,7 @@ def test_shutdown_time_is_bounded(otlp_endpoint, monkeypatch, sleeps):
     monkeypatch.setattr(_usage_metrics_writer, "_SHUTDOWN_SECONDS", 0)
     Collector.status = 503
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     sent = len(Collector.requests)
     writer.on_shutdown()
@@ -542,7 +549,7 @@ def test_shutdown_time_is_bounded_behind_a_collector_that_does_not_answer(otlp_e
     monkeypatch.setattr(_usage_metrics_writer, "_timeout_ms", lambda: 10_000)
     Collector.delay = 3
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     started = time.monotonic()
     writer.on_shutdown()
     # The request at exit gets what is left of the shutdown time, not the export timeout.
@@ -550,7 +557,7 @@ def test_shutdown_time_is_bounded_behind_a_collector_that_does_not_answer(otlp_e
     # Nor does the last flush wait out a periodic flush whose request the collector does not answer. A new writer:
     # once shutting down, a writer's periodic flushes start no request.
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     flushing = threading.Thread(target=writer.flush, daemon=True)
     flushing.start()
     while len(Collector.requests) < 2:
@@ -635,7 +642,7 @@ def test_the_endpoints_come_from_stable_configuration(collector, monkeypatch, so
             monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", f"http://127.0.0.1:{port}/metrics-only")
         Collector.requests.clear()
         writer = UsageMetricsWriter("otlp", interval=60)
-        writer.record(PROVIDER_ATTEMPT, *observation())
+        writer.record([PROVIDER_ATTEMPT], *observation())
         writer.flush()
         [(sent_path, _, _)] = Collector.requests
         assert sent_path == expected
@@ -697,7 +704,7 @@ def test_the_logged_endpoint_has_no_secrets(collector, monkeypatch):
     monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
     Collector.status = 400
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     [(sent_path, _, _)] = Collector.requests
     assert sent_path == "/token-123/v1/metrics?api_key=secret123"
@@ -714,7 +721,7 @@ def test_close_spends_one_shutdown_budget(otlp_endpoint, monkeypatch):
     Collector.delay = 3
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.start()
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     flushing = threading.Thread(target=writer.flush, daemon=True)
     flushing.start()
     while not Collector.requests:
@@ -731,7 +738,7 @@ def test_the_worker_shutdown_flush_keeps_the_close_deadline(otlp_endpoint, monke
     writer = UsageMetricsWriter("otlp", interval=60)
     writer.start()
     writer.close()
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     time.sleep(0.6)
     # What the worker runs as it stops, after close()'s deadline has passed: it does not start a new one.
     started = time.monotonic()
@@ -745,7 +752,7 @@ def test_the_global_endpoint_keeps_its_query(collector, monkeypatch):
         "OTEL_EXPORTER_OTLP_ENDPOINT", f"http://127.0.0.1:{collector.server_address[1]}/custom/?tenant=a"
     )
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     [(sent_path, _, _)] = Collector.requests
     assert sent_path == "/custom/v1/metrics?tenant=a"
@@ -755,7 +762,7 @@ def test_the_global_endpoint_keeps_its_query(collector, monkeypatch):
 def test_the_metrics_endpoint_is_used_as_given(collector, monkeypatch, path):
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", f"http://127.0.0.1:{collector.server_address[1]}{path}")
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     [(sent_path, _, _)] = Collector.requests
     assert sent_path == (path or "/")
@@ -763,8 +770,8 @@ def test_the_metrics_endpoint_is_used_as_given(collector, monkeypatch, path):
 
 def test_rejected_observations_are_dropped(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, {"operation_name": "chat"}, None)
-    writer.record(PROVIDER_ATTEMPT, {"operation_name": object()}, None)
+    writer.record([PROVIDER_ATTEMPT], {"operation_name": "chat"}, None)
+    writer.record([PROVIDER_ATTEMPT], {"operation_name": object()}, None)
     writer.flush()
     assert Collector.requests == []
 
@@ -777,13 +784,13 @@ def test_rejections_and_issues_are_counted_in_telemetry(otlp_endpoint, monkeypat
         lambda namespace, name, value, tags: counts.append((namespace.value, name, value, dict(tags))),
     )
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, {"operation_name": "chat"}, None)
+    writer.record([PROVIDER_ATTEMPT], {"operation_name": "chat"}, None)
     inconsistent, _ = observation(input_tokens=20)
     inconsistent.update(input_basis="includes_cache", cache_read_input_tokens=80)
-    writer.record(PROVIDER_ATTEMPT, inconsistent, None)
+    writer.record([PROVIDER_ATTEMPT], inconsistent, None)
     rejected, issues = counts[0], counts[1:]
     assert rejected[:3] == ("tracers", "usage_metrics.observations_rejected", 1)
-    assert rejected[3]["integration_name"] == "litellm"
+    assert rejected[3]["integration_name"] == "test_integration"
     assert rejected[3]["profile"] == PROVIDER_ATTEMPT
     assert rejected[3]["code"]
     assert all(issue[:3] == ("tracers", "usage_metrics.observation_issues", 1) for issue in issues)
@@ -793,20 +800,20 @@ def test_rejections_and_issues_are_counted_in_telemetry(otlp_endpoint, monkeypat
 def test_reset_drops_the_parent_points(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
     sender = writer._otlp
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.reset()
     writer.flush()
     assert Collector.requests == []
     # A forked child does not reuse the parent's HTTP client.
     assert writer._otlp is not sender
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert len(Collector.requests) == 1
 
 
 def test_on_shutdown_flushes(otlp_endpoint):
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.on_shutdown()
     assert len(Collector.requests) == 1
 
@@ -848,7 +855,7 @@ def test_dogstatsd_over_udp_splits_packets(monkeypatch):
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     for i in range(10):
-        writer.record(PROVIDER_ATTEMPT, *observation(user=f"user-{i:03d}"))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=f"user-{i:03d}"))
     writer.flush()
     packets = receiver.stop()
     assert len(packets) > 1
@@ -870,9 +877,9 @@ def test_dogstatsd_stops_sending_at_the_shutdown_deadline(monkeypatch):
     monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{sock.getsockname()[1]}")
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation(user="user-late"))
+    writer.record([PROVIDER_ATTEMPT], *observation(user="user-late"))
     writer.flush(deadline=time.monotonic() - 1)
-    writer.record(PROVIDER_ATTEMPT, *observation(user="user-on-time"))
+    writer.record([PROVIDER_ATTEMPT], *observation(user="user-on-time"))
     writer.flush(deadline=time.monotonic() + 30)
     lines = [line for packet in receiver.stop() for line in packet.decode().split("\n")]
     assert lines and all("user.id:user-on-time" in line for line in lines)
@@ -887,17 +894,19 @@ def test_a_dogstatsd_send_in_progress_stops_at_the_close_deadline(monkeypatch):
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     sender = writer._dogstatsd
-    sender._max_packet = 1
     connect = sender._connect
+    connects = []
 
     def connect_then_close_starts():
+        connects.append(1)
         connected = connect()
         sender.stop_by(time.monotonic() - 1)
         return connected
 
     monkeypatch.setattr(sender, "_connect", connect_then_close_starts)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
+    assert connects == [1]
     assert receiver.stop() == []
     assert sender._socket is None
 
@@ -920,7 +929,7 @@ def test_dogstatsd_host_that_resolves_to_ipv6_only(monkeypatch):
     monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://dogstatsd.test:{sock.getsockname()[1]}")
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert receiver.stop()
 
@@ -940,7 +949,7 @@ def test_dogstatsd_prefers_ipv4_when_a_host_resolves_to_both(monkeypatch):
     monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://dogstatsd.test:{port}")
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     assert receiver.stop()
 
@@ -954,7 +963,7 @@ def test_dogstatsd_over_unix_socket(monkeypatch):
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     for i in range(20):
-        writer.record(PROVIDER_ATTEMPT, *observation(user=f"user-{i:03d}"))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=f"user-{i:03d}"))
     writer.flush()
     packets = receiver.stop()
     lines = b"\n".join(packets).decode().split("\n")
@@ -984,7 +993,7 @@ def test_dogstatsd_moves_to_the_next_address_after_a_failed_send(monkeypatch):
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     for _ in range(4):
-        writer.record(PROVIDER_ATTEMPT, *observation())
+        writer.record([PROVIDER_ATTEMPT], *observation())
         writer.flush()
         time.sleep(0.05)
     assert receiver.stop()
@@ -1069,7 +1078,7 @@ def test_close_flushes_and_releases_the_socket(monkeypatch):
     receiver = Receiver(sock)
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     writer.start()
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.close()
     assert receiver.stop()
     assert writer._dogstatsd._socket is None
@@ -1078,7 +1087,7 @@ def test_close_flushes_and_releases_the_socket(monkeypatch):
 def test_dogstatsd_without_a_listener_never_raises(monkeypatch):
     monkeypatch.setattr(agent_config, "dogstatsd_url", "unix:///nonexistent/dsd.sock")
     writer = UsageMetricsWriter("dogstatsd", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
 
 
@@ -1093,7 +1102,7 @@ def test_otlp_exports_are_gzipped_by_default(otlp_endpoint, no_compression_setti
     metrics_service_pb2 = pytest.importorskip("opentelemetry.proto.collector.metrics.v1.metrics_service_pb2")
     writer = UsageMetricsWriter("otlp", interval=60)
     for i in range(50):
-        writer.record(PROVIDER_ATTEMPT, *observation(user=f"user-{i:03d}"))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=f"user-{i:03d}"))
     writer.flush()
     [(_, headers, body)] = Collector.requests
     assert headers["content-encoding"] == "gzip"
@@ -1118,7 +1127,7 @@ def test_otlp_compression_follows_the_settings(otlp_endpoint, no_compression_set
     for name, value in variables.items():
         monkeypatch.setenv(name, value)
     writer = UsageMetricsWriter("otlp", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     [(_, headers, body)] = Collector.requests
     assert ("content-encoding" in headers) is gzipped
@@ -1147,13 +1156,13 @@ def test_pending_exports_are_bounded_by_size(otlp_endpoint, no_compression_setti
     writer = UsageMetricsWriter("otlp", interval=60)
     users = ("user-one", "user-two", "user-three", "user-four")
     for user in users[:2]:
-        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=user))
         writer.flush()
     # Room for the two exports pending and one more, not two more.
     size = max(len(body) for body in writer._pending)
     monkeypatch.setattr(_usage_metrics_writer, "_MAX_PENDING_BYTES", 3 * size + size // 2)
     for user in users[2:]:
-        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=user))
         writer.flush()
     assert len(writer._pending) == 3
     Collector.status = 200
@@ -1169,7 +1178,7 @@ def test_an_export_larger_than_the_size_bound_is_still_kept(otlp_endpoint, monke
     Collector.status = 503
     writer = UsageMetricsWriter("otlp", interval=60)
     for user in ("user-one", "user-two"):
-        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=user))
         writer.flush()
     [body] = writer._pending
     assert b"user-two" in gzip.decompress(body)
@@ -1186,7 +1195,7 @@ def test_dogstatsd_send_failures_warn(monkeypatch):
     monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://127.0.0.1:{port}")
     writer = UsageMetricsWriter("dogstatsd", interval=60)
     for _ in range(5):
-        writer.record(PROVIDER_ATTEMPT, *observation())
+        writer.record([PROVIDER_ATTEMPT], *observation())
         writer.flush()
         if warnings:
             break
@@ -1201,7 +1210,7 @@ def test_dogstatsd_warns_when_the_socket_is_missing(monkeypatch):
     monkeypatch.setattr(_usage_metrics_writer.log, "warning", lambda *args: warnings.append(args))
     monkeypatch.setattr(agent_config, "dogstatsd_url", "unix:///nonexistent/dsd.sock")
     writer = UsageMetricsWriter("dogstatsd", interval=60)
-    writer.record(PROVIDER_ATTEMPT, *observation())
+    writer.record([PROVIDER_ATTEMPT], *observation())
     writer.flush()
     [args] = warnings
     assert args[1] == "/nonexistent/dsd.sock"
@@ -1254,16 +1263,16 @@ def _usage_with(series, repeat=2):
             obs["duration_seconds"] = 0.5 + r + i % 7
             obs["cost_usd"] = 1e-6 * (r + 1)
             for usage in usages:
-                usage.record(PROVIDER_ATTEMPT, obs, dict(attributes, **{"service.name": f"svc-{i % 3}"}))
+                usage.add([PROVIDER_ATTEMPT], obs, dict(attributes, **{"service.name": f"svc-{i % 3}"}))
     return usages
 
 
 @pytest.mark.parametrize("datadog", [False, True])
 def test_a_large_otlp_export_splits_by_series(datadog):
     whole_usage, parts_usage = _usage_with(10_000)
-    whole = whole_usage.take_otlp("scope", "1", 1, 2, datadog=datadog)
+    whole = whole_usage.take_otlp("scope", "1", 1, 2, 1 << 40, datadog=datadog)[0]
     max_bytes = _usage_metrics_writer._MAX_REQUEST_BYTES
-    parts = parts_usage.take_otlp_parts("scope", "1", 1, 2, max_bytes, datadog=datadog)
+    parts = parts_usage.take_otlp("scope", "1", 1, 2, max_bytes, datadog=datadog)
     assert len(whole) > 4 * max_bytes
     assert len(parts) > 4
     assert all(len(part) <= max_bytes for part in parts), [len(part) for part in parts]
@@ -1275,20 +1284,20 @@ def test_a_large_otlp_export_splits_by_series(datadog):
             assert key not in union, key
             union[key] = point
     assert union == _series_points(whole)
-    assert parts_usage.take_otlp_parts("scope", "1", 2, 3, max_bytes) == []
+    assert parts_usage.take_otlp("scope", "1", 2, 3, max_bytes) == []
 
 
 def test_an_otlp_export_that_fits_is_one_identical_request():
     whole_usage, parts_usage = _usage_with(50)
-    whole = whole_usage.take_otlp("scope", "1", 1, 2)
-    assert parts_usage.take_otlp_parts("scope", "1", 1, 2, len(whole)) == [whole]
+    whole = whole_usage.take_otlp("scope", "1", 1, 2, 1 << 40)[0]
+    assert parts_usage.take_otlp("scope", "1", 1, 2, len(whole)) == [whole]
 
 
 def test_a_series_is_never_split_across_requests():
     whole_usage, parts_usage = _usage_with(5, repeat=3)
-    whole = _series_points(whole_usage.take_otlp("scope", "1", 1, 2))
+    whole = _series_points(whole_usage.take_otlp("scope", "1", 1, 2, 1 << 40)[0])
     # Too small for any series: one request per series, each with all its samples.
-    parts = parts_usage.take_otlp_parts("scope", "1", 1, 2, 1)
+    parts = parts_usage.take_otlp("scope", "1", 1, 2, 1)
     assert len(parts) == len(whole)
     union = {}
     for part in parts:
@@ -1302,7 +1311,7 @@ def test_the_requests_of_a_flush_wait_in_order_for_a_failing_endpoint(otlp_endpo
     writer = UsageMetricsWriter("otlp", interval=60)
     users = [f"user-{i:03d}" for i in range(60)]
     for user in users:
-        writer.record(PROVIDER_ATTEMPT, *observation(user=user))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=user))
     Collector.status = 503
     writer.flush()
     queued = [gzip.decompress(body) for body in writer._pending]
@@ -1331,13 +1340,13 @@ def test_pending_requests_of_one_flush_are_kept_while_they_fit(otlp_endpoint, mo
     Collector.status = 503
     writer = UsageMetricsWriter("otlp", interval=60)
     for i in range(60):
-        writer.record(PROVIDER_ATTEMPT, *observation(user=f"old-{i:03d}"))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=f"old-{i:03d}"))
     writer.flush()
     first = list(writer._pending)
     # Room for the newer flush's requests and part of the older one's: the older requests go first.
     monkeypatch.setattr(_usage_metrics_writer, "_MAX_PENDING_BYTES", sum(map(len, first)) + len(first[0]) // 2)
     for i in range(60):
-        writer.record(PROVIDER_ATTEMPT, *observation(user=f"new-{i:03d}"))
+        writer.record([PROVIDER_ATTEMPT], *observation(user=f"new-{i:03d}"))
     writer.flush()
     pending = list(writer._pending)
     newer = pending[-len(first) :]
