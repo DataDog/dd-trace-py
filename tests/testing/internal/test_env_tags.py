@@ -246,7 +246,7 @@ def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shall
     assert tags[GitTag.COMMIT_COMMITTER_EMAIL] == "jane@doe.com"
     assert tags[GitTag.COMMIT_COMMITTER_DATE] == "2021-01-20T04:37:21-0400"
     assert tags[GitTag.COMMIT_MESSAGE] == "this is a commit msg"
-    assert tags[GitTag.COMMIT_SHA] == github_sha
+    assert tags[GitTag.COMMIT_SHA] == Git().get_commit_sha()
 
     assert tags[GitTag.COMMIT_HEAD_AUTHOR_NAME] == "John Doe"
     assert tags[GitTag.COMMIT_HEAD_AUTHOR_EMAIL] == "john@doe.com"
@@ -294,7 +294,7 @@ def test_extract_git_head_commit_data_skips_deepen_when_git_fetch_disabled(
     assert GitTag.COMMIT_HEAD_MESSAGE not in tags
     assert GitTag.COMMIT_HEAD_AUTHOR_NAME not in tags
     # The rest of the tags are unaffected.
-    assert tags[GitTag.COMMIT_SHA] == "abcd1234"
+    assert tags[GitTag.COMMIT_SHA] == Git().get_commit_sha()
 
 
 def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
@@ -310,8 +310,8 @@ def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_rep
     assert tags == {}
 
 
-def test_ci_provider_tags_not_overwritten_by_git_executable(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
-    """If non-Falsey values from CI provider env, should not be overwritten by extracted git metadata."""
+def test_git_executable_overwrites_conflicting_ci_provider_tags(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
+    """A readable checkout overrides conflicting standard Git metadata from the provider."""
     ci_provider_env = {
         "APPVEYOR": "true",
         "APPVEYOR_BUILD_FOLDER": "/foo/bar",
@@ -330,10 +330,12 @@ def test_ci_provider_tags_not_overwritten_by_git_executable(monkeypatch: pytest.
 
     tags = get_env_tags()
 
-    assert tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
-    assert tags["git.commit.message"] == "this is the correct commit message"
-    assert tags["git.commit.author.name"] == "John Jack"
-    assert tags["git.commit.author.email"] == "john@jack.com"
+    assert tags["git.repository_url"] == "git@github.com:test-repo-url.git"
+    assert tags["git.commit.sha"] == Git().get_commit_sha()
+    assert tags["git.commit.message"] == "this is a commit msg"
+    assert tags["git.commit.author.name"] == "John Doe"
+    assert tags["git.commit.author.email"] == "john@doe.com"
+    assert tags["ci.pipeline.id"] == "appveyor-build-id"
 
 
 def test_falsey_ci_provider_values_overwritten_by_git_executable(
