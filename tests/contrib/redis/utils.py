@@ -2,6 +2,33 @@
 Utility functions for Redis integration tests.
 """
 
+import socket
+import time
+
+
+def wait_for_cluster(host, port, client, timeout=20):
+    """Wait until a reachable Redis-compatible cluster reports a healthy state."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(1)
+    try:
+        if sock.connect_ex((host, port)) != 0:
+            return
+    except Exception:
+        return
+    finally:
+        sock.close()
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            info = client.execute_command("CLUSTER INFO")
+            if info.get("cluster_state") == "ok":
+                return
+        except Exception:
+            pass
+        time.sleep(1)
+    raise RuntimeError("Cluster at %s:%d not ready after %ds" % (host, port, timeout))
+
 
 def find_redis_span(spans, resource=None, raw_command=None, component="redis", raw_command_tag="redis.raw_command"):
     """
