@@ -2,6 +2,8 @@
 Comprehensive tests for the DataDogProvider following OpenFeature specification.
 """
 
+from datetime import datetime
+
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import Reason
@@ -9,6 +11,7 @@ import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
+from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
@@ -296,6 +299,50 @@ class TestEvaluationContext:
         result = provider.resolve_string_details("test-flag", "default")
 
         assert result.value == "no-context"
+
+    def test_unsupported_attribute_values_are_ignored(self, provider):
+        """Nested and other non-scalar attribute values must not fail the whole evaluation."""
+        config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+        context = EvaluationContext(
+            targeting_key="user-123",
+            attributes={"nested": {"a": 1}, "items": ["a"], "tier": "premium"},
+        )
+
+        result = provider.resolve_boolean_details("test-flag", False, context)
+
+        assert result.value is True
+        assert result.error_code is None
+
+    def test_only_scalar_attributes_reach_the_native_evaluator(self):
+        """str, bool, int, float and None attributes are passed through; anything else is dropped."""
+        captured = []
+
+        class _Configuration:
+            def resolve_value(self, flag_key, expected_type, context):
+                captured.append(context)
+
+        attributes = {
+            "name": "a",
+            "enabled": True,
+            "count": 3,
+            "ratio": 0.5,
+            "missing": None,
+            "nested": {"a": 1},
+            "items": [1],
+            "pair": (1, 2),
+            "tags": {"x"},
+            "raw": b"x",
+            "when": datetime(2026, 1, 1),
+        }
+        resolve_flag(_Configuration(), "test-flag", {"targetingKey": "user-123", "attributes": attributes}, None)
+        resolve_flag(_Configuration(), "test-flag", EvaluationContext("user-123", attributes), None)
+
+        expected = {"name": "a", "enabled": True, "count": 3, "ratio": 0.5, "missing": None}
+        assert captured == [
+            {"targeting_key": "user-123", "attributes": expected},
+            {"targeting_key": "user-123", "attributes": expected},
+        ]
 
 
 class TestReasonMapping:
