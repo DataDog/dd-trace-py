@@ -39,3 +39,13 @@ def _no_initialization_wait(monkeypatch):
     initialization_timeout constructor argument.
     """
     monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", "0")
+
+
+@pytest.fixture(autouse=True)
+def _reset_flag_selection():
+    """Each test starts with no process flag selection claimed and no diagnostic reported."""
+    from ddtrace.internal.openfeature._flag_selection import _reset_flag_selection_state
+
+    _reset_flag_selection_state()
+    yield
+    _reset_flag_selection_state()

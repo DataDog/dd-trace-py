@@ -124,8 +124,9 @@ first. To refresh the snapshot from a reviewed upstream commit, run:
     $ scripts/run-tests --venv <environment-hash>
 
 ``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
-locally. Only ``ufc-config.json`` and ``evaluation-cases/*.json`` are copied;
-unexpected entries inside ``evaluation-cases/`` are rejected.
+locally. Only ``ufc-config.json``, ``evaluation-cases/*.json`` and
+``flag-selection/selection-vectors.json`` are copied; unexpected entries inside
+``evaluation-cases/`` are rejected.
 
 The ``Check FFE fixtures`` PR check fetches the exact commit recorded in
 ``SOURCE.md`` and compares the copied filenames and contents. It does not update

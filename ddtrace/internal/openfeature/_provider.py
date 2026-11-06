@@ -37,6 +37,9 @@ from ddtrace.internal.openfeature._debug_logging_hook import warn_raw_evaluation
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
+from ddtrace.internal.openfeature._flag_selection import release_process_selection
+from ddtrace.internal.openfeature._flag_selection import snapshot_from_other_selection
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
@@ -116,17 +119,31 @@ class DataDogProvider(AbstractProvider):
 
     Implements the OpenFeature provider interface for Datadog's
     Feature Flags and Experimentation (FFE) product.
+
+    flag_selection limits the flags loaded from the agentless configuration
+    endpoint, for example
+    DataDogProvider(flag_selection={"tags": ["team:checkout"], "key_patterns": ["checkout.*"]}).
+    A flag is loaded when it has any of the tags or its key matches any of the
+    key patterns, where "*" matches any run of characters. Without a selection
+    every flag is loaded. Other keys, including keyPatterns, are ignored. Each
+    list accepts at most 31 strings of at most 200 UTF-8 bytes; an invalid
+    selection is logged and every flag is loaded. A process uses one selection:
+    the first provider to initialize sets it until every provider has shut down.
+    Remote Config delivery ignores the selection.
     """
 
     def __init__(
         self,
         *args: typing.Any,
         initialization_timeout: typing.Optional[float] = None,
+        flag_selection: typing.Optional[typing.Mapping[str, typing.Optional[typing.Sequence[str]]]] = None,
         **kwargs: typing.Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
+        # Canonicalized now so later changes to the caller's lists have no effect.
+        self._flag_selection = canonicalize_flag_selection(flag_selection)
 
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
@@ -309,7 +326,8 @@ class DataDogProvider(AbstractProvider):
 
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).
-        if _get_ffe_snapshot() is not None:
+        # A snapshot loaded for a released, different flag selection does not count.
+        if _get_ffe_snapshot() is not None and not snapshot_from_other_selection():
             self._config_received.set()
             self._status = ProviderStatus.READY
             logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")
@@ -411,7 +429,7 @@ class DataDogProvider(AbstractProvider):
 
         from ddtrace.internal.openfeature._source_selection import create_agentless_source
 
-        source = create_agentless_source(ffe_config, _apply_agentless_configuration)
+        source = create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
         if source is None:
             return
 
@@ -419,6 +437,9 @@ class DataDogProvider(AbstractProvider):
             source.start()
         except ServiceStatusError:
             logger.debug("Agentless configuration source is already running", exc_info=True)
+        except Exception:
+            release_process_selection()
+            raise
         self._configuration_source = source
 
     def _stop_configuration_source(self) -> None:
@@ -433,6 +454,7 @@ class DataDogProvider(AbstractProvider):
         except ServiceStatusError:
             logger.debug("Agentless configuration source is already stopped", exc_info=True)
         self._configuration_source = None
+        release_process_selection()
 
     def resolve_boolean_details(
         self,
