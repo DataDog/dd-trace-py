@@ -158,3 +158,54 @@ def test_apm_tracing_rc_remote_reenable_when_no_env_override(monkeypatch):
 def test_apm_capabilities_value():
     assert APMCapabilities == (RemoteConfigCapabilities.ApmTracingEnableDynamicInstrumentation,)
     assert int(APMCapabilities[0]) == 38
+
+
+@pytest.mark.subprocess
+def test_rc_enable_instruments_preimported_module():
+    import importlib
+    import os
+    from pathlib import Path
+    from unittest.mock import patch
+
+    os.environ.pop("DD_DYNAMIC_INSTRUMENTATION_ENABLED", None)
+    import ddtrace.auto  # noqa:F401
+    from ddtrace.debugging._debugger import Debugger
+    from ddtrace.debugging._import import DebuggerModuleWatchdog
+    from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+    from ddtrace.debugging._products.dynamic_instrumentation import apm_tracing_rc
+    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.internal.utils.inspection import ModuleCodeCollector
+    from tests.debugging.mocking import MockProbeStatusLogger
+    from tests.debugging.mocking import MockSignalUploader
+    from tests.debugging.utils import create_snapshot_line_probe
+    import tests.submod.stuff as stuff
+    from tests.utils import DummyWriter
+
+    assert Debugger._instance is None
+    assert not DebuggerModuleWatchdog.is_installed()
+    assert not hasattr(ModuleWatchdog._instance, "_origin_map")
+    assert ModuleCodeCollector.get_code_objects(stuff)
+
+    with (
+        patch.object(Debugger, "__uploader__", MockSignalUploader),
+        patch.object(Debugger, "__logger__", MockProbeStatusLogger),
+        patch.object(ddtrace.tracer._span_aggregator, "writer", DummyWriter()),
+    ):
+        try:
+            apm_tracing_rc({"dynamic_instrumentation_enabled": True}, None)
+            debugger = Debugger._instance
+            assert debugger is not None
+            assert DebuggerModuleWatchdog.get_by_origin(Path(stuff.__file__)) is stuff
+            probe = create_snapshot_line_probe(probe_id="rc-decorated", source_file=stuff.__file__, line=48, rate=1000)
+            debugger._on_configuration(ProbePollerEvent.NEW_PROBES, [probe])
+            for _ in range(2):
+                instance = stuff.Stuff()
+                with ddtrace.tracer.trace("rc-enable"):
+                    assert instance.decoratedstuff() is instance
+                importlib.reload(stuff)
+            snapshots = MockSignalUploader.get_collector().test_queue
+            assert [snapshot.probe.probe_id for snapshot in snapshots] == [probe.probe_id, probe.probe_id], snapshots
+            debugger._on_configuration(ProbePollerEvent.DELETED_PROBES, [probe])
+        finally:
+            apm_tracing_rc({"dynamic_instrumentation_enabled": False}, None)
+        assert not DebuggerModuleWatchdog.is_installed()

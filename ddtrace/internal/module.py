@@ -10,7 +10,6 @@ import sys
 from types import CodeType
 from types import ModuleType
 import typing as t
-from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -548,168 +547,16 @@ class ModuleWatchdog(BaseModuleWatchdog):
         super().__init__()
 
         self._hook_map: defaultdict[str, list[ModuleHookType]] = defaultdict(list)
-        # DEV: It would make more sense to make this a mapping of Path to ModuleType
-        # but the WeakValueDictionary causes an ignored exception on shutdown
-        # because the pathlib module is being garbage collected.
-        self._om: t.Optional[t.MutableMapping[str, ModuleType]] = None
-        self._track_origins = False
         # _pre_exec_module_hooks is a set of tuples (condition, hook) instead
         # of a list to ensure that no hook is duplicated
         self._pre_exec_module_hooks: set[tuple[PreExecHookCond, PreExecHookType]] = set()
         self._import_exception_hooks: set[tuple[ImportExceptionHookCond, ImportExceptionHookType]] = set()
 
-    @property
-    def _origin_map(self) -> t.MutableMapping[str, ModuleType]:
-        self._track_origins = True
-
-        def modules_with_origin(modules: t.Iterable[ModuleType]) -> t.MutableMapping[str, ModuleType]:
-            result: t.MutableMapping[str, ModuleType] = wvdict()
-
-            for m in modules:
-                module_origin = origin(m)
-                if module_origin is None:
-                    continue
-
-                try:
-                    result[str(module_origin)] = m
-                except TypeError:
-                    # This can happen if the module is a special object that
-                    # does not allow for weak references. Quite likely this is
-                    # an object created by a native extension. We make the
-                    # assumption that this module does not contain valuable
-                    # information that can be used at the Python runtime level.
-                    pass
-
-            return result
-
-        if self._om is None:
-            try:
-                self._om = modules_with_origin(sys.modules.values())
-            except RuntimeError:
-                # The state of sys.modules might have been mutated by another
-                # thread. We try to build the full mapping at the next occasion.
-                # For now we take the more expensive route of building a list of
-                # the current values, which might be incomplete.
-                return modules_with_origin(list(sys.modules.values()))
-        return self._om
-
     def after_import(self, module: ModuleType) -> None:
-        path = None
-        if self._track_origins:
-            module_path = origin(module)
-            path = str(module_path) if module_path is not None else None
-            if path is not None:
-                self._origin_map[path] = module
-
-        # Collect all hooks by module origin and name
-        hooks = []
-        if path is not None and path in self._hook_map:
-            hooks.extend(self._hook_map[path])
-        if module.__name__ in self._hook_map:
-            hooks.extend(self._hook_map[module.__name__])
-
-        if hooks:
+        if hooks := self._hook_map.get(module.__name__):
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
-            for hook in hooks:
+            for hook in list(hooks):
                 hook(module)
-
-    @classmethod
-    def get_by_origin(cls, _origin: Path) -> t.Optional[ModuleType]:
-        """Lookup a module by its origin."""
-        if not cls.is_installed():
-            return None
-
-        instance = t.cast(ModuleWatchdog, cls._instance)
-
-        resolved_path = _resolve(_origin)
-        if resolved_path is not None:
-            path = str(resolved_path)
-            module = instance._origin_map.get(path)
-            if module is not None:
-                return module
-
-            # Check if this is the __main__ module
-            main_module = sys.modules.get("__main__")
-            if main_module is not None and origin(main_module) == resolved_path:
-                # Register for future lookups
-                instance._origin_map[path] = main_module
-
-                return main_module
-
-        return None
-
-    @classmethod
-    def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
-        """Register a hook to be called when the module with the given origin is
-        imported.
-
-        The hook will be called with the module object as argument.
-        """
-        cls.install()
-
-        # DEV: Under the hypothesis that this is only ever called by the probe
-        # poller thread, there are no further actions to take. Should this ever
-        # change, then thread-safety might become a concern.
-        resolved_path = _resolve(origin)
-        if resolved_path is None:
-            log.warning("Cannot resolve module origin %s", origin)
-            return
-
-        path = str(resolved_path)
-
-        log.debug("Registering hook '%r' on path '%s'", hook, path)
-        instance = t.cast(ModuleWatchdog, cls._instance)
-        instance._hook_map[path].append(hook)
-        try:
-            module = instance.get_by_origin(resolved_path)
-            if module is None:
-                # The path was resolved but we still haven't seen any module
-                # that has it as origin. Nothing more we can do for now.
-                return
-            # Sanity check: the module might have been removed from sys.modules
-            # but not yet garbage collected.
-            try:
-                sys.modules[module.__name__]
-            except KeyError:
-                del instance._origin_map[path]
-                raise
-        except KeyError:
-            # The module is not loaded yet. Nothing more we can do.
-            return
-
-        # The module was already imported so we invoke the hook straight-away
-        log.debug("Calling hook '%r' on already imported module '%s'", hook, module.__name__)
-        hook(module)
-
-    @classmethod
-    def unregister_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
-        """Unregister the hook registered with the given module origin and
-        argument.
-        """
-        if not cls.is_installed():
-            return
-
-        resolved_path = _resolve(origin)
-        if resolved_path is None:
-            log.warning("Module origin %s cannot be resolved", origin)
-            return
-
-        path = str(resolved_path)
-
-        instance = t.cast(ModuleWatchdog, cls._instance)
-        if path not in instance._hook_map:
-            log.warning("No hooks registered for origin %s", origin)
-            return
-
-        try:
-            if path in instance._hook_map:
-                hooks = instance._hook_map[path]
-                hooks.remove(hook)
-                if not hooks:
-                    del instance._hook_map[path]
-        except ValueError:
-            log.warning("Hook %r not registered for origin %s", hook, origin)
-            return
 
     @classmethod
     def register_module_hook(cls, module: str, hook: ModuleHookType) -> None:

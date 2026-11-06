@@ -8,10 +8,9 @@ and do not follow the semver versioning scheme of the `ddtrace` package.
 
 ## Module import hooks
 
-`ModuleWatchdog` dispatches hooks by module name without resolving filesystem paths.
-The first origin lookup or origin-hook registration builds an index of loaded modules;
-subsequent imports update that index. Keep name-based hooks independent of the origin
-index so ordinary imports do not pay for path resolution.
+`ModuleWatchdog` dispatches name-based hooks without resolving filesystem paths.
+Keep origin tracking in `DebuggerModuleWatchdog`, which indexes loaded modules when
+installed and tracks subsequent imports.
 
 ## Span attribute limits
 
