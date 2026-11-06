@@ -14,8 +14,8 @@ import pytest
 
 from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
-from ddtrace.llmobs._integrations.utils import g711_to_pcm16
-from ddtrace.llmobs._integrations.utils import pcm16_to_wav
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 
 
 try:
@@ -92,7 +92,16 @@ class _RecordingIntegration:
         )
 
     def _llmobs_set_tags_from_realtime_workflow(
-        self, span, name, session_id=None, parent_span=None, input_value=None, output_value=None, metadata=None
+        self,
+        span,
+        name,
+        session_id=None,
+        parent_span=None,
+        input_value=None,
+        output_value=None,
+        metadata=None,
+        metrics=None,
+        tags=None,
     ):
         self.workflows.append(
             {
@@ -103,12 +112,18 @@ class _RecordingIntegration:
                 "input_value": input_value,
                 "output_value": output_value,
                 "metadata": metadata,
+                "metrics": metrics,
+                "tags": tags,
             }
         )
 
+    def _get_model_provider(self, span):
+        return "openai"
 
-def _new_state(model=None):
+
+def _new_state(model=None, barge_in=False):
     integration = _RecordingIntegration()
+    integration.integration_config = {"_realtime_barge_in_enabled": barge_in}
     state = _RealtimeState(integration, client=None, model=model)
     return integration, state
 
@@ -1709,3 +1724,1609 @@ def test_realtime_patch_and_unpatch(openai):
 
     patch()  # restore for the fixture's teardown
     assert hasattr(RealtimeConnection.parse_event, "__wrapped__")
+
+
+@pytest.fixture
+def barge_state(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    integration, state = _new_state(barge_in=True)
+    session = _session_created(transcription=False)
+    session.session.audio.input.turn_detection = _ns(type="server_vad", interrupt_response=True)
+    state.on_server_event(session)
+    return integration, state, clock
+
+
+def _barge_response(state, clock, response_id="r1", audio_ms=1000, generation_ms=100):
+    state.on_server_event(_ns(type="response.created", response=_ns(id=response_id)))
+    state.on_server_event(
+        _ns(
+            type="response.output_audio.delta",
+            response_id=response_id,
+            item_id="audio_" + response_id,
+            content_index=0,
+            delta=_b64(_agent_pcm(audio_ms)),
+        )
+    )
+    clock.advance_ms(generation_ms)
+    state.on_server_event(_ns(type="response.done", response=_ns(id=response_id, status="completed")))
+
+
+def _barge_speech(state, event_id="onset-1"):
+    state.on_server_event(_ns(type="input_audio_buffer.speech_started", event_id=event_id, item_id="user-next"))
+
+
+def _barge_ack(state, response_id="r1", cutoff_ms=200):
+    state.on_server_event(
+        _ns(type="conversation.item.truncated", item_id="audio_" + response_id, content_index=0, audio_end_ms=cutoff_ms)
+    )
+
+
+def _barge_roots(integration):
+    return [entry for entry in integration.workflows if entry["name"] == "realtime audio turn"]
+
+
+@pytest.mark.parametrize("generated_ms,cutoff_ms", [(6950, 5200), (11850, 5000), (13400, 7500)])
+def test_realtime_barge_in_first_late_cut(barge_state, generated_ms, cutoff_ms):
+    integration, state, clock = barge_state
+    _barge_response(state, clock, audio_ms=generated_ms)
+    assert not integration.responses
+    clock.advance_ms(cutoff_ms - 100)
+    _barge_speech(state)
+    _truncate(state, "r1", cutoff_ms)
+    assert not integration.responses  # Leave room for the acknowledgement.
+    _barge_ack(state, cutoff_ms=cutoff_ms)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    observation = root["metadata"]["voice_barge_in"]
+    assert observation["observation"] == "complete"
+    assert observation["events"][0]["reported_cutoff_ms"] == cutoff_ms
+    assert observation["events"][0]["truncation_acknowledged"] is True
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(
+        _agent_pcm(cutoff_ms)
+    )
+    _barge_ack(state, cutoff_ms=cutoff_ms)
+    state.finish_session()
+    assert len(_barge_roots(integration)) == 1
+
+
+def test_realtime_barge_in_known_zero(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    clock.advance_ms(1200)
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 0}
+    assert root["metadata"]["voice_barge_in"]["events"] == []
+
+
+def test_realtime_barge_in_close_before_window_is_incomplete(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] is None
+    assert root["metadata"]["voice_barge_in"]["observation"] == "incomplete"
+
+
+def test_realtime_barge_in_no_audio_cancel_is_not_eligible(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="response.created", response=_ns(id="silent")))
+    _barge_speech(state)
+    state.on_server_event(_ns(type="response.done", response=_ns(id="silent", status="cancelled")))
+    root = _barge_roots(integration)[0]
+    assert root["metadata"] is None
+    assert root["metrics"] is None
+
+
+def test_realtime_barge_in_attempt_without_truncation_is_counted(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    clock.advance_ms(1300)
+    state.finish_session()
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+def test_realtime_barge_in_manual_truncation_does_not_count(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _truncate(state, "r1", 0)
+    _barge_ack(state, cutoff_ms=0)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 0}
+    assert not root["metadata"]["voice_barge_in"]["events"]
+
+
+@pytest.mark.parametrize("onset", ["before_audio", "after_window"])
+def test_realtime_barge_in_truncation_does_not_make_inactive_onset_count(barge_state, onset):
+    integration, state, clock = barge_state
+    if onset == "before_audio":
+        _barge_speech(state)
+    _barge_response(state, clock)
+    if onset == "after_window":
+        clock.advance_ms(1100)  # Outside playback, but still inside the finalization grace period.
+        _barge_speech(state)
+    _truncate(state, "r1", 200)
+    _barge_ack(state, cutoff_ms=200)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 0}
+    assert root["metadata"]["voice_barge_in"]["events"] == []
+
+
+def test_realtime_barge_in_episode_deduplication(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _barge_speech(state)
+    state.on_server_event(_ns(type="input_audio_buffer.speech_stopped"))
+    _barge_speech(state)  # Redelivery of a prior event, even after stop.
+    _barge_speech(state, "onset-2")
+    _truncate(state, "r1", 100)
+    _barge_ack(state, cutoff_ms=100)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 2}
+    assert len(root["metadata"]["voice_barge_in"]["events"]) == 2
+
+
+def test_realtime_barge_in_next_response_does_not_finalize_prior_output(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock, audio_ms=6000)
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r2")))
+    assert not integration.responses
+    _barge_speech(state)
+    _truncate(state, "r1", 100)
+    _barge_ack(state, cutoff_ms=100)
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+@pytest.mark.parametrize("cutoff", [-1, float("nan"), float("inf"), 1001])
+def test_realtime_barge_in_invalid_cutoff(barge_state, cutoff):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _truncate(state, "r1", cutoff)
+    assert not integration.responses
+    clock.advance_ms(1200)
+    state.finish_session()
+    assert len(integration.responses) == 1
+    if cutoff == 1001:
+        assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_retention_budget_does_not_claim_zero(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_WAIT_NS", 100_000_000)
+    _barge_response(state, clock)
+    clock.advance_ms(1500)  # Processing resumes after both budget and estimated playback end.
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_turn_capacity_marks_eviction_incomplete(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_TURNS", 1)
+    _barge_response(state, clock, "r1", audio_ms=6000)
+    _barge_response(state, clock, "r2", audio_ms=6000)
+    assert len(state._playing) == 1
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_marker_cap_preserves_count(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_MARKERS", 1)
+    _barge_response(state, clock)
+    for event_id in ("one", "two"):
+        _barge_speech(state, event_id)
+        state.on_server_event(_ns(type="input_audio_buffer.speech_stopped"))
+    clock.advance_ms(1300)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 2}
+    assert root["metadata"]["voice_barge_in"]["events_truncated"] is True
+
+
+def test_realtime_barge_in_disabled_policy_is_not_eligible(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(
+        _ns(
+            type="session.updated",
+            session=_ns(audio=_ns(input=_ns(turn_detection=_ns(type="server_vad", interrupt_response=False)))),
+        )
+    )
+    _barge_response(state, clock)
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_session_change_invalidates_observation(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    state.on_client_event({"type": "session.update", "session": {"instructions": "new"}})
+    clock.advance_ms(1300)
+    state.finish_session()
+    assert _barge_roots(integration)[0]["metrics"] is None
+
+
+def test_realtime_barge_in_audio_retention_independent(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_AUDIO_ACCUM_MAX_BYTES", 2)
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _truncate(state, "r1", 0)
+    _barge_ack(state, cutoff_ms=0)
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+def test_realtime_barge_in_marker_byte_budget(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_MARKER_BYTES", 200)
+    _barge_response(state, clock)
+    _barge_speech(state)
+    clock.advance_ms(1300)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert root["metadata"]["voice_barge_in"]["events"] == []
+    assert root["metadata"]["voice_barge_in"]["events_truncated"] is True
+
+
+def test_realtime_barge_in_ack_before_client_hook(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _barge_ack(state, cutoff_ms=100)
+    _truncate(state, "r1", 100)
+    state.finish_session()
+    assert len(_barge_roots(integration)) == 1
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+def test_realtime_barge_in_ack_after_next_speech_episode(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state)
+    _truncate(state, "r1", 100)
+    state.on_server_event(_ns(type="input_audio_buffer.speech_stopped"))
+    _barge_speech(state, "next-episode")
+    _barge_ack(state, cutoff_ms=100)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert root["metadata"]["voice_barge_in"]["events"][0]["truncation_acknowledged"] is True
+
+
+def test_realtime_barge_in_invalid_content_only_invalidates_owner(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock, "r1")
+    _barge_response(state, clock, "r2")
+    state.on_client_event(
+        {"type": "conversation.item.truncate", "item_id": "audio_r1", "content_index": "invalid", "audio_end_ms": 100}
+    )
+    clock.advance_ms(1500)
+    state.finish_session()
+    roots = _barge_roots(integration)
+    assert roots[0]["metrics"] is None
+    assert roots[1]["metrics"] == {"barge_in_count": 0}
+
+
+def test_realtime_barge_in_content_relative_ack_without_client_hook(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    for index in (0, 1):
+        state.on_server_event(
+            _ns(
+                type="response.output_audio.delta",
+                response_id="r1",
+                item_id="audio_r1",
+                content_index=index,
+                delta=_b64(_agent_pcm(500)),
+            )
+        )
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+    clock.advance_ms(600)
+    _barge_speech(state)
+    state.on_server_event(
+        _ns(type="conversation.item.truncated", item_id="audio_r1", content_index=1, audio_end_ms=100)
+    )
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert root["metadata"]["voice_barge_in"]["events"][0]["content_index"] == 1
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(600))
+
+
+def test_realtime_barge_in_stale_deltas_do_not_extend_playback(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    audio = _ns(
+        type="response.output_audio.delta",
+        response_id="r1",
+        item_id="audio_r1",
+        content_index=0,
+        delta=_b64(_agent_pcm(500)),
+    )
+    state.on_server_event(audio)
+    clock.advance_ms(100)
+    _barge_speech(state)
+    _truncate(state, "r1", 100)
+    state.on_server_event(audio)
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="cancelled")))
+    _barge_ack(state, cutoff_ms=100)
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(100))
+
+
+def test_realtime_barge_in_concurrent_send_and_close(barge_state):
+    from concurrent.futures import ThreadPoolExecutor
+
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+
+    def operation(index):
+        if index % 3:
+            state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+        else:
+            state.finish_session()
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(operation, range(100)))
+    assert len(_barge_roots(integration)) == 1
+    assert not state._playing
+    assert not state._responses
+
+
+def test_realtime_barge_in_instrumentation_failure_is_isolated(barge_state, monkeypatch):
+    _, state, _ = barge_state
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("observation failure")
+
+    monkeypatch.setattr(state, "_flush_playing", fail)
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+
+
+def _barge_connection_messages():
+    session = {
+        "type": "session.created",
+        "event_id": "session",
+        "session": {
+            "type": "realtime",
+            "model": "gpt-realtime",
+            "audio": {
+                "input": {"turn_detection": {"type": "server_vad", "interrupt_response": True}},
+                "output": {"format": {"type": "audio/pcm", "rate": 24000}},
+            },
+        },
+    }
+    return [
+        json.dumps(event)
+        for event in [
+            session,
+            {"type": "response.created", "event_id": "created", "response": {"id": "r1"}},
+            {
+                "type": "response.output_audio.delta",
+                "event_id": "audio",
+                "response_id": "r1",
+                "item_id": "audio_r1",
+                "output_index": 0,
+                "content_index": 0,
+                "delta": _b64(_agent_pcm(500)),
+            },
+            {"type": "response.done", "event_id": "done", "response": {"id": "r1", "status": "completed"}},
+            {
+                "type": "input_audio_buffer.speech_started",
+                "event_id": "onset",
+                "audio_start_ms": 200,
+                "item_id": "next-user",
+            },
+            {
+                "type": "conversation.item.truncated",
+                "event_id": "ack",
+                "item_id": "audio_r1",
+                "content_index": 0,
+                "audio_end_ms": 200,
+            },
+        ]
+    ]
+
+
+@pytest.fixture(
+    params=[
+        pytest.param((None, None, None, "openai"), id="direct-endpoint"),
+        pytest.param((None, "https://gateway.example/v1", None, "unknown"), id="opaque-endpoint"),
+        pytest.param(("custom_provider", None, None, "custom_provider"), id="override-detected-provider"),
+        pytest.param(("openai", "https://gateway.example/v1", None, "openai"), id="override-unknown-provider"),
+        pytest.param(("", "https://gateway.example/v1", None, "unknown"), id="empty-override"),
+        pytest.param(("  ", "https://gateway.example/v1", None, "unknown"), id="blank-override"),
+        pytest.param(("original", "https://gateway.example/v1", "updated", "updated"), id="late-root-annotation"),
+        pytest.param(("unknown", None, None, "unknown"), id="explicit-unknown"),
+    ]
+)
+def realtime_provider_case(request):
+    return request.param
+
+
+def _assert_barge_connection_spans(test_spans, expected_provider):
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    roots = [span for span in spans if span.resource == "createRealtimeTurn"]
+    assert len(roots) == 1
+    data = _get_llmobs_data_metastruct(roots[0])
+    assert data["metrics"]["barge_in_count"] == 1
+    assert data["tags"]["agent_version"] == "v1"
+    assert data["tags"]["prompt_version"] == "p1"
+    assert data["tags"]["model_name"] == "gpt-realtime"
+    assert data["tags"]["model_provider"] == expected_provider
+    assert data["meta"]["metadata"]["voice_barge_in"]["events"][0]["reported_cutoff_ms"] == 200
+    for span in spans:
+        if span is not roots[0]:
+            assert "barge_in_count" not in _get_llmobs_data_metastruct(span).get("metrics", {})
+    llm = next(span for span in spans if span.resource == "createRealtimeResponse")
+    output = _get_llmobs_data_metastruct(llm)["meta"]["output"]["messages"][0]
+    assert output["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(200))
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
+def test_realtime_barge_in_sync_connection(openai, openai_llmobs, test_spans, monkeypatch, realtime_provider_case):
+    from ddtrace import config
+    from ddtrace.llmobs import LLMObs
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    socket = _FakeWebSocket(_barge_connection_messages())
+    conn = RealtimeConnection(socket)
+    provider, base_url, late_provider, expected_provider = realtime_provider_case
+    tags = {"agent_version": "v1", "prompt_version": "p1"}
+    if provider is not None:
+        tags["model_provider"] = provider
+    with LLMObs.workflow(name="call"):
+        with LLMObs.annotation_context(tags=tags):
+            _realtime._attach_session(_ns(_dd_client=openai.OpenAI(base_url=base_url), _dd_model="gpt-realtime"), conn)
+            for _ in range(3):
+                conn.recv()
+            clock.advance_ms(100)
+            conn.recv()
+        with LLMObs.annotation_context(tags={"agent_version": "v2", "model_provider": "later_context"}):
+            if late_provider is not None:
+                LLMObs.annotate(
+                    span=conn._dd_realtime_state._playing[0].root_span, tags={"model_provider": late_provider}
+                )
+            clock.advance_ms(100)
+            conn.recv()
+            conn.conversation.item.truncate(item_id="audio_r1", content_index=0, audio_end_ms=200)
+            conn.recv()
+        conn.close()
+    _assert_barge_connection_spans(test_spans, expected_provider)
+    assert len(socket.sent) == 1  # Instrumentation issued no provider commands itself.
+
+
+@pytest.mark.skipif(AsyncRealtimeConnection is None, reason="openai realtime API not available")
+@pytest.mark.asyncio
+async def test_realtime_barge_in_async_connection(
+    openai, openai_llmobs, test_spans, monkeypatch, realtime_provider_case
+):
+    from ddtrace import config
+    from ddtrace.llmobs import LLMObs
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    socket = _FakeAsyncWebSocket(_barge_connection_messages())
+    conn = AsyncRealtimeConnection(socket)
+    provider, base_url, late_provider, expected_provider = realtime_provider_case
+    tags = {"agent_version": "v1", "prompt_version": "p1"}
+    if provider is not None:
+        tags["model_provider"] = provider
+    with LLMObs.workflow(name="call"):
+        with LLMObs.annotation_context(tags=tags):
+            _realtime._attach_session(_ns(_dd_client=openai.OpenAI(base_url=base_url), _dd_model="gpt-realtime"), conn)
+            for _ in range(3):
+                await conn.recv()
+            clock.advance_ms(100)
+            await conn.recv()
+        with LLMObs.annotation_context(tags={"agent_version": "v2", "model_provider": "later_context"}):
+            if late_provider is not None:
+                LLMObs.annotate(
+                    span=conn._dd_realtime_state._playing[0].root_span, tags={"model_provider": late_provider}
+                )
+            clock.advance_ms(100)
+            await conn.recv()
+            await conn.conversation.item.truncate(item_id="audio_r1", content_index=0, audio_end_ms=200)
+            await conn.recv()
+        await conn.close()
+    _assert_barge_connection_spans(test_spans, expected_provider)
+    assert len(socket.sent) == 1
+
+
+@pytest.mark.parametrize("policy", [None, "semantic_vad", "server_vad"])
+def test_realtime_barge_in_unsupported_keeps_legacy_retention(barge_state, policy):
+    integration, state, clock = barge_state
+    detection = _ns(type=policy, interrupt_response=False) if policy else None
+    state.on_server_event(_ns(type="session.updated", session=_ns(audio=_ns(input=_ns(turn_detection=detection)))))
+    _truncate(state, "gone", 0)
+    _barge_response(state, clock)
+    assert not integration.responses
+    assert len(state._playing) == 1
+    _truncate(state, "r1", 200)
+    assert len(integration.responses) == 1
+    assert _barge_roots(integration)[0]["metrics"] is None
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(200))
+
+
+@pytest.mark.parametrize("trigger", ["deadline", "next_response", "close"])
+def test_realtime_barge_in_legacy_flush_paths(barge_state, trigger):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="session.updated", session=_ns(turn_detection=None)))
+    _truncate(state, "gone", 0)
+    _barge_response(state, clock)
+    if trigger == "deadline":
+        clock.advance_ms(1200)
+        state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    elif trigger == "next_response":
+        state.on_server_event(_ns(type="response.created", response=_ns(id="r2")))
+    else:
+        state.finish_session()
+    assert len(integration.responses) == 1
+    assert not state._playing
+
+
+@pytest.mark.parametrize("session_format,response_format", [("audio/pcm", "audio/pcmu"), ("audio/pcmu", "audio/pcm")])
+def test_realtime_barge_in_response_effective_format(barge_state, session_format, response_format):
+    integration, state, clock = barge_state
+    state.on_server_event(
+        _ns(type="session.updated", session=_ns(audio=_ns(output=_ns(format=_ns(type=session_format)))))
+    )
+    state.on_server_event(
+        _ns(type="response.created", response=_ns(id="r1", audio=_ns(output=_ns(format=_ns(type=response_format)))))
+    )
+    raw = b"\xff" * 8000 if response_format == "audio/pcmu" else _agent_pcm(1000)
+    state.on_server_event(
+        _ns(type="response.output_audio.delta", response_id="r1", item_id="audio_r1", content_index=0, delta=_b64(raw))
+    )
+    clock.advance_ms(100)
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+    clock.advance_ms(400)
+    _barge_speech(state)
+    _truncate(state, "r1", 500)
+    _barge_ack(state, cutoff_ms=500)
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    expected = g711_to_pcm16(raw[:4000], "ulaw") if response_format == "audio/pcmu" else _agent_pcm(500)
+    assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(
+        expected, 8000 if response_format == "audio/pcmu" else 24000
+    )
+
+
+def _settings_update(event_id="update", relevant=True):
+    session = (
+        {"audio": {"input": {"turn_detection": {"type": "server_vad", "interrupt_response": False}}}}
+        if relevant
+        else {"instructions": "new"}
+    )
+    return {"type": "session.update", "event_id": event_id, "session": session}
+
+
+def _settings_ack(state, event_id="ack", enabled=True):
+    state.on_server_event(
+        _ns(
+            type="session.updated",
+            event_id=event_id,
+            session=_ns(audio=_ns(input=_ns(turn_detection=_ns(type="server_vad", interrupt_response=enabled)))),
+        )
+    )
+
+
+def _settings_error(state, client_id, error_type="invalid_request_error", server_id="server-error"):
+    state.on_server_event(_ns(type="error", event_id=server_id, error=_ns(type=error_type, event_id=client_id)))
+
+
+def _complete_barge_zero(integration, state, clock, response_id="r1"):
+    _barge_response(state, clock, response_id)
+    clock.advance_ms(1300)
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    return _barge_roots(integration)[-1]
+
+
+@pytest.mark.parametrize("correlation", ["update", None, "other"])
+def test_realtime_barge_in_rejected_settings_correlation(barge_state, correlation):
+    integration, state, clock = barge_state
+    state.on_client_event(_settings_update())
+    _settings_error(state, correlation, server_id="update")
+    root = _complete_barge_zero(integration, state, clock)
+    assert root["metrics"] == ({"barge_in_count": 0} if correlation == "update" else None)
+    assert state._barge_in_policy is True
+
+
+def test_realtime_barge_in_unrelated_settings_preserve_policy(barge_state):
+    integration, state, clock = barge_state
+    state.on_client_event(_settings_update(relevant=False))
+    root = _complete_barge_zero(integration, state, clock)
+    assert root["metrics"] == {"barge_in_count": 0}
+
+
+def test_realtime_barge_in_settings_ack_before_send_hook(barge_state):
+    integration, state, clock = barge_state
+    event = _settings_update()
+    instance = _ns(_dd_realtime_state=state)
+
+    def send(event):
+        _settings_ack(state)
+
+    _realtime.patched_send(send, instance, (event,), {})
+    assert not state._pending_session_updates
+    assert _complete_barge_zero(integration, state, clock)["metrics"] == {"barge_in_count": 0}
+
+
+@pytest.mark.asyncio
+async def test_realtime_barge_in_settings_async_ack_before_send_hook(barge_state):
+    integration, state, clock = barge_state
+
+    async def send(event):
+        _settings_ack(state)
+
+    await _realtime.patched_async_send(send, _ns(_dd_realtime_state=state), (_settings_update(),), {})
+    assert _complete_barge_zero(integration, state, clock)["metrics"] == {"barge_in_count": 0}
+
+
+def test_realtime_barge_in_failed_send_rolls_back_pending_but_remains_uncertain(barge_state):
+    integration, state, clock = barge_state
+
+    def send(event):
+        raise RuntimeError("transport failure")
+
+    with pytest.raises(RuntimeError, match="transport failure"):
+        _realtime.patched_send(send, _ns(_dd_realtime_state=state), (_settings_update(),), {})
+    assert not state._pending_session_updates
+    assert _complete_barge_zero(integration, state, clock)["metrics"] is None
+    _settings_ack(state)
+    assert _complete_barge_zero(integration, state, clock, "r2")["metrics"] == {"barge_in_count": 0}
+
+
+def test_realtime_barge_in_overlapping_updates_do_not_assume_ack_identity(barge_state):
+    integration, state, clock = barge_state
+    state.on_client_event(_settings_update("a"))
+    state.on_client_event(_settings_update("b"))
+    _settings_ack(state)
+    assert state._settings_uncertain()
+    _settings_error(state, "b")
+    assert not state._settings_uncertain()
+    # A stale error must not undo a later authoritative configuration.
+    _settings_ack(state, "newer", enabled=False)
+    _settings_error(state, "a")
+    assert state._barge_in_policy is False
+    assert _complete_barge_zero(integration, state, clock)["metrics"] is None
+
+
+def test_realtime_barge_in_server_error_needs_authoritative_recovery(barge_state):
+    integration, state, clock = barge_state
+    state.on_client_event(_settings_update())
+    _settings_error(state, "update", "server_error")
+    assert _complete_barge_zero(integration, state, clock)["metrics"] is None
+    _settings_ack(state)
+    assert _complete_barge_zero(integration, state, clock, "r2")["metrics"] == {"barge_in_count": 0}
+
+
+@pytest.mark.parametrize("prompt", [{"id": "other", "version": "2"}, None])
+def test_realtime_barge_in_response_prompt_override_omits_uncertain_session_tags(barge_state, prompt):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="session.updated", session=_ns(prompt=_ns(id="session", version="1"))))
+    state.on_client_event({"type": "response.create", "response": {"prompt": prompt}})
+    root = _complete_barge_zero(integration, state, clock)
+    assert "prompt_id" not in root["tags"]
+    assert "prompt_version" not in root["tags"]
+    # Neither request ID nor prompt is echoed by response.created; do not guess
+    # whether a following automatic/manual response used the session prompt.
+    assert "prompt_id" not in _complete_barge_zero(integration, state, clock, "r2")["tags"]
+
+
+def test_realtime_barge_in_session_prompt_without_override_is_retained(barge_state):
+    integration, state, clock = barge_state
+    state.on_server_event(_ns(type="session.updated", session=_ns(prompt=_ns(id="session", version="1"))))
+    root = _complete_barge_zero(integration, state, clock)
+    assert root["tags"]["prompt_id"] == "session"
+    assert root["tags"]["prompt_version"] == "1"
+
+
+@pytest.mark.parametrize("multipart", [False, True])
+def test_realtime_barge_in_final_metadata_envelope_budget(barge_state, multipart):
+    integration, state, clock = barge_state
+    item_id = "i" * 32534
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
+    for index in range(2 if multipart else 1):
+        state.on_server_event(
+            _ns(
+                type="response.output_audio.delta",
+                response_id="r",
+                item_id=item_id,
+                content_index=index,
+                delta=_b64(_agent_pcm(500)),
+            )
+        )
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
+    _barge_speech(state)
+    state.on_server_event(_ns(type="conversation.item.truncated", item_id=item_id, content_index=0, audio_end_ms=100))
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert len(json.dumps(root["metadata"]).encode("utf-8")) <= _realtime._BARGE_IN_MAX_MARKER_BYTES
+    assert root["metadata"]["voice_barge_in"]["events_truncated"] is True
+
+
+def test_realtime_barge_in_distinct_active_start_invalidates_observation(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock)
+    _barge_speech(state, "one")
+    _barge_speech(state, "two")
+    clock.advance_ms(1300)
+    state.finish_session()
+    root = _barge_roots(integration)[0]
+    assert root["metrics"] is None
+    assert len(root["metadata"]["voice_barge_in"]["events"]) == 1
+
+
+def test_realtime_barge_in_policy_boundary_resets_episode(barge_state):
+    integration, state, clock = barge_state
+    _barge_speech(state)
+    _settings_ack(state, "off", enabled=False)
+    _settings_ack(state, "on", enabled=True)
+    _barge_response(state, clock)
+    _barge_speech(state, "new")
+    clock.advance_ms(1300)
+    state.finish_session()
+    assert _barge_roots(integration)[0]["metrics"] == {"barge_in_count": 1}
+
+
+@pytest.mark.parametrize("barge_in", [False, True])
+def test_realtime_blocked_finish_allows_input_observation(monkeypatch, barge_in):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    integration, state = _new_state(barge_in=barge_in)
+    session = _session_created(transcription=False)
+    session.session.audio.input.turn_detection = _ns(type="server_vad", interrupt_response=True)
+    state.on_server_event(session)
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.output_audio.delta",
+            response_id="r1",
+            item_id="audio_r1",
+            content_index=0,
+            delta=_b64(_agent_pcm(100)),
+        )
+    )
+    clock.advance_ms(500)
+    turn = state._responses["r1"]
+    entered, release, observed = Event(), Event(), Event()
+    original = turn.span.finish
+    calls = []
+
+    def finish(*args, **kwargs):
+        calls.append(1)
+        entered.set()
+        assert release.wait(5), "test did not release finish"
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(turn.span, "finish", finish)
+
+    def append():
+        state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+        observed.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        finishing = pool.submit(
+            state.on_server_event, _ns(type="response.done", response=_ns(id="r1", status="completed"))
+        )
+        try:
+            assert entered.wait(5), "finish was not reached"
+            observing = pool.submit(append)
+            assert observed.wait(5), "input observation blocked behind finish/export"
+            assert state._pending_input.audio.total_decoded_bytes == 2
+            state.finish_session()
+            state.finish_session()
+        finally:
+            release.set()
+        finishing.result()
+        observing.result()
+    assert calls == [1]
+    assert len(_barge_roots(integration)) == 1
+    assert not state._responses
+
+
+@pytest.fixture
+def reconnect_errors(monkeypatch):
+    import sys
+    from types import ModuleType
+
+    class ConnectionClosedError(Exception):
+        def __init__(self, *args):
+            self.rcvd = None
+
+    class ConnectionClosedOK(Exception):
+        pass
+
+    package = ModuleType("websockets")
+    errors = ModuleType("websockets.exceptions")
+    errors.ConnectionClosedError = ConnectionClosedError
+    errors.ConnectionClosedOK = ConnectionClosedOK
+    package.exceptions = errors
+    monkeypatch.setitem(sys.modules, "websockets", package)
+    monkeypatch.setitem(sys.modules, "websockets.exceptions", errors)
+    return ConnectionClosedError, ConnectionClosedOK
+
+
+def _recovery_prompt_messages():
+    messages = _barge_connection_messages()[:4]
+    session = json.loads(messages[0])
+    session["session"]["prompt"] = {"id": "session-A", "version": "1"}
+    messages[0] = json.dumps(session)
+    return messages
+
+
+def _assert_recovery_prompt_tags(roots, barge_in, annotated_prompt):
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    first, recovered = sorted(roots, key=lambda span: span.start_ns)
+    if barge_in:
+        # Normal initial-session attribution still uses its effective session prompt.
+        assert _get_llmobs_data_metastruct(first)["tags"]["prompt_id"] == "session-A"
+    tags = _get_llmobs_data_metastruct(recovered)["tags"]
+    if annotated_prompt:
+        assert tags["prompt_id"] == "annotated"
+        assert tags["prompt_version"] == "manual"
+    else:
+        assert "prompt_id" not in tags
+        assert "prompt_version" not in tags
+
+
+@pytest.mark.skipif(
+    RealtimeConnection is None or not hasattr(RealtimeConnection, "_reconnect"), reason="SDK has no reconnect lifecycle"
+)
+@pytest.mark.parametrize("barge_in", [False, True])
+@pytest.mark.parametrize("annotated_prompt", [False, True])
+def test_realtime_sdk_sync_reconnect_rearms_observation(
+    openai, openai_llmobs, test_spans, monkeypatch, barge_in, reconnect_errors, annotated_prompt
+):
+    ConnectionClosedError, ConnectionClosedOK = reconnect_errors
+
+    from ddtrace import config
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", barge_in)
+
+    class Socket(_FakeWebSocket):
+        def __init__(self, messages, failure):
+            super().__init__(messages)
+            self.failure = failure
+
+        def recv(self, decode=False):
+            if not self._messages:
+                raise self.failure(None, None)
+            return super().recv(decode=decode)
+
+    messages = _recovery_prompt_messages()
+    replacement = Socket(messages, ConnectionClosedOK)
+
+    def on_reconnecting(event):
+        conn.send({"type": "response.create", "response": {"prompt": {"id": "recovery-B", "version": "2"}}})
+
+    conn = RealtimeConnection(
+        Socket(messages, ConnectionClosedError),
+        make_ws=lambda query, headers: replacement,
+        on_reconnecting=on_reconnecting,
+        max_retries=1,
+        initial_delay=0,
+    )
+    _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+    first_state = conn._dd_realtime_state
+    tags = {"prompt_id": "annotated", "prompt_version": "manual"} if annotated_prompt else {}
+    with openai_llmobs.annotation_context(tags=tags):
+        assert len(list(conn)) == 8
+    assert len(replacement.sent) == 1
+    assert json.loads(replacement.sent[0])["response"]["prompt"]["id"] == "recovery-B"
+    assert conn._dd_realtime_state is not first_state
+    assert conn._dd_realtime_state._session_id != first_state._session_id
+    conn.close()
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    roots = [span for span in spans if span.resource == "createRealtimeTurn"]
+    assert len(roots) == 2
+    _assert_recovery_prompt_tags(roots, barge_in, annotated_prompt)
+
+
+@pytest.mark.skipif(
+    AsyncRealtimeConnection is None or not hasattr(AsyncRealtimeConnection, "_reconnect"),
+    reason="SDK has no reconnect lifecycle",
+)
+@pytest.mark.asyncio
+@pytest.mark.parametrize("barge_in", [False, True])
+@pytest.mark.parametrize("annotated_prompt", [False, True])
+async def test_realtime_sdk_async_reconnect_rearms_observation(
+    openai, openai_llmobs, test_spans, monkeypatch, barge_in, reconnect_errors, annotated_prompt
+):
+    ConnectionClosedError, ConnectionClosedOK = reconnect_errors
+
+    from ddtrace import config
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", barge_in)
+
+    class Socket(_FakeAsyncWebSocket):
+        def __init__(self, messages, failure):
+            super().__init__(messages)
+            self.failure = failure
+
+        async def recv(self, decode=False):
+            if not self._messages:
+                raise self.failure(None, None)
+            return await super().recv(decode=decode)
+
+    messages = _recovery_prompt_messages()
+    replacement = Socket(messages, ConnectionClosedOK)
+
+    async def make_ws(query, headers):
+        await conn.send({"type": "response.create", "response": {"prompt": {"id": "recovery-B", "version": "2"}}})
+        return replacement
+
+    conn = AsyncRealtimeConnection(
+        Socket(messages, ConnectionClosedError),
+        make_ws=make_ws,
+        on_reconnecting=lambda event: None,
+        max_retries=1,
+        initial_delay=0,
+    )
+    _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+    first_state = conn._dd_realtime_state
+    tags = {"prompt_id": "annotated", "prompt_version": "manual"} if annotated_prompt else {}
+    with openai_llmobs.annotation_context(tags=tags):
+        events = [event async for event in conn]
+    assert len(events) == 8
+    assert len(replacement.sent) == 1
+    assert json.loads(replacement.sent[0])["response"]["prompt"]["id"] == "recovery-B"
+    assert conn._dd_realtime_state is not first_state
+    assert conn._dd_realtime_state._session_id != first_state._session_id
+    await conn.close()
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    roots = [span for span in spans if span.resource == "createRealtimeTurn"]
+    assert len(roots) == 2
+    _assert_recovery_prompt_tags(roots, barge_in, annotated_prompt)
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="SDK has no realtime connection")
+def test_realtime_deferred_finish_preserves_wrapper_parent(openai, openai_llmobs, test_spans):
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    with LLMObs.workflow(name="call") as wrapper:
+        conn = RealtimeConnection(_FakeWebSocket([]))
+        _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+        state = conn._dd_realtime_state
+        state.on_server_event(_session_created())
+        state.on_server_event(_ns(type="input_audio_buffer.committed", item_id="user"))
+        state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+        state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+        assert state._awaiting
+        state.on_server_event(_ns(type="response.created", response=_ns(id="r2")))
+        state.on_server_event(_ns(type="response.done", response=_ns(id="r2", status="completed")))
+        conn.close()
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    roots = [span for span in spans if span.resource == "createRealtimeTurn"]
+    assert len(roots) == 2
+    assert [_get_llmobs_data_metastruct(span)["parent_id"] for span in roots] == [str(wrapper.span_id)] * 2
+
+
+def test_realtime_barge_in_initial_session_is_not_update_ack(barge_state):
+    integration, state, clock = barge_state
+    state.on_client_event(_settings_update())
+    session = _session_created(transcription=False)
+    session.session.audio.input.turn_detection = _ns(type="server_vad", interrupt_response=True)
+    state.on_server_event(session)
+    assert state._settings_uncertain()
+    assert _complete_barge_zero(integration, state, clock)["metrics"] is None
+    _settings_ack(state)
+    assert _complete_barge_zero(integration, state, clock, "r2")["metrics"] == {"barge_in_count": 0}
+
+
+def test_realtime_barge_in_send_failure_after_ack_keeps_newer_settings(barge_state):
+    integration, state, clock = barge_state
+
+    def send(event):
+        _settings_ack(state)
+        raise RuntimeError("late transport failure")
+
+    with pytest.raises(RuntimeError, match="late transport failure"):
+        _realtime.patched_send(send, _ns(_dd_realtime_state=state), (_settings_update(),), {})
+    assert _complete_barge_zero(integration, state, clock)["metrics"] == {"barge_in_count": 0}
+
+
+def test_realtime_barge_in_settings_capacity_does_not_fabricate_zero(barge_state, monkeypatch):
+    integration, state, clock = barge_state
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_TURNS", 1)
+    state.on_client_event(_settings_update("a"))
+    state.on_client_event(_settings_update("b"))
+    _settings_ack(state)
+    _settings_ack(state, "ack-b")
+    assert _complete_barge_zero(integration, state, clock)["metrics"] is None
+
+
+def test_realtime_rearm_does_not_reopen_concurrent_close(monkeypatch):
+    _, state = _new_state()
+
+    class Connection:
+        _intentionally_closed = False
+        _dd_realtime_state = state
+
+    conn = Connection()
+    original = state.finish_session
+
+    def finish():
+        conn._intentionally_closed = True
+        original()
+
+    monkeypatch.setattr(state, "finish_session", finish)
+    _realtime._rearm_session(conn)
+    assert conn._dd_realtime_state is state
+    assert state._closed
+
+
+def test_realtime_barge_in_queued_update_overlap_stays_incomplete(barge_state):
+    integration, state, clock = barge_state
+    pending = state.before_client_send(_settings_update("queued"))
+    state.client_send_failed(pending)
+    state.on_client_event(_settings_update("next"))
+    _settings_ack(state, "maybe-queued-ack")
+    _settings_ack(state, "maybe-next-ack")
+    assert _complete_barge_zero(integration, state, clock)["metrics"] is None
+
+
+@pytest.mark.asyncio
+async def test_realtime_barge_in_cancelled_send_rolls_back_pending(barge_state):
+    from asyncio import CancelledError
+
+    integration, state, clock = barge_state
+
+    async def send(event):
+        raise CancelledError()
+
+    with pytest.raises(CancelledError):
+        await _realtime.patched_async_send(send, _ns(_dd_realtime_state=state), (_settings_update(),), {})
+    assert not state._pending_session_updates
+    assert _complete_barge_zero(integration, state, clock)["metrics"] is None
+    _settings_ack(state)
+    assert _complete_barge_zero(integration, state, clock, "r2")["metrics"] == {"barge_in_count": 0}
+
+
+def _crossing_send_event(kind):
+    if kind == "audio":
+        return {"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")}
+    if kind == "text":
+        return {
+            "type": "conversation.item.create",
+            "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "delivered"}]},
+        }
+    if kind == "tool_result":
+        return {
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": "call", "output": "delivered"},
+        }
+    return {
+        "type": "session.update",
+        "event_id": "crossing-update",
+        "session": {"instructions": "delivered", "audio": {"output": {"format": {"type": "audio/pcmu"}}}},
+    }
+
+
+def _crossing_connection(barge_in):
+    _, old = _new_state(barge_in=barge_in)
+
+    class Connection:
+        _intentionally_closed = False
+        _dd_realtime_state = old
+
+    return Connection(), old
+
+
+def _replace_crossing_state(conn, old):
+    _realtime._rearm_session(conn)
+    current = conn._dd_realtime_state
+    assert current is not old
+    session = _session_created(transcription=False)
+    session.session.audio.input.turn_detection = _ns(type="server_vad", interrupt_response=True)
+    current.on_server_event(session)
+    current._tool_call_names["call"] = "current_tool"
+    return current
+
+
+def _assert_crossing_send_observed(current, old, kind, barge_in):
+    if kind == "audio":
+        assert current._pending_input.audio.total_decoded_bytes == 2
+        assert old._pending_input.audio.total_decoded_bytes == 0
+    elif kind == "text":
+        assert current._pending_input.text == "delivered"
+        assert not old._pending_input.text
+    elif kind == "tool_result":
+        assert current._pending_input.tool_results == [
+            {"tool_id": "call", "result": "delivered", "type": "function_call_output", "name": "current_tool"}
+        ]
+        assert not old._pending_input.tool_results
+    elif barge_in:
+        assert current._settings_uncertain()
+        assert current._barge_in_policy is True
+    else:
+        assert current._session_metadata()["instructions"] == "delivered"
+        assert current._output_audio_mime == "audio/pcmu"
+
+
+@pytest.mark.parametrize("barge_in", [False, True])
+@pytest.mark.parametrize("kind", ["audio", "text", "tool_result", "settings"])
+def test_realtime_corrective_crossing_sync_send_uses_rearmed_state(barge_in, kind):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    conn, old = _crossing_connection(barge_in)
+    entered, release = Event(), Event()
+
+    def send(event):
+        entered.set()
+        assert release.wait(5), "send was not released"
+        return "sent"
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        sent = pool.submit(_realtime.patched_send, send, conn, (_crossing_send_event(kind),), {})
+        try:
+            assert entered.wait(5), "send was not reached"
+            current = _replace_crossing_state(conn, old)
+        finally:
+            release.set()
+        assert sent.result() == "sent"
+    _assert_crossing_send_observed(current, old, kind, barge_in)
+    current.finish_session()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("barge_in", [False, True])
+@pytest.mark.parametrize("kind", ["audio", "text", "tool_result", "settings"])
+async def test_realtime_corrective_crossing_async_send_uses_rearmed_state(barge_in, kind):
+    import asyncio
+
+    conn, old = _crossing_connection(barge_in)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def send(event):
+        entered.set()
+        await release.wait()
+        return "sent"
+
+    sent = asyncio.create_task(_realtime.patched_async_send(send, conn, (_crossing_send_event(kind),), {}))
+    try:
+        await asyncio.wait_for(entered.wait(), 5)
+        current = _replace_crossing_state(conn, old)
+    finally:
+        release.set()
+    assert await asyncio.wait_for(sent, 5) == "sent"
+    _assert_crossing_send_observed(current, old, kind, barge_in)
+    current.finish_session()
+
+
+@pytest.mark.parametrize("operation", ["createRealtimeTurn", "createRealtimeResponse"])
+def test_realtime_corrective_creation_gap_keeps_done_turn_observable(barge_state, monkeypatch, operation):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    integration, state, clock = barge_state
+    entered, release = Event(), Event()
+    original = integration.trace
+
+    def trace(operation_id, **kwargs):
+        if operation_id == operation:
+            entered.set()
+            assert release.wait(5), "span creation was not released"
+        return original(operation_id, **kwargs)
+
+    monkeypatch.setattr(integration, "trace", trace)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        creating = pool.submit(state.on_server_event, _ns(type="response.created", response=_ns(id="r1")))
+        try:
+            assert entered.wait(5), "span creation was not reached"
+            before_done = len(state._open_turns())
+            state.on_server_event(
+                _ns(
+                    type="response.output_audio.delta",
+                    response_id="r1",
+                    item_id="audio_r1",
+                    content_index=0,
+                    delta=_b64(_agent_pcm(1000)),
+                )
+            )
+            state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+            after_done = len(state._open_turns())
+            clock.advance_ms(100)
+            _barge_speech(state)
+            _truncate(state, "r1", 200)
+            _barge_ack(state, cutoff_ms=200)
+            clock.advance_ms(1300)
+        finally:
+            release.set()
+        creating.result()
+    state.finish_session()
+    assert (before_done, after_done) == (1, 1)
+    root = _barge_roots(integration)[0]
+    observation = root["metadata"]["voice_barge_in"]
+    if root["metrics"] is None:
+        assert observation["observation"] == "incomplete"
+    else:
+        assert root["metrics"] == {"barge_in_count": 1}
+        assert observation["events"][0]["reported_cutoff_ms"] == 200
+        assert integration.responses[0]["output_messages"][0]["audio_parts"][0]["content"] == _wav_b64(_agent_pcm(200))
+    assert len(integration.responses) == 1
+    assert not state._open_turns()
+
+
+def _initial_manager_messages():
+    messages = _barge_connection_messages()[:4]
+    created = json.loads(messages[0])
+    updated = {
+        "type": "session.updated",
+        "event_id": "initial-update",
+        "session": {**created["session"], "prompt": {"id": "session-A", "version": "1"}},
+    }
+    messages.insert(1, json.dumps(updated))
+    return messages
+
+
+def _queue_initial_prompt(manager, override):
+    manager.send(
+        {"type": "session.update", "session": {"type": "realtime", "prompt": {"id": "session-A", "version": "1"}}}
+    )
+    if override:
+        manager.send({"type": "response.create", "response": {"prompt": {"id": "queued-B", "version": "2"}}})
+
+
+def _assert_initial_manager_prompt(test_spans, socket, override, annotated):
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    assert len(socket.sent) == (2 if override else 1)
+    if override:
+        assert json.loads(socket.sent[1])["response"]["prompt"]["id"] == "queued-B"
+    roots = [span for trace in test_spans.pop_traces() for span in trace if span.resource == "createRealtimeTurn"]
+    assert len(roots) == 1
+    data = _get_llmobs_data_metastruct(roots[0])
+    assert data["metrics"]["barge_in_count"] == 0
+    tags = data["tags"]
+    if not override:
+        assert tags["prompt_id"] == "session-A"
+        assert tags["prompt_version"] == "1"
+    elif annotated:
+        assert tags["prompt_id"] == "annotated"
+        assert tags["prompt_version"] == "manual"
+    else:
+        assert "prompt_id" not in tags
+        assert "prompt_version" not in tags
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="SDK has no realtime connection")
+@pytest.mark.parametrize("override", [False, True])
+@pytest.mark.parametrize("annotated", [False, True])
+def test_realtime_corrective_initial_sync_manager_prompt(
+    openai, openai_llmobs, test_spans, monkeypatch, override, annotated
+):
+    from ddtrace import config
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    manager = openai.OpenAI().realtime.connect(model="gpt-realtime")
+    if not hasattr(manager, "send") or not hasattr(manager, "_connect_ws"):
+        pytest.skip("SDK has no manager queue-before-entry API")
+    socket = _FakeWebSocket(_initial_manager_messages())
+    monkeypatch.setattr(manager, "_connect_ws", lambda query, headers: socket)
+    _queue_initial_prompt(manager, override)
+    tags = {"prompt_id": "annotated", "prompt_version": "manual"} if annotated else {}
+    with openai_llmobs.annotation_context(tags=tags):
+        with manager as conn:
+            for _ in range(5):
+                conn.recv()
+            clock.advance_ms(1300)
+            conn._dd_realtime_state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    _assert_initial_manager_prompt(test_spans, socket, override, annotated)
+
+
+@pytest.mark.skipif(AsyncRealtimeConnection is None, reason="SDK has no realtime connection")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("override", [False, True])
+@pytest.mark.parametrize("annotated", [False, True])
+async def test_realtime_corrective_initial_async_manager_prompt(
+    openai, openai_llmobs, test_spans, monkeypatch, override, annotated
+):
+    from ddtrace import config
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+    manager = openai.AsyncOpenAI().realtime.connect(model="gpt-realtime")
+    if not hasattr(manager, "send") or not hasattr(manager, "_connect_ws"):
+        pytest.skip("SDK has no manager queue-before-entry API")
+    socket = _FakeAsyncWebSocket(_initial_manager_messages())
+
+    async def connect(query, headers):
+        return socket
+
+    monkeypatch.setattr(manager, "_connect_ws", connect)
+    # Async manager.send is intentionally synchronous in the actual SDK.
+    _queue_initial_prompt(manager, override)
+    tags = {"prompt_id": "annotated", "prompt_version": "manual"} if annotated else {}
+    with openai_llmobs.annotation_context(tags=tags):
+        async with manager as conn:
+            for _ in range(5):
+                await conn.recv()
+            clock.advance_ms(1300)
+            conn._dd_realtime_state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")})
+    _assert_initial_manager_prompt(test_spans, socket, override, annotated)
+
+
+# Final SDK corrections: recovery traffic and caller context are observable contracts.
+
+
+def _recovery_traffic_events(budget):
+    audio = _agent_pcm(100)
+    if budget == "bytes":
+        audio = b"\x01\x02" * (1024 * 1024)
+    elif budget == "events":
+        audio = b"\x01\x02"
+    events = [{"type": "input_audio_buffer.append", "audio": _b64(audio)}]
+    if budget == "events":
+        events *= 1025
+    events += [
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "queued text"}]},
+        },
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": "call", "output": "queued result"},
+        },
+    ]
+    return events, len(audio) * (1025 if budget == "events" else 1) / 48
+
+
+def _recovery_input_turn(conn, response_id, onset_ms=None):
+    if onset_ms is not None:
+        conn.parse_event(
+            json.dumps(
+                {"type": "input_audio_buffer.speech_started", "item_id": response_id, "audio_start_ms": onset_ms}
+            )
+        )
+    conn.parse_event(json.dumps({"type": "response.created", "response": {"id": response_id}}))
+    conn.parse_event(json.dumps({"type": "response.done", "response": {"id": response_id, "status": "completed"}}))
+
+
+def _assert_recovery_traffic(test_spans, socket, events, budget, receipt_ns):
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    # The SDK must still deliver every queued event, even if observation hits its budget.
+    assert [json.loads(data) for data in socket.sent[: len(events)]] == events
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    responses = sorted(
+        (span for span in spans if span.resource == "createRealtimeResponse"), key=lambda span: span.start_ns
+    )
+    roots = sorted((span for span in spans if span.resource == "createRealtimeTurn"), key=lambda span: span.start_ns)
+    assert len(responses) == len(roots) == 3
+    messages = [_get_llmobs_data_metastruct(span)["meta"].get("input", {}).get("messages", []) for span in responses]
+    if budget == "normal":
+        assert messages[0] == [
+            {
+                "role": "user",
+                "content": "queued text",
+                "audio_parts": [{"mime_type": "audio/wav", "content": _wav_b64(_agent_pcm(100))}],
+                "tool_results": [{"tool_id": "call", "result": "queued result", "type": "function_call_output"}],
+            }
+        ]
+    else:
+        # Partial recovery history cannot establish where retained audio starts.
+        assert not any(part.get("content") for message in messages[0] for part in message.get("audio_parts", []))
+    for index in (1, 2):
+        expected = _agent_pcm(200) if budget == "normal" else _agent_pcm(100) + _agent_pcm(200)
+        assert messages[index][0]["audio_parts"] == [{"mime_type": "audio/wav", "content": _wav_b64(expected)}]
+        # With a known clock, onset is 200 ms before receipt. An unknown recovery
+        # origin must use receipt time instead of projecting a fabricated offset.
+        assert roots[index].start_ns == receipt_ns[index - 1] - (200_000_000 if budget == "normal" else 0)
+
+
+@pytest.mark.skipif(
+    RealtimeConnection is None or not hasattr(RealtimeConnection, "_reconnect"), reason="SDK has no reconnect lifecycle"
+)
+@pytest.mark.parametrize("callback", ["on_reconnecting", "make_ws"])
+@pytest.mark.parametrize("budget", ["normal", "bytes", "events"])
+def test_realtime_final_sync_reconnect_preserves_queued_input(
+    openai, openai_llmobs, test_spans, monkeypatch, reconnect_errors, callback, budget
+):
+    from openai._send_queue import SendQueue
+
+    ConnectionClosedError, _ = reconnect_errors
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+
+    class BrokenSocket(_FakeWebSocket):
+        def recv(self, decode=False):
+            raise ConnectionClosedError(None, None)
+
+    replacement = _FakeWebSocket([_server_messages()[0]])
+    events, queued_ms = _recovery_traffic_events(budget)
+
+    def queue():
+        for event in events:
+            conn.send(event)
+
+    def on_reconnecting(event):
+        if callback == "on_reconnecting":
+            queue()
+
+    def make_ws(query, headers):
+        if callback == "make_ws":
+            queue()
+        return replacement
+
+    conn = RealtimeConnection(
+        BrokenSocket([]),
+        make_ws=make_ws,
+        on_reconnecting=on_reconnecting,
+        max_retries=1,
+        initial_delay=0,
+        send_queue=SendQueue(max_bytes=16 * 1024 * 1024),
+    )
+    _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+    try:
+        assert next(iter(conn)).type == "session.created"
+        _recovery_input_turn(conn, "queued")
+        receipt_ns = []
+        for index in range(2):
+            for _ in range(3):
+                clock.advance_ms(100)
+                conn.input_audio_buffer.append(audio=_b64(_agent_pcm(100)))
+            receipt_ns.append(clock.now)
+            _recovery_input_turn(conn, "later-" + str(index), queued_ms + index * 300 + 100)
+    finally:
+        conn.close()
+    _assert_recovery_traffic(test_spans, replacement, events, budget, receipt_ns)
+
+
+@pytest.mark.skipif(
+    AsyncRealtimeConnection is None or not hasattr(AsyncRealtimeConnection, "_reconnect"),
+    reason="SDK has no reconnect lifecycle",
+)
+@pytest.mark.asyncio
+@pytest.mark.parametrize("callback", ["on_reconnecting", "make_ws"])
+@pytest.mark.parametrize("budget", ["normal", "bytes", "events"])
+async def test_realtime_final_async_reconnect_preserves_queued_input(
+    openai, openai_llmobs, test_spans, monkeypatch, reconnect_errors, callback, budget
+):
+    import asyncio
+
+    from openai._send_queue import SendQueue
+
+    ConnectionClosedError, _ = reconnect_errors
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+
+    class BrokenSocket(_FakeAsyncWebSocket):
+        async def recv(self, decode=False):
+            raise ConnectionClosedError(None, None)
+
+    replacement = _FakeAsyncWebSocket([_server_messages()[0]])
+    events, queued_ms = _recovery_traffic_events(budget)
+
+    async def queue():
+        for event in events:
+            await conn.send(event)
+
+    queued = None
+
+    def on_reconnecting(event):
+        nonlocal queued
+        if callback == "on_reconnecting":
+            queued = asyncio.create_task(queue())
+
+    async def make_ws(query, headers):
+        if queued is not None:
+            await asyncio.wait_for(queued, 5)
+        if callback == "make_ws":
+            await queue()
+        return replacement
+
+    conn = AsyncRealtimeConnection(
+        BrokenSocket([]),
+        make_ws=make_ws,
+        on_reconnecting=on_reconnecting,
+        max_retries=1,
+        initial_delay=0,
+        send_queue=SendQueue(max_bytes=16 * 1024 * 1024),
+    )
+    _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+    try:
+        assert (await conn.__aiter__().__anext__()).type == "session.created"
+        _recovery_input_turn(conn, "queued")
+        receipt_ns = []
+        for index in range(2):
+            for _ in range(3):
+                clock.advance_ms(100)
+                await conn.input_audio_buffer.append(audio=_b64(_agent_pcm(100)))
+            receipt_ns.append(clock.now)
+            _recovery_input_turn(conn, "later-" + str(index), queued_ms + index * 300 + 100)
+    finally:
+        await conn.close()
+    _assert_recovery_traffic(test_spans, replacement, events, budget, receipt_ns)
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="SDK has no realtime connection")
+@pytest.mark.parametrize("wrapped", [False, True])
+@pytest.mark.parametrize("phase", ["held", "finishing"])
+def test_realtime_final_turn_creation_restores_caller_context(
+    openai, openai_llmobs, test_spans, monkeypatch, wrapped, phase
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import nullcontext
+    from threading import Event
+
+    from ddtrace import config
+    from ddtrace.llmobs._llmobs import LLMObsExportSpanError
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    monkeypatch.setitem(config.openai, "_realtime_barge_in_enabled", True)
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime.time, "monotonic_ns", clock)
+
+    def active_id():
+        try:
+            return openai_llmobs.export_span()["span_id"]
+        except LLMObsExportSpanError:
+            return "undefined"
+
+    entered, release = Event(), Event()
+    caller = openai_llmobs.workflow(name="caller") if wrapped else nullcontext()
+    with caller as wrapper:
+        conn = RealtimeConnection(_FakeWebSocket(_barge_connection_messages()[:4]))
+        _realtime._attach_session(_ns(_dd_client=openai.OpenAI(), _dd_model="gpt-realtime"), conn)
+        integration = conn._dd_realtime_state._integration
+        original = integration._llmobs_set_tags_from_realtime_response
+
+        def tag_response(*args, **kwargs):
+            entered.set()
+            assert release.wait(5), "T1 completion was not released"
+            return original(*args, **kwargs)
+
+        for _ in range(4):
+            conn.recv()
+        contexts = [active_id()]
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            completing = None
+            try:
+                if phase == "finishing":
+                    monkeypatch.setattr(integration, "_llmobs_set_tags_from_realtime_response", tag_response)
+                    clock.advance_ms(1300)
+                    completing = pool.submit(
+                        conn.send, {"type": "input_audio_buffer.append", "audio": _b64(b"\x00\x00")}
+                    )
+                    assert entered.wait(5), "mic thread did not start T1 completion"
+                conn.parse_event(json.dumps({"type": "response.created", "response": {"id": "r2"}}))
+                contexts.append(active_id())
+            finally:
+                release.set()
+                if completing is not None:
+                    completing.result(timeout=5)
+                conn.close()
+        contexts.append(active_id())
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    roots = sorted((span for span in spans if span.resource == "createRealtimeTurn"), key=lambda span: span.start_ns)
+    assert len(roots) == 2
+    expected = str(wrapper.span_id) if wrapped else "undefined"
+    parents = [_get_llmobs_data_metastruct(span)["parent_id"] for span in roots]
+    assert parents == [expected, expected], "each turn must be a sibling under the caller, even while T1 is unfinished"
+    assert contexts == [expected] * 3, "turn creation must restore caller context"
