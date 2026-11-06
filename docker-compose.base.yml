@@ -145,6 +145,9 @@ services:
         #  dockerfile: Dockerfile
         image: ghcr.io/datadog/dd-trace-py/testrunner:3d70fe02790fe9db1dd5e25ccb9d799b5e30160f
         command: bash
+        # PID 1 ignores SIGTERM and SIGINT unless it has a handler. tini receives
+        # them and forwards them, so stopping the run also stops the build.
+        init: true
         # Resource limits: defaults to 0 (unlimited, uses all available system resources)
         # Set DD_TEST_CPUS (e.g., "4") and DD_TEST_MEMORY (e.g., "8g") to apply limits
         cpus: "${DD_TEST_CPUS:-0}"
