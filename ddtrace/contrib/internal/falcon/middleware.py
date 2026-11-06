@@ -3,11 +3,13 @@ import sys
 from falcon import http_status_to_code
 
 from ddtrace import config
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -15,6 +17,7 @@ from ddtrace.internal.utils.deprecations import deprecate
 
 
 class TraceMiddleware:
+    @requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
     def __init__(self, tracer=None, service=None, distributed_tracing=None):
         if service is None:
             service = schematize_service_name("falcon")

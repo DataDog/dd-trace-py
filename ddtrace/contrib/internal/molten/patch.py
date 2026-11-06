@@ -5,11 +5,13 @@ import molten
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -39,7 +41,8 @@ def _supported_versions() -> dict[str, str]:
     return {"molten": ">=1.0"}
 
 
-def patch():
+@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
+def patch() -> None:
     if getattr(molten, "_datadog_patch", False):
         return
     molten._datadog_patch = True

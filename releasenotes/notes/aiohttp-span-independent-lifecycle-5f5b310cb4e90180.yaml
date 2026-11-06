@@ -1,0 +1,4 @@
+features:
+  - |
+    aiohttp: Avoids creating request spans with ``DD_TRACE_ENABLED=false``,
+    except when required by standalone products.

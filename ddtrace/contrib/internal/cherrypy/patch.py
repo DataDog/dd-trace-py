@@ -9,9 +9,11 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
@@ -41,6 +43,7 @@ def _supported_versions() -> dict[str, str]:
 
 
 class TraceTool(cherrypy.Tool):
+    @requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
     def __init__(self, app, service, use_distributed_tracing=None):
         self.app = app
         config.cherrypy["service"] = schematize_service_name(service)

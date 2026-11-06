@@ -37,6 +37,27 @@ See `ddtrace/internal/core/__init__.py` for the API. An event is available throu
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
+Lifecycle dispatch must not depend on a tracing span being present: with tracing
+disabled, other products can still consume the same events. Do not call
+`span_from_context()` simply to check whether a request can be finalized, since it
+creates a fallback span when no tracing subscriber is registered.
+Emit events without computing tracing product enablement. TracingEvent.span_creation_enabled
+is internal state excluded from constructor/factory arguments. The web tracing
+subscriber sets it at aiohttp request entry from two separate inputs: tracer APM
+enablement and standalone products' span requirements. The field describes span
+lifecycle, not APM enablement; the base guards retain it through completion. Do not
+infer ownership from `_inner_span`, since AppSec can populate it with a borrowed parent
+span. Existing span-dependent integrations retain the default tracing behavior until
+their lifecycle can run without spans. Declare the shared web
+framework bundle with `@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)` on
+synchronous instrumentation setup (middleware or plugin constructors, enabled tween
+creation, or patching), rather than registering subscriber classes directly. Keep
+conditional enablement outside the decorated helper and never decorate request
+handlers. The decorator activates bundles at setup invocation, not module import.
+This preserves manual instrumentation when tracing product startup is skipped. Active
+bundles skip repeated registration; core listener resets invalidate activation so the
+next setup restores listeners. Registration is idempotent; do not unregister the shared subscriber when unpatching one integration,
+since other integrations and active requests still need its listeners.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

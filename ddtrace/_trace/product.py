@@ -3,6 +3,7 @@ import typing as t
 
 from envier import En
 
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -14,6 +15,9 @@ from ddtrace.internal.utils.formats import parse_tags_str
 log = get_logger(__name__)
 
 requires = ["remote-configuration"]
+
+
+subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS,)
 
 
 class _Config(En):
@@ -48,6 +52,9 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
+    for bundle in subscriber_bundles:
+        bundle.register()
+
 
 def restart(join=False):
     pass
@@ -56,6 +63,8 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
+    # Tracer shutdown does not drain request contexts. Keep completion listeners
+    # registered so requests that finish later can close their spans.
     if tracer.enabled:
         tracer.shutdown()
 
