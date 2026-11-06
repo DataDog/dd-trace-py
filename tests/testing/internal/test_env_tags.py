@@ -104,6 +104,22 @@ def test_git_extract_repository_url(monkeypatch: pytest.MonkeyPatch, git_repo: s
     assert tags[GitTag.REPOSITORY_URL] == expected_repository_url
 
 
+def test_git_tag_ignores_forced_column_formatting(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
+    monkeypatch.setattr(os, "environ", {})
+    monkeypatch.chdir(git_repo)
+    git = Git()
+    git._git_output(["config", "column.ui", "always"])
+    git._git_output(["config", "column.tag", "always"])
+    git._git_output(["tag", "v1"])
+    assert GitTag.TAG not in get_env_tags()
+
+    git._git_output(["checkout", "--detach", "HEAD"])
+    assert get_env_tags()[GitTag.TAG] == "v1"
+
+    git._git_output(["tag", "stable"])
+    assert GitTag.TAG not in get_env_tags()
+
+
 def test_git_filter_repository_url_valid() -> None:
     """Make sure that git repository urls without sensitive data are not filtered."""
     valid_url_1 = "https://github.com/DataDog/dd-trace-py.git"
