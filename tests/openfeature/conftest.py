@@ -7,10 +7,21 @@ from typing import Any
 import pytest
 
 
+_SOURCE_SELECTION_ENV = (
+    "DD_FEATURE_FLAGS_ENABLED",
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE",
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL",
+    "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED",
+)
+
+
 def use_configuration_source(monkeypatch: pytest.MonkeyPatch, **env: str) -> None:
-    """Point DataDogProvider at a configuration where the given env vars are provided."""
+    """Point DataDogProvider at a configuration where only the given source settings are provided."""
     from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 
+    # Environment variables take precedence over the source mapping, so remove inherited ones.
+    for name in _SOURCE_SELECTION_ENV:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr("ddtrace.internal.openfeature._provider.ffe_config", OpenFeatureConfig(source=env))
 
 
