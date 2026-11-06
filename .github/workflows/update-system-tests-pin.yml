@@ -1,7 +1,12 @@
 name: Update system-tests pin
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Compute pin bump and print diff; do not create PR, auto-merge, or Slack'
+        type: boolean
+        default: false
   schedule:
     - cron: '0 14 * * 1' # Mondays at 09:00 EST (14:00 UTC)
 
@@ -36,15 +41,25 @@ jobs:
             echo "new_sha=${NEW_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Dry-run summary
+        if: inputs.dry_run
+        run: |
+          echo "dry_run=true"
+          echo "changed=${{ steps.changes.outputs.changed }}"
+          echo "new_sha=${{ steps.changes.outputs.new_sha }}"
+          echo "base=main (hardcoded; release branches are not updated by this workflow)"
+          git diff --stat
+          git diff
+
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
-        if: steps.changes.outputs.changed == 'true'
+        if: ${{ !inputs.dry_run && steps.changes.outputs.changed == 'true' }}
         id: octo-sts
         with:
           scope: DataDog/dd-trace-py
           policy: self.update-system-tests.create-pr
 
       - name: Create Pull Request
-        if: steps.changes.outputs.changed == 'true'
+        if: ${{ !inputs.dry_run && steps.changes.outputs.changed == 'true' }}
         id: create-pr
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
@@ -60,8 +75,10 @@ jobs:
 
             Run by the [Update system-tests pin](https://github.com/DataDog/dd-trace-py/actions/workflows/update-system-tests-pin.yml) workflow.
 
+            Auto-merge is enabled (squash) once required checks pass and the PR is approved.
+
       - name: Enable auto-merge
-        if: steps.changes.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-number != ''
+        if: ${{ !inputs.dry_run && steps.changes.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-number != '' }}
         env:
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
           PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
@@ -70,7 +87,7 @@ jobs:
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json number,autoMergeRequest
 
       - name: Notify Slack on PR created
-        if: steps.changes.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-operation == 'created'
+        if: ${{ !inputs.dry_run && steps.changes.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-operation == 'created' }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_APM_PYTHON_RELEASE }}
           PR_URL: ${{ steps.create-pr.outputs.pull-request-url }}
@@ -78,4 +95,4 @@ jobs:
         run: |
           curl -s -X POST "$SLACK_WEBHOOK" \
             -H 'Content-Type: application/json' \
-            -d "{\"text\": \":robot_face: *Automated PR created:* <${PR_URL}|ci: update system-tests pin to \`${NEW_SHA}\`>\n\nThe system-tests SHA pin has been bumped to the latest \`main\`. Please review and merge when ready.\", \"unfurl_links\": false}"
+            -d "{\"text\": \":robot_face: *Automated PR created:* <${PR_URL}|ci: update system-tests pin to \`${NEW_SHA}\`>\n\nAuto-merge is queued (squash). Approve the PR so it can land when required checks are green.\", \"unfurl_links\": false}"
