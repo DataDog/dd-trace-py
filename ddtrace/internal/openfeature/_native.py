@@ -114,7 +114,14 @@ def _log_flag_summary(config: Any, native_config: ffe.Configuration) -> None:
 
 def _native_attributes(attributes: Any) -> Any:
     """Drop attribute values the native evaluator cannot take, so they behave like absent attributes."""
-    if not isinstance(attributes, Mapping):
+    # Most contexts hold only supported values, so check before copying on every evaluation.
+    if type(attributes) is dict:
+        for value in attributes.values():
+            if not isinstance(value, _NATIVE_ATTRIBUTE_TYPES):
+                break
+        else:
+            return attributes
+    elif not isinstance(attributes, Mapping):
         return attributes
     return {key: value for key, value in attributes.items() if isinstance(value, _NATIVE_ATTRIBUTE_TYPES)}
 

@@ -3,6 +3,7 @@ Comprehensive tests for the DataDogProvider following OpenFeature specification.
 """
 
 from datetime import datetime
+import enum
 
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
@@ -279,6 +280,14 @@ class TestObjectFlagResolution:
         assert result.error_code == ErrorCode.PROVIDER_NOT_READY, result.error_code
 
 
+class _Plan(str, enum.Enum):
+    PRO = "pro"
+
+
+class _Tier(enum.IntEnum):
+    GOLD = 3
+
+
 class TestEvaluationContext:
     """Test evaluation context handling."""
 
@@ -336,13 +345,47 @@ class TestEvaluationContext:
             "when": datetime(2026, 1, 1),
         }
         resolve_flag(_Configuration(), "test-flag", {"targetingKey": "user-123", "attributes": attributes}, None)
-        resolve_flag(_Configuration(), "test-flag", EvaluationContext("user-123", attributes), None)
+        resolve_flag(
+            _Configuration(), "test-flag", EvaluationContext(targeting_key="user-123", attributes=attributes), None
+        )
 
         expected = {"name": "a", "enabled": True, "count": 3, "ratio": 0.5, "missing": None}
         assert captured == [
             {"targeting_key": "user-123", "attributes": expected},
             {"targeting_key": "user-123", "attributes": expected},
         ]
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ({"a": 1}, "absent"),
+            (["a"], "absent"),
+            (datetime(2026, 1, 1), "absent"),
+            (_Plan.PRO, "present"),
+            (_Tier.GOLD, "present"),
+        ],
+    )
+    def test_dropped_attribute_matches_rules_as_absent(self, provider, value, expected):
+        """A rule on a dropped attribute sees it as absent; str and int subclasses still reach the rule."""
+        flag = create_string_flag("rule-flag", "present")
+        flag["variations"]["absent"] = {"key": "absent", "value": "absent"}
+        flag["allocations"].insert(
+            0,
+            {
+                "key": "allocation-absent",
+                "rules": [{"conditions": [{"attribute": "plan", "operator": "IS_NULL", "value": True}]}],
+                "splits": [{"variationKey": "absent", "shards": []}],
+                "doLog": True,
+            },
+        )
+        process_ffe_configuration(create_config(flag))
+
+        result = provider.resolve_string_details(
+            "rule-flag", "default", EvaluationContext(targeting_key="user-123", attributes={"plan": value})
+        )
+
+        assert result.value == expected
+        assert result.error_code is None
 
 
 class TestReasonMapping:
