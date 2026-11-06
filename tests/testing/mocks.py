@@ -49,6 +49,7 @@ from tests.utils import reinitialize_agentless_config
 
 def get_mock_git_instance() -> Mock:
     mock_git_instance = Mock()
+    mock_git_instance.get_git_path.return_value = None
     mock_git_instance.get_latest_commits.return_value = []
     mock_git_instance.get_filtered_revisions.return_value = []
     mock_git_instance.pack_objects.return_value = iter([])
