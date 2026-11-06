@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langgraph: Fixes a memory leak where every traced graph run was kept alive for the life of the process. The integration recorded each graph span's graph instance in a span-keyed map that is only read by LLM Observability, and the graph could reference the span back through contexts captured by its connection pools, so neither was ever collected. Graph instances are now recorded only when LLM Observability is enabled and are released as soon as the graph span is tagged.
