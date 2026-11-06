@@ -17,7 +17,9 @@ class APPSEC(metaclass=Constant_Class):
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
+    ENABLED_ORIGIN_DEFAULT: Literal["default"] = "default"
     ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
+    ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -229,6 +231,23 @@ class PRODUCTS(metaclass=Constant_Class):
     ASM_DATA: Literal["ASM_DATA"] = "ASM_DATA"
     ASM_DD: Literal["ASM_DD"] = "ASM_DD"
     ASM_FEATURES: Literal["ASM_FEATURES"] = "ASM_FEATURES"
+
+
+class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
+    """
+    string identifier for the mode of the user login events. Can be:
+    DISABLED: automatic login events are disabled. Can still be enabled by Remote Config.
+    ANONYMIZATION: automatic login events are enabled but will only store non-PII fields (id, pk uid...)
+    EXTENDED: automatic login events are enabled and will store potentially PII fields (username,
+    email, ...).
+    SDK: manually issued login events using the SDK.
+    """
+
+    DISABLED: Literal["disabled"] = "disabled"
+    IDENT: Literal["identification"] = "identification"
+    ANON: Literal["anonymization"] = "anonymization"
+    SDK: Literal["sdk"] = "sdk"
+    AUTO: Literal["auto"] = "auto"
 
 
 class DEFAULT(metaclass=Constant_Class):

@@ -12,9 +12,6 @@ from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_DEFAULT
-from ddtrace.internal.settings._asm_constants import APPSEC_ENABLED_ORIGIN_ENV
-from ddtrace.internal.settings._asm_constants import LOGIN_EVENTS_MODE
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
 
@@ -56,7 +53,7 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
-    _asm_enabled_origin = APPSEC_ENABLED_ORIGIN_DEFAULT
+    _asm_enabled_origin: str = "default"
     _asm_agentic_onboarding = DDConfig.var(str, "DD_APPSEC_AGENTIC_ONBOARDING", default="")
     _asm_static_rule_file = DDConfig.var(
         Optional[str],
@@ -82,8 +79,8 @@ class ASMConfig(DDConfig):
     _auto_user_instrumentation_local_mode = DDConfig.var(
         str,
         "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE",
-        default=LOGIN_EVENTS_MODE.IDENT,
-        parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
+        default="identification",
+        parser=_parse_options(["disabled", "identification", "anonymization"]),
     )
     _auto_user_instrumentation_rc_mode: Optional[str] = None
     _auto_user_instrumentation_enabled = DDConfig.var(
@@ -293,7 +290,7 @@ class ASMConfig(DDConfig):
             self._api_security_enabled = False
             self._ep_enabled = False
             self._auto_user_instrumentation_enabled = False
-            self._auto_user_instrumentation_local_mode = LOGIN_EVENTS_MODE.DISABLED
+            self._auto_user_instrumentation_local_mode = "disabled"
             self._load_modules = False
             self._asm_rc_enabled = False
         else:
@@ -303,7 +300,7 @@ class ASMConfig(DDConfig):
     @property
     def asm_enabled_origin(self):
         if APPSEC_ENV in env:
-            return APPSEC_ENABLED_ORIGIN_ENV
+            return "env_var"
         return self._asm_enabled_origin
 
     def reset(self):
@@ -327,7 +324,7 @@ class ASMConfig(DDConfig):
             if self._auto_user_instrumentation_rc_mode is not None:
                 return self._auto_user_instrumentation_rc_mode
             return self._auto_user_instrumentation_local_mode
-        return LOGIN_EVENTS_MODE.DISABLED
+        return "disabled"
 
 
 config = ASMConfig()
