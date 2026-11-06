@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the Anthropic integration did not record ``temperature`` in span metadata when it was set to ``0``.

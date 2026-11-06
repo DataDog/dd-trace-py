@@ -87,3 +87,37 @@ def test_llmobs_set_tags(mock_is_enabled, mock_log, tracer, mock_integration_con
     mock_log.error.assert_called_once_with(
         "Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True
     )
+
+
+class _NotGiven:
+    """Stand-in for anthropic.NOT_GIVEN: falsy, not None, and meaning "parameter omitted"."""
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return "NOT_GIVEN"
+
+
+@pytest.mark.parametrize(
+    "temperature,expected",
+    [(0, 0), (0.0, 0.0), (0.7, 0.7), (None, None), (_NotGiven(), None)],
+)
+def test_anthropic_records_temperature_including_zero(temperature, expected, mock_integration_config):
+    from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+    span = mock.MagicMock()
+    span._get_ctx_item.return_value = None
+    span.get_tag.return_value = "claude-sonnet-4-5"
+    kwargs = {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 16}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+
+    with mock.patch("ddtrace.llmobs._integrations.anthropic._annotate_llmobs_span_data") as annotate:
+        AnthropicIntegration(mock_integration_config)._llmobs_set_tags(span, [], kwargs, None, "")
+
+    metadata = annotate.call_args.kwargs["metadata"]
+    if expected is None:
+        assert "temperature" not in metadata
+    else:
+        assert metadata["temperature"] == expected
