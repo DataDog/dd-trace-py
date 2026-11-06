@@ -395,20 +395,6 @@ variables:
       - "pywheels/*.whl"
       - "debugwheelhouse/*.log"
 
-# TEMPORARY - DO NOT MERGE: run the Windows build matrix several times
-# concurrently to reproduce "Expected exactly one wheel ..., found 2" and see
-# whether concurrent jobs share the build directory. Each copy must build a
-# different Python version: identical wheel names would overwrite each other.
-"build windows stress":
-  extends: "build windows"
-  needs: []
-  retry: 0
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        WINDOWS_ARCH: ["amd64", "x86"]
-        STRESS_COPY: ["1", "2", "3"]
-
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
