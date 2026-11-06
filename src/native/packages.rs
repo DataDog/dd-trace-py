@@ -4,7 +4,7 @@
 //! when it could contribute something and parses METADATA headers only.
 //! Handles directory and zip `sys.path` entries, so it never runs Python code.
 
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -49,38 +49,56 @@ enum Root {
 }
 
 impl Root {
-    /// The root and its top-level children in listing order, like importlib's
-    /// FastPath.children; None if there is nothing to list.
-    fn open(entry: &Path) -> Option<(Root, Vec<String>)> {
-        let listing_dir = if entry.as_os_str().is_empty() {
+    fn listing_dir(entry: &Path) -> &Path {
+        if entry.as_os_str().is_empty() {
             Path::new(".")
         } else {
             entry
-        };
-        if let Ok(listing) = fs::read_dir(listing_dir) {
+        }
+    }
+
+    fn zip(entry: &Path) -> Option<Root> {
+        let archive = ZipArchive::new(File::open(entry).ok()?).ok()?;
+        let names = archive.file_names().map(str::to_string).collect();
+        Some(Root::Zip {
+            path: entry.to_path_buf(),
+            archive: RefCell::new(archive),
+            names,
+        })
+    }
+
+    /// The root and its top-level children in listing order, like importlib's
+    /// FastPath.children; None if there is nothing to list.
+    fn open(entry: &Path) -> Option<(Root, Vec<String>)> {
+        if let Ok(listing) = fs::read_dir(Self::listing_dir(entry)) {
             let children = listing
                 .flatten()
                 .filter_map(|e| e.file_name().to_str().map(str::to_string))
                 .collect();
             return Some((Root::Dir(entry.to_path_buf()), children));
         }
-        let archive = ZipArchive::new(File::open(entry).ok()?).ok()?;
-        let names: FxHashSet<String> = archive.file_names().map(str::to_string).collect();
+        let root = Self::zip(entry)?;
+        let Root::Zip { archive, .. } = &root else {
+            unreachable!()
+        };
         let mut seen = FxHashSet::default();
         let children = archive
+            .borrow()
             .file_names()
             .filter_map(|name| name.split('/').next())
             .filter(|top| !top.is_empty() && seen.insert(top.to_string()))
             .map(str::to_string)
             .collect();
-        Some((
-            Root::Zip {
-                path: entry.to_path_buf(),
-                archive: RefCell::new(archive),
-                names,
-            },
-            children,
-        ))
+        Some((root, children))
+    }
+
+    /// The root without listing it, for reading files at known paths.
+    fn at(entry: &Path) -> Option<Root> {
+        if Self::listing_dir(entry).is_dir() {
+            Some(Root::Dir(entry.to_path_buf()))
+        } else {
+            Self::zip(entry)
+        }
     }
 
     fn dir_path(dir: &Path, parts: &[&str]) -> PathBuf {
@@ -318,15 +336,11 @@ fn module_name<'a>(file_name: &'a str, suffixes: &[String]) -> Option<&'a str> {
         .find_map(|suffix| file_name.strip_suffix(suffix.as_str()))
 }
 
-/// Read one distribution. File-list errors go to errors without losing the
-/// name and version.
-fn scan_distribution(
+/// The name and version of a distribution, None if it has no name.
+fn read_name_and_version(
     root: &Root,
     info: &str,
-    suffixes: &[String],
-    regular: &mut FxHashMap<String, bool>,
-    errors: &mut Vec<String>,
-) -> Result<Option<DistRecord>, String> {
+) -> Result<Option<(String, Option<String>)>, String> {
     let text = match non_empty(root.read_text(&[info, "METADATA"])?) {
         Some(text) => Some(text),
         None => match non_empty(root.read_text(&[info, "PKG-INFO"])?) {
@@ -344,7 +358,21 @@ fn scan_distribution(
     if name.is_empty() {
         return Ok(None);
     }
-    let version = version.filter(|v| !v.is_empty());
+    Ok(Some((name, version.filter(|v| !v.is_empty()))))
+}
+
+/// Read one distribution. File-list errors go to errors without losing the
+/// name and version.
+fn scan_distribution(
+    root: &Root,
+    info: &str,
+    suffixes: &[String],
+    regular: &mut FxHashMap<String, bool>,
+    errors: &mut Vec<String>,
+) -> Result<Option<DistRecord>, String> {
+    let Some((name, version)) = read_name_and_version(root, info)? else {
+        return Ok(None);
+    };
 
     let mut file_errors = |result: Result<Option<String>, String>| {
         result.unwrap_or_else(|e| {
@@ -443,33 +471,48 @@ fn normalize(name: &str) -> String {
     out
 }
 
-/// Metadata directories in importlib's Lookup order: grouped by normalised
-/// name in listing order, then a .egg entry's EGG-INFO.
-fn metadata_dirs(entry: &Path, children: Vec<String>) -> Vec<String> {
+/// The normalised distribution name in a metadata file name like
+/// {name}-{version}.dist-info, lowercase.
+fn metadata_name(low: &str) -> String {
+    let stem = low.rsplit_once('.').map_or("", |(stem, _)| stem);
+    normalize(stem.split('-').next().unwrap_or_default())
+}
+
+/// Metadata directories in importlib's Lookup order, each with the normalised
+/// name it is looked up by: grouped by name in listing order, then a .egg
+/// entry's EGG-INFO, named after the egg.
+fn metadata_dirs(entry: &Path, children: Vec<String>) -> Vec<(String, String)> {
     // os.path.basename: an entry with a trailing separator has an empty base,
     // where Path::file_name would skip past the separator.
-    let base_is_egg = entry
+    let egg_name = entry
         .to_str()
         .and_then(|e| e.rsplit(std::path::is_separator).next())
-        .is_some_and(|base| base.to_lowercase().ends_with(".egg"));
-    let mut groups: Vec<Vec<String>> = Vec::new();
+        .map(str::to_lowercase)
+        .filter(|base| base.ends_with(".egg"))
+        .map(|base| metadata_name(&base));
+    let mut groups: Vec<(String, Vec<String>)> = Vec::new();
     let mut index: FxHashMap<String, usize> = FxHashMap::default();
     let mut eggs = Vec::new();
     for child in children {
         let low = child.to_lowercase();
         if low.ends_with(".dist-info") || low.ends_with(".egg-info") {
-            let stem = low.rsplit_once('.').map_or("", |(stem, _)| stem);
-            let name = stem.split('-').next().unwrap_or_default();
-            let slot = *index.entry(normalize(name)).or_insert_with(|| {
-                groups.push(Vec::new());
+            let name = metadata_name(&low);
+            let slot = *index.entry(name.clone()).or_insert_with(|| {
+                groups.push((name, Vec::new()));
                 groups.len() - 1
             });
-            groups[slot].push(child);
-        } else if base_is_egg && low == "egg-info" {
-            eggs.push(child);
+            groups[slot].1.push(child);
+        } else if low == "egg-info" {
+            if let Some(name) = &egg_name {
+                eggs.push((name.clone(), child));
+            }
         }
     }
-    groups.into_iter().flatten().chain(eggs).collect()
+    groups
+        .into_iter()
+        .flat_map(|(name, infos)| infos.into_iter().map(move |info| (name.clone(), info)))
+        .chain(eggs)
+        .collect()
 }
 
 // Possible improvement: scan distributions on a few scoped worker threads,
@@ -488,7 +531,7 @@ fn scan(entry: &Path, suffixes: &[String]) -> (Vec<DistRecord>, Vec<DistError>) 
     let mut regular = FxHashMap::default();
     let mut dists = Vec::new();
     let mut errors = Vec::new();
-    for info in metadata_dirs(entry, children) {
+    for (_, info) in metadata_dirs(entry, children) {
         let mut dist_errors = Vec::new();
         match scan_distribution(&root, &info, suffixes, &mut regular, &mut dist_errors) {
             Ok(record) => dists.extend(record),
@@ -498,6 +541,16 @@ fn scan(entry: &Path, suffixes: &[String]) -> (Vec<DistRecord>, Vec<DistError>) 
         errors.extend(dist_errors.into_iter().map(|e| (path.clone(), e)));
     }
     (dists, errors)
+}
+
+/// A panic caught at the boundary, as a RuntimeError.
+fn panic_error(payload: Box<dyn std::any::Any + Send>, what: &str) -> PyErr {
+    let reason = payload
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_default();
+    PyRuntimeError::new_err(format!("{what} failed: {reason}"))
 }
 
 /// Whether the interpreter is finalizing. Reads an atomic flag, so it is safe
@@ -553,18 +606,44 @@ fn scan_distributions(
     } else {
         panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes)))
     };
-    result.map_err(|payload| {
-        let reason = payload
-            .downcast_ref::<&str>()
-            .map(|s| s.to_string())
-            .or_else(|| payload.downcast_ref::<String>().cloned())
-            .unwrap_or_default();
-        PyRuntimeError::new_err(format!("distribution scan failed: {reason}"))
-    })
+    result.map_err(|payload| panic_error(payload, "distribution scan"))
+}
+
+/// The metadata directories under one sys.path entry, a directory or a zip
+/// archive, as `(normalized_name, directory)` in importlib's lookup order.
+/// Names are normalised like importlib's Prepared.normalize, with dashes as
+/// underscores. Nothing is read but the listing, so callers can cache it on
+/// the entry's mtime and read only the matches with read_distribution.
+#[pyfunction]
+fn list_distributions(entry: PathBuf) -> PyResult<Vec<(String, String)>> {
+    panic::catch_unwind(AssertUnwindSafe(|| {
+        Root::open(&entry)
+            .map(|(_, children)| metadata_dirs(&entry, children))
+            .unwrap_or_default()
+    }))
+    .map_err(|payload| panic_error(payload, "distribution listing"))
+}
+
+/// The `(name, version)` of the distribution in one metadata directory listed
+/// by list_distributions; None if it has no name or is gone. Raises ValueError
+/// if its metadata cannot be decoded.
+#[pyfunction]
+fn read_distribution(
+    entry: PathBuf,
+    directory: &str,
+) -> PyResult<Option<(String, Option<String>)>> {
+    panic::catch_unwind(AssertUnwindSafe(|| match Root::at(&entry) {
+        Some(root) => read_name_and_version(&root, directory),
+        None => Ok(None),
+    }))
+    .map_err(|payload| panic_error(payload, "distribution read"))?
+    .map_err(PyValueError::new_err)
 }
 
 pub fn register_packages(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scan_distributions, m)?)?;
+    m.add_function(wrap_pyfunction!(list_distributions, m)?)?;
+    m.add_function(wrap_pyfunction!(read_distribution, m)?)?;
     Ok(())
 }
 
@@ -773,6 +852,84 @@ mod tests {
                 vec!["legacy".to_string()]
             )]
         );
+    }
+
+    /// The first readable distribution called name, the way the Python side
+    /// looks it up from the listing.
+    fn find(entry: &Path, name: &str) -> Option<(String, Option<String>)> {
+        let wanted = normalize(&name.to_lowercase());
+        let (_, children) = Root::open(entry)?;
+        let root = Root::at(entry)?;
+        metadata_dirs(entry, children)
+            .into_iter()
+            .filter(|(dist_name, _)| *dist_name == wanted)
+            .find_map(|(_, info)| read_name_and_version(&root, &info).ok().flatten())
+    }
+
+    #[test]
+    fn find_by_name() {
+        let dir = temp_dir("find");
+        for (info, metadata) in [
+            (
+                "Zope.Interface-6.0.dist-info",
+                "Name: zope.interface\nVersion: 6.0\n",
+            ),
+            ("broken-1.0.dist-info", "Version: 1.0\n"),
+            ("legacy_pkg.egg-info", "Name: legacy-pkg\nVersion: 0.1\n"),
+        ] {
+            fs::create_dir_all(dir.join(info)).unwrap();
+            fs::write(dir.join(info).join("METADATA"), metadata).unwrap();
+        }
+        assert_eq!(
+            find(&dir, "zope-interface"),
+            Some(("zope.interface".to_string(), Some("6.0".to_string())))
+        );
+        assert_eq!(
+            find(&dir, "Legacy.Pkg"),
+            Some(("legacy-pkg".to_string(), Some("0.1".to_string())))
+        );
+        // A match without a name is skipped.
+        assert_eq!(find(&dir, "broken"), None);
+        assert_eq!(find(&dir, "missing"), None);
+        assert_eq!(find(&dir.join("nowhere"), "zope.interface"), None);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn find_egg_directory_entry() {
+        let dir = temp_dir("find-egg");
+        let egg = dir.join("Legacy_Egg-1.0-py3.13.egg");
+        fs::create_dir_all(egg.join("EGG-INFO")).unwrap();
+        fs::write(
+            egg.join("EGG-INFO/PKG-INFO"),
+            "Name: legacy-egg\nVersion: 1.0\n",
+        )
+        .unwrap();
+        let found = find(&egg, "legacy-egg");
+        fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(
+            found,
+            Some(("legacy-egg".to_string(), Some("1.0".to_string())))
+        );
+    }
+
+    #[test]
+    fn find_in_zip_archive() {
+        use std::io::Write;
+
+        let dir = temp_dir("find-zip");
+        let archive = dir.join("deps.zip");
+        let mut zip = zip::ZipWriter::new(File::create(&archive).unwrap());
+        zip.start_file(
+            "zp-1.0.dist-info/METADATA",
+            zip::write::SimpleFileOptions::default(),
+        )
+        .unwrap();
+        zip.write_all(b"Name: zp\nVersion: 1.0\n").unwrap();
+        zip.finish().unwrap();
+        let found = find(&archive, "ZP");
+        fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(found, Some(("zp".to_string(), Some("1.0".to_string()))));
     }
 
     #[test]
