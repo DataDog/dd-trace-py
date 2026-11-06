@@ -699,17 +699,6 @@
                 "tested": [
                     "1.24.0"
                 ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.14"
-                    ]
-                },
-                "supportedRange": "*",
-                "tested": [
-                    "2.3.0"
-                ]
             }
         ]
     },
@@ -743,17 +732,6 @@
                 "tested": [
                     "1.2.1",
                     "1.5.0"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.14"
-                    ]
-                },
-                "supportedRange": ">=1.2.1",
-                "tested": [
-                    "1.7.0"
                 ]
             }
         ]
@@ -3826,19 +3804,9 @@
                     "2.46.0",
                     "2.54.1"
                 ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.14"
-                    ]
-                },
-                "supportedRange": ">=2.46.0",
-                "tested": [
-                    "2.60.0"
-                ]
             }
-        ]
+        ],
+        "pinned": true
     },
     {
         "libraryName": "ray",
@@ -4730,17 +4698,6 @@
                 "tested": [
                     "0.10.2",
                     "0.27.1"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.14"
-                    ]
-                },
-                "supportedRange": ">=0.10.2",
-                "tested": [
-                    "0.33.0"
                 ]
             }
         ]
