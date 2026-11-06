@@ -90,7 +90,7 @@ def patch() -> None:
 
     # Let products (LLMObs) attach their own LlmEvents subscribers without this
     # module importing them.
-    integration_hooks.on_patch("typesafe")
+    integration_hooks.on_patch(COMPONENT)
 
 
 def unpatch() -> None:
@@ -99,7 +99,7 @@ def unpatch() -> None:
 
     typesafe_sdk._datadog_patch = False
 
-    integration_hooks.on_unpatch("typesafe")
+    integration_hooks.on_unpatch(COMPONENT)
 
     unwrap(typesafe_sdk.TypeSafeClient, "system_one")
     unwrap(typesafe_sdk.AsyncTypeSafeClient, "system_one")

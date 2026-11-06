@@ -4,20 +4,18 @@ from dataclasses import FrozenInstanceError
 from ddtrace._monkey import _get_patched_modules
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
 from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
+from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
 from ddtrace.contrib.internal.stream_handler import StreamHandler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.openai import openai_construct_completion_from_streamed_chunks
 from ddtrace.internal.utils.openai import openai_construct_message_from_streamed_chunks
-from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 
 
 log = get_logger(__name__)
-
-# Maps requested model name to (parsed model name, provider), filled in as litellm resolves providers.
-model_map: dict[str, tuple[str, str]] = {}
 
 
 def extract_host_tag(kwargs):

@@ -8,12 +8,12 @@ from ddtrace.contrib.internal.litellm._constants import COMPONENT
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
 from ddtrace.contrib.internal.litellm._constants import TAG_HOST
 from ddtrace.contrib.internal.litellm._constants import TAG_MODEL
+from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
-from ddtrace.contrib.internal.litellm.utils import model_map
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap

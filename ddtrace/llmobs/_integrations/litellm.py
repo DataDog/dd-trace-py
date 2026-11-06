@@ -3,8 +3,8 @@ from typing import Optional
 
 from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
 from ddtrace.contrib.internal.litellm._constants import TAG_RESPONSE_MODEL
-from ddtrace.contrib.internal.litellm.utils import is_completion_operation
-from ddtrace.contrib.internal.litellm.utils import model_map
+from ddtrace.contrib.internal.litellm._constants import TEXT_COMPLETION_OPERATIONS
+from ddtrace.contrib.internal.litellm._constants import model_map
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -69,7 +69,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         )
 
         # use Open AI helpers since response format will match Open AI
-        if is_completion_operation(operation):
+        if operation in TEXT_COMPLETION_OPERATIONS:
             openai_set_meta_tags_from_completion(span, kwargs, response, integration_name="litellm")
         else:
             openai_set_meta_tags_from_chat(span, kwargs, response, integration_name="litellm")

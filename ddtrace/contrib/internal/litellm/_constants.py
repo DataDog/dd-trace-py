@@ -11,3 +11,6 @@ TEXT_COMPLETION_OPERATIONS = (
     "router.text_completion",
     "router.atext_completion",
 )
+
+# Maps requested model name to (parsed model name, provider), filled in as litellm resolves providers.
+model_map: dict[str, tuple[str, str]] = {}
