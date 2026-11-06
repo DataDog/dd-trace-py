@@ -427,3 +427,26 @@ def test_overlapping_evaluations_commit_only_the_successful_graph(evaluated):
         assert failed.result(timeout=10).reason == Reason.ERROR
     assert sorted(exposure_keys(exposures)) == ["parent", "success"]
     assert event_keys(evaluations).count("parent") == 2
+
+
+def test_async_hook_failure_discards_exposures_without_poisoning_a_retry(evaluated):
+    import asyncio
+
+    provider, client, evaluations, exposures, _ = evaluated
+    assert process_ffe_configuration(create_config(create_boolean_flag("parent"), dependent_flag()))
+    context = EvaluationContext(targeting_key="subject")
+
+    async def evaluate():
+        failed = await client.get_boolean_details_async(
+            "root", False, context, FlagEvaluationOptions(hooks=[RejectAfter()])
+        )
+        assert failed.reason == Reason.ERROR
+        assert failed.value is False
+        assert not exposures.called
+        assert not provider._exposure_cache
+        result = await client.get_boolean_details_async("root", False, context)
+        assert result.value is True
+
+    asyncio.run(evaluate())
+    assert event_keys(evaluations) == ["parent", "root", "parent", "root"]
+    assert exposure_keys(exposures) == ["parent", "root"]
