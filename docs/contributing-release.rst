@@ -5,7 +5,8 @@ Release Process
 Most of the time spent “running the release” is actually spent creating and testing release candidates.
 We create a release candidate, test it, and repeat until the test shows no errors or regressions.
 
-Release candidates are based on the main branch. The main branch's version string is always set to the release candidate version that will be released next.
+The first release candidate (``rc1``) of a minor line is based on the main branch. After it is tagged, a release branch named ``X.Y`` is
+created from it, and every later release candidate and the final release are cut from that branch.
 
 Prerequisites
 -------------
@@ -50,19 +51,43 @@ Patch Release
 Minor or Major Release Candidate
 --------------------------------
 
+First release candidate (``rc1``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Set / Validate version strings on branches
+
+    * main's version string is already ``X.Y.0rc1``. No version change is needed.
+
+2. Make a GitHub release
+
+    * Target: the main commit you are releasing
+    * "Pre-release" checked
+
+3. Create the release branch from the ``rc1`` tag:
+
+    .. code-block:: bash
+
+        $ git fetch origin --tags
+        $ git checkout -b X.Y vX.Y.0rc1
+        $ git push -u origin X.Y
+
+    From this point on, fixes for the release are merged to main and backported to ``X.Y``.
+
+Later release candidates (``rc2`` and up)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 1. Set / Validate branch structure
 
-    * The main branch exists
+    * The ``X.Y`` release branch exists, and the backports you want in this release candidate are merged into it.
 
 2. Set / Validate version strings on branches
 
-    * main's version string is currently a release candidate ``rc`` version.
-    * Pull request a change to the version string on the main branch that sets it to the next release candidate on the current minor release line.
-        In practice this means incrementing the ``rcX`` number by one.
+    * Pull request a change to the version string on the ``X.Y`` branch that increments the ``rcN`` number by one
+        (for example, ``4.17.0rc1`` to ``4.17.0rc2``). main's version string does not change.
 
 3. Make a GitHub release
 
-    * Target: the merged commit from the version string pull request above
+    * Target: the merged commit on ``X.Y`` from the version string pull request above
     * "Pre-release" checked
 
 Minor or Major Release
@@ -70,24 +95,15 @@ Minor or Major Release
 
 1. Set / Validate branch structure
 
-    * There is no branch in existence named after the relevant minor release line (the "release branch"). Create it:
-
-    .. code-block:: bash
-
-        $ git checkout A.B  # previous release branch
-        $ git pull
-        $ git checkout -b X.Y  # new release branch
-        $ git merge main -Xtheirs # this keeps the tags intact so that reno will work properly
-        $ git push -u origin X.Y
+    * The ``X.Y`` release branch already exists; it was created after ``rc1`` (see above).
 
 2. Set / Validate version strings on branches
 
-    * main's version string is currently a release candidate ``rc`` version.
-    * Pull request a change to the version string on the main branch that sets it to ``rc1`` on the next release line.
-        For example: in step 1 we created branch ``1.3``, and we will change the version string on main to ``1.4.0rc1``.
-    * The version string on the release branch is currently set to a patch version on the previous minor release line.
-        For example: in step 1 we created branch ``1.3``, and it has a version string of ``1.2.9``
-    * Pull request a change to the version string on the release branch that sets it to the minor version you're releasing.
+    * The version string on the release branch is the latest release candidate, for example ``1.3.0rc3``.
+    * Pull request a change to the version string on the release branch that sets it to the minor version you're releasing,
+        for example ``1.3.0``.
+    * Pull request a change to the version string on the main branch that sets it to ``rc1`` on the next release line,
+        for example ``1.4.0rc1``.
 
 3. Make a GitHub release
 
@@ -102,18 +118,18 @@ The ``[project.version]`` attribute in ``pyproject.toml`` is the source of truth
 If you inspect a ddtrace wheel via directory exploration or ``print(ddtrace.__version__)``, the version you find will match the
 version in the wheel's name.
 
-If you check the attribute on a checkout of the ddtrace main branch, you will find it set to the ``rcX`` release candidate version
-that comes next on the currently under-development minor release line. For example:
+If you check the attribute on a checkout of the ddtrace main branch, you will find it set to ``rc1`` of the
+currently under-development minor release line. It stays there until that line's final release ships. For example:
 
 * Latest release: ``4.4.0`` -> version string on main: ``4.5.0rc1``
-* Latest release: ``4.3.0rc4`` -> version string on main: ``4.3.0rc5``
+* Latest release: ``4.3.0rc4`` -> version string on main: ``4.3.0rc1``
 * Latest release: ``4.2.1`` -> version string on main: ``4.3.0rc1``
 
-If you check the attribute on a checkout of a ddtrace release branch with a name like ``X.Y``, you will find it set to the patch release version
-that comes next on that minor release line. For example:
+If you check the attribute on a checkout of a ddtrace release branch with a name like ``X.Y``, you will find it set to the latest
+release candidate while the line is in pre-release, and to the patch release version that comes next once it is released. For example:
 
 * Latest release: ``4.4.0`` -> version string on 4.4 branch: ``4.4.1dev``
-* Latest release: ``4.3.0rc4`` -> version string on 4.3 branch: not applicable, branch doesn't exist
+* Latest release: ``4.3.0rc4`` -> version string on 4.3 branch: ``4.3.0rc4`` (bumped to ``4.3.0rc5`` when the next release candidate is cut)
 * Latest release: ``4.2.1`` -> version string on 4.2: ``4.2.2dev``
 
 If ever you discover that one of these guarantees is not upheld, please open a pull request adjusting the version string accordingly.
