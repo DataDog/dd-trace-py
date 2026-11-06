@@ -141,12 +141,6 @@ if PYTHON_VERSION_INFO < (3, 9, 8):
     singledispatchmethod.register = _singledispatchmethod_register  # type: ignore[method-assign]
 
 
-def get_mp_context():
-    import multiprocessing
-
-    return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")
-
-
 def __getattr__(name: str) -> Any:
     # These attributes are expensive to pre-compute, so we make them lazy
     if name == "PYTHON_VERSION":

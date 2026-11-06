@@ -54,9 +54,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-opentracing = [
-    "opentracing>=2,<3",
-]
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
 ]
@@ -81,6 +78,8 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 anthropic = "ddtrace.llmobs._contrib.anthropic"
 llama_index = "ddtrace.llmobs._contrib.llama_index"
 mistralai = "ddtrace.llmobs._contrib.mistralai"
+mlflow = "ddtrace.llmobs._contrib.mlflow"
+vllm = "ddtrace.llmobs._contrib.vllm"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"

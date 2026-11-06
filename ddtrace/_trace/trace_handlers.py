@@ -1948,7 +1948,6 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
-        "django.process_exception",
         "django.func.wrapped",
         "django.contrib.auth.login",
         # non web frameworks
@@ -1965,7 +1964,6 @@ def listen():
         "rq.traced_queue_fetch_job",
         "rq.worker.perform_job",
         "rq.job.perform",
-        "rq.job.fetch_many",
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",

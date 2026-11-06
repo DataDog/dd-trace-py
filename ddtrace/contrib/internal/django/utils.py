@@ -52,19 +52,6 @@ _quantize_text = Union[str, bytes]
 _quantize_param = Union[_quantize_text, list[_quantize_text], dict[_quantize_text, Any], Any]
 
 
-def resource_from_cache_prefix(resource: str, cache: Any) -> str:
-    """
-    Combine the resource name with the cache prefix (if any)
-    """
-    if getattr(cache, "key_prefix", None):
-        name = " ".join((resource, cache.key_prefix))
-    else:
-        name = resource
-
-    # enforce lowercase to make the output nicer to read
-    return name.lower()
-
-
 def quantize_key_values(keys: _quantize_param) -> str:
     """
     Used for Django cache key normalization.
