@@ -651,7 +651,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['azure-functions-durable==1.2.1']
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure-functions-durable]
   azure_functions:
     # TODO(py-315): the azure functions worker stack does not support Python 3.15;
@@ -2221,10 +2221,6 @@ suites:
         - name: ray
           python: ['3.11', '3.12', '3.13']
           dependencies: ['ray[default]~=2.54.1']
-        # ray 2.54 publishes no cp314 wheels; 2.60 is the first release line that does.
-        - name: ray
-          python: ['3.14']
-          dependencies: ['ray[default]']
   ray_serve:
     # TODO(py-315): ray has no cp315 wheels yet, so this suite cannot run on
     # Python 3.15. Add 3.15 to the python lists once ray publishes 3.15 wheels.
