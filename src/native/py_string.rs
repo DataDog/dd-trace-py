@@ -324,11 +324,24 @@ impl std::fmt::Debug for PyBackedString {
     }
 }
 
-// `TraceText` requires `Clone`, but cloning a `PyObject`-tagged value needs the GIL to incref.
-// Callers that already hold the GIL should use `clone_ref`.
+// libdatadog requires `Clone` for `TraceText`, and it can call `clone` on a thread that has no
+// Python thread state, for example during interpreter shutdown. Attaching to Python from that
+// thread can panic or hang. For that reason, `clone` never touches `py_object`. It copies a
+// `Rust` or `PyObject` string into new Rust-owned memory, and the copy loses the Python object.
+// A clone of Python `None` becomes an empty string, and `is_py_none` returns false for it.
+// To keep the Python object, hold the GIL and call `clone_ref`.
+// No test covers this path: PyO3 cannot start an interpreter in `cargo test`.
 impl Clone for PyBackedString {
     fn clone(&self) -> Self {
-        Python::attach(|py| self.clone_ref(py))
+        match self.tag {
+            Tag::Static => Self {
+                view_ptr: self.view_ptr,
+                view_len: self.view_len,
+                tag: Tag::Static,
+                py_object: None,
+            },
+            Tag::Rust | Tag::PyObject => Self::from_box(Box::<str>::from(self.deref())),
+        }
     }
 }
 
