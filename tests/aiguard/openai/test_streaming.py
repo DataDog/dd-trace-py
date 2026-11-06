@@ -5,6 +5,8 @@ All "buffered" cases run with ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=tru
 the stream is not buffered.
 """
 
+import asyncio
+import time
 from unittest.mock import patch
 
 import pytest
@@ -178,6 +180,137 @@ async def test_chat_stream_async_buffered_block(mock_execute_request, async_open
     assert mock_execute_request.call_count == 2
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"], ids=["allow", "deny"])
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+async def test_chat_stream_async_buffered_evaluates_off_event_loop(
+    mock_execute_request, async_openai_client_stream_buffered, decision
+):
+    """A slow buffered-response evaluation must not stall other asyncio tasks; a block still propagates."""
+    ticks = 0
+
+    async def ticker():
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.005)
+
+    ticks_during_response_eval = []
+
+    def execute_request(*args, **kwargs):
+        if mock_execute_request.call_count == 1:  # before-hook request evaluation
+            return mock_evaluate_response("ALLOW")
+        start = ticks
+        time.sleep(0.3)
+        ticks_during_response_eval.append(ticks - start)
+        return mock_evaluate_response(decision)
+
+    mock_execute_request.side_effect = execute_request
+    ticker_task = asyncio.create_task(ticker())
+    try:
+        stream = await async_openai_client_stream_buffered.chat.completions.create(
+            model=CHAT_MODEL, messages=_user_messages(), stream=True
+        )
+        seen = []
+        if decision == "ALLOW":
+            seen = [chunk async for chunk in stream]
+            assert seen
+        else:
+            with pytest.raises(AIGuardAbortError):
+                async for chunk in stream:
+                    seen.append(chunk)
+            assert seen == []
+    finally:
+        ticker_task.cancel()
+        await asyncio.gather(ticker_task, return_exceptions=True)
+
+    assert mock_execute_request.call_count == 2
+    # The ticker kept running while the blocking evaluation slept in its worker thread.
+    assert ticks_during_response_eval and ticks_during_response_eval[0] > 1
+
+
+def _run_without_event_loop(coro):
+    """Drive a coroutine that never suspends, with no asyncio loop running (as under trio)."""
+    try:
+        coro.send(None)
+    except StopIteration as stop:
+        return stop.value
+    raise AssertionError("coroutine suspended")
+
+
+@pytest.mark.parametrize("decision", ["ALLOW", "DENY"], ids=["allow", "deny"])
+def test_async_buffered_stream_without_asyncio_loop_evaluates_inline(decision):
+    """Without a running asyncio loop the evaluation runs inline: allow replays, block raises."""
+
+    async def source():
+        for chunk in ("a", "b"):
+            yield chunk
+
+    def evaluate(response):
+        assert response == ["a", "b"]
+        if decision == "DENY":
+            raise AIGuardAbortError(action="DENY", reason="blocked")
+
+    async def consume(stream):
+        return [chunk async for chunk in stream]
+
+    stream = BufferedAIGuardAsyncStream(source(), reconstruct=list, evaluate=evaluate)
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        if decision == "ALLOW":
+            assert _run_without_event_loop(consume(stream)) == ["a", "b"]
+        else:
+            with pytest.raises(AIGuardAbortError):
+                _run_without_event_loop(consume(stream))
+
+
+class _FinalMessageStream:
+    """Async stream with an Anthropic-style get_final_message that returns the full response."""
+
+    def __init__(self):
+        self._chunks = iter(["a", "b"])
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration
+
+    async def get_final_message(self):
+        return "full message"
+
+
+@pytest.mark.asyncio
+async def test_async_buffered_stream_concurrent_and_later_callers_share_the_verdict():
+    """A caller arriving during or after a blocking evaluation must not read the exhausted stream unevaluated."""
+    evaluated = []
+
+    def evaluate(response):
+        evaluated.append(response)
+        time.sleep(0.2)
+        # Mirrors the listeners, which skip an empty response.
+        if response:
+            raise AIGuardAbortError(action="DENY", reason="blocked")
+
+    async def consume(stream):
+        return [chunk async for chunk in stream]
+
+    async def final_message_during_evaluation(stream):
+        await asyncio.sleep(0.05)
+        return await stream.get_final_message()
+
+    stream = BufferedAIGuardAsyncStream(_FinalMessageStream(), reconstruct=list, evaluate=evaluate)
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        results = await asyncio.gather(consume(stream), final_message_during_evaluation(stream), return_exceptions=True)
+        assert [type(result) for result in results] == [AIGuardAbortError, AIGuardAbortError]
+        with pytest.raises(AIGuardAbortError):
+            await stream.get_final_message()
+
+    assert evaluated and all(response == ["a", "b"] for response in evaluated)
+
+
 # ---------------------------------------------------------------------------
 # Responses API
 # ---------------------------------------------------------------------------
@@ -238,6 +371,23 @@ def test_responses_stream_flag_off_not_buffered(mock_execute_request, openai_res
     list(stream)
 
     mock_execute_request.assert_called_once()
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_responses_stream_without_mcp_tools_unchanged_by_default_mcp(
+    mock_execute_request, openai_responses_stream_client
+):
+    """DD_AI_GUARD_MCP_ENABLED is on by default: a stream with only function tools is still unbuffered."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = openai_responses_stream_client.responses.create(
+        model=RESPONSES_MODEL, input="Hello", tools=[{"type": "function", "name": "lookup"}], stream=True
+    )
+    assert not isinstance(stream, BufferedAIGuardStream)
+    assert list(stream)
+
+    mock_execute_request.assert_called_once()
+    assert set(mock_execute_request.call_args.args[1]["data"]["attributes"]) == {"messages", "meta"}
 
 
 @pytest.mark.asyncio
@@ -452,3 +602,43 @@ def test_non_stream_result_not_wrapped():
     sentinel = object()
     result = sync_wrapper(lambda *a, **k: sentinel, None, (), {})
     assert result is sentinel
+
+
+class _Manager:
+    """A stream whose context manager yields a new inner stream, like MessageStreamManager."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __enter__(self):
+        return self._inner
+
+    def __exit__(self, *exc):
+        return None
+
+    async def __aenter__(self):
+        return self._inner
+
+    async def __aexit__(self, *exc):
+        return None
+
+
+def _enabled():
+    return True
+
+
+def test_manager_path_keeps_the_enabled_check():
+    proxy = BufferedAIGuardStream(_Manager(iter([])), reconstruct=list, evaluate=lambda resp: None, enabled=_enabled)
+    with proxy as inner:
+        assert isinstance(inner, BufferedAIGuardStream)
+        assert inner._self_enabled is _enabled
+
+
+@pytest.mark.asyncio
+async def test_async_manager_path_keeps_the_enabled_check():
+    proxy = BufferedAIGuardAsyncStream(
+        _Manager(iter([])), reconstruct=list, evaluate=lambda resp: None, enabled=_enabled
+    )
+    async with proxy as inner:
+        assert isinstance(inner, BufferedAIGuardAsyncStream)
+        assert inner._self_enabled is _enabled

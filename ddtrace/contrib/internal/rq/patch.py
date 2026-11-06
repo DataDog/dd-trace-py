@@ -169,24 +169,6 @@ def traced_job_perform(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-def traced_job_fetch_many(func, instance, args, kwargs):
-    """Trace rq.Job.fetch_many(...)"""
-    job_ids = get_argument_value(args, kwargs, 0, "job_ids")
-    with (
-        core.context_with_data(
-            "rq.job.fetch_many",
-            span_name=schematize_messaging_operation(
-                "rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING
-            ),
-            service=trace_utils.ext_service(None, config.rq_worker),
-            tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
-            integration_config=config.rq_worker,
-        ) as ctx,
-        span_from_context(ctx),
-    ):
-        return func(*args, **kwargs)
-
-
 def _worker_perform_job_owner(rq):
     """Return the common worker class that implements perform_job."""
     base_worker = getattr(rq.worker, "BaseWorker", None)
