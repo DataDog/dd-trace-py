@@ -1,0 +1,67 @@
+[
+  {
+    "flag": "basic-flag",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "user-max-test",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 100,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "experiment-flag",
+    "variationType": "STRING",
+    "defaultValue": "default",
+    "targetingKey": "user-max-test",
+    "attributes": {},
+    "result": {
+      "value": "treatment",
+      "reason": "STATIC",
+      "serialId": 108,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "no-log-flag",
+    "variationType": "BOOLEAN",
+    "defaultValue": false,
+    "targetingKey": "user-no-log",
+    "attributes": {},
+    "result": {
+      "value": true,
+      "reason": "STATIC",
+      "serialId": 200,
+      "doLog": false
+    }
+  },
+  {
+    "flag": "multi-serial-flag-1",
+    "variationType": "INTEGER",
+    "defaultValue": 0,
+    "targetingKey": "user-max-test",
+    "attributes": {},
+    "result": {
+      "value": 1,
+      "reason": "STATIC",
+      "serialId": 128,
+      "doLog": true
+    }
+  },
+  {
+    "flag": "multi-serial-flag-2",
+    "variationType": "INTEGER",
+    "defaultValue": 0,
+    "targetingKey": "user-max-test",
+    "attributes": {},
+    "result": {
+      "value": 2,
+      "reason": "STATIC",
+      "serialId": 130,
+      "doLog": true
+    }
+  }
+]
