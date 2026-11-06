@@ -335,21 +335,21 @@ def test_runtime_collector_start_failure_cleans_up_partial_resources(
 
 
 def test_failed_lock_collector_start_preserves_patch_target() -> None:
-    original_lock = profiler.threading.ThreadingLockCollector.MODULE.Lock
-
     class FailingLockCollector(profiler.threading.ThreadingLockCollector):
         def patch(self) -> None:
             raise RuntimeError("patch failed")
 
+    failing_collector = FailingLockCollector()
+    original_lock = failing_collector.MODULE.Lock
     p = _bare_profiler_instance()
-    p._collectors = [FailingLockCollector()]
+    p._collectors = [failing_collector]
     p._scheduler = None
 
     try:
         p.start()
-        installed_lock = profiler.threading.ThreadingLockCollector.MODULE.Lock
+        installed_lock = failing_collector.MODULE.Lock
     finally:
-        profiler.threading.ThreadingLockCollector.MODULE.Lock = original_lock
+        failing_collector.MODULE.Lock = original_lock
 
     assert installed_lock is original_lock
     p.stop(flush=False)
