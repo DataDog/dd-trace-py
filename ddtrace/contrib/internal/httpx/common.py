@@ -8,6 +8,7 @@ from typing import Optional
 
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace._trace._registration import HTTP_CLIENT_SUBSCRIBERS
 from ddtrace._trace.otel.http.tags import otel_client_url
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
@@ -150,6 +151,8 @@ class HttpxPatcher:
                     ctx.event.set_response(response)
 
     def patch(self) -> None:
+        HTTP_CLIENT_SUBSCRIBERS.register()
+
         if getattr(self._module, "_datadog_patch", False):
             return
 

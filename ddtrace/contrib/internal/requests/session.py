@@ -1,5 +1,7 @@
 import requests
 
+from ddtrace._trace._registration import HTTP_CLIENT_SUBSCRIBERS
+
 
 class TracedSession(requests.Session):
     """TracedSession is a requests' Session that is already traced.
@@ -7,4 +9,6 @@ class TracedSession(requests.Session):
     HTTP clients.
     """
 
-    pass
+    def __init__(self) -> None:
+        HTTP_CLIENT_SUBSCRIBERS.register()
+        super().__init__()

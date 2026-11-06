@@ -19,7 +19,6 @@ _SPAN_NAME_PREFIX_TO_SQL_TOKENIZER: dict[str, DDWafSqlTokenizer] = {
 
 
 class AppSecDbApiSubscriber(Subscriber):
-    auto_register = False
     event_names = (DbQueryEvent.event_name,)
 
     @classmethod

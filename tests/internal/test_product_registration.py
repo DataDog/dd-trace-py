@@ -124,3 +124,62 @@ def test_tracing_product_stop_preserves_active_request_completion() -> None:
 
     assert span.finished
     assert span.get_tag("http.status_code") == "201"
+
+
+@pytest.mark.subprocess
+def test_tracing_subscriber_imports_do_not_activate_listeners() -> None:
+    from importlib import import_module
+
+    from ddtrace._trace._registration import SUBSCRIBER_BUNDLES
+    from ddtrace.internal import core
+
+    for bundle in SUBSCRIBER_BUNDLES:
+        module = import_module(bundle.module)
+        for name in bundle.subscribers:
+            subscriber = getattr(module, name)
+            for event_name in subscriber.event_names:
+                assert not core.has_listeners(event_name)
+                assert not core.has_listeners(f"context.started.{event_name}")
+                assert not core.has_listeners(f"context.ended.{event_name}")
+
+
+@pytest.mark.subprocess
+def test_tracing_bundle_declarations_do_not_import_optional_integrations() -> None:
+    import sys
+
+    from ddtrace._trace import product
+
+    product.start()
+    from ddtrace.internal import core
+
+    for event_name in (
+        "span.lifecycle",
+        "http.client.request",
+        "httpx.request",
+        "web.request",
+        "messaging.produce",
+        "messaging.consume",
+        "kafka.produce",
+        "kafka.consume",
+        "llm.request",
+    ):
+        assert core.has_listeners(f"context.started.{event_name}")
+        assert core.has_listeners(f"context.ended.{event_name}")
+    assert core.has_listeners("molten.router.match")
+    assert "ddtrace._trace.subscribers.ray" not in sys.modules
+    assert "ddtrace._trace.subscribers.aws_durable" not in sys.modules
+
+
+@pytest.mark.subprocess
+def test_aws_durable_bundle_registers_without_importing_sdk() -> None:
+    import sys
+
+    from ddtrace._trace._registration import AWS_DURABLE_SUBSCRIBERS
+    from ddtrace.internal import core
+
+    assert not core.has_listeners("context.started.aws.durable.execute")
+    AWS_DURABLE_SUBSCRIBERS.register()
+    for event_name in ("aws.durable.execute", "aws.durable.invoke", "aws.durable.operation"):
+        assert core.has_listeners(f"context.started.{event_name}")
+        assert core.has_listeners(f"context.ended.{event_name}")
+    assert "aws_durable_execution_sdk_python" not in sys.modules

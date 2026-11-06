@@ -33,7 +33,6 @@ def unregister(component: str) -> None:
 
 
 class LLMObsSpanStartingSubscriber(Subscriber):
-    auto_register = False
     event_names = (f"{SpanLifecycleEvents.SPAN_STARTING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
@@ -53,7 +52,6 @@ class LLMObsSpanStartingSubscriber(Subscriber):
 
 
 class LLMObsSpanStartedSubscriber(Subscriber):
-    auto_register = False
     event_names = (f"{SpanLifecycleEvents.SPAN_STARTED.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
@@ -79,7 +77,6 @@ class LLMObsSpanStartedSubscriber(Subscriber):
 
 
 class LLMObsSpanFinishingSubscriber(Subscriber):
-    auto_register = False
     event_names = (f"{SpanLifecycleEvents.SPAN_FINISHING.value}.{LlmRequestEvent.event_name}",)
 
     @classmethod
