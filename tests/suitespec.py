@@ -366,6 +366,12 @@ def get_patterns(suite: str) -> set[str]:
     return {_.format(suite=suite.replace("::", ".")) for _ in resolve(suite_patterns)}
 
 
+def suite_job(suite: str) -> tuple[str, str]:
+    """The GitLab stage and job name of a suite: contrib::fastapi -> ("contrib", "fastapi"); no prefix -> core."""
+    parts = suite.split("::")[-2:]
+    return (parts[0], parts[1]) if len(parts) == 2 else ("core", parts[-1])
+
+
 def get_suites() -> dict[str, dict]:
     """Get the list of suites."""
     return SUITESPEC["suites"]

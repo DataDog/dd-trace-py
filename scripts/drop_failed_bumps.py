@@ -28,15 +28,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from tests.suitespec import LOCK_ROOT  # noqa: E402
 from tests.suitespec import get_test_environments  # noqa: E402
+from tests.suitespec import suite_job  # noqa: E402
 
 
 def git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=PROJECT_ROOT, check=True, text=True, capture_output=True).stdout
-
-
-def job_name(suite: str) -> str:
-    """The CI job of a suite, as named in scripts/gen_gitlab_config.py: contrib::fastapi -> contrib/fastapi."""
-    return "/".join(suite.split("::")[-2:] if "::" in suite else ("core", suite))
 
 
 def main() -> None:
@@ -44,9 +40,18 @@ def main() -> None:
     parser.add_argument("--base", default="origin/main")
     base = parser.parse_args().base
 
-    failed_jobs = {re.sub(r"^dd-gitlab/| \d+/\d+$", "", line.strip()) for line in sys.stdin if line.strip()}
     suites = get_test_environments(nightly=False)
-    failed_suites = {suite for suite in suites if job_name(suite) in failed_jobs}
+    suite_by_job = {"/".join(suite_job(suite)): suite for suite in suites}
+    failed_suites = set()
+    for line in sys.stdin:
+        job = re.sub(r"^dd-gitlab/| \d+/\d+$", "", line.strip())
+        if job in suite_by_job:
+            failed_suites.add(suite_by_job[job])
+        elif line.startswith("dd-gitlab/") and job != "default-pipeline":
+            print(
+                f"::warning::failed check {line.strip()!r} matches no suite; its package is not dropped",
+                file=sys.stderr,
+            )
 
     changed = set(git("diff", "--name-only", base, "--", str(LOCK_ROOT)).split())
     environments = [environment for matrix in suites.values() for environment in matrix]
