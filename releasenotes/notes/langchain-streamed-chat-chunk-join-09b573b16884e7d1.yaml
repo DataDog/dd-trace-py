@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: Fixes an issue where finishing a streamed chat model span with ``langchain_core>=0.2.13`` could block
+    for seconds on responses containing large streamed tool calls, because the chunks were joined in quadratic time.
