@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    grpc: Fixes an ``AttributeError: 'generator' object has no attribute '_span'`` raised by streaming
+    client calls whose response is a plain generator, such as ``ReadRows`` in ``google-cloud-bigtable``
+    2.46.0. The client span for these calls is now finished when the response is exhausted.
