@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: streamed Anthropic cache writes are now reported with the TTL
+    class the API returned (1h or 5m) instead of always being booked as 5m.
