@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash where the profiler aborted the process when it ran out of
+    memory while interning sample type names. That profile is dropped instead.

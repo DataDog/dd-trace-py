@@ -1,6 +1,7 @@
 use std::{borrow::Borrow, ops::Deref as _};
 
-use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
+use libdd_trace_model::{AttributeValue, TraceText, ValueTypes};
+use libdd_trace_utils::span::{v04::VecMap, SpanBytes, SpanText, TraceData};
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAnyMethods as _, PyBytesMethods as _, PyString, PyStringMethods as _},
@@ -311,6 +312,23 @@ impl PartialEq for PyBackedString {
 
 impl Eq for PyBackedString {}
 
+impl Clone for PyBackedString {
+    fn clone(&self) -> Self {
+        match self.tag {
+            Tag::Static => Self {
+                view_ptr: self.view_ptr,
+                view_len: self.view_len,
+                tag: Tag::Static,
+                py_object: None,
+            },
+            // Rust-owned: allocate a fresh Box. PyObject: attach and bump the
+            // Python refcount so we keep the same backing object (and py_none).
+            Tag::Rust => Self::from_box(Box::<str>::from(self.deref())),
+            Tag::PyObject => Python::attach(|py| self.clone_ref(py)),
+        }
+    }
+}
+
 impl Default for PyBackedString {
     fn default() -> Self {
         Self::from_static_str("")
@@ -338,6 +356,18 @@ impl SpanText for PyBackedString {
     }
 }
 
+impl From<String> for PyBackedString {
+    fn from(value: String) -> Self {
+        Self::from_owned(value)
+    }
+}
+
+impl TraceText for PyBackedString {
+    fn from_static(s: &'static str) -> Self {
+        Self::from_static_str(s)
+    }
+}
+
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Bytes(Vec<u8>);
 
@@ -355,7 +385,13 @@ impl Borrow<[u8]> for Bytes {
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct PyTraceData;
-impl TraceData for PyTraceData {
+
+// libdatadog v47: TraceData is a marker over ValueTypes (Text/Bytes/Array/Map).
+impl ValueTypes for PyTraceData {
     type Text = PyBackedString;
     type Bytes = Bytes;
+    type Array = Vec<AttributeValue<Self>>;
+    type Map = VecMap<PyBackedString, AttributeValue<Self>>;
 }
+
+impl TraceData for PyTraceData {}
