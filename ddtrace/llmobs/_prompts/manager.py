@@ -366,18 +366,22 @@ class PromptManager:
                 log.debug("Failed to enable FFE Remote Config for prompt evaluation", exc_info=True)
 
     def _ensure_ffe_provider(self) -> None:
-        """Lazily register the DataDog OpenFeature provider (non-blocking)."""
+        """Register the prompt provider without waiting for flag configuration to arrive."""
         with self._ffe_lock:
             if self._ffe_provider_set:
                 return
             try:
                 from openfeature import api
 
+                from ddtrace.internal.openfeature._config import _get_ffe_snapshot
                 from ddtrace.internal.openfeature._provider import DataDogProvider
 
-                # Non-blocking: registers for RC callbacks without waiting for config delivery.
-                # Scoped to our own domain so we don't replace the app's default provider.
-                api.set_provider(DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
+                register = api.set_provider
+                if _get_ffe_snapshot() is not None:
+                    # Config is already local. Finish initialization before the first evaluation.
+                    # Older openfeature-sdk versions initialize inline in set_provider().
+                    register = getattr(api, "set_provider_and_wait", register)
+                register(DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
                 self._ffe_provider_set = True
             except Exception:
                 log.debug("Failed to register OpenFeature provider", exc_info=True)
