@@ -29,4 +29,48 @@ Configuration
    The service name reported by default for LiteLLM requests.
 
    Alternatively, set this option with the ``DD_LITELLM_SERVICE`` environment variable.
+
+
+Usage and cost metrics
+~~~~~~~~~~~~~~~~~~~~~~
+
+For calls made through a LiteLLM proxy, the integration can emit token usage and cost metrics for each provider
+attempt and each client request. They contain no prompts, responses or keys. See
+`LiteLLM proxy usage and cost metrics <https://docs.datadoghq.com/cloud_cost_management/ai_costs/litellm_proxy_metrics/>`_
+for the metrics, their tags, and how to join them to a provider's bill.
+
+.. py:data:: ddtrace.config.litellm["usage_metrics_enabled"]
+
+   Emit usage and cost metrics for LiteLLM proxy calls.
+
+   Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_ENABLED`` environment variable.
+
+   Default: ``False``
+
+.. py:data:: ddtrace.config.litellm["usage_metrics_exporter"]
+
+   ``otlp`` sends OTLP/HTTP metrics to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT``),
+   or without one to the Datadog Agent's OTLP receiver, or to Datadog's OTLP intake when ``DD_AGENTLESS_ENABLED`` is
+   true. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD endpoint.
+
+   Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_EXPORTER`` environment variable.
+
+   Default: ``otlp``
+
+.. py:data:: ddtrace.config.litellm["usage_metrics_tags"]
+
+   A comma-separated list of optional tags to add: ``user``, ``team``, ``key_alias``, ``route``, ``destination``,
+   ``provider_account``, ``project``, ``service`` and ``host``. Each can raise the number of series.
+
+   Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_TAGS`` environment variable.
+
+   Default: ``None``
+
+.. py:data:: ddtrace.config.litellm["usage_metrics_client_source"]
+
+   The name of the client application using this proxy, sent as ``trajectory.client_source`` when set.
+
+   Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE`` environment variable.
+
+   Default: ``None``
 """  # noqa: E501
