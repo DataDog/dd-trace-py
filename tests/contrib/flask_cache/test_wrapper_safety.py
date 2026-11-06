@@ -5,6 +5,9 @@ from redis.exceptions import ConnectionError  # noqa: A004
 from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
 from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
 from ddtrace.ext import net
+from tests.contrib.flask_cache import MEMCACHED_CACHE
+from tests.contrib.flask_cache import REDIS_CACHE
+from tests.contrib.flask_cache import SIMPLE_CACHE
 from tests.utils import TracerTestCase
 
 
@@ -15,7 +18,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+        cache = Cache(app, config={"CACHE_TYPE": SIMPLE_CACHE})
 
         # make a wrong call
         with pytest.raises(TypeError) as ex:
@@ -38,7 +41,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+        cache = Cache(app, config={"CACHE_TYPE": SIMPLE_CACHE})
 
         # make a wrong call
         with pytest.raises(TypeError) as ex:
@@ -61,7 +64,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+        cache = Cache(app, config={"CACHE_TYPE": SIMPLE_CACHE})
 
         # make a wrong call
         with pytest.raises(TypeError) as ex:
@@ -84,7 +87,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+        cache = Cache(app, config={"CACHE_TYPE": SIMPLE_CACHE})
 
         # make a wrong call
         with pytest.raises(TypeError) as ex:
@@ -107,7 +110,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+        cache = Cache(app, config={"CACHE_TYPE": SIMPLE_CACHE})
 
         # make a wrong call
         with pytest.raises(TypeError) as ex:
@@ -130,7 +133,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
-        config = {"CACHE_TYPE": "redis", "CACHE_REDIS_PORT": 2230, "CACHE_REDIS_HOST": "127.0.0.1"}
+        config = {"CACHE_TYPE": REDIS_CACHE, "CACHE_REDIS_PORT": 2230, "CACHE_REDIS_HOST": "127.0.0.1"}
         cache = Cache(app, config=config)
 
         # use a wrong redis connection
@@ -147,7 +150,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         assert span.resource == "get"
         assert span.name == "flask_cache.cmd"
         assert span.span_type == "cache"
-        assert span.get_tag(CACHE_BACKEND) == "redis"
+        assert span.get_tag(CACHE_BACKEND) == REDIS_CACHE
         assert span.get_tag(net.TARGET_HOST) == "127.0.0.1"
         assert span.get_tag("component") == "flask_cache"
         assert span.get_metric("network.destination.port") == 2230
@@ -158,7 +161,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "memcached",
+            "CACHE_TYPE": MEMCACHED_CACHE,
             "CACHE_MEMCACHED_SERVERS": ["localhost:2230"],
         }
         cache = Cache(app, config=config)
@@ -177,7 +180,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
         assert span.resource == "get"
         assert span.name == "flask_cache.cmd"
         assert span.span_type == "cache"
-        assert span.get_tag(CACHE_BACKEND) == "memcached"
+        assert span.get_tag(CACHE_BACKEND) == MEMCACHED_CACHE
         assert span.get_tag(net.TARGET_HOST) == "localhost"
         assert span.get_tag("component") == "flask_cache"
         assert span.get_metric("network.destination.port") == 2230

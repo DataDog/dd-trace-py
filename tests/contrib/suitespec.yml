@@ -1384,7 +1384,7 @@ suites:
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, 'flask-caching~=1.10.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, flask-caching]
   gevent:
