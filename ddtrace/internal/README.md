@@ -123,7 +123,8 @@ completion listeners after `stop()` returns.
 cleanup because the manager skips `stop()` for disabled products.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
-LLMObs or starting the product registers the shared lifecycle listener. Product-owned
+LLMObs registers the shared lifecycle listener, including when product startup calls
+`LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
 integration adapters also register it when an integration is patched, including direct
 patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
 component removes its factory and cached integration; shared listeners stay registered

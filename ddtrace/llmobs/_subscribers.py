@@ -35,9 +35,11 @@ def integration_for(component: str) -> Optional[BaseLLMIntegration]:
     integration_cls = _integration_classes.get(component)
     if integration_cls is None:
         return None
-    if component not in _integrations:
-        _integrations[component] = integration_cls(integration_config=getattr(config, component))
-    return _integrations[component]
+    integration = _integrations.get(component)
+    if integration is None:
+        integration = integration_cls(integration_config=getattr(config, component))
+        _integrations[component] = integration
+    return integration
 
 
 class LLMObsLlmSubscriber(SpanLifecycleListener):

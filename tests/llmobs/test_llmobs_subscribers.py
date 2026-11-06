@@ -120,8 +120,27 @@ def test_product_stop_preserves_inflight_completion(subscriber, integrations):
     integrations["llama_index"].llmobs_set_tags.assert_called_once()
 
 
-def test_product_start_restores_bundle(subscriber):
-    with mock.patch("ddtrace.llmobs.LLMObs.enable") as enable:
-        _product.start()
-    enable.assert_called_once_with(_auto=True)
-    assert core.has_listeners("span.finishing.llm.request")
+def test_compatibility_get_integration():
+    from ddtrace.llmobs._contrib._subscribers import get_integration
+
+    assert get_integration is integration_for
+
+
+def test_integration_for_keeps_local_after_concurrent_unregister(monkeypatch):
+    integration = mock.Mock()
+
+    class UnregisterOnLookup(dict):
+        def get(self, component, default=None):
+            result = super().get(component, default)
+            _subscribers.unregister(component)
+            return result
+
+        def __contains__(self, component):
+            result = super().__contains__(component)
+            _subscribers.unregister(component)
+            return result
+
+    monkeypatch.setattr(_subscribers, "_integration_classes", {"anthropic": mock.Mock()})
+    monkeypatch.setattr(_subscribers, "_integrations", UnregisterOnLookup(anthropic=integration))
+    assert integration_for("anthropic") is integration
+    assert integration_for("anthropic") is None

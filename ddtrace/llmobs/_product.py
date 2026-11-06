@@ -9,7 +9,6 @@ import typing as t
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
-from ddtrace.llmobs._registration import LLM_SUBSCRIBERS
 
 
 log = get_logger(__name__)
@@ -30,7 +29,6 @@ def start() -> None:
     from ddtrace.llmobs import LLMObs
 
     LLMObs.enable(_auto=True)
-    LLM_SUBSCRIBERS.register()
 
 
 def restart(join: bool = False) -> None:

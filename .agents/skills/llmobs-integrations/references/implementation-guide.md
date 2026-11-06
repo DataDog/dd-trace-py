@@ -66,7 +66,12 @@ Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration.
 `LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so it dispatches each
 `SpanLifecycleEvents` phase as `"<phase>.llm.request"`. The shared subscribers in
 `ddtrace/llmobs/_subscribers.py` receive an `ExecutionContext` and select the
-registered integration using `ctx.event.component`:
+registered integration using `ctx.event.component`. The compatibility module
+`ddtrace/llmobs/_contrib/_subscribers.py` re-exports `register`, `unregister`, and
+`get_integration`; lifecycle changes belong in `ddtrace/llmobs/_subscribers.py`.
+When rebasing integration changes, move edits to the old subscriber bodies into the
+corresponding shared listener methods, preserving request arguments, base URL inputs,
+and integration start hooks. The lifecycle phases are:
 
 - `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
