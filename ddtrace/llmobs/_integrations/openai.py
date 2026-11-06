@@ -1,10 +1,12 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs import _model_ab
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_12H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_30M_INPUT_TOKENS_METRIC_KEY
@@ -66,6 +68,11 @@ class OpenAIIntegration(BaseLLMIntegration):
             submit_to_llmobs = True
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(operation_id, submit_to_llmobs, **kwargs)
+
+    def apply_model_override(self, span: Span, kwargs: dict[str, Any]) -> None:
+        """Swap the request model for an active model A/B test. Must run before the request hook reads kwargs."""
+        if self.llmobs_enabled and config._llmobs_model_ab_enabled:
+            _model_ab.apply_model_override(span, kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span._set_attribute(COMPONENT, self.integration_config.integration_name)

@@ -52,6 +52,7 @@ from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.llmobs import _model_ab
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import AGENT_VERSION
@@ -1179,6 +1180,9 @@ class LLMObs(Service):
                 sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
+            if config._llmobs_model_ab_enabled:
+                # Start loading flag configuration now so the first LLM call can already be assigned.
+                _model_ab.start()
 
             core.on("aws_sdk_bedrock_runtime.bidirectional_stream", cls._instance._on_bidirectional_stream)
 

@@ -796,6 +796,8 @@ class Config:
         )
 
         self._model_lab_enabled: bool = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+        # Experimental: swap LLM request models per Datadog Feature Flags model A/B tests.
+        self._llmobs_model_ab_enabled: bool = _get_config("DD_AO_AB_ENABLED", False, asbool)
 
         self._llmobs_payload_size_limit = _get_config(
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int

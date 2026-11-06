@@ -249,6 +249,13 @@
         ]
       }
     ],
+    "DD_AO_AB_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_API_KEY": [
       {
         "implementation": "A",
