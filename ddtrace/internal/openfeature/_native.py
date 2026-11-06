@@ -150,6 +150,14 @@ def resolve_flag(
             if hasattr(context, "attributes") and context.attributes:
                 context_dict["attributes"] = context.attributes
 
+    # Immediate experimentation opt-out is not enabled. Ignore its reserved
+    # attribute before native conversion, which rejects object and array values.
+    attributes = context_dict["attributes"]
+    if isinstance(attributes, dict) and "dd_experimentation_opt_out_at" in attributes:
+        context_dict["attributes"] = {
+            key: value for key, value in attributes.items() if key != "dd_experimentation_opt_out_at"
+        }
+
     # Call native resolve_value which returns ResolutionDetails
     # ResolutionDetails contains: value, variant, reason, error_code, error_message,
     # allocation_key, do_log
