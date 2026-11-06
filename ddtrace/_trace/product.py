@@ -50,10 +50,8 @@ def start():
 
 
 def restart(join=False):
-    from ddtrace.trace import tracer
-
-    if tracer.enabled:
-        tracer._child_after_fork()
+    # Each tracer instance registers its own fork hook, including without bootstrap.
+    pass
 
 
 def stop(join=False):

@@ -994,6 +994,71 @@ def test_tracer_shutdown():
     mock_write.assert_not_called()
 
 
+@pytest.mark.subprocess(
+    parametrize={"_TEST_TRACER_BOOTSTRAP": ["true", "false"], "DD_TRACE_ENABLED": ["true", "false"]},
+    timeout=60,
+)
+def test_tracer_fork_initializes_each_instance_once():
+    import os
+    import traceback
+    from unittest.mock import patch
+
+    if os.environ["_TEST_TRACER_BOOTSTRAP"] == "true":
+        import ddtrace.auto  # noqa: F401
+
+    from ddtrace.internal import forksafe
+    from ddtrace.internal.products import manager
+    from ddtrace.trace import Tracer
+    from ddtrace.trace import tracer
+
+    class OtherTracer(Tracer):
+        pass
+
+    other = OtherTracer()
+    bootstrapped = os.environ["_TEST_TRACER_BOOTSTRAP"] == "true"
+    assert (manager.restart_products in forksafe._registry) == bootstrapped
+    if bootstrapped:
+        assert forksafe._registry.index(tracer._child_after_fork) < forksafe._registry.index(manager.restart_products)
+
+    with (
+        patch.object(tracer, "_store_metadata", wraps=tracer._store_metadata) as global_metadata,
+        patch.object(other, "_store_metadata", wraps=other._store_metadata) as other_metadata,
+        patch.object(
+            tracer._span_aggregator,
+            "reset_trace_buffer_after_fork",
+            wraps=tracer._span_aggregator.reset_trace_buffer_after_fork,
+        ) as global_reset,
+        patch.object(
+            other._span_aggregator,
+            "reset_trace_buffer_after_fork",
+            wraps=other._span_aggregator.reset_trace_buffer_after_fork,
+        ) as other_reset,
+    ):
+        pid = os.fork()
+        if pid == 0:
+            try:
+                global_metadata.assert_called_once_with()
+                other_metadata.assert_called_once_with()
+                global_reset.assert_called_once_with()
+                other_reset.assert_called_once_with()
+                for instance in (tracer, other):
+                    assert instance._pid == os.getpid()
+                    assert instance._post_fork_writer_pending
+                    assert instance._new_process
+            except BaseException:
+                traceback.print_exc()
+                os._exit(1)
+            os._exit(0)
+
+        _, status = os.waitpid(pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+        global_metadata.assert_not_called()
+        other_metadata.assert_not_called()
+        global_reset.assert_not_called()
+        other_reset.assert_not_called()
+    other.shutdown()
+
+
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_fork():
