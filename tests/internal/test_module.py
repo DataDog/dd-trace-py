@@ -8,6 +8,7 @@ from warnings import warn
 import pytest
 
 import ddtrace
+from ddtrace.debugging._import import DebuggerModuleWatchdog
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
@@ -51,6 +52,15 @@ def module_watchdog():
     ModuleWatchdog.uninstall()
 
 
+@pytest.fixture
+def debugger_watchdog():
+    DebuggerModuleWatchdog.install()
+    try:
+        yield DebuggerModuleWatchdog
+    finally:
+        DebuggerModuleWatchdog.uninstall()
+
+
 @pytest.mark.subprocess
 def test_watchdog_install_uninstall():
     import sys
@@ -76,10 +86,13 @@ def test_watchdog_install_uninstall():
     assert not any(isinstance(m, _UniversalModuleWatchdog) for m in sys.meta_path)
 
 
-def test_import_origin_hook_for_imported_module(module_watchdog):
+def test_import_origin_hook_for_imported_module(debugger_watchdog, tmp_path):
     hook = mock.Mock()
     module = sys.modules[__name__]
-    module_watchdog.register_origin_hook(origin(module), hook)
+    alias = tmp_path / "alias.py"
+    alias.symlink_to(origin(module))
+    debugger_watchdog.register_origin_hook(alias, hook)
+    assert debugger_watchdog.get_by_origin(origin(module)) is module
 
     hook.assert_called_once_with(module)
 
@@ -152,7 +165,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
     import sys
     from unittest import mock
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.debugging._import import DebuggerModuleWatchdog as ModuleWatchdog
 
     name = "tests.test_module"
     path = Path(os.getenv("MODULE_ORIGIN"))
@@ -201,8 +214,11 @@ def test_import_module_hook_for_module_not_yet_imported():
     hook.assert_not_called()
 
     # We import multiple times to check that the hook is called once only
-    __import__(name)
-    __import__(name)
+    with mock.patch("ddtrace.internal.module.origin") as resolve_origin:
+        __import__(name)
+        __import__(name)
+    resolve_origin.assert_not_called()
+    assert not hasattr(ModuleWatchdog._instance, "_origin_map")
 
     assert name in sys.modules
 
@@ -218,7 +234,7 @@ def test_module_deleted():
     from pathlib import Path
     import sys
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.debugging._import import DebuggerModuleWatchdog as ModuleWatchdog
 
     if "json" in sys.modules:
         del sys.modules["json"]
@@ -259,24 +275,22 @@ def test_module_deleted():
     ModuleWatchdog.uninstall()
 
 
-def test_module_unregister_origin_hook(module_watchdog):
+def test_module_unregister_origin_hook(debugger_watchdog):
     hook = mock.Mock()
     path = origin(sys.modules[__name__])
 
-    module_watchdog.register_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[str(path)] == [hook]
+    debugger_watchdog.register_origin_hook(path, hook)
+    assert debugger_watchdog._instance._hook_map[str(path)] == [hook]
 
-    module_watchdog.register_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[str(path)] == [hook, hook]
+    debugger_watchdog.register_origin_hook(path, hook)
+    assert debugger_watchdog._instance._hook_map[str(path)] == [hook]
+    assert hook.call_count == 2
 
-    module_watchdog.unregister_origin_hook(path, hook)
-    assert module_watchdog._instance._hook_map[str(path)] == [hook]
+    debugger_watchdog.unregister_origin_hook(path, hook)
 
-    module_watchdog.unregister_origin_hook(path, hook)
+    assert str(path) not in debugger_watchdog._instance._hook_map
 
-    assert module_watchdog._instance._hook_map[str(path)] == []
-
-    module_watchdog.unregister_origin_hook(path, hook)
+    debugger_watchdog.unregister_origin_hook(path, hook)
 
 
 def test_module_unregister_module_hook(module_watchdog):
@@ -361,8 +375,8 @@ def test_post_run_module_hook():
     post_run_module = True  # noqa:F841
 
 
-def test_get_by_origin(module_watchdog):
-    assert module_watchdog.get_by_origin(Path(__file__.replace(".pyc", ".py"))) is sys.modules[__name__]
+def test_get_by_origin(debugger_watchdog):
+    assert debugger_watchdog.get_by_origin(Path(__file__.replace(".pyc", ".py"))) is sys.modules[__name__]
 
 
 @pytest.mark.subprocess
@@ -479,11 +493,13 @@ def test_module_watchdog_weakref():
 
     sys.modules["bogus"] = str.__init__  # Cannot create weak ref to method_descriptor
 
-    from ddtrace.internal.module import ModuleWatchdog
+    from ddtrace.debugging._import import DebuggerModuleWatchdog as ModuleWatchdog
 
+    ModuleWatchdog.install()
     instance = ModuleWatchdog._instance
     instance._om = None
     assert ModuleWatchdog._instance._origin_map
+    ModuleWatchdog.uninstall()
 
 
 def test_module_watchdog_namespace_import():
