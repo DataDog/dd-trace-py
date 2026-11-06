@@ -324,6 +324,42 @@ def test_history_keeps_the_hosted_servers_it_references(mock_execute_request):
 
 
 @patch(EXECUTE_REQUEST)
+def test_history_server_sharing_the_id_keeps_its_tools(mock_execute_request):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    kwargs = {
+        "input": "Find APPSEC issues",
+        "tools": [{"type": "mcp", "server_label": "atlassian_hosted", "server_url": "https://mcp.example.com/sse"}],
+    }
+    response = {
+        "output": [
+            {
+                "type": "mcp_call",
+                "id": "mcp_1",
+                "server_label": "atlassian_hosted",
+                "name": "get_issue",
+                "arguments": "{}",
+                "output": "issue",
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "atlassian_search_issues",
+                "arguments": '{"query": "APPSEC"}',
+            },
+        ]
+    }
+    _openai_response_create_after(new_ai_guard_client(), kwargs, response)
+
+    _invoke(_atlassian_server())
+
+    # Same endpoint, same ID: one entry, described by the first server, listing both servers' tools.
+    (server_entry,) = _mcp_servers(mock_execute_request)
+    assert server_entry["id"] == ATLASSIAN_ID
+    assert server_entry["managed_by"] == "provider"
+    assert server_entry["tools"] == {"get_issue": "get_issue", "atlassian_search_issues": "search_issues"}
+
+
+@patch(EXECUTE_REQUEST)
 def test_unknown_call_id_sends_only_the_tool_call(mock_execute_request):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     _openai_response_create_after(

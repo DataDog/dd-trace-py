@@ -5,6 +5,7 @@ decisions taken on OpenAI hosted MCP approval requests, and the MCP SDK client t
 
 from collections import OrderedDict
 from collections.abc import Sequence
+from contextvars import Context
 from contextvars import ContextVar
 import hashlib
 import os.path
@@ -129,16 +130,23 @@ def referenced_mcp_servers(messages: list[Message], servers: Sequence[MCPServer]
     """The servers the tool calls of messages reference, with only the tools they call; None if none.
 
     Restricting to referenced servers keeps every entry resolvable and every tools map non-empty.
+    Servers on the same endpoint share an ID: the first one describes it and all add their tools.
     """
-    by_id = {server["id"]: server for server in servers}
+    by_id: dict[str, MCPServer] = {}
+    tools_by_id: dict[str, dict[str, str]] = {}
+    for server in servers:
+        by_id.setdefault(server["id"], server)
+        tools = tools_by_id.setdefault(server["id"], {})
+        for name, original_name in server["tools"].items():
+            tools.setdefault(name, original_name)
     called: dict[str, dict[str, str]] = {}
     for message in messages:
         for tool_call in message.get("tool_calls") or []:
             mcp = tool_call.get("mcp")
-            server = by_id.get(mcp["server_id"]) if mcp else None
+            server_tools = tools_by_id.get(mcp["server_id"]) if mcp else None
             name = tool_call["function"]["name"]
-            if server is not None and name in server["tools"]:
-                called.setdefault(server["id"], {})[name] = server["tools"][name]
+            if mcp and server_tools is not None and name in server_tools:
+                called.setdefault(mcp["server_id"], {})[name] = server_tools[name]
     if not called:
         return None
     result = []
@@ -181,6 +189,13 @@ def record_model_tool_calls(messages: list[Message], start: int, mcp_servers: Se
     }
     # Replaced even when empty: a newer response supersedes the calls of an older one.
     _model_tool_calls.set(calls or None)
+
+
+def adopt_model_tool_calls(context: Context) -> None:
+    """Keep the tool calls recorded in context, a copy of the current context run in a worker thread."""
+    calls = context.get(_model_tool_calls)
+    if calls is not _model_tool_calls.get():
+        _model_tool_calls.set(calls)
 
 
 def tool_call_conversation(
