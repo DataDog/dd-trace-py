@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where Test Optimization lost test results in suites that block
+    sockets while their tests run, such as with pytest-socket. Its payloads sent during a test
+    failed to connect and were dropped, and a suite that fails tests for a blocked connection, as
+    Home Assistant's does, failed the test that was running. Test Optimization now connects with the
+    socket functions as they were before the tests could block them.

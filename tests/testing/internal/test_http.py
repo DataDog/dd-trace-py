@@ -3,6 +3,9 @@
 import http.client
 import logging
 import os
+import shutil
+import socket
+import tempfile
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
@@ -1187,13 +1190,67 @@ class TestUnixDomainSocketTimeout:
 
     def test_connect_applies_timeout(self) -> None:
         conn = UnixDomainSocketHTTPConnection(path="/tmp/nonexistent.sock", host="localhost", port=80, timeout=3.5)
-        with patch("socket.socket") as mock_socket_cls:
-            mock_sock = Mock()
-            mock_socket_cls.return_value = mock_sock
-            conn.connect()
+        with patch("ddtrace.testing.internal.http._socket_class") as mock_socket_cls:
+            with patch("ddtrace.testing.internal.http._socket_connect") as mock_connect:
+                mock_sock = Mock()
+                mock_socket_cls.return_value = mock_sock
+                conn.connect()
 
-            mock_sock.settimeout.assert_called_once_with(3.5)
-            mock_sock.connect.assert_called_once_with("/tmp/nonexistent.sock")
+                mock_sock.settimeout.assert_called_once_with(3.5)
+                mock_connect.assert_called_once_with(mock_sock, "/tmp/nonexistent.sock")
+
+
+class TestConnectionsWhenTestsBlockSockets:
+    """Test suites can block sockets while their tests run, as pytest-socket does by replacing socket.socket and
+    socket.socket.connect; the connections that send the plugin's payloads must not be blocked.
+    """
+
+    @pytest.fixture
+    def block_sockets(self, monkeypatch: pytest.MonkeyPatch):
+        def block() -> None:
+            real_socket = socket.socket
+
+            def blocked_connect(*args, **kwargs):
+                raise RuntimeError("A test tried to use socket.socket.connect().")
+
+            class BlockedSocket(real_socket):  # type: ignore[valid-type,misc]
+                def __new__(cls, *args, **kwargs):
+                    raise RuntimeError("A test tried to use socket.socket.")
+
+            monkeypatch.setattr(real_socket, "connect", blocked_connect)
+            monkeypatch.setattr(socket, "socket", BlockedSocket)
+
+        return block
+
+    def test_http_connection(self, block_sockets) -> None:
+        # The listening socket completes the connection without accept(), so no server thread is needed.
+        with socket.create_server(("127.0.0.1", 0)) as server:
+            port = server.getsockname()[1]
+            block_sockets()
+            connector = BackendConnector(url=f"http://127.0.0.1:{port}")
+
+            connector.conn.connect()
+
+            assert connector.conn.sock.getpeername() == ("127.0.0.1", port)
+            connector.close()
+
+    def test_unix_domain_socket_connection(self, block_sockets) -> None:
+        # Not tmp_path: a socket's path is limited to about 104 bytes on macOS.
+        directory = tempfile.mkdtemp(dir="/tmp")
+        path = os.path.join(directory, "agent.sock")
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+                server.bind(path)
+                server.listen()
+                block_sockets()
+                connector = BackendConnector(url=f"unix://{path}")
+
+                connector.conn.connect()
+
+                assert connector.conn.sock.getpeername() == path
+                connector.close()
+        finally:
+            shutil.rmtree(directory)
 
 
 class TestBackendTimeoutEnvVar:

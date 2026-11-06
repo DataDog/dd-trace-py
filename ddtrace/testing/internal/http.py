@@ -283,17 +283,21 @@ class BackendConnector(threading.local):
             if not parsed_url.hostname:
                 raise SetupError(f"No hostname provided in {parsed_url.geturl()}")
 
-            return http.client.HTTPConnection(
+            connection = http.client.HTTPConnection(
                 host=parsed_url.hostname, port=parsed_url.port or 80, timeout=timeout_seconds
             )
+            connection._create_connection = _create_connection  # type: ignore[attr-defined]
+            return connection
 
         if parsed_url.scheme == "https":
             if not parsed_url.hostname:
                 raise SetupError(f"No hostname provided in {parsed_url.geturl()}")
 
-            return http.client.HTTPSConnection(
+            connection = http.client.HTTPSConnection(
                 host=parsed_url.hostname, port=parsed_url.port or 443, timeout=timeout_seconds
             )
+            connection._create_connection = _create_connection  # type: ignore[attr-defined]
+            return connection
 
         if parsed_url.scheme == "unix":
             # These URLs usually have an empty hostname component, e.g., unix:///var/run/datadog/apm.socket, that is,
@@ -582,6 +586,41 @@ class NoOpBackendConnectorSetup(BackendConnectorSetup):
         return NoOpBackendConnector()
 
 
+# Test suites may block the socket module's functions while their tests run, as pytest-socket does by replacing
+# socket.socket and socket.socket.connect, and the plugin sends its payloads from the same processes, while tests run.
+# Its connections use the functions as they were when this module was imported, when pytest loads the plugin and before
+# any test blocks them: otherwise its requests fail during the tests, their payloads are lost, and the blocking counts
+# them against the tests.
+_socket_class = socket.socket
+_socket_connect = socket.socket.connect
+_getaddrinfo = socket.getaddrinfo
+
+
+def _create_connection(
+    address: tuple[str, int],
+    timeout: t.Optional[float] = socket._GLOBAL_DEFAULT_TIMEOUT,  # type: ignore[attr-defined]
+    source_address: t.Optional[tuple[str, int]] = None,
+) -> socket.socket:
+    """socket.create_connection, with the socket functions from before the tests could block them."""
+    host, port = address
+    error: t.Optional[OSError] = None
+    for family, socket_type, proto, _, sockaddr in _getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+        sock = None
+        try:
+            sock = _socket_class(family, socket_type, proto)
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:  # type: ignore[attr-defined]
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            _socket_connect(sock, sockaddr)
+            return sock
+        except OSError as e:
+            error = e
+            if sock is not None:
+                sock.close()
+    raise error if error is not None else OSError(f"getaddrinfo returned no addresses for {host}")
+
+
 class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
 
@@ -592,7 +631,7 @@ class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
         self.path = path
 
     def connect(self) -> None:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock = _socket_class(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
-        sock.connect(self.path)
+        _socket_connect(sock, self.path)
         self.sock = sock
