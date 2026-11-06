@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    pydantic_ai: Fixes an issue where LLM Observability tool spans record the extra
+    content sent to the model, or the text of the wrapper object, as the tool output
+    when a Pydantic AI tool returns a ``ToolReturn``. The span output is the tool result.
