@@ -98,7 +98,10 @@ jobs:
         max_kubelet_uid="9223372036854775807" # 2**63 - 1
         IFS=',' read -ra platforms <<< "${{ inputs.platforms }}"
         for platform in "${platforms[@]}"; do
-          user="$(crane config --platform "$platform" "$tag" | jq -r '.config.User // empty')"
+          # buildx accepts `linux/arm64/v8`, but the pushed index records arm64
+          # children without a variant, and crane matches the variant strictly.
+          crane_platform="${platform%/v8}"
+          user="$(crane config --platform "$crane_platform" "$tag" | jq -r '.config.User // empty')"
           # No USER set at all is Docker's default (runs as root) -- a separate
           # "runs as root" concern that this check doesn't police.
           [ -z "$user" ] && continue
