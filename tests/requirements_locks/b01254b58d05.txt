@@ -4,7 +4,7 @@ attrs==26.1.0
 certifi==2026.10.23
 cffi==2.1.1
 click==8.5.0
-coverage[toml]==7.17.0
+coverage[toml]==7.17.1
 cryptography==50.0.2
 h11==0.16.0
 httpcore==1.0.9
@@ -17,7 +17,6 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 mcp==1.30.0
 mock==5.2.0
-opentracing==2.4.0
 packaging==26.3
 pluggy==1.7.0
 pycparser==3.12
@@ -38,5 +37,5 @@ sortedcontainers==2.4.0
 sse-starlette==3.6.0
 starlette==1.10.0
 typing-extensions==4.16.0
-typing-inspection==0.4.4
+typing-inspection==0.4.5
 uvicorn==0.54.0

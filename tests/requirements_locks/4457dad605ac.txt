@@ -3,7 +3,7 @@ anyio==4.16.0
 attrs==26.1.0
 cffi==2.1.1
 click==8.5.0
-coverage[toml]==7.17.0
+coverage[toml]==7.17.1
 cryptography==50.0.2
 h11==0.16.0
 httpcore2==2.16.0
@@ -17,7 +17,6 @@ mcp==2.3.0
 mcp-types==2.3.0
 mock==5.2.0
 opentelemetry-api==1.45.2
-opentracing==2.4.0
 packaging==26.3
 pluggy==1.7.0
 pycparser==3.12
@@ -37,5 +36,5 @@ sse-starlette==3.6.0
 starlette==1.10.0
 truststore==0.10.5
 typing-extensions==4.16.0
-typing-inspection==0.4.4
+typing-inspection==0.4.5
 uvicorn==0.54.0
