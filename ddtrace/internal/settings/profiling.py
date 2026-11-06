@@ -196,7 +196,7 @@ class ProfilingConfig(DDConfig):
     remote_config_experiment = DDConfig.v(
         bool,
         "remote_config_experiment",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Enable the profiling remote-config experiment.",
         private=True,

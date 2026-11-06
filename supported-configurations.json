@@ -6228,9 +6228,9 @@
     ],
     "_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],

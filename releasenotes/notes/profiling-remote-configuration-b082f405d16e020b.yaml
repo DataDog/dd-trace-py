@@ -1,0 +1,3 @@
+features:
+  - |
+    Profiling: The Profiler now supports being remotely configured from Datadog using Remote Configuration.
