@@ -42,6 +42,14 @@ def override_testing_logger():
 
 class TestAPIClientGetSettings:
     @pytest.mark.parametrize(
+        "git_ref,expected_branch",
+        [
+            ({GitTag.BRANCH: "some-branch"}, "some-branch"),
+            ({GitTag.TAG: "v1.0"}, "v1.0"),
+            ({}, "auto:git-detached-head"),
+        ],
+    )
+    @pytest.mark.parametrize(
         "efd_enabled, atr_enabled, test_management_enabled, attempt_to_fix_retries, "
         "known_tests_enabled, coverage_enabled, skipping_enabled, require_git, itr_enabled",
         [
@@ -53,6 +61,8 @@ class TestAPIClientGetSettings:
     def test_get_settings(
         self,
         mock_telemetry: Mock,
+        git_ref: dict[str, str],
+        expected_branch: str,
         efd_enabled: bool,
         atr_enabled: bool,
         test_management_enabled: bool,
@@ -105,7 +115,7 @@ class TestAPIClientGetSettings:
             env_tags={
                 GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
                 GitTag.COMMIT_SHA: "abcd1234",
-                GitTag.BRANCH: "some-branch",
+                **git_ref,
                 GitTag.COMMIT_MESSAGE: "I am a commit",
             },
             itr_skipping_level=ITRSkippingLevel.TEST,
@@ -132,7 +142,7 @@ class TestAPIClientGetSettings:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "sha": "abcd1234",
-                            "branch": "some-branch",
+                            "branch": expected_branch,
                             "configurations": {"os.platform": "Linux"},
                         },
                     }

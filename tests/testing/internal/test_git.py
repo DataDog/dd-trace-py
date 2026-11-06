@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.git module."""
 
 import contextlib
+from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -128,6 +129,13 @@ class TestGit:
         assert result == "main"
         mock_git_output.assert_called_once_with(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
 
+    @pytest.mark.parametrize("output,expected", [("", ""), ("v1.0", "v1.0"), ("latest\nv1.0", "")])
+    @patch("shutil.which", return_value="/usr/bin/git")
+    def test_get_tag_is_unambiguous(self, mock_which: Mock, output: str, expected: str) -> None:
+        git = Git()
+        with patch.object(git, "_git_output", return_value=output):
+            assert git.get_tag() == expected
+
     @patch("shutil.which")
     def test_get_commit_message(self, mock_which: Mock) -> None:
         """Test get_commit_message method."""
@@ -247,13 +255,14 @@ class TestGit:
 class TestGetGitTags:
     """Tests for get_git_tags_from_git_command function."""
 
+    @pytest.mark.parametrize("branch,tag", [("main", None), ("", "v1.0")])
     @patch("ddtrace.testing.internal.git.Git")
-    def test_get_git_tags_success(self, mock_git_class: Mock) -> None:
+    def test_get_git_tags_success(self, mock_git_class: Mock, branch: str, tag: Optional[str]) -> None:
         """Test get_git_tags_from_git_command with successful Git operations."""
         mock_git = Mock()
         mock_git.get_repository_url.return_value = "https://github.com/user/repo.git"
         mock_git.get_commit_sha.return_value = "abc123"
-        mock_git.get_branch.return_value = "main"
+        mock_git.get_branch.return_value = branch
         mock_git.get_tag.return_value = "v1.0"
         mock_git.get_commit_message.return_value = "Test commit"
         mock_git.get_user_info.return_value = GitUserInfo(
@@ -271,8 +280,8 @@ class TestGetGitTags:
         expected = {
             GitTag.REPOSITORY_URL: "https://github.com/user/repo.git",
             GitTag.COMMIT_SHA: "abc123",
-            GitTag.BRANCH: "main",
-            GitTag.TAG: "v1.0",
+            GitTag.BRANCH: branch,
+            GitTag.TAG: tag,
             GitTag.COMMIT_MESSAGE: "Test commit",
             GitTag.COMMIT_AUTHOR_NAME: "John Doe",
             GitTag.COMMIT_AUTHOR_EMAIL: "john@example.com",

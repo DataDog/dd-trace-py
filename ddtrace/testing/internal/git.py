@@ -286,7 +286,7 @@ class Git:
 
     def get_tag(self) -> str:
         tags = self._git_output(["tag", "--points-at", "HEAD"]).splitlines()
-        return tags[0] if tags else ""
+        return tags[0] if len(tags) == 1 else ""
 
     def get_commit_message(self, commit_sha: t.Optional[str] = None) -> str:
         command = ["show", "-s", "--format=%s"]
@@ -584,11 +584,12 @@ def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
         log.warning("Error getting git data: %s", e)
         return {}
 
+    branch = git.get_branch()
     tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: git.get_repository_url(),
         GitTag.COMMIT_SHA: git.get_commit_sha(),
-        GitTag.BRANCH: git.get_branch(),
-        GitTag.TAG: git.get_tag(),
+        GitTag.BRANCH: branch,
+        GitTag.TAG: git.get_tag() if not branch else None,
         GitTag.COMMIT_MESSAGE: git.get_commit_message(),
     }
 
