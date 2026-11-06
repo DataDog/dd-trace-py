@@ -338,6 +338,11 @@ ddtrace/internal/openfeature/             @DataDog/feature-flagging-and-experime
 ddtrace/internal/settings/openfeature.py  @DataDog/feature-flagging-and-experimentation-sdk
 tests/openfeature/                        @DataDog/feature-flagging-and-experimentation-sdk
 
+# LLM usage and cost metrics
+src/native/ai_usage.rs                                  @DataDog/ml-observability @DataDog/ccm @DataDog/agent-console
+ddtrace/internal/ai_usage/                              @DataDog/ml-observability @DataDog/ccm @DataDog/agent-console
+tests/ai_usage/                                         @DataDog/ml-observability @DataDog/ccm @DataDog/agent-console
+
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities
 ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities
