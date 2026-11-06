@@ -64,7 +64,7 @@ class TypeSafeIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
-        input_content = safe_json(_request_body(kwargs))  # type: ignore[no-untyped-call]
+        input_content = safe_json(_request_body(kwargs))
         input_messages = [Message(role="user", content=input_content or "")]
 
         output_messages = [Message(content="")]
@@ -154,8 +154,8 @@ def _response_body(response: Any) -> str:
     if isinstance(raw_text, str) and raw_text:
         return raw_text
     if hasattr(response, "model_dump"):
-        return safe_json(response.model_dump(mode="json")) or ""  # type: ignore[no-untyped-call]
-    return safe_json(_to_data(response)) or ""  # type: ignore[no-untyped-call]
+        return safe_json(response.model_dump(mode="json")) or ""
+    return safe_json(_to_data(response)) or ""
 
 
 def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Optional[dict[str, None]] = None) -> Any:

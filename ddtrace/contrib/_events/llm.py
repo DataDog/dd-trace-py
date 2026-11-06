@@ -33,10 +33,12 @@ class LlmRequestEvent(TracingEvent):
     event_name = LlmEvents.LLM_REQUEST.value
     span_kind = SpanKind.CLIENT
 
-    provider: str = event_field()
+    # None when the request has no model provider (for example LangChain chains and tools).
+    provider: Optional[str] = event_field()
     model: Optional[str] = event_field(default=None)
     # Integrations that have moved to SpanLifecycleEvents subscribers leave this unset.
     llmobs_integration: Optional[BaseLLMIntegration] = event_field(default=None)
+    request_args: tuple[Any, ...] = event_field(default=())
     request_kwargs: dict[str, Any] = event_field(default_factory=dict)
     submit_to_llmobs: bool = event_field(default=False)
     instance: Optional[Any] = event_field(default=None)

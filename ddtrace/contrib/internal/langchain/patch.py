@@ -1,23 +1,22 @@
-import sys
 from typing import Any
 from typing import Optional
 
 import langchain_core
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.bedrock_inference_profiles import record_inference_profile
 from ddtrace.contrib.internal.langchain.utils import shared_stream
+from ddtrace.contrib.internal.llm_utils import safe_json
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
-from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations import LangChainIntegration
-from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
-from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -32,6 +31,14 @@ def _supported_versions() -> dict[str, str]:
 
 
 config._add("langchain", {})
+
+# LLMObs subscribes to shared lifecycle events for this component; see ddtrace/llmobs/_contrib/langchain.
+COMPONENT = "langchain"
+
+# Keep APM model/provider tags available even without LLMObs subscriber hooks.
+MODEL_TAG = "langchain.request.model"
+PROVIDER_TAG = "langchain.request.provider"
+STREAM_TAG = "langchain.request.stream"
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:
@@ -85,142 +92,154 @@ def _extract_model_provider(instance: Any) -> str:
     return "-".join(provider_parts) if provider_parts else instance._llm_type
 
 
-def traced_llm_generate(func, instance, args, kwargs):
-    llm_provider = instance._llm_type
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    model = _extract_model_name(instance)
-    prompts = get_argument_value(args, kwargs, 0, "prompts")
-    span = integration.trace(
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="llm",
-        provider=llm_provider,
+def _request_event(
+    resource: str,
+    instance: Any,
+    operation: str,
+    args: Any = (),
+    kwargs: Any = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    stream: bool = False,
+) -> LlmRequestEvent:
+    """Build the LlmRequestEvent for a traced LangChain call.
+
+    args and kwargs are what LangChainIntegration extracts LLMObs data from at span finish;
+    the chain and tool wrappers pass their own normalized inputs as kwargs.
+    """
+    tags = {}
+    if provider is not None:
+        tags[PROVIDER_TAG] = provider
+    if model is not None:
+        tags[MODEL_TAG] = model
+    if stream:
+        tags[STREAM_TAG] = "True"
+    return LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.langchain,
+        service=int_service(None, config.langchain),
+        resource=resource,
+        provider=provider,
         model=model,
+        tags=tags,
+        submit_to_llmobs=True,
+        request_args=tuple(args),
+        request_kwargs=kwargs if kwargs is not None else {},
         instance=instance,
+        operation=operation,
     )
-    completions = None
 
-    integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span)
 
-    try:
-        core.dispatch("langchain.llm.generate.before", (prompts,), allow_raise=True)
-        completions = func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.llm.generate.after", (prompts, completions), allow_raise=True)
-    except (DDBlockException, Exception):
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        core.dispatch("langchain.llm.generate.finally", ())
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
-        span.finish()
-    return completions
+def _instance_resource(instance: Any) -> str:
+    return "%s.%s" % (instance.__module__, instance.__class__.__name__)
+
+
+def traced_llm_generate(func, instance, args, kwargs):
+    prompts = get_argument_value(args, kwargs, 0, "prompts")
+    event = _request_event(
+        _instance_resource(instance),
+        instance,
+        "llm",
+        args=args,
+        kwargs=kwargs,
+        provider=instance._llm_type,
+        model=_extract_model_name(instance),
+    )
+    with core.context_with_event(event):
+        try:
+            core.dispatch("langchain.llm.generate.before", (prompts,), allow_raise=True)
+            completions = func(*args, **kwargs)
+            event.response = completions
+            # allow_raise so a listener's block decision on the response propagates to the
+            # caller instead of the response being returned
+            core.dispatch("langchain.llm.generate.after", (prompts, completions), allow_raise=True)
+            return completions
+        finally:
+            core.dispatch("langchain.llm.generate.finally", ())
+            kwargs["_dd.identifying_params"] = instance._identifying_params
 
 
 async def traced_llm_agenerate(func, instance, args, kwargs):
-    llm_provider = instance._llm_type
     prompts = get_argument_value(args, kwargs, 0, "prompts")
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    model = _extract_model_name(instance)
-    span = integration.trace(
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="llm",
-        provider=llm_provider,
-        model=model,
-        instance=instance,
+    event = _request_event(
+        _instance_resource(instance),
+        instance,
+        "llm",
+        args=args,
+        kwargs=kwargs,
+        provider=instance._llm_type,
+        model=_extract_model_name(instance),
     )
-
-    integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span)
-
-    completions = None
-    try:
-        core.dispatch("langchain.llm.agenerate.before", (prompts,), allow_raise=True)
-        completions = await func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.llm.agenerate.after", (prompts, completions), allow_raise=True)
-    except (DDBlockException, Exception):
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        core.dispatch("langchain.llm.agenerate.finally", ())
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
-        span.finish()
-    return completions
+    with core.context_with_event(event):
+        try:
+            core.dispatch("langchain.llm.agenerate.before", (prompts,), allow_raise=True)
+            completions = await func(*args, **kwargs)
+            event.response = completions
+            # allow_raise so a listener's block decision on the response propagates to the
+            # caller instead of the response being returned
+            core.dispatch("langchain.llm.agenerate.after", (prompts, completions), allow_raise=True)
+            return completions
+        finally:
+            core.dispatch("langchain.llm.agenerate.finally", ())
+            kwargs["_dd.identifying_params"] = instance._identifying_params
 
 
 def traced_chat_model_generate(func, instance, args, kwargs):
-    llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    span = integration.trace(
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chat_model",
-        provider=llm_provider,
+    event = _request_event(
+        _instance_resource(instance),
+        instance,
+        "chat",
+        args=args,
+        kwargs=kwargs,
+        provider=_extract_model_provider(instance),
         model=_extract_model_name(instance),
-        instance=instance,
     )
-
-    integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span)
-
-    chat_completions = None
-    try:
-        core.dispatch("langchain.chatmodel.generate.before", (chat_messages,), allow_raise=True)
-        chat_completions = func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions), allow_raise=True)
-    except (DDBlockException, Exception):
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        core.dispatch("langchain.chatmodel.generate.finally", ())
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
-        span.finish()
-    return chat_completions
+    with core.context_with_event(event):
+        try:
+            core.dispatch("langchain.chatmodel.generate.before", (chat_messages,), allow_raise=True)
+            chat_completions = func(*args, **kwargs)
+            event.response = chat_completions
+            # allow_raise so a listener's block decision on the response propagates to the
+            # caller instead of the response being returned
+            core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions), allow_raise=True)
+            return chat_completions
+        finally:
+            core.dispatch("langchain.chatmodel.generate.finally", ())
+            kwargs["_dd.identifying_params"] = instance._identifying_params
 
 
 async def traced_chat_model_agenerate(func, instance, args, kwargs):
-    llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    span = integration.trace(
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chat_model",
-        provider=llm_provider,
+    event = _request_event(
+        _instance_resource(instance),
+        instance,
+        "chat",
+        args=args,
+        kwargs=kwargs,
+        provider=_extract_model_provider(instance),
         model=_extract_model_name(instance),
-        instance=instance,
     )
+    with core.context_with_event(event):
+        try:
+            core.dispatch("langchain.chatmodel.agenerate.before", (chat_messages,), allow_raise=True)
+            chat_completions = await func(*args, **kwargs)
+            event.response = chat_completions
+            # allow_raise so a listener's block decision on the response propagates to the
+            # caller instead of the response being returned
+            core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions), allow_raise=True)
+            return chat_completions
+        finally:
+            core.dispatch("langchain.chatmodel.agenerate.finally", ())
+            kwargs["_dd.identifying_params"] = instance._identifying_params
 
-    integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span)
 
-    chat_completions = None
+def _chain_inputs(args, kwargs):
     try:
-        core.dispatch("langchain.chatmodel.agenerate.before", (chat_messages,), allow_raise=True)
-        chat_completions = await func(*args, **kwargs)
-        # allow_raise so a listener's block decision on the response propagates to the
-        # caller instead of the response being returned
-        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions), allow_raise=True)
-    except (DDBlockException, Exception):
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        core.dispatch("langchain.chatmodel.agenerate.finally", ())
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
-        span.finish()
-    return chat_completions
+        inputs = get_argument_value(args, kwargs, 0, "input")
+    except ArgumentError:
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
+    return inputs if isinstance(inputs, list) else [inputs]
 
 
 def traced_lcel_runnable_sequence(func, instance, args, kwargs):
@@ -236,75 +255,29 @@ def traced_lcel_runnable_sequence(func, instance, args, kwargs):
 
     This method captures the initial inputs to the chain, as well as the final outputs, and tags them appropriately.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    span = integration.trace(
-        f"{instance.__module__}.{instance.__class__.__name__}",
-        submit_to_llmobs=True,
-        interface_type="chain",
-        instance=instance,
-    )
-    inputs = None
-    final_output = None
-
-    integration.record_instance(instance, span)
-
-    try:
-        try:
-            inputs = get_argument_value(args, kwargs, 0, "input")
-        except ArgumentError:
-            inputs = get_argument_value(args, kwargs, 0, "inputs")
-        if not isinstance(inputs, list):
-            inputs = [inputs]
+    event = _request_event(_instance_resource(instance), instance, "chain")
+    with core.context_with_event(event):
+        # LangChainIntegration reads non-streamed chain inputs from the kwargs slot.
+        event.request_kwargs = _chain_inputs(args, kwargs)
         final_output = func(*args, **kwargs)
-    except (DDBlockException, Exception):
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
-        span.finish()
-    return final_output
+        event.response = final_output
+        return final_output
 
 
 async def traced_lcel_runnable_sequence_async(func, instance, args, kwargs):
     """
     Similar to `traced_lcel_runnable_sequence`, but for async chaining calls.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    span = integration.trace(
-        f"{instance.__module__}.{instance.__class__.__name__}",
-        submit_to_llmobs=True,
-        interface_type="chain",
-        instance=instance,
-    )
-    inputs = None
-    final_output = None
-
-    integration.record_instance(instance, span)
-
-    try:
-        try:
-            inputs = get_argument_value(args, kwargs, 0, "input")
-        except ArgumentError:
-            inputs = get_argument_value(args, kwargs, 0, "inputs")
-        if not isinstance(inputs, list):
-            inputs = [inputs]
+    event = _request_event(_instance_resource(instance), instance, "chain")
+    with core.context_with_event(event):
+        event.request_kwargs = _chain_inputs(args, kwargs)
         final_output = await func(*args, **kwargs)
-    except (DDBlockException, Exception):
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
-        span.finish()
-    return final_output
+        event.response = final_output
+        return final_output
 
 
 def traced_chain_stream(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
-
-    def _on_span_started(span: Span):
-        integration.record_instance(instance, span)
-
-    def _on_span_finished(span: Span, streamed_chunks):
+    def _on_stream_finished(streamed_chunks):
         maybe_parser = instance.steps[-1] if instance.steps else None
         if (
             streamed_chunks
@@ -318,55 +291,51 @@ def traced_chain_stream(func, instance, args, kwargs):
             # but one of the last steps, in which case we won't act on it here
             result = streamed_chunks[-1]
             if maybe_parser.__class__.__name__ == "JsonOutputParser":
-                content = safe_json(result)
-            else:
-                content = str(result)
-        else:
-            # best effort to join chunks together
-            content = "".join([str(chunk) for chunk in streamed_chunks])
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="chain")
+                return safe_json(result)
+            return str(result)
+        # best effort to join chunks together
+        return "".join([str(chunk) for chunk in streamed_chunks])
 
+    event = _request_event(_instance_resource(instance), instance, "chain", args=args, kwargs=kwargs, stream=True)
     return shared_stream(
-        integration=integration,
+        event=event,
         func=func,
         instance=instance,
         args=args,
         kwargs=kwargs,
         interface_type="chain",
-        on_span_started=_on_span_started,
-        on_span_finished=_on_span_finished,
+        on_stream_finished=_on_stream_finished,
     )
 
 
 def traced_chat_stream(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    llm_provider = instance._llm_type
-    model = _extract_model_name(instance)
-
-    def _on_span_started(span: Span):
-        integration.record_instance(instance, span)
-
-    def _on_span_finished(span: Span, streamed_chunks):
+    def _on_stream_finished(streamed_chunks):
         kwargs["_dd.identifying_params"] = instance._identifying_params
-        if len(streamed_chunks):
-            joined_chunks = streamed_chunks[0]
-            for chunk in streamed_chunks[1:]:
-                joined_chunks += chunk  # base message types support __add__ for concatenation
-        else:
-            joined_chunks = []
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
+        if not streamed_chunks:
+            return []
+        joined_chunks = streamed_chunks[0]
+        for chunk in streamed_chunks[1:]:
+            joined_chunks += chunk  # base message types support __add__ for concatenation
+        return joined_chunks
 
+    event = _request_event(
+        _instance_resource(instance),
+        instance,
+        "chat",
+        args=args,
+        kwargs=kwargs,
+        provider=instance._llm_type,
+        model=_extract_model_name(instance),
+        stream=True,
+    )
     return shared_stream(
-        integration=integration,
+        event=event,
         func=func,
         instance=instance,
         args=args,
         kwargs=kwargs,
         interface_type="chat_model",
-        on_span_started=_on_span_started,
-        on_span_finished=_on_span_finished,
-        provider=llm_provider,
-        model=model,
+        on_stream_finished=_on_stream_finished,
         aiguard_before_event="langchain.chatmodel.stream.before",
         aiguard_started_event="langchain.chatmodel.stream.started",
         aiguard_finally_event="langchain.chatmodel.stream.finally",
@@ -374,123 +343,73 @@ def traced_chat_stream(func, instance, args, kwargs):
 
 
 def traced_llm_stream(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    llm_provider = instance._llm_type
-    model = _extract_model_name(instance)
-
-    def _on_span_start(span: Span):
-        integration.record_instance(instance, span)
-
-    def _on_span_finished(span: Span, streamed_chunks):
-        content = "".join([str(chunk) for chunk in streamed_chunks])
+    def _on_stream_finished(streamed_chunks):
         kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
+        return "".join([str(chunk) for chunk in streamed_chunks])
 
+    event = _request_event(
+        _instance_resource(instance),
+        instance,
+        "llm",
+        args=args,
+        kwargs=kwargs,
+        provider=instance._llm_type,
+        model=_extract_model_name(instance),
+        stream=True,
+    )
     return shared_stream(
-        integration=integration,
+        event=event,
         func=func,
         instance=instance,
         args=args,
         kwargs=kwargs,
         interface_type="llm",
-        on_span_started=_on_span_start,
-        on_span_finished=_on_span_finished,
-        provider=llm_provider,
-        model=model,
+        on_stream_finished=_on_stream_finished,
         aiguard_before_event="langchain.llm.stream.before",
         aiguard_started_event="langchain.llm.stream.started",
         aiguard_finally_event="langchain.llm.stream.finally",
     )
 
 
-def traced_base_tool_invoke(func, instance, args, kwargs):
-    integration = langchain_core._datadog_integration
+def _tool_request_event(func, instance, args, kwargs):
     tool_input = get_argument_value(args, kwargs, 0, "input")
-    config = get_argument_value(args, kwargs, 1, "config", optional=True)
-
-    span = integration.trace(
-        "%s" % func.__self__.name,
-        interface_type="tool",
-        submit_to_llmobs=True,
-        instance=instance,
-    )
-
-    integration.record_instance(instance, span)
-
-    tool_output = None
+    tool_config = get_argument_value(args, kwargs, 1, "config", optional=True)
     tool_info = {}
-    try:
-        for attribute in ("name", "description"):
-            value = getattr(instance, attribute, None)
-            tool_info[attribute] = value
+    for attribute in ("name", "description"):
+        tool_info[attribute] = getattr(instance, attribute, None)
+    metadata = getattr(instance, "metadata", {})
+    if metadata:
+        tool_info["metadata"] = metadata
+    tags = getattr(instance, "tags", [])
+    if tags:
+        tool_info["tags"] = tags
+    # LangChainIntegration reads tool inputs from the kwargs slot.
+    tool_inputs = {"input": tool_input, "config": tool_config or {}, "info": tool_info}
+    return _request_event("%s" % func.__self__.name, instance, "tool", kwargs=tool_inputs)
 
-        metadata = getattr(instance, "metadata", {})
-        if metadata:
-            tool_info["metadata"] = metadata
-        tags = getattr(instance, "tags", [])
-        if tags:
-            tool_info["tags"] = tags
 
+def traced_base_tool_invoke(func, instance, args, kwargs):
+    event = _tool_request_event(func, instance, args, kwargs)
+    with core.context_with_event(event):
         tool_output = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        tool_inputs = {"input": tool_input, "config": config or {}, "info": tool_info or {}}
-        integration.llmobs_set_tags(span, args=[], kwargs=tool_inputs, response=tool_output, operation="tool")
-        span.finish()
-    return tool_output
+        event.response = tool_output
+        return tool_output
 
 
 async def traced_base_tool_ainvoke(func, instance, args, kwargs):
-    integration = langchain_core._datadog_integration
-    tool_input = get_argument_value(args, kwargs, 0, "input")
-    config = get_argument_value(args, kwargs, 1, "config", optional=True)
-
-    span = integration.trace(
-        "%s" % func.__self__.name,
-        interface_type="tool",
-        submit_to_llmobs=True,
-        instance=instance,
-    )
-
-    integration.record_instance(instance, span)
-
-    tool_output = None
-    tool_info = {}
-    try:
-        for attribute in ("name", "description"):
-            value = getattr(instance, attribute, None)
-            tool_info[attribute] = value
-
-        metadata = getattr(instance, "metadata", {})
-        if metadata:
-            tool_info["metadata"] = metadata
-        tags = getattr(instance, "tags", [])
-        if tags:
-            tool_info["tags"] = tags
-
+    event = _tool_request_event(func, instance, args, kwargs)
+    with core.context_with_event(event):
         tool_output = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        tool_inputs = {"input": tool_input, "config": config or {}, "info": tool_info or {}}
-        integration.llmobs_set_tags(span, args=[], kwargs=tool_inputs, response=tool_output, operation="tool")
-        span.finish()
-    return tool_output
+        event.response = tool_output
+        return tool_output
 
 
 def patched_base_prompt_template_invoke(func, instance, args, kwargs):
     """
     No actual tracing happens here--we just need to move the prompt template to somewhere it can be accessed later.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    if integration.llmobs_enabled is False:
-        return func(*args, **kwargs)
-
     prompt = func(*args, **kwargs)
-    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    core.dispatch("langchain.prompt_template.invoke.after", (instance, prompt, args, kwargs))
     return prompt
 
 
@@ -498,12 +417,8 @@ async def patched_base_prompt_template_ainvoke(func, instance, args, kwargs):
     """
     async version of above patched_base_prompt_template_invoke
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    if integration.llmobs_enabled is False:
-        return await func(*args, **kwargs)
-
     prompt = await func(*args, **kwargs)
-    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    core.dispatch("langchain.prompt_template.invoke.after", (instance, prompt, args, kwargs))
     return prompt
 
 
@@ -517,26 +432,16 @@ def patched_language_model_invoke(func, instance, args, kwargs):
     that templating information before it is consumed.
     Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    if integration.llmobs_enabled is False:
-        return func(*args, **kwargs)
-
-    integration.handle_llm_invoke(instance, args, kwargs)
-    response = func(*args, **kwargs)
-    return response
+    core.dispatch("langchain.language_model.invoke.before", (instance, args, kwargs))
+    return func(*args, **kwargs)
 
 
 async def patched_language_model_ainvoke(func, instance, args, kwargs):
     """
     async version of above patched_language_model_invoke
     """
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    if integration.llmobs_enabled is False:
-        return await func(*args, **kwargs)
-
-    integration.handle_llm_invoke(instance, args, kwargs)
-    response = await func(*args, **kwargs)
-    return response
+    core.dispatch("langchain.language_model.invoke.before", (instance, args, kwargs))
+    return await func(*args, **kwargs)
 
 
 def traced_embedding(func, instance, args, kwargs):
@@ -544,53 +449,30 @@ def traced_embedding(func, instance, args, kwargs):
     if provider == "openai" and func.__name__ == "embed_query":
         return func(*args, **kwargs)  # we previously did not trace OpenAIEmbeddings.embed_query
 
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    span = integration.trace(
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="embedding",
+    event = _request_event(
+        _instance_resource(instance),
+        instance,
+        "embedding",
+        args=args,
+        kwargs=kwargs,
         provider=provider,
         model=_extract_model_name(instance),
-        instance=instance,
     )
-
-    integration.record_instance(instance, span)
-
-    embeddings = None
-    try:
+    with core.context_with_event(event):
         embeddings = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=embeddings, operation="embedding")
-        span.finish()
-    return embeddings
+        event.response = embeddings
+        return embeddings
 
 
 def traced_similarity_search(func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
     provider = instance.__class__.__name__.lower()
-    span = integration.trace(
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="similarity_search",
-        provider=provider,
-        instance=instance,
+    event = _request_event(
+        _instance_resource(instance), instance, "retrieval", args=args, kwargs=kwargs, provider=provider
     )
-
-    integration.record_instance(instance, span)
-
-    documents = []
-    try:
+    with core.context_with_event(event):
         documents = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
-        span.finish()
-    return documents
+        event.response = documents
+        return documents
 
 
 def patched_embeddings_init_subclass(func, instance, args, kwargs):
@@ -621,70 +503,61 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
         log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
 
 
+def _unwrap_init_subclass(cls) -> None:
+    """Remove the __init_subclass__ wrapper from cls without pinning the original to cls.
+
+    The generic unwrap() stores the original bound to cls in cls.__dict__, so after a later
+    patch() the hooks above would receive cls as func.__self__ instead of each new subclass,
+    leaving subclasses defined after an unpatch/patch cycle untraced.
+    """
+    wrapper = cls.__dict__.get("__init_subclass__")
+    if not is_wrapted(wrapper):
+        return
+    original = wrapper.__wrapped__
+    if any(base.__dict__.get("__init_subclass__") is original for base in cls.__mro__[1:]):
+        delattr(cls, "__init_subclass__")
+    else:
+        setattr(cls, "__init_subclass__", original)
+
+
+def _runnable_lambda_span_name(func, instance, is_batch: bool) -> str:
+    instance_name = getattr(instance, "name", None)
+    default_name = f"{instance.__class__.__name__}.{func.__name__}"
+    if is_batch:
+        return f"{instance_name}_batch" if instance_name else default_name
+    return instance_name or default_name
+
+
 def traced_runnable_lambda_operation(is_batch: bool = False):
     def _traced_runnable_lambda_impl(func, instance, args, kwargs):
-        integration: LangChainIntegration = langchain_core._datadog_integration
-
-        instance_name = getattr(instance, "name", None)
-        default_name = f"{instance.__class__.__name__}.{func.__name__}"
-        if is_batch:
-            span_name = f"{instance_name}_batch" if instance_name else default_name
-        else:
-            span_name = instance_name or default_name
-
-        span = integration.trace(
-            span_name,
-            submit_to_llmobs=True,
-            instance=instance,
+        event = _request_event(
+            _runnable_lambda_span_name(func, instance, is_batch),
+            instance,
+            "runnable_lambda",
+            args=args,
+            kwargs=kwargs,
         )
-
-        integration.record_instance(instance, span)
-
-        result = None
-
-        try:
+        with core.context_with_event(event):
             result = func(*args, **kwargs)
+            event.response = result
             return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
-            span.finish()
 
     return _traced_runnable_lambda_impl
 
 
 def traced_runnable_lambda_operation_async(is_batch: bool = False):
     async def _traced_runnable_lambda_impl(func, instance, args, kwargs):
-        integration: LangChainIntegration = langchain_core._datadog_integration
-
-        instance_name = getattr(instance, "name", None)
-        default_name = f"{instance.__class__.__name__}.{func.__name__}"
-        if is_batch:
-            span_name = f"{instance_name}_batch" if instance_name else default_name
-        else:
-            span_name = instance_name or default_name
-
-        span = integration.trace(
-            span_name,
-            submit_to_llmobs=True,
-            instance=instance,
+        event = _request_event(
+            _runnable_lambda_span_name(func, instance, is_batch),
+            instance,
+            "runnable_lambda",
+            args=args,
+            kwargs=kwargs,
         )
-
-        integration.record_instance(instance, span)
-
-        result = None
-
-        try:
+        with core.context_with_event(event):
             result = await func(*args, **kwargs)
+            event.response = result
             return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
-            span.finish()
 
     return _traced_runnable_lambda_impl
 
@@ -694,8 +567,6 @@ def patch():
         return
 
     langchain_core._datadog_patch = True
-    integration = LangChainIntegration(integration_config=config.langchain)
-    langchain_core._datadog_integration = integration
 
     from langchain_core.embeddings import Embeddings
     from langchain_core.language_models.chat_models import BaseChatModel
@@ -743,6 +614,10 @@ def patch():
 
     core.dispatch("langchain.patch", tuple())
 
+    # Let products (LLMObs) attach their shared lifecycle subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
+
 
 def unpatch():
     if not getattr(langchain_core, "_datadog_patch", False):
@@ -752,6 +627,8 @@ def unpatch():
 
     # Listeners wrapped after this integration did, so they unwrap first and each layer comes off in order.
     core.dispatch("langchain.unpatch", tuple())
+
+    integration_hooks.on_unpatch(COMPONENT)
 
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
@@ -779,5 +656,5 @@ def unpatch():
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
-    unwrap(langchain_core.embeddings.Embeddings, "__init_subclass__")
-    unwrap(langchain_core.vectorstores.VectorStore, "__init_subclass__")
+    _unwrap_init_subclass(langchain_core.embeddings.Embeddings)
+    _unwrap_init_subclass(langchain_core.vectorstores.VectorStore)
