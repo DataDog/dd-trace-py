@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Tags set with ``tracer.set_tags()`` are now applied to LLM Observability spans. Previously only tags from ``DD_TAGS`` were applied.
