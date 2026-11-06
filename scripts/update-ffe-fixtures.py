@@ -12,6 +12,7 @@ import tempfile
 SOURCE_REPOSITORY = "https://github.com/DataDog/ffe-system-test-data.git"
 DESTINATION = Path("tests/openfeature/ffe-system-test-data")
 SOURCE_METADATA = "SOURCE.md"
+SELECTION_VECTORS = Path("flag-selection/selection-vectors.json")
 VALID_REF = re.compile(r"^[A-Za-z0-9._/-]+$")
 
 
@@ -47,17 +48,23 @@ def copy_fixture_file(source, destination):
     destination.chmod(0o644)
 
 
+def copy_fixture_directory(source, snapshot, name):
+    directory = source / name
+    if directory.is_symlink():
+        raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {directory}")
+    if not directory.is_dir():
+        raise ValueError("FFE fixture repository does not contain the expected fixture layout")
+    snapshot_directory = snapshot / name
+    snapshot_directory.mkdir()
+    snapshot_directory.chmod(0o755)
+    return directory, snapshot_directory
+
+
 def copy_fixture_snapshot(source, snapshot):
     copy_fixture_file(source / "ufc-config.json", snapshot / "ufc-config.json")
-    cases_directory = source / "evaluation-cases"
-    if cases_directory.is_symlink():
-        raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {cases_directory}")
-    if not cases_directory.is_dir():
-        raise ValueError("FFE fixture repository does not contain the expected fixture layout")
-
-    snapshot_cases = snapshot / "evaluation-cases"
-    snapshot_cases.mkdir()
-    snapshot_cases.chmod(0o755)
+    selection_directory, snapshot_selection = copy_fixture_directory(source, snapshot, SELECTION_VECTORS.parent)
+    copy_fixture_file(selection_directory / SELECTION_VECTORS.name, snapshot_selection / SELECTION_VECTORS.name)
+    cases_directory, snapshot_cases = copy_fixture_directory(source, snapshot, "evaluation-cases")
     for entry in sorted(cases_directory.iterdir()):
         if entry.suffix != ".json":
             raise ValueError(f"Unexpected entry in FFE evaluation cases: {entry}")
@@ -87,6 +94,18 @@ def validate_fixture_snapshot(snapshot):
 
     if fixture_count == 0:
         raise ValueError("No FFE fixture test cases found")
+
+    selection_vectors_path = snapshot / SELECTION_VECTORS
+    if not selection_vectors_path.is_file():
+        raise ValueError("FFE fixture repository does not contain the expected fixture layout")
+    with selection_vectors_path.open(encoding="utf-8") as selection_vectors_file:
+        selection_vectors = json.load(selection_vectors_file)
+    if (
+        not isinstance(selection_vectors, dict)
+        or not isinstance(selection_vectors.get("cases"), list)
+        or not selection_vectors["cases"]
+    ):
+        raise ValueError(f"{SELECTION_VECTORS} must contain a non-empty JSON array of cases")
 
     return fixture_count
 
