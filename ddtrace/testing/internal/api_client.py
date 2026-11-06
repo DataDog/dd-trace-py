@@ -95,7 +95,9 @@ class APIClient:
                         "env": self.env,
                         "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
                         "sha": self.env_tags[GitTag.COMMIT_SHA],
-                        "branch": self.env_tags[GitTag.BRANCH],
+                        "branch": self.env_tags.get(GitTag.BRANCH)
+                        or self.env_tags.get(GitTag.TAG)
+                        or "auto:git-detached-head",
                         "configurations": self.configurations,
                     },
                 }

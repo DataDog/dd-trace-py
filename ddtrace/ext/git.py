@@ -438,9 +438,10 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
         branch = extract_branch(cwd=cwd)
         if branch != "HEAD":
             tags[BRANCH] = branch
-        local_tags = _git_subprocess_cmd(["tag", "--points-at", "HEAD"], cwd=cwd).splitlines()
-        if local_tags:
-            tags[TAG] = local_tags[0]
+        if branch == "HEAD":
+            local_tags = _git_subprocess_cmd(["tag", "--points-at", "HEAD"], cwd=cwd).splitlines()
+            if len(local_tags) == 1:
+                tags[TAG] = local_tags[0]
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
