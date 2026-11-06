@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+# Build a dependency test image without rebuilding the existing Python toolchains.
+FROM ghcr.io/datadog/dd-trace-py/testrunner:3d70fe02790fe9db1dd5e25ccb9d799b5e30160f
+
+USER 0
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libclang-dev \
+    && rm -rf /var/lib/apt/lists/*
+USER 1000
+RUN python3 -c 'import ctypes, glob; lib = ctypes.CDLL(glob.glob("/usr/lib/llvm-*/lib/libclang.so")[0]); assert lib.clang_createIndex'
