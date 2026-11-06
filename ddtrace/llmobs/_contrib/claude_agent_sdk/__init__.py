@@ -1,5 +1,6 @@
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib._events.span_lifecycle import SpanLifecycleEvents
+from ddtrace.contrib.internal.claude_agent_sdk.utils import LLMOBS_ENABLED_QUERY_EVENT
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.llmobs._contrib._subscribers import register
@@ -47,11 +48,19 @@ class _ClaudeAgentSdkInactiveSpanStartedSubscriber(Subscriber):
         LLMObs._instance._llmobs_context_provider.activate(previous)
 
 
+def _on_llmobs_enabled_query(state: dict[str, bool]) -> None:
+    # Read LLMObs.enabled itself, the same flag the span subscribers check, so the contrib's
+    # decision to force partial messages can never disagree with whether spans get LLMObs data.
+    state["enabled"] = bool(LLMObs.enabled)
+
+
 def listen() -> None:
     register(COMPONENT, ClaudeAgentSdkIntegration)
+    core.on(LLMOBS_ENABLED_QUERY_EVENT, _on_llmobs_enabled_query)
     _ClaudeAgentSdkInactiveSpanStartingSubscriber.register()
     _ClaudeAgentSdkInactiveSpanStartedSubscriber.register()
 
 
 def unlisten() -> None:
     unregister(COMPONENT)
+    core.reset_listeners(LLMOBS_ENABLED_QUERY_EVENT, _on_llmobs_enabled_query)

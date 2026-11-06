@@ -13,9 +13,6 @@ _WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
 # core.root item kept current by RuntimeWorker, so shared code can tell whether runtime metrics
 # are running without importing the runtime metrics package.
 RUNTIME_METRICS_ENABLED_KEY = "runtime_metrics_enabled"
-# core.root item kept current by LLMObs, so integrations can tell whether LLM Observability is
-# enabled without importing it.
-LLMOBS_ENABLED_KEY = "llmobs_enabled"
 
 
 class Constant_Class(type):

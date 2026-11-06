@@ -6,7 +6,6 @@ from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
-from ddtrace.internal.constants import LLMOBS_ENABLED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import _get_attr
 
@@ -17,8 +16,15 @@ log = get_logger(__name__)
 COMPONENT = "claude_agent_sdk"
 
 
+# LLMObs answers this from its own enabled state, so there is a single source of truth and this
+# module does not import the product. Nothing listens unless the LLMObs hooks are loaded.
+LLMOBS_ENABLED_QUERY_EVENT = "claude_agent_sdk.llmobs_enabled"
+
+
 def llmobs_enabled() -> bool:
-    return bool(core.root.get_item(LLMOBS_ENABLED_KEY))
+    state = {"enabled": False}
+    core.dispatch(LLMOBS_ENABLED_QUERY_EVENT, (state,))
+    return state["enabled"]
 
 
 def request_event(
