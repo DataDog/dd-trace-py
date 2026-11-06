@@ -3851,6 +3851,26 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
     assert context._baggage == expected_baggage
 
 
+@pytest.mark.parametrize("prefix", ["", "ok=v,"])
+@pytest.mark.parametrize("member", ["\ud800", "\udcff", "key=\ud800", "\udcff=value"])
+def test_baggageheader_invalid_unicode_preserves_trace_context(prefix, member):
+    headers = {
+        HTTP_HEADER_TRACE_ID: "123",
+        HTTP_HEADER_PARENT_ID: "456",
+        HTTP_HEADER_SAMPLING_PRIORITY: "2",
+        HTTP_HEADER_ORIGIN: "synthetics",
+        "baggage": prefix + member,
+    }
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_MALFORMED") as malformed:
+        context = HTTPPropagator.extract(headers)
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context.sampling_priority == 2
+    assert context.dd_origin == "synthetics"
+    assert context.get_all_baggage_items() == {}
+    malformed.add.assert_called_once_with()
+
+
 @pytest.mark.parametrize(
     "headers",
     [

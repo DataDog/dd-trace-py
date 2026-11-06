@@ -992,7 +992,10 @@ class _BaggageHeader:
                 log.warning("Baggage item limit exceeded, dropping excess items")
                 _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
                 break
-            base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
+            try:
+                base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
+            except UnicodeEncodeError:
+                return _BaggageHeader._record_malformed_and_return_empty()
             segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
             if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
                 log.warning("Baggage header size exceeded, dropping excess items")
