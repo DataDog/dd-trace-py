@@ -33,6 +33,8 @@ ENV PIP_RETRIES=10
 ENV UV_HTTP_TIMEOUT=120
 ENV UV_HTTP_RETRIES=10
 
+# The copied Python needs the runtime SSL library before pip can use HTTPS.
+RUN apt-get update && apt-get install --no-install-recommends -y libssl3 ca-certificates
 RUN pip install -U pip
 
 ARG SCENARIO=base
