@@ -329,6 +329,7 @@ starlette
 statsd
 stderr
 stdout
+streamable
 setuptools
 Str
 stringable

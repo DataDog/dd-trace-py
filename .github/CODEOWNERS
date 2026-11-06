@@ -353,7 +353,6 @@ ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry/thread_context.py   @DataDog/apm-sdk-capabilities @DataDog/asm-python @DataDog/profiling-python
-ddtrace/opentracer/                                @DataDog/apm-sdk-capabilities
 ddtrace/propagation/                               @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_opentelemetry.py        @DataDog/apm-sdk-capabilities
 

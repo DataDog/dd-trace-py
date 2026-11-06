@@ -436,13 +436,6 @@ Certain status codes can be excluded by providing a list of ranges. Valid option
     - ``400-403,405-499``
     - ``400,401,403``
 
-.. _adv_opentracing:
-
-OpenTracing
------------
-
-The Datadog OpenTracing tracer is deprecated and will be removed in a future release. Please use the Datadog Tracer or the OpenTelemetry API instead.
-
 .. _ddtracerun:
 
 ``ddtrace-run``
