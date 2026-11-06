@@ -273,7 +273,7 @@ class AIGuardClient:
                 1,
                 (("type", "messages"),) + call_path_tags,
             )
-        messages = messages[-max_messages_length:]
+        messages = messages[-max_messages_length:] if max_messages_length else []
 
         max_content_size = aiguard_config._ai_guard_max_content_size
         content_truncated = False
