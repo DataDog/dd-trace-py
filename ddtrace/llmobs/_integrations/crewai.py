@@ -1,7 +1,9 @@
+from collections.abc import Collection
 from collections.abc import Iterable
 import json
 from typing import Any
 from typing import Optional
+from typing import Union
 from weakref import WeakKeyDictionary
 
 from ddtrace.internal import core
@@ -29,6 +31,7 @@ OP_NAMES_TO_SPAN_KIND = {
     "task": "task",
     "agent": "agent",
     "tool": "tool",
+    "tool_invoke": "tool",
     "flow": "workflow",
     "flow_method": "task",
 }
@@ -43,10 +46,10 @@ class CrewAIIntegration(BaseLLMIntegration):
     _planning_crew_ids: list[str] = []  # list of crew IDs that correspond to planning crew instances
     _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, dict[str, dict[str, Any]]] = WeakKeyDictionary()
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
-            tracer.context_provider.activate(tracer_ctx)  # type: ignore[arg-type]
+            tracer.context_provider.activate(tracer_ctx)
             if self.llmobs_enabled and llmobs_ctx:
                 core.dispatch("threading.execution", (llmobs_ctx,))
 
@@ -79,7 +82,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
         return "agent" if kwargs.get("operation") == "agent" else None
 
-    def _get_current_ctx(self):
+    def _get_current_ctx(self) -> tuple[Any, Any]:
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
         curr_trace_ctx = tracer.current_trace_context()
         if self.llmobs_enabled:
@@ -109,8 +112,8 @@ class CrewAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_task(span, args, kwargs, response)
         elif operation == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
-        elif operation == "tool":
-            self._llmobs_set_tags_tool(span, args, kwargs, response)
+        elif operation in ("tool", "tool_invoke"):
+            self._llmobs_set_tags_tool(span, args, kwargs, response, unpack_input=operation == "tool_invoke")
         elif operation == "flow":
             self._llmobs_set_tags_flow(span, args, kwargs, response)
         elif operation == "flow_method":
@@ -216,11 +219,15 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=response)
 
-    def _llmobs_set_tags_tool(self, span, args, kwargs, response):
+    def _llmobs_set_tags_tool(self, span, args, kwargs, response, unpack_input):
         tool_instance = kwargs.pop("_dd.instance", None)
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
-        tool_input = kwargs.get("input", "")
+        if unpack_input:
+            tool_input = get_argument_value(args, kwargs, 0, "input")
+        else:
+            # Native tool calls pass the tool arguments as keywords; positional ones have no names to record them by.
+            tool_input = {"args": list(args), "kwargs": kwargs} if args else kwargs
         _annotate_llmobs_span_data(
             span,
             name=tool_name if tool_name else "CrewAI Tool",
@@ -311,7 +318,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         span_links = (
             self._flow_span_to_method_to_span_dict.get(span._parent, {}).get(span.name, {}).get("span_links", [])
         )
-        if span.name in getattr(flow_instance, "_start_methods", []) and span._parent is not None:
+        start_methods, routers, _ = _get_flow_structure(flow_instance)
+        if span.name in start_methods and span._parent is not None:
             span_links.append(
                 _SpanLink(
                     span_id=str(span._parent.span_id),
@@ -320,7 +328,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 )
             )
 
-        if span.name in getattr(flow_instance, "_routers", []):
+        if span.name in routers:
             # For router methods the downstream trigger is the router's result, not the method name.
             # We store the span info keyed by that result so it can be linked to future listener spans.
             span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(str(response), {})
@@ -335,7 +343,9 @@ class CrewAIIntegration(BaseLLMIntegration):
         )
         return
 
-    def llmobs_set_span_links_on_flow(self, flow_span, args, kwargs, flow_instance):
+    def llmobs_set_span_links_on_flow(
+        self, flow_span: Optional[Span], args: Any, kwargs: Any, flow_instance: Any
+    ) -> None:
         if not self.llmobs_enabled:
             return
         try:
@@ -350,58 +360,43 @@ class CrewAIIntegration(BaseLLMIntegration):
         Notes:
         - trigger_method is either a method name or router result, which trigger normal/router listeners respectively.
           We skip if trigger_method is a router method name because we use the router result to link triggered listeners
-        - AND conditions:
-            - temporary output->output span links added by default for all trigger methods
-            - once all trigger methods have run for the listener, remove temporary output->output links and
-              add span links from trigger spans to listener span
+        - A trigger method that triggers no listener gets a temporary output->output link on the flow span.
+        - Once a listener's condition is satisfied, its satisfying methods are linked to the listener span and their
+          temporary links are removed. For an OR that is just the trigger method; an AND waits for all its branches.
         """
         trigger_method = get_argument_value(args, kwargs, 0, "trigger_method", optional=True)
         if not trigger_method:
             return
         flow_methods_to_spans = self._flow_span_to_method_to_span_dict.get(flow_span, {})
         trigger_span_dict = flow_methods_to_spans.get(trigger_method)
-        if not trigger_span_dict or trigger_method in getattr(flow_instance, "_routers", []):
+        _, routers, listeners = _get_flow_structure(flow_instance)
+        if not trigger_span_dict or trigger_method in routers:
             # For router methods the downstream trigger listens for the router's result, not the router method name
             # Skip if trigger_method represents a router method name instead of the router's results
             return
-        listeners = getattr(flow_instance, "_listeners", {})
+        ran = {method for method, span_dict in flow_methods_to_spans.items() if span_dict.get("span_id")}
         triggered = False
-        for listener_name, (condition_type, listener_triggers) in listeners.items():
-            if trigger_method not in listener_triggers:
-                continue
-            span_dict = flow_methods_to_spans.setdefault(listener_name, {})
-            span_links = span_dict.setdefault("span_links", [])
-            if condition_type != "AND":
-                triggered = True
-                span_links.append(
-                    _SpanLink(
-                        span_id=str(trigger_span_dict["span_id"]),
-                        trace_id=format_trace_id(flow_span.trace_id),
-                        attributes={"from": "output", "to": "input"},
-                    )
-                )
-                continue
-            if any(
-                flow_methods_to_spans.get(_trigger_method, {}).get("span_id") is None
-                for _trigger_method in listener_triggers
-            ):  # skip if not all trigger methods have run (span ID must exist) for AND listener
+        for listener_name, condition in listeners.items():
+            satisfying_methods = _satisfying_methods(condition, ran, trigger_method)
+            # Skip listeners this trigger does not satisfy, including an AND whose other branches have not run yet.
+            if not satisfying_methods or trigger_method not in satisfying_methods:
                 continue
             triggered = True
-            for method in listener_triggers:
-                method_span_dict = flow_methods_to_spans.get(method, {})
-                span_links.append(
-                    _SpanLink(
-                        span_id=str(method_span_dict["span_id"]),
-                        trace_id=format_trace_id(flow_span.trace_id),
-                        attributes={"from": "output", "to": "input"},
-                    )
+            satisfying_span_ids = [str(flow_methods_to_spans[method]["span_id"]) for method in satisfying_methods]
+            span_links = flow_methods_to_spans.setdefault(listener_name, {}).setdefault("span_links", [])
+            span_links.extend(
+                _SpanLink(
+                    span_id=span_id,
+                    trace_id=format_trace_id(flow_span.trace_id),
+                    attributes={"from": "output", "to": "input"},
                 )
-                flow_span_span_links = get_llmobs_span_links(flow_span) or []
-                # Remove temporary output->output link since the AND has been triggered
-                span_links_minus_tmp_output_links = [
-                    link for link in flow_span_span_links if link["span_id"] != str(method_span_dict["span_id"])
-                ]
-                _annotate_llmobs_span_data(flow_span, span_links=span_links_minus_tmp_output_links)
+                for span_id in satisfying_span_ids
+            )
+            flow_span_span_links = get_llmobs_span_links(flow_span) or []
+            _annotate_llmobs_span_data(
+                flow_span,
+                span_links=[link for link in flow_span_span_links if link["span_id"] not in satisfying_span_ids],
+            )
 
         if triggered is False:
             flow_span_span_links = get_llmobs_span_links(flow_span) or []
@@ -508,6 +503,60 @@ def _extract_tool_description_field(tool_description: str):
     if len(fields) == 1:
         return tool_description
     return fields[-1]
+
+
+# A listen condition: (condition_type, branches), where each branch is a method name or a nested condition.
+_Condition = tuple[str, list[Union[str, "_Condition"]]]
+
+
+def _get_flow_structure(flow_instance: Any) -> tuple[Collection[str], Collection[str], dict[str, _Condition]]:
+    """Return a flow's start methods, routers and listeners, as {listener: condition}.
+
+    crewai 1.15.0 replaced Flow._start_methods, _routers and _listeners with a flow definition.
+    """
+    if hasattr(flow_instance, "_listeners"):
+        listeners = {name: _listener_condition(condition) for name, condition in flow_instance._listeners.items()}
+        return flow_instance._start_methods, flow_instance._routers, listeners
+    routers = {name for name, method in flow_instance._definition.methods.items() if method.router}
+    listeners = {name: _listener_condition(condition) for name, _, condition in flow_instance._listener_methods()}
+    return flow_instance._start_method_names(), routers, listeners
+
+
+def _listener_condition(condition: Any) -> _Condition:
+    """Convert a stored listen condition to a _Condition, keeping nested and_/or_ conditions.
+
+    Simple listeners are stored as (condition_type, methods) before crewai 1.15.0 and as a method name since. Listeners
+    using and_/or_ are stored as {"type": "AND"|"OR", "conditions": [...]} in crewai 1.0 to 1.14, and as
+    {"and"|"or": [...]} since crewai 1.15.0.
+    """
+    if isinstance(condition, tuple):
+        return condition
+    if isinstance(condition, str):
+        return "OR", [condition]
+    if "type" in condition:
+        condition_type, branches = condition["type"], condition["conditions"]
+    else:
+        condition_type = "AND" if "and" in condition else "OR"
+        branches = condition[condition_type.lower()]
+    return condition_type, [branch if isinstance(branch, str) else _listener_condition(branch) for branch in branches]
+
+
+def _satisfying_methods(
+    condition: Union[str, _Condition], ran: Collection[str], trigger_method: str
+) -> Optional[list[str]]:
+    """Return the methods that satisfy a condition given the methods that ran, or None if it is not satisfied.
+
+    An OR is satisfied by the branch containing trigger_method when that branch is satisfied, else by its first
+    satisfied branch, so each trigger links the method that just ran.
+    """
+    if isinstance(condition, str):
+        return [condition] if condition in ran else None
+    condition_type, branches = condition
+    results = [_satisfying_methods(branch, ran, trigger_method) for branch in branches]
+    satisfied = [result for result in results if result is not None]
+    if condition_type == "AND":
+        return [method for result in satisfied for method in result] if len(satisfied) == len(results) else None
+    return next((result for result in satisfied if trigger_method in result), satisfied[0] if satisfied else None)
 
 
 def _get_crew_id(span, operation):

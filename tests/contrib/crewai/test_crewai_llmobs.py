@@ -1,20 +1,40 @@
 import json
 from unittest import mock
 
-import crewai
+import pytest
 
-from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.crewai import _listener_condition
+from ddtrace.llmobs._integrations.crewai import _satisfying_methods
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from tests.contrib.crewai.utils import CREWAI_VERSION
+from tests.contrib.crewai.utils import FailingTool
+from tests.contrib.crewai.utils import MaxTool
 from tests.contrib.crewai.utils import fun_fact_text
+from tests.contrib.crewai.utils import requires_akickoff
+from tests.contrib.crewai.utils import translate_tool
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
-CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
+try:
+    from crewai.constants import DEFAULT_LLM_MODEL
+except ImportError:  # crewai<1.15
+    from crewai.cli.constants import DEFAULT_LLM_MODEL
+
+
+# crewai 1.x keeps a tool's own description instead of generating one that lists its name and arguments.
+AVERAGE_TOOL_DESCRIPTION = (
+    "This tool returns the average of a list of numbers."
+    if CREWAI_VERSION >= (1, 0, 0)
+    else "Tool Name: Average Calculator\nTool Arguments: {'entries': {'description': None, 'type': 'list[float]'}}\n"
+    "Tool Description: This tool returns the average of a list of numbers."
+)
+
+AGES = {"ages": [10, 12, 14, 16, 18]}
 
 
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
@@ -25,7 +45,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "backstory": "You're a seasoned researcher with a knack for uncovering the latest developments in AI. "
         "Known for your ability to find the most relevant information and present it in a clear "
         "and concise manner.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -39,7 +59,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "backstory": "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
         "complex data into clear and concise reports, making it easy for others to understand and act on the "
         "information you provide.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -51,7 +71,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "name": "Python Data Analyst",
         "goal": "Analyze data and provide insights using Python",
         "backstory": "You are an experienced data analyst with strong Python skills.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -59,8 +79,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "tools": [
             {
                 "name": "Average Calculator",
-                "description": "Tool Name: Average Calculator\nTool Arguments: {'entries': {'description': None, "
-                "'type': 'list'}}\nTool Description: This tool returns the average of a list of numbers.",
+                "description": AVERAGE_TOOL_DESCRIPTION,
             }
         ],
     },
@@ -69,7 +88,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "name": "Tour Guide",
         "goal": "Recommend fun activities for a group of humans.",
         "backstory": "You are a tour guide with a passion for finding the best activities for groups of people.",
-        "model": "gpt-4o-mini",
+        "model": DEFAULT_LLM_MODEL,
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
         "code_execution_permissions": {"code_execution_mode": "safe"},
@@ -202,6 +221,13 @@ def _assert_async_crew_links(spans):
 
 
 def _assert_hierarchical_crew_events(spans):
+    if CREWAI_VERSION >= (1, 0, 0):
+        # The crewai 1.x recording delegates only the first task, and the coworker answers without its tool.
+        expected_span_kinds = ("workflow", "task", "agent", "task", "agent", "tool", "agent", "task", "agent")
+        assert len(spans) == len(expected_span_kinds)
+        for span, kind in zip(spans, expected_span_kinds):
+            assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind=kind, **EXPECTED_BASE_SPAN_DATA)
+        return
     assert len(spans) == 12
     expected_span_kinds = (
         "workflow",
@@ -225,6 +251,15 @@ def _assert_hierarchical_crew_events(spans):
 
 
 def _assert_hierarchical_crew_links(spans):
+    if CREWAI_VERSION >= (1, 0, 0):
+        _assert_span_link(spans[0], spans[1], "input", "input")
+        _assert_span_link(spans[1], spans[3], "output", "input")
+        _assert_span_link(spans[3], spans[7], "output", "input")
+        _assert_span_link(spans[7], spans[0], "output", "output")
+        for task_or_tool, agent in ((1, 2), (3, 4), (5, 6), (7, 8)):
+            _assert_span_link(spans[task_or_tool], spans[agent], "input", "input")
+            _assert_span_link(spans[agent], spans[task_or_tool], "output", "output")
+        return
     # span links for crew -> task
     _assert_span_link(spans[0], spans[1], "input", "input")
     _assert_span_link(spans[1], spans[3], "output", "input")
@@ -490,3 +525,161 @@ async def test_router_flow_async(crewai, router_flow_async, crewai_llmobs, test_
     spans = _ordered_spans(test_spans)
     _assert_router_flow_events(spans)
     _assert_router_flow_links(spans)
+
+
+# Only the stored format of the installed crewai version runs through the flow tests above; CI runs crewai 0.102 and
+# the latest 1.x, so the crewai 1.0 to 1.14 format of and_/or_ listeners is covered here.
+@pytest.mark.parametrize(
+    "condition,expected",
+    [
+        (("AND", ["a", "b"]), ("AND", ["a", "b"])),
+        ("a", ("OR", ["a"])),
+        (
+            {"type": "AND", "conditions": ["a", {"type": "OR", "conditions": ["b", "c"]}]},
+            ("AND", ["a", ("OR", ["b", "c"])]),
+        ),
+        ({"and": ["a", {"or": ["b", "c"]}]}, ("AND", ["a", ("OR", ["b", "c"])])),
+        ({"or": ["a", "b"]}, ("OR", ["a", "b"])),
+    ],
+    ids=["tuple", "method_name", "type_conditions", "and_dict", "or_dict"],
+)
+def test_listener_condition(condition, expected):
+    assert _listener_condition(condition) == expected
+
+
+@pytest.mark.parametrize(
+    "ran,trigger_method,expected",
+    [
+        ({"a"}, "a", None),
+        ({"a", "b"}, "b", ["a", "b"]),
+        ({"a", "c"}, "c", ["a", "c"]),
+        ({"a", "b", "c"}, "c", ["a", "c"]),
+    ],
+    ids=["and_waits", "or_branch_b", "or_branch_c", "or_prefers_trigger"],
+)
+def test_satisfying_methods(ran, trigger_method, expected):
+    assert _satisfying_methods(("AND", ["a", ("OR", ["b", "c"])]), ran, trigger_method) == expected
+
+
+@pytest.mark.skipif(CREWAI_VERSION < (1, 0, 0), reason="nested and_/or_ conditions require crewai>=1.0")
+def test_nested_condition_flow(crewai, crewai_llmobs, test_spans):
+    from crewai import Flow
+    from crewai.flow.flow import and_
+    from crewai.flow.flow import listen
+    from crewai.flow.flow import or_
+    from crewai.flow.flow import start
+
+    class NestedFlow(Flow[dict]):
+        @start()
+        def a(self):
+            return "a"
+
+        @listen(a)
+        def b(self):
+            return "b"
+
+        # Never runs, so the listener below is triggered by a and b only.
+        @listen("unused")
+        def c(self):
+            return "c"
+
+        @listen(and_(a, or_(b, c)))
+        def joined(self):
+            return "joined"
+
+    NestedFlow().kickoff()
+    spans = {span.name: span for span in test_spans.pop()}
+    assert "c" not in spans
+    _assert_span_link(spans["a"], spans["joined"], "output", "input")
+    _assert_span_link(spans["b"], spans["joined"], "output", "input")
+
+
+@requires_akickoff
+@pytest.mark.parametrize(
+    "crew_fixture,cassette,inputs,assert_events,assert_links",
+    [
+        ("basic_crew", "test_basic_crew.yaml", {"topic": "AI"}, _assert_basic_crew_events, _assert_basic_crew_links),
+        ("tool_crew", "test_crew_with_tool.yaml", AGES, _assert_tool_crew_events, _assert_tool_crew_links),
+        (
+            "async_exec_crew",
+            "test_crew_with_async_tasks.yaml",
+            AGES,
+            _assert_async_crew_events,
+            _assert_async_crew_links,
+        ),
+    ],
+    ids=["basic", "tool", "async_tasks"],
+)
+async def test_crew_akickoff(
+    crewai, request, request_vcr, crewai_llmobs, test_spans, crew_fixture, cassette, inputs, assert_events, assert_links
+):
+    crew = request.getfixturevalue(crew_fixture)
+    with request_vcr.use_cassette(cassette):
+        await crew.akickoff(inputs=inputs)
+    spans = _ordered_spans(test_spans)
+    assert_events(spans)
+    assert_links(spans)
+
+
+@requires_akickoff
+async def test_crew_akickoff_error(crewai, failing_llm_crew, request_vcr, crewai_llmobs, test_spans):
+    with request_vcr.use_cassette("test_crew_akickoff_error.yaml"):
+        with pytest.raises(Exception):
+            await failing_llm_crew.akickoff()
+    spans = _ordered_spans(test_spans)
+    assert [span.error for span in spans] == [1, 1, 1]
+    for span, kind in zip(spans, ("workflow", "task", "agent")):
+        assert _get_llmobs_data_metastruct(span)["meta"]["span"]["kind"] == kind
+        assert "Invalid 'temperature'" in _get_llmobs_data_metastruct(span)["meta"]["error"]["message"]
+
+
+@requires_akickoff
+async def test_simple_flow_akickoff(crewai, simple_flow_async, crewai_llmobs, test_spans):
+    await simple_flow_async.akickoff(inputs={"continent": "North America"})
+    spans = _ordered_spans(test_spans)
+    _assert_simple_flow_events(spans)
+    _assert_simple_flow_links(spans)
+
+
+def test_tool_run(crewai, crewai_llmobs, test_spans):
+    MaxTool().run(entries=[10, 12, 14])
+    spans = _ordered_spans(test_spans)
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="tool",
+        name="Max Calculator",
+        input_value=json.dumps({"entries": [10, 12, 14]}),
+        output_value="14",
+        metadata={"description": "This tool returns the largest of a list of numbers."},
+        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
+    )
+
+
+def test_tool_run_keeps_all_arguments(crewai, crewai_llmobs, test_spans):
+    # Native tool calls pass every tool argument as a keyword, so one named "input" is not the whole input.
+    assert translate_tool.run(input="hello", language="en") == "hello (en)"
+    spans = _ordered_spans(test_spans)
+    assert _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["value"] == json.dumps(
+        {"input": "hello", "language": "en"}
+    )
+
+
+@pytest.mark.parametrize("use_ainvoke", [False, True], ids=["run", "ainvoke"])
+async def test_tool_error(crewai, crewai_llmobs, test_spans, use_ainvoke):
+    with pytest.raises(ValueError):
+        if use_ainvoke:
+            await FailingTool().to_structured_tool().ainvoke(input={"entries": [10, 12, 14]})
+        else:
+            FailingTool().run(entries=[10, 12, 14])
+    spans = _ordered_spans(test_spans)
+    assert len(spans) == 1
+    assert spans[0].error == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        span_kind="tool",
+        name="Failing Calculator",
+        input_value=json.dumps({"entries": [10, 12, 14]}),
+        error=mock.ANY,
+        tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
+    )

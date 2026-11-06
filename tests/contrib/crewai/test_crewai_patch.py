@@ -1,7 +1,19 @@
 from ddtrace.contrib.internal.crewai.patch import get_version
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
+from tests.contrib.crewai.utils import CREWAI_VERSION
 from tests.contrib.patch import PatchTestCase
+
+
+def _crewai_1_7_targets(crewai):
+    if CREWAI_VERSION < (1, 7, 0):
+        return []
+    return [
+        crewai.Crew.akickoff,
+        crewai.Task._aexecute_core,
+        crewai.Agent.aexecute_task,
+        crewai.tools.base_tool.Tool.run,
+    ]
 
 
 class TestCrewAIPatch(PatchTestCase.Base):
@@ -18,6 +30,10 @@ class TestCrewAIPatch(PatchTestCase.Base):
         self.assert_wrapped(crewai.Task.execute_async)
         self.assert_wrapped(crewai.Agent.execute_task)
         self.assert_wrapped(crewai.tools.structured_tool.CrewStructuredTool.invoke)
+        self.assert_wrapped(crewai.tools.structured_tool.CrewStructuredTool.ainvoke)
+        self.assert_wrapped(crewai.tools.base_tool.BaseTool.run)
+        for target in _crewai_1_7_targets(crewai):
+            self.assert_wrapped(target)
 
     def assert_not_module_patched(self, crewai):
         self.assert_not_wrapped(crewai.Crew.kickoff)
@@ -26,6 +42,13 @@ class TestCrewAIPatch(PatchTestCase.Base):
         self.assert_not_wrapped(crewai.Task.execute_async)
         self.assert_not_wrapped(crewai.Agent.execute_task)
         self.assert_not_wrapped(crewai.tools.structured_tool.CrewStructuredTool.invoke)
+        self.assert_not_wrapped(crewai.tools.structured_tool.CrewStructuredTool.ainvoke)
+        self.assert_not_wrapped(crewai.tools.base_tool.BaseTool.run)
+        for target in _crewai_1_7_targets(crewai):
+            self.assert_not_wrapped(target)
+        # crewai 1.7 made Crew._get_context a staticmethod; unpatching must restore it as one.
+        if CREWAI_VERSION >= (1, 7, 0):
+            assert isinstance(crewai.Crew.__dict__["_get_context"], staticmethod)
 
     def assert_not_module_double_patched(self, crewai):
         self.assert_not_double_wrapped(crewai.Crew.kickoff)
@@ -34,3 +57,7 @@ class TestCrewAIPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(crewai.Task.execute_async)
         self.assert_not_double_wrapped(crewai.Agent.execute_task)
         self.assert_not_double_wrapped(crewai.tools.structured_tool.CrewStructuredTool.invoke)
+        self.assert_not_double_wrapped(crewai.tools.structured_tool.CrewStructuredTool.ainvoke)
+        self.assert_not_double_wrapped(crewai.tools.base_tool.BaseTool.run)
+        for target in _crewai_1_7_targets(crewai):
+            self.assert_not_double_wrapped(target)
