@@ -55,10 +55,8 @@ twine check "${SDIST_FILE}"
 python "${CI_PROJECT_DIR}/.gitlab/scripts/check-libclang.py"
 
 section_start "install_sdist" "Installing ${SDIST_FILE##*/}"
-# DEV: the image ships pip 21.2.4, which copies a local project to a random directory unless
-# in-tree builds are enabled. Drop PIP_USE_FEATURE once the image has pip>=21.3, where in-tree is
-# the default; pip>=22.1 rejects the value.
-PIP_USE_FEATURE=in-tree-build pip install "${SDIST_DIR}"
+# The image's pip builds local projects in place, preserving the stable sccache paths.
+pip install "${SDIST_DIR}"
 section_end "install_sdist"
 
 python "${CI_PROJECT_DIR}/tests/smoke_test.py"

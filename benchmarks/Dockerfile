@@ -49,6 +49,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   ca-certificates \
   # ddtrace includes c extensions
   build-essential \
+  libclang-dev \
   # libdatadog requires autoconf/automake/libtool to build
   autoconf \
   automake \
