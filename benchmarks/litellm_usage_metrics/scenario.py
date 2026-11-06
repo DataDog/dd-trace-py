@@ -6,11 +6,10 @@ class LiteLLMUsageMetrics(bm.Scenario):
 
     def run(self):
         # The writer needs no LiteLLM installed, unlike the module that adapts its hooks.
-        writer_module = "ddtrace.contrib.internal.litellm._usage_metrics_writer"
         try:
-            from ddtrace.contrib.internal.litellm._usage_metrics_writer import UsageMetricsWriter
+            from ddtrace.internal.ai_usage._writer import UsageMetricsWriter
         except ModuleNotFoundError as e:
-            if e.name != writer_module:
+            if e.name not in ("ddtrace.internal.ai_usage", "ddtrace.internal.ai_usage._writer"):
                 raise
 
             # A baseline built before the usage metrics existed has nothing to measure; the loop still has to scale
@@ -67,10 +66,12 @@ class LiteLLMUsageMetrics(bm.Scenario):
 
         def _(loops):
             # A new writer for each run: histogram samples accumulate until a flush, so runs must not share them.
-            writer = UsageMetricsWriter("otlp", interval=60)
+            writer = UsageMetricsWriter(
+                "otlp", interval=60, scope_name="ddtrace.contrib.litellm", integration_name="litellm"
+            )
             # What one proxied call records: its provider attempt, its token breakdown and its gateway request.
             for _ in range(loops):
-                writer.record_all([provider_attempt, token_breakdown], attempt, attributes)
-                writer.record(gateway_request, gateway, attributes)
+                writer.record([provider_attempt, token_breakdown], attempt, attributes)
+                writer.record([gateway_request], gateway, attributes)
 
         yield _

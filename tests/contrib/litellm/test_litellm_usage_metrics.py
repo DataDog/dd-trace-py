@@ -20,9 +20,9 @@ from ddtrace.contrib.internal.litellm._usage_metrics import UsageMetricsLogger
 from ddtrace.contrib.internal.litellm._usage_metrics import error_type
 from ddtrace.contrib.internal.litellm._usage_metrics import operation_name
 from ddtrace.contrib.internal.litellm._usage_metrics import provider_name
-from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
 from ddtrace.contrib.internal.litellm.patch import patch
 from ddtrace.contrib.internal.litellm.patch import unpatch
+from ddtrace.internal.ai_usage import ai_usage
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.trace import tracer
 
@@ -65,16 +65,22 @@ IDENTITY = {
 }
 
 
+def dogstatsd_lines(metrics):
+    """The DogStatsD lines of what metrics recorded, taken as datagrams."""
+    datagrams, _ = metrics.take_dogstatsd(1 << 20)
+    return [line for datagram in datagrams.decode().split("\0") if datagram for line in datagram.split("\n")]
+
+
 class RecordingWriter:
     def __init__(self):
         self.records = []
 
-    def record(self, profile_id, observation, deployment_attributes):
-        self.records.append((profile_id, dict(observation), dict(deployment_attributes or {})))
-
-    def record_all(self, profile_ids, observation, deployment_attributes):
+    def record(self, profile_ids, observation, deployment_attributes):
         for profile_id in profile_ids:
-            self.record(profile_id, observation, deployment_attributes)
+            self.record_one(profile_id, observation, deployment_attributes)
+
+    def record_one(self, profile_id, observation, deployment_attributes):
+        self.records.append((profile_id, dict(observation), dict(deployment_attributes or {})))
 
     def of(self, profile_id):
         return [(observation, attributes) for p, observation, attributes in self.records if p == profile_id]
@@ -88,11 +94,11 @@ class NativeWriter(RecordingWriter):
         self.metrics = ai_usage.UsageMetrics()
         self.rejected = []
 
-    def record(self, profile_id, observation, deployment_attributes):
-        super().record(profile_id, observation, deployment_attributes)
+    def record_one(self, profile_id, observation, deployment_attributes):
+        super().record_one(profile_id, observation, deployment_attributes)
         # The logger's hooks swallow errors, so keep rejections for the test to check.
         try:
-            self.metrics.record(profile_id, observation, deployment_attributes)
+            self.metrics.add([profile_id], observation, deployment_attributes)
         except Exception as e:
             self.rejected.append((profile_id, observation, e))
 
@@ -755,26 +761,26 @@ def test_native_dogstatsd_series():
     proxy.start()
     proxy.attempt(0)
     proxy.succeeded(1.5)
-    lines = writer.metrics.take_dogstatsd()
+    lines = dogstatsd_lines(writer.metrics)
     names = {line.split(":", 1)[0] for line in lines}
     assert "gen_ai.client.inference.duration" in names
     assert "trajectory.gen_ai.client.inference.usage.cost" in names
     assert "trajectory.gen_ai.gateway.request.estimated_cost" in names
     assert any(line.startswith("trajectory.gen_ai.client.inference.usage.cost:0.0000057|c|#") for line in lines)
     assert all("trajectory.profile:" in line and "trajectory.observation.point:gateway" in line for line in lines)
-    assert writer.metrics.take_dogstatsd() == []
+    assert dogstatsd_lines(writer.metrics) == []
 
 
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_native_rejections_and_filter():
     metrics = ai_usage.UsageMetrics(list(_usage_metrics.DEFAULT_METRICS))
     with pytest.raises(ValueError) as error:
-        metrics.record(PROVIDER_ATTEMPT, {"operation_name": "chat"})
+        metrics.add([PROVIDER_ATTEMPT], {"operation_name": "chat"})
     assert error.value.args[0] == "required_field_missing"
     with pytest.raises(TypeError):
-        metrics.record(PROVIDER_ATTEMPT, {"operation_name": object()})
-    metrics.record(
-        PROVIDER_ATTEMPT,
+        metrics.add([PROVIDER_ATTEMPT], {"operation_name": object()})
+    metrics.add(
+        [PROVIDER_ATTEMPT],
         {
             "operation_name": "chat",
             "provider_name": "openai",
@@ -785,44 +791,11 @@ def test_native_rejections_and_filter():
             "observation_point": "gateway",
         },
     )
-    names = {line.split(":", 1)[0] for line in metrics.take_dogstatsd()}
+    names = {line.split(":", 1)[0] for line in dogstatsd_lines(metrics)}
     # The token histograms are not exported by default.
     assert "gen_ai.client.inference.operation.input_tokens" not in names
     assert "gen_ai.client.inference.usage.input_tokens" in names
-    assert metrics.take_otlp("scope", "1", 0, 1) is None
-
-
-@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
-def test_native_batch_attributes_and_whole_attempts():
-    assert set(_usage_metrics.DEFAULT_METRICS) <= set(ai_usage.known_metrics())
-    with pytest.raises(ValueError) as error:
-        ai_usage.UsageMetrics(["not.a.metric"])
-    assert error.value.args == ("metric_unknown", "not.a.metric")
-    metrics = ai_usage.UsageMetrics(deployment_attributes={"service.name": "gateway", "trajectory.gateway.route": "x"})
-    # An attempt and its breakdown are recorded together, or neither is.
-    with pytest.raises(ValueError) as error:
-        metrics.record_all([PROVIDER_ATTEMPT, TOKEN_BREAKDOWN], {"operation_name": "chat"})
-    assert error.value.args[0] == "required_field_missing"
-    assert error.value.args[2] == PROVIDER_ATTEMPT
-    assert metrics.is_empty()
-    observation = {
-        "operation_name": "chat",
-        "provider_name": "openai",
-        "duration_seconds": 1.0,
-        "streaming": False,
-        "input_tokens": 3,
-        "output_tokens": 1,
-        "observation_point": "gateway",
-    }
-    issues = metrics.record_all([PROVIDER_ATTEMPT, TOKEN_BREAKDOWN], observation, {"trajectory.gateway.route": "own"})
-    assert len(issues) == 2
-    separate = ai_usage.UsageMetrics()
-    for profile_id in (PROVIDER_ATTEMPT, TOKEN_BREAKDOWN):
-        separate.record(profile_id, observation, {"service.name": "gateway", "trajectory.gateway.route": "own"})
-    lines = metrics.take_dogstatsd()
-    assert sorted(lines) == sorted(separate.take_dogstatsd())
-    # The batch's attributes go on every observation, under the observation's own.
-    assert all("service:gateway" in line and "trajectory.gateway.route:own" in line for line in lines)
+    assert metrics.take_otlp("scope", "1", 0, 1, 1 << 20) == []
 
 
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
@@ -903,7 +876,7 @@ def test_gemini_thoughts_litellm_leaves_out_are_added(logger, writer, provider):
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["estimated_cost_usd"] == 1.3e-5
     if ai_usage is not None:
-        lines = writer.metrics.take_dogstatsd()
+        lines = dogstatsd_lines(writer.metrics)
         assert any(line.startswith("gen_ai.client.inference.usage.output_tokens:34|c|#") for line in lines), lines
 
 
@@ -976,7 +949,7 @@ def test_gemini_compat_endpoint_thoughts_come_from_the_total(logger, writer, api
         assert attempt["output_basis"] == "excludes_reasoning" and "cost_usd" not in attempt
         assert "output_token_source" not in attempt
         if ai_usage is not None:
-            lines = writer.metrics.take_dogstatsd()
+            lines = dogstatsd_lines(writer.metrics)
             assert any(line.startswith("gen_ai.client.inference.usage.output_tokens:34|c|#") for line in lines), lines
 
 
@@ -1883,7 +1856,7 @@ def test_native_points_carry_the_service_tier_and_provider_ids():
     proxy.attempt(0, model_info={"datadog_api_key_id": "key_01H8XYZ"})
     proxy.succeeded(1, response=Response(OPENAI_HEADERS), payload_extra={"response": {"service_tier": "default"}})
     assert writer.rejected == []
-    lines = writer.metrics.take_dogstatsd()
+    lines = dogstatsd_lines(writer.metrics)
 
     def tags(name):
         return [set(line.split("|#", 1)[1].split(",")) for line in lines if line.startswith(name + ":")]

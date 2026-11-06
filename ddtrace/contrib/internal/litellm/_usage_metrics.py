@@ -57,8 +57,10 @@ except ImportError:
     # LiteLLM before 1.104 charges nothing for a failed request.
     guardrail_information_cost = None  # type: ignore[assignment, unused-ignore]
 
-from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
 from ddtrace.internal import forksafe
+from ddtrace.internal.ai_usage import ai_usage
+from ddtrace.internal.ai_usage import parse
+from ddtrace.internal.ai_usage import parse_stream
 from ddtrace.internal.logger import get_logger
 from ddtrace.trace import tracer
 
@@ -68,6 +70,8 @@ log = get_logger(__name__)
 PROVIDER_ATTEMPT = "gen_ai.client.provider_attempt@0.1.0"
 TOKEN_BREAKDOWN = "trajectory.gen_ai.client.token_breakdown@0.1.0"  # nosec B105: a profile id, not a secret
 GATEWAY_REQUEST = "trajectory.gen_ai.gateway.request@0.1.0"
+# The OTLP instrumentation scope of the exported metrics.
+SCOPE_NAME = "ddtrace.contrib.litellm"
 
 # The span attribute that lists the profiles recorded for a call, so the backend does not derive them again.
 RECORDED_PROFILES_TAG = "trajectory.metrics.recorded"
@@ -155,7 +159,7 @@ def operation_name(call_type: Any) -> Optional[str]:
 def provider_name(custom_llm_provider: Any) -> Optional[str]:
     if not isinstance(custom_llm_provider, str):
         return None
-    return ai_usage.gen_ai_provider_name(custom_llm_provider)
+    return ai_usage.provider_name(custom_llm_provider)
 
 
 def error_type(error: Any, status: Any = None, failed: bool = False) -> Optional[str]:
@@ -169,7 +173,7 @@ def error_type(error: Any, status: Any = None, failed: bool = False) -> Optional
     if isinstance(status, str) and status.isdigit():
         status = int(status)
     status = status if isinstance(status, int) and not isinstance(status, bool) else None
-    return ai_usage.classify_error(name, status, failed)
+    return ai_usage.error_type(name, status, failed)
 
 
 def _count(value: Any) -> Optional[int]:
@@ -230,7 +234,7 @@ def usage_fields(
                 details.pop("reasoning_tokens", None)
     if usage_format != "auto" and "prompt_tokens" not in plain:
         usage_format = "auto"
-    fields = ai_usage.parse_provider_response(usage_format, plain, embeddings)["usage"] or {}
+    fields = parse(usage_format, plain, embeddings)[0]["usage"] or {}
     if not modality:
         fields.pop("input_tokens_by_modality", None)
         fields.pop("output_tokens_by_modality", None)
@@ -264,9 +268,9 @@ def _original_response(kwargs: dict[str, Any]) -> dict[str, Any]:
     original = kwargs.get("original_response")
     try:
         if isinstance(original, str) and original.startswith("{"):
-            return ai_usage.parse_provider_body("auto", original)[0]
+            return parse("auto", original)[0]
         if isinstance(original, dict):
-            return ai_usage.parse_provider_response("auto", _plain(original))
+            return parse("auto", _plain(original))[0]
     except Exception:
         log.debug("LiteLLM usage metrics: failed to read the provider's response", exc_info=True)
     return {}
@@ -286,7 +290,12 @@ def _gemini_dropped_thoughts(original: dict[str, Any], output_tokens: Any) -> Op
     """
     usage = original.get("usage") or {}
     reasoning = usage.get("reasoning_output_tokens")
-    if not reasoning or not isinstance(output_tokens, int) or output_tokens + reasoning != usage.get("output_tokens"):
+    if (
+        not isinstance(reasoning, int)
+        or not reasoning
+        or not isinstance(output_tokens, int)
+        or output_tokens + reasoning != usage.get("output_tokens")
+    ):
         return None
     return reasoning
 
@@ -453,13 +462,8 @@ def anthropic_stream_usage(chunks: Any) -> tuple[bool, bool, Optional[str], Opti
     message_start carries the input count and a placeholder output count; message_delta carries the output count,
     just before message_stop. A stream that ends without one leaves LiteLLM to estimate that side.
     """
-    stream = ai_usage.UsageStream("anthropic")
     # LiteLLM keeps each raw line of the stream without its line ending.
-    for chunk in chunks:
-        if isinstance(chunk, (str, bytes)):
-            stream.feed(chunk)
-            stream.feed("\n")
-    response, outcome, _ = stream.take()
+    response, outcome, _ = parse_stream("anthropic", chunks)
     usage = response["usage"] or {}
     # message_start's placeholder output count is not reported: only message_delta reports the output.
     return (
@@ -475,9 +479,7 @@ def responses_stream_usage(chunk: Any) -> tuple[bool, bool, bool, Optional[str],
     """What one Responses API stream event says: whether its usage reports the input, output and reasoning counts,
     the model the provider named, and whether it is the provider's last event of a response it finished.
     """
-    stream = ai_usage.UsageStream("openai_responses")
-    stream.feed(chunk)
-    response, outcome, _ = stream.take()
+    response, outcome, _ = parse_stream("openai_responses", [chunk])
     usage = response["usage"] or {}
     return (
         "input_tokens" in usage,
@@ -731,14 +733,11 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
         found: dict[str, str] = {}
         enabled = {attribute for tag, attribute in _OPT_IN_PROVIDER_ID_TAGS.items() if tag in self._tags}
         if enabled and attempt.provider is not None:
-            headers = {}
-            for name in ai_usage.provider_id_headers(attempt.provider):
-                value = _response_header(name, kwargs, payload, response)
-                if value is not None:
-                    headers[name] = value
             params = kwargs.get("litellm_params") or {}
             models = [m for m in (attempt.model, params.get("model_id"), kwargs.get("model_id")) if isinstance(m, str)]
-            ids = ai_usage.provider_ids(attempt.provider, headers, models)
+            ids = ai_usage.provider_ids(
+                attempt.provider, lambda name: _response_header(name, kwargs, payload, response), models
+            )
             found.update((attribute, value) for attribute, value in ids.items() if attribute in enabled)
         found.update(attempt.operator_ids or _operator_ids(_model_info(kwargs)))
         return found
@@ -860,7 +859,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             identity, request.route or metadata.get("original_model_group"), attempt.model_id, attempt.provider_ids
         )
         # An attempt and its token breakdown are recorded together, or neither is.
-        self._writer.record_all(
+        self._writer.record(
             _ATTEMPT_AND_BREAKDOWN if "input_tokens" in observation else _ATTEMPT_ONLY, observation, attributes
         )
 
@@ -913,7 +912,7 @@ class UsageMetricsLogger(CustomLogger):  # type: ignore[misc, unused-ignore]
             last.model_id if last is not None else None,
             last.provider_ids if last is not None else None,
         )
-        self._writer.record(GATEWAY_REQUEST, observation, attributes)
+        self._writer.record([GATEWAY_REQUEST], observation, attributes)
 
     # LiteLLM hooks. Each catches its own errors and returns what LiteLLM expects from a no-op hook.
 

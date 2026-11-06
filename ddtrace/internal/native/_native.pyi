@@ -1008,48 +1008,20 @@ class SerializationError(Exception):
     ...
 
 class ai_usage:
-    """
-    Native LLM usage and cost metrics (libdd-ai-usage).
-    """
+    """LLM usage and cost metrics, read and projected by libdd-ai-usage. See ddtrace.internal.ai_usage."""
 
     class UsageMetrics:
-        """
-        The metric points of one export window. Safe to share between threads.
-        """
+        """The metric points of one export window. Safe to share between threads."""
 
         def __init__(
             self, metrics: Optional[list[str]] = None, deployment_attributes: Optional[dict[str, str]] = None
-        ) -> None:
-            """
-            metrics lists the metric names to keep; by default every metric a profile defines is kept. A name no
-            profile defines raises ValueError("metric_unknown", name). deployment_attributes go on every observation,
-            under its own.
-            """
-            ...
-        def record(
-            self,
-            profile_id: str,
-            observation: dict[str, Any],
-            deployment_attributes: Optional[dict[str, str]] = None,
-        ) -> list[str]:
-            """
-            Project one observation under a versioned profile id and add its points.
-
-            Returns the issue codes raised beside the points. Raises ValueError(error_code, message)
-            when the observation is rejected; nothing is recorded then.
-            """
-            ...
-        def record_all(
+        ) -> None: ...
+        def add(
             self,
             profile_ids: list[str],
             observation: dict[str, Any],
             deployment_attributes: Optional[dict[str, str]] = None,
-        ) -> list[list[str]]:
-            """
-            record under each profile id: every projection is added, or none. Returns the issue codes of each
-            profile. Raises ValueError(error_code, message, profile_id) when one rejects the observation.
-            """
-            ...
+        ) -> list[list[str]]: ...
         def is_empty(self) -> bool: ...
         def take_otlp(
             self,
@@ -1057,72 +1029,26 @@ class ai_usage:
             scope_version: str,
             start_time_unix_nano: int,
             time_unix_nano: int,
-            datadog: bool = False,
-        ) -> Optional[bytes]:
-            """
-            Take the points recorded so far as an OTLP ExportMetricsServiceRequest in protobuf, or None.
-
-            datadog selects the Datadog binding, for an export Datadog stores as it arrives: cost in USD and
-            versioned values with "/", as over DogStatsD.
-            """
-            ...
-        def take_otlp_parts(
-            self,
-            scope_name: str,
-            scope_version: str,
-            start_time_unix_nano: int,
-            time_unix_nano: int,
             max_bytes: int,
             datadog: bool = False,
-        ) -> list[bytes]:
-            """
-            Take the points recorded so far as OTLP ExportMetricsServiceRequests of at most max_bytes each, or [].
+        ) -> list[bytes]: ...
+        def take_dogstatsd(self, max_payload: int) -> tuple[bytes, int]: ...
 
-            The points are split by series; the points of one series always go in the same request, which can then
-            exceed max_bytes. A batch that fits gives one request, the same bytes take_otlp returns.
-            """
-            ...
-        def take_dogstatsd(self) -> list[str]:
-            """
-            Take the points recorded so far as DogStatsD lines, without newlines.
-            """
-            ...
-        def take_dogstatsd_datagrams(self, max_payload: int) -> tuple[bytes, int]: ...
-
-    # What a provider reported, read by libdd-ai-usage's shared rules. A response dict is
-    # {"usage": dict | None, "response_model": str | None, "service_tier": str | None}.
+    # parse and parse_stream return {"response": {...}, "outcome": str, "error_name": str | None} as JSON.
     @staticmethod
-    def parse_provider_response(usage_format: str, payload: Any, embeddings: bool = False) -> dict[str, Any]: ...
+    def parse(usage_format: str, payload: Any, embeddings: bool = False) -> str: ...
     @staticmethod
-    def parse_provider_body(
-        usage_format: str, body: Union[str, bytes], embeddings: bool = False
-    ) -> tuple[dict[str, Any], str, Optional[str]]: ...
-    class UsageStream:
-        """A provider's stream read as it arrives. report and take give (response, outcome, error_name)."""
-
-        def __init__(self, usage_format: str, embeddings: bool = False) -> None: ...
-        def feed(self, chunk: Union[str, bytes]) -> None: ...
-        def feed_event(self, event_name: str, data: str) -> None: ...
-        def event(self, event: dict[str, Any]) -> None: ...
-        def report(self) -> tuple[dict[str, Any], str, Optional[str]]: ...
-        def take(self) -> tuple[dict[str, Any], str, Optional[str]]: ...
-
+    def parse_stream(usage_format: str, chunks: Any, embeddings: bool = False) -> str: ...
     @staticmethod
-    def gen_ai_provider_name(name: str) -> Optional[str]: ...
+    def provider_name(name: str) -> Optional[str]: ...
     @staticmethod
-    def classify_error(
-        name: Optional[str] = None, status: Optional[int] = None, failed: bool = False
-    ) -> Optional[str]: ...
+    def error_type(name: Optional[str] = None, status: Optional[int] = None, failed: bool = False) -> Optional[str]: ...
     @staticmethod
     def is_service_tier(value: str) -> bool: ...
     @staticmethod
-    def provider_id_headers(provider_name: str) -> list[str]: ...
+    def provider_ids(provider_name: str, header: Any, models: list[str]) -> dict[str, str]: ...
     @staticmethod
-    def provider_ids(provider_name: str, headers: dict[str, str], models: list[str] = ...) -> dict[str, str]: ...
-    @staticmethod
-    def known_metrics(profile_id: str = "") -> list[str]: ...
-    @staticmethod
-    def pack_dogstatsd(lines: list[str], max_payload: int, constant_tags: list[str] = ...) -> tuple[list[str], int]: ...
+    def pack_dogstatsd(lines: list[str], max_payload: int) -> tuple[list[str], int]: ...
 
 class ffe:
     """

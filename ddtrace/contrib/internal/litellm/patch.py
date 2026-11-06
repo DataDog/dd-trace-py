@@ -9,7 +9,6 @@ import litellm
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace.contrib.internal.litellm import _usage_metrics
-from ddtrace.contrib.internal.litellm import _usage_metrics_writer
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
@@ -18,6 +17,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal.ai_usage import _writer as _usage_metrics_writer
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -253,7 +253,7 @@ def traced_anthropic_chunk_parser(func, instance, args, kwargs):
     try:
         chunk = get_argument_value(args, kwargs, 0, "chunk", optional=True)
         if _field(chunk, "type") == "message_start":
-            response = _usage_metrics.ai_usage.parse_provider_response("anthropic", _usage_metrics._plain(chunk))
+            response = _usage_metrics.parse("anthropic", _usage_metrics._plain(chunk))[0]
             model, tier = response["response_model"], response["service_tier"]
             if model or tier:
                 _anthropic_stream_starts[instance] = (model, tier)
@@ -515,6 +515,8 @@ def _enable_usage_metrics():
         writer = _usage_metrics_writer.UsageMetricsWriter(
             exporter,
             interval=_export_interval_seconds(),
+            scope_name=_usage_metrics.SCOPE_NAME,
+            integration_name="litellm",
             metrics=list(_usage_metrics.DEFAULT_METRICS),
             deployment_attributes=resource,
         )

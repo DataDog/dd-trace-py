@@ -235,7 +235,7 @@ suites:
   litellm_usage_metrics:
     paths:
       - ddtrace/contrib/internal/litellm/_usage_metrics.py
-      - ddtrace/contrib/internal/litellm/_usage_metrics_writer.py
+      - ddtrace/internal/ai_usage/*
       - src/native/ai_usage.rs
       - src/native/Cargo.lock
       - benchmarks/litellm_usage_metrics/*
