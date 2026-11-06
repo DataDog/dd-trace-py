@@ -56,6 +56,10 @@ class Writer:
             except Exception as e:
                 self.rejected.append((profile_id, observation, e))
 
+    def record_all(self, profile_ids, observation, deployment_attributes):
+        for profile_id in profile_ids:
+            self.record(profile_id, observation, deployment_attributes)
+
     def of(self, profile_id):
         return [(observation, attributes) for p, observation, attributes in self.records if p == profile_id]
 
@@ -113,7 +117,7 @@ def test_recorded_proxy_calls(name):
     scenario = SCENARIOS[name]
     truth = scenario["truth"]
     writer = Writer()
-    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None)
     replay(logger, scenario)
 
     attempts = [observation for observation, _ in writer.of(PROVIDER_ATTEMPT)]
@@ -142,7 +146,7 @@ def test_recorded_proxy_calls(name):
 
 def test_recorded_identity_and_models():
     writer = Writer()
-    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None)
     replay(logger, SCENARIOS["chat_stream_openai_include_usage"])
     [(attempt, attributes)] = writer.of(PROVIDER_ATTEMPT)
     # The model the provider streamed back, not the route.
@@ -155,7 +159,7 @@ def test_recorded_identity_and_models():
     assert attributes["trajectory.gateway.route"] == "gpt-4o-mini"
 
     writer = Writer()
-    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None)
     replay(logger, SCENARIOS["identity_key_without_alias"])
     assert writer.records
     for _, _, attributes in writer.records:
@@ -167,7 +171,7 @@ def test_recorded_failed_stream_is_charged():
     # A stream the provider broke partway: the attempt keeps its partial usage, and the request records what the
     # proxy charged for it.
     writer = Writer()
-    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, OPT_IN_TAGS, None)
     replay(logger, SCENARIOS["provider_disconnect_midstream_openai"])
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert attempt["error_type"]

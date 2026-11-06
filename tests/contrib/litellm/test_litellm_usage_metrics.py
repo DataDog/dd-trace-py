@@ -20,7 +20,6 @@ from ddtrace.contrib.internal.litellm._usage_metrics import UsageMetricsLogger
 from ddtrace.contrib.internal.litellm._usage_metrics import error_type
 from ddtrace.contrib.internal.litellm._usage_metrics import operation_name
 from ddtrace.contrib.internal.litellm._usage_metrics import provider_name
-from ddtrace.contrib.internal.litellm._usage_metrics import usage_fields
 from ddtrace.contrib.internal.litellm._usage_metrics_writer import ai_usage
 from ddtrace.contrib.internal.litellm.patch import patch
 from ddtrace.contrib.internal.litellm.patch import unpatch
@@ -72,6 +71,10 @@ class RecordingWriter:
 
     def record(self, profile_id, observation, deployment_attributes):
         self.records.append((profile_id, dict(observation), dict(deployment_attributes or {})))
+
+    def record_all(self, profile_ids, observation, deployment_attributes):
+        for profile_id in profile_ids:
+            self.record(profile_id, observation, deployment_attributes)
 
     def of(self, profile_id):
         return [(observation, attributes) for p, observation, attributes in self.records if p == profile_id]
@@ -214,7 +217,7 @@ def writer():
 
 @pytest.fixture
 def logger(writer):
-    return UsageMetricsLogger(writer, frozenset(), None, {})
+    return UsageMetricsLogger(writer, frozenset(), None)
 
 
 def test_operation_and_provider_names():
@@ -232,58 +235,13 @@ def test_operation_and_provider_names():
     assert provider_name(None) is None
 
 
-def test_error_types_are_identifiers():
-    assert error_type("RateLimitError") == "rate_limit_error"
-    assert error_type("APIConnectionError") == "api_connection_error"
-    assert error_type("ClientDisconnected") == "client_disconnected"
+def test_error_types_of_exceptions():
+    # The shared error.type table is libdd-ai-usage's; the integration names an exception by its class and status.
+    assert error_type(litellm.Timeout("x", "gpt-4o-mini", "openai")) == "timeout_error"
     assert error_type(TimeoutError()) == "timeout_error"
     assert error_type("") is None
-
-
-def test_usage_fields_read_the_chat_shape():
-    assert usage_fields(CHAT_USAGE, embeddings=False) == {
-        "input_tokens": 12,
-        "input_basis": "includes_cache",
-        "output_tokens": 7,
-        "output_basis": "includes_reasoning",
-        "cache_read_input_tokens": 4,
-        "reasoning_output_tokens": 3,
-    }
-    assert usage_fields(ANTHROPIC_USAGE, embeddings=False) == {
-        "input_tokens": 60,
-        "input_basis": "includes_cache",
-        "output_tokens": 5,
-        "output_basis": "includes_reasoning",
-        "cache_read_input_tokens": 20,
-        "cache_write_input_tokens": 30,
-        "cache_write_5m_input_tokens": 18,
-        "cache_write_1h_input_tokens": 12,
-    }
-
-
-def test_usage_fields_treat_placeholders_as_unknown():
-    assert usage_fields(PLACEHOLDER_USAGE, embeddings=False) == {}
-    assert usage_fields(None, embeddings=False) == {}
-    assert usage_fields({"prompt_tokens": 3, "completion_tokens": 0}, embeddings=True) == {
-        "input_tokens": 3,
-        "input_basis": "includes_cache",
-    }
-
-
-def test_usage_fields_keep_native_anthropic_usage_served_from_cache():
-    # Native Anthropic usage leaves cache reads out of input_tokens: a stream that ended before any output, with its
-    # input wholly read from cache, reads zero input and zero output but was billed for the cache read.
-    usage = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 2048, "cache_creation_input_tokens": 0}
-    assert usage_fields(usage, embeddings=False) == {
-        "input_tokens": 0,
-        "input_basis": "excludes_cache",
-        "output_tokens": 0,
-        "output_basis": "includes_reasoning",
-        "cache_read_input_tokens": 2048,
-        "cache_write_input_tokens": 0,
-    }
-    # With no cache count set, all zeros is still the placeholder.
-    assert usage_fields({"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0}, embeddings=False) == {}
+    # A call known to have failed is an error even when nothing names why.
+    assert error_type(None, failed=True) == "api_error"
 
 
 def test_successful_call(logger, writer):
@@ -335,7 +293,7 @@ def test_retry_then_streamed_success(logger, writer):
     proxy.succeeded(1.0, first_chunk=0.85)
 
     failed, succeeded = (observation for observation, _ in writer.of(PROVIDER_ATTEMPT))
-    assert failed["error_type"] == "exception"
+    assert failed["error_type"] == "api_error"
     assert "input_tokens" not in failed and "cost_usd" not in failed
     # The success is measured from its own attempt, not from the start of the request.
     assert succeeded["duration_seconds"] == pytest.approx(0.2)
@@ -364,37 +322,13 @@ MESSAGE_DELTA = b'event: message_delta\ndata: {"type": "message_delta", "usage":
 MESSAGE_STOP = 'event: message_stop\ndata: {"type":"message_stop"      }\n\n'
 
 
-def test_anthropic_stream_usage_reads_the_raw_events():
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, MESSAGE_DELTA, MESSAGE_STOP]) == (
-        True,
-        True,
-        "claude-haiku-4-5-20251001",
-        None,
-        True,
-    )
-    # A stream that ended without its final usage event: LiteLLM estimates the output.
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START]) == (
-        True,
-        False,
-        "claude-haiku-4-5-20251001",
-        None,
-        False,
-    )
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START + MESSAGE_DELTA.decode()])[:2] == (True, True)
-    assert _usage_metrics.anthropic_stream_usage(["data: [DONE]", b"\xff", 3]) == (False, False, None, None, False)
-    # Generated text that names an event kind is not an event of that kind.
-    text = {"type": "text_delta", "text": '{"type": "message_delta", "usage": {"output_tokens": 9}}'}
-    delta = "data: " + json.dumps({"type": "content_block_delta", "index": 0, "delta": text})
-    assert _usage_metrics.anthropic_stream_usage([MESSAGE_START, delta])[:2] == (True, False)
-
-
 @pytest.mark.parametrize("final_usage, output_source", [(True, None), (False, "estimated")])
 def test_anthropic_messages_stream_reports_each_side(logger, writer, final_usage, output_source):
     # The Anthropic Messages route does not pass through CustomStreamWrapper: the integration reads its raw events.
     proxy = Proxy(logger, call_type="anthropic_messages", stream=True, route="claude")
     proxy.start()
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
-    events = [MESSAGE_START, MESSAGE_DELTA] if final_usage else [MESSAGE_START]
+    events = [MESSAGE_START, MESSAGE_DELTA, MESSAGE_STOP] if final_usage else [MESSAGE_START]
     input_reported, output_reported, model, tier, _ = _usage_metrics.anthropic_stream_usage(events)
     logger.observe_stream("call-1", input_reported, output_reported, model, service_tier=tier)
     proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, cost=8.35e-5, first_chunk=0.2, model="claude-haiku-4-5")
@@ -441,72 +375,6 @@ def test_a_proxy_router_span_is_marked_before_its_request_exists(logger, monkeyp
         litellm_patch._mark_gateway_span(direct, {"model": "gpt"})
     assert proxied.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) == _usage_metrics.GATEWAY_PROFILES
     assert direct.get_tag(_usage_metrics.RECORDED_PROFILES_TAG) is None
-
-
-@pytest.mark.parametrize(
-    "original, model",
-    [
-        (
-            '{"id": "x", "object": "chat.completion", "model": "gpt-4o-mini-2024-07-18", "choices": []}',
-            "gpt-4o-mini-2024-07-18",
-        ),
-        # A nested "model" key, one inside a string, and "model" as a value come first: only the top-level key counts.
-        (
-            '{"choices": [{"message": {"model": "nested", "content": "say \\"model\\": \\"quoted\\""}}],'
-            ' "type": "model", "model" : "top"}',
-            "top",
-        ),
-        ('{"model": "gpt-\\u00e9"}', "gpt-\u00e9"),
-        ('{"model": null}', None),
-        ('{"model": ""}', None),
-        ('{"choices": []}', None),
-        ('{"model": "unterminated', None),
-        ("not json", None),
-        ({"model": "from-a-dict"}, "from-a-dict"),
-    ],
-)
-def test_the_response_model_is_the_top_level_one(original, model):
-    assert _usage_metrics._response_model({"original_response": original}) == model
-
-
-def test_a_truncated_response_is_scanned_once():
-    # A string that never ends, full of escaped quotes and brackets, stops the scan instead of being retried from
-    # each quote.
-    original = '{"choices": [{"content": "' + '\\"[' * 200_000
-    started = time.monotonic()
-    assert _usage_metrics._response_model({"original_response": original}) is None
-    assert time.monotonic() - started < 2
-
-
-def test_a_responses_stream_final_event_is_read_without_decoding_its_output(monkeypatch):
-    # response.completed carries the whole response; only its type, model and usage are decoded.
-    decoded = []
-    loads = json.loads
-    monkeypatch.setattr(
-        _usage_metrics.json, "loads", lambda text, *a, **k: decoded.append(len(text)) or loads(text, *a, **k)
-    )
-    response = {
-        "id": "resp_1",
-        "model": "gpt-5-mini-2026-08-07",
-        "output": [{"type": "message", "content": [{"type": "output_text", "text": "x" * 5_000_000}]}],
-        "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
-    }
-    event = "event: response.completed\ndata: " + json.dumps({"type": "response.completed", "response": response})
-    assert _usage_metrics.responses_stream_usage(event) == (True, True, True, "gpt-5-mini-2026-08-07", True)
-    assert decoded and max(decoded) < 1000
-
-
-def test_the_response_model_is_read_without_decoding_the_response(monkeypatch):
-    # The response can hold the whole generated output; only the model's own string is decoded.
-    decoded = []
-    loads = json.loads
-    monkeypatch.setattr(
-        _usage_metrics.json, "loads", lambda text, *a, **k: decoded.append(len(text)) or loads(text, *a, **k)
-    )
-    content = "x" * 5_000_000
-    original = json.dumps({"choices": [{"message": {"content": content}}], "model": "claude-haiku-4-5-20251001"})
-    assert _usage_metrics._response_model({"original_response": original}) == "claude-haiku-4-5-20251001"
-    assert decoded and max(decoded) < 100
 
 
 def test_fallback(logger, writer):
@@ -565,9 +433,9 @@ def test_an_attempt_that_fails_without_a_usable_error_name_is_still_an_error(log
     proxy.attempt(0.2)
     logger.attempt_failed({"litellm_call_id": "call-1"}, _ProviderError())
     proxy.failed(_ProviderError())
-    assert [observation["error_type"] for observation, _ in writer.of(PROVIDER_ATTEMPT)] == ["error"] * 3
+    assert [observation["error_type"] for observation, _ in writer.of(PROVIDER_ATTEMPT)] == ["api_error"] * 3
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "error"
+    assert request["error_type"] == "api_error"
     assert request["provider_operations"] == 3
 
 
@@ -598,14 +466,14 @@ def test_client_disconnect(logger, writer):
         0.3, usage={"prompt_tokens": 8, "completion_tokens": 5}, cost=4.2e-6, error_class="ClientDisconnected"
     )
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
-    assert attempt["error_type"] == "client_disconnected"
+    assert attempt["error_type"] == "cancelled"
     assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "client_disconnected"
+    assert request["error_type"] == "cancelled"
     assert request["estimated_cost_usd"] == 4.2e-6
 
 
-@pytest.mark.parametrize("events, attempt_error", [([MESSAGE_STOP], None), ([], "client_disconnected")])
+@pytest.mark.parametrize("events, attempt_error", [([MESSAGE_STOP], None), ([], "cancelled")])
 def test_a_client_that_leaves_after_the_provider_finished(installed, writer, events, attempt_error):
     # The proxy flags a client that closes right after message_stop, before its generator ended, as disconnected.
     # The provider attempt ended as it should; the request keeps the error.
@@ -621,9 +489,10 @@ def test_a_client_that_leaves_after_the_provider_finished(installed, writer, eve
     )
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert attempt.get("error_type") == attempt_error
-    assert attempt["output_tokens"] == 5 and "output_token_source" not in attempt
+    # message_delta reported the output, with or without message_stop.
+    assert attempt["output_tokens"] == 5 and attempt.get("output_token_source") is None
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "client_disconnected"
+    assert request["error_type"] == "cancelled"
 
 
 def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(installed, writer):
@@ -639,7 +508,7 @@ def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(instal
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert "error_type" not in attempt
     [(request, _)] = writer.of(GATEWAY_REQUEST)
-    assert request["error_type"] == "client_disconnected"
+    assert request["error_type"] == "cancelled"
 
 
 def test_total_failure_seen_by_the_wrapper(logger, writer):
@@ -712,7 +581,7 @@ def test_midstream_provider_failure_is_charged(logger, writer, event_first):
     assert attempt["input_token_source"] == attempt["output_token_source"] == "estimated"
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["estimated_cost_usd"] == 1.8e-6
-    assert request["error_type"] == "exception"
+    assert request["error_type"] == "api_error"
     assert logger._requests == {}
 
 
@@ -755,7 +624,7 @@ def test_failed_stream_without_a_failure_event(logger, writer):
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
     proxy.failed(Exception())
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
-    assert attempt["error_type"] == "exception"
+    assert attempt["error_type"] == "api_error"
     assert "input_tokens" not in attempt
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["estimated_cost_usd"] == 0
@@ -807,13 +676,12 @@ def test_an_embeddings_model_priced_at_zero_has_an_input_price_only(logger, writ
 
 def test_opt_in_tags(writer):
     tags = frozenset({"user", "team", "key_alias", "route", "destination"})
-    logger = UsageMetricsLogger(writer, tags, "coding-agent", {"service.name": "gateway"})
+    logger = UsageMetricsLogger(writer, tags, "coding-agent")
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0)
     proxy.succeeded(0.1)
     expected = {
-        "service.name": "gateway",
         "user.id": "alice@example.com",
         "trajectory.team.id": "team-ml",
         "trajectory.gateway.key.alias": "alice-key",
@@ -840,7 +708,7 @@ def test_opt_in_tags(writer):
     ],
 )
 def test_user_id_is_only_a_person(writer, identity, user):
-    logger = UsageMetricsLogger(writer, frozenset({"user", "key_alias"}), None, {})
+    logger = UsageMetricsLogger(writer, frozenset({"user", "key_alias"}), None)
     proxy = Proxy(logger, identity=identity)
     proxy.start()
     proxy.attempt(0)
@@ -882,7 +750,7 @@ def test_hooks_never_raise(logger):
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_native_dogstatsd_series():
     writer = NativeWriter()
-    logger = UsageMetricsLogger(writer, frozenset(), None, {})
+    logger = UsageMetricsLogger(writer, frozenset(), None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0)
@@ -922,6 +790,39 @@ def test_native_rejections_and_filter():
     assert "gen_ai.client.inference.operation.input_tokens" not in names
     assert "gen_ai.client.inference.usage.input_tokens" in names
     assert metrics.take_otlp("scope", "1", 0, 1) is None
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_native_batch_attributes_and_whole_attempts():
+    assert set(_usage_metrics.DEFAULT_METRICS) <= set(ai_usage.known_metrics())
+    with pytest.raises(ValueError) as error:
+        ai_usage.UsageMetrics(["not.a.metric"])
+    assert error.value.args == ("metric_unknown", "not.a.metric")
+    metrics = ai_usage.UsageMetrics(deployment_attributes={"service.name": "gateway", "trajectory.gateway.route": "x"})
+    # An attempt and its breakdown are recorded together, or neither is.
+    with pytest.raises(ValueError) as error:
+        metrics.record_all([PROVIDER_ATTEMPT, TOKEN_BREAKDOWN], {"operation_name": "chat"})
+    assert error.value.args[0] == "required_field_missing"
+    assert error.value.args[2] == PROVIDER_ATTEMPT
+    assert metrics.is_empty()
+    observation = {
+        "operation_name": "chat",
+        "provider_name": "openai",
+        "duration_seconds": 1.0,
+        "streaming": False,
+        "input_tokens": 3,
+        "output_tokens": 1,
+        "observation_point": "gateway",
+    }
+    issues = metrics.record_all([PROVIDER_ATTEMPT, TOKEN_BREAKDOWN], observation, {"trajectory.gateway.route": "own"})
+    assert len(issues) == 2
+    separate = ai_usage.UsageMetrics()
+    for profile_id in (PROVIDER_ATTEMPT, TOKEN_BREAKDOWN):
+        separate.record(profile_id, observation, {"service.name": "gateway", "trajectory.gateway.route": "own"})
+    lines = metrics.take_dogstatsd()
+    assert sorted(lines) == sorted(separate.take_dogstatsd())
+    # The batch's attributes go on every observation, under the observation's own.
+    assert all("service:gateway" in line and "trajectory.gateway.route:own" in line for line in lines)
 
 
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
@@ -1090,24 +991,6 @@ def test_stream_reasoning_is_kept_only_when_reported(logger, writer, reported):
     assert ("reasoning_output_tokens" in attempt) is reported
 
 
-def test_usage_fields_read_reported_modalities():
-    usage = {
-        "prompt_tokens": 12,
-        "completion_tokens": 7,
-        "prompt_tokens_details": {"text_tokens": 4, "audio_tokens": 8, "image_tokens": 0, "cached_tokens": 0},
-        "completion_tokens_details": {"audio_tokens": 5, "text_tokens": 2},
-    }
-    fields = usage_fields(usage, embeddings=False)
-    # Text parts are not read: LiteLLM fills them itself on several routes. A reported zero is a part.
-    assert fields["input_tokens_by_modality"] == {"audio": 8, "image": 0}
-    assert fields["output_tokens_by_modality"] == {"audio": 5}
-    assert "input_tokens_by_modality" not in usage_fields(usage, embeddings=False, modality=False)
-    assert "output_tokens_by_modality" not in usage_fields(usage, embeddings=True)
-    # Parts that add up to more than the total are passed on: the projector flags them.
-    usage["prompt_tokens_details"]["audio_tokens"] = 40
-    assert usage_fields(usage, embeddings=False)["input_tokens_by_modality"] == {"audio": 40, "image": 0}
-
-
 def test_reported_modalities_are_recorded(logger, writer):
     proxy = Proxy(logger)
     proxy.start()
@@ -1217,15 +1100,6 @@ def test_the_anthropic_chat_stream_parser_is_wrapped(enabled):
     assert vars(ModelResponseIterator)["chunk_parser"] is original
 
 
-def test_anthropic_stream_usage_reads_the_service_tier():
-    start = json.loads(MESSAGE_START.split("data: ", 1)[1])
-    start["message"]["usage"]["service_tier"] = "standard"
-    event = "data: " + json.dumps(start)
-    assert _usage_metrics.anthropic_stream_usage([event, MESSAGE_DELTA])[3] == "standard"
-    start["message"]["usage"]["service_tier"] = "not a tier"
-    assert _usage_metrics.anthropic_stream_usage(["data: " + json.dumps(start)])[3] is None
-
-
 @pytest.mark.parametrize(
     "payload_extra, usage, tier",
     [
@@ -1302,7 +1176,7 @@ def test_the_native_anthropic_stream_wrapper_passes_the_service_tier(installed, 
     proxy.attempt(0, provider="anthropic", model="claude-haiku-4-5")
     logging_obj = type("LoggingObj", (), {"litellm_call_id": "call-1"})()
     litellm_patch.traced_anthropic_stream_events(
-        lambda *args: None, None, (["data: " + json.dumps(start), MESSAGE_DELTA], logging_obj), {}
+        lambda *args: None, None, (["data: " + json.dumps(start), MESSAGE_DELTA, MESSAGE_STOP], logging_obj), {}
     )
     proxy.succeeded(1.0, usage=ANTHROPIC_USAGE, first_chunk=0.2, model="claude-haiku-4-5")
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
@@ -1339,52 +1213,6 @@ def test_chat_stream_zero_counts(installed, writer, usage_chunk, usage, source):
     proxy.succeeded(0.5, usage=usage, first_chunk=0.1)
     [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
     assert (attempt.get("input_token_source"), attempt.get("output_token_source")) == (source, source)
-
-
-@pytest.mark.parametrize("separator", ["\u2028", "\u2029", "\u0085"])
-def test_responses_stream_usage_keeps_unicode_line_separators_in_output(separator):
-    # Unescaped in a JSON string, these characters are not SSE line endings: the usage after the output must be read.
-    completed = json.dumps(
-        {
-            "type": "response.completed",
-            "response": {
-                "model": "gpt-4o-mini-2024-07-18",
-                "output": [{"content": [{"text": "first" + separator + "last"}]}],
-                "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
-            },
-        },
-        ensure_ascii=False,
-    )
-    assert separator in completed
-    event = "event: response.completed\r\ndata: " + completed + "\r\n\r\n"
-    assert _usage_metrics.responses_stream_usage(event) == (True, True, True, "gpt-4o-mini-2024-07-18", True)
-
-
-def test_responses_stream_usage_reads_the_raw_events():
-    created = 'data: {"type": "response.created", "response": {"model": "gpt-4o-mini-2024-07-18"}}'
-    completed = json.dumps(
-        {
-            "type": "response.completed",
-            "response": {
-                "model": "gpt-4o-mini-2024-07-18",
-                "usage": {"input_tokens": 12, "output_tokens": 7, "output_tokens_details": {"reasoning_tokens": 3}},
-            },
-        }
-    )
-    assert _usage_metrics.responses_stream_usage(created) == (False, False, False, "gpt-4o-mini-2024-07-18", False)
-    assert _usage_metrics.responses_stream_usage(completed) == (True, True, True, "gpt-4o-mini-2024-07-18", True)
-    unreported = json.dumps({"type": "response.completed", "response": {"usage": None}})
-    assert _usage_metrics.responses_stream_usage(unreported) == (False, False, False, None, True)
-    # A failed response is not a finished one, such as a flex request the provider had no capacity for.
-    failed = json.dumps({"type": "response.failed", "response": {"usage": None}})
-    assert _usage_metrics.responses_stream_usage(failed) == (False, False, False, None, False)
-    assert _usage_metrics.responses_stream_usage('data: {"type": "response.output_text.delta"}') == (
-        False,
-        False,
-        False,
-        None,
-        False,
-    )
 
 
 def test_stream_wrappers_never_raise(installed):
@@ -1467,7 +1295,7 @@ def test_unpatch_removes_the_logger_from_every_callback_list(enabled):
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_a_stale_logger_does_not_keep_a_new_one_out(enabled):
     # LiteLLM registers one logger of a class, so a usage metrics logger left in its lists would win over a new one.
-    stale = UsageMetricsLogger(RecordingWriter(), frozenset(), None, {})
+    stale = UsageMetricsLogger(RecordingWriter(), frozenset(), None)
     litellm.callbacks.append(stale)
     litellm.success_callback.append(stale)
     patch()
@@ -1510,41 +1338,6 @@ def test_a_retry_no_hook_reported_is_counted_but_not_recorded(logger, writer):
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["provider_operations"] == 2
     assert logger._requests == {}
-
-
-def test_usage_fields_read_the_native_shapes():
-    # LiteLLM 1.6x hands over the response's own usage on the Responses and Anthropic Messages routes.
-    responses = {
-        "input_tokens": 12,
-        "output_tokens": 7,
-        "input_tokens_details": {"cached_tokens": 4},
-        "output_tokens_details": {"reasoning_tokens": 3},
-    }
-    assert usage_fields(responses, embeddings=False) == {
-        "input_tokens": 12,
-        "input_basis": "includes_cache",
-        "output_tokens": 7,
-        "output_basis": "includes_reasoning",
-        "cache_read_input_tokens": 4,
-        "reasoning_output_tokens": 3,
-    }
-    anthropic = {
-        "input_tokens": 10,
-        "output_tokens": 5,
-        "cache_read_input_tokens": 20,
-        "cache_creation_input_tokens": 30,
-        "cache_creation": {"ephemeral_5m_input_tokens": 18, "ephemeral_1h_input_tokens": 12},
-    }
-    assert usage_fields(anthropic, embeddings=False) == {
-        "input_tokens": 10,
-        "input_basis": "excludes_cache",
-        "output_tokens": 5,
-        "output_basis": "includes_reasoning",
-        "cache_read_input_tokens": 20,
-        "cache_write_input_tokens": 30,
-        "cache_write_5m_input_tokens": 18,
-        "cache_write_1h_input_tokens": 12,
-    }
 
 
 def test_native_usage_is_recorded_from_the_response(logger, writer):
@@ -1636,7 +1429,7 @@ def test_a_fork_does_not_inherit_the_logger_lock_or_requests():
     from ddtrace.contrib.internal.litellm._usage_metrics import UsageMetricsLogger
     from ddtrace.internal import forksafe
 
-    logger = UsageMetricsLogger(None, frozenset(), None, {})
+    logger = UsageMetricsLogger(None, frozenset(), None)
     forksafe.register(logger.reset)
     logger._request("parent-call")
     held, release = threading.Event(), threading.Event()
@@ -1887,7 +1680,7 @@ def _attributes_by_profile(writer):
     ],
 )
 def test_provider_ids_come_from_the_provider_response_headers(writer, source, provider, headers, expected):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider=provider)
@@ -1910,7 +1703,7 @@ def test_provider_ids_from_headers_are_opt_in(logger, writer):
 
 
 def test_each_provider_id_tag_enables_its_own_attribute(writer):
-    logger = UsageMetricsLogger(writer, frozenset({"project"}), None, {})
+    logger = UsageMetricsLogger(writer, frozenset({"project"}), None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0)
@@ -1932,7 +1725,7 @@ def test_each_provider_id_tag_enables_its_own_attribute(writer):
     ],
 )
 def test_missing_or_foreign_headers_give_no_provider_ids(writer, provider, headers):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider=provider)
@@ -1956,7 +1749,7 @@ def test_missing_or_foreign_headers_give_no_provider_ids(writer, provider, heade
     ],
 )
 def test_a_bedrock_model_arn_names_the_aws_account(writer, model, account):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider="bedrock", model=model)
@@ -1967,7 +1760,7 @@ def test_a_bedrock_model_arn_names_the_aws_account(writer, model, account):
 
 
 def test_a_bedrock_model_id_arn_names_the_aws_account(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider="bedrock", model="anthropic.claude-sonnet-4-5-20250929-v1:0")
@@ -1986,7 +1779,7 @@ OPERATOR_IDS = {KEY_ID: "key_01H8XYZ", ACCOUNT: "org-operator", PROJECT: "proj_o
 
 @pytest.mark.parametrize("tags", [frozenset(), PROVIDER_ID_TAGS])
 def test_operator_ids_from_model_info_are_sent_and_win(writer, tags):
-    logger = UsageMetricsLogger(writer, tags, None, {})
+    logger = UsageMetricsLogger(writer, tags, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, model_info=OPERATOR_INFO)
@@ -1999,7 +1792,7 @@ def test_operator_ids_from_model_info_are_sent_and_win(writer, tags):
 
 
 def test_operator_ids_fill_in_what_the_headers_do_not_say(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, provider="anthropic", model_info={"datadog_project_id": "wrkspc_01"})
@@ -2027,7 +1820,7 @@ def test_operator_ids_are_on_failed_attempts_and_requests(logger, writer):
 
 
 def test_the_gateway_request_has_the_provider_ids_of_its_last_attempt(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, model_id="primary", model_info={"datadog_provider_account_id": "acct-primary"})
@@ -2042,7 +1835,7 @@ def test_the_gateway_request_has_the_provider_ids_of_its_last_attempt(writer):
 
 
 def test_a_cache_hit_has_no_provider_ids(writer):
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.succeeded(0.1, usage=CHAT_USAGE, cost=0.0, cache_hit=True, response=Response(OPENAI_HEADERS))
@@ -2084,7 +1877,7 @@ def test_service_tier_is_the_tier_the_provider_served(logger, writer, payload_ex
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_native_points_carry_the_service_tier_and_provider_ids():
     writer = NativeWriter()
-    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None, {})
+    logger = UsageMetricsLogger(writer, PROVIDER_ID_TAGS, None)
     proxy = Proxy(logger)
     proxy.start()
     proxy.attempt(0, model_info={"datadog_api_key_id": "key_01H8XYZ"})

@@ -70,8 +70,7 @@ class LiteLLMUsageMetrics(bm.Scenario):
             writer = UsageMetricsWriter("otlp", interval=60)
             # What one proxied call records: its provider attempt, its token breakdown and its gateway request.
             for _ in range(loops):
-                writer.record(provider_attempt, attempt, attributes)
-                writer.record(token_breakdown, attempt, attributes)
+                writer.record_all([provider_attempt, token_breakdown], attempt, attributes)
                 writer.record(gateway_request, gateway, attributes)
 
         yield _
