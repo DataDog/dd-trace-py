@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where Test Optimization could not connect to a Datadog Agent
+    listening on a Unix domain socket, as with ``DD_TRACE_AGENT_URL=unix:///path/to/apm.socket``,
+    or with ``/var/run/datadog/apm.socket``, which it uses when that file exists and no agent URL,
+    host or port is set. It sent its check of the Agent to the socket's path followed by
+    ``/info``, which the Agent answered with 404 Not Found, and Test Optimization turned itself
+    off for the session.
