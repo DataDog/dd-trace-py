@@ -1,5 +1,5 @@
 variables:
-  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v147323619-47c5179-testrunner@sha256:d58e6573df2030a237764832ae4a2b675f6a3cc437b78b0caa3a682f37506fc5
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v150993080-bbc05ac-testrunner@sha256:48405812ac3d7b79fe1bdf83e54f03a1b1adb4916ac181be64df07964410df31
 
 .testrunner:
   extends: .retry_on_infrastructure_failure
@@ -14,6 +14,7 @@ variables:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15
+    - python3 .gitlab/scripts/check-libclang.py
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh

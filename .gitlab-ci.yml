@@ -24,7 +24,7 @@ variables:
   SYSTEM_TESTS_REF: "339de2815c638ce0faa98e02570301ad82e2473b"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v150993083-bbc05ac-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
@@ -206,7 +206,7 @@ microbenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+            IMAGE_TAG: "v150993077-bbc05ac-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -235,7 +235,7 @@ macrobenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+            IMAGE_TAG: "v150993077-bbc05ac-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
@@ -831,6 +831,7 @@ lib_injection_tests:
     # dir. The image's ld.so.conf can point at older patch dirs than pyenv
     # actually installed, so put the selected interpreter's lib on the path.
     - export LD_LIBRARY_PATH="$(pyenv prefix)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    - python .gitlab/scripts/check-libclang.py
   script:
     - python --version
     # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.

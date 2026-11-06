@@ -47,6 +47,7 @@ RUN apt-get update \
       git \
       jq \
       libbz2-dev \
+      libclang-dev \
       libenchant-2-dev \
       libffi-dev \
       libjemalloc2 \
@@ -149,5 +150,8 @@ RUN pip install --no-cache-dir -U "uv==${UV_VERSION}"
 
 # Python builds and installers can leave extracted CA bundles in temporary files.
 RUN find /tmp -maxdepth 1 -type f -name 'tmp*' -delete
+
+# Fail image publication if the shared C API cannot be loaded on either architecture.
+RUN python3 -c 'import ctypes, glob; lib = ctypes.CDLL(glob.glob("/usr/lib/llvm-*/lib/libclang.so")[0]); assert lib.clang_createIndex'
 
 CMD ["/bin/bash"]

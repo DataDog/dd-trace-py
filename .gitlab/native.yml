@@ -7,7 +7,9 @@ include:
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
-  before_script: cd src/native
+  before_script:
+    - python3 .gitlab/scripts/check-libclang.py
+    - cd src/native
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_fmt[collapsed=true]\r\e[0Kcargo fmt"
@@ -39,7 +41,7 @@ include:
 
 "clang-tidy profiling":
   stage: tests
-  image: registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native
+  image: registry.ddbuild.io/dd-trace-py:v150993083-bbc05ac-profiling_native
   tags: ["arch:amd64"]
   timeout: 20m
   needs: []

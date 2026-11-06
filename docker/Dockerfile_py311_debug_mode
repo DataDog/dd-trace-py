@@ -27,6 +27,7 @@ RUN \
       gnupg \
       jq \
       libbz2-dev \
+      libclang-dev \
       libffi-dev \
       liblzma-dev \
       libmemcached-dev \
