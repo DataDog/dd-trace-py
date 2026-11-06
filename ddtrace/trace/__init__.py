@@ -1,5 +1,3 @@
-import sys
-
 from ddtrace._trace.context import Context
 from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.provider import BaseContextProvider
@@ -26,12 +24,6 @@ def _on_asm_tracer_reconfigure(appsec_enabled: bool, origin: str) -> None:
 
 
 core.on("asm.tracer.reconfigure", _on_asm_tracer_reconfigure)
-
-
-if sys.platform == "linux":
-    from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
-
-    register_otel_thread_context_listener(tracer)
 
 
 __all__ = [
