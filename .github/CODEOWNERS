@@ -198,6 +198,8 @@ benchmarks/bm/iast_utils*           @DataDog/asm-python
 ddtrace/aiguard/                    @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
+ddtrace/contrib/internal/filesystem/         @DataDog/asm-python
+ddtrace/contrib/_events/filesystem.py        @DataDog/asm-python
 ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/asm-python
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
@@ -215,6 +217,7 @@ ddtrace/internal/settings/asm.py             @DataDog/asm-python
 tests/aiguard/                      @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
+tests/contrib/filesystem/           @DataDog/asm-python
 tests/contrib/trio                  @DataDog/apm-core-python @DataDog/asm-python
 tests/internal/test_libddwaf_platform.py @DataDog/apm-core-python @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
