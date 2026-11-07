@@ -129,11 +129,25 @@ def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] 
         stderr = str(e)
         log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
 
-    # Tags collected from CI provider take precedence over extracted git metadata, but any CI provider value
-    # is None or "" should be overwritten.
+    if git_info.get(git.COMMIT_SHA):
+        tags = {
+            key: value
+            for key, value in tags.items()
+            if not key.startswith("git.") or key.startswith(("git.commit.head.", "git.pull_request."))
+        }
     tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
 
     user_specified_git_info = git.extract_user_git_metadata(environ)
+    explicit_sha = user_specified_git_info.get(git.COMMIT_SHA)
+    if explicit_sha and explicit_sha.lower() != (tags.get(git.COMMIT_SHA) or "").lower():
+        if git.is_ref_a_tag(tags.get(git.BRANCH)):
+            tags.pop(git.BRANCH, None)
+        tags = {
+            key: value
+            for key, value in tags.items()
+            if key != git.TAG
+            and not (key.startswith("git.commit.") and key != git.COMMIT_SHA and not key.startswith("git.commit.head."))
+        }
 
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})

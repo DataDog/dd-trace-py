@@ -281,17 +281,28 @@ class Git:
         return self._call_git(["rev-parse", "@{upstream}"])
 
     def get_branch(self) -> str:
-        return self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
+        branch = self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
+        return "" if branch == "HEAD" else branch
+
+    def get_tag(self) -> str:
+        tags = self._git_output(["tag", "--no-column", "--points-at", "HEAD"]).splitlines()
+        return tags[0] if len(tags) == 1 else ""
 
     def get_commit_message(self, commit_sha: t.Optional[str] = None) -> str:
-        command = ["show", "-s", "--format=%s"]
+        command = ["show", "-s", "--no-show-signature", "--format=%s"]
         if commit_sha:
             command.append(commit_sha)
 
         return self._git_output(command)
 
     def get_user_info(self, commit_sha: t.Optional[str] = None) -> t.Optional[GitUserInfo]:
-        command = ["show", "-s", "--format=%an|||%ae|||%ad|||%cn|||%ce|||%cd", "--date=format:%Y-%m-%dT%H:%M:%S%z"]
+        command = [
+            "show",
+            "-s",
+            "--no-show-signature",
+            "--format=%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd",
+            "--date=format:%Y-%m-%dT%H:%M:%S%z",
+        ]
         if commit_sha:
             command.append(commit_sha)
 
@@ -299,7 +310,7 @@ class Git:
         if not output:
             return None
 
-        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("|||")
+        author_name, author_email, author_date, committer_name, committer_email, committer_date = output.split("\0")
         return GitUserInfo(
             author_name=author_name,
             author_email=author_email,
@@ -579,10 +590,12 @@ def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
         log.warning("Error getting git data: %s", e)
         return {}
 
+    branch = git.get_branch()
     tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: git.get_repository_url(),
         GitTag.COMMIT_SHA: git.get_commit_sha(),
-        GitTag.BRANCH: git.get_branch(),
+        GitTag.BRANCH: branch,
+        GitTag.TAG: git.get_tag() if not branch else None,
         GitTag.COMMIT_MESSAGE: git.get_commit_message(),
     }
 

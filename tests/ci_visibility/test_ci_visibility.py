@@ -538,6 +538,18 @@ def test_git_client_get_repository_url(git_repo):
     assert remote_url == "git@github.com:test-repo-url.git"
 
 
+@pytest.mark.parametrize("tags", [{}, {ci.git.COMMIT_SHA: "a" * 40}])
+def test_git_client_get_repository_url_redacts_partial_metadata_fallback(tags):
+    with mock.patch(
+        "ddtrace.internal.ci_visibility.git_client.extract_remote_url",
+        return_value="https://user:secret-token@example.com/repository.git",
+    ):
+        remote_url = CIVisibilityGitClient._get_repository_url(tags=tags)
+
+    assert remote_url == "https://example.com/repository.git"
+    assert "secret-token" not in remote_url
+
+
 def test_git_client_get_repository_url_env_var_precedence(git_repo):
     remote_url = CIVisibilityGitClient._get_repository_url(
         tags={ci.git.REPOSITORY_URL: "https://github.com/Datadog/dd-trace-py"}, cwd=git_repo
@@ -632,7 +644,8 @@ def test_git_client_get_filtered_revisions(git_repo):
 
 
 @pytest.mark.parametrize("requests_mode", [REQUESTS_MODE.AGENTLESS_EVENTS, REQUESTS_MODE.EVP_PROXY_EVENTS])
-def test_git_client_upload_packfiles(git_repo, requests_mode):
+@pytest.mark.parametrize("commit_sha", [None, "c" * 40])
+def test_git_client_upload_packfiles(git_repo, requests_mode, commit_sha):
     serializer = CIVisibilityGitClientSerializerV1("foo")
     remote_url = "git@github.com:test-repo-url.git"
     with _build_git_packfiles_with_details("%s\n" % TEST_SHA_1, cwd=git_repo) as (packfiles_path, packfiles_details):
@@ -641,7 +654,7 @@ def test_git_client_upload_packfiles(git_repo, requests_mode):
                 status=200,
             )
             CIVisibilityGitClient._upload_packfiles(
-                requests_mode, "", remote_url, packfiles_path, serializer, None, cwd=git_repo
+                requests_mode, "", remote_url, packfiles_path, serializer, None, cwd=git_repo, commit_sha=commit_sha
             )
             assert dr.call_count == 1
             call_args = dr.call_args_list[0][0]
@@ -649,6 +662,8 @@ def test_git_client_upload_packfiles(git_repo, requests_mode):
             assert call_args[0] == requests_mode
             assert call_args[1] == ""
             assert call_args[2] == "/packfile"
+            if commit_sha is not None:
+                assert commit_sha.encode() in call_args[3]
             assert call_args[3].startswith(b"------------boundary------\r\nContent-Disposition: form-data;")
             assert call_kwargs["headers"] == {"Content-Type": "multipart/form-data; boundary=----------boundary------"}
 

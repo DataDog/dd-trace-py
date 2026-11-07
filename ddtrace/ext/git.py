@@ -281,11 +281,13 @@ def _unshallow_repository(
 def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> dict[str, tuple[str, str, str]]:
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    cmd = "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z"
+    cmd = (
+        "show -s --no-show-signature --format=%an%x00%ae%x00%ad%x00%cn%x00%ce%x00%cd --date=format:%Y-%m-%dT%H:%M:%S%z"
+    )
     if commit_sha:
         cmd += " " + commit_sha
     stdout = _git_subprocess_cmd(cmd=cmd, cwd=cwd)
-    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split("|||")
+    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split("\0")
     return {
         "author": (author_name, author_email, author_date),
         "committer": (committer_name, committer_email, committer_date),
@@ -374,7 +376,7 @@ def extract_repository_url(cwd: Optional[str] = None) -> str:
 def extract_commit_message(cwd: Optional[str] = None) -> str:
     """Extract git commit message from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    commit_message = _git_subprocess_cmd("show -s --format=%s", cwd=cwd)
+    commit_message = _git_subprocess_cmd("show -s --no-show-signature --format=%s", cwd=cwd)
     return commit_message
 
 
@@ -426,7 +428,7 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata."""
     tags: dict[str, Optional[str]] = {}
     try:
-        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
+        tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
         users = extract_user_info(cwd=cwd)
         tags[COMMIT_AUTHOR_NAME] = users["author"][0]
@@ -435,8 +437,14 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
         tags[COMMIT_COMMITTER_NAME] = users["committer"][0]
         tags[COMMIT_COMMITTER_EMAIL] = users["committer"][1]
         tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
-        tags[BRANCH] = extract_branch(cwd=cwd)
-        tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
+        branch = extract_branch(cwd=cwd)
+        if branch != "HEAD":
+            tags[BRANCH] = branch
+        if branch == "HEAD":
+            local_tags = _git_subprocess_cmd(["tag", "--no-column", "--points-at", "HEAD"], cwd=cwd).splitlines()
+            if len(local_tags) == 1:
+                tags[TAG] = local_tags[0]
+        tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError as e:

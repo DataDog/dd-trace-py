@@ -42,6 +42,14 @@ def override_testing_logger():
 
 class TestAPIClientGetSettings:
     @pytest.mark.parametrize(
+        "git_ref,expected_branch",
+        [
+            ({GitTag.BRANCH: "some-branch"}, "some-branch"),
+            ({GitTag.TAG: "v1.0"}, "v1.0"),
+            ({}, "auto:git-detached-head"),
+        ],
+    )
+    @pytest.mark.parametrize(
         "efd_enabled, atr_enabled, test_management_enabled, attempt_to_fix_retries, "
         "known_tests_enabled, coverage_enabled, skipping_enabled, require_git, itr_enabled",
         [
@@ -53,6 +61,8 @@ class TestAPIClientGetSettings:
     def test_get_settings(
         self,
         mock_telemetry: Mock,
+        git_ref: dict[str, str],
+        expected_branch: str,
         efd_enabled: bool,
         atr_enabled: bool,
         test_management_enabled: bool,
@@ -105,7 +115,7 @@ class TestAPIClientGetSettings:
             env_tags={
                 GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
                 GitTag.COMMIT_SHA: "abcd1234",
-                GitTag.BRANCH: "some-branch",
+                **git_ref,
                 GitTag.COMMIT_MESSAGE: "I am a commit",
             },
             itr_skipping_level=ITRSkippingLevel.TEST,
@@ -132,7 +142,7 @@ class TestAPIClientGetSettings:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "sha": "abcd1234",
-                            "branch": "some-branch",
+                            "branch": expected_branch,
                             "configurations": {"os.platform": "Linux"},
                         },
                     }
@@ -840,7 +850,8 @@ class TestAPIClientGetTestManagementTests:
         }
     }
 
-    def test_get_test_management_tests(self, mock_telemetry: Mock) -> None:
+    @pytest.mark.parametrize("commit_message", [None, "", "I am a commit"])
+    def test_get_test_management_tests(self, mock_telemetry: Mock, commit_message: t.Optional[str]) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/test/libraries/test-management/tests",
@@ -850,15 +861,23 @@ class TestAPIClientGetTestManagementTests:
         mock_connector_setup = Mock()
         mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
 
+        env_tags = {
+            GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+            GitTag.COMMIT_SHA: "abcd1234",
+            GitTag.BRANCH: "some-branch",
+        }
+        attributes = {
+            "repository_url": "http://github.com/DataDog/some-repo.git",
+            "sha": "abcd1234",
+        }
+        if commit_message is not None:
+            env_tags[GitTag.COMMIT_MESSAGE] = commit_message
+            attributes["commit_message"] = commit_message
+
         api_client = APIClient(
             service="some-service",
             env="some-env",
-            env_tags={
-                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
-                GitTag.COMMIT_SHA: "abcd1234",
-                GitTag.BRANCH: "some-branch",
-                GitTag.COMMIT_MESSAGE: "I am a commit",
-            },
+            env_tags=env_tags,
             itr_skipping_level=ITRSkippingLevel.TEST,
             configurations={
                 "os.platform": "Linux",
@@ -877,11 +896,7 @@ class TestAPIClientGetTestManagementTests:
                     "data": {
                         "id": "00000000-0000-0000-0000-000000000000",
                         "type": "ci_app_libraries_tests_request",
-                        "attributes": {
-                            "repository_url": "http://github.com/DataDog/some-repo.git",
-                            "commit_message": "I am a commit",
-                            "sha": "abcd1234",
-                        },
+                        "attributes": attributes,
                     }
                 },
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
