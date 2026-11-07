@@ -355,6 +355,11 @@ def format_anthropic_tool_result_content(content) -> str:
             elif _get_attr(tool_result_block, "type", None) == "image":
                 # Store a placeholder for potentially enormous binary image data.
                 formatted_content.append(IMAGE_DETECTED_MARKER)
+            elif _get_attr(tool_result_block, "type", None) == "search_result":
+                # A search result carries its text blocks under its own `content`.
+                search_text = format_anthropic_tool_result_content(_get_attr(tool_result_block, "content", None) or [])
+                if search_text:
+                    formatted_content.append(search_text)
         return ",".join(formatted_content)
     return str(content)
 

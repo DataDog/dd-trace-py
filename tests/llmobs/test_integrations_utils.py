@@ -1778,6 +1778,20 @@ class TestAnthropicContentBlocks:
 
         assert messages[0]["tool_results"] == [{"result": "18C", "tool_id": "toolu_01", "type": "tool_result"}]
 
+    def test_tool_result_with_search_result_blocks(self):
+        """A search_result block keeps its text under its own `content`, not under `text`."""
+        search_result = {
+            "type": "search_result",
+            "source": "https://example.com/paris",
+            "title": "Paris weather",
+            "content": [{"type": "text", "text": "18C and sunny"}],
+        }
+        block = {"type": "tool_result", "tool_use_id": "toolu_01", "content": [search_result, {"text": "cached"}]}
+
+        messages = get_messages_from_anthropic_content("user", [block])
+
+        assert messages[0]["tool_results"][0]["result"] == "18C and sunny,cached"
+
     def test_non_iterable_content(self):
         assert get_messages_from_anthropic_content("assistant", None) == []
 
