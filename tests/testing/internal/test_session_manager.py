@@ -1606,23 +1606,22 @@ class TestUnshallowMarker:
         self._write_marker(tmp_path, head_sha="other-sha")
         assert sm._read_unshallow_done(self._make_mock_git()) is False
 
-    def test_marker_uses_local_head_not_ci_provider_sha(self, tmp_path) -> None:
-        """The marker is keyed on the local HEAD, not the CI-provider COMMIT_SHA.
-
-        CI providers can set GitTag.COMMIT_SHA to the PR source commit while the
-        local checkout is at a different (e.g. merge) commit; the fetch deepens
-        the *local* history, so only the local HEAD is a valid marker key.
-        """
-        sm = self._make_sm(tmp_path, head_sha="ci-provider-sha")
+    def test_marker_tracks_selected_sha_and_local_head(self, tmp_path) -> None:
+        """An explicit SHA override must not reuse another selection's fetch marker."""
+        sm = self._make_sm(tmp_path, head_sha="selected-sha")
         mock_git = self._make_mock_git(head_sha="head-sha")
 
-        # A marker keyed on the CI-provider SHA is not honored.
-        self._write_marker(tmp_path, head_sha="ci-provider-sha")
+        self._write_marker(tmp_path, head_sha="head-sha")
         assert sm._read_unshallow_done(mock_git) is False
 
-        # A marker keyed on the local HEAD is.
-        self._write_marker(tmp_path, head_sha="head-sha")
+        sm._mark_unshallow_done(mock_git)
         assert sm._read_unshallow_done(mock_git) is True
+        sm.env_tags["git.commit.sha"] = "another-selection"
+        assert sm._read_unshallow_done(mock_git) is False
+        sm.env_tags["git.commit.sha"] = "selected-sha"
+        assert sm._read_unshallow_done(mock_git) is True
+        mock_git.get_commit_sha.return_value = "another-checkout"
+        assert sm._read_unshallow_done(mock_git) is False
 
     def test_reshallowed_checkout_rejects_marker(self, tmp_path) -> None:
         """A re-shallow at the same commit (a different shallow boundary) re-fetches.

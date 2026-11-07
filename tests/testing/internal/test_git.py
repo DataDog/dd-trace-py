@@ -215,7 +215,9 @@ class TestGit:
 
         assert result == ["abc123", "def456", "ghi789"]
         mock_git_output.assert_called_once_with(
-            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
+            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'],
+            GitTelemetry.GET_LOCAL_COMMITS,
+            local_only=True,
         )
 
     @patch("shutil.which")
@@ -256,6 +258,7 @@ class TestGit:
                 "include1",
             ],
             GitTelemetry.GET_OBJECTS,
+            local_only=True,
         )
 
 
