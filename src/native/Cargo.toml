@@ -95,3 +95,11 @@ build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0",
 name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
+
+[replace]
+"git+https://github.com/DataDog/libdatadog?rev=v48.0.0#libdd-telemetry@11.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "e63b2cd13163351be9865b6ee70d4aa79d1856f1" }
+"git+https://github.com/DataDog/libdatadog?rev=e63b2cd13163351be9865b6ee70d4aa79d1856f1#libdd-capabilities@4.0.1" = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
+# Keep the released common crate so its TLS security pins apply to all callers.
+"git+https://github.com/DataDog/libdatadog?rev=e63b2cd13163351be9865b6ee70d4aa79d1856f1#libdd-common@9.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
+"git+https://github.com/DataDog/libdatadog?rev=e63b2cd13163351be9865b6ee70d4aa79d1856f1#libdd-ddsketch@1.1.4" = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
+"git+https://github.com/DataDog/libdatadog?rev=e63b2cd13163351be9865b6ee70d4aa79d1856f1#libdd-shared-runtime@7.0.0" = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }

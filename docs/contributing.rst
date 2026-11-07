@@ -97,6 +97,9 @@ directly. GitLab does not mirror branches from external forks. Pushing the fork'
 branch in this repository can start GitLab, but it does not trigger the required System Tests
 workflow; that requires a pull request owned by this repository.
 
+On fork PRs, the System Tests workflow skips the S3 wheel download and all jobs that use those
+wheels. The ``system-tests finished`` check can pass when these jobs are skipped.
+
 If you're a maintainer merging a fork PR, the mirror moves its code into a trusted CI context with
 access to credentials. The reviewer owns that trust decision. Follow this process:
 

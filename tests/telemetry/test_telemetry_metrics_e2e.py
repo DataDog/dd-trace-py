@@ -1,9 +1,13 @@
 from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import select
 import subprocess
 import sys
+import threading
 
 import pytest
 
@@ -145,3 +149,116 @@ for _ in range(9):
     assert metrics_sf[0]["metric"] == "spans_finished"
     assert metrics_sf[0]["tags"] == ["integration_name:otel"]
     assert metrics_sf[0]["points"][0][1] == 9
+
+
+def test_metric_burst_during_slow_telemetry_request():
+    """A full metric buffer drops points silently and still lets the application export a trace."""
+    telemetry_received = threading.Event()
+    resume = threading.Event()
+    request_still_open = threading.Event()
+    trace_received = threading.Event()
+    metrics = []
+
+    class Agent(BaseHTTPRequestHandler):
+        def handle_request(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            if self.path == "/resume":
+                resume.set()
+            elif self.path.endswith("/traces"):
+                trace_received.set()
+            elif self.path.endswith("/apmtelemetry"):
+                request = json.loads(body)
+                events = request["payload"] if request["request_type"] == "message-batch" else [request]
+                for event in events:
+                    if event["request_type"] == "generate-metrics":
+                        metrics.extend(event["payload"]["series"])
+                if not telemetry_received.is_set():
+                    telemetry_received.set()
+                    resume.wait()
+                    # With the request body consumed, a readable socket signals that the client disconnected.
+                    if not select.select([self.connection], [], [], 0)[0]:
+                        request_still_open.set()
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        do_GET = do_POST = do_PUT = handle_request
+
+        def log_message(self, *args):
+            pass
+
+    code = """
+from http.client import HTTPConnection
+import os
+import sys
+
+from ddtrace.internal.native._native import logger
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.trace import tracer
+
+assert telemetry_writer.enable()
+tracer._span_aggregator.writer._sync_mode = True
+input()
+logger.set_log_level("debug")
+for _ in range(2500):
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "burst", 1)
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "burst", 1, (("kind", "tagged"),))
+
+logger.set_log_level("error")
+with tracer.trace("test"):
+    pass
+
+conn = HTTPConnection("127.0.0.1", int(sys.argv[1]), timeout=5)
+conn.request("GET", "/resume")
+assert conn.getresponse().status == 200
+conn.close()
+telemetry_writer.periodic(force_flush=True)
+telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "after_burst", 1)
+telemetry_writer.periodic(force_flush=True)
+os._exit(0)
+"""
+    with ThreadingHTTPServer(("127.0.0.1", 0), Agent) as server:
+        port = server.server_port
+        # Use the local Agent even when the parent configures agentless or OTLP export.
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("DD_", "_DD_", "DATADOG_", "OTEL_"))}
+        env.update(
+            DD_TRACE_AGENT_URL=f"http://127.0.0.1:{port}",
+            DD_TELEMETRY_HEARTBEAT_INTERVAL="1",
+            _DD_NATIVE_LOGGING_BACKEND="stderr",
+            _DD_NATIVE_LOGGING_LOG_LEVEL="error",
+        )
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            with subprocess.Popen(
+                [sys.executable, "-c", code, str(port)],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                env=env,
+            ) as process:
+                try:
+                    assert telemetry_received.wait(15), "the worker did not contact the Agent"
+                    process.stdin.write(b"\n")
+                    process.stdin.flush()
+                    # Leave stderr unread so per-point diagnostics would fill the pipe and block the caller.
+                    process.wait(timeout=15)
+                finally:
+                    process.kill()
+                    _, stderr = process.communicate(timeout=5)
+        finally:
+            resume.set()
+            server.shutdown()
+            thread.join()
+
+    assert process.returncode == 0, stderr
+    assert trace_received.is_set(), "the synchronous exporter did not send a trace"
+    assert request_still_open.is_set(), "the application waited until the telemetry request timed out"
+    assert b"telemetry: dropped metric point" not in stderr
+    assert b"Error sending telemetry" not in stderr
+    burst_count = sum(value for series in metrics if series["metric"] == "burst" for _, value in series["points"])
+    assert 0 < burst_count < 5000, burst_count
+    recovered = [value for series in metrics if series["metric"] == "after_burst" for _, value in series["points"]]
+    assert recovered == [1]
