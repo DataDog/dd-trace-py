@@ -303,7 +303,7 @@ def test_regression_graphql_error_locations_none():
     "service_name, schema_version",
     [(None, None), ("my-service", None), (None, "v0"), ("my-service", "v0"), (None, "v1"), ("my-service", "v1")],
 )
-def test_span_schematization(ddtrace_run_python_code_in_subprocess, schema_version, service_name):
+def test_span_schematization(python_process, schema_version, service_name):
     code = """
 import sys
 import pytest
@@ -325,6 +325,6 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service_name
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, out.decode()
     assert err == b"", err.decode()

@@ -98,12 +98,12 @@ assert spans == [("{sdk}.request", "llm")], spans
 
 
 @pytest.mark.parametrize("sdk", sorted(_CALLS))
-def test_llmobs_with_iast_after_watchdog_reorder(sdk, run_python_code_in_subprocess):
+def test_llmobs_with_iast_after_watchdog_reorder(sdk, python_process):
     """LLM Obs must trace an SDK that IAST rewrites on import.
 
     The SDK is allowlisted for IAST, as happens when it is classified as first-party code.
     """
     code = _TEST_CODE.format(sdk=sdk, call=_CALLS[sdk])
     env = os.environ | {"DD_IAST_ENABLED": "true", "DD_LLMOBS_ENABLED": "false", "_DD_IAST_PATCH_MODULES": f"{sdk}."}
-    out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env)
     assert status == 0, (out.decode(), err.decode())

@@ -1,8 +1,5 @@
 import os
-import subprocess
-import sys
 
-from tests.conftest import create_ddtrace_subprocess_dir_and_return_test_pyfile
 from tests.utils import snapshot
 
 
@@ -30,32 +27,23 @@ else:
 """
 
 
-def do_test(tmpdir, es_version):
-    f = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
-    f.write(code % es_version)
+def do_test(python_process, tmpdir, es_version):
     env = os.environ.copy()
     # ddtrace-run patches sqlite3 which is used by coverage to store coverage
     # results. This generates sqlite3 spans during the test run which interfere
     # with the snapshot. So disable sqlite3.
     env.update({"DD_TRACE_SQLITE3_ENABLED": "false"})
-    p = subprocess.Popen(
-        ["ddtrace-run", sys.executable, str(f)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=env,
-    )
-    stdout, stderr = p.communicate()
-    assert stderr == b"", stderr
-    assert stdout == b"", stdout
-    assert p.returncode == 0
+    result = python_process(code % es_version, ddtrace_run=True, cwd=str(tmpdir), env=env)
+    result.check_returncode()
+    assert result.stderr == b"", result.stderr
+    assert result.stdout == b"", result.stdout
 
 
 @snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
-def test_elasticsearch(tmpdir):
-    do_test(tmpdir, "elasticsearch")
+def test_elasticsearch(python_process, tmpdir):
+    do_test(python_process, tmpdir, "elasticsearch")
 
 
 @snapshot(async_mode=False, ignores=SNAPSHOT_IGNORES)
-def test_elasticsearch7(tmpdir):
-    do_test(tmpdir, "elasticsearch7")
+def test_elasticsearch7(python_process, tmpdir):
+    do_test(python_process, tmpdir, "elasticsearch7")

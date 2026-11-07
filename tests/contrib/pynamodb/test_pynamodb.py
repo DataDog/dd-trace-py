@@ -145,7 +145,7 @@ class PynamodbTest(TracerTestCase):
         assert span.error == 1
         assert span.get_tag("error.type") != ""
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     @mock_aws
     def test_schematized_service_default(self):
         from ddtrace import config
@@ -160,7 +160,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_aws
     def test_schematized_service_v0(self):
         from ddtrace import config
@@ -175,7 +175,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_aws
     def test_schematized_service_v1(self):
         from ddtrace import config
@@ -190,7 +190,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @pytest.mark.subprocess(env=dict())
     @mock_aws
     def test_schematized_unspecified_service_default(self):
         self._create_table()
@@ -201,7 +201,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_aws
     def test_schematized_unspecified_service_v0(self):
         self._create_table()
@@ -212,7 +212,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_aws
     def test_schematized_unspecified_service_v1(self):
         self._create_table()
@@ -225,7 +225,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     @mock_aws
     def test_schematized_operation_v0(self):
         self._create_table()
@@ -236,7 +236,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     @mock_aws
     def test_schematized_operation_v1(self):
         self._create_table()
@@ -247,7 +247,7 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYNAMODB_SERVICE="mypynamodb"))
+    @pytest.mark.subprocess(env=dict(DD_PYNAMODB_SERVICE="mypynamodb"))
     @mock_aws
     def test_env_user_specified_pynamodb_service(self):
         self._create_table()
@@ -271,7 +271,7 @@ class PynamodbTest(TracerTestCase):
             assert len(list_result["TableNames"]) == 1
             assert list_result["TableNames"][0] == "Test"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_PYNAMODB_SERVICE="env-pynamodb"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="app-svc", DD_PYNAMODB_SERVICE="env-pynamodb"))
     @mock_aws
     def test_service_precedence(self):
         self._create_table()

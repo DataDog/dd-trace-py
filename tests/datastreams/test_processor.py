@@ -299,7 +299,7 @@ run_test()
     assert result.stdout.decode().strip() == "Fake flush called"
 
 
-def test_processor_flushes_on_sigint(ddtrace_run_python_code_in_subprocess):
+def test_processor_flushes_on_sigint(python_process):
     """DataStreamsProcessor must flush on SIGINT without producing a ddtrace traceback."""
     code = """
 import os
@@ -318,12 +318,12 @@ os.kill(os.getpid(), signal.SIGINT)
 """
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    out, err, _, _ = python_process(code, env=env, timeout=5, ddtrace_run=True)
     assert "Fake flush called" in out.decode()
     assert b"wrap_signals" not in err
 
 
-def test_processor_flushes_on_sigint_asyncio(ddtrace_run_python_code_in_subprocess):
+def test_processor_flushes_on_sigint_asyncio(python_process):
     """DataStreamsProcessor must flush via atexit when SIGINT interrupts asyncio.run().
 
     Under asyncio.Runner, SIGINT is consumed by asyncio's own handler rather than
@@ -353,12 +353,12 @@ asyncio.run(main())
 """
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    out, err, _, _ = python_process(code, env=env, timeout=5, ddtrace_run=True)
     assert "Fake flush called" in out.decode()
     assert b"wrap_signals" not in err
 
 
-def test_threaded_import(ddtrace_run_python_code_in_subprocess):
+def test_threaded_import(python_process):
     code = """
 import pytest
 import sys
@@ -380,7 +380,7 @@ t.join()
 
     env = os.environ.copy()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    _, err, _, _ = python_process(code, env=env, timeout=5, ddtrace_run=True)
     assert err.decode().strip() == ""
 
 

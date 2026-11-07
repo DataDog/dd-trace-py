@@ -621,7 +621,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_service_name_schema(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_service_name_schema(python_process, schema_version):
     expected_service_name = {
         None: "cherrypy",
         "v0": "cherrypy",
@@ -673,13 +673,13 @@ if __name__ == "__main__":
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     env["DD_SERVICE"] = "mysvc"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (err, out)
     assert b"2 passed" in out
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_operation_name_schema(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_operation_name_schema(python_process, schema_version):
     expected_operation_name = {
         None: "cherrypy.request",
         "v0": "cherrypy.request",
@@ -731,6 +731,6 @@ if __name__ == "__main__":
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     env["DD_SERVICE"] = "mysvc"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (err, out)
     assert b"2 passed" in out

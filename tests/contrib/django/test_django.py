@@ -1842,9 +1842,7 @@ def test_service_can_be_overridden(client, test_spans):
 
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_default_service_name(
-    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
-):
+def test_schematized_default_service_name(python_process, schema_version, global_service_name, request):
     expected_service_name = {
         None: global_service_name or "django",
         "v0": global_service_name or "django",
@@ -1879,10 +1877,7 @@ if __name__ == "__main__":
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if global_service_name is not None:
         env["DD_SERVICE"] = global_service_name
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (out, err)
 
 
@@ -1890,9 +1885,7 @@ if __name__ == "__main__":
     "schema_version, global_service_name",
     [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
 )
-def test_schematized_default_db_service_name(
-    ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
-):
+def test_schematized_default_db_service_name(python_process, schema_version, global_service_name, request):
     expected_service_name = {
         None: "defaultdb",
         "v0": "defaultdb",
@@ -1929,15 +1922,12 @@ with setup_django_test_spans() as test_spans, with_default_django_db(test_spans)
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if global_service_name is not None:
         env["DD_SERVICE"] = global_service_name
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (out, err)
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
-def test_schematized_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
+def test_schematized_operation_name(python_process, schema_version):
     expected_operation_name = {None: "django.request", "v0": "django.request", "v1": "http.server.request"}[
         schema_version
     ]
@@ -1968,10 +1958,7 @@ if __name__ == "__main__":
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        code,
-        env=env,
-    )
+    out, err, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, (out, err)
 
 
@@ -2556,16 +2543,15 @@ def test_django_use_handler_with_url_name_resource_format_env(client, test_spans
         ("DD_DJANGO_INSTRUMENT_TEMPLATES", "instrument_templates"),
     ],
 )
-def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):
+def test_enable_django_instrument_env(env_var, instrument_x, python_process):
     """
     Test that {env} enables instrumentation
     """
 
     env = os.environ.copy()
     env[env_var] = "true"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        f"import ddtrace;import django;assert ddtrace.config.django.{instrument_x}",
-        env=env,
+    out, err, status, _ = python_process(
+        f"import ddtrace;import django;assert ddtrace.config.django.{instrument_x}", env=env, ddtrace_run=True
     )
 
     assert status == 0, (out, err)
@@ -2580,16 +2566,15 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
         ("DD_DJANGO_INSTRUMENT_TEMPLATES", "instrument_templates"),
     ],
 )
-def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):
+def test_disable_django_instrument_env(env_var, instrument_x, python_process):
     """
     Test that {env} disables instrumentation
     """
 
     env = os.environ.copy()
     env[env_var] = "false"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
-        f"import ddtrace;import django;assert not ddtrace.config.django.{instrument_x}",
-        env=env,
+    out, err, status, _ = python_process(
+        f"import ddtrace;import django;assert not ddtrace.config.django.{instrument_x}", env=env, ddtrace_run=True
     )
 
     assert status == 0, (out, err)

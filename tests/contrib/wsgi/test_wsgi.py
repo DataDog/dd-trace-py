@@ -626,7 +626,7 @@ def test_get_request_headers(extra, expected):
     "service_name, schema_version",
     [(None, None), ("mysvc", None), (None, "v0"), ("mysvc", "v0"), (None, "v1"), ("mysvc", "v1")],
 )
-def test_schematization(ddtrace_run_python_code_in_subprocess, service_name, schema_version):
+def test_schematization(python_process, service_name, schema_version):
     code = """
 from webtest import TestApp
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
@@ -641,7 +641,7 @@ app.get("/")"""
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name is not None:
         env["DD_SERVICE"] = service_name
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = python_process(code, env=env, ddtrace_run=True)
     assert status == 0, stderr
 
 

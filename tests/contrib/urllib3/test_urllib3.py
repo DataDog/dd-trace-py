@@ -273,7 +273,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "clients"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_schematized_service_name_default(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -285,7 +285,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -297,7 +297,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -309,7 +309,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_schematized_unspecified_service_name_default(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -321,7 +321,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -333,7 +333,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == "urllib3"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -345,7 +345,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -357,7 +357,7 @@ class TestUrllib3(BaseUrllib3TestCase):
 
         assert s.name == "urllib3.request"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
         """Test the user-set service name is set on the span"""
         with self.override_config("urllib3", dict(split_by_domain=False)):

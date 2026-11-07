@@ -93,7 +93,7 @@ def test_import_module_hook_for_imported_module(module_watchdog):
 
 
 @pytest.mark.parametrize("pre_exec_falls_back", [False, True])
-def test_pre_exec_hook_runs_wrapt_post_import_hooks(pre_exec_falls_back, run_python_code_in_subprocess):
+def test_pre_exec_hook_runs_wrapt_post_import_hooks(pre_exec_falls_back, python_process):
     # A pre-exec hook (e.g. IAST) must not skip the post-import hooks of a wrapt loader
     # wrapped by the watchdog loader, whether it executes the module itself or falls back
     # to the wrapped loader. The hooks must run exactly once.
@@ -141,7 +141,7 @@ module = __import__(module_name)
 assert module.source_executed is {pre_exec_falls_back}
 assert calls == [module_name], calls
 """
-    out, err, status, _ = run_python_code_in_subprocess(code)
+    out, err, status, _ = python_process(code)
     assert status == 0, (out, err)
 
 

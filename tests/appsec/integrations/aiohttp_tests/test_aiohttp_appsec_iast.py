@@ -511,7 +511,7 @@ asyncio.run(main())
         pytest.param("true", False, id="pure-python-multidict"),
     ],
 )
-def test_sources_under_ddtrace_run(ddtrace_run_python_code_in_subprocess, aiohttp_integration, multidict_extensions):
+def test_sources_under_ddtrace_run(python_process, aiohttp_integration, multidict_extensions):
     env = os.environ.copy()
     env.update(
         {
@@ -525,7 +525,7 @@ def test_sources_under_ddtrace_run(ddtrace_run_python_code_in_subprocess, aiohtt
     )
     if not multidict_extensions:
         env["MULTIDICT_NO_EXTENSIONS"] = "1"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(_DDTRACE_RUN_APP, env=env, timeout=60)
+    out, err, status, _ = python_process(_DDTRACE_RUN_APP, env=env, timeout=60, ddtrace_run=True)
     assert status == 0, err.decode()
     assert json.loads(out.decode().splitlines()[-1]) == {
         "query": PARAMETER,

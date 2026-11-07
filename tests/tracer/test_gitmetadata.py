@@ -8,7 +8,6 @@ import subprocess
 
 import pytest
 
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
 
@@ -35,11 +34,7 @@ def preapare_test_env(mypackage_example):
 
 @pytest.mark.usefixtures("preapare_test_env")
 class GitMetadataTestCase(TracerTestCase):
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_MAIN_PACKAGE="mypackage",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_MAIN_PACKAGE="mypackage"))
     def test_gitmetadata_from_package(self):
         with self.tracer.trace("span") as s:
             pass
@@ -48,11 +43,7 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("_dd.git.repository_url") == "https://github.com/companydotcom/repo"
         assert s.get_tag("_dd.python_main_package") == "mypackage"
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo"))
     def test_gitmetadata_from_DD_TAGS(self):
         with self.tracer.trace("span") as s:
             pass
@@ -64,8 +55,8 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
 
-    @run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
@@ -85,8 +76,8 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("dd.git.commit.sha") is None
         assert s.get_tag("dd.python_main_package") is None
 
-    @run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_TAGS="git.commit.sha:12345,git.repository_url:github.com/user/tag_repo",
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="github.com/user/env_repo",
@@ -106,11 +97,7 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("dd.git.commit.sha") is None
         assert s.get_tag("dd.python_main_package") is None
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_MAIN_PACKAGE="pytest",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_MAIN_PACKAGE="pytest"))
     def test_gitmetadata_package_without_metadata(self):
         with self.tracer.trace("span") as s:
             pass
@@ -121,8 +108,8 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
 
-    @run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_TAGS="git.commit.sha:12345,git.repository_url:https://username:password@github.com/user/env_repo.git",
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="https://username:password@github.com/user/env_repo.git",
@@ -142,9 +129,9 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("dd.git.commit.sha") is None
         assert s.get_tag("dd.python_main_package") is None
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:https://username:password@github.com/user/tag_repo.git",
+    @pytest.mark.subprocess(
+        env=dict(
+            DD_TAGS="git.commit.sha:12345,git.repository_url:https://username:password@github.com/user/tag_repo.git"
         )
     )
     def test_gitmetadata_from_ddtags_filtering_https(self):
@@ -158,8 +145,8 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("dd.git.repository_url") is None
         assert s.get_tag("dd.git.commit.sha") is None
 
-    @run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_TAGS="git.commit.sha:12345,git.repository_url:ssh://username@github.com/user/env_repo.git",
             DD_GIT_COMMIT_SHA="123456",
             DD_GIT_REPOSITORY_URL="ssh://username@github.com/user/env_repo.git",
@@ -179,10 +166,8 @@ class GitMetadataTestCase(TracerTestCase):
         assert s.get_tag("dd.git.commit.sha") is None
         assert s.get_tag("dd.python_main_package") is None
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TAGS="git.commit.sha:12345,git.repository_url:ssh://username@github.com/user/tag_repo.git",
-        )
+    @pytest.mark.subprocess(
+        env=dict(DD_TAGS="git.commit.sha:12345,git.repository_url:ssh://username@github.com/user/tag_repo.git")
     )
     def test_gitmetadata_from_ddtags_filtering_ssh(self):
         with self.tracer.trace("span") as s:

@@ -272,11 +272,3 @@ def check_scenario_outcome(result: ProcessResult) -> None:
         pytest.skip(result.stdout.decode() if isinstance(result.stdout, bytes) else result.stdout)
     if result.returncode == 78:
         pytest.xfail(result.stdout.decode() if isinstance(result.stdout, bytes) else result.stdout)
-
-
-def run_in_subprocess(*args, env_overrides=None):
-    return pytest.mark.subprocess(*args, env=env_overrides or {})
-
-
-class SubprocessTestCase(unittest.TestCase):
-    run_in_subprocess = staticmethod(run_in_subprocess)

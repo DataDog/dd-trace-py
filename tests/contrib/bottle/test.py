@@ -313,7 +313,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("span.kind") == "server"
         assert s.get_tag("http.route") == "/home/"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default_schema(self):
         """
         default/v0: When a service name is specified by the user
@@ -330,7 +330,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="mysvc")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0_schema(self):
         """
         v0: When a service name is specified by the user
@@ -347,7 +347,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="mysvc")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1_schema(self):
         """
         v1: When a service name is specified by the user
@@ -364,7 +364,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="mysvc")
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_unspecified_service_default_schema(self):
         """
         default/v0: When a service name is not specified by the user
@@ -382,7 +382,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="bottle")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_unspecified_service_v0_schema(self):
         """
         default/v0: When a service name is not specified by the user
@@ -400,7 +400,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service="bottle")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1_schema(self):
         """
         v1: When a service name is not specified by the user
@@ -417,7 +417,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(service=DEFAULT_SPAN_SERVICE_NAME)
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0_schema(self):
         """
         v0: When a service name is not specified by the user
@@ -434,7 +434,7 @@ class TraceBottleTest(TracerTestCase):
         root = self.get_root_span()
         root.assert_matches(name="bottle.request")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1_schema(self):
         """
         v1: When a service name is not specified by the user

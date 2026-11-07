@@ -439,63 +439,63 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert s.get_tag("out.host") == SOCKET
             assert s.service == HOST_AND_PORT
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
+    @pytest.mark.subprocess(env=dict(DD_REQUESTS_SERVICE="override"))
     def test_global_config_service_env(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "override"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_schematization_service_name_default(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "requests"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_service_name_v0(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "requests"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_service_name_v1(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess()
+    @pytest.mark.subprocess(env={})
     def test_schematization_unspecified_service_name_default(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "requests"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_unspecified_service_name_v0(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "requests"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_unspecified_service_name_v1(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_operation_name_v0(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].name == "requests.request"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_operation_name_v1(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200

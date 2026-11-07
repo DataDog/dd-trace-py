@@ -19,6 +19,7 @@ from typing import Iterator
 from typing import Optional
 from typing import TypedDict
 from typing import cast
+from unittest import TestCase
 from urllib import parse
 from uuid import uuid4
 
@@ -58,8 +59,6 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-from tests.subprocesstest import SubprocessTestCase
-from tests.subprocesstest import run_process
 
 
 NO_CHILDREN = object()
@@ -440,7 +439,7 @@ def override_sys_modules(modules):
         sys.modules.update(original)
 
 
-class BaseTestCase(SubprocessTestCase):
+class BaseTestCase(TestCase):
     """
     BaseTestCase extends ``unittest.TestCase`` to provide some useful helpers/assertions
 
@@ -1544,10 +1543,6 @@ def terminate_process_group(proc: subprocess.Popen[bytes], timeout: float = 3.0)
         except ProcessLookupError:
             pass
         proc.communicate(timeout=timeout)
-
-
-def call_program(*args, **kwargs):
-    return run_process(*args, **kwargs)
 
 
 def request_token(request: pytest.FixtureRequest) -> str:

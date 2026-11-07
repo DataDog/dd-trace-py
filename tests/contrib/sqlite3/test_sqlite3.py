@@ -249,7 +249,7 @@ class TestSQLite(TracerTestCase):
         db = sqlite3.connect(":memory:")
         return db
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_app_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -271,7 +271,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_app_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -293,9 +293,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
@@ -308,9 +306,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == "my-svc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
+    @pytest.mark.subprocess(env=dict(DD_SQLITE_SERVICE="my-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
@@ -323,7 +319,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == "my-svc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
@@ -336,7 +332,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_v0_schema(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)
@@ -349,7 +345,7 @@ class TestSQLite(TracerTestCase):
         span = spans[0]
         assert span.name == "sqlite.query"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_name_v1_schema(self):
         q = "select * from sqlite_master"
         connection = self._given_a_traced_connection(self.tracer)

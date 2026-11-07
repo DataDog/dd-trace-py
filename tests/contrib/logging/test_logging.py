@@ -139,11 +139,7 @@ class LoggingTestCase(TracerTestCase):
             output, _ = capture_function_log(func, fmt="%(message)s")
             assert output == "Hello!"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False",
-        )
-    )
+    @pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="False"))
     def test_log_trace(self):
         """
         Check logging patched and formatter including trace info when 64bit trace ids are generated.
@@ -157,7 +153,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env", service="")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="True"))
     def test_log_trace_128bit_trace_ids(self):
         """
         Check if 128bit trace ids are logged using hex
@@ -182,7 +178,7 @@ class LoggingTestCase(TracerTestCase):
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
+    @pytest.mark.subprocess(env=dict(DD_TAGS="service:ddtagservice,env:ddenv,version:ddversion"))
     def test_log_DD_TAGS(self):
         def create_span():
             return self.tracer.trace("test.logging")
@@ -305,7 +301,7 @@ class LoggingTestCase(TracerTestCase):
 
 
 @pytest.mark.parametrize("dd_logs_enabled", ["true", "structured"])
-def test_manual_log_formatter_injection(dd_logs_enabled: str, run_python_code_in_subprocess):
+def test_manual_log_formatter_injection(dd_logs_enabled: str, python_process):
     code = """
 import ddtrace.auto
 
@@ -323,7 +319,7 @@ log.info("Hello!")
 
     env = os.environ.copy()
     env["DD_LOGS_INJECTION"] = dd_logs_enabled
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    stdout, stderr, status, _ = python_process(code, env=env)
     assert status == 0, stderr
 
     assert stdout == b"", stderr

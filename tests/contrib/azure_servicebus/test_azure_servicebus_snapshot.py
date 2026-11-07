@@ -60,12 +60,12 @@ def patch_azure_servicebus():
     ids=param_ids,
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars):
+async def test_producer(python_process, env_vars):
     env = os.environ.copy()
     env.update(env_vars)
 
     helper_path = Path(__file__).resolve().parent.joinpath("common.py")
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
+    out, err, status, _ = python_process(helper_path.read_text(), env=env, ddtrace_run=True)
 
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()

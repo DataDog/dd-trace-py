@@ -343,7 +343,7 @@ class MySQLCore:
         assert span.service == "mysql"
         assert span.name == "MySQLdb.connection.rollback"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
         """
         v0: When a user specifies a service for the app
@@ -364,7 +364,7 @@ class MySQLCore:
 
         assert spans[0].service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
         """
         v1: When a user specifies a service for the app
@@ -511,9 +511,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         patch()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
-    )
+    @pytest.mark.subprocess(env=dict(DD_MYSQLDB_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_integration_v0(self):
         conn = self._get_conn()
 
@@ -525,9 +523,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
-    )
+    @pytest.mark.subprocess(env=dict(DD_MYSQLDB_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_integration_v1(self):
         conn = self._get_conn()
 
@@ -539,7 +535,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         conn = self._get_conn()
 
@@ -570,7 +566,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert span.span_type == "sql"
             assert span.error == 0
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_MYSQLDB_TRACE_CONNECT="true"))
+    @pytest.mark.subprocess(env=dict(DD_MYSQLDB_TRACE_CONNECT="true"))
     def test_trace_connect_env_var_config(self):
         self._connect_with_kwargs().close()
 
@@ -584,7 +580,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert span.span_type == "sql"
         assert span.error == 0
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_schema_v0(self):
         conn = self._get_conn()
 
@@ -595,7 +591,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         span = spans[0]
         assert span.name == "mysql.query"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_name_schema_v1(self):
         conn = self._get_conn()
 
@@ -606,19 +602,16 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         span = spans[0]
         assert span.name == "mysql.query"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    @pytest.mark.subprocess(env=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_mysql_dbm_propagation_enabled(self):
         conn = self._get_conn()
         cursor = conn.cursor()
 
         shared_tests._test_dbm_propagation_enabled(self.tracer, cursor, "mysql")
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
+    @pytest.mark.subprocess(
+        env=dict(
+            DD_DBM_PROPAGATION_MODE="service", DD_SERVICE="orders-app", DD_ENV="staging", DD_VERSION="v7343437-d7ac743"
         )
     )
     def test_mysql_dbm_propagation_comment_with_global_service_name_configured(self):
@@ -631,8 +624,8 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             config=MYSQL_CONFIG, db_system="mysql", cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",
@@ -650,8 +643,8 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             config=MYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
+    @pytest.mark.subprocess(
+        env=dict(
             DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",

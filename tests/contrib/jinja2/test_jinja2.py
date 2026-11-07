@@ -2,6 +2,7 @@ import os.path
 
 # 3rd party
 import jinja2
+import pytest
 
 from ddtrace.contrib.internal.jinja2.patch import patch
 from ddtrace.contrib.internal.jinja2.patch import unpatch
@@ -158,7 +159,7 @@ class Jinja2Test(TracerTestCase):
         for span in spans:
             assert span.service == "web"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a service name is specified by the user
