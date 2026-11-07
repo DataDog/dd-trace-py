@@ -142,7 +142,20 @@ def get_env_tags() -> dict[str, str]:
             for key, value in ci_provider_tags.items()
             if not key.startswith("git.") or key.startswith(("git.commit.head.", "git.pull_request."))
         }
-    merge_tags(tags, local_git_tags, provider_tags, user_supplied_tags, get_custom_dd_tags(os.environ))
+    merge_tags(tags, local_git_tags, provider_tags)
+    explicit_sha = user_supplied_tags.get(GitTag.COMMIT_SHA)
+    if explicit_sha and explicit_sha.lower() != (tags.get(GitTag.COMMIT_SHA) or "").lower():
+        if git.is_ref_a_tag(tags.get(GitTag.BRANCH)):
+            tags.pop(GitTag.BRANCH, None)
+        tags = {
+            key: value
+            for key, value in tags.items()
+            if key != GitTag.TAG
+            and not (
+                key.startswith("git.commit.") and key != GitTag.COMMIT_SHA and not key.startswith("git.commit.head.")
+            )
+        }
+    merge_tags(tags, user_supplied_tags, get_custom_dd_tags(os.environ))
 
     _check_commit_sha_consistency(user_supplied_tags, ci_provider_tags, local_git_tags)
 
