@@ -25,7 +25,7 @@ Use this skill whenever a code change introduces a **new environment variable**
 or the `supported_configurations` CI check fails.
 
 Typical trigger: you just added something like
-`DDConfig.var(bool, AI_GUARD.ENV_OPENAI_ENABLED, default=True)` in a settings
+`DDConfig.var(bool, ENV_OPENAI_ENABLED, default=True)` in a settings
 module and need to make CI / docs happy.
 
 ---
