@@ -94,9 +94,13 @@ def _set_env_profilers(
 
 
 @pytest.fixture
-def restart_profiler(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
+def tracer_identity(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "service", SERVICE)
     monkeypatch.setattr(config, "env", ENV)
+
+
+@pytest.fixture
+def restart_profiler(monkeypatch: pytest.MonkeyPatch, tracer_identity: None) -> _Recorder:
     _set_env_profilers(monkeypatch, enabled=False)
     monkeypatch.setattr(remoteconfig, "debug_configs", {})
     recorder = _Recorder()
@@ -109,21 +113,26 @@ def restart_profiler(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
 @pytest.mark.parametrize(
     "less_specific,more_specific",
     [
-        # Each scope wins over the less specific scopes.
-        ({}, {"env": ENV}),
-        ({"env": ENV}, {"tags": ["team:profiling"]}),
-        ({"tags": ["team:profiling"]}, {"service": SERVICE}),
-        ({"service": SERVICE}, {"tags": ["pod_name:my-pod"]}),
-        ({"service": SERVICE}, {"tags": ["container_id:abc"]}),
-        # A scope wins over all the less specific scopes together.
-        ({"env": ENV, "tags": ["team:profiling"]}, {"service": SERVICE}),
+        # Each level wins over the less specific levels.
+        ({}, {"tags": ["team:profiling"]}),
+        ({"tags": ["team:profiling"]}, {"env": ENV}),
+        ({"env": ENV}, {"service": SERVICE}),
+        ({"service": SERVICE}, {"tags": ["kube_deployment:my-deployment"]}),
+        ({"tags": ["kube_deployment:my-deployment"]}, {"tags": ["kube_container_name:my-container"]}),
+        ({"tags": ["kube_container_name:my-container"]}, {"tags": ["pod_name:my-pod"]}),
+        ({"tags": ["pod_name:my-pod"]}, {"tags": ["container_id:abc"]}),
+        ({"tags": ["task_family:my-task"]}, {"tags": ["ecs_container_name:my-container"]}),
+        ({"tags": ["ecs_container_name:my-container"]}, {"tags": ["task_arn:my-task"]}),
+        # A level wins over any number of conditions of the less specific levels.
+        ({"env": ENV, "tags": ["team:profiling", "team2:profiling"]}, {"service": SERVICE}),
         ({"service": SERVICE, "env": ENV, "tags": ["team:profiling"]}, {"tags": ["pod_name:my-pod"]}),
-        # A combination of scopes wins over each of its scopes alone.
+        # More conditions win within a level.
         ({"service": SERVICE}, {"service": SERVICE, "env": ENV}),
         ({"service": SERVICE}, {"service": SERVICE, "tags": ["kube_cluster_name:my-cluster"]}),
+        ({"tags": ["pod_name:my-pod"]}, {"tags": ["pod_name:my-pod", "team:profiling"]}),
         # The service and env tags count as the service and env fields.
-        ({"tags": ["team:profiling"]}, {"tags": ["service:" + SERVICE]}),
-        ({}, {"tags": ["env:" + ENV]}),
+        ({"tags": ["team:profiling"]}, {"tags": ["env:" + ENV]}),
+        ({"tags": ["env:" + ENV]}, {"tags": ["service:" + SERVICE]}),
         ({"service": SERVICE}, {"tags": ["service:" + SERVICE, "env:" + ENV]}),
     ],
 )
@@ -138,8 +147,8 @@ def test_specificity_order(less_specific: dict[str, t.Any], more_specific: dict[
         ({"tags": ["service:*", "env:*"]}, {}),
         ({"tags": ["service:" + SERVICE]}, {"service": SERVICE}),
         ({"tags": ["env:" + ENV]}, {"env": ENV}),
-        ({"tags": ["pod_name:my-pod", "container_id:abc"]}, {"tags": ["pod_name:my-pod"]}),
-        ({"tags": ["team:profiling", "kube_cluster_name:my-cluster"]}, {"tags": ["team:profiling"]}),
+        ({"tags": ["POD_NAME:my-pod"]}, {"tags": ["pod_name:my-pod"]}),
+        ({"tags": ["team:profiling"]}, {"tags": ["kube_cluster_name:my-cluster"]}),
     ],
 )
 def test_specificity_equal(target: dict[str, t.Any], same_as: dict[str, t.Any]) -> None:
@@ -160,6 +169,9 @@ def test_specificity_equal(target: dict[str, t.Any], same_as: dict[str, t.Any]) 
         ({"env": "*"}, ENV, True),
         ({"env": "staging"}, ENV, False),
         ({"tags": ["env:staging"]}, ENV, False),
+        # The Agent matches normalized values.
+        ({"service": "My-Service"}, ENV, True),
+        ({"env": "PROD"}, ENV, True),
         # The Agent may target configs using an environment configured only at the Agent level.
         ({"env": "staging"}, "", True),
         ({"env": "staging"}, None, True),
@@ -230,18 +242,20 @@ def test_payload_order_does_not_change_precedence(restart_profiler: _Recorder) -
     assert restart_profiler.last[STACK] is False
 
 
-def test_last_updated_config_wins_on_equal_specificity(restart_profiler: _Recorder) -> None:
+def test_greatest_config_id_wins_on_equal_specificity(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
     callback(
         [
-            _payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True, "locks": True})),
             _payload("b", _profiling_content({"service": SERVICE}, {"cpuTime": False})),
+            _payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True, "locks": True})),
         ]
     )
     assert restart_profiler.last[STACK] is False
 
-    callback([_payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True}))])
-    assert restart_profiler.last[STACK] is True
+    # Updating a config does not change its precedence.
+    callback([_payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True, "locks": False}))])
+    assert restart_profiler.last[STACK] is False
+    assert restart_profiler.last[LOCK] is False
 
 
 def test_configs_are_kept_across_callbacks(restart_profiler: _Recorder) -> None:
@@ -278,27 +292,40 @@ def test_removing_all_configs_disables_profilers(restart_profiler: _Recorder) ->
     assert remoteconfig.debug_configs == {}
 
 
-def test_config_retargeted_away_is_removed(restart_profiler: _Recorder) -> None:
+def test_config_retargeted_away_loses_its_specificity(restart_profiler: _Recorder) -> None:
     callback = remoteconfig.ProfilingRCCallback()
-    callback([_payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True}))])
+    callback(
+        [
+            _payload("a", _profiling_content({"service": SERVICE}, {"cpuTime": True})),
+            _payload("b", _profiling_content({"env": ENV}, {"cpuTime": False})),
+        ]
+    )
     assert restart_profiler.last[STACK] is True
 
     callback([_payload("a", _profiling_content({"service": "other-service"}, {"cpuTime": True}))])
 
     assert restart_profiler.last[STACK] is False
-    assert remoteconfig.debug_configs == {}
+    assert set(remoteconfig.debug_configs) == {"a", "b"}
 
 
-def test_config_for_other_service_is_ignored(restart_profiler: _Recorder) -> None:
+def test_config_for_other_service_has_the_lowest_specificity(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
-            _payload("mine", _profiling_content({"env": ENV}, {"cpuTime": True})),
+            _payload("mine", _profiling_content({"tags": ["team:profiling"]}, {"cpuTime": True})),
             _payload("other", _profiling_content({"tags": ["service:other-service"]}, {"cpuTime": False})),
         ]
     )
 
     assert restart_profiler.last[STACK] is True
-    assert set(remoteconfig.debug_configs) == {"mine"}
+    assert set(remoteconfig.debug_configs) == {"mine", "other"}
+
+
+def test_config_for_other_service_applies_alone(restart_profiler: _Recorder) -> None:
+    remoteconfig.ProfilingRCCallback()(
+        [_payload("other", _profiling_content({"service": "other-service"}, {"cpuTime": True}))]
+    )
+
+    assert restart_profiler.last[STACK] is True
 
 
 def test_non_profiling_payload_is_ignored(restart_profiler: _Recorder) -> None:
@@ -332,33 +359,43 @@ def test_config_matching_one_of_its_targets_applies(restart_profiler: _Recorder)
     )
 
     assert restart_profiler.last[STACK] is True
-    assert remoteconfig.debug_configs["multi"]["targets"] == [{"env": ENV}]
+    assert remoteconfig.debug_configs["multi"]["targets"] == [{"service": "other-service"}, {"env": ENV}]
 
 
-def test_config_matching_none_of_its_targets_is_ignored(restart_profiler: _Recorder) -> None:
+def test_config_matching_none_of_its_targets_is_least_specific(restart_profiler: _Recorder) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
             _payload("env", _profiling_content({"env": ENV}, {"cpuTime": True})),
             _payload(
                 "other",
-                _profiling_content([{"service": "other-service"}, {"env": "staging"}], {"cpuTime": False}),
+                _profiling_content(
+                    [{"service": "other-service"}, {"env": "staging"}], {"cpuTime": False, "locks": True}
+                ),
             ),
         ]
     )
 
     assert restart_profiler.last[STACK] is True
-    assert set(remoteconfig.debug_configs) == {"env"}
+    assert restart_profiler.last[LOCK] is True
+    assert set(remoteconfig.debug_configs) == {"env", "other"}
 
 
-def test_config_without_targets_targets_all_tracers(restart_profiler: _Recorder) -> None:
-    remoteconfig.ProfilingRCCallback()([_payload("all", {"profilers": {"cpuTime": True}})])
+@pytest.mark.parametrize("content", [{"profilers": {"cpuTime": True}}, {"targets": [], "profilers": {"cpuTime": True}}])
+def test_config_without_targets_targets_all_tracers(restart_profiler: _Recorder, content: dict[str, t.Any]) -> None:
+    remoteconfig.ProfilingRCCallback()([_payload("all", content)])
 
     assert restart_profiler.last[STACK] is True
-    assert remoteconfig.debug_configs["all"]["targets"] == [{}]
+    assert remoteconfig.debug_configs["all"]["targets"] == []
 
 
-@pytest.mark.parametrize("targets", [[], {"env": ENV}, "env:prod", 1])
-def test_config_with_invalid_or_empty_targets_is_ignored(restart_profiler: _Recorder, targets: t.Any) -> None:
+def test_settings_only_payload_applies(restart_profiler: _Recorder) -> None:
+    remoteconfig.ProfilingRCCallback()([_payload("settings", {"settings": {"maxStackDepth": 32}})])
+
+    assert restart_profiler.settings[-1]["maxStackDepth"] == 32
+
+
+@pytest.mark.parametrize("targets", [{"env": ENV}, "env:prod", 1, [{"service": 1}], [{"env": False}]])
+def test_config_with_invalid_targets_is_ignored(restart_profiler: _Recorder, targets: t.Any) -> None:
     remoteconfig.ProfilingRCCallback()(
         [
             _payload("invalid", {"targets": targets, "profilers": {"cpuTime": False}}),
@@ -421,11 +458,13 @@ def test_non_matching_target_does_not_raise_config_specificity(restart_profiler:
         ([{"env": ENV}, {"tags": ["pod_name:my-pod"]}, {"service": SERVICE}], {"tags": ["pod_name:my-pod"]}),
     ],
 )
-def test_config_specificity(targets: list[dict[str, t.Any]], specificity_as: dict[str, t.Any]) -> None:
+def test_config_specificity(
+    tracer_identity: None, targets: list[dict[str, t.Any]], specificity_as: dict[str, t.Any]
+) -> None:
     assert remoteconfig._config_specificity({"targets": targets}) == remoteconfig._specificity(specificity_as)
 
 
-def test_settings_are_merged_by_specificity() -> None:
+def test_settings_are_merged_by_specificity(tracer_identity: None) -> None:
     merged = remoteconfig._merge_configs(
         [
             _profiling_content(
@@ -453,7 +492,7 @@ def test_settings_are_merged_by_specificity() -> None:
         ("pythonMemoryMemDomain", False, "false"),
     ],
 )
-def test_invalid_setting_is_ignored(key: str, valid: t.Any, invalid: t.Any) -> None:
+def test_invalid_setting_is_ignored(tracer_identity: None, key: str, valid: t.Any, invalid: t.Any) -> None:
     merged = remoteconfig._merge_configs(
         [
             _profiling_content({"env": ENV}, {}, {key: valid}),

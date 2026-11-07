@@ -280,16 +280,15 @@ def override_global_config(values: dict[str, Any]):
 
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
-    if asm_config._asm_enabled:
-        from ddtrace.appsec._listeners import disable_appsec
+    from ddtrace.appsec._listeners import disable_appsec
+
+    # disable_appsec() clears _asm_enabled, so read it first.
+    asm_enabled = asm_config._asm_enabled
+    disable_appsec()
+    if asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        disable_appsec()
         load_appsec()
-    else:
-        from ddtrace.appsec._listeners import disable_appsec
-
-        disable_appsec()
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
@@ -724,7 +723,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         compute_stats_enabled: Optional[bool] = None,
         stats_opt_out: Optional[bool] = None,
     ) -> DummyWriter:
-        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._inner_writer._api_version
+        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled, api_version=api_version)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)
