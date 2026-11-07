@@ -37,7 +37,7 @@ tokio = "1"
 uuid = { version = "1", default-features = false }
 libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.2", optional = true, features = ["pyo3"] }
 # TODO: switch to the libdatadog release tag that ships DataDog/libdatadog#2808 once it is published.
-libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "d86f403688c3a61201ca38a33d7c0b8354a82c71", optional = true, features = ["otlp"] }
+libdd-ai-usage = { git = "https://github.com/DataDog/libdatadog", rev = "642abb16de33fd343467525591b1fc1ce6432e10", optional = true, features = ["otlp"] }
 libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.2", features = ["one_way_shm_futex"] }
 libdd-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.2" }
 libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.2", features = [
