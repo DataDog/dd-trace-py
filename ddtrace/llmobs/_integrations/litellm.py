@@ -201,11 +201,12 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         Workflow span should be submitted to LLMObs if:
             - span represents a router operation OR
-            - span represents a proxy request
+            - span represents a proxy request OR
+            - span dispatches completion attempts with fallbacks
         LLM spans should be submitted to LLMObs if:
-            - span does not represent a router operation or a proxy request
+            - span represents an individual completion attempt
         """
-        if self.is_router_operation(operation) or span._get_ctx_item(PROXY_REQUEST):
+        if self.is_router_operation(operation) or span._get_ctx_item(PROXY_REQUEST) or kwargs.get("fallbacks"):
             return "workflow"
         return "llm"
 
