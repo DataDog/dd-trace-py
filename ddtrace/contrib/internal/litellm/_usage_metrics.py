@@ -60,7 +60,6 @@ except ImportError:
     guardrail_information_cost = None  # type: ignore[assignment, unused-ignore]
 
 from ddtrace.internal import forksafe
-from ddtrace.internal.ai_usage import ai_usage
 from ddtrace.internal.logger import get_logger
 from ddtrace.trace import tracer
 
@@ -147,6 +146,7 @@ _OPERATOR_IDS = (
     ("datadog_provider_account_id", PROVIDER_ACCOUNT_ID),
     ("datadog_project_id", PROJECT_ID),
 )
+_MAX_ID_LENGTH = 128
 # The response headers that name the account and project at a provider: (provider, attribute, header). No other
 # header is read.
 _ID_HEADERS = (
@@ -502,8 +502,8 @@ def _model_info(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _billing_id(value: Any) -> Optional[str]:
-    """An account, project or key id as written, as libdd-ai-usage bounds one."""
-    return ai_usage.billing_id(value) if isinstance(value, str) else None
+    """An account, project or key id as written: a non-empty string of bounded length."""
+    return value if isinstance(value, str) and 0 < len(value) <= _MAX_ID_LENGTH and value.strip() else None
 
 
 def _operator_ids(model_info: dict[str, Any]) -> dict[str, str]:
