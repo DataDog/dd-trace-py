@@ -671,6 +671,10 @@ def test_git_upload_uses_selected_history_and_actual_pack(git_repo_empty, engine
         with (
             mock.patch("ddtrace.testing.internal.session_manager.Git", return_value=Git(cwd=checkout)),
             mock.patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            mock.patch(
+                "ddtrace.testing.internal.session_manager.get_offline_mode",
+                return_value=mock.Mock(manifest_enabled=False, payload_files_enabled=False),
+            ),
         ):
             manager.upload_git_data()
 
