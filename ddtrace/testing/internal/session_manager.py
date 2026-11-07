@@ -649,9 +649,9 @@ class SessionManager:
         return Path(workspace_path) / TEST_OPTIMIZATION_DIR / TEST_OPTIMIZATION_GIT_DIR / _UNSHALLOW_DONE_FILENAME
 
     def _read_unshallow_done(self, git: Git) -> bool:
-        """Return whether a previous fetch's HEAD and shallow boundary still match.
+        """Return whether a previous fetch's selection, HEAD and shallow boundary still match.
 
-        Use the local HEAD because CI providers can report a different source SHA.
+        An explicit SHA change needs a new fetch even when the local HEAD is unchanged.
         Any boundary change invalidates the marker, including re-shallowing one
         parent of a merge while deepening another. Unknown or malformed state is
         a cache miss; the marker has no TTL because it describes local Git history.
@@ -667,6 +667,9 @@ class SessionManager:
             return False
         head_sha = git.get_commit_sha()
         if not isinstance(head_sha, str) or not head_sha or data.get("head_sha") != head_sha:
+            return False
+        selected_sha = (getattr(self, "env_tags", None) or {}).get(GitTag.COMMIT_SHA) or head_sha
+        if data.get("selected_sha", data.get("head_sha")) != selected_sha:
             return False
         boundary = git.get_shallow_boundary()
         # Compare the canonical JSON list directly: malformed nested values must
@@ -686,7 +689,13 @@ class SessionManager:
             return
         try:
             _write_json_atomic(
-                marker, {"head_sha": head_sha, "shallow_boundary": sorted(boundary), "timestamp": time.time()}
+                marker,
+                {
+                    "head_sha": head_sha,
+                    "selected_sha": (getattr(self, "env_tags", None) or {}).get(GitTag.COMMIT_SHA) or head_sha,
+                    "shallow_boundary": sorted(boundary),
+                    "timestamp": time.time(),
+                },
             )
         except OSError as e:
             log.debug("Could not write unshallow-done marker %s: %s", marker, e)
@@ -908,7 +917,11 @@ class SessionManager:
                 TelemetryAPI.get().record_git_missing()
             return
 
-        latest_commits = git.get_latest_commits()
+        commit_sha = (getattr(self, "env_tags", None) or {}).get(GitTag.COMMIT_SHA)
+        latest_commits = git.get_latest_commits(commit_sha=commit_sha)
+        if commit_sha and not latest_commits:
+            log.warning("Selected Git commit is unavailable, skipping metadata upload")
+            return
         backend_commits = self.api_client.get_known_commits(latest_commits)
         if backend_commits is None:
             log.warning("search_commits failed, aborting git metadata upload")
@@ -955,7 +968,7 @@ class SessionManager:
                 unshallow_enabled = asbool(env.get(DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED, "true"))
                 if unshallow_enabled:
                     log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
-                    unshallow_successful = git.try_all_unshallow_repository_methods()
+                    unshallow_successful = git.try_all_unshallow_repository_methods(commit_sha=commit_sha)
                 else:
                     log.debug("Git unshallow disabled by %s", DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED)
                     unshallow_successful = False
@@ -975,7 +988,7 @@ class SessionManager:
                         log.debug(
                             "Unshallow successful, getting latest commits from backend based on unshallowed commits"
                         )
-                        latest_commits = git.get_latest_commits()
+                        latest_commits = git.get_latest_commits(commit_sha=commit_sha)
                         backend_commits = self.api_client.get_known_commits(latest_commits)
                         if backend_commits is None:
                             log.warning("search_commits failed after unshallow, aborting git metadata upload")
@@ -992,7 +1005,7 @@ class SessionManager:
             return
 
         revisions_to_send = git.get_filtered_revisions(
-            excluded_commits=backend_commits, included_commits=commits_not_in_backend
+            excluded_commits=backend_commits, included_commits=commits_not_in_backend, commit_sha=commit_sha
         )
 
         uploaded_files = 0

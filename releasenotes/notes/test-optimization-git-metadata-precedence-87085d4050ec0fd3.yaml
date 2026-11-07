@@ -2,5 +2,5 @@ upgrade:
   - |
     CI visibility: Git metadata now comes from the local checkout by default, with
     CI-provider metadata used only when the checkout cannot be read. Explicit
-    ``DD_GIT_*`` overrides retain priority; runs that check out a different commit
-    from the CI provider now report the checked-out commit consistently.
+    ``DD_GIT_*`` overrides retain priority across test events, Test Impact Analysis
+    requests, commit discovery and Git uploads.
