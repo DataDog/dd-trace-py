@@ -242,9 +242,12 @@ class APIClient:
             if statuses is not None:
                 attributes["statuses"] = list(statuses)
             else:
-                commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags[GitTag.COMMIT_MESSAGE]
+                commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags.get(
+                    GitTag.COMMIT_MESSAGE
+                )
                 commit_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA) or self.env_tags[GitTag.COMMIT_SHA]
-                attributes["commit_message"] = commit_message
+                if commit_message is not None:
+                    attributes["commit_message"] = commit_message
                 attributes["sha"] = commit_sha
 
             request_data: dict[str, t.Any] = {
