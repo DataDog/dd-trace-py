@@ -12,9 +12,9 @@ pub mod ai_usage {
     use std::sync::Mutex;
 
     use libdd_ai_usage::{
-        project_result, with_deployment_attributes, Json, JsonObject, MetricBatch, MetricError,
-        OtlpBinding, OtlpScope, OtlpWindow, Profile, ProviderResponse, StreamOutcome, UsageFormat,
-        UsageStream,
+        project_result, with_deployment_attributes, Issues, Json, JsonObject, MetricBatch,
+        MetricError, MetricPoint, OtlpBinding, OtlpScope, OtlpWindow, Profile, Projection,
+        ProviderResponse, StreamOutcome, UsageFormat, UsageStream,
     };
     use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
     use pyo3::prelude::*;
@@ -87,26 +87,61 @@ pub mod ai_usage {
         })
     }
 
-    /// `{"response": {usage, response_model, service_tier, ...}, "outcome", "error_name"}` as JSON.
-    fn report(
+    /// A JSON value as plain Python values.
+    fn to_py<'py>(py: Python<'py>, value: &serde_json::Value) -> PyResult<Bound<'py, PyAny>> {
+        use serde_json::Value;
+        Ok(match value {
+            Value::Null => py.None().into_bound(py),
+            Value::Bool(flag) => PyBool::new(py, *flag).to_owned().into_any(),
+            Value::Number(n) => match (n.as_u64(), n.as_i64()) {
+                (Some(n), _) => n.into_pyobject(py)?.into_any(),
+                (None, Some(n)) => n.into_pyobject(py)?.into_any(),
+                _ => n.as_f64().unwrap_or(f64::NAN).into_pyobject(py)?.into_any(),
+            },
+            Value::String(text) => PyString::new(py, text).into_any(),
+            Value::Array(items) => PyList::new(
+                py,
+                items
+                    .iter()
+                    .map(|item| to_py(py, item))
+                    .collect::<PyResult<Vec<_>>>()?,
+            )?
+            .into_any(),
+            Value::Object(members) => {
+                let dict = PyDict::new(py);
+                for (key, member) in members {
+                    dict.set_item(key, to_py(py, member)?)?;
+                }
+                dict.into_any()
+            }
+        })
+    }
+
+    type Report<'py> = (Bound<'py, PyAny>, &'static str, Option<String>);
+
+    /// `(response, outcome, error_name)`, with `response` a dict of usage,
+    /// response_model, service_tier and what else the provider reported.
+    fn report<'py>(
+        py: Python<'py>,
         response: &ProviderResponse,
         outcome: StreamOutcome,
         error: Option<String>,
-    ) -> String {
-        serde_json::json!({"response": response, "outcome": outcome.as_str(), "error_name": error})
-            .to_string()
+    ) -> PyResult<Report<'py>> {
+        let value =
+            serde_json::to_value(response).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        Ok((to_py(py, &value)?, outcome.as_str(), error))
     }
 
     /// What a provider response reported: a decoded payload (dict or list of
     /// events), or a whole body as str or bytes (JSON or server-sent events).
     #[pyfunction]
     #[pyo3(signature = (usage_format, payload, embeddings=false))]
-    fn parse(
-        py: Python<'_>,
+    fn parse<'py>(
+        py: Python<'py>,
         usage_format: &str,
-        payload: &Bound<'_, PyAny>,
+        payload: &Bound<'py, PyAny>,
         embeddings: bool,
-    ) -> PyResult<String> {
+    ) -> PyResult<Report<'py>> {
         let format = named(
             UsageFormat::from_name(usage_format),
             "usage_format",
@@ -115,22 +150,23 @@ pub mod ai_usage {
         if let Some(body) = bytes_of(payload)? {
             let (response, outcome, error) =
                 py.detach(|| libdd_ai_usage::parse_provider_body(format, body, embeddings));
-            return Ok(report(&response, outcome, error));
+            return report(py, &response, outcome, error);
         }
         let response =
             libdd_ai_usage::parse_provider_response(format, &to_json(payload, 0)?, embeddings);
-        Ok(report(&response, StreamOutcome::Open, None))
+        report(py, &response, StreamOutcome::Open, None)
     }
 
     /// What a stream reported, from its raw lines or events (str or bytes, each
     /// ending a line) in order. Other items are not stream data and are skipped.
     #[pyfunction]
     #[pyo3(signature = (usage_format, chunks, embeddings=false))]
-    fn parse_stream(
+    fn parse_stream<'py>(
+        py: Python<'py>,
         usage_format: &str,
-        chunks: &Bound<'_, PyAny>,
+        chunks: &Bound<'py, PyAny>,
         embeddings: bool,
-    ) -> PyResult<String> {
+    ) -> PyResult<Report<'py>> {
         let mut stream = UsageStream::new(
             named(
                 UsageFormat::from_name(usage_format),
@@ -146,7 +182,7 @@ pub mod ai_usage {
             }
         }
         let (response, outcome, error) = stream.finish();
-        Ok(report(&response, outcome, error))
+        report(py, &response, outcome, error)
     }
 
     #[pyfunction]
@@ -156,28 +192,13 @@ pub mod ai_usage {
 
     /// The `error.type` of a failure from its name and HTTP status; `failed`
     /// makes one nothing names `api_error`.
+    // TODO: use libdatadog#2827's failure fallback once it is published.
     #[pyfunction]
     #[pyo3(signature = (name=None, status=None, failed=false))]
     fn error_type(name: Option<&str>, status: Option<i64>, failed: bool) -> Option<&'static str> {
         let status = status.and_then(|status| u16::try_from(status).ok());
-        match failed {
-            true => Some(libdd_ai_usage::classify_failure(name, status)),
-            false => libdd_ai_usage::classify_error(name, status),
-        }
-    }
-
-    /// An account, project or key id as written, trimmed: non-blank and at
-    /// most 128 bytes, else `None`.
-    #[pyfunction]
-    fn billing_id(value: &str) -> Option<&str> {
-        libdd_ai_usage::billing_id(value)
-    }
-
-    /// The rejected data points and message of an OTLP export response's
-    /// partial success, when it states one.
-    #[pyfunction]
-    fn otlp_partial_success(body: &[u8]) -> Option<(u64, String)> {
-        libdd_ai_usage::parse_export_partial_success(body)
+        libdd_ai_usage::classify_error(name, status)
+            .or(failed.then_some(libdd_ai_usage::ERROR_TYPE_API))
     }
 
     #[pyfunction]
@@ -216,17 +237,12 @@ pub mod ai_usage {
         Ok(ids.into_iter().collect())
     }
 
-    /// A datagram's lines packed again into datagrams of at most
-    /// `max_payload` bytes, NUL-separated, and how many lines were dropped
-    /// for being longer.
+    /// DogStatsD lines packed into datagrams of at most `max_payload` bytes,
+    /// and how many lines were dropped for being longer.
+    // TODO: use libdatadog#2827's datagram repacking once it is published.
     #[pyfunction]
-    fn repack_dogstatsd<'py>(
-        py: Python<'py>,
-        datagram: &str,
-        max_payload: usize,
-    ) -> (Bound<'py, PyBytes>, usize) {
-        let (text, dropped) = libdd_ai_usage::repack_dogstatsd(datagram, max_payload, '\0');
-        (PyBytes::new(py, text.as_bytes()), dropped)
+    fn pack_dogstatsd(lines: Vec<String>, max_payload: usize) -> (Vec<String>, usize) {
+        libdd_ai_usage::pack_dogstatsd_counted(&lines, &[] as &[&str], max_payload)
     }
 
     /// The metric points of one export window. Safe to share between threads.
@@ -355,6 +371,9 @@ pub mod ai_usage {
             datadog: bool,
         ) -> PyResult<Vec<Bound<'py, PyBytes>>> {
             let batch = self.take()?;
+            if batch.is_empty() {
+                return Ok(Vec::new());
+            }
             let binding = if datadog {
                 OtlpBinding::Datadog
             } else {
@@ -368,7 +387,10 @@ pub mod ai_usage {
                 start_time_unix_nano,
                 time_unix_nano,
             };
-            let parts = py.detach(|| batch.encode_otlp_parts(scope, window, binding, max_bytes));
+            let encode = |batch: &MetricBatch| batch.encode_otlp_with(scope, window, binding);
+            let mut parts = Vec::new();
+            py.detach(|| split_otlp(series_of(&batch), &encode, max_bytes, &mut parts))
+                .map_err(rejected)?;
             Ok(parts.iter().map(|part| PyBytes::new(py, part)).collect())
         }
 
@@ -380,10 +402,71 @@ pub mod ai_usage {
             max_payload: usize,
         ) -> PyResult<(Bound<'py, PyBytes>, usize)> {
             let batch = self.take()?;
-            let (text, dropped) = py
-                .detach(|| batch.dogstatsd_datagrams_joined(&[] as &[&str], max_payload, '\0'))
-                .map_err(rejected)?;
+            let lines = py.detach(|| batch.dogstatsd_lines()).map_err(rejected)?;
+            let (text, dropped) = libdd_ai_usage::pack_dogstatsd_joined(
+                lines.iter().map(String::as_str),
+                &[] as &[&str],
+                max_payload,
+                '\0',
+            );
             Ok((PyBytes::new(py, text.as_bytes()), dropped))
         }
+    }
+
+    // TODO: use libdatadog#2827's size-bounded OTLP encoding once it is published.
+    type Series = (libdd_ai_usage::Attributes, Profile, Vec<MetricPoint>);
+
+    /// A batch's series in order: a Counter's sum, or every sample of a Histogram.
+    fn series_of(batch: &MetricBatch) -> Vec<Series> {
+        let mut series: Vec<Series> = Vec::new();
+        for (resource, profile, points) in batch.points() {
+            let start = series.len();
+            for point in points {
+                let fresh = series.len() == start;
+                match series.last_mut() {
+                    Some(last)
+                        if !fresh
+                            && last.2[0].name == point.name
+                            && last.2[0].instrument == point.instrument
+                            && last.2[0].attributes == point.attributes =>
+                    {
+                        last.2.push(point)
+                    }
+                    _ => series.push((resource.clone(), profile, vec![point])),
+                }
+            }
+        }
+        series
+    }
+
+    /// Encode `series` into requests of at most `max_bytes`, halving any that
+    /// does not fit. One series is never split, so it can exceed `max_bytes`.
+    fn split_otlp(
+        series: Vec<Series>,
+        encode: &dyn Fn(&MetricBatch) -> Vec<u8>,
+        max_bytes: usize,
+        parts: &mut Vec<Vec<u8>>,
+    ) -> Result<(), MetricError> {
+        let count = series.len();
+        let mut batch = MetricBatch::new();
+        for (resource, profile, points) in &series {
+            batch.add(
+                *profile,
+                &Projection {
+                    points: points.clone(),
+                    issues: Issues::new(),
+                    resource: resource.clone(),
+                },
+            )?;
+        }
+        let payload = encode(&batch);
+        if payload.len() <= max_bytes || count <= 1 {
+            parts.push(payload);
+            return Ok(());
+        }
+        let mut series = series;
+        let second = series.split_off(count / 2);
+        split_otlp(series, encode, max_bytes, parts)?;
+        split_otlp(second, encode, max_bytes, parts)
     }
 }
