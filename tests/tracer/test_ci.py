@@ -739,3 +739,32 @@ def test_git_metadata_precedence(monkeypatch, source):
             assert key not in tags
     assert tags["ci.job.name"] == "tests"
     assert tags["git.commit.head.sha"] == "head-sha"
+
+
+@pytest.mark.parametrize(
+    "tag,branch,expected_tag",
+    [(None, None, None), ("explicit-tag", None, "explicit-tag"), (None, "refs/tags/explicit-tag", "explicit-tag")],
+)
+def test_sha_override_does_not_restore_inferred_provider_tag(monkeypatch, tag, branch, expected_tag):
+    environment = {"GITHUB_SHA": "b" * 40, "DD_GIT_COMMIT_SHA": "c" * 40}
+    if tag:
+        environment["DD_GIT_TAG"] = tag
+    if branch:
+        environment["DD_GIT_BRANCH"] = branch
+    provider = {
+        git.COMMIT_SHA: "b" * 40,
+        git.BRANCH: "refs/tags/provider-tag",
+        "ci.job.name": "tests",
+        git.COMMIT_HEAD_SHA: "head-sha",
+    }
+    monkeypatch.setattr(ci, "PROVIDERS", [("GITHUB_SHA", lambda env: provider)])
+    with (
+        mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value={}),
+        mock.patch("ddtrace.ext.ci.git.extract_git_head_metadata", return_value={}),
+    ):
+        tags = ci.tags(environment)
+    assert tags[git.COMMIT_SHA] == "c" * 40
+    assert tags.get(git.TAG) == expected_tag
+    assert git.BRANCH not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags[git.COMMIT_HEAD_SHA] == "head-sha"

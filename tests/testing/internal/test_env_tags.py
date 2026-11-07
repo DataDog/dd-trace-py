@@ -578,7 +578,7 @@ class TestCheckCommitShaConsistency:
         self._call(ci=self.SHA1, git=self.SHA2)
 
 
-@pytest.mark.parametrize("source", ["git", "provider", "override", "partial"])
+@pytest.mark.parametrize("source", ["git", "provider", "override", "partial", "sha-only"])
 def test_git_metadata_precedence(monkeypatch, source):
     keys = [
         "git.commit.sha",
@@ -600,6 +600,8 @@ def test_git_metadata_precedence(monkeypatch, source):
     environment = {"GITHUB_SHA": "b" * 40}
     if source == "override":
         environment.update({"DD_" + key.upper().replace(".", "_"): "user-" + key for key in keys})
+    elif source == "sha-only":
+        environment["DD_GIT_COMMIT_SHA"] = "c" * 40
     if source == "provider":
         local = {}
     elif source == "partial":
@@ -616,9 +618,43 @@ def test_git_metadata_precedence(monkeypatch, source):
             assert tags[key] == "user-" + key
         elif source == "provider":
             assert tags[key] == provider[key]
+        elif source == "sha-only" and key == GitTag.COMMIT_SHA:
+            assert tags[key] == "c" * 40
+        elif source == "sha-only" and (key == GitTag.TAG or key.startswith("git.commit.")):
+            assert key not in tags
         elif key in local:
             assert tags[key] == local[key]
         else:
             assert key not in tags
     assert tags["ci.job.name"] == "tests"
     assert tags["git.commit.head.sha"] == "head-sha"
+
+
+@pytest.mark.parametrize(
+    "tag,branch,expected_tag",
+    [(None, None, None), ("explicit-tag", None, "explicit-tag"), (None, "refs/tags/explicit-tag", "explicit-tag")],
+)
+def test_sha_override_does_not_restore_inferred_provider_tag(monkeypatch, tag, branch, expected_tag):
+    environment = {"GITHUB_SHA": "b" * 40, "DD_GIT_COMMIT_SHA": "c" * 40}
+    if tag:
+        environment["DD_GIT_TAG"] = tag
+    if branch:
+        environment["DD_GIT_BRANCH"] = branch
+    provider = {
+        GitTag.COMMIT_SHA: "b" * 40,
+        GitTag.BRANCH: "refs/tags/provider-tag",
+        "ci.job.name": "tests",
+        GitTag.COMMIT_HEAD_SHA: "head-sha",
+    }
+    monkeypatch.setattr(os, "environ", environment)
+    with (
+        mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value={}),
+        mock.patch("ddtrace.testing.internal.ci.get_ci_tags", return_value=provider),
+        mock.patch("ddtrace.testing.internal.git.get_git_head_tags_from_git_command", return_value={}),
+    ):
+        tags = get_env_tags()
+    assert tags[GitTag.COMMIT_SHA] == "c" * 40
+    assert tags.get(GitTag.TAG) == expected_tag
+    assert GitTag.BRANCH not in tags
+    assert tags["ci.job.name"] == "tests"
+    assert tags[GitTag.COMMIT_HEAD_SHA] == "head-sha"

@@ -140,6 +140,8 @@ def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] 
     user_specified_git_info = git.extract_user_git_metadata(environ)
     explicit_sha = user_specified_git_info.get(git.COMMIT_SHA)
     if explicit_sha and explicit_sha.lower() != (tags.get(git.COMMIT_SHA) or "").lower():
+        if git.is_ref_a_tag(tags.get(git.BRANCH)):
+            tags.pop(git.BRANCH, None)
         tags = {
             key: value
             for key, value in tags.items()
