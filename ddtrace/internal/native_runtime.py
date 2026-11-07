@@ -1,5 +1,7 @@
 from functools import cache
+from functools import wraps
 import logging
+import os
 import sys
 from typing import Any
 from typing import Callable
@@ -7,7 +9,9 @@ from typing import Optional
 
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.native import SharedRuntime
+from ddtrace.internal.threads import original_local
 
 
 log = logging.getLogger(__name__)
@@ -32,8 +36,7 @@ class NativeRuntime(SharedRuntime):
     def __init__(self) -> None:
         super().__init__()
         self.register_at_fork()
-        forksafe.register_before_child_hooks(self.defer_after_fork_child)
-        forksafe.register_after_child_hooks(self.allow_after_fork_child)
+        self._shut_down = False
         self._original_fork_exec: Optional[Callable[..., Any]] = None
         self._wrapped_fork_exec: Optional[Callable[..., Any]] = None
         self._install_subprocess_fork_hook()
@@ -106,10 +109,71 @@ class NativeRuntime(SharedRuntime):
             super().shutdown_in_thread(timeout_ms=timeout_ms)
         else:
             super().shutdown(timeout_ms=timeout_ms)
+        self._shut_down = True
         self._uninstall_subprocess_fork_hook()
         atexit.unregister(self._atexit)
-        forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
-        forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
+
+
+_runtime: Optional[NativeRuntime] = None
+
+# Called after the runtime is replaced outside a fork, so that the owners of
+# workers on the old runtime rebuild them, as they do in a fork child.
+_replacement_hooks: list[Callable[[], None]] = []
+
+
+def on_runtime_replaced(hook: Callable[[], None]) -> Callable[[], None]:
+    """Register a hook to run after the runtime is replaced, e.g. by a descriptor cleanup."""
+    _replacement_hooks.append(hook)
+    return hook
+
+
+def unregister_on_runtime_replaced(hook: Callable[[], None]) -> None:
+    try:
+        _replacement_hooks.remove(hook)
+    except ValueError:
+        pass
+
+
+def _reserve_standard_fds() -> list[int]:
+    """Occupy the closed standard descriptors (0-2) with the null device.
+
+    A runtime built while they are closed would take them, and daemonizing code
+    that closed them redirects the standard streams onto them next with dup2,
+    which would overwrite the runtime's descriptors. The caller closes the
+    returned placeholders once the runtime is built.
+    """
+    reserved: list[int] = []
+    for fd in (0, 1, 2):
+        try:
+            os.fstat(fd)
+        except OSError:
+            try:
+                # The lowest free descriptor: this one, as the lower ones are open.
+                reserved.append(os.open(os.devnull, os.O_RDWR))
+            except OSError:
+                break
+    return reserved
+
+
+def _release_standard_fds(reserved: list[int]) -> None:
+    for fd in reserved:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
+def _replace_runtime(runtime: NativeRuntime) -> None:
+    reserved = _reserve_standard_fds()
+    try:
+        runtime.replace_runtime()
+    finally:
+        _release_standard_fds(reserved)
+    for hook in list(_replacement_hooks):
+        try:
+            hook()
+        except Exception:
+            log.debug("Native runtime replacement hook %r failed", hook, exc_info=True)
 
 
 @cache
@@ -118,4 +182,124 @@ def get_native_runtime() -> NativeRuntime:
 
     The first call also registers an atexit hook to shut the runtime down.
     """
-    return NativeRuntime()
+    global _runtime
+
+    _runtime = NativeRuntime()
+    return _runtime
+
+
+def _rebuild_after_fork() -> None:
+    # Rebuild the runtime in the child before any other child hook can use it,
+    # rather than lazily on whichever thread uses it first.
+    runtime = _runtime
+    if runtime is not None and not runtime._shut_down:
+        reserved = _reserve_standard_fds()
+        try:
+            runtime.rebuild_after_fork()
+        finally:
+            _release_standard_fds(reserved)
+
+
+forksafe.register_before_child_hooks(_rebuild_after_fork)
+
+
+# Wrappers can nest, e.g. a wrapped cleanup function calling os.closerange:
+# only the outermost one stops and rebuilds the runtime, otherwise the outer
+# cleanup would close the descriptors of a runtime rebuilt by the inner one.
+_fd_cleanup = original_local()
+
+
+def _stop_while_closing_fds(
+    close: Callable[..., Any], closes_open_fds: Optional[Callable[..., bool]] = None
+) -> Callable[..., Any]:
+    """Wrap a function that closes inherited file descriptors.
+
+    The runtime's own descriptors are among those closed. Stop the runtime while
+    they are still valid, then replace it, as in a fork child: the old runtime
+    and its workers, whose connections may refer to closed descriptors, are
+    never touched again, and their owners rebuild the workers.
+
+    closes_open_fds, given the call's arguments, tells whether the call closes
+    any open descriptor at all; replacing the runtime is skipped otherwise.
+    """
+    if getattr(close, "__ddtrace_native_runtime__", False):
+        return close
+
+    @wraps(close)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        runtime = _runtime
+        depth = getattr(_fd_cleanup, "depth", 0)
+        if (
+            runtime is None
+            or runtime._shut_down
+            or depth
+            or (closes_open_fds is not None and not closes_open_fds(*args, **kwargs))
+        ):
+            return close(*args, **kwargs)
+
+        runtime.before_fork()
+        _fd_cleanup.depth = depth + 1
+        try:
+            return close(*args, **kwargs)
+        finally:
+            _fd_cleanup.depth = depth
+            _replace_runtime(runtime)
+
+    setattr(wrapper, "__ddtrace_native_runtime__", True)
+    return wrapper
+
+
+def _closerange_closes_open_fds(fd_low: int, fd_high: int) -> bool:
+    if fd_low >= fd_high:
+        return False
+    # The descriptor directory lists the open descriptors (plus the one used to
+    # list it, which can only cause a needless replacement).
+    for fd_dir in ("/proc/self/fd", "/dev/fd"):
+        try:
+            names = os.listdir(fd_dir)
+        except OSError:
+            continue
+        return any(fd_low <= int(name) < fd_high for name in names if name.isdigit())
+    return True
+
+
+def _stop_before_exec(execute: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap an exec function so the process image is replaced with the runtime stopped."""
+    if getattr(execute, "__ddtrace_native_runtime__", False):
+        return execute
+
+    @wraps(execute)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        runtime = _runtime
+        if runtime is None or runtime._shut_down:
+            return execute(*args, **kwargs)
+
+        runtime.before_fork()
+        try:
+            return execute(*args, **kwargs)
+        except BaseException:
+            # The exec failed and this process carries on: resume the runtime
+            # with its workers' state intact, as in a fork parent.
+            runtime.after_fork_parent()
+            raise
+
+    setattr(wrapper, "__ddtrace_native_runtime__", True)
+    return wrapper
+
+
+# Daemonizing libraries such as python-daemon fork, close every inherited
+# descriptor with os.closerange and keep running. Every os.exec* function goes
+# through os.execv or os.execve, which os looks up by name on each call.
+setattr(os, "closerange", _stop_while_closing_fds(os.closerange, _closerange_closes_open_fds))
+setattr(os, "execv", _stop_before_exec(os.execv))
+setattr(os, "execve", _stop_before_exec(os.execve))
+
+
+@ModuleWatchdog.after_module_imported("celery.platforms")
+def _(platforms: Any) -> None:
+    # Every Celery call site goes through celery.platforms.close_open_fds:
+    # beat and the worker reload by attribute, DaemonContext by module global.
+    # Up to Celery 5.6 it is billiard's function; from 5.7 Celery closes the
+    # descriptors listed in /proc/self/fd itself and only falls back to
+    # billiard's, so wrapping billiard would not cover it.
+    platforms.close_open_fds = _stop_while_closing_fds(platforms.close_open_fds)

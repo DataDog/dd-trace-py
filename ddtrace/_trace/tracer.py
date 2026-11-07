@@ -55,6 +55,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
 from ddtrace.internal.native.exceptions import is_panic_exception
+from ddtrace.internal.native_runtime import on_runtime_replaced
+from ddtrace.internal.native_runtime import unregister_on_runtime_replaced
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import in_aws_lambda_microvm
@@ -194,6 +196,7 @@ class Tracer:
         atexit.register(self._atexit)
         atexit.register_on_exit_signal(self._atexit)
         forksafe.register(self._child_after_fork)
+        on_runtime_replaced(self._on_native_runtime_replaced)
 
         self._shutdown_lock = Lock()
         # Reentrant because the exit-signal handler can run shutdown() on a thread that holds it.
@@ -439,6 +442,15 @@ class Tracer:
         active = self.context_provider.active()
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
+
+    def _on_native_runtime_replaced(self) -> None:
+        # The writer's exporter runs on the replaced runtime, whose connections may refer to
+        # closed descriptors. Drop it without shutting it down, and rebuild the writer on the
+        # next span start, as after a fork.
+        drop_exporter = getattr(self._span_aggregator.writer, "_drop_exporter", None)
+        if drop_exporter is not None:
+            drop_exporter()
+        self._post_fork_writer_pending = True
 
     def _ensure_post_fork_writer(self) -> bool:
         """Recreate the inherited writer once after a fork."""
@@ -1169,6 +1181,7 @@ class Tracer:
                 forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
+                unregister_on_runtime_replaced(self._on_native_runtime_replaced)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
         finally:
             self._shutdown_lock.release()
