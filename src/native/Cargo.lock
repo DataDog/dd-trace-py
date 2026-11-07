@@ -1375,9 +1375,10 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 [[package]]
 name = "libdd-ai-usage"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=642abb16de33fd343467525591b1fc1ce6432e10#642abb16de33fd343467525591b1fc1ce6432e10"
+source = "git+https://github.com/DataDog/libdatadog?rev=a4cdfb9c081e40069cc6cc8fd5db243e303a794e#a4cdfb9c081e40069cc6cc8fd5db243e303a794e"
 dependencies = [
- "libdd-ddsketch 1.1.4 (git+https://github.com/DataDog/libdatadog?rev=642abb16de33fd343467525591b1fc1ce6432e10)",
+ "hashbrown",
+ "libdd-ddsketch 1.1.4 (git+https://github.com/DataDog/libdatadog?rev=a4cdfb9c081e40069cc6cc8fd5db243e303a794e)",
  "memchr",
  "prost",
  "serde",
@@ -1593,7 +1594,7 @@ dependencies = [
 [[package]]
 name = "libdd-ddsketch"
 version = "1.1.4"
-source = "git+https://github.com/DataDog/libdatadog?rev=642abb16de33fd343467525591b1fc1ce6432e10#642abb16de33fd343467525591b1fc1ce6432e10"
+source = "git+https://github.com/DataDog/libdatadog?rev=a4cdfb9c081e40069cc6cc8fd5db243e303a794e#a4cdfb9c081e40069cc6cc8fd5db243e303a794e"
 dependencies = [
  "prost",
 ]
