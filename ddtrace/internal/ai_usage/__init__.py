@@ -6,7 +6,6 @@ metric points and encodes them; UsageMetricsWriter in _writer exports them. Inte
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from typing import Optional
 
@@ -26,13 +25,11 @@ def parse(usage_format: str, payload: Any, embeddings: bool = False) -> tuple[di
     dict of JSON values, or a list of events), or a whole body as str or bytes. response holds usage (None when the
     provider reported none), response_model and service_tier.
     """
-    report = json.loads(ai_usage.parse(usage_format, payload, embeddings))
-    return report["response"], report["outcome"], report["error_name"]
+    return ai_usage.parse(usage_format, payload, embeddings)
 
 
 def parse_stream(usage_format: str, chunks: Any, embeddings: bool = False) -> tuple[dict[str, Any], str, Optional[str]]:
     """What a stream reported, from its raw lines or events in order, as parse returns it. outcome is completed when
     the provider ended the response, failed when it reported an error, else open.
     """
-    report = json.loads(ai_usage.parse_stream(usage_format, chunks, embeddings))
-    return report["response"], report["outcome"], report["error_name"]
+    return ai_usage.parse_stream(usage_format, chunks, embeddings)
