@@ -410,6 +410,9 @@ def _start_ray_cluster(env_vars=None, ddtrace_run=False):
     env = os.environ.copy()
     base_env = {
         "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
+        # Keep partial ray.job flushes beyond the 30s job timeout so snapshots only see final spans.
+        "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL": "600",
+        "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL": "600",
     }
     if env_vars:
         base_env.update(env_vars)
