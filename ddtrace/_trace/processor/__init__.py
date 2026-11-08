@@ -246,17 +246,25 @@ class _Trace:
 
     def __init__(self, spans: Optional[list[Span]] = None):
         self.spans: list[Span] = spans if spans is not None else []
-        # Span ids already passed to SpanAggregator.on_span_finish. A span's duration_ns is set before
+        # id() of spans already passed to SpanAggregator.on_span_finish. A span's duration_ns is set before
         # its finish callbacks run, so another thread can see it as finished before it is counted.
+        # id() rather than span_id: it avoids a native getter call and does not assume span ids are unique
+        # within a trace. Buffered spans are alive, so their id() cannot be reused while in the set.
         self.finished_ids: set[int] = set()
         self.discarded: bool = False
 
     def remove_finished(self) -> list[Span]:
         finished_ids = self.finished_ids
-        finished = [s for s in self.spans if s.span_id in finished_ids]
-        if finished:
-            self.spans[:] = [s for s in self.spans if s.span_id not in finished_ids]
-            finished_ids.clear()
+        finished: list[Span] = []
+        remaining: list[Span] = []
+        for s in self.spans:
+            if id(s) in finished_ids:
+                finished.append(s)
+            else:
+                remaining.append(s)
+        self.spans[:] = remaining
+        # Also drops ids of spans that were never buffered here, so they stop inflating the count.
+        finished_ids.clear()
         return finished
 
 
@@ -454,7 +462,7 @@ class SpanAggregator(SpanProcessor):
                 and span._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY) != identity_generation
             ):
                 return
-            trace.finished_ids.add(span.span_id)
+            trace.finished_ids.add(id(span))
             num_buffered = len(trace.spans)
             num_finished = len(trace.finished_ids)
             is_trace_complete = num_finished >= num_buffered
@@ -468,7 +476,8 @@ class SpanAggregator(SpanProcessor):
                 if finished:
                     finished[0]._set_attribute("_dd.py.partial_flush", num_finished)
                 else:
-                    # num_finished was out of sync with the actual finished spans, skip partial flush
+                    # finished_ids only held spans that were never buffered in this trace (for example,
+                    # started before the aggregator was reset), so there is nothing to flush.
                     return
             else:
                 return

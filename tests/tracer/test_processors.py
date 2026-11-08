@@ -625,6 +625,31 @@ def test_aggregator_partial_flush_skips_spans_not_yet_counted():
     assert writer.pop() == [root]
 
 
+def test_aggregator_unbuffered_span_finish_does_not_flush_open_spans():
+    writer = DummyWriter()
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=1)
+    aggr.writer = writer
+
+    root = Span("root", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(root)
+    child = Span("child", on_finish=[aggr.on_span_finish])
+    child.trace_id = root.trace_id
+    child.parent_id = root.span_id
+    aggr.on_span_start(child)
+    # Finishes in this trace without having been buffered by on_span_start.
+    unbuffered = Span("unbuffered", on_finish=[aggr.on_span_finish])
+    unbuffered.trace_id = root.trace_id
+
+    unbuffered.finish()
+    assert writer.pop() == []
+
+    child.finish()
+    assert writer.pop() == [child]
+
+    root.finish()
+    assert writer.pop() == [root]
+
+
 def test_aggregator_duplicate_finish_does_not_flush_open_spans():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
