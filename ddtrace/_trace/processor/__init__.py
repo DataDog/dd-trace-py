@@ -242,20 +242,21 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 class _Trace:
-    __slots__ = ("spans", "num_finished", "discarded")
+    __slots__ = ("spans", "finished_ids", "discarded")
 
-    def __init__(self, spans: Optional[list[Span]] = None, num_finished: int = 0):
+    def __init__(self, spans: Optional[list[Span]] = None):
         self.spans: list[Span] = spans if spans is not None else []
-        self.num_finished: int = num_finished
+        # Span ids already passed to SpanAggregator.on_span_finish. A span's duration_ns is set before
+        # its finish callbacks run, so another thread can see it as finished before it is counted.
+        self.finished_ids: set[int] = set()
         self.discarded: bool = False
 
     def remove_finished(self) -> list[Span]:
-        # perf: Avoid Span.finished which is a computed property and has function call overhead
-        #       so check Span.duration_ns manually.
-        finished = [s for s in self.spans if s.duration_ns is not None]
+        finished_ids = self.finished_ids
+        finished = [s for s in self.spans if s.span_id in finished_ids]
         if finished:
-            self.spans[:] = [s for s in self.spans if s.duration_ns is None]
-            self.num_finished = 0
+            self.spans[:] = [s for s in self.spans if s.span_id not in finished_ids]
+            finished_ids.clear()
         return finished
 
 
@@ -453,10 +454,10 @@ class SpanAggregator(SpanProcessor):
                 and span._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY) != identity_generation
             ):
                 return
-            trace.num_finished += 1
+            trace.finished_ids.add(span.span_id)
             num_buffered = len(trace.spans)
-            is_trace_complete = trace.num_finished >= num_buffered
-            num_finished = trace.num_finished
+            num_finished = len(trace.finished_ids)
+            is_trace_complete = num_finished >= num_buffered
             should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
