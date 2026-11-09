@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: OpenAI Decisions API spans and typesafe-sdk System One spans are now tagged with ``decision_provider`` (``openai`` and ``typesafe`` respectively) to identify decision model spans.

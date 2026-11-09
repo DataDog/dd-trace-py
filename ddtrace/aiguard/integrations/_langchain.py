@@ -1,7 +1,9 @@
+import asyncio
 import contextvars
 from functools import partial
 import importlib
 from types import ModuleType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Iterator
@@ -24,6 +26,11 @@ from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.utils import get_argument_value
+
+
+if TYPE_CHECKING:
+    from langchain_core.messages import AIMessage
+    from langchain_core.messages import BaseMessage
 
 
 logger = ddlogger.get_logger(__name__)
@@ -175,7 +182,7 @@ async def _langchain_toolnode_arun_one(
     return await func(*args, **kwargs)
 
 
-def _get_message_text(msg: Any) -> str:
+def _get_message_text(msg: "BaseMessage") -> str:
     if isinstance(msg.content, str):
         return msg.content
 
@@ -187,7 +194,23 @@ def _get_message_text(msg: Any) -> str:
     return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
 
 
-def _convert_messages(messages: list[Any]) -> list[Message]:
+def _convert_invalid_tool_calls(message: "AIMessage") -> list[ToolCall]:
+    """Convert the tool calls langchain could not parse, keeping their raw arguments.
+
+    They are never dispatched, but the raw text still reaches the application and
+    some providers serialize it back into the next request, so it must be evaluated.
+    """
+    return [
+        ToolCall(
+            id=call.get("id") or "",
+            function=Function(name=call.get("name") or "", arguments=call.get("args") or ""),
+        )
+        for call in getattr(message, "invalid_tool_calls", None) or ()
+        if isinstance(call, dict)
+    ]
+
+
+def _convert_messages(messages: Sequence["BaseMessage"]) -> list[Message]:
     from langchain_core.messages import ChatMessage
     from langchain_core.messages import HumanMessage
     from langchain_core.messages import SystemMessage
@@ -205,16 +228,15 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
             elif isinstance(message, ChatMessage):
                 result.append(Message(role=message.role, content=_get_message_text(message)))
             elif isinstance(message, AIMessage):
-                if len(message.tool_calls) > 0:
-                    tool_calls = [
-                        ToolCall(
-                            id=call.get("id", ""),
-                            function=Function(
-                                name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))
-                            ),
-                        )
-                        for call in message.tool_calls
-                    ]
+                tool_calls = [
+                    ToolCall(
+                        id=call.get("id", ""),
+                        function=Function(name=call.get("name", ""), arguments=try_format_json(call.get("args", {}))),
+                    )
+                    for call in message.tool_calls
+                ]
+                tool_calls.extend(_convert_invalid_tool_calls(message))
+                if tool_calls:
                     result.append(Message(role="assistant", tool_calls=tool_calls))
                 if "function_call" in message.additional_kwargs:
                     function_call = message.additional_kwargs["function_call"]
@@ -326,7 +348,7 @@ def _message_has_tool_calls(message: Any) -> bool:
     return bool(_message_tool_call_fingerprints(message))
 
 
-def _convert_response_message(message: Any) -> list[Message]:
+def _convert_response_message(message: "BaseMessage") -> list[Message]:
     """Convert a model's own reply, keeping its text and tool calls in one turn.
 
     AIGuardClient.evaluate reads the span's target and tool_name off the trailing
@@ -348,6 +370,7 @@ def _convert_response_message(message: Any) -> list[Message]:
         for call in message.tool_calls or ()
         if isinstance(call, dict)
     ]
+    tool_calls.extend(_convert_invalid_tool_calls(message))
     function_call = message.additional_kwargs.get("function_call")
     if isinstance(function_call, dict):
         tool_calls.append(
@@ -904,7 +927,8 @@ async def _langchain_arun_end(func: Callable[..., Any], instance: Any, args: Any
     if scope is not None:
         held = scope.held.pop(_run_key(instance), ())
         try:
-            scope.evaluate_run_end(get_argument_value(args, kwargs, 0, "response"))
+            # Off the event loop: the evaluation is a blocking HTTP call.
+            await asyncio.to_thread(scope.evaluate_run_end, get_argument_value(args, kwargs, 0, "response"))
         except AIGuardAbortError as error:
             try:
                 await instance.on_llm_error(error)
