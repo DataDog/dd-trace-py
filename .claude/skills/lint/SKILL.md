@@ -378,4 +378,5 @@ scripts/lint fmt -- .
 ## Related
 
 - **run-tests skill**: For validating that changes don't break tests
+- **add-lint-rule skill**: For adding a new lint or static-analysis check
 - **pyproject.toml** `[dependency-groups]`: Source of truth for all lint tool versions

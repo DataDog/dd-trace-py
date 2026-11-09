@@ -1,0 +1,31 @@
+---
+description: Adding lint or static-analysis rules - prefer ast-grep, then existing tools, scripts last
+globs: [".sg/**", "sgconfig.yml", "static-analysis.datadog.yml", "scripts/check_*.py", "scripts/lint", "mypy.ini", "pyproject.toml"]
+alwaysApply: false
+---
+
+<!-- ⚠️ EDITOR WARNING ⚠️ -->
+<!-- Don't update this file. If you want to extend the rules and description, -->
+<!-- go to the skill: .claude/skills/add-lint-rule/SKILL.md -->
+
+# Add Lint Rule
+
+## Overview
+
+Use the **`add-lint-rule` skill** when adding a lint or static-analysis check.
+Implement in **ast-grep** if possible, existing static analysis tools otherwise,
+and hand-rolled scripts only as a last resort. A check is incomplete until it
+runs in a blocking CI job.
+
+## Usage
+
+Use the Skill tool with command "add-lint-rule"
+
+## Full Documentation
+
+See: `.claude/skills/add-lint-rule/SKILL.md`
+
+## Related
+
+- Run checks: `.claude/skills/lint/SKILL.md`
+- Lint config: `pyproject.toml`, `sgconfig.yml`, `.sg/rules/`
