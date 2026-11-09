@@ -132,6 +132,14 @@ Failure recovery:
   ensure-branch checked out a local branch but `git push` failed:
       git checkout main && git branch -D <X.Y>   # then re-run ensure-branch
 
+Bump-first (patch / draft-release):
+  Tip ``pyproject.toml`` must equal the release version **before** CI wait,
+  draft notes, Slack, or Publish. When tip is still the previous patch/RC,
+  the script opens (or reuses) a bump PR and exits WAITING ON merge — it
+  never drafts on a mismatch. ``--allow-version-mismatch`` is dry-run notes
+  preview only. Source of truth is ``pyproject.toml`` (``scripts/verify-package-version``
+  on the bump commit); ``ddtrace.version`` comes from the built wheel metadata.
+
 Gotchas:
   - Workflow Builder triggers/ URLs: script posts structured fields. The
     Slack Workflow must be rebuilt to use those variable names (see
@@ -365,6 +373,9 @@ def ensure_pyproject_matches_release_version(
     may pass ``allow_mismatch=True`` to preview notes only — prints a warning.
     Source of truth for the shipped package version is ``pyproject.toml``;
     ``ddtrace.version`` reads installed metadata from that build.
+
+    Prefer ``ensure_tip_version_before_draft`` on draft/patch paths — that
+    opens the bump PR first instead of only refusing.
     """
     ver: str = normalize_version_str(version)
     pyproject_version: str = normalize_version_str(read_pyproject_version_at(ref))
@@ -380,6 +391,95 @@ def ensure_pyproject_matches_release_version(
         return
     if allow_mismatch and not dry_run:
         raise SystemExit(f"{msg}\n--allow-version-mismatch is dry-run only; wet path always refuses.")
+    raise SystemExit(msg)
+
+
+def suggested_next_version_from_tip(tip_version: str) -> Optional[str]:
+    """Next patch or RC after ``tip_version``, or None if tip is not bumpable that way."""
+    tip: str = normalize_version_str(tip_version)
+    if is_stable_version(tip):
+        return compute_next_patch(tip)
+    if is_rc_version(tip):
+        return compute_next_rc(tip)
+    return None
+
+
+def open_or_wait_version_bump(
+    *,
+    base_branch: str,
+    new_version: str,
+    dry_run: bool,
+    body_extra: str = "",
+) -> None:
+    """Open or reuse a version-bump PR, then always raise ``WaitingOn``.
+
+    Never continues to CI/draft/Slack — tip must match after the bump merges.
+    """
+    ver: str = normalize_version_str(new_version)
+    open_bps: list[dict[str, Any]] = find_open_bump_prs(base_branch, ver)
+    if open_bps:
+        url: str = str(open_bps[0].get("url") or "")
+        raise WaitingOn(
+            f"merge of bump PR to {ver}"
+            + (f" ({url})" if url else "")
+            + " — tip pyproject must equal the release version before CI/draft/Slack/Publish"
+        )
+    title: str = f"chore: bump {ver}" if is_rc_version(ver) else f"chore: bump version to {ver}"
+    extra: str = body_extra.strip() or (
+        "Bump-first: tip `pyproject.toml` must equal the release version before "
+        "CI wait, draft notes, Slack, or Publish (GitLab `package version` "
+        "requires `CI_COMMIT_TAG == v{pyproject}`)."
+    )
+    pr_url: Optional[str] = open_version_bump_pr(
+        base_branch=base_branch,
+        new_version=ver,
+        title=title,
+        dry_run=dry_run,
+        body_extra=extra,
+    )
+    raise WaitingOn(
+        f"merge of bump PR to {ver}"
+        + (f" ({pr_url})" if pr_url else " (dry-run)")
+        + " — tip pyproject must equal the release version before CI/draft/Slack/Publish"
+    )
+
+
+def ensure_tip_version_before_draft(
+    *,
+    base_branch: str,
+    version: str,
+    tip_ref: str,
+    dry_run: bool = False,
+    allow_mismatch: bool = False,
+) -> None:
+    """Earliest release gate: tip pyproject == version, else bump-first and wait.
+
+    When tip is the previous stable patch or RC and ``version`` is the natural
+    next bump, open/reuse that bump PR and raise ``WaitingOn``. Never drafts
+    while mismatched. ``allow_mismatch`` is dry-run notes preview only.
+    """
+    ver: str = normalize_version_str(version)
+    tip_ver: str = normalize_version_str(read_pyproject_version_at(tip_ref))
+    if ver == tip_ver:
+        return
+    msg: str = format_pyproject_version_mismatch_error(
+        version=ver,
+        pyproject_version=tip_ver,
+        ref=tip_ref,
+    )
+    if dry_run and allow_mismatch:
+        print(f"WARN (--allow-version-mismatch, dry-run only): {msg}", file=sys.stderr)
+        return
+    if allow_mismatch and not dry_run:
+        raise SystemExit(f"{msg}\n--allow-version-mismatch is dry-run only; wet path always refuses.")
+
+    suggested: Optional[str] = suggested_next_version_from_tip(tip_ver)
+    if suggested == ver:
+        print(
+            f"Bump-first: tip pyproject is {tip_ver!r}, release version is {ver!r}. "
+            "Opening/waiting on the version bump before CI/draft/Slack."
+        )
+        open_or_wait_version_bump(base_branch=base_branch, new_version=ver, dry_run=dry_run)
     raise SystemExit(msg)
 
 
@@ -1789,13 +1889,14 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
     print(f"target:     origin/{target} ({short_sha})")
     print(f"pyproject@target: {target_pyproject_version}")
 
-    # Hard gate: tip pyproject must equal the release version before draft.
-    # GitLab `package version` on the tag pipeline exits 1 when
-    # CI_COMMIT_TAG != v{pyproject}; that blocks release_pypi_prod (v4.16.4).
-    # --allow-version-mismatch is dry-run only (notes preview).
-    ensure_pyproject_matches_release_version(
+    # Step 1 (bump-first): tip pyproject must equal the release version before
+    # CI wait, notes, Slack, or draft. On a natural next-patch/RC mismatch,
+    # open/reuse the bump PR and WAITING ON — never draft while mismatched.
+    # --allow-version-mismatch is dry-run notes preview only.
+    ensure_tip_version_before_draft(
+        base_branch=target,
         version=version,
-        ref=target_sha,
+        tip_ref=target_sha,
         dry_run=dry_run,
         allow_mismatch=bool(getattr(args, "allow_version_mismatch", False)),
     )
@@ -2584,6 +2685,33 @@ def cmd_patch(args: argparse.Namespace) -> int:
             "refusing to cut a patch while an RC draft exists (runbook lesson 3):\n  " + "\n  ".join(rc_drafts)
         )
 
+    # Step 1 (bump-first): land tip pyproject at the release version before
+    # backport wait / CI / draft / Slack. GH PR review is enough for the bump
+    # (CODEOWNERS on pyproject.toml); do not Slack @dd-trace-py-releasers here —
+    # the channel ping is reserved for the draft-ready announce.
+    run(["git", "fetch", "origin", branch], cwd=REPO_ROOT)
+    tip_sha: str = run_out(["git", "rev-parse", f"origin/{branch}"], cwd=REPO_ROOT)
+    tip_ver: str = normalize_version_str(read_pyproject_version_at(tip_sha))
+    if not is_stable_version(tip_ver):
+        raise SystemExit(f"origin/{branch} version {tip_ver!r} is not a stable patch version")
+    release_version: str
+    if _release_tag_is_published(f"v{tip_ver}"):
+        release_version = compute_next_patch(tip_ver)
+    else:
+        release_version = tip_ver
+    if xy_branch_for_version(release_version) != branch:
+        raise SystemExit(f"version {release_version} does not match target branch {branch}")
+    state.version = release_version
+    state.sha = tip_sha
+    state.did.append(f"origin/{branch} pyproject={tip_ver} sha={tip_sha[:12]}; releasing {release_version}")
+    ensure_tip_version_before_draft(
+        base_branch=branch,
+        version=release_version,
+        tip_ref=tip_sha,
+        dry_run=dry_run,
+        allow_mismatch=False,
+    )
+
     # Ensure backport label is present so the workflow can fire / re-fire.
     label_name: str = f"backport {branch}"
     existing_labels: set[str] = {lab.get("name") or "" for lab in (pr.get("labels") or [])}
@@ -2650,32 +2778,19 @@ def cmd_patch(args: argparse.Namespace) -> int:
         for b in others:
             print(f"  #{b.get('number')} {b.get('title')} {b.get('url')}")
 
-    if branch_state.version_published or _release_tag_is_published(f"v{branch_state.version}"):
-        next_ver: str = compute_next_patch(branch_state.version)
-        bump_open: list[dict[str, Any]] = find_open_bump_prs(branch, next_ver)
-        if bump_open:
-            state.waiting_on = f"merge of bump PR {bump_open[0].get('url')}"
-            state.report()
-            raise WaitingOn(state.waiting_on)
-        title: str = f"chore: bump version to {next_ver}"
-        pr_url: Optional[str] = open_version_bump_pr(
-            base_branch=branch,
-            new_version=next_ver,
-            title=title,
-            dry_run=dry_run,
+    # Re-assert bump-first after backports land (tip may have moved).
+    ensure_tip_version_before_draft(
+        base_branch=branch,
+        version=release_version,
+        tip_ref=branch_state.sha,
+        dry_run=dry_run,
+        allow_mismatch=False,
+    )
+    if branch_state.version != release_version:
+        raise SystemExit(
+            f"origin/{branch} pyproject is {branch_state.version!r} after bump gate; "
+            f"expected release version {release_version!r}"
         )
-        state.did.append(f"opened bump PR to {next_ver}" if pr_url else f"(dry-run) bump to {next_ver}")
-        state.waiting_on = f"merge of bump PR to {next_ver}" + (f" ({pr_url})" if pr_url else "")
-        state.report()
-        raise WaitingOn(state.waiting_on)
-
-    # Version on branch is the unpublished patch we're releasing.
-    release_version: str = branch_state.version
-    if not is_stable_version(release_version):
-        raise SystemExit(f"origin/{branch} version {release_version!r} is not a stable patch version")
-
-    if xy_branch_for_version(release_version) != branch:
-        raise SystemExit(f"version {release_version} does not match target branch {branch}")
 
     ensure_ci_green_from_args(branch_state.sha, args)
 
@@ -3861,9 +3976,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-version-mismatch",
         action="store_true",
         help=(
-            "dry-run only: warn instead of refusing when --version disagrees "
-            "with pyproject at --target (notes preview). Wet path always "
-            "refuses — bump pyproject on the release branch before drafting."
+            "dry-run only: warn instead of bump-first/refusing when --version "
+            "disagrees with pyproject at --target (notes preview). Wet path "
+            "always bump-first or refuses — never drafts on a mismatch."
         ),
     )
     _add_ci_flags(dr)

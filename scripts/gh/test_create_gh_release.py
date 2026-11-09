@@ -905,7 +905,7 @@ class DraftReleaseMismatchTests(unittest.TestCase):
                     allow_mismatch=True,
                 )
 
-    def test_mismatch_raises_without_override(self) -> None:
+    def test_mismatch_non_next_refuses_without_bump(self) -> None:
         import argparse as ap
 
         import create_gh_release as mod
@@ -948,6 +948,53 @@ class DraftReleaseMismatchTests(unittest.TestCase):
             setattr(mod, "run_out", original_run_out)
             setattr(mod, "ensure_gh_auth", original_ensure_auth)
             setattr(mod, "read_pyproject_version_at", original_read_pyproject)
+
+    def test_natural_next_mismatch_bump_first_waiting_on(self) -> None:
+        import argparse as ap
+
+        import create_gh_release as mod
+
+        with mock.patch.object(mod, "ensure_gh_auth"):
+            with mock.patch.object(mod, "run"):
+                with mock.patch.object(
+                    mod,
+                    "run_out",
+                    return_value="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                ):
+                    with mock.patch.object(mod, "read_pyproject_version_at", return_value="4.16.3"):
+                        with mock.patch.object(mod, "find_open_bump_prs", return_value=[]):
+                            with mock.patch.object(
+                                mod,
+                                "open_version_bump_pr",
+                                return_value=None,
+                            ) as open_bump:
+                                args = ap.Namespace(
+                                    target="4.16",
+                                    version="4.16.4",
+                                    allow_version_mismatch=False,
+                                    allow_ci_failure=False,
+                                    dry_run=True,
+                                    slack=False,
+                                    slack_channel="prod",
+                                    slack_precheck=False,
+                                    test_dm=False,
+                                    collapse_rcs=False,
+                                    earliest_version=None,
+                                )
+                                with self.assertRaises(WaitingOn) as ctx:
+                                    mod.cmd_draft_release(args)
+        self.assertIn("merge of bump PR to 4.16.4", ctx.exception.message)
+        self.assertIn("before CI/draft/Slack", ctx.exception.message)
+        open_bump.assert_called_once()
+        self.assertEqual(open_bump.call_args.kwargs["new_version"], "4.16.4")
+        self.assertEqual(open_bump.call_args.kwargs["base_branch"], "4.16")
+
+    def test_suggested_next_version_from_tip(self) -> None:
+        import create_gh_release as mod
+
+        self.assertEqual(mod.suggested_next_version_from_tip("4.16.3"), "4.16.4")
+        self.assertEqual(mod.suggested_next_version_from_tip("4.17.0rc1"), "4.17.0rc2")
+        self.assertIsNone(mod.suggested_next_version_from_tip("4.16.4.dev0"))
 
     def test_wet_allow_version_mismatch_still_refuses(self) -> None:
         import argparse as ap
