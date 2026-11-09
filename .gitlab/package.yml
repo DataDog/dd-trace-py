@@ -188,6 +188,11 @@ variables:
   tags: [ "macos:sonoma-amd64", "specific:true" ]
   variables:
     ARCH_TAG: "amd64"
+  # Diagnostics for "sccache: error: Connection to server timed out" on this runner
+  before_script:
+    - .gitlab/scripts/sccache-diagnostics.sh start
+  after_script:
+    - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
 "build macos arm64":
   extends: .build_macos_base
