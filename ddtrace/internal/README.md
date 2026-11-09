@@ -204,6 +204,20 @@ completes its lifecycle, and repeated completion or close does not finish spans 
 Flask's route, body inspection, response preparation, and blocking hooks retain
 their existing order. These integrations remain span-dependent.
 
+`ddtrace.contrib.internal.flask.response_adapter` preserves an inactive adapter
+for the shared blocking protocol. Flask patching does not import or install it.
+It reads peer IP, cookies, and matched path parameters while Flask's request
+context is available and can replace a normalized response before `start_response`
+commits it. A discarded response is closed without consuming its body, including
+its `call_on_close` callbacks. Completion copies response headers without losing
+repeated values or consuming or closing a response that will still be sent.
+
+The shared inspection events and synchronous execution helper are prerequisites;
+this extraction does not activate AppSec subscribers. Standalone adapter tests use
+synthetic response-producing callbacks and do not identify a production Flask hook.
+Future activation must reuse the existing request context rather than introduce
+another request lifecycle owner.
+
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping unregisters its bundles after shutdown as described above. Later explicit
