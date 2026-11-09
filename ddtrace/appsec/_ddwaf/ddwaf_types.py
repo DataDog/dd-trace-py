@@ -2,32 +2,20 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
 import ctypes.util
-from enum import Enum
 from enum import IntEnum
 from platform import system
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Union
 
+from ddtrace.appsec._ddwaf._types import DDWafInputType
+from ddtrace.appsec._ddwaf._types import DDWafOutputType
+from ddtrace.appsec._ddwaf._types import DDWafSqlTokenizer  # noqa: F401
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
-
-
-DDWafInputType = Union[None, int, float, str, Sequence["DDWafInputType"], Mapping[str, "DDWafInputType"]]
-
-DDWafOutputType = Union[None, int, float, str, list["DDWafOutputType"], dict[str, "DDWafOutputType"]]
-
-
-class DDWafSqlTokenizer(str, Enum):
-    GENERIC = "generic"
-    MYSQL = "mysql"
-    ORACLE = "oracle"
-    POSTGRESQL = "postgresql"
-    SQLITE = "sqlite"
 
 
 log = get_logger(__name__)

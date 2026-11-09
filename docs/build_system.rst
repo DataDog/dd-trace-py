@@ -463,3 +463,18 @@ Known Root Causes of Warm Rebuilds
    ``CustomBuildExt.run()`` called ``super().run()`` then looped over extensions
    explicitly again. The second pass overwrote timing data in ``DebugMetadata``, masking
    true rebuild costs. Fixed by removing the explicit loop.
+
+Native WAF Backend
+~~~~~~~~~~~~~~~~~~
+
+The WAF backend in ``src/native/appsec/waf`` uses ``libddwaf-rust`` for generated
+bindings, native objects, builders, and request contexts. It loads the existing
+bundled or system library explicitly when AppSec initializes; importing the common
+native extension does not load libddwaf. The runtime version must match the pinned
+Rust dependency.
+
+Python input is converted directly into owned WAF storage, without an intermediate
+JSON or Rust object tree. Long strings are copied or encoded into their final
+allocation, and results are decoded directly into Python values. The native
+context owns persistent input; operation subcontexts retain their own input and
+can outlive the request context. Python buffers are not borrowed across evaluations.
