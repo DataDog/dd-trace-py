@@ -13,9 +13,8 @@
 
 namespace Datadog {
 
-// The kind of execution unit a key names. An OS thread can run many asyncio tasks or greenlets, switching between
-// them, so each of those gets its own key too. Tasks and greenlets are called logical units here, because they are not
-// OS threads. Keeping the domain in the key stops a task's address from colliding with an equal thread id.
+// The kind of execution unit a key names. Tasks and greenlets are "logical" units that share an OS thread. The domain
+// keeps a task's address from colliding with an equal thread id.
 enum class SpanLinkDomain : uint8_t
 {
     Thread = 0,
@@ -23,31 +22,23 @@ enum class SpanLinkDomain : uint8_t
     Greenlet = 2,
 };
 
-// What the tracer had active when the link was written. tracer.context_provider.active() returns either a ddtrace Span
-// or a ddtrace Context (ActiveTrace in ddtrace/_trace/provider.py). Both have a trace id and a span id, and a new span
-// uses the active one's span id as its parent id. They differ in what happens when that span finishes.
+// Whether the tracer's active item was a ddtrace Span or a Context (see ActiveTrace in ddtrace/_trace/provider.py).
 enum class SpanLinkKind : uint8_t
 {
-    // A live span this process started, for example with tracer.trace("db.query"). When it finishes, the tracer makes
-    // its parent active again, so retarget moves the links that hold it to the parent.
+    // A live span. When it finishes, retarget moves its links to whatever becomes active next.
     Span = 0,
-    // A trace id and a span id with no live span object behind them. The main case is a thread pool:
-    // ThreadPoolExecutor.submit copies the caller's context and activates the copy in the worker thread for the whole
-    // job. If the caller's span finishes on its own thread first, the worker's new spans still use its span id as their
-    // parent, so the worker's samples should keep pointing at it too. Context links are therefore never retargeted.
-    // Incoming distributed tracing headers also produce a Context, whose span id belongs to the upstream service.
+    // A span id with no live span behind it, e.g. a context copied into a thread pool worker or from distributed
+    // headers. The worker keeps parenting spans to it after the caller's span finishes, so it is never retargeted.
     Context = 1,
 };
 
-// The active item a link points at. Despite the name, it holds either kind of active item, and kind says which.
+// The active item a link points at, of either kind.
 struct Span
 {
-    // The active Span's id, or the active Context's span id.
     uint64_t span_id;
-    // The local root span is the first span of this trace in this process, usually the request span. Samples carry
-    // its id and type so they can be grouped by request.
+    // The first span of this trace in this process, usually the request span.
     uint64_t local_root_span_id;
-    // The local root span's type, for example "web". Samples report it as their trace type.
+    // The local root span's type, for example "web".
     std::string span_type;
     SpanLinkKind kind;
 
@@ -73,8 +64,7 @@ struct Span
 struct SpanLinkKey
 {
     SpanLinkDomain domain;
-    // For a thread, its PyThreadState thread id (the same id the sampler uses). For a task or greenlet, the object's
-    // address, which is what id(task) or id(greenlet) returns in Python.
+    // PyThreadState thread id for a thread, id(obj) for a task or greenlet.
     uint64_t identifier;
 
     bool is_logical() const { return domain != SpanLinkDomain::Thread; }
@@ -94,29 +84,21 @@ struct SpanLinkKeyHash
 // What one execution unit is running.
 struct SpanLinkEntry
 {
-    // Empty when the unit has no active span. A thread key with no span is erased. A task or greenlet key with no span
-    // is kept, empty, as a tombstone, so that it keeps its birth while the object is alive.
+    // Empty for a task or greenlet tombstone, which keeps its birth while the object is alive. Thread keys with no
+    // span are erased instead.
     std::optional<Span> span;
 
-    // Guards against address reuse. Python can free a task and create a new one at the same address. Example: the
-    // sampler starts unwinding a thread, task A at address 0x10 ends and is freed, and task B is created at 0x10. The
-    // sampler must not attach B's span to A's frames. So each new task or greenlet key takes the next value of a global
-    // counter as its birth. The sampler reads birth_watermark() before it unwinds a thread and ignores keys with a
-    // larger birth. A key keeps its birth until it is removed, whatever is written to it. That is why "no span"
-    // leaves a tombstone: if A's key were erased and then re-created during the unwind, A itself would be ignored.
-    // Thread keys are never ignored and use 0.
+    // Guards against address reuse. Each new task or greenlet key gets the next value of a global counter, kept until
+    // the key is removed. The sampler reads birth_watermark() before unwinding a thread and ignores keys born after
+    // it, so a task created at a freed task's address during the unwind is not attributed to the old frames. Thread
+    // keys use 0.
     uint64_t birth = 0;
 
     bool operator==(const SpanLinkEntry& other) const { return span == other.span && birth == other.birth; }
 };
 
-// Runs fn under mtx. If mtx is free, fn runs right away and on_contention is never called. If mtx is held,
-// on_contention gets a function that blocks on mtx, runs fn and releases mtx before returning.
-//
-// This exists for Python callers, which hold the GIL. If they blocked on mtx while holding it, every other Python
-// thread would stall until mtx was free. Instead their hook releases the GIL, calls the function, and takes the GIL
-// back. This cannot deadlock, because whoever holds mtx (the sampling thread, or another writer that already released
-// the GIL) never needs the GIL while holding it. fn must not call into Python.
+// Runs fn under mtx. If mtx is held, on_contention is passed a function that blocks on mtx and runs fn, so Python
+// callers can release the GIL while waiting. No mtx holder ever needs the GIL, so fn must not call into Python.
 template<typename Fn, typename OnContention>
 void
 run_locked(std::mutex& mtx, Fn&& fn, OnContention&& on_contention)
@@ -132,21 +114,12 @@ run_locked(std::mutex& mtx, Fn&& fn, OnContention&& on_contention)
     });
 }
 
-// Records which span each execution unit is running, so the stack sampler can tag each sample with the span that was
-// active when the sample was taken. Tracer hooks in Python write it when a span is activated or finishes. The
-// sampling thread reads it without the GIL. mtx protects both maps.
+// Maps each execution unit to its active span so the sampler can tag samples. Written by tracer hooks, read by the
+// sampling thread without the GIL. mtx protects both maps.
 //
-// - key_to_entry maps each execution unit to what it is running.
-// - span_to_keys maps a span id to the keys whose entry is a Span-kind link to it. When a span finishes, it finds the
-//   links to move without scanning every key.
-//
-// There are two sets of operations:
-//
-// - The thread-only operations (link_span, unlink_span, unlink_finished_span, reset) behave as they did before keys
-//   had a domain, and are what current callers use. link_span stores every link as kind Span, even one written for an
-//   active Context, as before. They ignore the lifecycle token.
-// - The keyed operations (link, retarget, holds_span, clear, get_entry, open, close) are for per-unit callers. Writes
-//   need the current lifecycle token (see lifecycle()), and every operation takes a contention hook (see run_locked).
+// The thread-only operations (link_span, unlink_span, unlink_finished_span, reset) keep their old behavior: every
+// link is kind Span and the lifecycle token is ignored. The keyed operations (link, retarget, holds_span, clear,
+// get_entry, open, close) need the current token for writes and take a contention hook (see run_locked).
 class SpanLinks
 {
   public:
@@ -162,7 +135,7 @@ class SpanLinks
     SpanLinks(SpanLinks const&) = delete;
     SpanLinks& operator=(SpanLinks const&) = delete;
 
-    // The default contention hook: just block on the mutex. For native callers, which never hold the GIL.
+    // Contention hook for native callers, which never hold the GIL.
     struct BlockInPlace
     {
         template<typename Fn>
@@ -184,21 +157,17 @@ class SpanLinks
     bool on_link_end(uint64_t span_id);
     bool on_span_finish(uint64_t span_id);
 
-    // The lifecycle token. It is odd while span links are open (the profiler runs) and even while they are closed, and
-    // every open() or close() advances it. A writer reads it before it reads any tracer state, and passes it to link or
-    // retarget. The write is dropped unless the token is still current and odd. Example: a writer reads token 3, then
-    // the profiler stops (token 4) and starts again (token 5) before the writer gets the mutex. The span the writer
-    // read belongs to the old run, so its write with token 3 is dropped instead of leaking into the new run.
+    // Odd while open, even while closed, advanced by every open() and close(). Writers read it before reading tracer
+    // state and pass it to link or retarget, which drop the write unless it is still current and odd. This keeps a
+    // write racing a profiler restart from leaking into the new run.
     uint64_t lifecycle() const { return lifecycle_token.load(std::memory_order_acquire); }
 
-    // The birth of the most recently created task or greenlet key (see SpanLinkEntry::birth). A key whose birth is
-    // greater than a value read earlier was created after that read.
+    // The birth of the most recently created task or greenlet key (see SpanLinkEntry::birth).
     uint64_t birth_watermark() const { return birth_counter.load(std::memory_order_acquire); }
 
-    // Writes span to the calling thread's key if thread_id is set, and to the task and greenlet keys whose id is not
-    // 0, all under one hold of the mutex. An empty span means "no span": it erases a thread key, makes an existing task
-    // or greenlet key a tombstone, and creates nothing for a missing one, so untraced tasks cost no entry. Returns
-    // false, and writes nothing, unless token is current and odd.
+    // Writes span to the thread key (if thread_id is set) and to the nonzero task and greenlet keys, atomically. An
+    // empty span erases a thread key, tombstones an existing logical key, and creates no new one. Returns false
+    // without writing if token is stale.
     template<typename OnContention = BlockInPlace>
     bool link(uint64_t token,
               std::optional<uint64_t> thread_id,
@@ -212,10 +181,8 @@ class SpanLinks
         return accepted;
     }
 
-    // Called when the span span_id finishes, with what the tracer makes active next, usually its parent. Points every
-    // Span-kind link that holds span_id at replacement, and leaves Context-kind links alone (see SpanLinkKind). An
-    // empty replacement follows the "no span" rule of link. Calling it twice has the same effect as calling it once.
-    // Returns false, and writes nothing, unless token is current and odd.
+    // Called when span_id finishes. Points its Span-kind links at replacement (usually the parent), with the same
+    // empty-span rule as link. Idempotent. Returns false without writing if token is stale.
     template<typename OnContention = BlockInPlace>
     bool retarget(uint64_t token,
                   uint64_t span_id,
@@ -234,7 +201,7 @@ class SpanLinks
         return accepted;
     }
 
-    // Whether any Span-kind link still holds span_id. Context-kind links are not counted.
+    // Whether any Span-kind link still holds span_id.
     template<typename OnContention = BlockInPlace>
     bool holds_span(uint64_t span_id, OnContention&& on_contention = {})
     {
@@ -243,15 +210,13 @@ class SpanLinks
         return held;
     }
 
-    // Removes one key, tombstone included, for example when its task is freed. This needs no token, because removing a
-    // key can never leave stale data behind.
+    // Removes one key, tombstone included, e.g. when its task is freed. Needs no token since removal can't go stale.
     template<typename OnContention = BlockInPlace>
     void clear(SpanLinkKey key, OnContention&& on_contention = {})
     {
         with_lock([&] { remove_locked(key); }, on_contention);
     }
 
-    // Returns the entry for key, or nothing if the key does not exist.
     template<typename OnContention = BlockInPlace>
     std::optional<SpanLinkEntry> get_entry(SpanLinkKey key, OnContention&& on_contention = {})
     {
@@ -267,9 +232,7 @@ class SpanLinks
         return entry;
     }
 
-    // open() starts a lifecycle and close() ends it. Both clear every key and advance the token, to the next odd value
-    // for open and the next even value for close, under one hold of the mutex. A writer waiting on the mutex therefore
-    // sees the new token once it gets the lock.
+    // Clear every key and advance the token (odd for open, even for close) under one hold of the mutex.
     template<typename OnContention = BlockInPlace>
     void open(OnContention&& on_contention = {})
     {
@@ -282,8 +245,7 @@ class SpanLinks
         with_lock([&] { advance_lifecycle_locked(false); }, on_contention);
     }
 
-    // Keeps the lifecycle token and the birth counter. Only the forking thread exists in the child, so no write can
-    // be in flight.
+    // Resets the mutex and maps but keeps the lifecycle token and the birth counter.
     static void postfork_child();
 
   private:
@@ -324,8 +286,7 @@ class SpanLinks
 
     std::mutex mtx;
     KeyToEntry key_to_entry;
-    // Holds exactly the keys whose entry has kind Span. Context-kind entries are left out because they are never
-    // retargeted.
+    // Span-kind keys by span id, for retarget. Context-kind entries are never retargeted, so they are left out.
     SpanToKeys span_to_keys;
 
     // Written under mtx. Read without it by lifecycle() and birth_watermark().
