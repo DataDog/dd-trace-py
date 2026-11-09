@@ -21,7 +21,7 @@ the provider's `_integration_name`. Supply the two provider-specific behaviors:
 
 Use the actual base/reference signatures and implement or inherit the behavior needed by the
 integration. For standard request integrations, construct it lazily in the LLMObs subscriber
-with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/_subscribers.py`.
+with `integration_config=config.<name>`; see `ddtrace/llmobs/_subscribers.py`.
 Keep contrib free of LLMObs imports. When extending an integration that stores its instance on
 `module._datadog_integration`, preserve that ownership and cleanup unless migrating its lifecycle.
 
@@ -54,7 +54,7 @@ Key points:
 - LLMObs tag setting is handled by product subscribers, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
 
-Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Google GenAI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans or agent/tool child spans; keep their creation, extraction, and finishing under one owner.
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans or agent/tool child spans; keep their creation, extraction, and finishing under one owner.
 
 Existing events carrying `llmobs_integration` are handled directly by `LlmTracingSubscriber`.
 Preserve that contract when extending those integrations; use product subscribers for new
@@ -65,8 +65,13 @@ standard request integrations so contrib does not import LLMObs.
 Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration.
 `LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so it dispatches each
 `SpanLifecycleEvents` phase as `"<phase>.llm.request"`. The shared subscribers in
-`ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
-registered integration using `ctx.event.component`:
+`ddtrace/llmobs/_subscribers.py` receive an `ExecutionContext` and select the
+registered integration using `ctx.event.component`. The compatibility module
+`ddtrace/llmobs/_contrib/_subscribers.py` re-exports `register`, `unregister`, and
+`get_integration`; lifecycle changes belong in `ddtrace/llmobs/_subscribers.py`.
+When rebasing integration changes, move edits to the old subscriber bodies into the
+corresponding shared listener methods, preserving request arguments, base URL inputs,
+and integration start hooks. The lifecycle phases are:
 
 - `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
@@ -140,6 +145,8 @@ Oversized inline media makes `_writer._truncate_span_event` blank the span's ent
 ### Metadata Hygiene
 
 Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `get_metadata_from_kwargs()` and provider-specific helpers in `ddtrace/llmobs/_integrations/utils.py` when they apply. They filter provider sentinel defaults such as OpenAI `Omit`/`NotGiven`, serialize SDK objects through `load_data_value()`, and keep metadata limited to supported fields. `_annotate_llmobs_span_data()` coerces metadata keys to strings, but integrations should still avoid sending noisy or high-cardinality raw objects.
+
+Never copy tool or model configurations verbatim either. Hosted MCP tools carry credentials in `headers`, `authorization` and the server URL (userinfo, path, query), and container network policies carry `domain_secrets` values: record tools through `safe_tool_config()` in `ddtrace/llmobs/_integrations/utils.py`. Model settings can carry `extra_headers`, `extra_query`, `extra_body` and `extra_args`: filter them with `ALLOWED_MODEL_SETTINGS_KEYS` and `is_flat_scalar_value()` from `agent_manifest.py`.
 
 ### Token Field Mapping
 

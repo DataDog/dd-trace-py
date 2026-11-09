@@ -188,6 +188,11 @@ variables:
   tags: [ "macos:sonoma-amd64", "specific:true" ]
   variables:
     ARCH_TAG: "amd64"
+  # Diagnostics for "sccache: error: Connection to server timed out" on this runner
+  before_script:
+    - .gitlab/scripts/sccache-diagnostics.sh start
+  after_script:
+    - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
 "build macos arm64":
   extends: .build_macos_base
@@ -235,8 +240,8 @@ variables:
 # sdist are deliberately left out: the prerelease index exists to hand a custom build to a
 # customer or an internal service, and those all run manylinux or macOS.
 .patch_wheel_versions_base:
-  # DEV: the testrunner image is used for the adms binary it ships.
-  image: ${TESTRUNNER_IMAGE}
+  # DEV: the ci-utils image is used for the adms binary it ships.
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
   script:
@@ -438,6 +443,8 @@ variables:
 # Runs automatically on releases/RCs, available as manual trigger for other pipelines.
 "upload debug symbols to backend":
   stage: release
+  # TODO: move to .ci_utils once CI_UTILS_IMAGE ships binutils. datadog-ci elf-symbols upload
+  # runs objcopy, which the ci-utils image does not have yet.
   extends: .testrunner
   needs:
     - job: "build linux"

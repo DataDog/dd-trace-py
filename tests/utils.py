@@ -280,16 +280,15 @@ def override_global_config(values: dict[str, Any]):
 
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
-    if asm_config._asm_enabled:
-        from ddtrace.appsec._listeners import disable_appsec
+    from ddtrace.appsec._listeners import disable_appsec
+
+    # disable_appsec() clears _asm_enabled, so read it first.
+    asm_enabled = asm_config._asm_enabled
+    disable_appsec()
+    if asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        disable_appsec()
         load_appsec()
-    else:
-        from ddtrace.appsec._listeners import disable_appsec
-
-        disable_appsec()
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
@@ -724,7 +723,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         compute_stats_enabled: Optional[bool] = None,
         stats_opt_out: Optional[bool] = None,
     ) -> DummyWriter:
-        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._inner_writer._api_version
+        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled, api_version=api_version)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)
@@ -1220,7 +1220,6 @@ class TestAgentClient:
         *,
         timeout: float = 5.0,
         retry: bool = True,
-        xfail_on_error: bool = True,
     ) -> tuple[int, bytes]:
         deadline = time.monotonic() + timeout
         for attempt in range(3 if retry else 1):
@@ -1232,8 +1231,6 @@ class TestAgentClient:
             except (OSError, httplib.HTTPException) as exc:
                 remaining = deadline - time.monotonic()
                 if not retry or attempt == 2 or remaining <= 0:
-                    if xfail_on_error:
-                        pytest.xfail("Failed to connect to test agent")
                     raise RuntimeError(f"Test agent request failed: {method} {url} at {self._base_url}") from exc
                 time.sleep(min(0.1 * 2**attempt, remaining))
             finally:
@@ -1306,9 +1303,7 @@ class SnapshotTest:
                 pytest.fail(
                     f"Snapshot {self.name} ({self.token}): expected {count} traces, got {len(traces)}: {traces}"
                 )
-            status, body = self._client._request(
-                "GET", self._client._url("/test/session/traces"), timeout=remaining, xfail_on_error=False
-            )
+            status, body = self._client._request("GET", self._client._url("/test/session/traces"), timeout=remaining)
             if status != 200:
                 pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
             traces = json.loads(body)
@@ -1322,10 +1317,8 @@ class SnapshotTest:
             project_dir = os.getenv("CI_PROJECT_DIR")
             agent_dir = f"{project_dir}/tests/snapshots" if project_dir else "/snapshots"
         url = self._client._url("/test/session/snapshot", ignores=",".join(ignores), file=f"{agent_dir}/{self.name}")
-        status, body = self._client._request("GET", url, timeout=timeout, retry=False, xfail_on_error=False)
+        status, body = self._client._request("GET", url, timeout=timeout, retry=False)
         if status != 200:
-            if "received unmatched traces" in body.decode("utf-8", errors="replace").lower():
-                pytest.xfail(body.decode("utf-8", errors="replace"))
             pytest.fail(
                 f"Snapshot {self.name} ({self.token}):\n{body.decode('utf-8', errors='replace')}", pytrace=False
             )
@@ -1380,7 +1373,7 @@ def snapshot_context(
     url = client._url(
         "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
     )
-    status, body = client._request("GET", url, timeout=timeout, retry=False, xfail_on_error=False)
+    status, body = client._request("GET", url, timeout=timeout, retry=False)
     if status != 200:
         pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
     original_compute_stats_enabled = dd_config._trace_compute_stats
@@ -1422,7 +1415,7 @@ def snapshot_context(
         failed = sys.exc_info()[0] is not None or not session.verify_on_exit
         try:
             session.clear()
-        except (Exception, pytest.xfail.Exception):
+        except Exception:
             if not failed:
                 failed = True
                 raise
@@ -1475,16 +1468,11 @@ def snapshot(
 
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
-        if len(args) > 1:
-            self = args[0]
-            clsname = self.__class__.__name__
-        else:
-            clsname = ""
+        clsname = instance.__class__.__name__ if instance is not None else ""
 
         module = inspect.getmodule(wrapped)
 
-        # Use the fully qualified function name as a unique test token to
-        # identify the snapshot.
+        # Use the module, class, and method name for the baseline filename.
         token = (
             "{}{}{}.{}".format(module.__name__, "." if clsname else "", clsname, wrapped.__name__)
             if token_override is None
@@ -1504,7 +1492,19 @@ def snapshot(
                 kwargs["tracer"] = ddtrace.tracer
             return wrapped(*args, **kwargs)
 
-    return wrapper
+    def decorate(func):
+        decorated = wrapper(func)
+        decorated._snapshot_options = {
+            "token": token_override,
+            "ignores": ignores,
+            "variants": variants,
+            "async_mode": async_mode,
+            "wait_for_num_traces": wait_for_num_traces,
+            "compute_stats_enabled": compute_stats_enabled,
+        }
+        return decorated
+
+    return decorate
 
 
 class AnyStr:

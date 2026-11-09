@@ -369,6 +369,38 @@ class TestGetGitTags:
         assert result == {GitTag.COMMIT_HEAD_MESSAGE: "Head commit"}
         mock_git.unshallow_repository.assert_not_called()
 
+    @patch("ddtrace.testing.internal.git.Git")
+    def test_get_git_head_tags_skips_fetch_when_disallowed(self, mock_git_class: Mock) -> None:
+        """allow_fetch=False never deepens the clone, even when the head commit is missing locally.
+
+        Without the fetch the head metadata is unavailable, so the function returns
+        early instead of issuing git commands that would only produce warnings.
+        """
+        mock_git = Mock()
+        mock_git.has_commit.return_value = False
+        mock_git_class.return_value = mock_git
+
+        result = get_git_head_tags_from_git_command("head-sha", allow_fetch=False)
+
+        assert result == {}
+        mock_git.unshallow_repository.assert_not_called()
+        mock_git.get_commit_message.assert_not_called()
+        mock_git.get_user_info.assert_not_called()
+
+    @patch("ddtrace.testing.internal.git.Git")
+    def test_get_git_head_tags_fetches_when_allowed(self, mock_git_class: Mock) -> None:
+        """The default (allow_fetch=True) keeps the deepen fetch for a missing head commit."""
+        mock_git = Mock()
+        mock_git.has_commit.return_value = False
+        mock_git.get_commit_message.return_value = "Head commit"
+        mock_git.get_user_info.return_value = None
+        mock_git_class.return_value = mock_git
+
+        result = get_git_head_tags_from_git_command("head-sha")
+
+        mock_git.unshallow_repository.assert_called_once_with(parent_only=True, required_commit="head-sha")
+        assert result == {GitTag.COMMIT_HEAD_MESSAGE: "Head commit"}
+
 
 class TestGitUnshallow:
     """Tests for git unshallow logic."""
