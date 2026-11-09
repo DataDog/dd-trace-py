@@ -46,7 +46,6 @@ def patched_json_encoder_default(
     from .._taint_utils import LazyTaintList
 
     if isinstance(args[0], (LazyTaintList, LazyTaintDict)):
-        original_object: object = args[0]._obj
-        return original_object
+        return args[0]._obj
 
     return original_func(*args, **kwargs)
