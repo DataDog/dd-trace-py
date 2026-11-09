@@ -492,15 +492,13 @@ class TestRayWithoutInit(TracerTestCase):
 
     dashboard_url = None
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.dashboard_url = _start_ray_cluster()
-
-    @classmethod
-    def tearDownClass(cls):
-        _stop_ray_cluster()
-        super().tearDownClass()
+    @pytest.fixture(autouse=True)
+    def ray_cluster(self, snapshot):
+        try:
+            self.dashboard_url = _start_ray_cluster()
+            yield
+        finally:
+            _stop_ray_cluster()
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):

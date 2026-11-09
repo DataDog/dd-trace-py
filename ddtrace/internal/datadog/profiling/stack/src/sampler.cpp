@@ -652,8 +652,10 @@ Sampler::Sampler()
 Sampler&
 Sampler::get()
 {
-    static Sampler instance;
-    return instance;
+    // uWSGI may call exit without running the atexit hooks that stop the sampler.
+    // Making this a raw pointer prevents crashes at exit.
+    static Sampler* const instance = new Sampler();
+    return *instance;
 }
 
 void
@@ -1081,7 +1083,7 @@ Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
     }
 
     std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
-    echion->weak_task_link_map()[child] = parent;
+    echion->weak_link_task(parent, child);
 }
 
 void

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    CI Visibility: The pytest plugin now respects the ``DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED``
+    environment variable (matching ``dd-trace-js``). When set to ``false``, the plugin never
+    runs ``git fetch --shallow-since`` on shallow clones; the ``/search_commits`` check and
+    any pending packfile upload still run using the locally available history.
