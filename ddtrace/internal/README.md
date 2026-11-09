@@ -202,7 +202,15 @@ before the request span, preserving response-only error attribution for streamin
 failures and ignoring `GeneratorExit`. Closing an iterable that raises still
 completes its lifecycle, and repeated completion or close does not finish spans twice.
 Flask's route, body inspection, response preparation, and blocking hooks retain
-their existing order. These integrations remain span-dependent.
+their existing order. These integrations remain span-dependent. Their service is
+resolved at span creation; deferred completion preserves later changes to the live
+request span instead of resolving its service again.
+
+Application execution, iteration, and closure normally run in one copied Context.
+When Werkzeug requests context preservation, including a preserved Flask test
+client, they remain in the caller's Context so Flask can safely re-push and pop its
+saved context objects. The legacy Flask preservation flag follows the same rule.
+Ordinary requests retain isolated execution for interleaved response streams.
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product

@@ -206,11 +206,15 @@ class _DDWSGIMiddlewareBase:
     def __call__(self, environ: dict[str, Any], start_response: Callable[..., Any]) -> _WSGIResponseIterable:
         # Publish before the root span so request-start listeners run ahead of it.
         trace_utils.dispatch_wsgi_web_request_starting(environ)
+        # Werkzeug re-pushes preserved Flask contexts in the caller. Their token
+        # stacks must stay in that same Context through response iteration/close.
+        if "werkzeug.debug.preserve_context" in environ or environ.get("flask._preserve_context"):
+            return self._execute_request(environ, start_response, None)
         execution_context = copy_context()
         return execution_context.run(self._execute_request, environ, start_response, execution_context)
 
     def _execute_request(
-        self, environ: dict[str, Any], start_response: Callable[..., Any], execution_context: Context
+        self, environ: dict[str, Any], start_response: Callable[..., Any], execution_context: Optional[Context]
     ) -> _WSGIResponseIterable:
         headers = get_request_headers(environ)
         event = WebFrameworkRequestEvent(

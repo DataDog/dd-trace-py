@@ -41,7 +41,8 @@ def _finish_span(
     if not span:
         return
 
-    set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
+    if ctx.get_item("resolve_service_on_finish", True):
+        set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:

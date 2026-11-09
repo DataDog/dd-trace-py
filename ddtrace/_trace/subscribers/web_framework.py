@@ -38,6 +38,10 @@ class WebFrameworkRequestSubscriberBase(TracingSubscriber):
     ) -> None:
         if not ctx.event.span_creation_enabled:
             return
+        if ctx.get_item("middleware") is not None:
+            # WSGI resolved its initial service at entry. Keep later span overrides,
+            # including when the application failed before creating a response span.
+            ctx.set_item("resolve_service_on_finish", False)
         response_span = ctx.get_item("response_span")
         if response_span is None:
             super()._on_context_ended(ctx, exc_info)
