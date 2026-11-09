@@ -22,6 +22,7 @@ class _WebFrameworkSubscriberBundle(SubscriberBundle):
 
     def ensure_registered(self) -> None:
         # Standalone span requirements are independent of APM listener admission.
+        WEB_FRAMEWORK_EXCEPTION_SUBSCRIBERS.ensure_registered()
         STANDALONE_WEB_FRAMEWORK_SUBSCRIBERS.ensure_registered()
         if self._enabled:
             super().ensure_registered()
@@ -61,6 +62,12 @@ HTTP_CLIENT_SUBSCRIBERS = SubscriberBundle(
 WEB_FRAMEWORK_SUBSCRIBERS = _WebFrameworkSubscriberBundle(
     module="ddtrace._trace.subscribers.web_framework",
     subscribers=("WebFrameworkRequestSubscriber",),
+)
+# Exception notifications can arrive after request completion, so this stateless
+# consumer keeps the admitted event's decision independently of request admission.
+WEB_FRAMEWORK_EXCEPTION_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.web_framework",
+    subscribers=("WebFrameworkRequestExceptionSubscriber",),
 )
 STANDALONE_WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.web_framework",

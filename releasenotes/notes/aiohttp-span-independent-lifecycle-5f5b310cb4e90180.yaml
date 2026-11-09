@@ -2,3 +2,7 @@ features:
   - |
     aiohttp: Avoids creating request spans with ``DD_TRACE_ENABLED=false``,
     except when required by standalone products.
+fixes:
+  - |
+    aiohttp: Finishes request spans when a streaming response fails or a request
+    is cancelled, including when no response is prepared.

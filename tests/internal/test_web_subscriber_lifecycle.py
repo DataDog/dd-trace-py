@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import sys
 from threading import Event
 
 import pytest
@@ -8,6 +9,7 @@ from ddtrace._trace._registration import STANDALONE_WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace.subscribers import web_framework
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.settings.asm import config as asm_config
@@ -224,3 +226,29 @@ def test_disabling_last_standalone_product_closes_admission(web_policy, monkeypa
             assert skipped.get_item("_inner_span") is None
     assert span.finished
     assert not core.has_listeners("context.ended.web.request")
+
+
+def test_unregister_preserves_synchronous_and_late_exception_notifications(web_policy, test_spans):
+    event = request_event()
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        span = ctx.get_item("_inner_span")
+    WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+
+    def notify(message):
+        try:
+            raise ValueError(message)
+        except ValueError:
+            core.dispatch_event(
+                WebFrameworkRequestExceptionEvent(request_context=ctx, request_event=event, exc_info=sys.exc_info())
+            )
+
+    notify("during drain")
+    assert span.error == 1
+    assert not span.finished
+    ctx.dispatch_ended_event()
+    assert span.finished
+    assert not core.has_listeners("context.ended.web.request")
+    # A response can complete before a handler reports its final exception.
+    notify("after response completion")
+    assert span.get_tag("error.message") == "after response completion"
+    test_spans.assert_span_count(1)

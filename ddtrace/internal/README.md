@@ -173,6 +173,16 @@ its tracer-owned exit handling. AWS Durable subscribers load with the other
 SDK-independent subscribers. Ray subscriber helpers require its optional SDK, so tracing owns an import hook that
 activates them after the Ray integration module loads.
 
+
+Aiohttp reports handler errors synchronously through
+`WebFrameworkRequestExceptionEvent`; producers and consumers must not retain its
+traceback on deferred contexts. Its separate tracing subscription remains available
+for late errors on admitted spans after response completion or APM unregistering.
+The event's original admission decision prevents tagging a borrowed parent span.
+Failed or cancelled requests use a task-completion fallback when no response was
+prepared; response completion removes pending callbacks so keep-alive tasks do not
+retain completed requests. Cancellation preserves the existing non-error behavior.
+
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
 `LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned

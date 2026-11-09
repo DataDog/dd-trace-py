@@ -63,7 +63,10 @@ Do not infer ownership from _inner_span alone, because AppSec can borrow a paren
 Keep integration enablement separate from product listener ownership. Core resets
 invalidate cached bundle activation, but do not override tracing's manual admission policy. Retain completion listeners until
 requests admitted by that owner finish; unpatching one integration must not remove
-shared listeners needed by other integrations.
+shared listeners needed by other integrations. Report aiohttp exceptions synchronously
+through WebFrameworkRequestExceptionEvent without retaining tracebacks on deferred
+contexts. Its stateless tracing consumer uses the original admission decision and
+remains subscribed independently so already-admitted requests can report late errors.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

@@ -16,10 +16,12 @@ from ddtrace._trace.subscribers._base import _finish_span
 from ddtrace._trace.subscribers._base import _start_span
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.core import event_hub
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.settings.standalone import standalone_config
@@ -287,3 +289,18 @@ class StandaloneWebFrameworkRequestSubscriber:
         with event_hub._registration_lock:
             WebFrameworkRequestSubscriber._standalone_requested = False
             WebFrameworkRequestSubscriber._refresh()
+
+
+class WebFrameworkRequestExceptionSubscriber(Subscriber):
+    event_names = (WebFrameworkRequestExceptionEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, event: WebFrameworkRequestExceptionEvent) -> None:
+        # The context may have released its event at response preparation. Retain
+        # the original tracing decision, including when AppSec borrowed a parent span.
+        if not event.request_event.span_creation_enabled:
+            return
+        span = event.request_context.get_item("_inner_span")
+        exc_type, exc_value, traceback = event.exc_info
+        if span is not None and exc_type is not None and exc_value is not None and traceback is not None:
+            span.set_exc_info(exc_type, exc_value, traceback)
