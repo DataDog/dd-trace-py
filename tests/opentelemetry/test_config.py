@@ -643,8 +643,8 @@ def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
-        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
     }
 )
 def test_explicit_otlp_settings_win_over_agentless():
@@ -653,13 +653,15 @@ def test_explicit_otlp_settings_win_over_agentless():
     from ddtrace.internal.settings import env
     from ddtrace.internal.settings._opentelemetry import otel_config
 
-    assert otel_config.exporter.METRICS_PROTOCOL == "http/json"
+    assert otel_config.exporter.METRICS_PROTOCOL == "grpc"
     # ddtrace must not override the global endpoint the user set...
     _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/json", "metrics"
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "grpc", "metrics"
     )
     # ...nor attach Datadog credentials to a third-party collector.
     assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") is None
+    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector:4317"
+    assert otel_config.exporter.ENDPOINT == "http://collector:4317"
 
 
 @pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})

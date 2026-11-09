@@ -323,6 +323,8 @@ def test_otel_logs_exporter_auto_configured_http():
     err=None,
 )
 def test_otel_logs_exporter_otlp_protocol_unsupported():
+    import opentelemetry._logs  # noqa: F401
+
     from ddtrace.internal.opentelemetry.logs import DD_LOGS_PROVIDER_CONFIGURED
     from ddtrace.internal.settings._opentelemetry import otel_config
 
