@@ -33,8 +33,13 @@ Grouped: (A) inventory, (B) gates/harness, (C) destination port, (D) process/doc
 > **Disposition update (same day):** the inventory-side findings were fixed
 > on `dd/gnufede/package-split-api-inventory-k7q2` (commit `65314c5610`, on
 > top of the review-feedback commits `4e4b3b581d`/`fd0a21f8db` which had
-> already fixed F1/F2). Remaining open findings are the gate/harness ones:
-> F7, F8, F14, F15, the astdeps half of F12, F17, and process notes F5/F9.
+> already fixed F1/F2). F8/F15 were fixed on this branch in `82736a9205` —
+> with the per-package-manifest convention (F17), all applicable gates now
+> run and pass for extracted packages. The first real extraction
+> (ddtrace.internal.codeowners -> _ddtrace_internal_base.codeowners,
+> bridge `04d4480bc6`, freeze `5e3b668550`) completed end-to-end; its new
+> findings are F19/F20 below. Remaining open: F7 (root-manifest red
+> baseline, transitional), F14 (stdlib enumeration), F17 docs, F5/F9.
 
 ### A. Inventory
 
@@ -86,8 +91,20 @@ Grouped: (A) inventory, (B) gates/harness, (C) destination port, (D) process/doc
   dotted name inside the harness's own bare uv env (packaging + tomli only):
   `ddtrace` → `ModuleNotFoundError: envier`. Never installs from source paths or
   adds them to sys.path. The failure reads like a code failure but is
-  environmental. Needs an env story (install artifact first / run in package
-  venv) or an explicit skip with reason.
+  environmental.
+  **Fixed** in `82736a9205`: the probe's sys.path now uses the directory that
+  actually contains a declared import root (the source path itself for
+  src-layout/per-package manifests, its parent for namespace layouts). The
+  codeowners package lifecycle gate passes; the *root* manifest (native
+  ddtrace, envier, compiled extensions) remains unrunnable there, which is
+  expected while gates run per extracted package.
+- **F15 — uv workspace virtual root breaks `artifacts` (false FAIL).** Every
+  artifacts sub-check passes, but fresh-install also installs
+  `datadog-apm-python-workspace` (virtual, no RECORD) and the fail-closed
+  RECORD verification raises → gate exits 1 with all checks green.
+  **Fixed** in `82736a9205`: RECORD verification fails closed only for the
+  manifest's own distribution; other RECORD-less distributions (virtual
+  workspace roots) are skipped. The codeowners artifacts gate now exits 0.
 - **F12 — Module naming breaks on workspace layouts (vacuous PASS).** Names are
   derived relative to the manifest root, stripping only a *top-level* `src/`
   segment. `packages/<dist>/src/<module>` yields dotted names like
@@ -105,6 +122,27 @@ Grouped: (A) inventory, (B) gates/harness, (C) destination port, (D) process/doc
   Scanning `--source-path tests` alone errored ("no scanned module matches")
   because the target lives outside the scope. **Fixed** on the api-inventory
   branch with `--allow-absent-target` (opt-in) plus a better error message.
+
+### E. First real extraction (ddtrace.internal.codeowners)
+
+- **F19 — approved rewrites authorize by path only, so the freeze gate stops
+  protecting a rewritten path.** The codeowners freeze manifest records the
+  bridge as an approved rewrite; after that, *any* further change to
+  `ddtrace/internal/codeowners.py` (committed or not) passes the freeze gate
+  -- verified empirically with a committed drift that exited 0. The schema
+  needs per-rewrite post-rewrite hashes (an approved new baseline), or
+  rewrites must expire. Until then, an approved-rewritten path has no ongoing
+  freeze protection.
+- **F20 — freeze drift detection only sees committed revisions.** The drift
+  check is `git diff <extraction_revision>..<head>`; uncommitted working-tree
+  changes to frozen paths are invisible to a local gate run. CI heads are
+  always committed, but local runs give false confidence.
+- Recorded for the record: the destination's stricter ruff/pyright baseline
+  required scoping the vendored harness out of ruff (`ruff.toml` exclude +
+  `force-exclude`) and small typing adaptations of the ported module
+  (`re.Pattern[str]`, a dead `is None` check, module docstring) -- the
+  "verbatim port then lint locally" workflow needs a documented policy for
+  harness copies.
 - **F14 — No stdlib exemption in edge-policy.** `typing` and `__future__` count
   as undeclared external dependencies; a stdlib-only package (exactly the
   `ddtrace_internal_base` rule) must enumerate every stdlib module in
@@ -169,16 +207,22 @@ F16) and summarized above.
 
 - **Done:** inventory (with re-export attribution), narrow contract approved,
   harness ported to destination, per-package seed manifest, vacuous-green
-  boundaries fixture committed (guardrails `2e8f85579f`), seed `py.typed`,
-  destination commit `e453159e7`, inventory-side fixes F1/F2/F3/F6/F12/F16/F18
-  on the api-inventory PR (`65314c5610`).
-- **Blocked before extraction (step 3):** F8 (import-clean unrunnable), F12
-  astdeps half (naming — fixed in practice by per-package manifests, needs the
-  rebase dedupe), F15 (artifacts false-fail), F7 (baseline snapshot decision).
-- **Compatibility/freeze:** nothing extracted, nothing published; freeze gate
-  not exercised (no baseline rev yet). Rollback = drop the local commits on both
-  branches; the harness port is additive-only.
-- **Recommended order:** merge the api-inventory PR, rebase guardrails onto it
-  (take its `api_usage`/`api_surface`/`cli`/tests wholesale; drop the duplicated
-  copies here; unify `module_names_for`), then fix F12-astdeps/F14/F15/F8 on
-  guardrails, and re-run this trial as a smoke test before the first real module.
+  boundaries fixture committed, seed `py.typed`, inventory-side fixes
+  F1/F2/F3/F6/F12/F16/F18 on the api-inventory PR, gate fixes F8/F15
+  (`82736a9205`), and the **first end-to-end extraction**: destination package
+  `ddtrace-internal-base` (datadog-apm-python `1557e84bc`, gates boundaries /
+  lifecycle / artifacts all PASS on the per-package manifest), dd-trace-py
+  bridge (`04d4480bc6`, behavior-identical, provider-first, broken-provider
+  loud, pinned by tests), freeze manifest (`5e3b668550`, freeze gate PASS).
+- **Blocked before the next extraction:** F19 (freeze rewrite semantics — the
+  core protection gap) and the F14 stdlib-allowlist decision. F7 remains a
+  transitional non-blocker for per-package gates.
+- **Compatibility/freeze:** nothing published, no runtime dependency added;
+  the cutover (flip dd-trace-py to a hard ddtrace-internal-base dependency,
+  drop the vendored fallback, release rehearsal) is gated on review and the
+  F19 fix. Rollback: revert the bridge and freeze commits on dd-trace-py and
+  the package commit on datadog-apm-python; consumers never changed.
+- **Recommended order:** merge the api-inventory PR; rebase guardrails onto
+  it (take its inventory files wholesale, unify `module_names_for`); fix F19
+  (per-rewrite post hashes) and F14 (stdlib allowlist); then run the next
+  extraction through this same pipeline.
