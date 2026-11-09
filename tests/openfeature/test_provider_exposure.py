@@ -2,6 +2,11 @@
 Tests for exposure event reporting in DataDogProvider.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+import os
+import select
+import signal
+import threading
 from unittest import mock
 
 from openfeature.evaluation_context import EvaluationContext
@@ -41,6 +46,147 @@ def clear_config():
     _set_ffe_config(None)
     yield
     _set_ffe_config(None)
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
+@pytest.mark.parametrize("cached, publication", [(False, False), (True, False), (False, True)])
+def test_exposure_publication_after_fork_with_lock_held(provider, evaluation_context, cached, publication):
+    assert process_ffe_configuration(create_config(create_boolean_flag("fork-flag", default_value=True)))
+    with mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer") as get_writer:
+        if cached:
+            assert provider.resolve_boolean_details("fork-flag", False, evaluation_context).value is True
+            get_writer.return_value.enqueue.reset_mock()
+
+        entered = threading.Event()
+        release = threading.Event()
+
+        def hold_delivery(event):
+            entered.set()
+            release.wait(timeout=10.0)
+
+        def hold_lock():
+            if publication:
+                provider.resolve_boolean_details("fork-flag", False, evaluation_context)
+            else:
+                with provider._exposure_lock:
+                    entered.set()
+                    release.wait(timeout=10.0)
+
+        if publication:
+            get_writer.return_value.enqueue.side_effect = hold_delivery
+
+        holder = threading.Thread(target=hold_lock)
+        read_fd, write_fd = os.pipe()
+        child_pid = -1
+        holder.start()
+        try:
+            assert entered.wait(timeout=2.0)
+            child_pid = os.fork()
+            if child_pid == 0:
+                os.close(read_fd)
+                try:
+                    get_writer.return_value.enqueue.side_effect = None
+                    result = provider.resolve_boolean_details("fork-flag", False, evaluation_context)
+                    assert result.value is True
+                    assert result.error_code is None
+                    assert get_writer.return_value.enqueue.call_count == (0 if cached else 1) + int(publication)
+                    assert provider._exposure_cache
+                    assert not provider._exposure_publications
+                    provider.clear_exposure_cache()
+                    assert not provider._exposure_cache
+                    os.write(write_fd, b"ok")
+                except Exception:
+                    os.write(write_fd, b"error")
+                finally:
+                    os._exit(0)
+
+            release.set()
+            holder.join(timeout=2.0)
+            assert not holder.is_alive()
+            readable, _, _ = select.select([read_fd], [], [], 3.0)
+            assert readable, "child blocked on the exposure lock inherited from another thread"
+            assert os.read(read_fd, 5) == b"ok"
+        finally:
+            release.set()
+            holder.join(timeout=2.0)
+            os.close(read_fd)
+            os.close(write_fd)
+            if child_pid > 0:
+                waited, _ = os.waitpid(child_pid, os.WNOHANG)
+                if waited == 0:
+                    os.kill(child_pid, signal.SIGKILL)
+                    os.waitpid(child_pid, 0)
+
+
+@pytest.mark.parametrize("fail_first", [False, True])
+@pytest.mark.parametrize("other_cached", [False, True])
+def test_slow_publication_does_not_block_other_subjects(provider, fail_first, other_cached):
+    assert process_ffe_configuration(create_config(create_boolean_flag("flag", default_value=True)))
+    entered = threading.Event()
+    release = threading.Event()
+    duplicate_started = threading.Event()
+    attempts = []
+
+    def enqueue(event):
+        if event["subject"]["id"] == "slow":
+            attempts.append(event)
+            if len(attempts) == 1:
+                entered.set()
+                assert release.wait(timeout=10)
+                if fail_first:
+                    raise OSError("delivery failed")
+
+    def resolve(subject):
+        return provider.resolve_boolean_details("flag", False, EvaluationContext(targeting_key=subject))
+
+    def duplicate():
+        duplicate_started.set()
+        return resolve("slow")
+
+    with mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer") as get_writer:
+        get_writer.return_value.enqueue.side_effect = enqueue
+        if other_cached:
+            assert resolve("other").value is True
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            first = executor.submit(resolve, "slow")
+            try:
+                assert entered.wait(timeout=2)
+                second = executor.submit(duplicate)
+                assert duplicate_started.wait(timeout=2)
+                other = executor.submit(resolve, "other")
+                assert other.result(timeout=2).value is True
+                assert provider._exposure_cache.get(("flag", "slow")) is None
+            finally:
+                release.set()
+            assert first.result(timeout=2).value is True
+            assert second.result(timeout=2).value is True
+        assert len(attempts) == (2 if fail_first else 1)
+        assert provider._exposure_cache[("flag", "slow")][1] == "true"
+
+
+def test_clearing_cache_during_delivery_prevents_late_admission(provider, evaluation_context):
+    assert process_ffe_configuration(create_config(create_boolean_flag("flag")))
+    entered = threading.Event()
+    release = threading.Event()
+
+    def enqueue(event):
+        entered.set()
+        assert release.wait(timeout=5)
+
+    with mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer") as get_writer:
+        get_writer.return_value.enqueue.side_effect = enqueue
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(provider.resolve_boolean_details, "flag", False, evaluation_context)
+            try:
+                assert entered.wait(timeout=2)
+                provider.clear_exposure_cache()
+            finally:
+                release.set()
+            assert pending.result(timeout=2).value is True
+        assert not provider._exposure_cache
+        get_writer.return_value.enqueue.side_effect = None
+        assert provider.resolve_boolean_details("flag", False, evaluation_context).value is True
+        assert get_writer.return_value.enqueue.call_count == 2
 
 
 class TestExposureReporting:
@@ -262,6 +408,7 @@ class TestExposureReporting:
             mock_details_a.error_message = None
             mock_details_a.do_log = True  # Enable exposure logging
             mock_details_a.serial_id = None
+            mock_details_a.dependency_evaluations = []
             mock_resolve.return_value = mock_details_a
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -282,6 +429,7 @@ class TestExposureReporting:
             mock_details_b.error_message = None
             mock_details_b.do_log = True  # Enable exposure logging
             mock_details_b.serial_id = None
+            mock_details_b.dependency_evaluations = []
             mock_resolve.return_value = mock_details_b
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -302,6 +450,7 @@ class TestExposureReporting:
             mock_details_b2.error_message = None
             mock_details_b2.do_log = True  # Enable exposure logging
             mock_details_b2.serial_id = None
+            mock_details_b2.dependency_evaluations = []
             mock_resolve.return_value = mock_details_b2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -319,6 +468,7 @@ class TestExposureReporting:
             mock_details_a2.error_message = None
             mock_details_a2.do_log = True  # Enable exposure logging
             mock_details_a2.serial_id = None
+            mock_details_a2.dependency_evaluations = []
             mock_resolve.return_value = mock_details_a2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -366,6 +516,7 @@ class TestExposureReporting:
             mock_details.error_message = None
             mock_details.do_log = False  # Exposure logging disabled
             mock_details.serial_id = None
+            mock_details.dependency_evaluations = []
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("no-log-flag", False, evaluation_context)
@@ -397,6 +548,7 @@ class TestExposureReporting:
             mock_details.error_message = None
             mock_details.do_log = True  # Exposure logging enabled
             mock_details.serial_id = None
+            mock_details.dependency_evaluations = []
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("log-flag", False, evaluation_context)
@@ -693,3 +845,25 @@ class TestExposureSerialId:
 
         assert mock_writer.enqueue.call_count == 1
         assert mock_writer.enqueue.call_args[0][0]["serial_id"] == 340132
+
+
+def test_direct_exposure_retains_subject_snapshot(provider, evaluation_context):
+    assert process_ffe_configuration(create_config(create_boolean_flag("flag")))
+    with mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer") as get_writer:
+        assert provider.resolve_boolean_details("flag", False, evaluation_context).value is True
+        evaluation_context.attributes["tier"] = "changed"
+        event = get_writer.return_value.enqueue.call_args.args[0]
+        assert event["subject"]["attributes"]["tier"] == "premium"
+
+
+def test_writer_callback_does_not_wait_for_its_own_publication(provider, evaluation_context):
+    assert process_ffe_configuration(create_config(create_boolean_flag("flag")))
+
+    def enqueue(event):
+        assert provider.resolve_boolean_details("flag", False, evaluation_context).value is True
+
+    with mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer") as get_writer:
+        get_writer.return_value.enqueue.side_effect = enqueue
+        assert provider.resolve_boolean_details("flag", False, evaluation_context).value is True
+        get_writer.return_value.enqueue.assert_called_once()
+        assert provider._exposure_cache

@@ -1,0 +1,5 @@
+features:
+  - |
+    feature flags: Adds prerequisite flag evaluation for server applications using
+    agentless or Agent Remote Configuration delivery. Exposure events include only
+    flags that contribute to the returned assignment.

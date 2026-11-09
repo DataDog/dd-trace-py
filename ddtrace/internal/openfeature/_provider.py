@@ -7,6 +7,8 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
+from contextvars import ContextVar
+import os
 import time
 import typing
 
@@ -24,6 +26,8 @@ from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
+from ddtrace.internal import _unpatched
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _FfeSnapshot
@@ -36,6 +40,8 @@ from ddtrace.internal.openfeature._debug_logging_hook import log_provider_resolu
 from ddtrace.internal.openfeature._debug_logging_hook import warn_raw_evaluation_data_logged
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
+from ddtrace.internal.openfeature._exposure_hook import ExposureHook
+from ddtrace.internal.openfeature._exposure_hook import ExposureMetricsHook
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
@@ -44,11 +50,14 @@ from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOI
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
 from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
+from ddtrace.internal.openfeature.writer import ExposureEvent
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -110,6 +119,13 @@ class LRUCache(MutableMapping, typing.Generic[K, V]):
         return len(self._cache)
 
 
+class _ExposurePublication:
+    __slots__ = ("completed",)
+
+    def __init__(self) -> None:
+        self.completed: typing.Optional[_unpatched.threading_Event] = None
+
+
 class DataDogProvider(AbstractProvider):
     """
     Datadog OpenFeature Provider.
@@ -153,6 +169,14 @@ class DataDogProvider(AbstractProvider):
         self._exposure_cache: LRUCache[
             tuple[str, str], tuple[typing.Optional[str], typing.Optional[str], typing.Optional[int]]
         ] = LRUCache(maxsize=65536)
+        self._exposure_lock = RLock()
+        self._exposure_publications: dict[tuple[str, str], _ExposurePublication] = {}
+        self._exposure_pid = os.getpid()
+        self._exposure_publishing: ContextVar[tuple[_ExposurePublication, ...]] = ContextVar(
+            "ffe_publishing_exposures", default=()
+        )
+        self._exposure_cache_generation = 0
+        self._exposure_hook = ExposureHook(self._publish_exposure)
 
         # Master gate: the resolved configuration source (stable kill switch +
         # source selection, with legacy grandfathering). Mirrors dd-trace-js,
@@ -182,7 +206,7 @@ class DataDogProvider(AbstractProvider):
         self._flag_eval_metrics_hook: typing.Optional[FlagEvalMetricsHook] = None
         if self._active:
             self._flag_eval_metrics = FlagEvalMetrics()
-            self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
+            self._flag_eval_metrics_hook = ExposureMetricsHook(self._flag_eval_metrics, self._exposure_hook)
 
         # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
         # (default on). Gates ONLY the EVP path; the OTel path above is always registered
@@ -236,7 +260,8 @@ class DataDogProvider(AbstractProvider):
 
         Hook ordering:
         1. OTel FlagEvalMetricsHook (_flageval_metrics.py) — always registered when the provider
-           is enabled; emits the feature_flag.evaluations OTel counter (preserved unchanged).
+           is enabled; emits the feature_flag.evaluations OTel counter and commits
+           staged exposures only after the final result is successful.
         2. FlagEvalEVPHook (_flag_eval_evp_hook.py) — registered only when
            DD_FLAGGING_EVALUATION_COUNTS_ENABLED is enabled (default on); enqueues cheap
            snapshots to FlagEvaluationWriter for EVP flagevaluation emission.
@@ -482,7 +507,8 @@ class DataDogProvider(AbstractProvider):
         variation_type: VariationType = VariationType.Boolean,
     ) -> FlagResolutionDetails[ResolvedValue]:
         snapshot = _get_ffe_snapshot()
-        details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot)
+        with self._exposure_hook.resolution(flag_key):
+            details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot)
         if self._debug_logging_hook is not None:
             log_provider_resolution(
                 flag_key,
@@ -552,6 +578,11 @@ class DataDogProvider(AbstractProvider):
                     error_message="No FFE configuration loaded",
                     flag_metadata=flag_metadata,
                 )
+
+            # Native memoization records each reached prerequisite once. Record
+            # evaluations even when the root fails; only the selected successful
+            # path can contribute exposures.
+            self._record_dependency_evaluations(details, evaluation_context, flag_metadata)
 
             # Handle errors from native evaluation
             if details.error_code is not None:
@@ -645,6 +676,62 @@ class DataDogProvider(AbstractProvider):
                 flag_metadata=flag_metadata,
             )
 
+    def _record_dependency_evaluations(
+        self,
+        details: ffe.ResolutionDetails,
+        evaluation_context: typing.Optional[EvaluationContext],
+        flag_metadata: dict[str, typing.Any],
+    ) -> None:
+        for dependency in getattr(details, "dependency_evaluations", ()):
+            error_code = (
+                self._map_error_code_to_openfeature(dependency.error_code)
+                if dependency.error_code is not None
+                else None
+            )
+            if self._flag_eval_evp_writer is not None:
+                try:
+                    consent = flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+                    code = error_code.value if error_code is not None else ""
+                    self._flag_eval_evp_writer.enqueue(
+                        _EvalEvent(
+                            flag_key=dependency.flag_key,
+                            variant=dependency.variant or "",
+                            allocation_key=dependency.allocation_key or "",
+                            targeting_key=evaluation_context.targeting_key if evaluation_context is not None else None,
+                            # Protected mode must not inspect context attributes.
+                            attrs=(evaluation_context.attributes or {})
+                            if consent and evaluation_context is not None
+                            else {},
+                            runtime_default=not dependency.variant,
+                            error_message=_protected_error_message(code),
+                            eval_time_ms=flag_metadata[EVAL_TIMESTAMP_METADATA_KEY],
+                            observe_full_evaluation_data=consent,
+                            error_code=code,
+                        )
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to enqueue prerequisite evaluation")
+            if self._flag_eval_metrics is not None:
+                try:
+                    reason = self._map_reason_to_openfeature(dependency.reason)
+                    self._flag_eval_metrics.record(
+                        flag_key=dependency.flag_key,
+                        variant=dependency.variant,
+                        reason=reason.value,
+                        error_code=error_code,
+                        allocation_key=dependency.allocation_key,
+                    )
+                except Exception:
+                    logger.debug("Feature Flags: failed to record prerequisite evaluation metric")
+            if dependency.exposure_eligible and dependency.do_log and error_code is None:
+                self._report_exposure(
+                    flag_key=dependency.flag_key,
+                    variant_key=dependency.variant,
+                    allocation_key=dependency.allocation_key,
+                    evaluation_context=evaluation_context,
+                    serial_id=dependency.serial_id,
+                )
+
     def _report_exposure(
         self,
         flag_key: str,
@@ -681,22 +768,61 @@ class DataDogProvider(AbstractProvider):
             if not exposure_event:
                 return
 
-            # Check cache to prevent duplicate exposure events
+            # An assignment already exposed at resolution time needs no snapshot.
             key = (flag_key, exposure_event["subject"]["id"])
-            value = (allocation_key, variant_key, serial_id)
-
-            cached_value = self._exposure_cache.get(key, None)
-            if cached_value and cached_value == value:
-                logger.debug("Skipping duplicate exposure event for %s->%s", key, value)
-                return
-
-            writer = get_exposure_writer()
-            writer.enqueue(exposure_event)
-
-            # Add to cache only after successful enqueue
-            self._exposure_cache[key] = value
+            with self._exposure_lock:
+                if self._exposure_cache.get(key, None) == (allocation_key, variant_key, serial_id):
+                    return
+            self._exposure_hook.stage(exposure_event)
         except Exception as e:
             logger.debug("Failed to report exposure event: %s", e, exc_info=True)
+
+    def _publish_exposure(self, event: ExposureEvent) -> None:
+        try:
+            key = (event["flag"]["key"], event["subject"]["id"])
+            value = (event["allocation"]["key"], event["variant"]["key"], event.get("serial_id"))
+            while True:
+                with self._exposure_lock:
+                    if self._exposure_cache.get(key, None) == value:
+                        return
+                    pid = os.getpid()
+                    if self._exposure_pid != pid:
+                        # Publishers in other parent threads no longer exist in the child.
+                        self._exposure_publications.clear()
+                        self._exposure_pid = pid
+                    publication = self._exposure_publications.get(key)
+                    if publication is None:
+                        publication = self._exposure_publications[key] = _ExposurePublication()
+                        generation = self._exposure_cache_generation
+                        break
+                    if publication in self._exposure_publishing.get():
+                        # A writer callback must not wait for its own publication.
+                        return
+                    if publication.completed is None:
+                        publication.completed = Event()
+                    completed = publication.completed
+                # Only another publisher for this flag/subject waits for delivery.
+                # Recheck after waking so failed enqueues can be retried.
+                completed.wait()
+
+            enqueued = False
+            token = self._exposure_publishing.set((*self._exposure_publishing.get(), publication))
+            try:
+                get_exposure_writer().enqueue(event)
+                enqueued = True
+            finally:
+                self._exposure_publishing.reset(token)
+                with self._exposure_lock:
+                    # Do not signal an event inherited from a parent publication.
+                    if pid == os.getpid() and self._exposure_publications.get(key) is publication:
+                        # Clearing the cache during delivery must remain effective.
+                        if enqueued and generation == self._exposure_cache_generation:
+                            self._exposure_cache[key] = value
+                        del self._exposure_publications[key]
+                        if publication.completed is not None:
+                            publication.completed.set()
+        except Exception:
+            logger.debug("Failed to report exposure event", exc_info=True)
 
     def _map_reason_to_openfeature(self, native_reason) -> Reason:
         """Map native ffe.Reason to OpenFeature Reason."""
@@ -786,7 +912,9 @@ class DataDogProvider(AbstractProvider):
 
         This method is useful for testing to ensure fresh exposure events are sent.
         """
-        self._exposure_cache.clear()
+        with self._exposure_lock:
+            self._exposure_cache.clear()
+            self._exposure_cache_generation += 1
         logger.debug("Exposure cache cleared")
 
 

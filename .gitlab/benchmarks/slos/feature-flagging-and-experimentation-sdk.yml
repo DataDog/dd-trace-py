@@ -21,6 +21,15 @@ experiments:
         run: fail_on_breach
         scenarios:
 
+          # openfeatureresolution: independent native flag resolution, CPython 3.12.
+          # Preserve the original limits after removing eager metadata allocation.
+          - name: openfeatureresolution-static
+            thresholds:
+              - execution_time < 0.00080 ms
+          - name: openfeatureresolution-targeting
+            thresholds:
+              - execution_time < 0.00085 ms
+
           # openfeatureflagevaluation (class OpenFeatureFlagEvaluation)
           - name: openfeatureflagevaluation-aggregate-protected-typical
             thresholds:
