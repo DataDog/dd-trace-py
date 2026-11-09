@@ -242,31 +242,22 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 class _Trace:
-    __slots__ = ("spans", "finished", "discarded")
+    __slots__ = ("spans", "pending", "discarded")
 
     def __init__(self, spans: Optional[list[Span]] = None):
         self.spans: list[Span] = spans if spans is not None else []
-        # Spans already passed to SpanAggregator.on_span_finish. A span's duration_ns is set before its finish
-        # callbacks run, so another thread can see it as finished before it is counted. Holding the span
-        # objects (Span hashes by identity) avoids a native span_id getter on the finish path, does not assume
-        # span ids are unique within a trace, and keeps members alive so a freed span's address cannot be
-        # reused by a new, still-open span.
-        self.finished: set[Span] = set()
+        # Buffered spans whose finish has not reached SpanAggregator.on_span_finish yet. A span's duration_ns
+        # is set before its finish callbacks run, so another thread can see it as finished too early; only
+        # membership here is authoritative. Span hashes by identity, so finishes of spans that were never
+        # buffered here (or duplicate finishes) are no-ops.
+        self.pending: set[Span] = set()
         self.discarded: bool = False
 
     def remove_finished(self) -> list[Span]:
-        finished_set = self.finished
-        finished: list[Span] = []
-        remaining: list[Span] = []
-        for s in self.spans:
-            if s in finished_set:
-                finished.append(s)
-            else:
-                remaining.append(s)
+        pending = self.pending
+        finished = [s for s in self.spans if s not in pending]
         if finished:
-            self.spans[:] = remaining
-        # Also drops spans that were never buffered here, so they stop inflating the count.
-        finished_set.clear()
+            self.spans[:] = [s for s in self.spans if s in pending]
         return finished
 
 
@@ -432,6 +423,7 @@ class SpanAggregator(SpanProcessor):
                     return
             trace = self._traces[trace_id]
             trace.spans.append(span)
+            trace.pending.add(span)
         integration_name = span._get_str_attribute(COMPONENT) or span._span_api
         recorder = _SPANS_CREATED_RECORDERS.get(integration_name)
         if recorder is None:
@@ -464,17 +456,15 @@ class SpanAggregator(SpanProcessor):
                 and span._get_ctx_item(_RUNTIME_IDENTITY_GENERATION_KEY) != identity_generation
             ):
                 return
-            finished_set = trace.finished
-            finished_set.add(span)
+            pending = trace.pending
+            if span not in pending:
+                # Never buffered in this trace (for example, started before the buffer was reset after a fork)
+                # or already counted, so it cannot complete or partially flush the trace.
+                return
+            pending.discard(span)
             num_buffered = len(trace.spans)
-            num_finished = len(finished_set)
-            if num_finished >= num_buffered and not finished_set.issuperset(trace.spans):
-                # Spans that finished without being buffered in this trace (for example, started before the
-                # trace buffer was reset after a fork) inflate the count. Drop them so they cannot complete the
-                # trace while buffered spans are still open. This runs at most once per real completion.
-                finished_set.intersection_update(trace.spans)
-                num_finished = len(finished_set)
-            is_trace_complete = num_finished >= num_buffered
+            num_finished = num_buffered - len(pending)
+            is_trace_complete = not pending
             should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
@@ -482,13 +472,7 @@ class SpanAggregator(SpanProcessor):
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
                 should_partial_flush = True
                 finished = trace.remove_finished()
-                if finished:
-                    num_finished = len(finished)
-                    finished[0]._set_attribute("_dd.py.partial_flush", num_finished)
-                else:
-                    # The finished set only held spans that were never buffered in this trace (for example,
-                    # started before the aggregator was reset), so there is nothing to flush.
-                    return
+                finished[0]._set_attribute("_dd.py.partial_flush", num_finished)
             else:
                 return
             # Capture the generation before processing so an identity refresh can invalidate this trace.

@@ -97,12 +97,11 @@ class RaySpanManager:
                 remaining_spans = []
 
                 for s in trace.spans:
-                    if s in trace.finished and s is not span:
+                    if s not in trace.pending and s is not span:
                         finished_spans.append(s)
                     else:
                         remaining_spans.append(s)
                 trace.spans[:] = remaining_spans
-                trace.finished.difference_update(finished_spans)
 
         spans_to_write = [partial_span] + finished_spans
         try:
