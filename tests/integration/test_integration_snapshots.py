@@ -1,5 +1,6 @@
 import os
 import signal
+from typing import Any
 
 import pytest
 
@@ -7,6 +8,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import override_global_config
+from tests.utils import restore_default_sigint
 from tests.utils import snapshot
 
 
@@ -391,7 +393,10 @@ except KeyboardInterrupt:
             }
         )
 
-        with python_process.start_file(pyfile, args=(str(ready),), ddtrace_run=use_ddtrace_run, env=env) as child:
+        popen_kwargs: dict[str, Any] = {} if os.name == "nt" else {"preexec_fn": restore_default_sigint}
+        with python_process.start_file(
+            pyfile, args=(str(ready),), ddtrace_run=use_ddtrace_run, env=env, **popen_kwargs
+        ) as child:
             child.wait_until(ready.exists)
             os.kill(child.pid, signum)
             child.wait(timeout=10)
