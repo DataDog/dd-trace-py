@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -15,6 +16,7 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.utils import Block_config
 
 
 class WebFrameworkEvents(str, Enum):
@@ -34,6 +36,9 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
 
     # Whether header keys should preserve their original casing during extraction.
     headers_case_sensitive: bool = event_field()
+
+    # Whether a framework exception represents the observed HTTP response.
+    response_from_exception: bool = event_field(default=False)
 
     # Optional per-request override for distributed tracing header activation.
     distributed_headers_config_override: Optional[bool] = event_field(default=None)
@@ -81,3 +86,31 @@ class WebFrameworkResponseEvent(Event):
     operation_name: str
     response: Any
     span_modifier: Callable[[Any, Any], None]
+
+
+@dataclass
+class WebFrameworkRequestInspectEvent(Event):
+    """Request data available before invoking the route callback; the body is not consumed."""
+
+    event_name = "web.request.inspect"
+    request_event: WebFrameworkRequestEvent
+    peer_ip: Optional[str]
+    cookies: Mapping[str, str]
+    path_params: Mapping[str, Any]
+
+
+@dataclass
+class WebFrameworkResponseInspectEvent(Event):
+    """Response metadata populated before inspecting or replacing the callback outcome."""
+
+    event_name = "web.response.inspect"
+    request_event: WebFrameworkRequestEvent
+
+
+@dataclass
+class WebFrameworkBlockResponseEvent(Event):
+    """Subscribers may supply a status, headers, and body before dispatch returns."""
+
+    event_name = "web.response.block"
+    block: Block_config
+    response: Optional[tuple[int, Mapping[str, str], bytes]] = None
