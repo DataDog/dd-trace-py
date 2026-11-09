@@ -829,9 +829,9 @@ class AIGuardClient:
     def _execute_request(self, url: str, payload: Any) -> Response:
         agent_base_url = self._resolve_base_url()
         if agent_base_url is not None:
-            # url is already a request path: a Unix socket base has no netloc to parse it out of.
-            base_url = agent_base_url
-            target = agent._agent_base_path(agent_base_url) + url
+            # The native client preserves HTTP base paths. For Unix sockets, the base path
+            # identifies the socket and stays separate from the request target.
+            base_url, target = agent_base_url, url
         else:
             parsed = urlparse(url)
             # Userinfo is dropped rather than forwarded: AI Guard authenticates with the

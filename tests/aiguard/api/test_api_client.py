@@ -1,3 +1,5 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 from itertools import product
 import json
 from unittest.mock import Mock
@@ -27,6 +29,7 @@ from ddtrace.internal.settings.aiguard import ENV_TIMEOUT
 from ddtrace.internal.settings.aiguard import AIGuardConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import Thread
 from ddtrace.internal.utils.time import HourGlass
 from tests.aiguard.utils import assert_ai_guard_span
 from tests.aiguard.utils import assert_mock_execute_request_call
@@ -917,19 +920,17 @@ def recording_connection():
 
 
 @pytest.mark.parametrize(
-    "agent_url, expected_base, expected_prefix",
+    "agent_url, expected_base",
     [
-        ("http://agent:8126", "http://agent:8126", ""),
-        ("http://agent:8126/", "http://agent:8126", ""),
-        ("http://gateway/datadog/", "http://gateway/datadog", "/datadog"),
-        ("https://gateway/datadog", "https://gateway/datadog", "/datadog"),
-        ("unix:///var/run/datadog/apm.socket", "unix:///var/run/datadog/apm.socket", ""),
+        ("http://agent:8126", "http://agent:8126"),
+        ("http://agent:8126/", "http://agent:8126"),
+        ("http://gateway/datadog/", "http://gateway/datadog"),
+        ("https://gateway/datadog", "https://gateway/datadog"),
+        ("unix:///var/run/datadog/apm.socket", "unix:///var/run/datadog/apm.socket"),
     ],
 )
 @pytest.mark.parametrize("advertised_route", ["/ai_guard/proxy/", "ai_guard/proxy/"])
-def test_agent_transport_reaches_the_proxy_route(
-    agent_url, expected_base, expected_prefix, advertised_route, recording_connection
-):
+def test_agent_transport_reaches_the_proxy_route(agent_url, expected_base, advertised_route, recording_connection):
     """Without credentials the evaluation goes to the Agent route, keys left to the Agent."""
     with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
         with patch("ddtrace.internal.agent.info", return_value={"endpoints": [advertised_route]}):
@@ -943,11 +944,48 @@ def test_agent_transport_reaches_the_proxy_route(
     sent = recording_connection.instances[0].requests[0]
     assert recording_connection.instances[0].base_url == expected_base
     assert sent["method"] == "POST"
-    assert sent["path"] == expected_prefix + "/ai_guard/proxy/api/v2/ai-guard/evaluate"
+    assert sent["path"] == "/ai_guard/proxy/api/v2/ai-guard/evaluate"
     assert "DD-API-KEY" not in sent["headers"]
     assert "DD-APPLICATION-KEY" not in sent["headers"]
     assert sent["headers"]["DD-AI-GUARD-SOURCE"] == "SDK"
     assert json.loads(sent["body"])["data"]["attributes"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+@pytest.mark.parametrize("prefix", ["", "/datadog", "/datadog/"])
+def test_agent_transport_uses_native_url_joining(prefix, tracer):
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            received.append((self.path, self.headers, json.loads(body)))
+            response = b'{"data": {"attributes": {"action": "ALLOW", "tags": []}}}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+
+        def log_message(self, *args):
+            pass
+
+    with HTTPServer(("127.0.0.1", 0), Handler) as server:
+        thread = Thread(target=server.serve_forever, name="test.aiguard.agent")
+        thread.start()
+        try:
+            base_url = f"http://127.0.0.1:{server.server_address[1]}{prefix}"
+            client = AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", base_url=base_url)
+            assert client.evaluate([Message(role="user", content="hi")])["action"] == "ALLOW"
+        finally:
+            server.shutdown()
+            thread.join(5)
+
+    assert len(received) == 1
+    path, headers, payload = received[0]
+    assert path == prefix.rstrip("/") + "/ai_guard/proxy/api/v2/ai-guard/evaluate"
+    assert headers.get("DD-API-KEY") is None
+    assert headers.get("DD-APPLICATION-KEY") is None
+    assert payload["data"]["attributes"]["messages"] == [{"role": "user", "content": "hi"}]
 
 
 def test_setup_without_keys_or_agent_route_still_returns_a_client():
