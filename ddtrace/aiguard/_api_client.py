@@ -324,9 +324,10 @@ class AIGuardClient:
                     f"AI Guard rejected the Agent's credentials, status: {status}. The Agent's API key "
                     "and application key must be valid and allowed to evaluate AI Guard requests."
                 )
-            if status == 404 and not _agent_version_seen.get():
+            if status == 404 and self._base_url is None and not _agent_version_seen.get():
                 # Answered by something that is not the Agent route, so it is gone: the next
                 # evaluation rediscovers instead of calling a route that no longer exists.
+                # Explicit connection bases do not own the process-wide discovery state.
                 _agent_route.invalidate("the Agent no longer advertises the AI Guard proxy route")
                 return "The Agent no longer serves the AI Guard proxy route, status: 404"
         return f"AI Guard service call failed, status: {status}"

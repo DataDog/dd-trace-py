@@ -1038,6 +1038,28 @@ def test_unversioned_404_sends_the_client_back_to_discovery(recording_connection
                     client.evaluate(messages)
 
 
+def test_explicit_agent_404_does_not_disable_discovered_clients(recording_connection, tracer):
+    messages = [Message(role="user", content="hi")]
+    with (
+        override_global_config(dict(_dd_api_key="", _dd_app_key="")),
+        patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}) as info,
+        patch.object(agent_config, "trace_agent_url", "http://discovered-agent:8126"),
+    ):
+        discovered_client = new_ai_guard_client()
+        assert _agent_route.resolve()[0] == "http://discovered-agent:8126"
+        pinned_client = AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", base_url="http://pinned-agent:8126")
+        recording_connection.status = 404
+        recording_connection.body = b'{"errors": ["not found"]}'
+        with pytest.raises(AIGuardClientError, match="service call failed"):
+            pinned_client.evaluate(messages)
+
+        recording_connection.status = 200
+        recording_connection.body = b'{"data": {"attributes": {"action": "ALLOW", "tags": []}}}'
+        assert discovered_client.evaluate(messages)["action"] == "ALLOW"
+
+    info.assert_called_once_with(raise_on_404=True)
+
+
 def test_versioned_404_stays_an_ordinary_service_error(recording_connection):
     """A 404 from the Agent route itself is the API's answer, not a vanished route."""
     recording_connection.status = 404
