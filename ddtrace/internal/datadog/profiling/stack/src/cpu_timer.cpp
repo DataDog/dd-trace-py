@@ -1107,8 +1107,10 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
 Engine&
 Engine::get()
 {
-    static Engine engine;
-    return engine;
+    // uWSGI may call exit without running the atexit hooks that stop the sampler.
+    // Making this a raw pointer prevents crashes at exit.
+    static Engine* const engine = new Engine();
+    return *engine;
 }
 
 void

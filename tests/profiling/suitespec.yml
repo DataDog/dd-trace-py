@@ -42,7 +42,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
         - name: profile
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
           runs:
             - env: {}
