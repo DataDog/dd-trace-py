@@ -13,7 +13,7 @@
 
 namespace Datadog {
 
-// The kind of execution unit a key names. Tasks and greenlets are "logical" units that share an OS thread. The domain
+// The kind of execution unit a key names. Tasks and greenlets share an OS thread, so each gets its own key. The domain
 // keeps a task's address from colliding with an equal thread id.
 enum class SpanLinkDomain : uint8_t
 {
@@ -67,7 +67,7 @@ struct SpanLinkKey
     // PyThreadState thread id for a thread, id(obj) for a task or greenlet.
     uint64_t identifier;
 
-    bool is_logical() const { return domain != SpanLinkDomain::Thread; }
+    bool is_thread() const { return domain == SpanLinkDomain::Thread; }
 
     bool operator==(const SpanLinkKey& other) const { return domain == other.domain && identifier == other.identifier; }
 };
@@ -97,29 +97,12 @@ struct SpanLinkEntry
     bool operator==(const SpanLinkEntry& other) const { return span == other.span && birth == other.birth; }
 };
 
-// Runs fn under mtx. If mtx is held, on_contention is passed a function that blocks on mtx and runs fn, so Python
-// callers can release the GIL while waiting. No mtx holder ever needs the GIL, so fn must not call into Python.
-template<typename Fn, typename OnContention>
-void
-run_locked(std::mutex& mtx, Fn&& fn, OnContention&& on_contention)
-{
-    std::unique_lock<std::mutex> lock(mtx, std::try_to_lock);
-    if (lock.owns_lock()) {
-        fn();
-        return;
-    }
-    on_contention([&] {
-        std::lock_guard<std::mutex> guard(mtx);
-        fn();
-    });
-}
-
 // Maps each execution unit to its active span so the sampler can tag samples. Written by tracer hooks, read by the
-// sampling thread without the GIL. mtx protects both maps.
+// sampling thread without the GIL. mtx protects both maps. Python callers should release the GIL around every call.
 //
 // The thread-only operations (link_span, unlink_span, unlink_finished_span, reset) keep their old behavior: every
 // link is kind Span and the lifecycle token is ignored. The keyed operations (link, retarget, holds_span, clear,
-// get_entry, open, close) need the current token for writes and take a contention hook (see run_locked).
+// get_entry, open, close) need the current token for writes.
 class SpanLinks
 {
   public:
@@ -134,16 +117,6 @@ class SpanLinks
     // Delete Copy constructor and assignment operator to prevent copies
     SpanLinks(SpanLinks const&) = delete;
     SpanLinks& operator=(SpanLinks const&) = delete;
-
-    // Contention hook for native callers, which never hold the GIL.
-    struct BlockInPlace
-    {
-        template<typename Fn>
-        void operator()(Fn&& fn) const
-        {
-            fn();
-        }
-    };
 
     void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
@@ -166,84 +139,29 @@ class SpanLinks
     uint64_t birth_watermark() const { return birth_counter.load(std::memory_order_acquire); }
 
     // Writes span to the thread key (if thread_id is set) and to the nonzero task and greenlet keys, atomically. An
-    // empty span erases a thread key, tombstones an existing logical key, and creates no new one. Returns false
-    // without writing if token is stale.
-    template<typename OnContention = BlockInPlace>
+    // empty span erases a thread key, tombstones an existing task or greenlet key, and creates no new one. Returns
+    // false without writing if token is stale.
     bool link(uint64_t token,
               std::optional<uint64_t> thread_id,
               uint64_t task_id,
               uint64_t greenlet_id,
-              const std::optional<Span>& span,
-              OnContention&& on_contention = {})
-    {
-        bool accepted = false;
-        with_lock([&] { accepted = link_locked(token, thread_id, task_id, greenlet_id, span); }, on_contention);
-        return accepted;
-    }
+              const std::optional<Span>& span);
 
     // Called when span_id finishes. Points its Span-kind links at replacement (usually the parent), with the same
     // empty-span rule as link. Idempotent. Returns false without writing if token is stale.
-    template<typename OnContention = BlockInPlace>
-    bool retarget(uint64_t token,
-                  uint64_t span_id,
-                  const std::optional<Span>& replacement,
-                  OnContention&& on_contention = {})
-    {
-        bool accepted = false;
-        with_lock(
-          [&] {
-              if (token_is_current_locked(token)) {
-                  retarget_locked(span_id, replacement);
-                  accepted = true;
-              }
-          },
-          on_contention);
-        return accepted;
-    }
+    bool retarget(uint64_t token, uint64_t span_id, const std::optional<Span>& replacement);
 
     // Whether any Span-kind link still holds span_id.
-    template<typename OnContention = BlockInPlace>
-    bool holds_span(uint64_t span_id, OnContention&& on_contention = {})
-    {
-        bool held = false;
-        with_lock([&] { held = span_to_keys.find(span_id) != span_to_keys.end(); }, on_contention);
-        return held;
-    }
+    bool holds_span(uint64_t span_id);
 
     // Removes one key, tombstone included, e.g. when its task is freed. Needs no token since removal can't go stale.
-    template<typename OnContention = BlockInPlace>
-    void clear(SpanLinkKey key, OnContention&& on_contention = {})
-    {
-        with_lock([&] { remove_locked(key); }, on_contention);
-    }
+    void clear(SpanLinkKey key);
 
-    template<typename OnContention = BlockInPlace>
-    std::optional<SpanLinkEntry> get_entry(SpanLinkKey key, OnContention&& on_contention = {})
-    {
-        std::optional<SpanLinkEntry> entry;
-        with_lock(
-          [&] {
-              auto it = key_to_entry.find(key);
-              if (it != key_to_entry.end()) {
-                  entry = it->second;
-              }
-          },
-          on_contention);
-        return entry;
-    }
+    std::optional<SpanLinkEntry> get_entry(SpanLinkKey key);
 
     // Clear every key and advance the token (odd for open, even for close) under one hold of the mutex.
-    template<typename OnContention = BlockInPlace>
-    void open(OnContention&& on_contention = {})
-    {
-        with_lock([&] { advance_lifecycle_locked(true); }, on_contention);
-    }
-
-    template<typename OnContention = BlockInPlace>
-    void close(OnContention&& on_contention = {})
-    {
-        with_lock([&] { advance_lifecycle_locked(false); }, on_contention);
-    }
+    void open();
+    void close();
 
     // Resets the mutex and maps but keeps the lifecycle token and the birth counter.
     static void postfork_child();
@@ -259,22 +177,11 @@ class SpanLinks
         bool finished = false;
     };
 
-    template<typename Fn, typename OnContention>
-    void with_lock(Fn&& fn, OnContention&& on_contention)
-    {
-        run_locked(mtx, fn, on_contention);
-    }
-
     bool token_is_current_locked(uint64_t token) const
     {
         return (token & 1U) != 0 && token == lifecycle_token.load(std::memory_order_relaxed);
     }
 
-    bool link_locked(uint64_t token,
-                     std::optional<uint64_t> thread_id,
-                     uint64_t task_id,
-                     uint64_t greenlet_id,
-                     const std::optional<Span>& span);
     void assign_locked(const SpanLinkKey& key, std::optional<Span> span);
     void retarget_locked(uint64_t span_id, const std::optional<Span>& replacement);
     void remove_locked(const SpanLinkKey& key);

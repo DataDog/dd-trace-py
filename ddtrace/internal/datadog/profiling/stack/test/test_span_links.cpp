@@ -4,8 +4,6 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
-#include <future>
-#include <mutex>
 #include <optional>
 #include <random>
 #include <string>
@@ -159,7 +157,6 @@ TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
 
 namespace {
 
-using Datadog::run_locked;
 using Datadog::Span;
 using Datadog::SpanLinkDomain;
 using Datadog::SpanLinkEntry;
@@ -338,7 +335,7 @@ TEST(SpanLinksKeyed, NoSpanErasesThreadsAndLeavesLogicalTombstones)
     auto& links = SpanLinks::get_instance();
     const uint64_t token = fresh_lifecycle(links);
 
-    // On a missing logical key, "no span" creates nothing, so untraced tasks cost no entry.
+    // On a missing task key, "no span" creates nothing, so untraced tasks cost no entry.
     links.link(token, std::nullopt, 1, 2, std::nullopt);
     EXPECT_EQ(links.get_entry(task_key(1)), std::nullopt);
     EXPECT_EQ(links.get_entry(greenlet_key(2)), std::nullopt);
@@ -503,59 +500,6 @@ TEST(SpanLinksKeyed, RetargetToTheSameSpanIdOnlyUpdatesLabels)
     EXPECT_TRUE(links.holds_span(10));
 
     links.close();
-}
-
-TEST(SpanLinksKeyed, UncontendedCallsSkipContentionHook)
-{
-    auto& links = SpanLinks::get_instance();
-    const uint64_t token = fresh_lifecycle(links);
-
-    int calls = 0;
-    auto counting = [&calls](auto&& fn) {
-        ++calls;
-        fn();
-    };
-    EXPECT_TRUE(links.link(token, std::nullopt, 1, 0, span_link(10), counting));
-    EXPECT_TRUE(links.holds_span(10, counting));
-    EXPECT_EQ(links.get_entry(task_key(1), counting), (SpanLinkEntry{ span_link(10), birth_of(links, task_key(1)) }));
-    EXPECT_EQ(calls, 0);
-
-    links.close();
-}
-
-TEST(RunLocked, ContendedCallGoesThroughHook)
-{
-    // Another thread holds the mutex until the hook runs, so the call is always contended.
-    std::mutex mtx;
-    std::promise<void> locked;
-    std::promise<void> release;
-    std::thread holder([&] {
-        const std::lock_guard<std::mutex> guard(mtx);
-        locked.set_value();
-        release.get_future().wait();
-    });
-    locked.get_future().wait();
-
-    int calls = 0;
-    bool ran = false;
-    run_locked(
-      mtx,
-      [&] { ran = true; },
-      [&](auto&& fn) {
-          ++calls;
-          // The work has not run before the hook, and runs inside the function the hook gets.
-          EXPECT_FALSE(ran);
-          release.set_value();
-          fn();
-          EXPECT_TRUE(ran);
-      });
-    holder.join();
-
-    EXPECT_EQ(calls, 1);
-    EXPECT_TRUE(ran);
-    // The hook's function released the mutex before returning.
-    ASSERT_TRUE(mtx.try_lock());
-    mtx.unlock();
 }
 
 TEST(SpanLinksKeyed, WritersAfterCloseNeverLand)

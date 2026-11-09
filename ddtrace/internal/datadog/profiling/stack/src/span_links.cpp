@@ -68,7 +68,7 @@ SpanLinks::assign_locked(const SpanLinkKey& key, std::optional<Span> span)
             return;
         }
         unindex_locked(key, it->second.span);
-        if (key.is_logical()) {
+        if (!key.is_thread()) {
             // Keep a tombstone, so the key keeps its birth for the rest of the object's life.
             it->second.span.reset();
         } else {
@@ -99,7 +99,7 @@ SpanLinks::assign_locked(const SpanLinkKey& key, std::optional<Span> span)
         return;
     }
 
-    const uint64_t birth = key.is_logical() ? birth_counter.load(std::memory_order_relaxed) + 1 : 0;
+    const uint64_t birth = !key.is_thread() ? birth_counter.load(std::memory_order_relaxed) + 1 : 0;
     try {
         key_to_entry.emplace(key, SpanLinkEntry{ std::move(span), birth });
     } catch (...) {
@@ -108,18 +108,19 @@ SpanLinks::assign_locked(const SpanLinkKey& key, std::optional<Span> span)
         }
         throw;
     }
-    if (key.is_logical()) {
+    if (!key.is_thread()) {
         birth_counter.store(birth, std::memory_order_release);
     }
 }
 
 bool
-SpanLinks::link_locked(uint64_t token,
-                       std::optional<uint64_t> thread_id,
-                       uint64_t task_id,
-                       uint64_t greenlet_id,
-                       const std::optional<Span>& span)
+SpanLinks::link(uint64_t token,
+                std::optional<uint64_t> thread_id,
+                uint64_t task_id,
+                uint64_t greenlet_id,
+                const std::optional<Span>& span)
 {
+    std::lock_guard<std::mutex> lock(mtx);
     if (!token_is_current_locked(token)) {
         return false;
     }
@@ -189,7 +190,7 @@ SpanLinks::retarget_locked(uint64_t span_id, const std::optional<Span>& replacem
         if (entry_it != key_to_entry.end()) {
             if (replacement) {
                 entry_it->second.span = std::move(copies[next_copy++]);
-            } else if (key_it->is_logical()) {
+            } else if (!key_it->is_thread()) {
                 entry_it->second.span.reset();
             } else {
                 key_to_entry.erase(entry_it);
@@ -223,6 +224,56 @@ SpanLinks::advance_lifecycle_locked(bool open)
     // handed out before this call matches again.
     const uint64_t next = token + (is_open == open ? 2 : 1);
     lifecycle_token.store(next, std::memory_order_release);
+}
+
+bool
+SpanLinks::retarget(uint64_t token, uint64_t span_id, const std::optional<Span>& replacement)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    if (!token_is_current_locked(token)) {
+        return false;
+    }
+    retarget_locked(span_id, replacement);
+    return true;
+}
+
+bool
+SpanLinks::holds_span(uint64_t span_id)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    return span_to_keys.find(span_id) != span_to_keys.end();
+}
+
+void
+SpanLinks::clear(SpanLinkKey key)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    remove_locked(key);
+}
+
+std::optional<SpanLinkEntry>
+SpanLinks::get_entry(SpanLinkKey key)
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    auto it = key_to_entry.find(key);
+    if (it == key_to_entry.end()) {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+void
+SpanLinks::open()
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    advance_lifecycle_locked(true);
+}
+
+void
+SpanLinks::close()
+{
+    std::lock_guard<std::mutex> lock(mtx);
+    advance_lifecycle_locked(false);
 }
 
 void
