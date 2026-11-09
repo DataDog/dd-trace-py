@@ -92,10 +92,12 @@ def test_tracing_product_retains_listeners_when_shutdown_fails(monkeypatch):
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_ENABLED="true"),
+    env=dict(DD_TRACE_ENABLED="true", DD_APM_TRACING_ENABLED="true"),
     err=lambda err: err.startswith("Shutting down tracer with 1 spans.") and len(err.splitlines()) == 1,
 )
-def test_tracing_product_stop_preserves_active_request_completion() -> None:
+def test_tracing_product_stop_skips_new_spans_and_preserves_active_request_completion() -> None:
+    from dataclasses import replace
+
     from ddtrace._trace import product
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal import core
@@ -110,6 +112,7 @@ def test_tracing_product_stop_preserves_active_request_completion() -> None:
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
         component="test",
+        supports_spanless_lifecycle=True,
         integration_config=IntegrationConfig(Config(), "test"),
         request_url="http://localhost/",
         request_method="GET",
@@ -122,6 +125,13 @@ def test_tracing_product_stop_preserves_active_request_completion() -> None:
         assert not span.finished
         manager.stop_products()
         assert not tracer.enabled
+        assert not span.finished
+
+        # New requests skip span creation, but the original request keeps its entry decision.
+        with core.context_with_event(replace(event)) as new_ctx:
+            assert not new_ctx.event.span_creation_enabled
+            assert new_ctx.get_item("_inner_span") is None
+        assert event.span_creation_enabled
         assert not span.finished
         event.response_status_code = 201
 
