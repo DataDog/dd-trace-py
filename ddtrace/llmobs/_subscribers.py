@@ -91,7 +91,7 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
             provider=event.provider,
             instance=event.instance,
         )
-        base_url = integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
+        base_url = integration._get_base_url(instance=event.instance, request_kwargs=event.request_kwargs)  # type: ignore[arg-type]
         if integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         integration._annotate_integration_tag(span)
