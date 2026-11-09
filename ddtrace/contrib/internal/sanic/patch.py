@@ -13,12 +13,13 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
-from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
@@ -154,13 +155,13 @@ async def patch_run_request_middleware(wrapped: Callable, instance: sanic.Sanic,
     return await wrapped(*args, **kwargs)
 
 
+@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
 def patch() -> None:
     """Patch the instrumented methods."""
     global SANIC_VERSION
 
     if getattr(sanic, "__datadog_patch", False):
         return
-    WebFrameworkRequestSubscriber.register()
     sanic.__datadog_patch = True
 
     SANIC_VERSION = tuple(map(int, get_version().split(".")))

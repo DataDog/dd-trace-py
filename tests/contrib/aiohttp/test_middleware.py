@@ -638,9 +638,17 @@ async def test_inferred_spans_api_gateway(
 
 @pytest.mark.parametrize("startup", ["manual", "auto", "ddtrace-run"])
 @pytest.mark.parametrize("trace_enabled", [True, False])
+@pytest.mark.parametrize("apm_tracing_enabled", [True, False])
+@pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("response_kind", ["response", "http_error", "stream"])
 def test_trace_app_without_patch(
-    run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, startup, trace_enabled, response_kind
+    run_python_code_in_subprocess,
+    ddtrace_run_python_code_in_subprocess,
+    startup,
+    trace_enabled,
+    apm_tracing_enabled,
+    appsec_enabled,
+    response_kind,
 ):
     code = """
 import asyncio
@@ -657,7 +665,9 @@ from ddtrace.internal import core
 from ddtrace.trace import tracer
 
 
-expect_tracing = os.environ["TEST_EXPECT_TRACING"] == "true"
+expect_span = os.environ["TEST_EXPECT_SPAN"] == "true"
+expect_apm = os.environ["TEST_EXPECT_APM"] == "true"
+assert tracer.enabled is expect_apm
 response_kind = os.environ["TEST_RESPONSE_KIND"]
 expected_status = 500 if response_kind == "http_error" else 200
 lifecycle = []
@@ -667,7 +677,7 @@ request_spans = []
 def on_started(ctx):
     lifecycle.append(("started", id(ctx)))
     span = ctx.get_item("_inner_span")
-    if expect_tracing:
+    if expect_span:
         assert span is not None
         request_spans.append(span)
     else:
@@ -683,7 +693,7 @@ def on_ended(ctx, exc_info):
 
 async def handler(request):
     span = tracer.current_span()
-    if expect_tracing:
+    if expect_span:
         assert span is not None
         assert span.name == "aiohttp.request", span.name
         assert request[REQUEST_CONTEXT_KEY] is span.context
@@ -715,7 +725,7 @@ async def main():
     assert len(lifecycle) == 2, lifecycle
     assert lifecycle[0][0] == "started", lifecycle
     assert lifecycle[1] == ("ended", lifecycle[0][1]), lifecycle
-    if expect_tracing:
+    if expect_span:
         assert len(request_spans) == 1
         span = request_spans[0]
         assert span.finished
@@ -726,12 +736,19 @@ async def main():
 
 with patch.object(tracer, "start_span", wraps=tracer.start_span) as start_span:
     asyncio.run(main())
-    if not expect_tracing:
+    if not expect_span:
         start_span.assert_not_called()
 """
     env = os.environ.copy()
     env["DD_TRACE_ENABLED"] = str(trace_enabled).lower()
-    env["TEST_EXPECT_TRACING"] = str(trace_enabled).lower()
+    standalone = appsec_enabled and not apm_tracing_enabled
+    env["DD_APM_TRACING_ENABLED"] = str(apm_tracing_enabled).lower()
+    env["DD_APPSEC_ENABLED"] = str(appsec_enabled).lower()
+    env["DD_IAST_ENABLED"] = "false"
+    env["DD_APPSEC_SCA_ENABLED"] = "false"
+    env["DD_AI_GUARD_ENABLED"] = "false"
+    env["TEST_EXPECT_APM"] = str(trace_enabled and not standalone).lower()
+    env["TEST_EXPECT_SPAN"] = str(trace_enabled or standalone).lower()
     env["TEST_RESPONSE_KIND"] = response_kind
     if startup == "auto":
         code = "import ddtrace.auto\n" + code

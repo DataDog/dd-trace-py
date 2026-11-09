@@ -1,7 +1,10 @@
 """Explicit event subscribers with inherited handler composition."""
 
+from collections.abc import Callable
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dataclasses import field
+from functools import wraps
 from importlib import import_module
 import sys
 from types import ModuleType
@@ -11,10 +14,12 @@ from typing import ClassVar
 from typing import Generic
 from typing import Optional
 from typing import Protocol
+from typing import TypeVar
 from typing import cast
 
 from ddtrace.internal import core
 
+from . import event_hub
 from .events import EventType
 
 
@@ -28,12 +33,18 @@ class RegistrableSubscriber(Protocol):
 class SubscriberBundle:
     """Subscribers exported by one lazily imported product module.
 
-    Importing subscriber modules does not activate listeners. Named registration
-    supplies idempotency; bundles deliberately do not cache registration state.
+    Importing subscriber modules does not activate listeners. Resolved classes are cached;
+    activation is valid until any core listener reset invalidates it.
     """
 
     module: str
     subscribers: tuple[str, ...]
+    _resolved: Optional[tuple[RegistrableSubscriber, ...]] = field(default=None, init=False, compare=False, repr=False)
+    _registered_generation: int = field(default=-1, init=False, compare=False, repr=False)
+
+    def __reduce__(self) -> tuple[type["SubscriberBundle"], tuple[str, tuple[str, ...]]]:
+        # Activation belongs to this interpreter, not to a serialized declaration.
+        return type(self), (self.module, self.subscribers)
 
     def _resolve(self, module: ModuleType) -> tuple[RegistrableSubscriber, ...]:
         # Resolve the whole declaration before changing listeners, so a misspelled
@@ -41,9 +52,34 @@ class SubscriberBundle:
         return tuple(cast(RegistrableSubscriber, getattr(module, name)) for name in self.subscribers)
 
     def register(self) -> None:
-        """Register the bundle, importing its module only when requested."""
-        for subscriber in self._resolve(import_module(self.module)):
-            subscriber.register()
+        """Ensure the bundle is active, importing its module only when requested."""
+        self.ensure_registered()
+
+    def ensure_registered(self) -> None:
+        """Activate once between listener resets, retrying after registration failures."""
+        with event_hub._registration_lock:
+            if self._registered_generation == event_hub._listener_generation:
+                return
+            resolved = self._resolved
+
+        # Imports may wait for another thread that is itself registering listeners.
+        # Never hold the registration lock while acquiring a module import lock.
+        module = import_module(self.module) if resolved is None else None
+
+        with event_hub._registration_lock:
+            if self._registered_generation == event_hub._listener_generation:
+                return
+            resolved = self._resolved
+            if resolved is None:
+                resolved = self._resolve(cast(ModuleType, module))
+                object.__setattr__(self, "_resolved", resolved)
+            generation = event_hub._listener_generation
+            for subscriber in resolved:
+                subscriber.register()
+            # A registration callback can reset listeners reentrantly. Do not cache
+            # success in that case, or if a callback raises before we get here.
+            if generation == event_hub._listener_generation:
+                object.__setattr__(self, "_registered_generation", generation)
 
     def unregister(self) -> None:
         """Remove the bundle's listeners after the owner has drained active contexts.
@@ -51,10 +87,38 @@ class SubscriberBundle:
         Teardown never imports a previously unused product module. Products needing
         completion listeners for active requests must defer this operation.
         """
-        module = sys.modules.get(self.module)
-        if module is not None:
-            for subscriber in self._resolve(module):
+        with event_hub._registration_lock:
+            object.__setattr__(self, "_registered_generation", -1)
+            resolved = self._resolved
+            if resolved is None:
+                module = sys.modules.get(self.module)
+                if module is None:
+                    return
+                resolved = self._resolve(module)
+            for subscriber in resolved:
                 subscriber.unregister()
+
+
+_Setup = TypeVar("_Setup", bound=Callable[..., Any])
+
+
+def requires_subscribers(*bundles: SubscriberBundle) -> Callable[[_Setup], _Setup]:
+    """Activate lazy subscriber bundles before calling a synchronous setup function.
+
+    Decoration does not import subscriber modules. Calls reuse active bundles and
+    restore listeners after a reset. Registration failures propagate before setup runs.
+    """
+
+    def decorate(setup: _Setup) -> _Setup:
+        @wraps(setup)
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            for bundle in bundles:
+                bundle.ensure_registered()
+            return setup(*args, **kwargs)
+
+        return cast(_Setup, wrapped)
+
+    return decorate
 
 
 class Subscriber:

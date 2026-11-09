@@ -56,10 +56,7 @@ def start():
 
 
 def restart(join=False):
-    from ddtrace.trace import tracer
-
-    if tracer.enabled:
-        tracer._child_after_fork()
+    pass
 
 
 def stop(join=False):

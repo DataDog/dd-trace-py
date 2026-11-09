@@ -47,15 +47,22 @@ Lifecycle dispatch must not depend on a tracing span being present: with tracing
 disabled, other products can still consume the same events. Do not call
 `span_from_context()` simply to check whether a request can be finalized, since it
 creates a fallback span when no tracing subscriber is registered.
-For span-independent web integrations, capture `is_tracing_enabled()` in the request
-event's `tracing_enabled` field at entry, as aiohttp does. This accounts for
-standalone security, which still needs request spans when tracing is disabled.
-Existing span-dependent integrations retain the default and direct subscriber
-registration until their lifecycle can run without spans. Register the shared web
-framework subscriber at instrumentation setup (middleware, plugin, or tween
-installation, or patching), rather than at module import. This preserves manual
-instrumentation when tracing product startup is skipped. Registration is
-idempotent; do not unregister the shared subscriber when unpatching one integration,
+Emit events without computing tracing product enablement. TracingEvent.span_creation_enabled
+is internal state excluded from constructor/factory arguments. The web tracing
+subscriber sets it at aiohttp request entry from two separate inputs: tracer APM
+enablement and standalone products' span requirements. The field describes span
+lifecycle, not APM enablement; the base guards retain it through completion. Do not
+infer ownership from `_inner_span`, since AppSec can populate it with a borrowed parent
+span. Existing span-dependent integrations retain the default tracing behavior until
+their lifecycle can run without spans. Declare the shared web
+framework bundle with `@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)` on
+synchronous instrumentation setup (middleware or plugin constructors, enabled tween
+creation, or patching), rather than registering subscriber classes directly. Keep
+conditional enablement outside the decorated helper and never decorate request
+handlers. The decorator activates bundles at setup invocation, not module import.
+This preserves manual instrumentation when tracing product startup is skipped. Active
+bundles skip repeated registration; core listener resets invalidate activation so the
+next setup restores listeners. Registration is idempotent; do not unregister the shared subscriber when unpatching one integration,
 since other integrations and active requests still need its listeners.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use

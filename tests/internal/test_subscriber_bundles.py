@@ -1,5 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from importlib import import_module
+import inspect
+import pickle
 import sys
+from threading import Barrier
+from threading import Event as ThreadEvent
 from types import ModuleType
 from types import TracebackType
 from typing import Optional
@@ -9,10 +15,12 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.internal import core
+from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.core.subscriber import SubscriberBundle
+from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.products import ProductManager
 
 
@@ -199,3 +207,312 @@ def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.
         assert calls == ["start", "end"]
     finally:
         RequestSubscriber.unregister()
+
+
+def test_setup_declaration_is_lazy_and_preserves_call_contract() -> None:
+    calls: list[object] = []
+    first = Mock(spec=SubscriberBundle)
+    second = Mock(spec=SubscriberBundle)
+    first.ensure_registered.side_effect = lambda: calls.append("first")
+    second.ensure_registered.side_effect = lambda: calls.append("second")
+
+    def setup(value: str, *, enabled: bool = True) -> str:
+        """Install instrumentation."""
+        calls.append((value, enabled))
+        return value
+
+    decorated = requires_subscribers(first, second)(setup)
+    assert calls == []
+    assert decorated.__name__ == setup.__name__
+    assert decorated.__doc__ == setup.__doc__
+    assert inspect.signature(decorated) == inspect.signature(setup)
+    assert decorated("service", enabled=False) == "service"
+    assert calls == ["first", "second", ("service", False)]
+
+
+def test_setup_declaration_supports_constructor_and_listener_reset() -> None:
+    calls = []
+
+    class RequestSubscriber(Subscriber):
+        event_names = (RegistrationEvent.event_name,)
+
+        @classmethod
+        def on_event(cls, event: RegistrationEvent) -> None:
+            calls.append(event)
+
+    module = ModuleType("example.setup")
+    setattr(module, "RequestSubscriber", RequestSubscriber)
+    bundle = SubscriberBundle(module.__name__, ("RequestSubscriber",))
+
+    class Middleware:
+        @requires_subscribers(bundle)
+        def __init__(self, service: str) -> None:
+            self.service = service
+
+    try:
+        with patch("ddtrace.internal.core.subscriber.import_module", return_value=module):
+            assert Middleware("test").service == "test"
+            Middleware("test")
+            event = RegistrationEvent()
+            core.dispatch_event(event)
+            assert calls == [event]
+            RequestSubscriber.unregister()
+            Middleware("restored")
+            core.dispatch_event(event)
+            assert calls == [event, event]
+    finally:
+        RequestSubscriber.unregister()
+
+
+def test_setup_declaration_registration_error_prevents_setup() -> None:
+    setup = Mock()
+    decorated = requires_subscribers(SubscriberBundle("missing.subscribers", ("Subscriber",)))(setup)
+    with patch("ddtrace.internal.core.subscriber.import_module", side_effect=ImportError("unavailable")):
+        with pytest.raises(ImportError, match="unavailable"):
+            decorated()
+    setup.assert_not_called()
+
+
+@pytest.fixture
+def request_bundle(monkeypatch):
+    calls = []
+
+    class RequestSubscriber(Subscriber):
+        event_names = (RegistrationEvent.event_name,)
+
+        @classmethod
+        def on_event(cls, event: RegistrationEvent) -> None:
+            calls.append(event)
+
+    module = ModuleType("example.cached_setup")
+    setattr(module, "RequestSubscriber", RequestSubscriber)
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    bundle = SubscriberBundle(module.__name__, ("RequestSubscriber",))
+    try:
+        yield bundle, RequestSubscriber, calls
+    finally:
+        RequestSubscriber.unregister()
+
+
+def test_active_bundle_skips_resolution_and_listener_lookup(request_bundle) -> None:
+    bundle, subscriber, calls = request_bundle
+    setup = requires_subscribers(bundle)(Mock())
+    with patch("ddtrace.internal.core.subscriber.import_module", wraps=import_module) as load:
+        with patch.object(core, "on", wraps=core.on) as on:
+            bundle.register()  # Product startup and manual setup share activation state.
+            setup()
+            setup()
+            bundle.register()
+    load.assert_called_once_with(bundle.module)
+    on.assert_called_once()
+    event = RegistrationEvent()
+    core.dispatch_event(event)
+    assert calls == [event]
+
+
+@pytest.mark.parametrize("removal", ["callback", "event", "hub", "subscriber", "bundle", "unrelated"])
+def test_bundle_reactivates_after_listener_removal(request_bundle, removal) -> None:
+    bundle, subscriber, calls = request_bundle
+    with patch.object(subscriber, "register", wraps=subscriber.register) as register:
+        bundle.ensure_registered()
+        if removal == "callback":
+            core.reset_listeners(RegistrationEvent.event_name, subscriber._on_event)
+        elif removal == "event":
+            core.reset_listeners(RegistrationEvent.event_name)
+        elif removal == "hub":
+            event_hub.reset(RegistrationEvent.event_name)
+        elif removal == "subscriber":
+            subscriber.unregister()
+        elif removal == "bundle":
+            bundle.unregister()
+        else:
+            core.reset_listeners("unrelated.event")
+        # Cached resolution survives invalidation; only the listeners are restored.
+        with patch("ddtrace.internal.core.subscriber.import_module") as load:
+            bundle.ensure_registered()
+            bundle.ensure_registered()
+        load.assert_not_called()
+        assert register.call_count == 2
+    event = RegistrationEvent()
+    core.dispatch_event(event)
+    assert calls == [event]
+
+
+def test_failed_bundle_activation_is_retried_without_duplicate_listeners(request_bundle, monkeypatch) -> None:
+    bundle, subscriber, calls = request_bundle
+    failing = Mock()
+    failing.register.side_effect = [RuntimeError("registration failed"), None]
+    monkeypatch.setattr(sys.modules[bundle.module], "FailingSubscriber", failing, raising=False)
+    bundle = SubscriberBundle(bundle.module, ("RequestSubscriber", "FailingSubscriber"))
+    with pytest.raises(RuntimeError, match="registration failed"):
+        bundle.ensure_registered()
+    bundle.ensure_registered()
+    bundle.ensure_registered()
+    assert failing.register.call_count == 2
+    event = RegistrationEvent()
+    core.dispatch_event(event)
+    assert calls == [event]
+
+
+def test_concurrent_bundle_activation_registers_once(request_bundle) -> None:
+    bundle, subscriber, calls = request_bundle
+    importing = Barrier(2)
+
+    def load(name):
+        importing.wait(timeout=5)
+        return sys.modules[name]
+
+    # Both threads must reach import outside the hub lock, then serialize resolution
+    # and listener registration. This also detects holding the lock across imports.
+    with patch("ddtrace.internal.core.subscriber.import_module", side_effect=load):
+        with patch.object(subscriber, "register", wraps=subscriber.register) as register:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(bundle.ensure_registered) for _ in range(2)]
+                for future in futures:
+                    future.result(timeout=10)
+            register.assert_called_once_with()
+    event = RegistrationEvent()
+    core.dispatch_event(event)
+    assert calls == [event]
+
+
+def test_reset_serializes_with_bundle_activation(request_bundle) -> None:
+    bundle, subscriber, calls = request_bundle
+    registering = ThreadEvent()
+    removing = ThreadEvent()
+    release = ThreadEvent()
+    original_register = subscriber.register
+
+    def register():
+        original_register()
+        registering.set()
+        assert release.wait(timeout=5)
+
+    def remove():
+        removing.set()
+        core.reset_listeners(RegistrationEvent.event_name)
+
+    with patch.object(subscriber, "register", side_effect=register):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            activation = pool.submit(bundle.ensure_registered)
+            try:
+                assert registering.wait(timeout=5)
+                removal = pool.submit(remove)
+                assert removing.wait(timeout=5)
+            finally:
+                release.set()
+            activation.result(timeout=10)
+            removal.result(timeout=10)
+    assert not core.has_listeners(RegistrationEvent.event_name)
+    bundle.ensure_registered()
+    event = RegistrationEvent()
+    core.dispatch_event(event)
+    assert calls == [event]
+
+
+def test_reentrant_reset_does_not_cache_incomplete_activation(request_bundle) -> None:
+    bundle, subscriber, calls = request_bundle
+    original_register = subscriber.register
+
+    def register_then_reset():
+        original_register()
+        core.reset_listeners(RegistrationEvent.event_name)
+
+    with patch.object(subscriber, "register", side_effect=register_then_reset):
+        bundle.ensure_registered()
+    assert not core.has_listeners(RegistrationEvent.event_name)
+    bundle.ensure_registered()
+    event = RegistrationEvent()
+    core.dispatch_event(event)
+    assert calls == [event]
+
+
+@pytest.mark.subprocess
+def test_bundle_reactivates_after_full_hub_reset() -> None:
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace.internal import core
+    from ddtrace.internal.core import event_hub
+
+    WEB_FRAMEWORK_SUBSCRIBERS.ensure_registered()
+    event_hub.reset()
+    assert not core.has_listeners("context.started.web.request")
+    WEB_FRAMEWORK_SUBSCRIBERS.ensure_registered()
+    assert core.has_listeners("context.started.web.request")
+    assert core.has_listeners("context.ended.web.request")
+
+
+@pytest.mark.subprocess()
+def test_bundle_registration_lock_is_reset_after_fork() -> None:
+    import os
+    import signal
+    from threading import Event
+    from threading import Thread
+
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace.internal import core
+    from ddtrace.internal.core import event_hub
+
+    WEB_FRAMEWORK_SUBSCRIBERS.ensure_registered()
+    locked = Event()
+    release = Event()
+
+    def hold_lock():
+        with event_hub._registration_lock:
+            locked.set()
+            assert release.wait(timeout=15)
+
+    thread = Thread(target=hold_lock)
+    thread.start()
+    try:
+        assert locked.wait(timeout=5)
+        pid = os.fork()
+        if pid == 0:
+            signal.alarm(5)
+            core.reset_listeners("context.started.web.request")
+            WEB_FRAMEWORK_SUBSCRIBERS.ensure_registered()
+            os._exit(0 if core.has_listeners("context.started.web.request") else 1)
+        _, status = os.waitpid(pid, 0)
+        assert status == 0
+    finally:
+        release.set()
+        thread.join(timeout=5)
+
+
+def test_serialized_bundle_does_not_preserve_process_local_activation(request_bundle) -> None:
+    bundle, subscriber, calls = request_bundle
+    with patch.object(subscriber, "register", wraps=subscriber.register) as register:
+        bundle.ensure_registered()
+        restored = pickle.loads(pickle.dumps(bundle))
+        assert restored == bundle
+        restored.ensure_registered()
+        restored.ensure_registered()
+        assert register.call_count == 2
+    event = RegistrationEvent()
+    core.dispatch_event(event)
+    assert calls == [event]
+
+
+@pytest.mark.subprocess()
+def test_events_api_benchmark_scenarios_smoke() -> None:
+    import sys
+    from unittest.mock import patch
+
+    sys.path.insert(0, "benchmarks")
+    # Exercise the workloads without starting pyperf's worker processes.
+    with patch("bm._scenario._register"):
+        from benchmarks.events_api.scenario import EventsAPIScenario
+
+    for api in (
+        "core",
+        "events",
+        "dispatch",
+        "dispatch_event",
+        "trace_api",
+        "subscriber_setup",
+        "subscriber_first_activation",
+        "subscriber_reset_recovery",
+    ):
+        scenario = EventsAPIScenario(name=api, api=api)
+        workload = scenario.run()
+        next(workload)(2)
+        assert next(workload, None) is None

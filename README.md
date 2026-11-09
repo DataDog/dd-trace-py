@@ -1,8 +1,8 @@
 # `ddtrace`
 
 [![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/main.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/main)
-[![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
-[![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
+[![PypiVersions](https://badge.fury.io/py/ddtrace.svg)](https://pypi.org/project/ddtrace/)
+[![Pyversions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FDataDog%2Fdd-trace-py%2Fmain%2Fpyproject.toml&style=flat)](https://pypi.org/project/ddtrace/)
 
 <img align="right" src="https://user-images.githubusercontent.com/6321485/167082083-53f6e48f-1843-4708-9b98-587c94f7ddb3.png" alt="bits python" width="200px"/>
 

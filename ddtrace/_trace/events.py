@@ -52,6 +52,10 @@ class TracingEvent(Event):
     measured: bool = True
     activate_distributed_headers: bool = False
 
+    # Captured by tracing subscribers, including spans required by standalone products.
+    # Integrations cannot supply this decision at construction.
+    span_creation_enabled: bool = field(default=True, init=False)
+
     @classmethod
     def create(
         cls,

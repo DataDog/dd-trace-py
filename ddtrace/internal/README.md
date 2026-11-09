@@ -96,17 +96,20 @@ def stop(join=False):
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
-and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so importing their module does not
-register them implicitly.
+and resolves every declared name before registering listeners. Defining subscriber
+classes or importing their modules never installs listeners; the owning product or
+instrumentation setup must activate them explicitly.
 
-Existing subscribers retain automatic registration until their activation paths
-are migrated. Once all consumers register explicitly, automatic registration and
-the `auto_register` flag can be removed.
-
-Repeated registration uses named-listener deduplication and can restore listeners
-after a reset. Import and callback failures propagate to the caller; registration
-is not a transaction across callback failures.
+`register()` delegates to `ensure_registered()`: the first activation resolves the
+classes and installs their listeners; later calls reuse the active bundle without
+resolution or listener lookup. Core `reset()` / `reset_listeners()` calls invalidate
+all bundles, including when removing a single callback. The next activation restores
+listeners using the cached classes. Bundle activation and removal share a fork-safe
+lock, so concurrent setup calls activate a shared bundle once. Imports happen outside
+that lock. Import and callback failures propagate and can be retried; registration
+is not a transaction across callback failures. A reset within a registration callback
+leaves activation uncached so the next setup retries. Subscriber implementations must
+use the core event hub for listener removal.
 
 Products call bundle `register()` and `unregister()` explicitly from their own
 `start()` and `stop()` functions. `ProductManager` only invokes the existing product
@@ -132,20 +135,57 @@ Keeping listeners registered does not guarantee those spans are exported after
 tracer shutdown.
 
 Importing subscriber modules does not install listeners. Integrations register
-their tracing bundles or individual subscribers explicitly when installing
-middleware, plugins, tweens, or patches so manual instrumentation also works
-without tracing product startup. Ray and AWS Durable subscribers load only when
-their integrations are patched. Registration is idempotent. Span-dependent
-integrations retain their request span creation and completion listeners. Aiohttp
-records its tracing decision on each request event and can emit metadata-only
-lifecycle events with
-`DD_TRACE_ENABLED=false`. Standalone security still creates the request span needed
-for AppSec processing. AppSec and LLMObs retain their product-owned activation
-paths, and shared listeners remain available for in-flight completion.
+their tracing bundles or individual subscribers explicitly during setup so manual
+instrumentation also works without tracing product startup. Ray and AWS Durable
+subscribers load only when their integrations are patched. Integrations can declare
+setup dependencies with the shared `requires_subscribers` decorator:
+
+```python
+from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+from ddtrace.internal.core.subscriber import requires_subscribers
+
+@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
+def patch() -> None:
+    ...
+```
+
+Apply the decorator to synchronous setup functions, including middleware or plugin
+constructors. Decoration does not import or activate subscribers; invocation registers
+the bundles before setup runs. The wrapper preserves the callable's signature and
+metadata. Direct calls work without tracing product startup or the common patching
+machinery. Each invocation ensures activation, skipping registration while the bundle
+is still active and restoring listeners after a reset. Registration errors propagate
+before setup runs. Keep enablement checks outside decorated helpers when disabled
+setup must remain inactive, as in Pyramid's tween factory. Keep the decorator off
+request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
+integrations retain their request span creation and completion listeners. Integrations
+cannot supply `TracingEvent.span_creation_enabled` to the constructor or factory. The web
+tracing subscriber sets this internal field when an aiohttp request starts, using the
+APM enablement from the tracer separately from the span requirements of standalone
+products. A standalone product can require span creation while APM tracing remains
+disabled; the captured field describes span lifecycle, not APM enablement. The base subscriber's existing guards
+reuse the captured decision through completion, so runtime disable still finishes
+in-flight spans and runtime enable does not start tracing a previously skipped request.
+The decision must not be inferred from `_inner_span`: AppSec can populate that slot
+with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events with
+`DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
+behavior until their request code can run without spans. AppSec and LLMObs retain
+their product-owned activation paths, and shared listeners remain available for
+in-flight completion.
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping also retains the bundle listeners as described above.
+
+LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
+LLMObs registers the shared lifecycle listener, including when product startup calls
+`LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
+integration adapters also register it when an integration is patched, including direct
+patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
+component removes its factory and cached integration; shared listeners stay registered
+so other components and in-flight requests can finish. Product stop and LLMObs disable
+also retain these completion listeners.
+
 AppSec declares exploit-prevention bundles in
 `ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
 only after AppSec is active and exploit prevention is enabled. Direct activation,

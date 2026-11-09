@@ -1,5 +1,4 @@
 features:
   - |
-    aiohttp: With ``DD_TRACE_ENABLED=false``, server instrumentation continues
-    to run request lifecycle hooks without creating request spans, except when
-    standalone security requires a request span for processing.
+    aiohttp: Avoids creating request spans with ``DD_TRACE_ENABLED=false``,
+    except when required by standalone products.
