@@ -5,7 +5,6 @@ import contextvars
 from copy import deepcopy
 import json
 import re
-import threading
 from typing import Any
 from typing import Optional  # noqa:F401
 from typing import TypedDict
@@ -58,6 +57,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
+from ddtrace.internal.threads import Thread
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.time import HourGlass
 from ddtrace.version import __version__
@@ -597,7 +597,7 @@ class AIGuardClient:
                         _call_hook(middleware.pre_evaluate, context)
 
                 self._add_transport_to_telemetry()
-                transport_error = None
+                transport_error: Optional[AIGuardClientError] = None
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except _NoAgentRouteError as e:
@@ -931,7 +931,11 @@ class _AgentRouteDiscovery:
 
     def start(self) -> None:
         """Run the first check off the startup path, so an unresponsive Agent cannot delay it."""
-        thread = threading.Thread(target=self.resolve, name="ddtrace.aiguard.discovery", daemon=True)
+
+        def discover() -> None:
+            self.resolve()
+
+        thread = Thread(target=discover, name="ddtrace.aiguard.discovery")
         thread.start()
 
 
