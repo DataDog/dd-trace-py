@@ -832,13 +832,14 @@ def generated_by_pr_line(extra: str = "") -> str:
 
 
 def auto_created_footer() -> str:
-    """Fine-print footer: automation branch credit plus who ran the tool."""
+    """Fine-print footer: automation credit, then Run by on its own last line."""
     runner: str = resolve_runner_display()
     return (
         f"_Brought to you by release automation — `{_RELEASE_SCRIPT_PATH}` "
         f"on <{_RELEASE_SCRIPT_BRANCH_URL}|{_RELEASE_SCRIPT_BRANCH_NAME}>. "
-        f"Run by {runner}. "
-        "Try `patch` / `rc` / `final`._"
+        "Try `patch` / `rc` / `final`._\n"
+        f"\n"
+        f"_Run by {runner}._"
     )
 
 
@@ -3769,6 +3770,7 @@ def format_workflow_rendered_mock(fields: dict[str, str]) -> str:
     handle: str = fields.get("releasers_handle", SLACK_RELEASERS_HANDLE)
     target_url: str = fields.get("target_url") or github_commit_url(fields["target_sha"])
     # Workflow FR often auto-links bare https URLs; show URL labeled with short SHA.
+    # "Run by …" is its own last footer line (not mixed into the attribution sentence).
     return (
         f":package: *Draft* {fields['kind']} {fields['version']} is ready for review\n"
         f"\n"
@@ -3779,7 +3781,9 @@ def format_workflow_rendered_mock(fields: dict[str, str]) -> str:
         f"\n"
         f"_Brought to you by release automation — `{fields['script']}` on "
         f"{fields['script_branch_url']} / {fields['script_branch']}. "
-        f"Run by {fields['runner']}. Try {fields['commands_hint']}_."
+        f"Try {fields['commands_hint']}_\n"
+        f"\n"
+        f"_Run by {fields['runner']}._"
     )
 
 

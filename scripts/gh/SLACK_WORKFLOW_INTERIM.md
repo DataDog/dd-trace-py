@@ -46,10 +46,12 @@ Build this in the Workflow editor. **Bold** / *italic* via the editor. **Insert 
 
 @dd-trace-py-releasers — can I get a :lgtm:? Please review and *Publish release* when ready.
 
-_Brought to you by release automation — {script} on {script_branch_url} / {script_branch}. Run by {runner}. Try {commands_hint}._
+_Brought to you by release automation — {script} on {script_branch_url} / {script_branch}. Try {commands_hint}_
+
+_Run by {runner}._
 ```
 
-Rendered example (must match this shape — **Run by**, not “initiated by”; **:lgtm:**, not :+1:; **target** is a commit link):
+Rendered example (must match this shape — **:lgtm:** not :+1:; **target** is a commit link; **Run by** alone on the last line):
 
 ```
 :package: *Draft* patch release 4.16.4 is ready for review
@@ -58,7 +60,9 @@ https://github.com/DataDog/dd-trace-py/releases/tag/untagged-6c4169f2cee574ee709
 
 @dd-trace-py-releasers — can I get a :lgtm:? Please review and *Publish release* when ready.
 
-_Brought to you by release automation — scripts/gh/create_gh_release.py on https://github.com/DataDog/dd-trace-py/compare/main...vlad/release-create-release-rc-script / vlad/release-create-release-rc-script. Run by vlad-scherbich. Try `patch` / `rc` / `final`._
+_Brought to you by release automation — scripts/gh/create_gh_release.py on https://github.com/DataDog/dd-trace-py/compare/main...vlad/release-create-release-rc-script / vlad/release-create-release-rc-script. Try `patch` / `rc` / `final`_
+
+_Run by vlad-scherbich._
 ```
 
 ## One-screen rebuild (triggers/)

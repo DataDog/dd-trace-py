@@ -457,9 +457,10 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn(f"@{SLACK_RELEASERS_HANDLE}", body)
         self.assertIn(":lgtm:", body)
         self.assertNotIn(":+1:", body)
-        self.assertIn("Run by vlad-scherbich", body)
         self.assertIn("Try `patch` / `rc` / `final`", body)
         self.assertIn(_RELEASE_SCRIPT_BRANCH_URL, body)
+        self.assertTrue(body.endswith("_Run by vlad-scherbich._"))
+        self.assertNotIn("Run by vlad-scherbich. Try", body)
 
     def test_format_workflow_rendered_mock_matches_interim_template(self) -> None:
         fields: dict[str, str] = {
@@ -489,8 +490,9 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("_Brought to you by release automation —", body)
         self.assertIn("`scripts/gh/create_gh_release.py`", body)
         self.assertIn(_RELEASE_SCRIPT_BRANCH_URL, body)
-        self.assertIn("Run by vlad-scherbich", body)
         self.assertIn("Try `patch` / `rc` / `final`", body)
+        self.assertTrue(body.endswith("_Run by vlad-scherbich._"))
+        self.assertNotIn("Run by vlad-scherbich. Try", body)
         self.assertNotIn("<https://example/draft|Open draft release / notes>", body)
 
     def test_format_workflow_trigger_payload_fields(self) -> None:
@@ -545,8 +547,12 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("release automation", footer)
         self.assertIn("scripts/gh/create_gh_release.py", footer)
         self.assertIn("|vlad/release-create-release-rc-script>", footer)
-        self.assertIn(f"Run by {_FAKE_RUNNER}", footer)
         self.assertIn("Try `patch` / `rc` / `final`.", footer)
+        self.assertTrue(footer.endswith(f"_Run by {_FAKE_RUNNER}._"))
+        # Attribution sentence must not embed "Run by"; it is its own last line.
+        first_line: str = footer.split("\n", 1)[0]
+        self.assertIn("Brought to you", first_line)
+        self.assertNotIn("Run by", first_line)
 
     def test_generated_by_pr_line_links_feature_branch(self) -> None:
         line: str = generated_by_pr_line()
