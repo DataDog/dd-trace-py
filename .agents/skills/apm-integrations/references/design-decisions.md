@@ -43,12 +43,16 @@ disabled, other products can still consume the same events. Do not call
 creates a fallback span when no tracing subscriber is registered.
 Emit events without computing tracing product enablement. TracingEvent.span_creation_enabled
 is internal state excluded from constructor/factory arguments. The web tracing
-subscriber sets it at aiohttp request entry from two separate inputs: tracer APM
+subscriber sets it for events declaring supports_spanless_lifecycle=True from two separate inputs: tracer APM
 enablement and standalone products' span requirements. The field describes span
 lifecycle, not APM enablement; the base guards retain it through completion. Do not
 infer ownership from `_inner_span`, since AppSec can populate it with a borrowed parent
 span. Existing span-dependent integrations retain the default tracing behavior until
-their lifecycle can run without spans. Declare the shared web
+their lifecycle can run without spans. A capability declares span independence; it must
+not encode the product's enablement decision. Report aiohttp exceptions synchronously
+through WebFrameworkRequestExceptionEvent rather than retaining exceptions or tracebacks
+on a deferred context. Deferred completion carries final response metadata separately.
+Declare the shared web
 framework bundle with `@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)` on
 synchronous instrumentation setup (middleware or plugin constructors, enabled tween
 creation, or patching), rather than registering subscriber classes directly. Keep

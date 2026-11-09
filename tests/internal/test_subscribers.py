@@ -1,5 +1,6 @@
 from dataclasses import InitVar
 from dataclasses import dataclass
+import sys
 from unittest.mock import Mock
 
 import pytest
@@ -511,8 +512,9 @@ def test_tracing_event_factory_preserves_span_dependent_default(test_spans):
 @pytest.mark.parametrize("tracing_enabled", [True, False])
 @pytest.mark.parametrize("standalone", [True, False])
 @pytest.mark.parametrize("tracer_available", [True, False])
+@pytest.mark.parametrize("component", ["aiohttp", "another-framework"])
 def test_web_subscriber_owns_enablement_at_entry(
-    test_spans, monkeypatch, tracing_enabled, standalone, tracer_available
+    test_spans, monkeypatch, tracing_enabled, standalone, tracer_available, component
 ):
     from ddtrace import config
     from ddtrace._trace.subscribers import web_framework
@@ -525,7 +527,8 @@ def test_web_subscriber_owns_enablement_at_entry(
     web_framework.WebFrameworkRequestSubscriber.register()
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
-        component="aiohttp",
+        component=component,
+        supports_spanless_lifecycle=True,
         integration_config=config.aiohttp,
         request_url="http://localhost/",
         request_method="GET",
@@ -544,7 +547,7 @@ def test_web_subscriber_owns_enablement_at_entry(
         test_spans.assert_span_count(0)
 
 
-@pytest.mark.parametrize("component", ["bottle", "cherrypy", "falcon", "molten", "pyramid", "sanic"])
+@pytest.mark.parametrize("component", ["aiohttp", "bottle", "cherrypy", "falcon", "molten", "pyramid", "sanic"])
 def test_web_subscriber_preserves_span_dependent_integrations(test_spans, monkeypatch, component):
     from ddtrace import config
     from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
@@ -581,6 +584,7 @@ def test_skipped_web_request_does_not_finish_parent_span(test_spans, monkeypatch
         return WebFrameworkRequestEvent(
             http_operation="test.request",
             component="aiohttp",
+            supports_spanless_lifecycle=True,
             integration_config=config.aiohttp,
             request_url="http://localhost/",
             request_method="GET",
@@ -625,6 +629,7 @@ def test_web_subscriber_owns_span_observed_by_metadata_consumers(test_spans, mon
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
         component="aiohttp",
+        supports_spanless_lifecycle=True,
         integration_config=config.aiohttp,
         request_url="http://localhost/",
         request_method="GET",
@@ -647,16 +652,19 @@ def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_sp
     from ddtrace.appsec import _asm_request_context
     from ddtrace.appsec._contrib import aiohttp as appsec_aiohttp
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 
     monkeypatch.setattr(web_framework, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
     web_framework.WebFrameworkRequestSubscriber.register()
+    web_framework.WebFrameworkRequestExceptionSubscriber.register()
 
     def event():
         return WebFrameworkRequestEvent(
             http_operation="test.request",
             component="aiohttp",
+            supports_spanless_lifecycle=True,
             integration_config=config.aiohttp,
             request_url="http://localhost/",
             request_method="GET",
@@ -686,13 +694,23 @@ def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_sp
             match_info={},
             body_exists=False,
         )
-        with core.context_with_event(event()) as child:
+        child_event = event()
+        with core.context_with_event(child_event) as child:
             assert child.get_item("_inner_span") is None
             assert appsec_aiohttp.get_active_asm_context() is parent.get_item(_asm_request_context._ASM_CONTEXT)
             appsec_aiohttp._on_request_start(child, request, 0)
             # The existing AppSec consumer uses span_from_context, which borrows
             # the active parent when tracing skipped creating a request span.
             assert child.get_item("_inner_span") is span
+        try:
+            raise ValueError("error in skipped request")
+        except ValueError:
+            core.dispatch_event(
+                WebFrameworkRequestExceptionEvent(
+                    request_context=child, request_event=child_event, exc_info=sys.exc_info()
+                )
+            )
+        assert span.error == 0
         assert not span.finished
         monkeypatch.setattr(appsec_aiohttp.asm_config, "_asm_enabled", False)
         monkeypatch.setattr(tracer, "enabled", True)

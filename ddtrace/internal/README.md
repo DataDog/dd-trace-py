@@ -163,7 +163,8 @@ setup must remain inactive, as in Pyramid's tween factory. Keep the decorator of
 request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
 integrations retain their request span creation and completion listeners. Integrations
 cannot supply `TracingEvent.span_creation_enabled` to the constructor or factory. The web
-tracing subscriber sets this internal field when an aiohttp request starts, using the
+tracing subscriber sets this internal field for events declaring
+`supports_spanless_lifecycle=True` (currently aiohttp), using the
 APM enablement from the tracer separately from the span requirements of standalone
 products. A standalone product can require span creation while APM tracing remains
 disabled; the captured field describes span lifecycle, not APM enablement. The base subscriber's existing guards
@@ -174,6 +175,18 @@ with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events wit
 `DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
 behavior until their request code can run without spans. Subscriber families not yet
 migrated to bundles continue to register automatically.
+
+Aiohttp reports request exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
+The tracing subscriber consumes the live exception immediately; deferred contexts never
+store the exception or its traceback. Completion dispatch carries response metadata, while
+exception details are available during the separate exception notification. Consumers must
+not retain that notification or its exception tuple. The original request event accompanies
+it so tracing can honor the entry decision even if response preparation released `ctx.event`.
+Late errors can update a finished span object, but cannot guarantee updating an already
+exported trace. Failed or cancelled requests schedule a task-completion fallback so missing
+response preparation does not leave their contexts open. Response completion removes any
+pending fallback callback so keep-alive tasks do not retain completed requests. Cancellation retains the existing
+behavior of not being tagged as a tracing error.
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product

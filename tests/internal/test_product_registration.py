@@ -47,6 +47,7 @@ def test_direct_integration_import_does_not_register_web_subscribers() -> None:
     assert "ddtrace._trace.product" not in sys.modules
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
+    assert not core.has_listeners("web.request.exception")
 
 
 @pytest.mark.subprocess
