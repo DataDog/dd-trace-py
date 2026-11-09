@@ -1,0 +1,30 @@
+# Protected extraction provenance for the package split (schema v1).
+#
+# One entry per extraction. The freeze gate (scripts/package-split freeze
+# --base <revision>) loads this file from the *base* revision, so a pull
+# request cannot weaken its own rules by editing it. See
+# scripts/package_split/freeze_manifest.py for the schema.
+#
+# The frozen hashes pin the extracted implementation at its pre-extraction
+# content: the last revision before the bridge. Any change to a frozen path
+# after the extraction revision must be recorded as an approved rewrite with
+# an owner, a reason and a sync record on the destination side.
+
+schema_version = 1
+
+[[frozen]]
+destination_repository = "https://github.com/DataDog/datadog-apm-python"
+# Last revision where ddtrace/internal/codeowners.py was the pre-extraction
+# implementation; the extraction (bridge) landed in 04d4480bc6.
+extraction_revision = "ea42f293ae31d108f5f4dbc9a44e4cf857cc31bf"
+owner = "@DataDog/apm-core-python"
+source_paths = ["ddtrace/internal/codeowners.py"]
+
+[frozen.hashes]
+"ddtrace/internal/codeowners.py" = "1273ae7d1e11edcf8692bb56f95c6aedd115668b9a20fc825cf5472f67d7fbaa"
+
+[[frozen.approved_rewrites]]
+path = "ddtrace/internal/codeowners.py"
+reason = "import bridge to _ddtrace_internal_base.codeowners (ddtrace-internal-base): the vendored pre-extraction implementation is the default and static view, an installed provider takes precedence at runtime, and a broken provider surfaces loudly; behavior-identical for consumers"
+approver = "@DataDog/apm-core-python"
+sync_record = "https://github.com/DataDog/datadog-apm-python/commit/1557e84bc"
