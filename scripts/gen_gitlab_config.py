@@ -160,10 +160,6 @@ class JobSpec:
         # Bake NIGHTLY_BUILD into the generated script so child jobs inherit it.
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
-        # Apply empty suite values before setup to override forwarded pipeline variables.
-        empty_env = [f"{key}=" for key, value in (self.env or {}).items() if value == ""]
-        if empty_env:
-            lines.append(f"    - export {shlex.join(empty_env)}")
         lines.append(f"    - !reference [{base}, before_script]")
         if self.no_proxy:
             no_proxy_additions = ",".join(NO_PROXY_ADDITIONS)
@@ -191,8 +187,6 @@ class JobSpec:
 
         lines.append("  variables:")
         for key, value in env.items():
-            if value == "":
-                value = '""'
             lines.append(f"    {key}: {value}")
         if self.environment_hashes:
             shard_count = self.parallelism or 1

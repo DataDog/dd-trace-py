@@ -69,57 +69,6 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     assert "$DD_API_KEY" not in config
 
 
-@pytest.mark.parametrize("ddtest", [False, True])
-@pytest.mark.parametrize(
-    "empty_keys", [(), ("PIP_INDEX_URL",), ("UV_DEFAULT_INDEX",), ("PIP_INDEX_URL", "UV_DEFAULT_INDEX")]
-)
-def test_empty_suite_values_override_pipeline_indexes_before_setup(gen_gitlab_config_mod, ddtest, empty_keys):
-    suite_env = dict.fromkeys(empty_keys, "")
-    if ddtest:
-        output = io.StringIO()
-        gen_gitlab_config_mod._ddtest_module().emit_ddtest_jobs(
-            output,
-            suite="suite",
-            stage="core",
-            clean_name="suite",
-            config={"env": suite_env},
-            environments=[("env123", "3.12")],
-            k=1,
-            metadata={"env123": ("lock.txt", "tests/internal", "pytest tests/internal", "")},
-            wait_lockfile="wait.txt",
-        )
-        content = output.getvalue()
-    else:
-        content = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core", env=suite_env))
-
-    class GitLabLoader(yaml.SafeLoader):
-        pass
-
-    GitLabLoader.add_constructor("!reference", lambda loader, node: loader.construct_sequence(node))
-    jobs = yaml.load(content, Loader=GitLabLoader)
-    inherited = {
-        "PIP_INDEX_URL": "https://mirror.example/simple/",
-        "UV_DEFAULT_INDEX": "https://mirror.example/simple/",
-    }
-    for job in jobs.values():
-        for key in empty_keys:
-            assert job["variables"][key] == ""
-        setup = []
-        for step in job["before_script"]:
-            if not isinstance(step, str):
-                break
-            setup.append(step)
-        setup.append('printf "%s\\n" "$PIP_INDEX_URL" "$UV_DEFAULT_INDEX"')
-        result = subprocess.run(
-            ["bash", "-eu", "-c", "\n".join(setup)],
-            env=inherited,
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-        assert result.stdout.splitlines() == [suite_env.get(key, value) for key, value in inherited.items()]
-
-
 @pytest.mark.parametrize(
     "config, message",
     [

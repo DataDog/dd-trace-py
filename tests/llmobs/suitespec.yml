@@ -239,10 +239,6 @@ suites:
           dependencies: ['pytest-asyncio==0.23.7', tiktoken, huggingface-hub, ai21, exceptiongroup, psutil, 'pytest-randomly==3.10.1', 'numexpr==2.8.5', 'greenlet==3.0.3', respx, numpy, langchain-core, langchain-openai, langchain-anthropic, langchain-aws, langchain-cohere, langchain-google-genai]
   litellm:
     venvs_per_job: 3
-    env:
-      # Disable the internal index to test vulnerable LiteLLM versions.
-      PIP_INDEX_URL: ""
-      UV_DEFAULT_INDEX: ""
     paths:
       - '@bootstrap'
       - '@litellm'
@@ -436,10 +432,6 @@ suites:
     # (1.31.0 ships cp311–cp314t only) lacks 3.15 support too. Add 3.15 to the
     # python lists once those dependencies support Python 3.15.
     venvs_per_job: 2
-    env:
-      # Disable the internal index to test CrewAI versions with vulnerable dependencies.
-      PIP_INDEX_URL: ""
-      UV_DEFAULT_INDEX: ""
     retry: 2
     paths:
       - '@bootstrap'

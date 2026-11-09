@@ -217,22 +217,6 @@ Use ``scripts/test-requirements`` to inspect and maintain locks:
 
 Without an environment name, ``lock`` operates on all environments.
 
-How can a test suite use blocked dependencies?
----------------------------------------------
-
-GitLab CI uses the internal PyPI mirror by default. To test vulnerable dependency versions that the mirror blocks,
-clear both index variables in the suite's ``env`` mapping. Add a comment to explain the exception:
-
-.. code-block:: yaml
-
-  example:
-    env:
-      # Disable the internal index to test vulnerable dependency versions.
-      PIP_INDEX_URL: ""
-      UV_DEFAULT_INDEX: ""
-
-The generated job applies these empty values before setup and uses public PyPI.
-
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
 
