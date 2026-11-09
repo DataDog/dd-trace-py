@@ -1030,6 +1030,65 @@ class DraftReleaseMismatchTests(unittest.TestCase):
         ensure_ready.assert_called_once_with(21616, dry_run=False)
         self.assertIn("21616", ctx.exception.message)
 
+    def test_draft_targets_tip_matches_sha_prefix(self) -> None:
+        import create_gh_release as mod
+
+        tip: str = "593e9eaa255a9cd29064735f3b92f60aee33804c"
+        self.assertTrue(
+            mod.draft_targets_tip({"target_commitish": tip}, tip),
+        )
+        self.assertTrue(
+            mod.draft_targets_tip({"target_commitish": tip[:12]}, tip),
+        )
+        self.assertFalse(
+            mod.draft_targets_tip(
+                {"target_commitish": "be205bc3e6aecdda3968be4723fc1e0d09b6b47e"},
+                tip,
+            ),
+        )
+
+    def test_stale_draft_deleted_not_reused(self) -> None:
+        import create_gh_release as mod
+
+        tip: str = "593e9eaa255a9cd29064735f3b92f60aee33804c"
+        stale: dict[str, Any] = {
+            "id": 439466167,
+            "draft": True,
+            "html_url": "https://github.com/DataDog/dd-trace-py/releases/tag/untagged-stale",
+            "target_commitish": "be205bc3e6aecdda3968be4723fc1e0d09b6b47e",
+        }
+        with mock.patch.object(mod, "existing_releases_for_version", return_value=([], [stale])):
+            with mock.patch.object(mod, "delete_release_by_id") as delete_fn:
+                url: str | None = mod.check_existing_release(
+                    "4.16.4",
+                    dry_run=False,
+                    reuse_drafts=True,
+                    required_tip_sha=tip,
+                )
+        self.assertIsNone(url)
+        delete_fn.assert_called_once_with(439466167, dry_run=False)
+
+    def test_tip_matching_draft_reused(self) -> None:
+        import create_gh_release as mod
+
+        tip: str = "593e9eaa255a9cd29064735f3b92f60aee33804c"
+        good: dict[str, Any] = {
+            "id": 1,
+            "draft": True,
+            "html_url": "https://github.com/DataDog/dd-trace-py/releases/tag/untagged-good",
+            "target_commitish": tip,
+        }
+        with mock.patch.object(mod, "existing_releases_for_version", return_value=([], [good])):
+            with mock.patch.object(mod, "delete_release_by_id") as delete_fn:
+                url = mod.check_existing_release(
+                    "4.16.4",
+                    dry_run=False,
+                    reuse_drafts=True,
+                    required_tip_sha=tip,
+                )
+        self.assertEqual(url, good["html_url"])
+        delete_fn.assert_not_called()
+
     def test_wet_allow_version_mismatch_still_refuses(self) -> None:
         import argparse as ap
 

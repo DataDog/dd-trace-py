@@ -1749,7 +1749,7 @@ def existing_releases_for_version(version: str) -> tuple[list[dict[str, Any]], l
             f"repos/{GH_REPO}/releases",
             "--paginate",
             "--jq",
-            f'.[] | select(.tag_name == "v{ver}") | {{id, draft, html_url}}',
+            f'.[] | select(.tag_name == "v{ver}") | {{id, draft, html_url, target_commitish}}',
         ],
         cwd=REPO_ROOT,
     )
@@ -1771,12 +1771,47 @@ def existing_releases_for_version(version: str) -> tuple[list[dict[str, Any]], l
     return published, drafts
 
 
-def check_existing_release(version: str, dry_run: bool = False, *, reuse_drafts: bool = False) -> Optional[str]:
-    """Refuse if published; optionally reuse or warn about existing drafts.
+def draft_targets_tip(draft: dict[str, Any], tip_sha: str) -> bool:
+    """True when draft ``target_commitish`` resolves to the same commit as ``tip_sha``."""
+    tip: str = tip_sha.strip().lower()
+    raw: str = str(draft.get("target_commitish") or "").strip()
+    if not raw or not tip:
+        return False
+    raw_l: str = raw.lower()
+    if raw_l == tip or tip.startswith(raw_l) or raw_l.startswith(tip):
+        return True
+    # Branch name or short SHA — resolve via git when possible.
+    try:
+        resolved: str = run_out(["git", "rev-parse", f"{raw}^{{commit}}"], cwd=REPO_ROOT).strip().lower()
+    except SystemExit:
+        return False
+    return resolved == tip or tip.startswith(resolved) or resolved.startswith(tip)
 
-    When ``reuse_drafts`` is True and a draft already exists, return its
-    ``html_url`` so the caller can re-announce without creating a duplicate.
-    Otherwise warn (and sleep) before allowing another draft create.
+
+def delete_release_by_id(release_id: int, *, dry_run: bool) -> None:
+    """Delete a GitHub release (draft or published) by numeric id."""
+    if dry_run:
+        print(f"(dry-run) would: gh api -X DELETE repos/{GH_REPO}/releases/{release_id}")
+        return
+    run(
+        ["gh", "api", "-X", "DELETE", f"repos/{GH_REPO}/releases/{release_id}"],
+        cwd=REPO_ROOT,
+    )
+
+
+def check_existing_release(
+    version: str,
+    dry_run: bool = False,
+    *,
+    reuse_drafts: bool = False,
+    required_tip_sha: Optional[str] = None,
+) -> Optional[str]:
+    """Refuse if published; optionally reuse tip-matching drafts only.
+
+    When ``reuse_drafts`` is True, reuse a draft only if ``required_tip_sha`` is
+    set and the draft's ``target_commitish`` matches that tip. Stale drafts
+    (wrong SHA / pre-bump tip) are never reused for Slack announce — wet path
+    deletes them so a fresh draft can be created at the current tip.
     """
     published: list[dict[str, Any]]
     drafts: list[dict[str, Any]]
@@ -1787,13 +1822,47 @@ def check_existing_release(version: str, dry_run: bool = False, *, reuse_drafts:
             f"a release tagged v{normalize_version_str(version)} is already PUBLISHED ({urls}). "
             "Refusing to create another draft for the same tag."
         )
-    if drafts and reuse_drafts:
-        existing_url: str = str(drafts[0].get("html_url") or "")
+    if not drafts:
+        return None
+
+    tip: Optional[str] = required_tip_sha.strip() if required_tip_sha else None
+    matching: list[dict[str, Any]] = []
+    stale: list[dict[str, Any]] = []
+    for d in drafts:
+        if tip is not None and draft_targets_tip(d, tip):
+            matching.append(d)
+        else:
+            stale.append(d)
+
+    if stale:
+        # Stale drafts (wrong tip) must never be Slack-announced or Published.
+        for d in stale:
+            did: Any = d.get("id")
+            url: str = str(d.get("html_url") or "")
+            tc: str = str(d.get("target_commitish") or "")
+            print(
+                f"stale draft for v{normalize_version_str(version)}: {url} "
+                f"(id={did}, target_commitish={tc!r}; tip={tip[:12] if tip else 'unset'})"
+            )
+            if did is not None:
+                delete_release_by_id(int(did), dry_run=dry_run)
+        if dry_run:
+            print("(dry-run) stale drafts would be deleted")
+        else:
+            print("deleted stale draft(s)")
+
+    if matching:
+        # Tip-matching draft: always reuse — never open a duplicate at the same tip.
+        # ``reuse_drafts`` is retained for call-site clarity (Slack re-announce).
+        if reuse_drafts:
+            print("(reusing tip-matching draft for announce)")
+        existing_url: str = str(matching[0].get("html_url") or "")
         if not existing_url:
             raise SystemExit(f"draft(s) exist for v{normalize_version_str(version)} but html_url is missing")
         return existing_url
-    if drafts and not dry_run:
-        draft_urls: str = "\n  ".join(r["html_url"] for r in drafts)
+
+    if drafts and tip is None and not dry_run:
+        draft_urls: str = "\n  ".join(str(r.get("html_url") or "") for r in drafts)
         print(
             f"WARN: {len(drafts)} draft(s) already exist for v{normalize_version_str(version)}:\n"
             f"  {draft_urls}\n"
@@ -1930,7 +1999,14 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
     )
 
     announce: bool = bool(getattr(args, "slack", False) or getattr(args, "test_dm", False))
-    existing_draft_url: Optional[str] = check_existing_release(version, dry_run=dry_run, reuse_drafts=announce)
+    # Always pass tip SHA: reuse only tip-matching drafts; delete stale ones
+    # (lesson: wet --slack reused pre-bump draft @ be205bc3 for 4.16.4).
+    existing_draft_url: Optional[str] = check_existing_release(
+        version,
+        dry_run=dry_run,
+        reuse_drafts=announce,
+        required_tip_sha=target_sha,
+    )
     if existing_draft_url is not None:
         print(f"\nExisting draft release: {existing_draft_url}")
         print("(reusing existing draft; not creating a duplicate)")
