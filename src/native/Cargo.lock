@@ -2168,7 +2168,7 @@ dependencies = [
 [[package]]
 name = "libddwaf"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=fb7a62e5eb94784078ded146466d35126104052c#fb7a62e5eb94784078ded146466d35126104052c"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=fe5a0589c058425ae521626d7fb6466366ea702a#fe5a0589c058425ae521626d7fb6466366ea702a"
 dependencies = [
  "libddwaf-sys",
  "serde",
@@ -2177,12 +2177,13 @@ dependencies = [
 [[package]]
 name = "libddwaf-sys"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=fb7a62e5eb94784078ded146466d35126104052c#fb7a62e5eb94784078ded146466d35126104052c"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=fe5a0589c058425ae521626d7fb6466366ea702a#fe5a0589c058425ae521626d7fb6466366ea702a"
 dependencies = [
  "bindgen",
  "flate2",
  "hyper-rustls",
  "libc",
+ "libloading",
  "reqwest 0.12.28",
  "rustls",
  "tar",

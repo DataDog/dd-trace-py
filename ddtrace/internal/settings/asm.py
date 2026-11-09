@@ -102,6 +102,8 @@ class ASMConfig(DDConfig):
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf, system())
     _ddwaf_version: str = "unloaded"
+    # "native" (Rust extension) or "ctypes" (legacy bindings), read once when AppSec loads.
+    _asm_waf_backend: str = "native"
 
     _waf_timeout = DDConfig.var(
         float,

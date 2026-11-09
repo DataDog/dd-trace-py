@@ -2,3 +2,7 @@ upgrade:
   - |
     internal: Building from source now requires the libclang shared library. Install ``libclang-dev`` on
     Debian/Ubuntu, ``clang-dev`` on Alpine, or LLVM on Windows; macOS users can use Xcode's libclang.
+features:
+  - |
+    App and API Protection: Reduces Python overhead when converting request data
+    and evaluating security rules.
