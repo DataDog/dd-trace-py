@@ -23,7 +23,9 @@ from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from ddtrace.internal import core
 from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.span_bus import span_from_context
+from ddtrace.trace import Span
 from ddtrace.trace import tracer as global_tracer
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.utils import override_config
@@ -406,6 +408,87 @@ def test_service_name_can_be_overriden(tracer, test_spans):
         assert len(spans) > 0
         span = spans[0][0]
         assert span.service == "test-override-service"
+
+
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close", "stream_error", "application_error"])
+def test_service_override_survives_deferred_completion(tracer: Any, test_spans: Any, terminal: str) -> None:
+    roots: list[Span] = []
+    sources: list[Any] = []
+
+    def modifier(span: Span, environ: dict[str, Any]) -> None:
+        span.service = "custom-request-service"
+        roots.append(span)
+        sources.append(span.get_tag(_SERVICE_SOURCE))
+
+    def app(environ: dict[str, Any], start_response: Any) -> Iterator[bytes]:
+        if terminal == "application_error":
+            raise RuntimeError("application failure")
+        start_response("200 OK", [])
+
+        def generate() -> Iterator[bytes]:
+            yield b"first"
+            if terminal == "stream_error":
+                raise RuntimeError("stream failure")
+            yield b"second"
+
+        return generate()
+
+    middleware = DDWSGIMiddleware(app, span_modifier=modifier)
+    environ = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.url_scheme": "http",
+    }
+    if terminal == "application_error":
+        with pytest.raises(RuntimeError, match="application failure"):
+            middleware(environ, lambda *args: None)
+    else:
+        response = middleware(environ, lambda *args: None)
+        assert roots[0].service == "custom-request-service"
+        assert next(response) == b"first"
+        if terminal == "stream_error":
+            with pytest.raises(RuntimeError, match="stream failure"):
+                next(response)
+        elif terminal == "exhaustion":
+            # Mapping changes must not reinterpret an explicit live span override at finish.
+            with override_global_config(dict(service_mapping={"custom-request-service": "late-mapped-service"})):
+                assert list(response) == [b"second"]
+        response.close()
+
+    spans = test_spans.pop()
+    request_span = roots[0]
+    assert request_span.finished
+    assert request_span.service == "custom-request-service"
+    assert request_span.get_tag(_SERVICE_SOURCE) == sources[0]
+    assert request_span.error == int(terminal == "application_error")
+    # The start_response helper has an explicitly configured service; application
+    # and response spans inherit the customized request service.
+    children = [span for span in spans if span.name in ("wsgi.application", "wsgi.response")]
+    assert all(span.service == request_span.service for span in children)
+    response_spans = [span for span in spans if span.name == "wsgi.response"]
+    assert len(response_spans) == int(terminal != "application_error")
+    if response_spans:
+        assert response_spans[0].parent_id == request_span.span_id
+
+
+def test_other_web_requests_still_resolve_service_at_completion(tracer: Any, test_spans: Any) -> None:
+    DDWSGIMiddleware(application)
+    event = WebFrameworkRequestEvent(
+        component="wsgi",
+        integration_config=config.wsgi,
+        http_operation="other.request",
+        request_method="GET",
+        request_url="http://localhost/",
+        request_headers={},
+        headers_case_sensitive=False,
+        service="initial-service",
+    )
+    with core.context_with_event(event) as ctx:
+        ctx.set_item("service", "resolved-at-completion")
+    request_span = test_spans.pop()[0]
+    assert request_span.service == "resolved-at-completion"
 
 
 def test_generator_exit_ignored(tracer, test_spans):
