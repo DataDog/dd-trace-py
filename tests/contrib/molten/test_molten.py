@@ -72,7 +72,7 @@ class TestMolten(TracerTestCase):
             uri = self.app.reverse_uri("hello", name="Jim", age=24)
         return self.client.request("GET", uri, headers=headers, params=params)
 
-    @snapshot()
+    @snapshot(ignores=["duration"])
     def test_route_success(self):
         """Tests request was a success with the expected span tags"""
         response = self.make_request()
