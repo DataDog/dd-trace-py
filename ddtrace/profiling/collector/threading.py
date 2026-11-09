@@ -37,7 +37,7 @@ class _ThreadingLockCollectorBase(_lock.LockCollector):
         # threading there would load it before the application can e.g. monkey-patch it with gevent.
         import threading
 
-        self.MODULE = threading
+        type(self).MODULE = threading
         super().__init__(*args, **kwargs)
 
 

@@ -205,16 +205,21 @@ class ProfilingConfig(DDConfig):
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
 
-        # The remote config experiment can start the profiler at runtime, so like the armed mode it needs the stack
-        # profiler hooks installed at startup, to see the threads, event loops and greenlets created before that.
-        self.install: bool = _should_arm(self.source) or self.remote_config_experiment
-
         # When DD_PROFILING_ENABLED is not set, envier uses the default value directly
         # without invoking the parser. This means the DD_INJECTION_ENABLED check in
         # _parse_profiling_enabled is skipped, so we apply it here as a post-init step.
         if not self.enabled and _injection_enabled_has_profiler():
             self.enabled = True
             self._value_source["DD_PROFILING_ENABLED"] = ValueSource.ENV_VAR
+
+        # An explicit DD_PROFILING_ENABLED=false also opts out of the remote config experiment, so that Remote Config
+        # cannot start the profiler.
+        if "DD_PROFILING_ENABLED" in self.source and not self.enabled and not _should_arm(self.source):
+            self.remote_config_experiment = False
+
+        # The remote config experiment can start the profiler at runtime, so like the armed mode it needs the stack
+        # profiler hooks installed at startup, to see the threads, event loops and greenlets created before that.
+        self.install: bool = _should_arm(self.source) or self.remote_config_experiment
 
     agentless = DDConfig.v(
         bool,

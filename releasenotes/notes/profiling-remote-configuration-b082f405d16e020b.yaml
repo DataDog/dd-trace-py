@@ -1,3 +1,4 @@
 features:
   - |
     Profiling: The Profiler now supports being remotely configured from Datadog using Remote Configuration.
+    Set ``DD_PROFILING_ENABLED=false`` to prevent Remote Configuration from starting the Profiler.
