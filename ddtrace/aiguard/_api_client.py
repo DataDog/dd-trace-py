@@ -830,7 +830,8 @@ class AIGuardClient:
         agent_base_url = self._resolve_base_url()
         if agent_base_url is not None:
             # url is already a request path: a Unix socket base has no netloc to parse it out of.
-            base_url, target = agent_base_url, url
+            base_url = agent_base_url
+            target = agent._agent_base_path(agent_base_url) + url
         else:
             parsed = urlparse(url)
             # Userinfo is dropped rather than forwarded: AI Guard authenticates with the

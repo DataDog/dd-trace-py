@@ -917,15 +917,19 @@ def recording_connection():
 
 
 @pytest.mark.parametrize(
-    "agent_url, expected_base",
+    "agent_url, expected_base, expected_prefix",
     [
-        ("http://agent:8126", "http://agent:8126"),
-        ("http://agent:8126/", "http://agent:8126"),
-        ("unix:///var/run/datadog/apm.socket", "unix:///var/run/datadog/apm.socket"),
+        ("http://agent:8126", "http://agent:8126", ""),
+        ("http://agent:8126/", "http://agent:8126", ""),
+        ("http://gateway/datadog/", "http://gateway/datadog", "/datadog"),
+        ("https://gateway/datadog", "https://gateway/datadog", "/datadog"),
+        ("unix:///var/run/datadog/apm.socket", "unix:///var/run/datadog/apm.socket", ""),
     ],
 )
 @pytest.mark.parametrize("advertised_route", ["/ai_guard/proxy/", "ai_guard/proxy/"])
-def test_agent_transport_reaches_the_proxy_route(agent_url, expected_base, advertised_route, recording_connection):
+def test_agent_transport_reaches_the_proxy_route(
+    agent_url, expected_base, expected_prefix, advertised_route, recording_connection
+):
     """Without credentials the evaluation goes to the Agent route, keys left to the Agent."""
     with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
         with patch("ddtrace.internal.agent.info", return_value={"endpoints": [advertised_route]}):
@@ -939,7 +943,7 @@ def test_agent_transport_reaches_the_proxy_route(agent_url, expected_base, adver
     sent = recording_connection.instances[0].requests[0]
     assert recording_connection.instances[0].base_url == expected_base
     assert sent["method"] == "POST"
-    assert sent["path"] == "/ai_guard/proxy/api/v2/ai-guard/evaluate"
+    assert sent["path"] == expected_prefix + "/ai_guard/proxy/api/v2/ai-guard/evaluate"
     assert "DD-API-KEY" not in sent["headers"]
     assert "DD-APPLICATION-KEY" not in sent["headers"]
     assert sent["headers"]["DD-AI-GUARD-SOURCE"] == "SDK"
