@@ -1,6 +1,6 @@
 //! Native instrumentation-telemetry worker.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use libdd_telemetry::config::{Config, TelemetryEndpoint};
@@ -19,7 +19,8 @@ use libdd_telemetry::worker::{
 use libdd_telemetry::{parse_tags, Tag};
 
 use libdd_capabilities_impl::NativeCapabilities;
-use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime, SharedRuntime, WorkerHandle};
+use libdd_common::mutable_metadata::{InstrumentationSession, MutableMetadataHandle};
+use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime, SharedRuntime, Worker, WorkerHandle};
 use native_proc_macro::ConvertToPyO3Enum;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -75,12 +76,80 @@ fn drop_on_err(what: &str, r: anyhow::Result<()>) {
     }
 }
 
+type NativeHandle = TelemetryWorkerHandle<NativeCapabilities>;
+type StagedActions = Arc<Mutex<Option<Vec<TelemetryActions>>>>;
+
+/// Wraps the libdatadog telemetry worker so actions staged by a forked child are queued right
+/// after the native reset, before the worker restarts and before any Python thread can send.
+///
+/// The wrapper only holds a weak reference to the handle: dropping the Python object still drops
+/// the last sender and closes the mailbox.
+struct RetainedTelemetryWorker<W> {
+    inner: W,
+    staged: StagedActions,
+    handle: Weak<NativeHandle>,
+}
+
+impl<W: std::fmt::Debug> std::fmt::Debug for RetainedTelemetryWorker<W> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RetainedTelemetryWorker")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<W: Worker> RetainedTelemetryWorker<W> {
+    /// Queue the staged actions, consuming them. The lock is only tried: the fork child is
+    /// single-threaded here, and a lock held by a thread that no longer exists must not block.
+    fn inject_staged(&self) {
+        let actions = match self.staged.try_lock() {
+            Ok(mut staged) => staged.take(),
+            Err(_) => None,
+        };
+        let (Some(actions), Some(handle)) = (actions, self.handle.upgrade()) else {
+            return;
+        };
+        for action in actions {
+            drop_on_err("fork replay", handle.try_send_msg(action));
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<W: Worker> Worker for RetainedTelemetryWorker<W> {
+    async fn run(&mut self) {
+        self.inner.run().await
+    }
+
+    async fn trigger(&mut self) {
+        self.inner.trigger().await
+    }
+
+    async fn initial_trigger(&mut self) {
+        self.inner.initial_trigger().await
+    }
+
+    fn reset(&mut self) {
+        self.inner.reset();
+        self.inject_staged();
+    }
+
+    async fn shutdown(&mut self) {
+        self.inner.shutdown().await
+    }
+}
+
 #[pyclass(name = "TelemetryWorker")]
 pub struct TelemetryWorkerPy {
     // The worker's mailbox handle. Built via `build_worker(None)`, so it holds NO tokio
     // runtime `Handle`: the worker task is owned by the SharedRuntime, which pauses/drops it
-    // across fork. The inherited handle can thus be safely dropped in forks.
-    handle: TelemetryWorkerHandle<NativeCapabilities>,
+    // across fork. The inherited handle can thus be safely dropped in forks. The worker keeps
+    // only a weak reference (see `RetainedTelemetryWorker`).
+    handle: Arc<NativeHandle>,
+    // Runtime/session identity read by the worker on every request.
+    metadata: MutableMetadataHandle,
+    // Actions a forked child queues on the next worker reset (see `stage_fork_replay`).
+    staged: StagedActions,
     shared_runtime: Arc<ForkSafeRuntime>,
     // Held to keep the worker registered on the SharedRuntime; dropping it
     // would leak the worker until the runtime shuts down. `stop()` consumes it.
@@ -173,7 +242,17 @@ impl TelemetryWorkerPy {
         );
 
         builder.flavor = TelemetryWorkerFlavor::Full;
-        builder.runtime_id = Some(runtime_id);
+        builder.runtime_id = Some(runtime_id.clone());
+        let metadata = MutableMetadataHandle::default();
+        metadata.set_identity(
+            runtime_id,
+            session(
+                session_id.clone(),
+                parent_session_id.clone(),
+                root_session_id.clone(),
+            ),
+        );
+        builder.mutable_metadata = Some(metadata.clone());
 
         builder.application.service_version = app_version;
         builder.application.env = env;
@@ -201,7 +280,8 @@ impl TelemetryWorkerPy {
         config.session_id = Some(session_id);
         config.parent_session_id = parent_session_id;
         config.root_session_id = root_session_id;
-        // Forked children pass false so they heartbeat without re-emitting app-started/closing
+        // Initial value only: forked children pass false so they heartbeat without
+        // re-emitting app-started/closing. `set_app_lifecycle` changes it on a built worker.
         config.emit_app_lifecycle = emit_app_lifecycle;
         config.endpoints_message_limit = endpoints_message_limit;
 
@@ -232,12 +312,21 @@ impl TelemetryWorkerPy {
         // telemetry operation lazily restarts the runtime and resets workers; deferring the restart
         // avoids starting Tokio threads in transient fork+exec children.
         let (handle, worker) = builder.build_worker::<NativeCapabilities>(None);
+        let handle = Arc::new(handle);
+        let staged = StagedActions::default();
+        let worker = RetainedTelemetryWorker {
+            inner: worker,
+            staged: staged.clone(),
+            handle: Arc::downgrade(&handle),
+        };
         let worker_handle = shared_runtime
             .spawn_worker(worker, true)
             .map_err(|e| PyValueError::new_err(format!("failed to spawn telemetry worker: {e}")))?;
 
         Ok(TelemetryWorkerPy {
             handle,
+            metadata,
+            staged,
             shared_runtime,
             worker_handle: Mutex::new(Some(worker_handle)),
         })
@@ -251,11 +340,106 @@ impl TelemetryWorkerPy {
             .map_err(|e| PyValueError::new_err(format!("failed to start telemetry worker: {e}")))
     }
 
-    /// Flush + tear the worker down, emitting app-closing (in origin process).
+    /// Set the runtime and session identity used by every following request.
+    ///
+    /// Does not restart the runtime, so a forked child can call it before the worker restarts.
+    /// Missing or empty parent/root session ids drop the matching header.
+    #[pyo3(signature = (runtime_id, session_id, parent_session_id=None, root_session_id=None))]
+    fn set_identity(
+        &self,
+        runtime_id: String,
+        session_id: String,
+        parent_session_id: Option<String>,
+        root_session_id: Option<String>,
+    ) {
+        self.metadata.set_identity(
+            runtime_id,
+            session(session_id, parent_session_id, root_session_id),
+        );
+    }
+
+    /// Enable or disable the app-started and app-closing events on this worker.
+    ///
+    /// Applies to the next start and stop the worker processes and survives a fork reset. Does
+    /// not restart the runtime, so a forked child can call it before the worker restarts.
+    #[pyo3(signature = (*, app_started, app_closing))]
+    fn set_app_lifecycle(&self, app_started: bool, app_closing: bool) {
+        self.handle.set_app_started_enabled(app_started);
+        self.handle.set_app_closing_enabled(app_closing);
+    }
+
+    /// Stage telemetry a forked child sends again under its own identity.
+    ///
+    /// The worker reset clears inherited configurations, integrations, products and
+    /// dependencies. Staged items are queued right after that reset, before the worker restarts,
+    /// and are consumed once. Each call replaces previously staged items. Call it in the child,
+    /// before the runtime restarts; it does not restart the runtime. Tuples match the arguments
+    /// of `add_configuration`, `add_integration` and `add_product_change`.
+    #[allow(clippy::type_complexity)]
+    #[pyo3(signature = (configurations, integrations=Vec::new(), products=Vec::new()))]
+    fn stage_fork_replay(
+        &self,
+        configurations: Vec<(
+            String,
+            Option<String>,
+            ConfigurationOrigin,
+            Option<String>,
+            u64,
+        )>,
+        integrations: Vec<(
+            String,
+            Option<String>,
+            bool,
+            Option<bool>,
+            Option<bool>,
+            Option<String>,
+        )>,
+        products: Vec<(String, bool, Option<String>)>,
+    ) {
+        let mut actions =
+            Vec::with_capacity(configurations.len() + integrations.len() + products.len());
+        actions.extend(configurations.into_iter().map(
+            |(name, value, origin, config_id, seq_id)| {
+                TelemetryActions::AddConfig(data::Configuration {
+                    name,
+                    value,
+                    origin: origin.0,
+                    config_id,
+                    seq_id: Some(seq_id),
+                })
+            },
+        ));
+        actions.extend(integrations.into_iter().map(
+            |(name, version, enabled, compatible, auto_enabled, error)| {
+                TelemetryActions::AddIntegration(data::Integration {
+                    name,
+                    version,
+                    enabled,
+                    compatible,
+                    auto_enabled,
+                    error,
+                })
+            },
+        ));
+        actions.extend(products.into_iter().map(|(product, enabled, version)| {
+            TelemetryActions::AddProductChange((
+                product,
+                data::ProductState {
+                    enabled,
+                    version,
+                    error: None,
+                },
+            ))
+        }));
+        *self.staged.lock().unwrap_or_else(|e| e.into_inner()) = Some(actions);
+    }
+
+    /// Flush + tear the worker down, emitting app-closing unless disabled with
+    /// `set_app_lifecycle`.
     ///
     /// WARNING: `send_app_closing` is currently ineffective and ignored: since the
     /// migration to libdatadog's telemetry worker, teardown always drains the worker
-    /// and emits app-closing in the origin process. If stopping without an
+    /// and emits app-closing when enabled on the worker. If stopping without an
     /// app-closing event is needed again, the behavior must be fixed in libdatadog
     /// (TODO).
     fn stop(&self, py: Python<'_>, send_app_closing: bool) -> PyResult<()> {
@@ -544,7 +728,19 @@ impl TelemetryWorkerPy {
 
     pub(crate) fn clone_handle(&self) -> PyResult<TelemetryWorkerHandle<NativeCapabilities>> {
         self.ensure_runtime_after_fork()?;
-        Ok(self.handle.clone())
+        Ok((*self.handle).clone())
+    }
+}
+
+fn session(
+    id: String,
+    parent_id: Option<String>,
+    root_id: Option<String>,
+) -> InstrumentationSession {
+    InstrumentationSession {
+        id,
+        parent_id: parent_id.unwrap_or_default(),
+        root_id: root_id.unwrap_or_default(),
     }
 }
 
@@ -556,4 +752,154 @@ pub fn register_telemetry(m: &Bound<'_, PyModule>) -> PyResult<()> {
     ConfigurationOrigin::register(m)?;
     LogLevel::register(m)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config(name: &str) -> TelemetryActions {
+        TelemetryActions::AddConfig(data::Configuration {
+            name: name.into(),
+            value: Some("1".into()),
+            origin: ConfigurationOriginNative::Default,
+            config_id: None,
+            seq_id: Some(1),
+        })
+    }
+
+    fn integration(name: &str) -> TelemetryActions {
+        TelemetryActions::AddIntegration(data::Integration {
+            name: name.into(),
+            version: None,
+            enabled: true,
+            compatible: None,
+            auto_enabled: None,
+            error: None,
+        })
+    }
+
+    struct Fixture {
+        runtime: ForkSafeRuntime,
+        handle: Option<Arc<NativeHandle>>,
+        staged: StagedActions,
+        _worker: WorkerHandle,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let runtime = ForkSafeRuntime::new().unwrap();
+            let mut builder = TelemetryWorkerBuilder::new(
+                "host".into(),
+                "svc".into(),
+                "python".into(),
+                "3".into(),
+                "1".into(),
+            );
+            builder
+                .config
+                .set_endpoint(TelemetryEndpoint {
+                    url: Some("http://127.0.0.1:1".into()),
+                    ..Default::default()
+                })
+                .unwrap();
+            let (handle, worker) = builder.build_worker::<NativeCapabilities>(None);
+            let handle = Arc::new(handle);
+            let staged = StagedActions::default();
+            let worker = RetainedTelemetryWorker {
+                inner: worker,
+                staged: staged.clone(),
+                handle: Arc::downgrade(&handle),
+            };
+            let _worker = runtime.spawn_worker(worker, true).unwrap();
+            Fixture {
+                runtime,
+                handle: Some(handle),
+                staged,
+                _worker,
+            }
+        }
+
+        fn stage(&self, actions: Vec<TelemetryActions>) {
+            *self.staged.lock().unwrap() = Some(actions);
+        }
+
+        /// (configurations, integrations) stored by the worker.
+        fn stored(&self) -> (u32, u32) {
+            let handle = self.handle.as_ref().unwrap();
+            let stats = self
+                .runtime
+                .block_on(handle.stats().unwrap())
+                .unwrap()
+                .unwrap();
+            (stats.configurations_stored, stats.integrations_stored)
+        }
+
+        fn fork_child(&self) {
+            self.runtime.before_fork();
+            self.runtime.after_fork_child().unwrap();
+        }
+    }
+
+    #[test]
+    fn child_reset_replays_staged_actions_once() {
+        let fixture = Fixture::new();
+        let handle = fixture.handle.as_ref().unwrap();
+        handle.try_send_msg(config("parent.only")).unwrap();
+        assert_eq!(fixture.stored(), (1, 0));
+
+        fixture.stage(vec![config("a"), config("b"), integration("flask")]);
+        fixture.fork_child();
+        assert_eq!(fixture.stored(), (2, 1));
+        assert!(fixture.staged.lock().unwrap().is_none());
+
+        // Consumed: a second fork only clears.
+        fixture.fork_child();
+        assert_eq!(fixture.stored(), (0, 0));
+    }
+
+    #[test]
+    fn child_reset_without_staged_actions_only_clears() {
+        let fixture = Fixture::new();
+        fixture
+            .handle
+            .as_ref()
+            .unwrap()
+            .try_send_msg(config("parent.only"))
+            .unwrap();
+        fixture.fork_child();
+        assert_eq!(fixture.stored(), (0, 0));
+    }
+
+    #[test]
+    fn parent_resume_keeps_staged_actions() {
+        let fixture = Fixture::new();
+        fixture.stage(vec![config("a")]);
+        fixture.runtime.before_fork();
+        fixture.runtime.after_fork_parent().unwrap();
+        assert_eq!(fixture.stored(), (0, 0));
+        assert!(fixture.staged.lock().unwrap().is_some());
+    }
+
+    #[test]
+    fn dropped_handle_skips_injection() {
+        let staged = StagedActions::default();
+        *staged.lock().unwrap() = Some(vec![config("a")]);
+        let worker = RetainedTelemetryWorker {
+            inner: Noop,
+            staged: staged.clone(),
+            handle: Weak::new(),
+        };
+        worker.inject_staged();
+        assert!(staged.lock().unwrap().is_none());
+    }
+
+    #[derive(Debug)]
+    struct Noop;
+
+    #[async_trait::async_trait]
+    impl Worker for Noop {
+        async fn run(&mut self) {}
+        async fn trigger(&mut self) {}
+    }
 }
