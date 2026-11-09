@@ -74,18 +74,35 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
 def _sys_path_entries(manifest: Manifest, args: Any) -> list[Path]:
     """Import path for the probe: source paths by default, or --sys-path.
 
-    For the probe to ``import <package>``, sys.path needs the directory that
-    *contains* the package, i.e. the parent of each declared source path.
+    For the probe to ``import <package>``, sys.path needs the directory
+    that *contains* the package. That directory is the parent of a
+    namespace source path (``ddtrace/`` at the repository root) but the
+    source path *itself* when it is a package directory -- a workspace
+    package's ``src/`` (``packages/<dist>/src/<module>``), which is how
+    per-package manifests are laid out. The first candidate that actually
+    contains a declared import root wins; a source path matching neither
+    falls back to its parent so the import failure stays diagnostic.
     """
     extra = list(getattr(args, "sys_path", None) or [])
     if extra:
         return [Path(p) for p in extra]
-    entries = []
+    entries: list[Path] = []
     for path in manifest.source_paths:
-        parent = path.parent
-        if parent not in entries:
-            entries.append(parent)
+        for candidate in (path, path.parent):
+            if candidate in entries:
+                continue
+            if any(_contains_root_package(candidate, root) for root in manifest.import_roots):
+                entries.append(candidate)
+                break
+        else:
+            if path.parent not in entries:
+                entries.append(path.parent)
     return entries
+
+
+def _contains_root_package(directory: Path, import_root: str) -> bool:
+    top = import_root.split(".")[0]
+    return (directory / top).is_dir() or (directory / (top + ".py")).is_file()
 
 
 def _report_import_side_effects(report: Any, probe: dict[str, Any]) -> None:

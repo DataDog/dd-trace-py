@@ -254,7 +254,7 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
 
     # Native-free: scan the whole resolved runtime graph, not just our wheel.
     if manifest.native_policy == "native-free":
-        native = wheelhouse.venv_native_files(venv_dir, installed)
+        native = wheelhouse.venv_native_files(venv_dir, installed, required={manifest.distribution})
         if native:
             report.record(
                 "resolved-graph-native-free",

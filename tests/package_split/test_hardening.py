@@ -77,7 +77,7 @@ def test_record_lookup_uses_metadata_and_csv(tmp_path, monkeypatch):
     assert wheelhouse.distribution_record_files(tmp_path, installed)["Mixed.Case"][1] == "pkg/mod.py"
     (dist_info / "RECORD").unlink()
     with pytest.raises(wheelhouse.BuildError, match="missing RECORD"):
-        wheelhouse.venv_native_files(tmp_path, installed)
+        wheelhouse.venv_native_files(tmp_path, installed, required={"Mixed.Case"})
 
 
 def test_sdist_parity_compares_bytes_not_just_names(tmp_path, monkeypatch):

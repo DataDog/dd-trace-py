@@ -36,6 +36,13 @@ def run_lifecycle(manifest_path: Path, **kwargs):
     return report
 
 
+def _sys_path(manifest_path: Path) -> list[Path]:
+    from package_split.manifest import load_manifest
+
+    manifest = load_manifest(manifest_path)
+    return lifecycle._sys_path_entries(manifest, Args())
+
+
 def test_inert_package_passes(tmp_path):
     make_tree(
         tmp_path,
@@ -44,6 +51,30 @@ def test_inert_package_passes(tmp_path):
     )
     report = run_lifecycle(tmp_path / "package-contract.toml")
     assert report.status == PASS, report.summary()
+
+
+def test_sys_path_entries_follow_source_layout(tmp_path):
+    # Namespace layout (dd-trace-py): the source path IS the package, so the
+    # probe needs its parent on sys.path.
+    make_tree(
+        tmp_path,
+        "sample",
+        {"__init__.py": "__version__ = '1.0'\n"},
+    )
+    assert _sys_path(tmp_path / "package-contract.toml") == [tmp_path]
+
+    # Workspace layout (per-package manifest): the source path is the src/
+    # directory CONTAINING the package, so the source path itself goes on
+    # sys.path. With the old parent-only rule the probe looked one level too
+    # high and import-clean could never import the package (trial F8).
+    pkg_dir = tmp_path / "packages" / "some-dist"
+    make_tree(
+        pkg_dir,
+        "src/sample",
+        {"__init__.py": "__version__ = '1.0'\n"},
+        manifest_kwargs={"import_root": "sample", "source_path": "src"},
+    )
+    assert _sys_path(pkg_dir / "package-contract.toml") == [pkg_dir / "src"]
 
 
 def test_import_started_thread_fails(tmp_path):
