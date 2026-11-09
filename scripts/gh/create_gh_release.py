@@ -179,6 +179,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from packaging.version import InvalidVersion
@@ -199,6 +200,10 @@ LOCAL_ENV_FILE: Path = Path(__file__).resolve().parent / ".env.local"
 # Wet-run CI poll defaults (patch / rc / final / draft-release). Dry-run never waits.
 DEFAULT_CI_WAIT_TIMEOUT_S: float = 75 * 60
 DEFAULT_CI_POLL_INTERVAL_S: float = 45.0
+# Auto-retry failing leaf jobs (GitLab via job id / GitHub Actions via run id)
+# before refusing to draft. Default 2 attempts with backoff between rounds.
+DEFAULT_CI_JOB_RETRIES: int = 2
+DEFAULT_CI_RETRY_BACKOFF_S: float = 90.0
 # After GitHub Publish creates the tag, GitLab tag pipeline builds wheels and
 # ``release_pypi_prod`` uploads to PyPI. Branch CI green is not enough — wait
 # for PyPI (post-release / wait-pypi). Default ~90m covers a full tag pipeline.
@@ -206,6 +211,10 @@ DEFAULT_PYPI_WAIT_TIMEOUT_S: float = 90 * 60
 DEFAULT_PYPI_POLL_INTERVAL_S: float = 60.0
 # Canonical GitLab project path for tag pipelines (apm-reliability namespace).
 GITLAB_DD_TRACE_PY_PROJECT: str = "DataDog/apm-reliability/dd-trace-py"
+GITLAB_HOST_DEFAULT: str = "gitlab.ddbuild.io"
+GITLAB_TOKEN_ENV: str = "DDTRACE_RELEASE_GITLAB_TOKEN"
+GITLAB_TOKEN_ENV_LEGACY: str = "GITLAB_TOKEN"
+GITLAB_HOST_ENV: str = "DDTRACE_RELEASE_GITLAB_HOST"
 
 # Slack webhook env vars. Channel webhooks: prod (#apm-python-release, default
 # review ping), optional guild (#guild-dd-trace-py), test, plus legacy
@@ -1152,6 +1161,148 @@ def format_ci_failure_guidance(sha: str, failing: Sequence[Union[str, CiFailureD
     return "\n".join(lines)
 
 
+def leaf_failures_for_retry(failing: Sequence[Union[str, CiFailureDetail]]) -> list[CiFailureDetail]:
+    """Failing checks that are worth an auto-retry (skip rollups)."""
+    out: list[CiFailureDetail] = []
+    for d in coerce_ci_failures(failing):
+        if classify_ci_failure(d) == CI_KIND_ROLLUP:
+            continue
+        out.append(d)
+    return out
+
+
+def parse_mosaic_job_and_pipeline_ids(url: str) -> tuple[Optional[str], Optional[str]]:
+    """Extract ``(job_id, pipeline_id)`` from a Mosaic / GitLab status URL."""
+    if not url:
+        return None, None
+    parsed: urllib.parse.ParseResult = urllib.parse.urlparse(url)
+    qs: dict[str, list[str]] = urllib.parse.parse_qs(parsed.query)
+    job_id: Optional[str] = None
+    pipeline_id: Optional[str] = None
+    for key in ("taskExecutionId", "job_id", "jobId"):
+        vals: list[str] = qs.get(key) or []
+        if vals and vals[0].isdigit():
+            job_id = vals[0]
+            break
+    for key in ("pipelineId", "pipeline_id"):
+        vals = qs.get(key) or []
+        if vals and vals[0].isdigit():
+            pipeline_id = vals[0]
+            break
+    if pipeline_id is None:
+        m: Optional[re.Match[str]] = re.search(r"[?&]pipelineId=(\d+)", url)
+        if m:
+            pipeline_id = m.group(1)
+    if job_id is None:
+        m = re.search(r"taskExecutionId=(\d+)", url)
+        if m:
+            job_id = m.group(1)
+    return job_id, pipeline_id
+
+
+def parse_github_actions_run_id(url: str) -> Optional[str]:
+    """Extract a GitHub Actions workflow run id from a check-run HTML URL."""
+    m: Optional[re.Match[str]] = re.search(r"/actions/runs/(\d+)", url or "")
+    return m.group(1) if m else None
+
+
+def gitlab_token() -> Optional[str]:
+    """GitLab PAT for job retries (env only; never commit)."""
+    for key in (GITLAB_TOKEN_ENV, GITLAB_TOKEN_ENV_LEGACY):
+        val: str = (os.environ.get(key) or "").strip()
+        if val:
+            return val
+    return None
+
+
+def gitlab_host() -> str:
+    return (os.environ.get(GITLAB_HOST_ENV) or GITLAB_HOST_DEFAULT).strip() or GITLAB_HOST_DEFAULT
+
+
+def retry_gitlab_job(job_id: str, *, dry_run: bool = False) -> str:
+    """POST GitLab ``/jobs/:id/retry``. Returns a short status string."""
+    project: str = urllib.parse.quote(GITLAB_DD_TRACE_PY_PROJECT, safe="")
+    url: str = f"https://{gitlab_host()}/api/v4/projects/{project}/jobs/{job_id}/retry"
+    if dry_run:
+        return f"(dry-run) would POST {url}"
+    token: Optional[str] = gitlab_token()
+    if not token:
+        return f"skip gitlab job {job_id}: set {GITLAB_TOKEN_ENV} (or {GITLAB_TOKEN_ENV_LEGACY}) to auto-retry"
+    req: urllib.request.Request = urllib.request.Request(
+        url,
+        method="POST",
+        headers={"PRIVATE-TOKEN": token, "Content-Type": "application/json"},
+        data=b"{}",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310 — fixed https GitLab host
+            body: str = resp.read().decode("utf-8", errors="replace")[:200]
+            return f"gitlab retry job {job_id}: HTTP {resp.status} {body}"
+    except urllib.error.HTTPError as exc:
+        err_body: str = exc.read().decode("utf-8", errors="replace")[:300]
+        return f"gitlab retry job {job_id} failed: HTTP {exc.code} {err_body}"
+    except urllib.error.URLError as exc:
+        return f"gitlab retry job {job_id} failed: {exc}"
+
+
+def retry_github_actions_failed_run(run_id: str, *, dry_run: bool = False) -> str:
+    """``gh run rerun --failed`` for a workflow run id."""
+    if dry_run:
+        return f"(dry-run) would: gh run rerun {run_id} --failed --repo {GH_REPO}"
+    cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI
+        ["gh", "run", "rerun", run_id, "--failed", "--repo", GH_REPO],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(REPO_ROOT),
+    )
+    if cp.returncode == 0:
+        return f"gh run rerun --failed {run_id}: ok"
+    return f"gh run rerun --failed {run_id} failed: {cp.stderr.strip() or cp.stdout.strip()}"
+
+
+def attempt_retry_failed_ci_jobs(
+    failing: Sequence[Union[str, CiFailureDetail]],
+    *,
+    dry_run: bool = False,
+) -> list[str]:
+    """Retry leaf failures via GitLab Jobs API and/or ``gh run rerun --failed``.
+
+    Returns human-readable attempt lines (including skips). Rollups are ignored.
+    """
+    results: list[str] = []
+    seen_gitlab_jobs: set[str] = set()
+    seen_gha_runs: set[str] = set()
+    leaves: list[CiFailureDetail] = leaf_failures_for_retry(failing)
+    if not leaves:
+        return ["no leaf failures to retry (only rollups)"]
+    for detail in leaves:
+        job_id: Optional[str]
+        _pipeline_id: Optional[str]
+        job_id, _pipeline_id = parse_mosaic_job_and_pipeline_ids(detail.url)
+        if job_id and job_id not in seen_gitlab_jobs:
+            seen_gitlab_jobs.add(job_id)
+            results.append(retry_gitlab_job(job_id, dry_run=dry_run))
+            continue
+        run_id: Optional[str] = parse_github_actions_run_id(detail.url)
+        if run_id and run_id not in seen_gha_runs:
+            seen_gha_runs.add(run_id)
+            results.append(retry_github_actions_failed_run(run_id, dry_run=dry_run))
+            continue
+        results.append(f"skip {detail.name[:80]!r}: no GitLab taskExecutionId / GHA run id in status URL")
+    return results
+
+
+def format_ci_exhausted_retry_ping(sha: str, failing: Sequence[Union[str, CiFailureDetail]]) -> str:
+    """Stdout ping after auto-retries are exhausted and tip is still red."""
+    short: str = sha if len(sha) <= 12 else sha[:12]
+    lines: list[str] = [
+        f"PING: tip {short} still red after auto-retries — human needed.",
+        format_ci_failure_guidance(sha, failing),
+    ]
+    return "\n".join(lines)
+
+
 def get_commit_ci_summary(
     sha: str,
 ) -> tuple[str, list[CiFailureDetail], list[str], int]:
@@ -1319,6 +1470,8 @@ def wait_for_ci_green(
     *,
     timeout_s: float = DEFAULT_CI_WAIT_TIMEOUT_S,
     poll_interval_s: float = DEFAULT_CI_POLL_INTERVAL_S,
+    max_job_retries: int = DEFAULT_CI_JOB_RETRIES,
+    retry_backoff_s: float = DEFAULT_CI_RETRY_BACKOFF_S,
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
     summary_fn: Optional[
@@ -1327,22 +1480,37 @@ def wait_for_ci_green(
             tuple[str, Sequence[Union[str, CiFailureDetail]], list[str], int],
         ]
     ] = None,
+    retry_fn: Optional[Callable[[Sequence[Union[str, CiFailureDetail]]], list[str]]] = None,
+    notify_exhausted_fn: Optional[Callable[[str], None]] = None,
 ) -> None:
-    """Poll GitHub until CI is green, failed, or the timeout elapses.
+    """Poll GitHub until CI is green, failed (after retries), or timeout.
 
     On green: returns so the same invocation can create the draft.
-    On failure: raises ``SystemExit`` with the failing check names and Retry guidance.
+    On leaf failure: auto-retry via GitLab Jobs API / ``gh run rerun --failed``
+    up to ``max_job_retries`` (default 2), with ``retry_backoff_s`` between
+    rounds, then re-poll. After retries are exhausted and tip is still red:
+    print a runner ping (and optional notify hook) and raise ``SystemExit``.
     On timeout: raises ``WaitingOn`` with the last status (main prints
     ``WAITING ON:`` and exits 2).
+    Never treats ``--allow-ci-failure`` as the default path.
     """
     # Resolve at call time so tests can patch ``get_commit_ci_summary``.
     resolve_summary: Callable[
         [str],
         tuple[str, Sequence[Union[str, CiFailureDetail]], list[str], int],
     ] = summary_fn if summary_fn is not None else get_commit_ci_summary
+    do_retry: Callable[[Sequence[Union[str, CiFailureDetail]]], list[str]]
+    if retry_fn is not None:
+        do_retry = retry_fn
+    else:
+
+        def do_retry(failing: Sequence[Union[str, CiFailureDetail]]) -> list[str]:
+            return attempt_retry_failed_ci_jobs(failing, dry_run=False)
+
     started: float = monotonic_fn()
     deadline: float = started + timeout_s
     poll_n: int = 0
+    retries_used: int = 0
     last_detail: str = ""
     while True:
         overall: str
@@ -1380,8 +1548,37 @@ def wait_for_ci_green(
             print(f"CI green after {elapsed_ok:.0f}s ({poll_n} polls): {last_detail}")
             return
         if failing:
+            leaves: list[CiFailureDetail] = leaf_failures_for_retry(failing)
+            if leaves and retries_used < max_job_retries:
+                retries_used += 1
+                print(
+                    f"CI failed; auto-retry round {retries_used}/{max_job_retries} "
+                    f"({len(leaves)} leaf job(s)) — {last_detail}",
+                    flush=True,
+                )
+                for line in do_retry(failing):
+                    print(f"  retry: {line}", flush=True)
+                backoff: float = retry_backoff_s
+                remaining_backoff: float = deadline - monotonic_fn()
+                if remaining_backoff <= 0:
+                    ping_to: str = format_ci_exhausted_retry_ping(sha, failing)
+                    print(ping_to, flush=True)
+                    if notify_exhausted_fn is not None:
+                        notify_exhausted_fn(ping_to)
+                    raise WaitingOn(
+                        f"CI still red and wait timeout hit during retry backoff on "
+                        f"{sha if len(sha) <= 12 else sha[:12]}. {last_detail}\n"
+                        "Re-run the same command to keep waiting, or pass --no-wait-ci."
+                    )
+                sleep_fn(min(backoff, remaining_backoff))
+                continue
+            ping: str = format_ci_exhausted_retry_ping(sha, failing)
+            print(ping, flush=True)
+            if notify_exhausted_fn is not None:
+                notify_exhausted_fn(ping)
             raise SystemExit(
-                f"CI failed while waiting; refusing to draft. {last_detail}\n"
+                f"CI failed while waiting after {retries_used} auto-retry "
+                f"round(s); refusing to draft. {last_detail}\n"
                 "Fix, tip past the failure, or Retry infra jobs in Mosaic; "
                 "only pass --allow-ci-failure if you intentionally cut from red."
             )
@@ -1412,8 +1609,12 @@ def ensure_ci_green(
     wait: bool = False,
     timeout_s: float = DEFAULT_CI_WAIT_TIMEOUT_S,
     poll_interval_s: float = DEFAULT_CI_POLL_INTERVAL_S,
+    max_job_retries: int = DEFAULT_CI_JOB_RETRIES,
+    retry_backoff_s: float = DEFAULT_CI_RETRY_BACKOFF_S,
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
+    retry_fn: Optional[Callable[[Sequence[Union[str, CiFailureDetail]]], list[str]]] = None,
+    notify_exhausted_fn: Optional[Callable[[str], None]] = None,
 ) -> None:
     """Refuse to draft a release on a commit whose CI isn't green.
 
@@ -1421,11 +1622,13 @@ def ensure_ci_green(
     target-to-be-released commit". Defensive against the "I cut a release from
     a broken commit" foot-gun. ``allow_failure=True`` (from
     ``--allow-ci-failure``) downgrades to a warning since some teams accept a
-    handful of flaky CI signals.
+    handful of flaky CI signals — never the default.
 
     When CI is still pending and ``wait=True`` (default for wet patch/rc/final/
-    draft-release), poll until green, failed, or ``timeout_s``. Dry-run callers
-    should pass ``wait=False`` so the script does not hang.
+    draft-release), poll until green, failed-after-retries, or ``timeout_s``.
+    When CI is already red and ``wait=True``, auto-retry leaf jobs up to
+    ``max_job_retries`` then re-poll (same path as failures mid-wait).
+    Dry-run callers should pass ``wait=False`` so the script does not hang.
     """
     overall: str
     failing: list[CiFailureDetail]
@@ -1440,21 +1643,53 @@ def ensure_ci_green(
         print(f"WARN (--allow-ci-failure): {detail}", file=sys.stderr)
         return
     if failing:
+        if wait:
+            print(
+                f"CI failed; waiting/retrying up to {timeout_s:.0f}s "
+                f"(max {max_job_retries} auto-retries, poll every {poll_interval_s:.0f}s)",
+                flush=True,
+            )
+            wait_for_ci_green(
+                sha,
+                timeout_s=timeout_s,
+                poll_interval_s=poll_interval_s,
+                max_job_retries=max_job_retries,
+                retry_backoff_s=retry_backoff_s,
+                sleep_fn=sleep_fn,
+                monotonic_fn=monotonic_fn,
+                summary_fn=get_commit_ci_summary,
+                retry_fn=retry_fn,
+                notify_exhausted_fn=notify_exhausted_fn,
+            )
+            return
+        ping: str = format_ci_exhausted_retry_ping(sha, failing)
+        print(ping, flush=True)
+        if notify_exhausted_fn is not None:
+            notify_exhausted_fn(ping)
         raise SystemExit(
             f"refusing to draft release on a commit with non-green CI. {detail}\n"
-            "Re-run after leaf jobs are green (Retry in Mosaic if platform/infra). "
+            "Re-run after leaf jobs are green (Retry in Mosaic if platform/infra), "
+            "or pass --wait-ci to auto-retry failing jobs. "
             "Pass --allow-ci-failure only to intentionally override a red tip."
         )
     # Pending only from here.
     if wait:
-        print(f"CI pending; waiting up to {timeout_s:.0f}s (poll every {poll_interval_s:.0f}s)")
+        print(
+            f"CI pending; waiting up to {timeout_s:.0f}s "
+            f"(poll every {poll_interval_s:.0f}s, max {max_job_retries} auto-retries on fail)",
+            flush=True,
+        )
         wait_for_ci_green(
             sha,
             timeout_s=timeout_s,
             poll_interval_s=poll_interval_s,
+            max_job_retries=max_job_retries,
+            retry_backoff_s=retry_backoff_s,
             sleep_fn=sleep_fn,
             monotonic_fn=monotonic_fn,
             summary_fn=get_commit_ci_summary,
+            retry_fn=retry_fn,
+            notify_exhausted_fn=notify_exhausted_fn,
         )
         return
     raise WaitingOn(
@@ -1463,14 +1698,29 @@ def ensure_ci_green(
     )
 
 
+def maybe_notify_ci_exhausted_slack(ping_text: str) -> None:
+    """Optional Slack ping when CI stays red after auto-retries (env webhook)."""
+    url: str = (os.environ.get(SLACK_DM_ENV) or "").strip()
+    if not url:
+        return
+    try:
+        post_webhook(url, f"[CI retry exhausted]\n{ping_text[:3500]}")
+        print(f"pinged runner via {SLACK_DM_ENV}", flush=True)
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, SystemExit) as exc:
+        print(f"WARN: CI-exhausted Slack ping failed: {exc}", file=sys.stderr)
+
+
 def ensure_ci_green_from_args(sha: str, args: argparse.Namespace) -> None:
-    """Apply ``--wait-ci`` / ``--no-wait-ci`` / timeout flags from argparse."""
+    """Apply ``--wait-ci`` / ``--no-wait-ci`` / timeout / retry flags from argparse."""
     ensure_ci_green(
         sha,
         allow_failure=bool(getattr(args, "allow_ci_failure", False)),
         wait=resolve_wait_ci(args),
         timeout_s=float(getattr(args, "ci_wait_timeout", DEFAULT_CI_WAIT_TIMEOUT_S)),
         poll_interval_s=float(getattr(args, "ci_poll_interval", DEFAULT_CI_POLL_INTERVAL_S)),
+        max_job_retries=int(getattr(args, "ci_job_retries", DEFAULT_CI_JOB_RETRIES)),
+        retry_backoff_s=float(getattr(args, "ci_retry_backoff", DEFAULT_CI_RETRY_BACKOFF_S)),
+        notify_exhausted_fn=maybe_notify_ci_exhausted_slack,
     )
 
 
@@ -3448,7 +3698,8 @@ def format_workflow_trigger_payload(
         "script": _RELEASE_SCRIPT_PATH,
         "script_branch": _RELEASE_SCRIPT_BRANCH_NAME,
         "script_branch_url": _RELEASE_SCRIPT_BRANCH_URL,
-        "commands_hint": "patch / rc / final",
+        # Keep backticks so Workflow italic footer matches Incoming Webhook wording.
+        "commands_hint": "`patch` / `rc` / `final`",
     }
 
 
@@ -3514,7 +3765,7 @@ def format_workflow_rendered_mock(fields: dict[str, str]) -> str:
         f"@{handle} — can I get a :lgtm:? Please review and "
         f"*Publish release* when ready.\n"
         f"\n"
-        f"_Brought to you by release automation — {fields['script']} on "
+        f"_Brought to you by release automation — `{fields['script']}` on "
         f"{fields['script_branch_url']} / {fields['script_branch']}. "
         f"Run by {fields['runner']}. Try {fields['commands_hint']}_."
     )
@@ -3978,6 +4229,27 @@ def _add_ci_flags(sp: argparse.ArgumentParser) -> None:
         default=DEFAULT_CI_POLL_INTERVAL_S,
         metavar="SECONDS",
         help=f"seconds between CI status polls (default: {int(DEFAULT_CI_POLL_INTERVAL_S)})",
+    )
+    sp.add_argument(
+        "--ci-job-retries",
+        type=int,
+        default=DEFAULT_CI_JOB_RETRIES,
+        metavar="N",
+        help=(
+            "auto-retry failing leaf CI jobs (GitLab job id from Mosaic URL / "
+            f"gh run rerun --failed) up to N times before refusing to draft "
+            f"(default: {DEFAULT_CI_JOB_RETRIES})"
+        ),
+    )
+    sp.add_argument(
+        "--ci-retry-backoff",
+        type=float,
+        default=DEFAULT_CI_RETRY_BACKOFF_S,
+        metavar="SECONDS",
+        help=(
+            f"seconds to wait after each auto-retry round before re-polling "
+            f"(default: {int(DEFAULT_CI_RETRY_BACKOFF_S)})"
+        ),
     )
 
 

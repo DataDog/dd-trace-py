@@ -438,7 +438,7 @@ class SlackDefaultsTests(unittest.TestCase):
             "script": _RELEASE_SCRIPT_PATH,
             "script_branch": _RELEASE_SCRIPT_BRANCH_NAME,
             "script_branch_url": _RELEASE_SCRIPT_BRANCH_URL,
-            "commands_hint": "patch / rc / final",
+            "commands_hint": "`patch` / `rc` / `final`",
         }
         body: str = format_workflow_rendered_mock(fields)
         self.assertIn(":package: *Draft* patch release 4.16.4 is ready for review", body)
@@ -448,7 +448,10 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertNotIn(":+1:", body)
         self.assertIn("*Publish release*", body)
         self.assertIn("_Brought to you by release automation —", body)
+        self.assertIn("`scripts/gh/create_gh_release.py`", body)
+        self.assertIn(_RELEASE_SCRIPT_BRANCH_URL, body)
         self.assertIn("Run by vlad-scherbich", body)
+        self.assertIn("Try `patch` / `rc` / `final`", body)
         self.assertNotIn("<https://example/draft|Open draft release / notes>", body)
 
     def test_format_workflow_trigger_payload_fields(self) -> None:
@@ -472,7 +475,7 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(fields["script"], _RELEASE_SCRIPT_PATH)
         self.assertEqual(fields["script_branch"], _RELEASE_SCRIPT_BRANCH_NAME)
         self.assertEqual(fields["script_branch_url"], _RELEASE_SCRIPT_BRANCH_URL)
-        self.assertEqual(fields["commands_hint"], "patch / rc / final")
+        self.assertEqual(fields["commands_hint"], "`patch` / `rc` / `final`")
         self.assertTrue(fields["draft_url"].endswith("untagged-c75ab298b627dd470d8f"))
 
     def test_resolve_gh_login_prefers_personal_on_datadog_repo(self) -> None:
@@ -1326,11 +1329,122 @@ class WaitForCiGreenTests(unittest.TestCase):
                 "deadbeef",
                 timeout_s=100.0,
                 poll_interval_s=10.0,
+                max_job_retries=0,
                 sleep_fn=lambda _s: None,
                 monotonic_fn=lambda: clock[0],
                 summary_fn=summary,
             )
         self.assertIn("CI failed while waiting", str(ctx.exception))
+
+    def test_failure_retries_then_green(self) -> None:
+        from create_gh_release import CiFailureDetail
+        from create_gh_release import wait_for_ci_green
+
+        sleeps: list[float] = []
+        clock: list[float] = [0.0]
+        calls: list[int] = [0]
+        retry_rounds: list[int] = []
+        mosaic: str = "https://mosaic.us1.ddbuild.io/change-request/1?taskExecutionId=99&pipelineId=7"
+        fail: CiFailureDetail = CiFailureDetail(
+            name="dd-gitlab/k8s",
+            url=mosaic,
+            description="Image pull failed",
+        )
+
+        def summary(_sha: str) -> tuple[str, list[CiFailureDetail], list[str], int]:
+            calls[0] += 1
+            if calls[0] <= 2:
+                return ("failure", [fail], [], 1)
+            return ("success", [], [], 2)
+
+        def retry_fn(failing: Any) -> list[str]:
+            retry_rounds.append(len(list(failing)))
+            return ["gitlab retry job 99: ok"]
+
+        def sleep_fn(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        wait_for_ci_green(
+            "deadbeef",
+            timeout_s=100.0,
+            poll_interval_s=10.0,
+            max_job_retries=2,
+            retry_backoff_s=5.0,
+            sleep_fn=sleep_fn,
+            monotonic_fn=lambda: clock[0],
+            summary_fn=summary,
+            retry_fn=retry_fn,
+        )
+        self.assertEqual(retry_rounds, [1, 1])
+        self.assertEqual(sleeps, [5.0, 5.0])
+        self.assertEqual(calls[0], 3)
+
+    def test_failure_retries_exhausted_pings(self) -> None:
+        from create_gh_release import CiFailureDetail
+        from create_gh_release import wait_for_ci_green
+
+        clock: list[float] = [0.0]
+        retries: list[str] = []
+        pings: list[str] = []
+        fail: CiFailureDetail = CiFailureDetail(
+            name="dd-gitlab/k8s",
+            url="https://mosaic.us1.ddbuild.io/x?taskExecutionId=42",
+        )
+
+        def summary(_sha: str) -> tuple[str, list[CiFailureDetail], list[str], int]:
+            return ("failure", [fail], [], 0)
+
+        def retry_fn(_failing: Any) -> list[str]:
+            retries.append("r")
+            return ["retried"]
+
+        with self.assertRaises(SystemExit) as ctx:
+            wait_for_ci_green(
+                "abc123deadbeef",
+                timeout_s=100.0,
+                poll_interval_s=1.0,
+                max_job_retries=2,
+                retry_backoff_s=1.0,
+                sleep_fn=lambda s: clock.__setitem__(0, clock[0] + s),
+                monotonic_fn=lambda: clock[0],
+                summary_fn=summary,
+                retry_fn=retry_fn,
+                notify_exhausted_fn=pings.append,
+            )
+        self.assertEqual(len(retries), 2)
+        self.assertEqual(len(pings), 1)
+        self.assertIn("PING:", pings[0])
+        self.assertIn("after 2 auto-retry", str(ctx.exception))
+
+    def test_parse_mosaic_and_attempt_retry_skips_rollup(self) -> None:
+        from create_gh_release import CiFailureDetail
+        from create_gh_release import attempt_retry_failed_ci_jobs
+        from create_gh_release import leaf_failures_for_retry
+        from create_gh_release import parse_github_actions_run_id
+        from create_gh_release import parse_mosaic_job_and_pipeline_ids
+
+        job_id, pipe_id = parse_mosaic_job_and_pipeline_ids(
+            "https://mosaic.us1.ddbuild.io/change-request/1?taskExecutionId=2231548690&pipelineId=151644776"
+        )
+        self.assertEqual(job_id, "2231548690")
+        self.assertEqual(pipe_id, "151644776")
+        self.assertEqual(
+            parse_github_actions_run_id("https://github.com/DataDog/dd-trace-py/actions/runs/12345"),
+            "12345",
+        )
+        leaves = leaf_failures_for_retry(
+            [
+                CiFailureDetail(name="DDCI Status", description="Not required to merge"),
+                CiFailureDetail(
+                    name="dd-gitlab/k8s",
+                    url="https://mosaic.us1.ddbuild.io/x?taskExecutionId=9",
+                ),
+            ]
+        )
+        self.assertEqual([d.name for d in leaves], ["dd-gitlab/k8s"])
+        lines: list[str] = attempt_retry_failed_ci_jobs(leaves, dry_run=True)
+        self.assertTrue(any("would POST" in line and "/jobs/9/retry" in line for line in lines))
 
     def test_timeout_raises_waiting_on(self) -> None:
         from create_gh_release import wait_for_ci_green

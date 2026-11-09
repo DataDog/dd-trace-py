@@ -20,7 +20,7 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
 | `script` | `scripts/gh/create_gh_release.py` | Text |
 | `script_branch` | `vlad/release-create-release-rc-script` | Text |
 | `script_branch_url` | `https://github.com/DataDog/dd-trace-py/compare/main...vlad/release-create-release-rc-script` | Text |
-| `commands_hint` | `patch / rc / final` | Text |
+| `commands_hint` | `` `patch` / `rc` / `final` `` | Text |
 
 **Removed (do not keep):** `reviewer_brett` / `reviewer_emmett` User ID vars; single freeform `text` mrkdwn blob. Ping `@dd-trace-py-releasers` (static User Group mention). Use **`:lgtm:`** — not `:+1:` / thumbs-up.
 
@@ -50,8 +50,12 @@ Do **not** invent a webhook URL. If you only have `triggers/`, stay on the inter
    - Line 1: `:package:` then bold **Draft** then insert `kind` then insert `version` then ` is ready for review`
    - Line 2: insert `draft_url` · `target` then insert `target_sha`
    - Line 3: **static User Group mention** `@dd-trace-py-releasers` (Insert → usergroup — do **not** insert `releasers_handle` as plain text). Then ` — can I get a ` then **`:lgtm:`** (not `:+1:`) then `? Please review and` then bold **Publish release** then ` when ready.`
-   - Footer (italic): `Brought to you by release automation — ` + `script` + ` on ` + `script_branch_url` / `script_branch` + ` . Run by ` + `runner` + ` . Try ` + `commands_hint` + `.`
+   - Footer (**italic** in the editor — do not omit): static `Brought to you by release automation — ` then insert `script` then ` on ` then insert `script_branch_url` then ` / ` then insert `script_branch` then `. Run by ` then insert `runner` then `. Try ` then insert `commands_hint` then `.`
 
-7. **Publish** the workflow. Run `draft-release … --dry-run --slack` and confirm JSON keys match. Only then wet-post.
+   Rendered footer must look like (Incoming Webhook mrkdwn equivalent):
+
+   `_Brought to you by release automation — `scripts/gh/create_gh_release.py` on https://github.com/DataDog/dd-trace-py/compare/main...vlad/release-create-release-rc-script / vlad/release-create-release-rc-script. Run by vlad-scherbich. Try `patch` / `rc` / `final`._`
+
+7. **Publish** the workflow. Run `draft-release … --dry-run --slack` and confirm JSON keys match (including `script`, `script_branch`, `script_branch_url`, `commands_hint`, `runner`). Only then wet-post.
 
 Until steps 1–7 are done (or you switch to `services/`), do **not** wet-post to `#apm-python-release` — dry-run preview only.
