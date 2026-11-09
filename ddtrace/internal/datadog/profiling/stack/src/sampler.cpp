@@ -274,24 +274,25 @@ Sampler::adapt_sampling_interval()
     sampler_thread_count = new_sampler_thread_count;
 }
 
-void
-Sampler::capture_samples(const microsecond_t wall_time_us, const bool include_wall_sampler_cpu_time)
+bool
+Sampler::snapshot_interpreters()
 {
-    auto* const runtime = &_PyRuntime;
-
     interpreter_candidates.clear();
     const bool all_interpreter_data_captured =
-      for_each_interp(runtime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
+      for_each_interp(&_PyRuntime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
 #if PY_VERSION_HEX >= 0x030e0000
     // This lock-free snapshot can race with code destruction during the sampling cycle. In that case, the current
     // cycle may use stale frame metadata; the next cycle observes the generation change and clears the cache.
-    if (!echion->validate_code_object_generations(interpreter_candidates, all_interpreter_data_captured)) {
-        return;
-    }
+    return echion->validate_code_object_generations(interpreter_candidates, all_interpreter_data_captured);
 #else
     (void)all_interpreter_data_captured;
+    return true;
 #endif
+}
 
+void
+Sampler::capture_samples(const microsecond_t wall_time_us, const bool include_wall_sampler_cpu_time)
+{
     // When max_threads_per_sample is set, we collect all threads first, then apply
     // reservoir sampling (Algorithm R) to select a uniform random subset, and only
     // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
@@ -540,8 +541,17 @@ Sampler::sampling_thread(const uint64_t seq_num)
         }
 
         try {
+            // The CPU timer drain resolves code objects through the same frame identity caches as wall
+            // sampling, so validate code object generations before either of them reads those caches.
+            bool interpreter_snapshot_usable = false;
+            if (cpu_drain_due || wall_sample_due) {
+                interpreter_snapshot_usable = snapshot_interpreters();
+            }
+
             // Drain first when both deadlines are due. CPU profiling has priority,
             // and a slow wall-stack walk must not add avoidable ring latency.
+            // Drain even when the interpreter snapshot is unusable: the caches were cleared, so every
+            // frame is read again, and skipping would let the per-thread rings fill and drop CPU time.
             if (cpu_drain_due) {
                 cpu_drain_time_now = steady_clock::now();
                 const auto cpu_timer_drain_cpu_before = get_thread_cpu_time_us();
@@ -561,7 +571,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // Reset per-cycle asyncio task accumulator before iterating sampled threads.
                 echion->reset_asyncio_task_count();
 
-                capture_samples(wall_time_us, include_wall_sampler_cpu_time);
+                if (interpreter_snapshot_usable) {
+                    capture_samples(wall_time_us, include_wall_sampler_cpu_time);
+                }
 
                 // Collect greenlet count before acquiring the profile lock to avoid
                 // holding two locks simultaneously (greenlet lock then profile lock).

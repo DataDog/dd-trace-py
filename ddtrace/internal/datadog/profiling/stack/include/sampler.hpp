@@ -112,8 +112,12 @@ class Sampler
     std::vector<ThreadCandidate> thread_candidates;
     void adapt_sampling_interval();
 
-    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
-    // when max_threads_per_sample is set).
+    // Refreshes interpreter_candidates and, on Python 3.14+, invalidates the frame identity caches when a code
+    // object generation changed. Returns false when the snapshot is incomplete and wall sampling must skip the cycle.
+    bool snapshot_interpreters();
+
+    // Captures one sampling cycle across the threads of interpreter_candidates (or a reservoir-sampled subset
+    // thereof when max_threads_per_sample is set).
     void capture_samples(microsecond_t wall_time_us, bool include_wall_sampler_cpu_time);
 
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
