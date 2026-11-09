@@ -320,10 +320,14 @@ def test_otel_logs_exporter_auto_configured_http():
         "DD_LOGS_INJECTION": "false",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
     },
-    err=b"OpenTelemetry Logs exporter protocol 'http/json' is not supported. Use 'grpc' or 'http/protobuf'.\n",
+    err=None,
 )
 def test_otel_logs_exporter_otlp_protocol_unsupported():
-    import opentelemetry._logs  # noqa: F401
+    from ddtrace.internal.opentelemetry.logs import DD_LOGS_PROVIDER_CONFIGURED
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert DD_LOGS_PROVIDER_CONFIGURED
+    assert otel_config.exporter.LOGS_PROTOCOL == "http/protobuf"
 
 
 @pytest.mark.skipif(

@@ -1,0 +1,6 @@
+fixes:
+  - |
+    tracing: Fixes an issue where OTLP logs and metrics stop exporting when protocol
+    values use uppercase letters or invalid protocol or compression values are configured.
+    Invalid or unsupported values produce a warning and fall back to HTTP/protobuf
+    for protocols or no compression.

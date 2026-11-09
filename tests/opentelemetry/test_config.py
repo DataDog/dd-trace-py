@@ -889,3 +889,44 @@ def test_native_trace_metrics_exporter_sends_custom_headers_and_the_api_key():
     headers = dict(NativeWriter._parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
     assert headers["x-team"] == "apm"
     assert headers["dd-api-key"] == "foobarkey"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LOGS_OTEL_ENABLED": "false",
+        "DD_METRICS_OTEL_ENABLED": "false",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+    },
+    err=b"",
+)
+def test_global_json_protocol_without_logs_or_metrics_does_not_warn():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/json"
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"},
+    parametrize={
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": ["HTTP/PROTOBUF", "unsupported", "http/json"],
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": ["HTTP/PROTOBUF", "unsupported", "http/json"],
+    },
+)
+def test_log_and_metric_protocol_fallback_uses_http_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    for signal in ("LOGS", "METRICS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
+        assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4318/v1/" + signal.lower())
+    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
+
+
+@pytest.mark.subprocess(
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["HTTP/PROTOBUF", " HTTP/PROTOBUF ", "unsupported", "http/json"]},
+)
+def test_global_otlp_protocol_fallback_uses_http_endpoint():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    for signal in ("LOGS", "METRICS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
+        assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4318/v1/" + signal.lower())

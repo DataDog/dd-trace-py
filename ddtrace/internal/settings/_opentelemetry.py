@@ -1,5 +1,6 @@
 import typing as t
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agent import get_agent_hostname
@@ -7,6 +8,9 @@ from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
+
+
+log = get_logger(__name__)
 
 
 def _agentless_endpoint(signal_path: str = "") -> str:
@@ -46,8 +50,23 @@ def _derive_logs_endpoint(config: "ExporterConfig"):
     return get_config("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", default_endpoint)
 
 
-def _derive_logs_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL)
+def _normalize_signal_protocol(protocol: str, signal: str, warn: bool = False) -> str:
+    normalized = protocol.strip().lower()
+    if normalized in ("grpc", "http/protobuf"):
+        return normalized
+    if warn:
+        log.warning(
+            "OpenTelemetry %s exporter protocol %r is not supported. Falling back to 'http/protobuf'.",
+            signal,
+            protocol,
+        )
+    return "http/protobuf"
+
+
+def _derive_logs_protocol(config: "ExporterConfig", warn: bool = False):
+    # Exporter setup repeats this lookup only for diagnostics, without repeating configuration telemetry.
+    protocol = get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL, report_telemetry=not warn)
+    return _normalize_signal_protocol(protocol, "Logs", warn)
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
@@ -65,11 +84,13 @@ def _derive_metrics_endpoint(config: "ExporterConfig"):
     return get_config("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", default_endpoint)
 
 
-def _derive_metrics_protocol(config: "ExporterConfig"):
-    return get_config(
+def _derive_metrics_protocol(config: "ExporterConfig", warn: bool = False):
+    protocol = get_config(
         ["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"],
         config.PROTOCOL,
+        report_telemetry=not warn,
     )
+    return _normalize_signal_protocol(protocol, "Metrics", warn)
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
