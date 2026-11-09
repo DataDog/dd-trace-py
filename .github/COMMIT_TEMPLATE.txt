@@ -9,16 +9,16 @@ feat/fix/docs/refactor/ci(xxx): commit title here
 # following line
 # ITR:NoSkip
 
-# To force run extra suites in CircleCI on top of what's detected,
+# To force run extra suites in CI on top of what's detected,
 # uncomment as needed
 
 # To force run all test suites:
-# CircleCI:all
+# CI:all
 
 # To force run selectively, separated by commas like:
-# CircleCI:django,flask,wsgi
+# CI:django,flask,wsgi
 
-# CircleCI suites are:
+# CI suites are:
 # aiobotocore, aiohttp, aiomysql, aiopg, algoliasearch, appsec, appsec_iast,
 # appsec_iast_memcheck, appsec_integrations, aredis, asgi, asyncpg, asynctest, aws_lambda,
 # botocore, bottle, cassandra, celery, cherrypy, ci_visibility, consul, datastreams,
