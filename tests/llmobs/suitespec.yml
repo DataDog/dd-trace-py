@@ -198,6 +198,12 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
+    env:
+      # The llama-index-core~=0.11.0 venv on Python 3.13 builds numpy 1.26.4 from source
+      # (no cp313 wheel) on a uv cache miss, which can exceed the default 6Gi.
+      DD_DISABLE_VPA: 'true'
+      KUBERNETES_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_MEMORY_LIMIT: '8Gi'
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       variants:
