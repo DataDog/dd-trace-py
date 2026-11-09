@@ -58,6 +58,7 @@ from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.threads import Thread
+from ddtrace.internal.threads import original_Event
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.time import HourGlass
 from ddtrace.version import __version__
@@ -869,9 +870,11 @@ class _AgentRouteDiscovery:
         self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
         self._base_url: Optional[str] = None
         self._generation = 0
+        self._pending: Optional[original_Event] = None
+        self._started = False
         self._reason = "the Agent has not been checked for the AI Guard proxy route yet"
 
-    def _probe(self, generation: int) -> None:
+    def _probe(self, generation: int, completed: original_Event) -> None:
         """Check the Agent, discarding the result if the route was invalidated meanwhile.
 
         The probe runs outside the lock, since it performs an HTTP request, so a route that
@@ -890,22 +893,33 @@ class _AgentRouteDiscovery:
             base_url, reason = None, "the Agent /info endpoint could not be read"
 
         with self._lock:
-            if generation != self._generation:
-                return
-            self._base_url = base_url
-            self._reason = reason
+            if generation == self._generation:
+                self._base_url = base_url
+                self._reason = reason
+                self._pending = None
+        completed.set()
 
     def resolve(self) -> tuple[Optional[str], str]:
         """Return the Agent connection base, or None and why there is none."""
         with self._lock:
             if self._base_url is not None:
                 return self._base_url, ""
-            if self._throttle.trickling():
+            completed = self._pending
+            if completed is None and self._throttle.trickling():
                 return None, self._reason
-            self._throttle.turn()
+            probe = completed is None
+            if completed is None:
+                completed = self._pending = forksafe.Event()
+                self._reason = "the Agent AI Guard proxy discovery is still in progress"
+                self._throttle.turn()
             generation = self._generation
 
-        self._probe(generation)
+        if probe:
+            self._probe(generation, completed)
+        else:
+            # A pending check is not a cached absence. Share its result, while keeping
+            # evaluations bounded if the background thread is delayed or interrupted.
+            completed.wait(agent_config.trace_agent_timeout_seconds)
 
         with self._lock:
             return self._base_url, self._reason
@@ -916,30 +930,50 @@ class _AgentRouteDiscovery:
             self._base_url = None
             self._generation += 1
             self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
+            completed, self._pending = self._pending, None
+            self._started = False
             self._reason = "the Agent has not been checked for the AI Guard proxy route yet"
+        if completed is not None:
+            completed.set()
 
     def invalidate(self, reason: str) -> None:
         """Forget the route and go back to discovery, as after the Agent was replaced."""
         with self._lock:
             self._base_url = None
             self._generation += 1
+            completed, self._pending = self._pending, None
+            self._started = False
             self._reason = reason
             # A fresh glass rather than turn(): turning one that is already running flips the
             # sand back, which would let the next evaluation re-check with no delay at all.
             self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
             self._throttle.turn()
+        if completed is not None:
+            completed.set()
 
     def start(self) -> None:
         """Run the first check off the startup path, so an unresponsive Agent cannot delay it."""
+        with self._lock:
+            if self._started:
+                return
+            self._started = True
+            generation = self._generation
 
         def discover() -> None:
             self.resolve()
 
-        thread = Thread(target=discover, name="ddtrace.aiguard.discovery")
-        thread.start()
+        try:
+            thread = Thread(target=discover, name="ddtrace.aiguard.discovery")
+            thread.start()
+        except Exception:
+            with self._lock:
+                if generation == self._generation:
+                    self._started = False
+            raise
 
 
 _agent_route = _AgentRouteDiscovery()
+forksafe.register(_agent_route.reset)
 
 
 def new_ai_guard_client(
