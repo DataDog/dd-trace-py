@@ -47,8 +47,9 @@ A short summary is usually enough; field lists are optional for unrendered docst
 Explain non-obvious invariants, not the next line of code. Do not add `AIDEV-*` anchors;
 `scripts/check_no_new_aidev_anchors.py` enforces this.
 
-`tests/` and `scripts/` are not Sphinx-rendered, so a double-backtick literal added there is
-noise. `scripts/check_no_rst_markup_in_prose.py` blocks new ones on added diff lines only;
+`tests/` and `scripts/` are not Sphinx-rendered. In Python files there,
+`scripts/check_no_rst_markup_in_prose.py` blocks new double-backtick literals in comments
+and docstrings on added diff lines only. Strings in executable code are left alone, and
 pre-existing occurrences stay. The checker and its test are excluded because they document
 the pattern. Write identifiers as plain text, for example `finish()`.
 

@@ -133,6 +133,9 @@ case "$cmd" in
   type-comments-check)
     uv_lint python scripts/check_type_comments.py "$@"
     ;;
+  rst-markup-check)
+    uv_lint python scripts/check_no_rst_markup_in_prose.py "$@"
+    ;;
   supported-config-check)
     uv_lint python scripts/supported_configurations.py --check "$@"
     ;;
@@ -213,6 +216,7 @@ Subcommands:
   profiling-native-check    Check profiling native coverage
   error-log-check           Check constant log messages
   type-comments-check       Fail if new PEP 484 type comments were added
+  rst-markup-check          Fail if new rST double-backtick prose was added under tests/ or scripts/
   supported-config-check    Check supported-configurations.json is in sync and complete
   ci-deps-check             scripts/check-ci-dependencies
 
