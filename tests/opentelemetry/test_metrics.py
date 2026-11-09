@@ -249,8 +249,8 @@ def _otlp_test_env(signal, protocol):
             "DD_METRICS_OTEL_ENABLED": str(signal == "metrics"),
             "DD_TRACE_ENABLED": "false",
             "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
-            "OTEL_EXPORTER_OTLP_" + signal.upper() + "_ENDPOINT": (
-                "http://127.0.0.1:14317" if protocol == "grpc" else "http://127.0.0.1:14319/v1/" + signal
+            "OTEL_EXPORTER_OTLP_ENDPOINT": (
+                "http://127.0.0.1:14317" if protocol == "grpc" else "http://127.0.0.1:14319"
             ),
         }
     )
