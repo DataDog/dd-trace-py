@@ -136,6 +136,12 @@ case "$cmd" in
   supported-config-check)
     uv_lint python scripts/supported_configurations.py --check "$@"
     ;;
+  rustfmt)
+    cargo fmt --manifest-path src/native/Cargo.toml "$@"
+    ;;
+  rust)
+    cargo clippy --manifest-path src/native/Cargo.toml "$@"
+    ;;
   ci-deps-check)
     bash scripts/check-ci-dependencies "$@"
     ;;
@@ -214,6 +220,8 @@ Subcommands:
   error-log-check           Check constant log messages
   type-comments-check       Fail if new PEP 484 type comments were added
   supported-config-check    Check supported-configurations.json is in sync and complete
+  rustfmt [args]            Format/check the native Rust crate with cargo fmt
+  rust [args]               Lint the native Rust crate with cargo clippy
   ci-deps-check             scripts/check-ci-dependencies
 
   sg [paths]                ast-grep scan

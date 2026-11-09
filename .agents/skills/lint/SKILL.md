@@ -43,6 +43,7 @@ their own selection logic; inspect the diff afterward rather than assuming every
 | Environment-variable registry | `supported-config-check` |
 | Log messages | `error-log-check` |
 | Type annotations | `typing`, `type-comments-check` |
+| Native Rust | `rustfmt --all -- --check`, `rust --all-features -- -D warnings` |
 | ast-grep rules | `sg`, `sg-test` |
 | Git hooks | `hook-tests` |
 
