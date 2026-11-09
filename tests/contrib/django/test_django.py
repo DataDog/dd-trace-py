@@ -3,11 +3,13 @@ import itertools
 import os
 import subprocess
 import types
+from typing import Iterator
 from unittest import mock
 import uuid
 
 import django
 from django.core.handlers.base import BaseHandler
+from django.core.signals import request_finished
 from django.core.signals import request_started
 from django.core.wsgi import get_wsgi_application
 from django.db import close_old_connections
@@ -2740,11 +2742,14 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
 
 
 @pytest.fixture()
-def resource():
-    # setUp and tearDown for TestWSGI test cases.
+def resource() -> Iterator[None]:
+    # These lifecycle tests do not use the database. Exhausting a WSGI response
+    # also closes it, so isolate connection cleanup at both request boundaries.
     request_started.disconnect(close_old_connections)
+    request_finished.disconnect(close_old_connections)
     yield
     request_started.connect(close_old_connections)
+    request_finished.connect(close_old_connections)
 
 
 class TestWSGI:

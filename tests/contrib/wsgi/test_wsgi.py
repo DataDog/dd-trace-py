@@ -360,6 +360,27 @@ def test_http_request_header_tracing(tracer, test_spans):
         config.wsgi.http._reset()
 
 
+def test_completion_preserves_legacy_user_agent_lookup(tracer, test_spans) -> None:
+    entry_header_modes: list[tuple[bool, bool]] = []
+
+    def started(ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        entry_header_modes.append((ctx.event.headers_case_sensitive, ctx.get_item("headers_case_sensitive")))
+
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    core.on("context.started.web.request", started)
+    try:
+        response = app.get("/", headers={"User-Agent": "test-user-agent"})
+    finally:
+        core.reset_listeners("context.started.web.request", started)
+
+    assert response.status_int == 200
+    assert entry_header_modes == [(True, True)]
+    request_span = test_spans.pop()[0]
+    assert request_span.name == "wsgi.request"
+    # Legacy WSGI metadata lookup does not add this tag from title-cased headers.
+    assert request_span.get_tag("http.useragent") is None
+
+
 def test_http_response_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-response-header"])
     try:
