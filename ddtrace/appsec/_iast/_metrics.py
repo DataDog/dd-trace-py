@@ -1,6 +1,5 @@
 from typing import Union
 
-from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._iast._constants import TELEMETRY_MANDATORY_VERBOSITY
@@ -10,6 +9,7 @@ from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_i
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.security._deduplications import deduplication
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
@@ -109,7 +109,7 @@ def _set_metric_iast_request_tainted():
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "request.tainted", total_objects_tainted)
 
 
-def _metric_key_as_snake_case(key):
+def _metric_key_as_snake_case(key: Union[str, OriginType]) -> str:
     if isinstance(key, OriginType):
         key = origin_to_str(key)
     key = key.replace(".", "_")

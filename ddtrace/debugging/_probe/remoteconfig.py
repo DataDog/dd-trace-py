@@ -287,7 +287,9 @@ class DebuggerRCCallback(RCCallback):
         self._status_logger = status_logger
         self._registry = registry
         self._diagnostics_interval = diagnostics_interval
-        self._last_status_emission = 0.0
+        # Probe events emit their own statuses: the first periodic emission is due
+        # after a full interval.
+        self._last_status_emission = time.time()
         self._configs: dict[str, dict[str, Probe]] = {}
 
     def _dispatch_probe_events(self, prev_probes: dict[str, Probe], next_probes: dict[str, Probe]) -> None:

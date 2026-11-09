@@ -1,0 +1,25 @@
+id: threading-module-import
+valid:
+  - from ddtrace.internal.threads import current_thread
+  - from ddtrace.internal.threads import Event, Lock
+  - import threadingx
+  - from threadingx import Thread
+  - |
+    if TYPE_CHECKING:
+        from threading import Thread
+  - |
+    if TYPE_CHECKING:
+        import threading
+
+invalid:
+  - import threading
+  - import threading as _threading
+  - import os, threading
+  - from threading import Thread
+  - from threading import current_thread, main_thread
+  - |
+    def f():
+        import threading
+  - |
+    def f():
+        from threading import local

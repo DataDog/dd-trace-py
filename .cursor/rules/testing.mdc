@@ -6,5 +6,5 @@ alwaysApply: false
 
 # run-tests
 
-Read `.claude/skills/run-tests/SKILL.md` from the repository root and follow that workflow.
+Read `.agents/skills/run-tests/SKILL.md` from the repository root and follow that workflow.
 If this client supports skill invocation, use `run-tests` directly.

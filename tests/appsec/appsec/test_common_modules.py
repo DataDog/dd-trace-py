@@ -20,14 +20,14 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
@@ -604,12 +604,14 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         # Being registered is not enough: the hook must actually run under both orders, or
         # RASP silently stops inspecting downstream requests.
         entered = []
+        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
 
         class _Probe(_SsrfHttpConnectionRequest):
             def __enter__(self):
                 result = super().__enter__()
                 frame_locals = self._locals()
-                entered.append((frame_locals.get("method"), frame_locals.get("url")))
+                if frame_locals.get("self") is conn:
+                    entered.append((frame_locals.get("method"), frame_locals.get("url")))
                 return result
 
         request_fn = request_ctx.__wrapped__
@@ -619,7 +621,6 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
 
         # Both layers still deliver a working client: a refused connection must surface as
         # OSError, not as an instrumentation error.
-        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
         with pytest.raises(OSError):
             conn.request("GET", "/")
 

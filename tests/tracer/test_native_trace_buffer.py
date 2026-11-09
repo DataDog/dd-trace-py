@@ -1361,7 +1361,7 @@ def test_a_closed_microvm_buffer_writer_rejects_later_writes(monkeypatch, agent)
         recording = writer._buffer = _RecordingBuffer()
         try:
             writer.write([_finished_span(trace_id=1)])
-            writer._stop_accepting_writes()
+            writer.drop_buffered_traces()
             writer.write([_finished_span(trace_id=2)])
         finally:
             writer._buffer = native_buffer
@@ -1380,7 +1380,7 @@ def test_a_microvm_buffer_close_waits_for_an_in_flight_write(monkeypatch, agent)
             write.start()
             assert blocking.entered.wait(5.0)
 
-            close = threading.Thread(target=writer._stop_accepting_writes, daemon=True)
+            close = threading.Thread(target=writer.drop_buffered_traces, daemon=True)
             close.start()
             close.join(0.2)
             assert close.is_alive(), "the close did not wait for the in-flight write"
@@ -1395,14 +1395,14 @@ def test_a_microvm_buffer_close_waits_for_an_in_flight_write(monkeypatch, agent)
             writer._buffer = native_buffer
 
 
-def test_stop_accepting_writes_is_a_noop_for_a_buffer_writer_outside_microvm(monkeypatch, agent):
+def test_drop_buffered_traces_is_a_noop_for_a_buffer_writer_outside_microvm(monkeypatch, agent):
     monkeypatch.delenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", raising=False)
     with buffer_writer(agent.port) as writer:
         native_buffer = writer._buffer
         recording = writer._buffer = _RecordingBuffer()
         try:
             assert writer._writer_lock is None
-            writer._stop_accepting_writes()
+            writer.drop_buffered_traces()
             writer.write([_finished_span()])
         finally:
             writer._buffer = native_buffer

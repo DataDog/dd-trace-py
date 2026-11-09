@@ -58,8 +58,11 @@ Shared event dispatch is in `ddtrace/internal/core/`; tracing subscribers are in
 `src/native/`, and profiling native code under `ddtrace/internal/datadog/profiling/`.
 
 Use a skill when available; otherwise read its `SKILL.md` and follow its commands.
-Skill files live at `.claude/skills/<name>/SKILL.md`. Read the relevant sections and references
-for the task, rather than loading every guide. Source code defines current signatures and defaults.
+Shared skills live at `.agents/skills/<name>/SKILL.md` and are discovered directly by Codex,
+Cursor, OpenCode, and Pi. `.claude/skills` is a compatibility symlink to `.agents/skills`.
+Add and edit skills in `.agents/skills` so every harness uses the same files. Read the relevant
+sections and references for the task, rather than loading every guide. Source code defines
+current signatures and defaults.
 
 | Task | Skill or reference |
 |------|--------------------|
@@ -88,7 +91,7 @@ for the task, rather than loading every guide. Source code defines current signa
 Follow the Pull Request Requirements in `docs/contributing.rst` and use
 `.github/PULL_REQUEST_TEMPLATE.md`. Titles follow Conventional Commits (`commitlint.config.js`).
 Include validation, risks, and relevant issues. Before deciding or answering whether a release
-note is needed, invoke `releasenote` (or read `.claude/skills/releasenote/SKILL.md` if skill
+note is needed, invoke `releasenote` (or read `.agents/skills/releasenote/SKILL.md` if skill
 invocation is unavailable), including for internal-only refactors. Follow its decision workflow;
 when no note is needed, explain why and apply `changelog/no-changelog` to the PR.
 
@@ -110,3 +113,6 @@ For `curl` calls in CI, use `--fail` and transient retries (`--retry 5 --retry-d
 --retry-connrefused`, or an explicit loop). Download to a file before extracting/executing;
 never pipe retried downloads into `tar`/`sh` or merge stderr into captured responses.
 Status-aware polling and best-effort lookups may use justified alternatives with visible failure handling.
+
+For `gh` calls in GitLab CI, use `gh_retry` from `.gitlab/scripts/gh-retry.sh` unless a polling
+loop already retries the call. Export `GH_TOKEN` instead of `gh auth login`, which calls the API.

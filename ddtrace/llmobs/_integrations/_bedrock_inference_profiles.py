@@ -18,10 +18,11 @@ resolution call at once.
 from collections.abc import Iterator
 from contextlib import contextmanager
 import random
-import threading
 import time
 from typing import NamedTuple
 from typing import Optional
+
+from ddtrace.internal.threads import Lock
 
 
 class _Backoff(NamedTuple):
@@ -33,7 +34,7 @@ _INFERENCE_PROFILE_CACHE: dict[str, str] = {}
 _RESOLVE_BACKOFF: dict[str, _Backoff] = {}
 # profile ARNs a thread is currently attempting to resolve (single-flight)
 _RESOLVE_IN_FLIGHT: set[str] = set()
-_CACHE_LOCK = threading.Lock()
+_CACHE_LOCK = Lock()
 
 # Exponential backoff schedule for failed resolutions (mirrors the 1.618 factor used by
 # ddtrace.internal.utils.retry.fibonacci_backoff_with_jitter): ~1s, ~1.6s, ~2.6s, ... capped.
