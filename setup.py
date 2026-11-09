@@ -786,6 +786,8 @@ class LibraryDownloader(BuildPyCommand):
             IS_EDITABLE = True
 
         self.waf_mode()
+        if not CustomBuildExt.INCREMENTAL:
+            CleanLibraries.remove_artifacts()
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
         self._clean_staged_libddwaf()
         BuildPyCommand.run(self)

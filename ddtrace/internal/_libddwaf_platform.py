@@ -62,7 +62,7 @@ def resolve_library(libddwaf_dir: str, system: str, machine: str, is_64bit: bool
 
 
 def load_candidates(library: str, system: str) -> tuple[str, ...]:
-    """Names to hand to ctypes, in order; a bundled library is the only candidate."""
+    """Native-loader candidates, in order; a bundled library is the only candidate."""
     if os.path.isabs(library):
         return (library,)
     return system_library_names(system)

@@ -320,7 +320,7 @@ by the pinned ``libddwaf-src`` crate. It supports Linux, macOS, and Windows and
 requires CMake and a C++ compiler. Leave ``LIBDDWAF_PREFIX`` unset in this mode.
 
 System and source modes disable Cargo network resolution and bypass the WAF
-release downloader. Prepare all Rust dependencies beforehand, using a local Cargo
+release downloads. Prepare all Rust dependencies beforehand, using a local Cargo
 registry/cache or ``cargo vendor --locked``. Also pre-provision Python build
 requirements and the tracer's other native dependencies. Cargo offline mode does
 not prevent arbitrary build scripts from making HTTP requests; verify a complete
