@@ -8,7 +8,6 @@ include:
   timeout: 10m
   needs: []
   before_script:
-    - python3 .gitlab/scripts/check-libclang.py
     - cd src/native
   script:
     - |

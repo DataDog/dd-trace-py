@@ -92,7 +92,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
-    // Registration only; libddwaf is loaded on demand by AppSec.
     m.add_wrapped(pyo3::wrap_pymodule!(appsec::waf::ddwaf))?;
 
     // Add FFE submodule

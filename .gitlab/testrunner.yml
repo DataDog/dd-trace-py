@@ -14,7 +14,6 @@ variables:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15
-    - python3 .gitlab/scripts/check-libclang.py
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh

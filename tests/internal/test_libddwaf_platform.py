@@ -140,9 +140,10 @@ def test_an_unknown_name_is_not_loadable():
 
 
 def test_the_installed_library_loads():
-    ddwaf_types = pytest.importorskip("ddtrace.appsec._ddwaf.ddwaf_types")
+    pytest.importorskip("ddtrace.appsec._ddwaf")
+    from ddtrace.internal.settings.asm import config
 
-    version = ddwaf_types.ddwaf_get_version().decode()
+    version = config._ddwaf_version
 
     assert version.startswith("%d." % layout.ABI_MAJOR), version
     assert layout.is_loadable(build_libddwaf_filename(), platform.system())

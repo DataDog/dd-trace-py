@@ -6,11 +6,13 @@ from hypothesis import strategies as st
 import pytest
 from requests.structures import CaseInsensitiveDict
 
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_DEPTH_NO_LIMIT
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_NO_LIMIT
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_OBJ_MAX_CAPACITY
-from ddtrace.appsec._ddwaf.ddwaf_types import _observator
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
+from ddtrace.internal.native._native import ddwaf
+from tests.appsec.appsec.waf_input_contract import encoded_value
+
+
+DDWAF_NO_LIMIT = 1 << 31
+DDWAF_DEPTH_NO_LIMIT = 1000
+DDWAF_OBJ_MAX_CAPACITY = 65535
 
 
 SCALAR_OBJECTS = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.characters())
@@ -27,9 +29,7 @@ WRAPPER_KWARGS = dict(
 
 @given(obj=PYTHON_OBJECTS, kwargs=st.fixed_dictionaries(WRAPPER_KWARGS))
 def test_ddwaf_objects_wrapper(obj, kwargs):
-    obj = ddwaf_object(obj, **kwargs)
-    repr(obj)
-    del obj
+    ddwaf._encode(obj, **kwargs)
 
 
 class _AnyObject:
@@ -58,8 +58,7 @@ class _AnyObject:
     ],
 )
 def test_small_objects(obj, res):
-    dd_obj = ddwaf_object(obj)
-    assert dd_obj.struct == res
+    assert encoded_value(obj)[0] == res
 
 
 @pytest.mark.parametrize(
@@ -76,8 +75,7 @@ def test_small_objects(obj, res):
     ),
 )
 def test_mappings_and_sequences(obj, res):
-    dd_obj = ddwaf_object(obj)
-    assert dd_obj.struct == res
+    assert encoded_value(obj)[0] == res
 
 
 @pytest.mark.parametrize(
@@ -97,10 +95,9 @@ def test_mappings_and_sequences(obj, res):
 )
 def test_limits(obj, res, trunc):
     # truncation of max_string_length takes the last C null byte into account
-    obs = _observator()
-    dd_obj = ddwaf_object(obj, observator=obs, max_objects=1, max_depth=1, max_string_length=2)
-    assert dd_obj.struct == res
-    assert (obs.string_length, obs.container_size, obs.container_depth) == trunc
+    value, observed = encoded_value(obj, max_objects=1, max_depth=1, max_string_length=2)
+    assert value == res
+    assert observed == trunc
 
 
 @pytest.mark.parametrize(
@@ -116,8 +113,7 @@ def test_limits(obj, res, trunc):
 def test_string_with_embedded_nul(obj, res):
     # libddwaf 2.0 strings are length-delimited (not NUL-terminated). Reading must preserve
     # embedded NUL bytes for both the inline "small string" and heap string representations.
-    dd_obj = ddwaf_object(obj)
-    assert dd_obj.struct == res
+    assert encoded_value(obj)[0] == res
 
 
 @pytest.mark.parametrize("container", ["list", "dict"])
@@ -130,17 +126,14 @@ def test_large_container_capped_at_uint16(container):
         value = list(range(n))
     else:
         value = {str(i): i for i in range(n)}
-    obs = _observator()
-    obj = ddwaf_object(
+    result, observed = encoded_value(
         value,
-        observator=obs,
         max_objects=DDWAF_NO_LIMIT,
         max_depth=DDWAF_DEPTH_NO_LIMIT,
         max_string_length=DDWAF_NO_LIMIT,
     )
-    result = obj.struct
     assert len(result) == DDWAF_OBJ_MAX_CAPACITY  # capped, not wrapped
-    assert obs.container_size == n  # original size recorded as a truncation
+    assert observed[1] == n  # original size recorded as a truncation
 
 
 def test_vendorized_xmltodict():

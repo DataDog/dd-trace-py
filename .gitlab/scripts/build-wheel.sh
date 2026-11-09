@@ -10,7 +10,6 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 fi
 
 setup
-uv run --no-project python "${SCRIPT_DIR}/check-libclang.py"
 restore_ext_cache
 build_wheel
 save_ext_cache

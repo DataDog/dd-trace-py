@@ -93,8 +93,6 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "LLVM installation failed: $($process.ExitCode)" }
           $env:LIBCLANG_PATH = 'C:\Program Files\LLVM\bin'
           "LIBCLANG_PATH=$env:LIBCLANG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
-          python .gitlab/scripts/check-libclang.py
-          if ($LASTEXITCODE -ne 0) { throw 'libclang C API check failed' }
 
       - name: Build wheels
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0

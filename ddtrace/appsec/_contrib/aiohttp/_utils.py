@@ -2,7 +2,7 @@ from typing import Any
 from typing import Union
 from urllib.parse import parse_qsl
 
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_STRING_LENGTH
+from ddtrace.appsec._ddwaf._types import DDWAF_MAX_STRING_LENGTH
 from ddtrace.internal.utils.http import is_utf8_charset
 
 
