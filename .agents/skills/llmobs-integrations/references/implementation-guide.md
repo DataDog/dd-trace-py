@@ -56,7 +56,18 @@ Key points:
 - LLMObs tag setting is handled by product subscribers, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
 
-Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans or agent/tool child spans; keep their creation, extraction, and finishing under one owner.
+Agent and tool spans can use the same event. Pass `operation="agent"` or `"tool"` and set
+`event.operation_name` after construction when the span name is not `<component>.request`
+(`ddtrace/contrib/internal/pydantic_ai/patch.py`). When the span outlives the wrapper, the object
+that finishes it must dispatch the ended event only once, since the context drops its event afterwards.
+The LLMObs subscriber stamps the span kind at start from `operation`, so override
+`_llmobs_span_kind()` to read `kwargs["operation"]`.
+
+When LLMObs produces all of an integration's spans (OpenAI Agents' trace processor), the hook
+module installs that machinery in `listen()`. The patch dispatches a `core` event for
+anything LLMObs needs from a wrapped call (`ddtrace/llmobs/_contrib/openai_agents/`).
+
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration still owns that lifecycle. Use direct spans when the behavior requires them, such as OpenAI MCP tool spans; keep their creation, extraction, and finishing under one owner.
 
 Existing events carrying `llmobs_integration` are handled directly by `LlmTracingSubscriber`.
 Preserve that contract when extending those integrations; use product subscribers for new

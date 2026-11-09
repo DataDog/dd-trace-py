@@ -3,13 +3,24 @@ import sys
 import pydantic_ai
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.pydantic_ai._constants import AGENT_SPAN_NAME
+from ddtrace.contrib.internal.pydantic_ai._constants import COMPONENT
+from ddtrace.contrib.internal.pydantic_ai._constants import TAG_MODEL
+from ddtrace.contrib.internal.pydantic_ai._constants import TAG_PROVIDER
+from ddtrace.contrib.internal.pydantic_ai._constants import TOOL_SPAN_NAME
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
+from ddtrace.contrib.internal.pydantic_ai.utils import finish_request
+from ddtrace.contrib.internal.pydantic_ai.utils import get_model_and_provider
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
 
 config._add("pydantic_ai", {})
@@ -28,43 +39,71 @@ def _supported_versions() -> dict[str, str]:
 PYDANTIC_AI_VERSION = parse_version(get_version())
 
 
+# True when the latest agent span was started by run_stream, which calls iter internally.
+_run_stream_active = False
+
+
 def _agent_resource(instance) -> str:
     return getattr(instance, "name", None) or "Pydantic Agent"
 
 
-def traced_agent_run_stream(func, instance, args, kwargs):
-    integration = pydantic_ai._datadog_integration
-    integration._run_stream_active = True
-    span = integration.trace(
-        _agent_resource(instance),
-        span_name="pydantic_ai.agent",
+def _request_event(resource, span_name, operation, args, kwargs, model=None) -> LlmRequestEvent:
+    tags = {}
+    model_name, provider = "", None
+    if model:
+        model_name, provider = get_model_and_provider(model)
+        tags[TAG_MODEL] = model_name
+        if provider:
+            tags[TAG_PROVIDER] = provider
+    event = LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.pydantic_ai,
+        service=int_service(None, config.pydantic_ai),
+        resource=resource,
+        provider=provider or "",
+        model=model_name,
+        tags=tags,
         submit_to_llmobs=True,
-        model=getattr(instance, "model", None),
-        kind="agent",
+        request_args=args,
+        # The same dict as the call's kwargs: the instance and the streamed run result are added
+        # to it once the call returns, for LLMObs to read when the request finishes.
+        request_kwargs=kwargs,
+        operation=operation,
     )
+    event.operation_name = span_name
+    return event
+
+
+def _start_agent_request(instance, args, kwargs):
+    event = _request_event(
+        _agent_resource(instance), AGENT_SPAN_NAME, "agent", args, kwargs, model=getattr(instance, "model", None)
+    )
+    # The returned wrapper dispatches the ended event once the run is exited or its output consumed.
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        return ctx
+
+
+def traced_agent_run_stream(func, instance, args, kwargs):
+    global _run_stream_active
+    _run_stream_active = True
+    ctx = _start_agent_request(instance, args, kwargs)
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
-    return TracedPydanticRunStream(result, span, integration, args, kwargs)
+    return TracedPydanticRunStream(result, ctx)
 
 
 def traced_agent_iter(func, instance, args, kwargs):
-    integration = pydantic_ai._datadog_integration
+    global _run_stream_active
     # avoid double tracing if run_stream has already been called
-    if integration._run_stream_active:
-        integration._run_stream_active = False
+    if _run_stream_active:
+        _run_stream_active = False
         return func(*args, **kwargs)
-    span = integration.trace(
-        _agent_resource(instance),
-        span_name="pydantic_ai.agent",
-        submit_to_llmobs=True,
-        model=getattr(instance, "model", None),
-        kind="agent",
-    )
+    ctx = _start_agent_request(instance, args, kwargs)
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
-    return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
+    return TracedPydanticAsyncContextManager(result, ctx)
 
 
 async def traced_tool_manager_call(func, instance, args, kwargs):
@@ -95,19 +134,18 @@ async def traced_tool_call(func, instance, args, kwargs):
 
 
 async def traced_tool_run(func, instance, args, kwargs, tool_name):
-    integration = pydantic_ai._datadog_integration
-    resp = None
-    try:
-        span = integration.trace(tool_name, span_name="pydantic_ai.tool", submit_to_llmobs=True, kind="tool")
-        resp = await func(*args, **kwargs)
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
-        span.finish()
+    event = _request_event(tool_name, TOOL_SPAN_NAME, "tool", args, kwargs)
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        resp = None
+        try:
+            resp = await func(*args, **kwargs)
+            return resp
+        except Exception:
+            span_from_context(ctx).set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            kwargs["instance"] = instance
+            finish_request(ctx, resp)
 
 
 def patch():
@@ -115,8 +153,6 @@ def patch():
         return
 
     pydantic_ai._datadog_patch = True
-
-    pydantic_ai._datadog_integration = PydanticAIIntegration(integration_config=config.pydantic_ai)
 
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter)
     wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream)
@@ -127,6 +163,10 @@ def patch():
     else:
         wrap(pydantic_ai, "tools.Tool.run", traced_tool_call)
 
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
+
 
 def unpatch():
     import pydantic_ai
@@ -136,6 +176,8 @@ def unpatch():
 
     pydantic_ai._datadog_patch = False
 
+    integration_hooks.on_unpatch(COMPONENT)
+
     unwrap(pydantic_ai.agent.Agent, "iter")
     unwrap(pydantic_ai.agent.Agent, "run_stream")
     if PYDANTIC_AI_VERSION >= (1, 63, 0):
@@ -144,5 +186,3 @@ def unpatch():
         unwrap(pydantic_ai.agent.ToolManager, "handle_call")
     else:
         unwrap(pydantic_ai.tools.Tool, "run")
-
-    delattr(pydantic_ai, "_datadog_integration")

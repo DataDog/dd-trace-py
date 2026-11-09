@@ -6,6 +6,7 @@ from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 
@@ -14,7 +15,7 @@ logger = get_logger(__name__)
 
 
 class LLMObsTraceProcessor(TracingProcessor):
-    def __init__(self, integration):
+    def __init__(self, integration: OpenAIAgentsIntegration) -> None:
         super().__init__()
         self._integration = integration
 
