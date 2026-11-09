@@ -23,7 +23,8 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
 | `version` | `4.16.4` | Text |
 | `kind` | `patch release` | Text |
 | `draft_url` | `https://github.com/.../releases/tag/untagged-…` | Text |
-| `target_sha` | `593e9eaa255a` | Text |
+| `target_sha` | `593e9eaa255a` | Text (short SHA label) |
+| `target_url` | `https://github.com/DataDog/dd-trace-py/commit/593e9eaa255a…` | Text (clickable commit link) |
 | `releasers_handle` | `dd-trace-py-releasers` | Text (optional; prefer static User Group below) |
 | `runner` | `vlad-scherbich` | Text (GitHub login) |
 | `channel_id` | `C04MK6NNDG9` | Channel ID (optional) |
@@ -41,19 +42,19 @@ Build this in the Workflow editor. **Bold** / *italic* via the editor. **Insert 
 ```
 :package: *Draft* {kind} {version} is ready for review
 
-{draft_url}  ·  target {target_sha}
+{draft_url}  ·  target {target_url}   ← insert target_url as a link labeled with target_sha (or paste URL; Slack auto-links)
 
 @dd-trace-py-releasers — can I get a :lgtm:? Please review and *Publish release* when ready.
 
 _Brought to you by release automation — {script} on {script_branch_url} / {script_branch}. Run by {runner}. Try {commands_hint}._
 ```
 
-Rendered example (must match this shape — **Run by**, not “initiated by”; **:lgtm:**, not :+1:):
+Rendered example (must match this shape — **Run by**, not “initiated by”; **:lgtm:**, not :+1:; **target** is a commit link):
 
 ```
 :package: *Draft* patch release 4.16.4 is ready for review
 
-https://github.com/DataDog/dd-trace-py/releases/tag/untagged-6c4169f2cee574ee7099  ·  target 593e9eaa255a
+https://github.com/DataDog/dd-trace-py/releases/tag/untagged-6c4169f2cee574ee7099  ·  target <https://github.com/DataDog/dd-trace-py/commit/593e9eaa255a|593e9eaa255a>
 
 @dd-trace-py-releasers — can I get a :lgtm:? Please review and *Publish release* when ready.
 

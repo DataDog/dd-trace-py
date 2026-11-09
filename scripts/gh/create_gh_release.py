@@ -1084,9 +1084,14 @@ def classify_ci_failure(detail: CiFailureDetail) -> str:
     return CI_KIND_UNKNOWN
 
 
+def github_commit_url(sha: str) -> str:
+    """GitHub commit page for ``sha`` on ``GH_REPO`` (Slack target link)."""
+    return f"https://github.com/{GH_REPO}/commit/{sha}"
+
+
 def github_commit_checks_url(sha: str) -> str:
     """GitHub commit checks tab for the tip SHA."""
-    return f"https://github.com/{GH_REPO}/commit/{sha}/checks"
+    return f"{github_commit_url(sha)}/checks"
 
 
 def format_ci_failure_guidance(sha: str, failing: Sequence[Union[str, CiFailureDetail]]) -> str:
@@ -3651,10 +3656,12 @@ def format_slack_announce(version: str, target_sha: str, draft_url: str) -> str:
     ver: str = normalize_version_str(version)
     kind: str = draft_kind_phrase(ver)
     releasers: str = slack_releasers_mention()
+    commit_url: str = github_commit_url(target_sha)
     return (
         f":package: *Draft {kind}* `{ver}` is ready for review\n"
         f"\n"
-        f"<{draft_url}|Open draft release / notes>  ·  target `{target_sha}`\n"
+        f"<{draft_url}|Open draft release / notes>  ·  "
+        f"target <{commit_url}|{target_sha}>\n"
         f"\n"
         f"{releasers} — can I get a :lgtm:? Please review and "
         f"*Publish release* when ready (needs repo-owner perms; the tag is created at publish).\n"
@@ -3688,6 +3695,9 @@ def format_workflow_trigger_payload(
         "kind": kind,
         "draft_url": draft_url,
         "target_sha": target_sha,
+        # Full commit URL so the Workflow can make "target …" clickable
+        # (insert ``target_url`` as a link, or paste URL next to ``target_sha``).
+        "target_url": github_commit_url(target_sha),
         # Handle only — Workflow should use a static User Group mention for
         # a real ping; inserting this text field alone does not notify.
         "releasers_handle": SLACK_RELEASERS_HANDLE,
@@ -3757,10 +3767,12 @@ def format_workflow_rendered_mock(fields: dict[str, str]) -> str:
     Use ``:lgtm:`` (not ``:+1:`` / thumbs-up) in the Workflow template.
     """
     handle: str = fields.get("releasers_handle", SLACK_RELEASERS_HANDLE)
+    target_url: str = fields.get("target_url") or github_commit_url(fields["target_sha"])
+    # Workflow FR often auto-links bare https URLs; show URL labeled with short SHA.
     return (
         f":package: *Draft* {fields['kind']} {fields['version']} is ready for review\n"
         f"\n"
-        f"{fields['draft_url']}  ·  target {fields['target_sha']}\n"
+        f"{fields['draft_url']}  ·  target <{target_url}|{fields['target_sha']}>\n"
         f"\n"
         f"@{handle} — can I get a :lgtm:? Please review and "
         f"*Publish release* when ready.\n"

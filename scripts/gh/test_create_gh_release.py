@@ -359,7 +359,10 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("*Draft RC release*", body)
         self.assertIn("`4.17.0rc2`", body)
         self.assertIn("<https://example/draft|Open draft release / notes>", body)
-        self.assertIn("target `abc123`", body)
+        self.assertIn(
+            "target <https://github.com/DataDog/dd-trace-py/commit/abc123|abc123>",
+            body,
+        )
         self.assertIn(f"@{SLACK_RELEASERS_HANDLE}", body)
         self.assertNotIn("<@UD1N1U7JQ>", body)
         self.assertNotIn("<@U04HER8LNAZ>", body)
@@ -447,7 +450,8 @@ class SlackDefaultsTests(unittest.TestCase):
                 )
         self.assertIn(":package: *Draft* patch release 4.16.4 is ready for review", body)
         self.assertIn(
-            "https://github.com/DataDog/dd-trace-py/releases/tag/untagged-6c4169f2cee574ee7099  ·  target 593e9eaa255a",
+            "https://github.com/DataDog/dd-trace-py/releases/tag/untagged-6c4169f2cee574ee7099  ·  "
+            "target <https://github.com/DataDog/dd-trace-py/commit/593e9eaa255a|593e9eaa255a>",
             body,
         )
         self.assertIn(f"@{SLACK_RELEASERS_HANDLE}", body)
@@ -463,6 +467,7 @@ class SlackDefaultsTests(unittest.TestCase):
             "kind": "patch release",
             "draft_url": "https://example/draft",
             "target_sha": "9c767d7dd482",
+            "target_url": "https://github.com/DataDog/dd-trace-py/commit/9c767d7dd482",
             "releasers_handle": SLACK_RELEASERS_HANDLE,
             "runner": "vlad-scherbich",
             "script": _RELEASE_SCRIPT_PATH,
@@ -472,7 +477,11 @@ class SlackDefaultsTests(unittest.TestCase):
         }
         body: str = format_workflow_rendered_mock(fields)
         self.assertIn(":package: *Draft* patch release 4.16.4 is ready for review", body)
-        self.assertIn("https://example/draft  ·  target 9c767d7dd482", body)
+        self.assertIn(
+            "https://example/draft  ·  "
+            "target <https://github.com/DataDog/dd-trace-py/commit/9c767d7dd482|9c767d7dd482>",
+            body,
+        )
         self.assertIn(f"@{SLACK_RELEASERS_HANDLE}", body)
         self.assertIn("can I get a :lgtm:?", body)
         self.assertNotIn(":+1:", body)
@@ -497,6 +506,10 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(fields["kind"], "patch release")
         self.assertNotIn("branch", fields)
         self.assertEqual(fields["target_sha"], "824a3b275151")
+        self.assertEqual(
+            fields["target_url"],
+            "https://github.com/DataDog/dd-trace-py/commit/824a3b275151",
+        )
         self.assertEqual(fields["releasers_handle"], SLACK_RELEASERS_HANDLE)
         self.assertNotIn("reviewer_brett", fields)
         self.assertNotIn("reviewer_emmett", fields)
