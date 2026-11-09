@@ -579,6 +579,8 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         event.request_url = url
         event.request_headers = request_headers
         event.query = environ.get("QUERY_STRING")
+        # Match legacy metadata lookup; span-start security context still uses case-sensitive headers.
+        event.headers_case_sensitive = False
         core.dispatch("wsgi.request.prepared", (self, req_span, url, request_headers, environ))
 
     def _response_span_modifier(self, resp_span, response):
