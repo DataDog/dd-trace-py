@@ -110,11 +110,12 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
                 self._origin_map[path] = module
 
             hooks = list(self._hook_map.get(path, ())) if path is not None else []
-            hooks.extend(self._hook_map.get(module.__name__, ()))
             if hooks:
                 log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
                 for hook in hooks:
                     hook(module)
+
+            super().after_import(module)
 
     @classmethod
     def register_import_hook(cls, hook: ModuleHookType) -> None:
