@@ -788,6 +788,22 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert env_invalid_metrics == []
 
 
+def test_otel_exporter_list_ignored_entries_telemetry(test_agent_session, run_python_code_in_subprocess):
+    """An exporter list that selects an exporter but ignores other entries reports otel.env.unsupported."""
+    env = os.environ.copy()
+    env["OTEL_TRACES_EXPORTER"] = "otlp,zipkin,console"
+    env["OTEL_LOGS_EXPORTER"] = "none,otlp"
+    env["OTEL_METRICS_EXPORTER"] = "otlp,otlp"
+    env["DD_METRICS_OTEL_ENABLED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 0, stderr
+
+    tags = sorted(m["tags"] for m in test_agent_session.get_metrics("otel.env.unsupported"))
+    assert tags == [["config_opentelemetry:otel_logs_exporter"], ["config_opentelemetry:otel_traces_exporter"]]
+    assert test_agent_session.get_metrics("otel.env.invalid") == []
+
+
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
     """The OTEL_EXPORTER_OTLP_*_HEADERS family is excluded from configuration telemetry, while
     non-sensitive OTLP exporter configurations are still reported.
