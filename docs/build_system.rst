@@ -476,5 +476,5 @@ Rust dependency.
 Python input is converted directly into owned WAF storage, without an intermediate
 JSON or Rust object tree. Long strings are copied or encoded into their final
 allocation, and results are decoded directly into Python values. The native
-context owns persistent input; operation subcontexts retain their own input and
+context owns persistent input; operation ``subcontexts`` retain their own input and
 can outlive the request context. Python buffers are not borrowed across evaluations.
