@@ -321,6 +321,10 @@ def test_registration_does_not_load_and_load_failures_are_typed(tmp_path):
     script = """
 import _struct, sys
 from ddtrace.internal.native._native import ddwaf
+if not ddwaf.system_library:
+    assert ddwaf.load(["/nonexistent/libddwaf.so"])[0] == "static"
+    ddwaf.Builder()
+    sys.exit(0)
 try:
     ddwaf.Builder()
 except RuntimeError as e:

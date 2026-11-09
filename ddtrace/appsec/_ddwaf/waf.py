@@ -1,8 +1,9 @@
 """libddwaf backend implemented by the native extension (``ddtrace.internal.native._native.ddwaf``).
 
 Python keeps the configuration policy (default ruleset, remote config bookkeeping, diagnostics
-reporting); conversion, evaluation, result decoding and native lifetimes live in Rust. Importing
-this module loads libddwaf and raises if it cannot be loaded, which disables AppSec.
+reporting); conversion, evaluation, result decoding and native lifetimes live in Rust.
+System-library builds load libddwaf when this module initializes; a loading
+failure disables AppSec. Normal builds use the statically linked library.
 """
 
 from collections.abc import Sequence

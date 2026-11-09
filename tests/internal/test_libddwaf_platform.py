@@ -146,4 +146,9 @@ def test_the_installed_library_loads():
     version = config._ddwaf_version
 
     assert version.startswith("%d." % layout.ABI_MAJOR), version
-    assert layout.is_loadable(build_libddwaf_filename(), platform.system())
+    from ddtrace.internal.native._native import ddwaf
+
+    if ddwaf.system_library:
+        assert layout.is_loadable(build_libddwaf_filename(), platform.system())
+    else:
+        assert config._asm_libddwaf == "static"

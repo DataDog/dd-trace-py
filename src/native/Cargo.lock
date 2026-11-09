@@ -295,6 +295,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmake"
+version = "0.1.58"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0f78a02292a74a88ac736019ab962ece0bc380e3f977bf72e376c5d78ff0678"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2198,24 +2207,36 @@ dependencies = [
 [[package]]
 name = "libddwaf"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=fe5a0589c058425ae521626d7fb6466366ea702a#fe5a0589c058425ae521626d7fb6466366ea702a"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=d82dc31031205f58b2cace03a0eb5bb7bfb1afcd#d82dc31031205f58b2cace03a0eb5bb7bfb1afcd"
 dependencies = [
  "libddwaf-sys",
  "serde",
 ]
 
 [[package]]
+name = "libddwaf-src"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5acece08068121a621ebe522e42b18d57f45a973bd5ccbbdc590cdd249337015"
+dependencies = [
+ "cmake",
+ "link-cplusplus",
+]
+
+[[package]]
 name = "libddwaf-sys"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=fe5a0589c058425ae521626d7fb6466366ea702a#fe5a0589c058425ae521626d7fb6466366ea702a"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=d82dc31031205f58b2cace03a0eb5bb7bfb1afcd#d82dc31031205f58b2cace03a0eb5bb7bfb1afcd"
 dependencies = [
  "bindgen",
  "flate2",
  "hyper-rustls",
  "libc",
+ "libddwaf-src",
  "libloading",
  "reqwest 0.12.28",
  "rustls",
+ "sha2",
  "tar",
  "yoke-derive",
  "zstd",
@@ -2236,6 +2257,15 @@ name = "libyaml-rs"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e126dda6f34391ab7b444f9922055facc83c07a910da3eb16f1e4d9c45dc777"
+
+[[package]]
+name = "link-cplusplus"
+version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f78c730aaa7d0b9336a299029ea49f9ee53b0ed06e9202e8cb7db9bae7b8c82"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "linux-raw-sys"

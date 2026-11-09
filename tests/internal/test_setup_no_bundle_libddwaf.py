@@ -66,14 +66,14 @@ def _staged(downloader):
     return sorted(p.name for p in staged.rglob("*") if p.is_file())
 
 
-def test_the_option_is_off_by_default(tmp_path):
+def test_static_is_the_default(tmp_path):
     downloader, libddwaf_dir, downloads = _library_downloader(tmp_path)
     _bundled_library(libddwaf_dir)
 
     downloader.run()
 
-    assert downloads == [1]
-    assert _staged(downloader) == ["libddwaf.so"]
+    assert downloads == []
+    assert _staged(downloader) == []
 
 
 def test_the_option_skips_the_download_and_bundles_nothing(tmp_path):
@@ -114,7 +114,7 @@ def test_a_bundled_library_is_not_staged_again_after_switching(tmp_path):
     downloader, libddwaf_dir, _ = _library_downloader(tmp_path)
     _bundled_library(libddwaf_dir)
     downloader.run()
-    assert _staged(downloader) == ["libddwaf.so"]
+    assert _staged(downloader) == []
 
     downloader.no_bundle_libddwaf = 1
     downloader.run()
@@ -122,7 +122,7 @@ def test_a_bundled_library_is_not_staged_again_after_switching(tmp_path):
     assert _staged(downloader) == []
 
 
-def test_the_bundled_library_comes_back_when_the_option_is_dropped(tmp_path):
+def test_dropping_the_option_returns_to_static_linking(tmp_path):
     downloader, libddwaf_dir, _ = _library_downloader(tmp_path)
     downloader.no_bundle_libddwaf = 1
     downloader.run()
@@ -132,7 +132,7 @@ def test_the_bundled_library_comes_back_when_the_option_is_dropped(tmp_path):
     _bundled_library(libddwaf_dir)
     downloader.run()
 
-    assert _staged(downloader) == ["libddwaf.so"]
+    assert _staged(downloader) == []
 
 
 def test_setup_cfg_sets_the_option_on_the_build_py_command(tmp_path, monkeypatch):
@@ -154,3 +154,42 @@ def test_setup_cfg_sets_the_option_on_the_build_py_command(tmp_path, monkeypatch
 
     assert isinstance(command, namespace["LibraryDownloader"])
     assert command.no_bundle_libddwaf is True
+
+
+@pytest.mark.parametrize("mode", ["static", "system", "source"])
+def test_build_mode_selects_rust_features_and_offline_resolution(tmp_path, monkeypatch, mode):
+    from types import SimpleNamespace
+
+    downloader, _, _ = _library_downloader(tmp_path)
+    downloader.libddwaf_mode = mode
+    prefix = tmp_path / "prefix"
+    (prefix / "include").mkdir(parents=True)
+    (prefix / "include" / "ddwaf.h").write_text("")
+    (prefix / "lib").mkdir()
+    monkeypatch.setenv("LIBDDWAF_PREFIX", str(prefix))
+    source = SETUP_PY.read_text()
+    code = source[source.index("def configure_waf_build(") : source.index("class PatchedDistribution(")]
+    namespace = {"os": os, "Path": Path}
+    exec(code, namespace)  # noqa: S102
+    extension = SimpleNamespace(features=["stats"], env=SimpleNamespace(env={}))
+    distribution = SimpleNamespace(get_command_obj=lambda _: downloader, rust_extensions=[extension])
+    assert namespace["configure_waf_build"](distribution) == mode
+    assert extension.features == (["stats"] if mode == "static" else ["stats", "waf-" + mode])
+    assert extension.env.env.get("CARGO_NET_OFFLINE") == (None if mode == "static" else "true")
+
+
+def test_legacy_option_conflicts_with_a_different_mode(tmp_path):
+    downloader, _, _ = _library_downloader(tmp_path)
+    downloader.no_bundle_libddwaf = 1
+    downloader.libddwaf_mode = "source"
+    with pytest.raises(RuntimeError, match="conflicts"):
+        downloader.run()
+
+
+def test_invalid_mode_fails_before_removing_artifacts(tmp_path):
+    downloader, directory, _ = _library_downloader(tmp_path)
+    library = _bundled_library(directory)
+    downloader.libddwaf_mode = "invalid"
+    with pytest.raises(RuntimeError, match="must be"):
+        downloader.run()
+    assert library.exists()

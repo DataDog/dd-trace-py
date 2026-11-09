@@ -2,6 +2,11 @@ upgrade:
   - |
     internal: Building from source now requires the libclang shared library. Install ``libclang-dev`` on
     Debian/Ubuntu, ``clang-dev`` on Alpine, or LLVM on Windows; macOS users can use Xcode's libclang.
+    Builds statically link libddwaf by default. Distribution packagers can use
+    ``[build_py] libddwaf_mode = source`` to compile the C++ sources or ``system``
+    to load an independently installed library. The existing ``no_bundle_libddwaf``
+    option remains an alias for ``system``, which requires local headers through
+    ``LIBDDWAF_PREFIX``. Both alternative modes require pre-provisioned build dependencies.
 features:
   - |
     App and API Protection: Reduces Python overhead when converting request data

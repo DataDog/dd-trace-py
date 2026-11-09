@@ -351,6 +351,26 @@ if not SERVERLESS_BUILD:
     rust_features.append("ffe")
 
 
+def configure_waf_build(distribution):
+    mode = distribution.get_command_obj("build_py").waf_mode()
+    if mode == "system":
+        prefix = Path(os.environ.get("LIBDDWAF_PREFIX", ""))
+        if (
+            not os.environ.get("LIBDDWAF_PREFIX")
+            or not (prefix / "include" / "ddwaf.h").is_file()
+            or not (prefix / "lib").is_dir()
+        ):
+            raise RuntimeError("system libddwaf builds require LIBDDWAF_PREFIX with include/ddwaf.h and lib/")
+    for ext in distribution.rust_extensions:
+        ext.features = [feature for feature in ext.features if feature not in ("waf-system", "waf-source")]
+        if mode != "static":
+            ext.features.append("waf-" + mode)
+            ext.env.env["CARGO_NET_OFFLINE"] = "true"
+        else:
+            ext.env.env.pop("CARGO_NET_OFFLINE", None)
+    return mode
+
+
 class PatchedDistribution(Distribution):
     def __init__(self, attrs: t.Optional[dict[str, t.Any]] = None) -> None:
         super().__init__(attrs)
@@ -376,6 +396,7 @@ class PatchedDistribution(Distribution):
 
 class ExtensionHashes(build_ext):
     def run(self) -> None:
+        configure_waf_build(self.distribution)
         try:
             dist = self.distribution
             for ext in chain(dist.ext_modules, getattr(dist, "rust_extensions", [])):
@@ -400,7 +421,7 @@ class ExtensionHashes(build_ext):
 
                 sources_hash = hashlib.sha256()
                 # DEV: Make sure to include the rust features since changing them changes what gets built
-                for feature in rust_features:
+                for feature in ext.features if isinstance(ext, RustExtension) else rust_features:
                     sources_hash.update(feature.encode())
                 for source in sorted(sources):
                     sources_hash.update(source.read_bytes())
@@ -448,6 +469,10 @@ class ExtensionHashes(build_ext):
 class CustomBuildRust(build_rust):
     """Custom build_rust command that handles dedup_headers and header copying."""
 
+    def finalize_options(self):
+        configure_waf_build(self.distribution)
+        super().finalize_options()
+
     def initialize_options(self) -> None:
         super().initialize_options()
 
@@ -461,6 +486,9 @@ class CustomBuildRust(build_rust):
     def install_dedup_headers(self):
         """Install dedup_headers if not already installed."""
         if not self.is_installed("dedup_headers"):
+            if self.distribution.get_command_obj("build_py").waf_mode() != "static":
+                raise RuntimeError("Offline builds require dedup_headers to be installed beforehand")
+
             # Create retry-wrapped cargo install function
             @retry_download(max_attempts=DOWNLOAD_MAX_RETRIES, initial_delay=2.0)
             def cargo_install_with_retry():
@@ -483,6 +511,7 @@ class CustomBuildRust(build_rust):
     def run(self) -> None:
         """Run the build process with additional post-processing."""
 
+        configure_waf_build(self.distribution)
         has_profiling_feature = False
         for ext in self.distribution.rust_extensions:
             if ext.features and "profiling" in ext.features:
@@ -728,13 +757,25 @@ class LibraryDownloader(BuildPyCommand):
     # Opt out of bundling libddwaf, for distribution packagers that must build
     # from source and package libddwaf separately. See docs/build_system.rst.
     user_options = BuildPyCommand.user_options + [
-        ("no-bundle-libddwaf", None, "do not download libddwaf; load the system library at runtime"),
+        ("libddwaf-mode=", None, "WAF build mode: static (default), system, or source"),
+        ("no-bundle-libddwaf", None, "alias for --libddwaf-mode=system"),
     ]
     boolean_options = BuildPyCommand.boolean_options + ["no-bundle-libddwaf"]
 
     def initialize_options(self) -> None:
         BuildPyCommand.initialize_options(self)
         self.no_bundle_libddwaf = 0
+        self.libddwaf_mode = None
+
+    def waf_mode(self):
+        mode = self.libddwaf_mode or ("system" if self.no_bundle_libddwaf else "static")
+        if mode not in ("static", "system", "source"):
+            raise RuntimeError("libddwaf_mode must be static, system, or source")
+        if self.no_bundle_libddwaf and mode != "system":
+            raise RuntimeError("no_bundle_libddwaf conflicts with libddwaf_mode=" + mode)
+        if mode == "system" and CURRENT_OS not in ("Linux", "FreeBSD"):
+            raise RuntimeError("system libddwaf is only supported on Linux and FreeBSD")
+        return mode
 
     def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
@@ -744,27 +785,8 @@ class LibraryDownloader(BuildPyCommand):
         if self.editable_mode:
             IS_EDITABLE = True
 
-        # Skip wiping native extensions when incremental builds are enabled.
-        # The skip checks in build_extension / build_extension_cmake rely on the
-        # existing .so files (restored from ext_cache or left from the previous
-        # build) to determine whether recompilation is needed.  Deleting them
-        # here defeats those checks and forces a full rebuild every time.
-        # LibraryDownload.download_artifacts() handles version bumps internally
-        # via a .version sentinel, so libddwaf is always re-fetched when its
-        # version changes even when CleanLibraries.remove_artifacts() is skipped.
-        if not CustomBuildExt.INCREMENTAL:
-            CleanLibraries.remove_artifacts()
-        if self.no_bundle_libddwaf:
-            if CURRENT_OS not in ("Linux", "FreeBSD"):
-                raise RuntimeError(
-                    "--no-bundle-libddwaf is only supported on Linux and FreeBSD, not on %s: the runtime has no system "
-                    "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
-                    "so libddwaf must be bundled" % CURRENT_OS
-                )
-            print("Not bundling libddwaf: the runtime will load the system library")
-            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
-        else:
-            LibDDWafDownload.run()
+        self.waf_mode()
+        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
         self._clean_staged_libddwaf()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
@@ -1001,6 +1023,11 @@ class CustomBuildExt(build_ext):
 
     def build_rust(self):
         """Build the Rust component using CustomBuildRust command."""
+        mode = configure_waf_build(self.distribution)
+        mode_file = CARGO_TARGET_DIR / "waf-mode"
+        if not mode_file.exists() or mode_file.read_text() != mode:
+            mode_file.parent.mkdir(parents=True, exist_ok=True)
+            mode_file.write_text(mode)
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
         native_name = f"_native{self.suffix}"
 
@@ -1031,6 +1058,7 @@ class CustomBuildExt(build_ext):
             source_files.extend(NATIVE_CRATE.glob("**/*.rs"))
             # Add cargo files
             source_files.extend([f for f in cargo_files if f.exists()])
+            source_files.append(mode_file)
 
             # Check if any source file is newer than the library
             newest_source_time: float = 0.0

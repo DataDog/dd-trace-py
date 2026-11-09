@@ -15,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
+from ddtrace.internal.native._native import ddwaf as _native_waf
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
@@ -100,7 +101,7 @@ class ASMConfig(DDConfig):
     # updated in API Manager enable/disable
     _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
-    _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf, system())
+    _asm_libddwaf_available = not _native_waf.system_library or _libddwaf_platform.is_loadable(_asm_libddwaf, system())
     _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(

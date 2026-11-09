@@ -9,18 +9,31 @@ mod convert;
 use convert::{decode, describe, Encoder, Limits, Truncations};
 use libddwaf::object::{WafMap, WafObject, WafOwnedDefaultAllocator};
 use libddwaf::{RunError, RunResult, RunnableContext};
-use pyo3::exceptions::{PyOSError, PyRuntimeError, PyValueError};
+#[cfg(feature = "waf-system")]
+use pyo3::exceptions::PyOSError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 use std::mem::ManuallyDrop;
+#[cfg(feature = "waf-system")]
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+#[cfg(feature = "waf-system")]
+use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
+#[cfg(feature = "waf-system")]
 static LOADED: OnceLock<(String, String)> = OnceLock::new();
+#[cfg(feature = "waf-system")]
 static LOAD_LOCK: Mutex<()> = Mutex::new(());
 
+#[cfg(not(feature = "waf-system"))]
+fn require_loaded() -> PyResult<()> {
+    Ok(())
+}
+
+#[cfg(feature = "waf-system")]
 fn require_loaded() -> PyResult<()> {
     LOADED
         .get()
@@ -33,7 +46,18 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Loads the first compatible bundled/system candidate, retaining it for the process lifetime.
+/// Returns the linked library version or loads a system-library candidate.
+#[cfg(not(feature = "waf-system"))]
+#[pyfunction]
+fn load(candidates: Vec<String>) -> PyResult<(String, String)> {
+    let _ = candidates;
+    Ok((
+        "static".to_owned(),
+        libddwaf::version().to_string_lossy().into_owned(),
+    ))
+}
+
+#[cfg(feature = "waf-system")]
 #[pyfunction]
 fn load(candidates: Vec<String>) -> PyResult<(String, String)> {
     let _guard = lock(&LOAD_LOCK);
@@ -400,6 +424,7 @@ fn _encode<'py>(
 
 #[pymodule]
 pub fn ddwaf(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("system_library", cfg!(feature = "waf-system"))?;
     m.add_function(wrap_pyfunction!(load, m)?)?;
     m.add_function(wrap_pyfunction!(_encode, m)?)?;
     m.add_class::<Builder>()?;

@@ -1343,6 +1343,7 @@ def scan_distributions(
     ...
 
 class ddwaf:
+    system_library: bool
     """AppSec libddwaf evaluation boundary. Registering it does not load libddwaf; ``load`` does."""
 
     @staticmethod

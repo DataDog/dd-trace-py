@@ -15,6 +15,8 @@ crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:libdd-ffe"]
 stats = ["dep:libdd-ddsketch"]
+waf-system = ["libddwaf/dynamic-manual"]
+waf-source = ["libddwaf/source-static"]
 
 [dependencies]
 anyhow = { version = "1.0" }
@@ -67,8 +69,8 @@ libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v4
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
 libdd-trace-model = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
-libddwaf = { git = "https://github.com/DataDog/libddwaf-rust", rev = "fe5a0589c058425ae521626d7fb6466366ea702a", features = ["dynamic-manual"] }
-libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", rev = "fe5a0589c058425ae521626d7fb6466366ea702a", default-features = false, features = ["ring", "dynamic-manual"] }
+libddwaf = { git = "https://github.com/DataDog/libddwaf-rust", rev = "d82dc31031205f58b2cace03a0eb5bb7bfb1afcd" }
+libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", rev = "d82dc31031205f58b2cace03a0eb5bb7bfb1afcd", default-features = false, features = ["ring"] }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
