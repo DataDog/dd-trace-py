@@ -85,8 +85,10 @@ def test_unaccepted_client_method_is_normalized_at_start():
 
 
 def _client_event(method="GET"):
+    from ddtrace._trace._registration import HTTP_CLIENT_SUBSCRIBERS
     from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 
+    HTTP_CLIENT_SUBSCRIBERS.register()
     return HttpClientRequestEvent(
         http_operation="requests.request",
         service="svc",

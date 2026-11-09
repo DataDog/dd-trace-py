@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace._registration import LLM_SUBSCRIBERS as TRACING_LLM_SUBSCRIBERS
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.llmobs import _product
@@ -17,6 +18,7 @@ from ddtrace.llmobs._subscribers import integration_for
 
 @pytest.fixture
 def subscriber():
+    TRACING_LLM_SUBSCRIBERS.register()
     was_registered = core.has_listeners("span.finishing.llm.request")
     LLMObsLlmSubscriber.unregister()
     yield LLMObsLlmSubscriber
