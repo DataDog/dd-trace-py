@@ -90,9 +90,11 @@ top-level SDK. Legacy imports under `ddtrace.appsec.ai_guard` and
 `ddtrace.appsec.ai_guard.integrations.strands` use compatibility shims.
 Preserve their lazy forwarding and deprecation behavior when changing public exports.
 
-`new_ai_guard_client()` reads both `DD_API_KEY` and `DD_APP_KEY` from configuration and rejects
-missing credentials. Direct `AIGuardClient` construction takes both credentials explicitly;
-see `_api_client.py` for the signatures.
+`new_ai_guard_client()` calls AI Guard directly when both `DD_API_KEY` and `DD_APP_KEY` are set.
+Otherwise, it uses the local Agent when `/info` advertises `/ai_guard/proxy/`; the Agent supplies
+the credentials. Client initialization succeeds before a route is available, and evaluations
+raise `AIGuardClientError` until discovery succeeds. Direct `AIGuardClient` construction accepts
+optional credentials; automatic transport selection belongs to the factory.
 
 MCP support lives in `ddtrace/aiguard/integrations/_mcp.py` (server IDs, `mcp_servers` entries,
 the per-process MCP approval decision cache) and is wired into the OpenAI Responses listeners,
@@ -282,7 +284,9 @@ evaluates the full conversation. User-facing descriptions live in the AI Guard
 section of `docs/configuration.rst`; keep both in sync when adding a variable
 (see the `add-new-configuration` skill).
 
-`new_ai_guard_client()` additionally requires `DD_API_KEY` and `DD_APP_KEY`.
+Set both `DD_API_KEY` and `DD_APP_KEY` for direct evaluations, or use an Agent configured with
+an application key and advertising the AI Guard proxy. `DD_AI_GUARD_ENDPOINT` applies only
+to the direct transport.
 
 ## Public SDK usage
 
