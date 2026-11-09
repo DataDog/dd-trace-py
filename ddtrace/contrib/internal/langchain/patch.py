@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from collections.abc import Sequence
+from types import MethodType
 from typing import Any
 from typing import Optional
 
@@ -96,8 +99,8 @@ def _request_event(
     resource: str,
     instance: Any,
     operation: str,
-    args: Any = (),
-    kwargs: Any = None,
+    args: Sequence[Any] = (),
+    kwargs: Optional[dict[str, Any]] = None,
     provider: Optional[str] = None,
     model: Optional[str] = None,
     stream: bool = False,
@@ -234,7 +237,7 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
             kwargs["_dd.identifying_params"] = instance._identifying_params
 
 
-def _chain_inputs(args, kwargs):
+def _chain_inputs(args: tuple[Any, ...], kwargs: dict[str, Any]) -> list[Any]:
     try:
         inputs = get_argument_value(args, kwargs, 0, "input")
     except ArgumentError:
@@ -277,7 +280,7 @@ async def traced_lcel_runnable_sequence_async(func, instance, args, kwargs):
 
 
 def traced_chain_stream(func, instance, args, kwargs):
-    def _on_stream_finished(streamed_chunks):
+    def _on_stream_finished(streamed_chunks: list[Any]) -> Any:
         maybe_parser = instance.steps[-1] if instance.steps else None
         if (
             streamed_chunks
@@ -309,7 +312,7 @@ def traced_chain_stream(func, instance, args, kwargs):
 
 
 def traced_chat_stream(func, instance, args, kwargs):
-    def _on_stream_finished(streamed_chunks):
+    def _on_stream_finished(streamed_chunks: list[Any]) -> Any:
         kwargs["_dd.identifying_params"] = instance._identifying_params
         if not streamed_chunks:
             return []
@@ -343,7 +346,7 @@ def traced_chat_stream(func, instance, args, kwargs):
 
 
 def traced_llm_stream(func, instance, args, kwargs):
-    def _on_stream_finished(streamed_chunks):
+    def _on_stream_finished(streamed_chunks: list[Any]) -> str:
         kwargs["_dd.identifying_params"] = instance._identifying_params
         return "".join([str(chunk) for chunk in streamed_chunks])
 
@@ -371,7 +374,9 @@ def traced_llm_stream(func, instance, args, kwargs):
     )
 
 
-def _tool_request_event(func, instance, args, kwargs):
+def _tool_request_event(
+    func: MethodType, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> LlmRequestEvent:
     tool_input = get_argument_value(args, kwargs, 0, "input")
     tool_config = get_argument_value(args, kwargs, 1, "config", optional=True)
     tool_info = {}
@@ -385,7 +390,8 @@ def _tool_request_event(func, instance, args, kwargs):
         tool_info["tags"] = tags
     # LangChainIntegration reads tool inputs from the kwargs slot.
     tool_inputs = {"input": tool_input, "config": tool_config or {}, "info": tool_info}
-    return _request_event("%s" % func.__self__.name, instance, "tool", kwargs=tool_inputs)
+    tool: Any = func.__self__
+    return _request_event("%s" % tool.name, instance, "tool", kwargs=tool_inputs)
 
 
 def traced_base_tool_invoke(func, instance, args, kwargs):
@@ -503,7 +509,7 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
         log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
 
 
-def _unwrap_init_subclass(cls) -> None:
+def _unwrap_init_subclass(cls: type) -> None:
     """Remove the __init_subclass__ wrapper from cls without pinning the original to cls.
 
     The generic unwrap() stores the original bound to cls in cls.__dict__, so after a later
@@ -511,7 +517,7 @@ def _unwrap_init_subclass(cls) -> None:
     leaving subclasses defined after an unpatch/patch cycle untraced.
     """
     wrapper = cls.__dict__.get("__init_subclass__")
-    if not is_wrapted(wrapper):
+    if wrapper is None or not is_wrapted(wrapper):
         return
     original = wrapper.__wrapped__
     if any(base.__dict__.get("__init_subclass__") is original for base in cls.__mro__[1:]):
@@ -520,7 +526,7 @@ def _unwrap_init_subclass(cls) -> None:
         setattr(cls, "__init_subclass__", original)
 
 
-def _runnable_lambda_span_name(func, instance, is_batch: bool) -> str:
+def _runnable_lambda_span_name(func: Callable[..., Any], instance: Any, is_batch: bool) -> str:
     instance_name = getattr(instance, "name", None)
     default_name = f"{instance.__class__.__name__}.{func.__name__}"
     if is_batch:

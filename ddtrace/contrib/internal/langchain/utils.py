@@ -1,6 +1,10 @@
+from collections.abc import Callable
 import inspect
 import sys
+from typing import Any
+from typing import Optional
 
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
@@ -81,17 +85,17 @@ class LangchainAsyncStreamHandler(BaseLangchainStreamHandler, AsyncStreamHandler
 
 
 def shared_stream(
-    event,
-    func,
-    instance,
-    args,
-    kwargs,
-    interface_type,
-    on_stream_finished,
-    aiguard_before_event=None,
-    aiguard_started_event=None,
-    aiguard_finally_event=None,
-):
+    event: LlmRequestEvent,
+    func: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    interface_type: str,
+    on_stream_finished: Callable[[list[Any]], Any],
+    aiguard_before_event: Optional[str] = None,
+    aiguard_started_event: Optional[str] = None,
+    aiguard_finally_event: Optional[str] = None,
+) -> Any:
     # dispatch_end_event=False defers the ended event until the stream handler calls
     # ctx.dispatch_ended_event() in finalize_stream(). Errors before the wrapped stream is returned
     # must dispatch it manually so the span finishes with the error info.

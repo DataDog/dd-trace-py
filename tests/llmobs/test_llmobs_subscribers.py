@@ -75,6 +75,29 @@ def test_subscriber_tags_each_component_with_its_integration(subscriber, integra
     integrations["anthropic"].llmobs_set_tags.assert_called_once()
 
 
+def test_subscriber_forwards_request_args_and_kwargs(subscriber, integrations):
+    # Integrations such as LangChain extract LLMObs inputs from positional request arguments.
+    subscriber.register()
+
+    _request("llama_index", request_args=("query",), request_kwargs={"k": 2})
+
+    integrations["llama_index"].llmobs_set_tags.assert_called_once_with(
+        mock.ANY, args=["query"], kwargs={"k": 2}, response=None, operation=""
+    )
+
+
+def test_subscriber_calls_request_span_started_hook(subscriber, integrations):
+    subscriber.register()
+    instance = object()
+
+    _request("llama_index", instance=instance, operation="chain")
+
+    integrations["llama_index"]._on_request_span_started.assert_called_once_with(
+        mock.ANY, instance=instance, operation="chain"
+    )
+    integrations["anthropic"]._on_request_span_started.assert_not_called()
+
+
 def test_subscriber_finishes_with_the_integration_it_started_with(subscriber, integrations, monkeypatch):
     subscriber.register()
     first = integrations["llama_index"]
