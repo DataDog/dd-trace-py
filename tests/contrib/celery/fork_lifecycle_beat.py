@@ -91,7 +91,7 @@ def observe_in_beat_child(**kwargs):
             pass
         telemetry_writer.periodic(force_flush=True)
         report["functional"] = "ok"
-    except BaseException as e:  # noqa: B036 - native code can raise PanicException
+    except BaseException as e:
         report["functional"] = repr(e)
     report["native_restartable_running"] = restartable_running()
     runs = restartable.runs
@@ -122,7 +122,7 @@ parent = {
 try:
     telemetry_writer.periodic(force_flush=True)
     parent["native_flush"] = "ok"
-except BaseException as e:  # noqa: B036
+except BaseException as e:
     parent["native_flush"] = repr(e)
 sys.stdout.write("\n" + json.dumps(parent) + "\n")
 sys.stdout.flush()

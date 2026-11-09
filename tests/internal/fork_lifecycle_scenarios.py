@@ -100,7 +100,7 @@ def call(fn, timeout=3.0):
         try:
             fn()
             result[0] = "ok"
-        except BaseException as e:  # noqa: B036 - native code can raise PanicException
+        except BaseException as e:
             result[0] = repr(e)
 
     t = threading.Thread(target=target, daemon=True)
@@ -143,7 +143,8 @@ class Harness:
         report = {
             "prepare_native": pre["running"] == 0,
             # The Python before-fork hooks ran for this fork and stopped the service thread.
-            "prepare_periodic": self.before_fork_hook_ran and self.svc._worker in threads._threads_to_restart_after_fork,
+            "prepare_periodic": self.before_fork_hook_ran
+            and self.svc._worker in threads._threads_to_restart_after_fork,
         }
         if rebuild_first:
             # Another component reaches the shared runtime before the inherited worker is used.
@@ -224,7 +225,7 @@ def run_child(harness, fork_kind, child_body, deadline=PARENT_DEADLINE):
         code = 0
         try:
             result = child_body(harness)
-        except BaseException as e:  # noqa: B036
+        except BaseException as e:
             result = {"error": repr(e)}
             code = 3
         try:
@@ -343,7 +344,10 @@ def scenario_exec(harness, preexec_fn=False, force_fork=False, iterations=32):
 
 
 # Seccomp filter that makes process creation fail with EAGAIN while still allowing threads.
-_SECCOMP_ARCH = {"x86_64": (0xC000003E, {"fork": 57, "vfork": 58, "clone": 56}), "aarch64": (0xC00000B7, {"clone": 220})}
+_SECCOMP_ARCH = {
+    "x86_64": (0xC000003E, {"fork": 57, "vfork": 58, "clone": 56}),
+    "aarch64": (0xC00000B7, {"clone": 220}),
+}
 _CLONE3 = 435
 _CLONE_THREAD = 0x00010000
 

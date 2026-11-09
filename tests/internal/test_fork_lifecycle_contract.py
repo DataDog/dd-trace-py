@@ -233,7 +233,21 @@ _INHERITED_MARKS = {
 }
 
 
-@pytest.mark.parametrize("name", _params(["os_fork", "os_fork_rebuild_first", "libc_fork", "nested_os_os", "nested_os_libc", "nested_libc_os_native_only", "threads_libc_fork"], _INHERITED_MARKS))
+@pytest.mark.parametrize(
+    "name",
+    _params(
+        [
+            "os_fork",
+            "os_fork_rebuild_first",
+            "libc_fork",
+            "nested_os_os",
+            "nested_os_libc",
+            "nested_libc_os_native_only",
+            "threads_libc_fork",
+        ],
+        _INHERITED_MARKS,
+    ),
+)
 def test_child_inherited_native_worker_usable(scenario_report, name):
     """Reset and restart child: the inherited native worker object works in the child."""
     child = scenario_report(name)["child"]
@@ -243,7 +257,14 @@ def test_child_inherited_native_worker_usable(scenario_report, name):
 @pytest.mark.parametrize(
     "name",
     _params(
-        ["os_fork", "os_fork_rebuild_first", "libc_fork", "nested_os_os", "nested_os_libc", "nested_libc_os_native_only"],
+        [
+            "os_fork",
+            "os_fork_rebuild_first",
+            "libc_fork",
+            "nested_os_os",
+            "nested_os_libc",
+            "nested_libc_os_native_only",
+        ],
         {
             "os_fork": _xfail(BUG_INHERITED_WORKER_HANGS),
             "os_fork_rebuild_first": _xfail(BUG_INHERITED_WORKER_HANGS),

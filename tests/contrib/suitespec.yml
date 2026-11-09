@@ -844,6 +844,10 @@ suites:
       - '@contrib'
       - '@celery'
       - tests/contrib/celery/*
+      # Fork lifecycle contract on the beat path (tests/contrib/celery/test_fork_lifecycle.py)
+      - ddtrace/internal/native_runtime.py
+      - ddtrace/internal/forksafe.py
+      - src/native/shared_runtime/*
     services:
       - rabbitmq
       - redis
