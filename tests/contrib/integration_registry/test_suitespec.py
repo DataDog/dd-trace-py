@@ -139,8 +139,10 @@ def test_contrib_environments_use_valid_integration_names(integration_dir_names:
 # Integrations whose package cannot be tested unpinned, with the reason.
 LATEST_NOT_TESTED = {
     "algoliasearch": "only capped versions are tested",
+    "botocore": "SigV4 propagation tests fail on the latest botocore (traceparent missing from SignedHeaders)",
     "claude_agent_sdk": "PyPI deletes old releases, so unpinned locks go stale",
     "pydantic_ai": "only capped versions are tested",
+    "ray_serve": "ray_serve tests fail on the latest ray",
     "vertica": "only capped versions are tested",
 }
 
