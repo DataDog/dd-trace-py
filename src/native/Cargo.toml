@@ -66,6 +66,10 @@ libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v4
     "cbindgen",
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1" }
+# Includes Windows ARM64/x86 support from libddwaf-rust PR #34.
+libddwaf = { git = "https://github.com/DataDog/libddwaf-rust", rev = "fb7a62e5eb94784078ded146466d35126104052c" }
+# The high-level crate disables sys defaults; select the release downloader's TLS provider explicitly.
+libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", rev = "fb7a62e5eb94784078ded146466d35126104052c", default-features = false, features = ["ring"] }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1" }
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
