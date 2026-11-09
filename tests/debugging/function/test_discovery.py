@@ -1,6 +1,11 @@
+from types import ModuleType
+from unittest import mock
+
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
+from ddtrace.internal.utils.inspection import collect_code_objects
 import tests.submod.stuff as stuff
 
 
@@ -17,7 +22,7 @@ def test_abs_stuff():
 
 def test_function_discovery(stuff_discovery):
     assert len(stuff_discovery.at_line(11)) == 3
-    assert not stuff_discovery.at_line(69)
+    assert len(stuff_discovery.at_line(69)) == 1
     assert len(stuff_discovery.at_line(71)) == 1
     assert not stuff_discovery.at_line(72)
     assert len(stuff_discovery.at_line(86)) == 1
@@ -86,6 +91,52 @@ def test_function_instance_method(stuff_discovery):
     cls = stuff.Stuff
     (original_func,) = stuff_discovery.at_line(36)
     assert cls.instancestuff is original_func
+
+
+def test_function_header(stuff_discovery):
+    (function,) = stuff_discovery.at_line(35)
+    assert function is stuff.Stuff.instancestuff
+
+    (function,) = stuff_discovery.at_line(28)
+    assert function is stuff.Stuff.staticstuff
+
+
+def test_nested_function_header():
+    module = ModuleType("nested_header")
+    module.__file__ = "nested_header.py"
+    exec(
+        compile(
+            "def outer():\n    def inner():\n        return 42\n    return inner\nretained = outer()\n",
+            module.__file__,
+            "exec",
+        ),
+        vars(module),
+    )
+
+    functions = FunctionDiscovery(module).at_line(2)
+    assert set(functions) == {module.outer, module.retained}
+
+
+def test_unresolved_nested_function_header():
+    module = ModuleType("unresolved_nested_header")
+    module.__file__ = "unresolved_nested_header.py"
+    code = compile("def outer():\n    def inner():\n        return 42\n    return inner\n", module.__file__, "exec")
+    exec(code, vars(module))
+
+    with mock.patch.object(ModuleCodeCollector, "get_code_objects", return_value=list(collect_code_objects(code))):
+        (function,) = FunctionDiscovery(module).at_line(2)
+    assert function is module.outer
+
+
+def test_one_line_function_header():
+    module = ModuleType("one_line_header")
+    module.__file__ = "one_line_header.py"
+    code = compile("def target(): return 42\n", module.__file__, "exec")
+    exec(code, vars(module))
+
+    with mock.patch.object(ModuleCodeCollector, "get_code_objects", return_value=list(collect_code_objects(code))):
+        (function,) = FunctionDiscovery(module).at_line(1)
+    assert function is module.target
 
 
 def test_function_decorated_method(stuff_discovery):

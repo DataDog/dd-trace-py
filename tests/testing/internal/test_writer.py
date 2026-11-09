@@ -114,7 +114,10 @@ class TestBaseWriterStartup:
                 assert len(results) == 1
                 assert results[0].error_type is None
                 assert results[0].response_body == b"ok"
-                request.assert_called_once_with("POST", "/upload", body=b"payload", headers={})
+                upload_calls = [
+                    request_call for request_call in request.call_args_list if request_call.args[1] == "/upload"
+                ]
+                assert upload_calls == [call("POST", "/upload", body=b"payload", headers={})]
                 http_constructor.assert_not_called()
                 https_constructor.assert_not_called()
         finally:
@@ -905,6 +908,7 @@ class TestSerializationFunctions:
         suite.name = "TestSuite"
         suite.session.item_id = 666
         suite.module.item_id = 777
+        suite.module.module_path = "/path/to/test_module"
         suite.item_id = 888
         suite.tags = {"suite.custom": "suite_value"}
         suite.metrics = {"suite.metric": 100}
@@ -929,6 +933,8 @@ class TestSerializationFunctions:
         # Check metadata
         meta = event["content"]["meta"]
         assert meta["span.kind"] == "test"
+        assert meta["test.module"] == "test_module"
+        assert meta["test.module_path"] == "/path/to/test_module"
         assert meta["test.suite"] == "TestSuite"
         assert meta["test.status"] == "pass"
         assert meta["type"] == "test_suite_end"

@@ -1,3 +1,4 @@
+import importlib
 import os
 from unittest import mock
 
@@ -41,13 +42,36 @@ def langchain():
 
 
 @pytest.fixture
+def broken_agent_import(langchain, request):
+    if request.param is None:
+        return
+    original_import = importlib.import_module
+
+    def import_module(name, package=None):
+        if name == request.param:
+            raise RuntimeError("incompatible optional agent dependency")
+        return original_import(name, package)
+
+    unpatch()
+    with mock.patch("ddtrace.aiguard.integrations._langchain.importlib.import_module", side_effect=import_module):
+        patch()
+
+
+@pytest.fixture
 def langchain_openai(langchain):
     try:
         import langchain_openai
-
-        yield langchain_openai
     except ImportError:
         yield
+        return
+    yield langchain_openai
+    # langchain-openai shares one cached httpx.AsyncClient per base_url, whose pooled connections stay
+    # bound to this test's event loop; reusing them after pytest-asyncio closes it fails flakily.
+    try:
+        from langchain_openai.chat_models._client_utils import _cached_async_httpx_client
+    except ImportError:
+        return
+    _cached_async_httpx_client.cache_clear()
 
 
 @pytest.fixture

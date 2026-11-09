@@ -61,9 +61,11 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
                 reporting._report_configured_modules = True
                 reporting._should_report_exception = None  # type: ignore[assignment]
                 reporting._cached_should_report_exception.cache_clear()  # type: ignore[attr-defined]
+                check = reporting.should_report_exception
             else:
                 reporting._should_report_exception = reporting.create_should_report_exception_optimized({"modules"})
-                getattr(reporting.cached_should_report_exception, "cache_clear")()
+                check = reporting.cached_should_report_exception
+                getattr(check, "cache_clear")()
 
             if self.handler in ("module_filter_hit", "module_filter_warm"):
                 paths: Any = reporting.INSTRUMENTED_FILE_PATHS
@@ -79,7 +81,7 @@ class ErrorTrackingMonitoring(bm.Scenario):  # type: ignore[misc]
 
             def _(loops: int) -> None:
                 for index in range(loops):
-                    reporting.cached_should_report_exception(file_names[index & mask])
+                    check(file_names[index & mask])
 
             yield _
             return

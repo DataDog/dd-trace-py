@@ -154,33 +154,27 @@ To fix this:
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
 
-On Linux systems, when running tests with ``scripts/ddtest`` or ``scripts/run-tests``, you may encounter permission errors or file ownership issues. This happens because the container user's ID and group ID must match your local user's IDs.
+On Linux, Docker bind mounts keep the host's file ownership, so the container user must be able to write to
+your checkout. The test image runs as ``bits`` (user ID 1000). When your host user ID is not 1000,
+``scripts/ddtest`` (and therefore ``scripts/run-tests``) automatically runs the container command with your host
+user ID and group ID instead.
 
-To fix this, create a ``docker-compose.override.yml`` file in the repository root with the following contents:
-
-.. code-block:: yaml
-
-    services:
-      testrunner:
-        user: "${UID}:${GID}"
-
-Then, ensure your shell has the ``UID`` and ``GID`` environment variables set:
+To choose the IDs explicitly, set ``DD_TEST_USER``:
 
 .. code-block:: bash
 
-    export UID="$(id -u)"
-    export GID="$(id -g)"
+    $ DD_TEST_USER=1234:1234 scripts/ddtest
 
-You can add these exports to your shell profile (e.g., ``.bashrc``, ``.zshrc``) to make them persistent across sessions.
-
-After setting this up, run your tests normally:
+Set ``DD_TEST_USER`` to an empty value to keep the image's default ``bits`` user:
 
 .. code-block:: bash
 
-    $ scripts/ddtest
-    $ scripts/run-tests
+    $ DD_TEST_USER= scripts/ddtest
 
-The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
+If you previously added a ``docker-compose.override.yml`` that sets ``user: "${UID}:${GID}"`` for the
+``testrunner`` service, you can delete it. ``scripts/ddtest`` now handles this itself, and that override does
+not work with the current image, because the image's home directory, which holds the Python and Rust
+installations, is not accessible to other users.
 
 Build issues when running tests
 -------------------------------
@@ -303,6 +297,24 @@ finding and fixing the root cause of the unreliable behavior. Upholding this res
 suite's coverage meaningfully broad while skipping tests.
 
 
+How does CI retry service startup failures?
+-------------------------------------------
+
+``tests/wait-for-services.py`` exits with status 75 (``EX_TEMPFAIL``) when a known service
+fails its readiness checks after polling. The failure log includes the service name and
+the underlying exception. Missing client libraries and usage errors exit with status 1.
+
+Azure test suites select ``.retry_on_infrastructure_or_service_failure`` using the
+``retry_policy`` key in their ``suitespec.yml`` definitions. This shared policy retries
+a job up to twice when either the existing infrastructure failure rules match or the job
+exits with status 75, including on ``main``. Ordinary test failures do not match this policy.
+Other suites keep their existing retry behavior.
+
+The shared policy also enables ``FF_USE_NEW_BASH_EVAL_STRATEGY`` so GitLab Runner preserves
+the readiness command's exit status. The legacy Bash evaluator can turn status 75 into 1,
+which would prevent the service-failure retry rule from matching.
+
+
 How do I find out if a slow or timed-out CI job ran on a slow machine?
 -----------------------------------------------------------------------
 
@@ -359,3 +371,59 @@ environment variables. For example, to enable debug logs just for
 ``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
 will set the ``DEBUG`` log level for any logger whose name is prefixed with
 ``ddtrace.debugging``.
+
+Isolated Python tests
+---------------------
+
+Use ``@pytest.mark.subprocess`` for isolated test logic and ``python_process``
+for applications with parent-side assertions:
+
+.. code-block:: python
+
+    @pytest.mark.subprocess(env={"DD_SERVICE": "example"})
+    def test_startup():
+        from ddtrace import config
+
+        assert config.service == "example"
+
+    def test_application(python_process):
+        out, err, status, pid = python_process("print('ready')", ddtrace_run=True)
+        assert status == 0, err
+        assert out == b"ready\n"
+
+Module-level scenarios need their imports inside the body. Class methods run
+through a minimal pytest session in the child, including setup and cleanup.
+Project ``conftest.py`` files, third-party plugins, and unrelated fixtures are
+not loaded. Pytest handles the ``unittest.TestCase`` lifecycle, including
+class/module setup and cleanups.
+Async unittest classes must inherit from ``unittest.IsolatedAsyncioTestCase``
+(or ``tests.contrib.asyncio.utils.AsyncioTestCase`` for tracer assertions), using
+``asyncSetUp`` and ``asyncTearDown`` for async fixtures. No event-loop wrapper is needed.
+Parent fixtures run only when explicitly requested with ``usefixtures``.
+
+The marker's ``env`` overrides inherited variables; a value of ``None`` removes
+that variable. ``python_process`` follows the standard subprocess ``env`` behavior:
+omit it to inherit the environment, or supply the complete child environment.
+
+Marked tests expect exit status zero and empty stdout/stderr unless ``status``,
+``out``, or ``err`` says otherwise. Processes time out after 60 seconds by default.
+
+
+Snapshot tests
+--------------
+
+Use ``@pytest.mark.snapshot`` or the ``snapshot_context`` fixture. Each attempt
+gets a unique capture token while keeping its baseline filename. Capture,
+comparison, and cleanup use that token; pass ``snapshot.token`` to external
+producers in the ``X-Datadog-Test-Session-Token`` header. Child processes must inherit
+``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` from inside the snapshot context.
+Other test traffic gets a background token to keep it out of active snapshots.
+
+Finish spans and join background producers before leaving the context. Comparison
+runs once after successful execution, and mismatches fail the test. Concurrent
+contexts sharing a global writer remain unsupported; the agent also retains its
+legacy timing-based handling of untagged requests.
+
+Local runs create missing baselines; review the generated JSON. CI requires existing
+baselines. For custom agent mounts, set ``DD_TEST_AGENT_SNAPSHOT_DIR`` to the snapshot
+directory inside the agent.

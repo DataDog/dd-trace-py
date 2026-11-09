@@ -1,0 +1,41 @@
+[[
+  {
+    "name": "typesafe.request",
+    "service": "tests.contrib.typesafe",
+    "resource": "AsyncTypeSafeClient.system_one",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.llmobs.artificial_gen_ai_tags": "true",
+      "_dd.llmobs.model_name": "jev-1.13.0",
+      "_dd.llmobs.model_provider": "typesafe",
+      "_dd.llmobs.span_kind": "llm",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6adb6bdf00000000",
+      "_dd.sdk.otlp_export": "false",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.typesafe",
+      "error.message": "",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/typesafe/patch.py\", line 75, in traced_async_system_one\n    event.response = await func(*args, **kwargs)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/typesafe_sdk/_core/client/aio/client.py\", line 308, in system_one\n    return await self._request(request, retry=retry)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/typesafe_sdk/_core/client/aio/client.py\", line 311, in _request\n    return await send_async(self._http_client, self._retry, request, retry)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/typesafe_sdk/_core/transport.py\", line 199, in send_async\n    return await policy.copy()(attempt)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/tenacity/asyncio/__init__.py\", line 126, in __call__\n    do = await self.iter(retry_state=retry_state)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/tenacity/asyncio/__init__.py\", line 171, in iter\n    result = await action(retry_state)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/tenacity/_utils.py\", line 130, in inner\n    return call(*args, **kwargs)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/tenacity/__init__.py\", line 462, in <lambda>\n    self._add_action_func(lambda rs: rs.outcome.result())\n  File \"/home/bits/.pyenv/versions/3.10.20/lib/python3.10/concurrent/futures/_base.py\", line 451, in result\n    return self.__get_result()\n  File \"/home/bits/.pyenv/versions/3.10.20/lib/python3.10/concurrent/futures/_base.py\", line 403, in __get_result\n    raise self._exception\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/tenacity/asyncio/__init__.py\", line 130, in __call__\n    result = await fn(*args, **kwargs)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/typesafe_sdk/_core/transport.py\", line 193, in attempt\n    response = await http_client.request(\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/httpx2/_client.py\", line 1635, in request\n    return await self.send(request, auth=auth, follow_redirects=follow_redirects)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/httpx2/_client.py\", line 1818, in send\n    response = await self._send_handling_auth(\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/httpx2/_client.py\", line 1846, in _send_handling_auth\n    response = await self._send_handling_redirects(\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/httpx2/_client.py\", line 1881, in _send_handling_redirects\n    response = await self._send_single_request(request)\n  File \"/home/bits/project/.cache/test-environments/d8ea4e6/lib/python3.10/site-packages/httpx2/_client.py\", line 1915, in _send_single_request\n    response = await transport.handle_async_request(request)\n  File \"/home/bits/project/tests/contrib/typesafe/test_typesafe.py\", line 22, in handle_async_request\n    raise asyncio.CancelledError()\nasyncio.exceptions.CancelledError\n",
+      "error.type": "asyncio.exceptions.CancelledError",
+      "gen_ai.operation.name": "llm",
+      "gen_ai.provider.name": "typesafe",
+      "gen_ai.request.model": "jev-1.13.0",
+      "language": "python",
+      "runtime-id": "dae997ca63be4079bb70b712d33d72ce",
+      "typesafe.request.model": "jev-1.13.0"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1.0
+    },
+    "duration": 1945155,
+    "start": 1792764895542935840
+  }]]

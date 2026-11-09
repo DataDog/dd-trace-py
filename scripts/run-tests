@@ -99,7 +99,7 @@ def _is_protected_ci_branch() -> bool:
 
 def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
     python_version = _python_hint_to_version(python_hint)
-    tags = f"test.configuration.riot_hash:{environment_hash}"
+    tags = f"test.configuration.env_hash:{environment_hash}"
     env["_CI_DD_TAGS"] = f"{tags},test.configuration.python:{python_hint}" if python_hint else tags
 
     if (
