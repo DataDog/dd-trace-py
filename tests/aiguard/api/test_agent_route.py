@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 import pytest
@@ -6,6 +7,7 @@ from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import Message
 from ddtrace.aiguard._api_client import _agent_route
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.threads import Thread
 from ddtrace.internal.threads import original_Event
@@ -158,3 +160,48 @@ def test_start_can_retry_after_thread_creation_fails():
         _agent_route.start()
 
     assert thread.return_value.start.call_count == 2
+
+
+@pytest.mark.parametrize("failure", [None, ConnectionFailedError("Agent unavailable")])
+def test_transient_discovery_failure_is_retried_by_next_evaluation(failure):
+    with (
+        patch(
+            "ddtrace.internal.agent.info", side_effect=[failure, {"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}]
+        ) as mock_info,
+        patch.object(agent_config, "trace_agent_url", "http://agent:8126"),
+    ):
+        base_url, reason = _agent_route.resolve()
+        assert base_url is None
+        assert "could not be read" in reason
+        assert _agent_route.resolve() == ("http://agent:8126", "")
+
+    assert mock_info.call_count == 2
+
+
+@pytest.mark.subprocess()
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
+def test_child_rechecks_route_instead_of_inheriting_absence():
+    import os
+    from unittest.mock import patch
+    import warnings
+
+    from ddtrace.aiguard._api_client import _agent_route
+    from ddtrace.aiguard._constants import AI_GUARD
+    from ddtrace.internal.settings._agent import config as agent_config
+
+    with patch("ddtrace.internal.agent.info", return_value={"endpoints": []}):
+        assert _agent_route.resolve()[0] is None
+
+    # Python 3.12+ warns about forking while tracer background threads are running.
+    with warnings.catch_warnings(record=True):
+        pid = os.fork()
+    if pid == 0:
+        with (
+            patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}),
+            patch.object(agent_config, "trace_agent_url", "http://agent:8126"),
+        ):
+            base_url, _ = _agent_route.resolve()
+        os._exit(0 if base_url == "http://agent:8126" else 1)
+
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0

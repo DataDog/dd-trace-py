@@ -861,8 +861,9 @@ class _AgentRouteDiscovery:
 
     The route appears when the Agent is configured with an application key, which can happen
     after the service starts, so absence is never final. Checking it costs an HTTP request, so
-    while the route is absent the check runs at most once per AGENT_CHECK_INTERVAL, shared by
-    every client in the process.
+    while a reachable Agent lacks the route the check runs at most once per
+    AGENT_CHECK_INTERVAL, shared by every client in the process. Transient failures can
+    be retried by the next evaluation.
     """
 
     def __init__(self) -> None:
@@ -880,16 +881,17 @@ class _AgentRouteDiscovery:
         The probe runs outside the lock, since it performs an HTTP request, so a route that
         vanished while it was in flight must not be brought back by its answer.
         """
+        unsupported = False
+        base_url, reason = None, "the Agent /info endpoint could not be read"
         try:
-            info = agent.info() or {}
-            reason = (
-                ""
-                if AI_GUARD.AGENT_PROXY_ENDPOINT in (info.get("endpoints") or [])
-                else ("the Agent does not advertise the AI Guard proxy route")
-            )
-            base_url = agent_config.trace_agent_url.rstrip("/") if not reason else None
+            info = agent.info()
+            if info is not None:
+                unsupported = AI_GUARD.AGENT_PROXY_ENDPOINT not in (info.get("endpoints") or [])
+                reason = "the Agent does not advertise the AI Guard proxy route" if unsupported else ""
+                base_url = agent_config.trace_agent_url.rstrip("/") if not unsupported else None
         except Exception:
             logger.debug("Could not read the Agent /info endpoint", exc_info=True)
+            unsupported = False
             base_url, reason = None, "the Agent /info endpoint could not be read"
 
         with self._lock:
@@ -897,6 +899,9 @@ class _AgentRouteDiscovery:
                 self._base_url = base_url
                 self._reason = reason
                 self._pending = None
+                if unsupported:
+                    self._throttle = HourGlass(duration=AGENT_CHECK_INTERVAL)
+                    self._throttle.turn()
         completed.set()
 
     def resolve(self) -> tuple[Optional[str], str]:
@@ -911,7 +916,6 @@ class _AgentRouteDiscovery:
             if completed is None:
                 completed = self._pending = forksafe.Event()
                 self._reason = "the Agent AI Guard proxy discovery is still in progress"
-                self._throttle.turn()
             generation = self._generation
 
         if probe:
