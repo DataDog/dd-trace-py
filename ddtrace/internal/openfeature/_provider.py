@@ -122,14 +122,18 @@ class DataDogProvider(AbstractProvider):
 
     flag_selection limits the flags loaded from the agentless configuration
     endpoint, for example
-    DataDogProvider(flag_selection={"tags": ["team:checkout"], "key_patterns": ["checkout.*"]}).
-    A flag is loaded when it has any of the tags or its key matches any of the
-    key patterns, where "*" matches any run of characters. Without a selection
+    DataDogProvider(flag_selection={"tags": ["checkout"], "key_patterns": ["checkout.*"]}).
+    A flag is loaded when it has any of the tags or its whole key matches any of
+    the key patterns, where "*" matches any run of characters, including none,
+    and every other character, such as ".", is literal. Without a selection
     every flag is loaded. Other keys, including keyPatterns, are ignored. Each
-    list accepts at most 31 strings of at most 200 UTF-8 bytes; an invalid
-    selection is logged and every flag is loaded. A process uses one selection:
-    the first provider to initialize sets it until every provider has shut down.
-    Remote Config delivery ignores the selection.
+    list accepts at most 31 strings of at most 200 UTF-8 bytes, and the request
+    URL with the selection must fit in 8192 bytes; a selection that breaks a
+    limit is logged and every flag is loaded. A process uses one selection: the
+    first provider to initialize sets it until every provider has shut down. A
+    provider set while another one is still running uses the running one's
+    selection, so to change it call openfeature.api.shutdown() before setting
+    the new provider. Remote Config delivery ignores the selection.
     """
 
     def __init__(
@@ -351,11 +355,20 @@ class DataDogProvider(AbstractProvider):
         # non-blocking registration and propagates it for blocking registration.
         # Warning rather than error: errors are forwarded to telemetry, and a routine
         # initialization timeout should not inflate its volume.
-        logger.warning(
-            "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
-            "evaluations will return default values until configuration arrives",
-            self._initialization_timeout,
-        )
+        if _get_ffe_snapshot() is None:
+            logger.warning(
+                "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
+                "evaluations will return default values until configuration arrives",
+                self._initialization_timeout,
+            )
+        else:
+            # Only a snapshot loaded for a released, different flag selection is left here.
+            logger.warning(
+                "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
+                "evaluations use the configuration loaded for the previous flag selection until configuration "
+                "arrives",
+                self._initialization_timeout,
+            )
         self._initialization_timed_out = True
         raise ProviderNotReadyError("No Feature Flagging configuration received before the initialization timeout")
 
@@ -432,6 +445,12 @@ class DataDogProvider(AbstractProvider):
         source = create_agentless_source(ffe_config, _apply_agentless_configuration, self._flag_selection)
         if source is None:
             return
+
+        # A poller of the released selection may have notified this provider after attach()
+        # registered it. Nothing under the new claim has polled yet, so no notification is lost.
+        if snapshot_from_other_selection():
+            self._config_received.clear()
+            self._status = ProviderStatus.NOT_READY
 
         try:
             source.start()

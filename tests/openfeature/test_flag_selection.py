@@ -48,6 +48,7 @@ RAW_QUERY_CASES = {
 
 MANAGED_TARGET = "/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"
 SELECTION_LOGGER = "ddtrace.internal.openfeature._flag_selection"
+PROVIDER_LOGGER = "ddtrace.internal.openfeature._provider"
 
 NOT_SENT = "flag_selection was not sent ({}: {}). Loading the full flag configuration."
 IGNORED = "flag_selection was ignored by the server ({}). Loaded the full flag configuration."
@@ -156,6 +157,19 @@ def test_only_unicode_white_space_is_trimmed():
     white_space = "\t\n\v\f\r \x85\xa0\u1680\u2000\u200a\u2028\u2029\u202f\u205f\u3000"
     selection = canonicalize_flag_selection({"tags": [f"{white_space}a{white_space}", "\ufeffb\u200b"]})
     assert selection.tags == ("a", "\ufeffb\u200b")
+
+
+# Every code point with the Unicode White_Space property, from PropList.txt.
+@pytest.mark.parametrize(
+    "white_space",
+    [
+        "\u0009", "\u000a", "\u000b", "\u000c", "\u000d", "\u0020", "\u0085", "\u00a0", "\u1680",
+        "\u2000", "\u2001", "\u2002", "\u2003", "\u2004", "\u2005", "\u2006", "\u2007", "\u2008",
+        "\u2009", "\u200a", "\u2028", "\u2029", "\u202f", "\u205f", "\u3000",
+    ],
+)  # fmt: skip
+def test_each_white_space_character_is_trimmed(white_space):
+    assert canonicalize_flag_selection({"tags": [f"{white_space}a{white_space}"]}).tags == ("a",)
 
 
 def test_values_are_deduplicated_and_sorted_by_utf8_bytes():
@@ -550,6 +564,20 @@ def test_ignored_header_is_read_only_on_200_with_a_selection(poller, caplog, cou
     assert count_metric.call_args_list == []
 
 
+@pytest.mark.parametrize("status", [400, 414])
+@pytest.mark.parametrize("flag_selection_sent", [True, False])
+def test_rejected_request_names_the_selection_as_a_cause(poller, caplog, status, flag_selection_sent):
+    source = poller([_FakeResponse(status)], flag_selection_sent=flag_selection_sent)
+    # DEBUG turns the per-call-site rate limiter off across the parametrized runs.
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        source.periodic()
+    [message] = [
+        r.getMessage() for r in caplog.records if r.name == source_mod.__name__ and r.levelno == logging.WARNING
+    ]
+    assert message.startswith(f"Feature Flagging agentless endpoint returned HTTP {status}. Possible causes: ")
+    assert ("the flag_selection query" in message) is flag_selection_sent
+
+
 def test_report_ignored_never_raises(count_metric):
     count_metric.side_effect = RuntimeError("telemetry down")
     report_ignored("tag_load_failed")
@@ -570,6 +598,7 @@ def test_remote_config_warns_once_when_a_selection_is_set(env, caplog, count_met
         (logging.WARNING, REMOTE_CONFIG_WARNING)
     ]
     assert count_metric.call_args_list == []
+    assert claim_process_selection(canonicalize_flag_selection({"tags": ["z"]})).tags == ("z",)
 
 
 @pytest.mark.parametrize("option", [None, {"tags": [" "]}])
@@ -610,6 +639,41 @@ def test_claim_is_released_with_its_last_reference():
     _flag_selection.release_process_selection()
     _flag_selection.release_process_selection()
     assert claim_process_selection(b) == b
+
+
+def test_loaded_selection_is_recorded_only_after_a_successful_apply():
+    a = canonicalize_flag_selection({"tags": ["a"]})
+    b = canonicalize_flag_selection({"tags": ["b"]})
+    _flag_selection.recording_loaded_selection(lambda _: None, a)({})
+    claim_process_selection(b)
+
+    def reject(_):
+        raise ValueError("rejected")
+
+    with pytest.raises(ValueError):
+        _flag_selection.recording_loaded_selection(reject, b)({})
+    assert _flag_selection.snapshot_from_other_selection() is True
+
+
+def test_missing_api_key_takes_no_claim():
+    with override_global_config({"_dd_api_key": None, "_dd_site": "datadoghq.com", "env": "prod"}):
+        assert create_agentless_source(_config(), lambda _: None, canonicalize_flag_selection({"tags": ["a"]})) is None
+    assert claim_process_selection(canonicalize_flag_selection({"tags": ["z"]})).tags == ("z",)
+
+
+def test_invalid_base_url_takes_no_claim():
+    assert _create_source({"tags": ["a"]}, base_url="ftp://flags.example") is None
+    assert claim_process_selection(canonicalize_flag_selection({"tags": ["z"]})).tags == ("z",)
+
+
+def test_claim_is_released_when_the_source_cannot_be_built(monkeypatch):
+    def fail(*args, **kwargs):
+        raise RuntimeError("cannot build")
+
+    monkeypatch.setattr(AgentlessConfigurationSource, "__init__", fail)
+    with pytest.raises(RuntimeError):
+        _create_source({"tags": ["a"]})
+    assert claim_process_selection(canonicalize_flag_selection({"tags": ["z"]})).tags == ("z",)
 
 
 def test_concurrent_claims_agree():
@@ -702,14 +766,33 @@ def test_claim_is_released_when_the_source_cannot_start(cdn, api_key, monkeypatc
 
     monkeypatch.setattr(AgentlessConfigurationSource, "start", fail)
     provider = _provider({"tags": ["a"]})
-    with pytest.raises(RuntimeError):
-        provider.initialize(EvaluationContext())
+    try:
+        with pytest.raises(RuntimeError):
+            provider.initialize(EvaluationContext())
 
-    other = canonicalize_flag_selection({"tags": ["b"]})
-    assert claim_process_selection(other) == other
+        other = canonicalize_flag_selection({"tags": ["b"]})
+        assert claim_process_selection(other) == other
+    finally:
+        provider.shutdown()
 
 
-def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key):
+def test_repeated_shutdown_does_not_release_another_providers_claim(cdn, api_key):
+    first = _provider({"tags": ["a"]})
+    second = _provider({"tags": ["b"]})
+    later = _provider({"tags": ["c"]})
+    try:
+        first.initialize(EvaluationContext())
+        second.initialize(EvaluationContext())
+        first.shutdown()
+        first.shutdown()
+        later.initialize(EvaluationContext())
+        assert _sent_selection(later._configuration_source) == (["a"], [])
+    finally:
+        for provider in (first, second, later):
+            provider.shutdown()
+
+
+def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key, caplog):
     cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
     first = _provider({"tags": ["a"]})
     first.initialize(EvaluationContext())
@@ -719,9 +802,16 @@ def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key):
     cdn.respond = lambda target: _FakeResponse(404)
     other = _provider({"tags": ["b"]}, timeout=0.2)
     try:
-        with pytest.raises(ProviderNotReadyError):
-            other.initialize(EvaluationContext())
+        with caplog.at_level(logging.DEBUG, logger=PROVIDER_LOGGER):
+            with pytest.raises(ProviderNotReadyError):
+                other.initialize(EvaluationContext())
         assert other._status == ProviderStatus.NOT_READY
+        assert any(
+            r.levelno == logging.WARNING and "configuration loaded for the previous flag selection" in r.getMessage()
+            for r in caplog.records
+        )
+        # Until its own configuration arrives, the provider resolves against the previous snapshot.
+        assert other.resolve_boolean_details("selected-a", False).value is True
     finally:
         other.shutdown()
 
@@ -733,6 +823,34 @@ def test_new_selection_after_release_waits_for_its_own_poll(cdn, api_key):
         assert recovering.resolve_boolean_details("selected-b", False).value is True
     finally:
         recovering.shutdown()
+
+
+def test_notification_from_the_released_selection_does_not_make_a_new_selection_ready(cdn, api_key, monkeypatch):
+    import ddtrace.internal.openfeature._source_selection as source_selection
+
+    cdn.respond = lambda target: _FakeResponse(200, _flag_body("selected-a"))
+    first = _provider({"tags": ["a"]})
+    first.initialize(EvaluationContext())
+    stale_apply = first._configuration_source._apply_configuration
+    attributes = json.loads(_flag_body("selected-a"))["data"]["attributes"]
+    claim = source_selection.claim_process_selection
+
+    # The released provider's poller applies a configuration after the new provider registered
+    # for notifications, then shuts down before the new provider claims.
+    def claim_after_a_late_apply(selection):
+        stale_apply(attributes)
+        first.shutdown()
+        return claim(selection)
+
+    monkeypatch.setattr(source_selection, "claim_process_selection", claim_after_a_late_apply)
+    cdn.respond = lambda target: _FakeResponse(404)
+    second = _provider({"tags": ["b"]}, timeout=0.2)
+    try:
+        with pytest.raises(ProviderNotReadyError):
+            second.initialize(EvaluationContext())
+        assert second._status == ProviderStatus.NOT_READY
+    finally:
+        second.shutdown()
 
 
 def test_same_selection_after_release_uses_the_loaded_configuration(cdn, api_key):

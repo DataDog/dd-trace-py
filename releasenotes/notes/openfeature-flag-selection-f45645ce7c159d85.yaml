@@ -3,7 +3,10 @@ features:
   - |
     openfeature: Adds the ``flag_selection`` parameter to ``DataDogProvider`` so a service can load
     only the flags it needs from the agentless configuration endpoint, for example
-    ``DataDogProvider(flag_selection={"tags": ["team:checkout"], "key_patterns": ["checkout.*"]})``.
-    A flag is loaded when it has any of the tags or its key matches any of the patterns. Each list
-    accepts at most 31 values of at most 200 UTF-8 bytes; an invalid selection is logged and every
-    flag is loaded. One selection applies per process, and Remote Config delivery ignores it.
+    ``DataDogProvider(flag_selection={"tags": ["checkout"], "key_patterns": ["checkout.*"]})``.
+    A flag is loaded when it has any of the tags or its whole key matches any of the patterns, where
+    ``*`` matches any run of characters. Each list accepts at most 31 values of at most 200 UTF-8
+    bytes, and the encoded selection must fit in an 8192-byte request URL; otherwise an error is
+    logged and every flag is loaded. One selection applies per process, and Remote Config delivery
+    ignores it. To change the selection, call ``openfeature.api.shutdown()`` before setting a new
+    provider.

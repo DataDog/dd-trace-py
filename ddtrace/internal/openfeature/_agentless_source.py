@@ -186,10 +186,11 @@ class AgentlessConfigurationSource(PeriodicService):
         self._stopping = False
         log.debug(
             "Feature Flags: agentless configuration source settings: sdk_env=%s, requested_env=%s, "
-            "DD-API-KEY header %s, poll interval %.1fs, request timeout %.1fs",
+            "DD-API-KEY header %s, flag selection %s, poll interval %.1fs, request timeout %.1fs",
             self._env or "unset",
             self._requested_env or "not sent",
             "sent" if self._api_key else "not sent",
+            "sent" if self._flag_selection_sent else "not sent",
             self.interval,
             self._request_timeout,
         )
@@ -486,7 +487,14 @@ class AgentlessConfigurationSource(PeriodicService):
             return
         self._failure_warnings.add(category)
 
-        if status:
+        if status in (400, 414) and self._flag_selection_sent:
+            log.warning(
+                "Feature Flagging agentless endpoint returned HTTP %d. Possible causes: the flag_selection query, "
+                "missing or invalid API key, API key not permitted to read this environment, wrong site or endpoint "
+                "URL, unknown environment, or a temporary service problem",
+                status,
+            )
+        elif status:
             log.warning(
                 "Feature Flagging agentless endpoint returned HTTP %d. Possible causes: missing or invalid API key, "
                 "API key not permitted to read this environment, wrong site or endpoint URL, unknown environment, "

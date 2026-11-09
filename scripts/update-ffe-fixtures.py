@@ -48,7 +48,7 @@ def copy_fixture_file(source, destination):
     destination.chmod(0o644)
 
 
-def copy_fixture_directory(source, snapshot, name):
+def prepare_fixture_directory(source, snapshot, name):
     directory = source / name
     if directory.is_symlink():
         raise ValueError(f"Refusing to copy symbolic link from FFE fixture repository: {directory}")
@@ -62,9 +62,9 @@ def copy_fixture_directory(source, snapshot, name):
 
 def copy_fixture_snapshot(source, snapshot):
     copy_fixture_file(source / "ufc-config.json", snapshot / "ufc-config.json")
-    selection_directory, snapshot_selection = copy_fixture_directory(source, snapshot, SELECTION_VECTORS.parent)
+    selection_directory, snapshot_selection = prepare_fixture_directory(source, snapshot, SELECTION_VECTORS.parent)
     copy_fixture_file(selection_directory / SELECTION_VECTORS.name, snapshot_selection / SELECTION_VECTORS.name)
-    cases_directory, snapshot_cases = copy_fixture_directory(source, snapshot, "evaluation-cases")
+    cases_directory, snapshot_cases = prepare_fixture_directory(source, snapshot, "evaluation-cases")
     for entry in sorted(cases_directory.iterdir()):
         if entry.suffix != ".json":
             raise ValueError(f"Unexpected entry in FFE evaluation cases: {entry}")
@@ -105,7 +105,7 @@ def validate_fixture_snapshot(snapshot):
         or not isinstance(selection_vectors.get("cases"), list)
         or not selection_vectors["cases"]
     ):
-        raise ValueError(f"{SELECTION_VECTORS} must contain a non-empty JSON array of cases")
+        raise ValueError(f"{SELECTION_VECTORS} must be a JSON object with a non-empty cases array")
 
     return fixture_count
 

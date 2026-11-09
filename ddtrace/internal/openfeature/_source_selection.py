@@ -20,6 +20,7 @@ from ddtrace.internal.openfeature._flag_selection import NO_SELECTION
 from ddtrace.internal.openfeature._flag_selection import FlagSelection
 from ddtrace.internal.openfeature._flag_selection import claim_process_selection
 from ddtrace.internal.openfeature._flag_selection import recording_loaded_selection
+from ddtrace.internal.openfeature._flag_selection import release_process_selection
 from ddtrace.internal.openfeature._flag_selection import selection_request_url
 from ddtrace.internal.openfeature._flag_selection import warn_remote_config
 from ddtrace.internal.settings.openfeature import AGENTLESS
@@ -72,18 +73,22 @@ def create_agentless_source(
         return None
 
     claimed = claim_process_selection(flag_selection)
-    endpoint, flag_selection_sent = selection_request_url(endpoint, flag_selection, claimed)
+    try:
+        endpoint, flag_selection_sent = selection_request_url(endpoint, flag_selection, claimed)
 
-    log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
-    return AgentlessConfigurationSource(
-        endpoint=endpoint,
-        apply_configuration=recording_loaded_selection(apply_configuration, claimed),
-        api_key=None if has_custom_endpoint else api_key,
-        poll_interval=ffe_config.configuration_source_agentless_poll_interval_seconds,
-        request_timeout=ffe_config.configuration_source_agentless_request_timeout_seconds,
-        env=dd_config.env,
-        flag_selection_sent=flag_selection_sent,
-    )
+        log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
+        return AgentlessConfigurationSource(
+            endpoint=endpoint,
+            apply_configuration=recording_loaded_selection(apply_configuration, claimed),
+            api_key=None if has_custom_endpoint else api_key,
+            poll_interval=ffe_config.configuration_source_agentless_poll_interval_seconds,
+            request_timeout=ffe_config.configuration_source_agentless_request_timeout_seconds,
+            env=dd_config.env,
+            flag_selection_sent=flag_selection_sent,
+        )
+    except BaseException:
+        release_process_selection()
+        raise
 
 
 def _redacted_origin(url: str) -> str:
