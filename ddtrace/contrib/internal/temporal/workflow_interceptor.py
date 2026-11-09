@@ -79,6 +79,7 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
     def __init__(self, next: temporalio.worker.WorkflowInboundInterceptor) -> None:
         super().__init__(next)
         self._span_counter = 1  # Reserve the 1 for the RunWorkflow span
+        self._run_workflow_span: Any = None
 
         externs = temporalio.workflow.extern_functions()
         self._start_span_extern = cast(
@@ -152,6 +153,9 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
         return self.recover_workflow_span()
 
     def recover_workflow_span(self) -> Any:
+        if self._run_workflow_span is not None:
+            return self._run_workflow_span.context
+
         # Reconstruct the RunWorkflow context from the workflow start headers by
         # reusing the trace_id from StartWorkflow and overriding the span_id with
         # RunWorkflow's deterministic ID. Reliable across sandbox task boundaries
@@ -207,13 +211,15 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
             start_time=int(info.workflow_start_time.timestamp() * 1e9),
         ) as (i, span):
             if span is not None:
-                i.headers = self.propagator.inject_headers(i.headers, span.context)
+                i.headers = self.propagator.inject_headers(i.headers, span.context, span.service)
                 _current_span_info.set((format_trace_id(span.trace_id), str(span.span_id)))
             _active_workflow_span.set(span)
+            self._run_workflow_span = span
             return await super().execute_workflow(i)
 
     async def handle_signal(self, input: temporalio.worker.HandleSignalInput) -> None:
         if self.config.disable_signal_tracing:
+            self._span_counter += 1
             await super().handle_signal(input)
             return
         with self.span_ctx(OperationNames.HANDLE_SIGNAL, input.signal, input, self._next_idempotency_key()) as (i, _):
@@ -234,6 +240,7 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
 
     async def handle_update_handler(self, input: temporalio.worker.HandleUpdateInput) -> Any:
         if self.config.disable_update_tracing:
+            self._span_counter += 1
             return await super().handle_update_handler(input)
         with self.span_ctx(OperationNames.HANDLE_UPDATE, input.update, input, self._next_idempotency_key()) as (i, _):
             return await super().handle_update_handler(i)
@@ -263,7 +270,7 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
             return
         with self.root.span_ctx(OperationNames.SIGNAL_CHILD_WORKFLOW, input.signal, input) as (i, span):
             if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+                i.headers = self.root.propagator.inject_headers(i.headers, span.context, span.service)
             await super().signal_child_workflow(i)
 
     async def signal_external_workflow(self, input: temporalio.worker.SignalExternalWorkflowInput) -> None:
@@ -275,7 +282,7 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
             return
         with self.root.span_ctx(OperationNames.SIGNAL_EXTERNAL_WORKFLOW, input.signal, input) as (i, span):
             if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+                i.headers = self.root.propagator.inject_headers(i.headers, span.context, span.service)
             await super().signal_external_workflow(i)
 
     def start_activity(self, input: temporalio.worker.StartActivityInput) -> temporalio.workflow.ActivityHandle:
@@ -283,7 +290,7 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
             return super().start_activity(input)
         with self.root.span_ctx(OperationNames.START_ACTIVITY, input.activity, input) as (i, span):
             if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+                i.headers = self.root.propagator.inject_headers(i.headers, span.context, span.service)
             return super().start_activity(i)
 
     async def start_child_workflow(
@@ -293,7 +300,7 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
             return await super().start_child_workflow(input)
         with self.root.span_ctx(OperationNames.START_CHILD_WORKFLOW, input.workflow, input) as (i, span):
             if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+                i.headers = self.root.propagator.inject_headers(i.headers, span.context, span.service)
             return await super().start_child_workflow(i)
 
     def start_local_activity(
@@ -303,7 +310,7 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
             return super().start_local_activity(input)
         with self.root.span_ctx(OperationNames.START_ACTIVITY, input.activity, input) as (i, span):
             if span is not None:
-                i.headers = self.root.propagator.inject_headers(i.headers, span.context)
+                i.headers = self.root.propagator.inject_headers(i.headers, span.context, span.service)
             return super().start_local_activity(i)
 
     async def start_nexus_operation(

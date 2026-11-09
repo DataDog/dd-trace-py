@@ -43,12 +43,13 @@ class _Propagator:
 
         return None
 
-    def set_baggage(self, ctx: Any) -> None:
-        if self.service_name is None:
+    def set_baggage(self, ctx: Any, service: str | None = None) -> None:
+        resolved = service if service is not None else self.service_name
+        if resolved is None:
             return
         setter = getattr(ctx, "set_baggage_item", None)
         if callable(setter):
-            setter(BAGGAGE_ITEM_SERVICE, self.service_name)
+            setter(BAGGAGE_ITEM_SERVICE, resolved)
 
     def inject(self, context: Any) -> Carrier:
         carrier: Carrier = {}
@@ -85,11 +86,12 @@ class _Propagator:
         self,
         headers: TemporalHeader,
         context: Any,
+        service: str | None = None,
     ) -> TemporalHeader:
         if context is None:
             return headers
 
-        self.set_baggage(context)
+        self.set_baggage(context, service)
         carrier = self.inject(context)
 
         return {**headers, self.header_key: self._carrier_to_payload(carrier)}

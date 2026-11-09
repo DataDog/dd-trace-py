@@ -77,6 +77,33 @@ class TestWorkflow:
 
 
 @workflow.defn
+class SignalAndUpdateWorkflow:
+    """Workflow with both a signal and an update handler."""
+
+    def __init__(self) -> None:
+        self._signalled = False
+        self._updated = False
+
+    @workflow.run
+    async def run(self) -> str:
+        await workflow.wait_condition(lambda: self._signalled and self._updated)
+        return "done"
+
+    @workflow.signal
+    def my_signal(self) -> None:
+        self._signalled = True
+
+    @workflow.query
+    def my_query(self) -> str:
+        return "running"
+
+    @workflow.update
+    async def my_update(self) -> str:
+        self._updated = True
+        return "updated"
+
+
+@workflow.defn
 class UpdateTestWorkflow:
     def __init__(self) -> None:
         self._result: str | None = None

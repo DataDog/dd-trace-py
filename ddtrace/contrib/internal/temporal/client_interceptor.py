@@ -104,10 +104,10 @@ class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type
         )
 
         input.start_workflow_input.headers = self.root.propagator.inject_headers(
-            input.start_workflow_input.headers, span.context
+            input.start_workflow_input.headers, span.context, span.service
         )
         input.update_workflow_input.headers = self.root.propagator.inject_headers(
-            input.update_workflow_input.headers, span.context
+            input.update_workflow_input.headers, span.context, span.service
         )
 
         return await self.root._run_span(
@@ -136,7 +136,7 @@ class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type
         awaitable: Callable[[Any], Awaitable[Any]],
     ) -> Any:
         span = self._get_span(operation_name, resource_name, attributes)
-        input.headers = self.root.propagator.inject_headers(input.headers, span.context)
+        input.headers = self.root.propagator.inject_headers(input.headers, span.context, span.service)
         return await self.root._run_span(span, operation_name, awaitable(input))
 
     def _get_span(
