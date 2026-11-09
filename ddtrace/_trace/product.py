@@ -5,6 +5,8 @@ from envier import En
 
 from ddtrace._trace._registration import SUBSCRIBER_BUNDLES
 from ddtrace._trace._registration import initialize_subscribers
+from ddtrace._trace._registration import unregister_subscribers
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -62,11 +64,11 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
-    # Web subscribers close admission when shutdown disables the tracer, retaining
-    # completion listeners until their active requests finish. Other families retain
-    # their existing completion listeners.
-    if tracer.enabled:
-        tracer.shutdown()
+    # Terminal shutdown discards pending work even if tracing was already disabled.
+    # Keep listeners intact if shutdown raises before that cleanup succeeds.
+    tracer.shutdown()
+    core.dispatch("tracing.stopped", (tracer,))
+    unregister_subscribers(subscriber_bundles)
 
 
 def skip_exit():

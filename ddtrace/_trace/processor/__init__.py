@@ -335,6 +335,7 @@ class SpanAggregator(SpanProcessor):
         # one value, so span start and finish read them without taking a lock.
         self._runtime_identity: Optional[tuple[int, str]] = (0, get_runtime_id()) if in_aws_lambda_microvm() else None
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
+        self._shut_down = False
         # Only MicroVM identity refreshes need a lock that resets after fork; keep the plain lock elsewhere.
         self._lock = forksafe.RLock() if in_aws_lambda_microvm() else RLock()
         # A sync-mode writer whose send was deferred until the finishing thread releases its locks.
@@ -407,6 +408,9 @@ class SpanAggregator(SpanProcessor):
         # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
         trace_id = span.trace_id
         with self._lock:
+            traces = self._traces
+            if self._shut_down:
+                return
             # Direct processor callers may not go through Tracer.start_span; stamp those spans here,
             # while rejecting spans captured before an identity refresh.
             identity = self._runtime_identity
@@ -419,7 +423,7 @@ class SpanAggregator(SpanProcessor):
                 _set_runtime_identity_generation(span.context, span_generation)
                 if span_generation != identity[0]:
                     return
-            trace = self._traces[trace_id]
+            trace = traces[trace_id]
             trace.spans.append(span)
         integration_name = span._get_str_attribute(COMPONENT) or span._span_api
         recorder = _SPANS_CREATED_RECORDERS.get(integration_name)
@@ -603,7 +607,12 @@ class SpanAggregator(SpanProcessor):
             timeout = None if deadline is None else max(deadline - Time.monotonic(), 0)
 
         try:
-            self._traces.clear()
+            # Do not wait for the aggregation lock: an identity refresh can hold it
+            # while waiting for a writer lock owned by this shutdown caller.
+            # Starts capture the old buffer before checking this latch, so an
+            # already-starting span cannot refill the new, detached buffer.
+            self._shut_down = True
+            self._traces = defaultdict(lambda: _Trace())
             self.writer.stop(timeout)
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(

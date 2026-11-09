@@ -252,3 +252,80 @@ def test_unregister_preserves_synchronous_and_late_exception_notifications(web_p
     notify("after response completion")
     assert span.get_tag("error.message") == "after response completion"
     test_spans.assert_span_count(1)
+
+
+def test_terminal_stop_invalidates_a_completion_callback_already_running(web_policy, monkeypatch, test_spans):
+    with core.context_with_event(request_event(), dispatch_end_event=False) as old:
+        old_span = old.get_item("_inner_span")
+    entered = Event()
+    resume = Event()
+    original = web_framework.WebFrameworkRequestSubscriber._ended_handlers
+
+    def finish(ctx, exc_info):
+        entered.set()
+        assert resume.wait(5)
+        for handler in original:
+            handler(ctx, exc_info)
+
+    with monkeypatch.context() as patching:
+        patching.setattr(web_framework.WebFrameworkRequestSubscriber, "_ended_handlers", (finish,))
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(old.dispatch_ended_event)
+            try:
+                assert entered.wait(5)
+                core.dispatch("tracing.stopped", (web_policy,))
+                WEB_FRAMEWORK_SUBSCRIBERS.register()
+                with core.context_with_event(request_event(), dispatch_end_event=False) as new:
+                    new_span = new.get_item("_inner_span")
+                WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+            finally:
+                resume.set()
+            pending.result(timeout=5)
+    assert not old_span.finished
+    assert web_framework.WebFrameworkRequestSubscriber._active_requests == 1
+    assert core.has_listeners("context.ended.web.request")
+    new.dispatch_ended_event()
+    assert new_span.finished
+    assert not core.has_listeners("context.ended.web.request")
+    # This test sends the stop notification without discarding the real buffer.
+    old_span.finish()
+    test_spans.assert_span_count(2)
+
+
+def test_terminal_stop_invalidates_a_request_still_starting(web_policy, monkeypatch, test_spans):
+    entered = Event()
+    resume = Event()
+    original = web_framework._start_span
+
+    def start(ctx):
+        if ctx.event.resource == "old":
+            entered.set()
+            assert resume.wait(5)
+        return original(ctx)
+
+    def request():
+        event = request_event()
+        event.resource = "old"
+        with core.context_with_event(event) as ctx:
+            return ctx.get_item("_inner_span")
+
+    monkeypatch.setattr(web_framework, "_start_span", start)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(request)
+        try:
+            assert entered.wait(5)
+            core.dispatch("tracing.stopped", (web_policy,))
+            WEB_FRAMEWORK_SUBSCRIBERS.register()
+            with core.context_with_event(request_event(), dispatch_end_event=False) as new:
+                new_span = new.get_item("_inner_span")
+            WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+        finally:
+            resume.set()
+        old_span = pending.result(timeout=5)
+    assert not old_span.finished
+    assert web_framework.WebFrameworkRequestSubscriber._active_requests == 1
+    new.dispatch_ended_event()
+    assert new_span.finished
+    assert not core.has_listeners("context.ended.web.request")
+    old_span.finish()
+    test_spans.assert_span_count(2)

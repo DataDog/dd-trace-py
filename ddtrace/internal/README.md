@@ -117,10 +117,10 @@ lifecycle; it does not discover or manage bundles. Products choose registration
 ordering, enablement, and failure handling. A registration error propagating out of
 `start()` is handled as a product startup failure by the manager.
 
-Keep completion listeners registered while draining active contexts. Call
-`unregister()` only after draining succeeds; if draining raises, retain the listeners.
-Products that cannot guarantee all active contexts have drained must retain their
-completion listeners after `stop()` returns.
+Products that require active contexts to finish retain completion listeners until
+those contexts drain. A terminal stop may discard active work and unregister after
+shutdown succeeds. Ordinary bundles then remove both start and completion listeners;
+the web bundle's runtime unregister instead drains its admitted requests.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
@@ -166,18 +166,26 @@ admission. Continue updating event metadata and dispatching completion when the
 field is false. Explicit integration opt-outs still control whether instrumentation
 runs, without controlling product listener ownership.
 
-Other tracing subscriber families retain their existing completion listeners on
-product stop. Tracer shutdown does not drain execution contexts and does not
-guarantee export of spans completed afterward. Tracing's `skip_exit()` preserves
-its tracer-owned exit handling. AWS Durable subscribers load with the other
-SDK-independent subscribers. Ray subscriber helpers require its optional SDK, so tracing owns an import hook that
-activates them after the Ray integration module loads.
+Terminal tracing product `stop()` calls tracer shutdown even when tracing is already
+disabled, then unregisters all tracing bundles and the optional Ray import hook.
+Shutdown flushes finished traces, discards pending traces, stops processors, and
+clears its calling context's active span. It does not reset other tasks' ContextVars.
+A tracing-owned stop notification invalidates request ownership before removing
+completion listeners, so callbacks already running cannot finish discarded requests
+or change a later generation's request count. If shutdown raises, listeners remain
+installed. This terminal cleanup is separate from runtime web unregistering or
+temporarily disabling tracing, which preserve admitted requests through completion.
+Tracing's `skip_exit()` preserves its tracer-owned exit handling.
 
+AWS Durable subscribers load with the other SDK-independent subscribers. Ray
+subscriber helpers require its optional SDK, so tracing owns an import hook that
+activates them after the Ray integration module loads.
 
 Aiohttp reports handler errors synchronously through
 `WebFrameworkRequestExceptionEvent`; producers and consumers must not retain its
 traceback on deferred contexts. Its separate tracing subscription remains available
-for late errors on admitted spans after response completion or APM unregistering.
+for late errors on admitted spans after response completion or runtime APM
+unregistering; terminal product stop removes it.
 The event's original admission decision prevents tagging a borrowed parent span.
 Failed or cancelled requests use a task-completion fallback when no response was
 prepared; response completion removes pending callbacks so keep-alive tasks do not

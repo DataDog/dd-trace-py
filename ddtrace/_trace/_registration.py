@@ -2,9 +2,12 @@
 
 from dataclasses import dataclass
 from dataclasses import field
+from importlib import import_module
 import sys
 from types import ModuleType
+from typing import cast
 
+from ddtrace.internal import core
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.subscriber import SubscriberBundle
 from ddtrace.internal.module import ModuleWatchdog
@@ -51,6 +54,24 @@ class _WebFrameworkSubscriberBundle(SubscriberBundle):
                 subscriber.unregister()
 
 
+class _RaySubscriberBundle(SubscriberBundle):
+    """Recheck terminal shutdown after resolving optional SDK imports."""
+
+    def ensure_registered(self) -> None:
+        with event_hub._registration_lock:
+            resolved = self._resolved
+        # Resolving may block on another import; shutdown must remain independent.
+        module = import_module(self.module) if resolved is None else None
+        with event_hub._registration_lock:
+            tracer = core.root.get_item("tracer")
+            if tracer is None or getattr(tracer, "_shutting_down", False):
+                return
+            if self._resolved is None:
+                object.__setattr__(self, "_resolved", self._resolve(cast(ModuleType, module)))
+            # With resolution complete, installation cannot take an import lock.
+            super().ensure_registered()
+
+
 SPAN_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers._base",
     subscribers=("TracingSubscriber",),
@@ -93,7 +114,7 @@ AWS_DURABLE_SUBSCRIBERS = SubscriberBundle(
     module="ddtrace._trace.subscribers.aws_durable",
     subscribers=("AwsDurableExecuteSubscriber", "AwsDurableInvokeSubscriber", "AwsDurableOperationSubscriber"),
 )
-RAY_SUBSCRIBERS = SubscriberBundle(
+RAY_SUBSCRIBERS = _RaySubscriberBundle(
     module="ddtrace._trace.subscribers.ray",
     subscribers=(
         "RayJobStartSubscriber",
@@ -121,7 +142,9 @@ _ray_hook_registered = False
 
 
 def _register_ray_subscribers(module: ModuleType) -> None:
-    RAY_SUBSCRIBERS.ensure_registered()
+    tracer = core.root.get_item("tracer")
+    if tracer is not None and not getattr(tracer, "_shutting_down", False):
+        RAY_SUBSCRIBERS.ensure_registered()
 
 
 def initialize_subscribers(bundles: tuple[SubscriberBundle, ...] = SUBSCRIBER_BUNDLES) -> None:
@@ -137,4 +160,20 @@ def initialize_subscribers(bundles: tuple[SubscriberBundle, ...] = SUBSCRIBER_BU
         ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.ray.patch", _register_ray_subscribers)
         _ray_hook_registered = True
     elif "ddtrace.contrib.internal.ray.patch" in sys.modules:
-        RAY_SUBSCRIBERS.ensure_registered()
+        _register_ray_subscribers(sys.modules["ddtrace.contrib.internal.ray.patch"])
+
+
+def unregister_subscribers(bundles: tuple[SubscriberBundle, ...] = SUBSCRIBER_BUNDLES) -> None:
+    """Remove tracing subscriptions after terminal shutdown has discarded active work."""
+    global _ray_hook_registered
+
+    if _ray_hook_registered:
+        ModuleWatchdog.unregister_module_hook("ddtrace.contrib.internal.ray.patch", _register_ray_subscribers)
+        _ray_hook_registered = False
+    for bundle in bundles:
+        bundle.unregister()
+    WEB_FRAMEWORK_EXCEPTION_SUBSCRIBERS.unregister()
+    STANDALONE_WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+    # A partially imported optional subscriber has not installed any callbacks.
+    if RAY_SUBSCRIBERS._resolved is not None:
+        RAY_SUBSCRIBERS.unregister()

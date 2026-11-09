@@ -64,7 +64,7 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
 
 
 @pytest.mark.parametrize("tracing_enabled", [True, False])
-def test_tracing_product_registers_bundles_and_retains_listeners_on_stop(tracing_enabled, monkeypatch):
+def test_tracing_product_registers_bundles_and_unregisters_after_shutdown(tracing_enabled, monkeypatch):
     from ddtrace._trace import product
 
     bundle = Mock(spec=SubscriberBundle)
@@ -75,8 +75,8 @@ def test_tracing_product_registers_bundles_and_retains_listeners_on_stop(tracing
         product.start()
         bundle.ensure_registered.assert_called_once_with()
         product.stop()
-        bundle.unregister.assert_not_called()
-        assert tracer.shutdown.call_count == int(tracing_enabled)
+        tracer.shutdown.assert_called_once_with()
+        bundle.unregister.assert_called_once_with()
 
 
 def test_tracing_product_retains_listeners_when_shutdown_fails(monkeypatch):
@@ -94,10 +94,18 @@ def test_tracing_product_retains_listeners_when_shutdown_fails(monkeypatch):
 
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_ENABLED="true", DD_APM_TRACING_ENABLED="true"),
+    parametrize={
+        "DISABLE_BEFORE_STOP": ["true", "false"],
+        "STOP_IN_OTHER_TASK": ["true", "false"],
+        "DEFER_COMPLETION": ["true", "false"],
+    },
     err=lambda err: err.startswith("Shutting down tracer with 1 spans.") and len(err.splitlines()) == 1,
 )
-def test_tracing_product_stop_skips_new_spans_and_preserves_active_request_completion() -> None:
+def test_tracing_product_stop_discards_active_requests_and_unregisters() -> None:
+    import asyncio
     from dataclasses import replace
+    import os
+    from unittest.mock import patch
 
     from ddtrace._trace import product
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
@@ -119,24 +127,52 @@ def test_tracing_product_stop_skips_new_spans_and_preserves_active_request_compl
         request_headers={},
         headers_case_sensitive=True,
     )
-    with core.context_with_event(event) as ctx:
-        span = ctx.get_item("_inner_span")
-        assert span is not None
-        assert not span.finished
+    other_task = os.environ["STOP_IN_OTHER_TASK"] == "true"
+    deferred = os.environ["DEFER_COMPLETION"] == "true"
+
+    async def stop():
         manager.stop_products()
         assert not tracer.enabled
-        assert not span.finished
+        assert not tracer._span_aggregator._traces
+        assert tracer.context_provider.active() is None
+        assert not core.has_listeners("context.started.web.request")
+        assert not core.has_listeners("context.ended.web.request")
+        assert not core.has_listeners("web.request.exception")
 
-        # New requests skip span creation, but the original request keeps its entry decision.
-        with core.context_with_event(replace(event)) as new_ctx:
-            assert not new_ctx.event.span_creation_enabled
-            assert new_ctx.get_item("_inner_span") is None
-        assert event.span_creation_enabled
-        assert not span.finished
-        event.response_status_code = 201
+    async def request():
+        with core.context_with_event(event, dispatch_end_event=not deferred) as ctx:
+            span = ctx.get_item("_inner_span")
+            assert span is not None
+            assert not span.finished
+            assert span.trace_id in tracer._span_aggregator._traces
+            if os.environ["DISABLE_BEFORE_STOP"] == "true":
+                tracer.enabled = False
+            if other_task:
+                await asyncio.create_task(stop())
+                # Shutdown clears only its caller's ContextVar, not an existing request task's copy.
+                assert tracer.current_span() is span
+            else:
+                await stop()
+                assert tracer.current_span() is None
 
-    assert span.finished
-    assert span.get_tag("http.status_code") == "201"
+            with core.context_with_event(replace(event)) as new_ctx:
+                assert new_ctx.get_item("_inner_span") is None
+            event.response_status_code = 201
+
+        if deferred:
+            ctx.dispatch_ended_event()
+        assert ctx._event is None
+        assert not span.finished
+        assert span.get_tag("http.status_code") is None
+        assert not tracer._span_aggregator._traces
+        # A late manual finish cannot resurrect the discarded trace either.
+        span.finish()
+        assert not tracer._span_aggregator._traces
+        assert tracer.context_provider.active() is None
+
+    with patch.object(tracer._span_aggregator.writer, "write") as write:
+        asyncio.run(request())
+        write.assert_not_called()
 
 
 @pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
@@ -224,3 +260,85 @@ def test_global_tracer_startup_activates_subscribers_without_loading_integration
             assert span is not None
             assert span.name == f"{component}.request"
         assert span.finished
+
+
+@pytest.mark.subprocess(
+    env={"_DD_GLOBAL_TRACER_INIT": "true"},
+    parametrize={"STANDALONE": ["true", "false"], "BLOCK_PROCESSOR": ["true", "false"]},
+)
+def test_tracing_stop_cannot_repopulate_discarded_requests():
+    from concurrent.futures import ThreadPoolExecutor
+    import os
+    from threading import Event
+    from unittest.mock import patch
+
+    from ddtrace import config
+    from ddtrace._trace import product
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+    from ddtrace._trace.subscribers import web_framework
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.settings.asm import config as asm_config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.internal.settings.standalone import standalone_config
+    from ddtrace.trace import tracer
+
+    if os.environ["STANDALONE"] == "true":
+        standalone_config.apm_tracing_enabled = False
+        asm_config._asm_enabled = True
+        tracer.enabled = False
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="test",
+        integration_config=IntegrationConfig(config, "test"),
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    entered = Event()
+    resume = Event()
+    discarded = Event()
+    finish_shutdown = Event()
+    aggregator = tracer._span_aggregator
+    target, name = (
+        (aggregator, "on_span_start") if os.environ["BLOCK_PROCESSOR"] == "true" else (web_framework, "_start_span")
+    )
+    original = getattr(target, name)
+
+    def blocked_start(value):
+        entered.set()
+        assert resume.wait(10)
+        return original(value)
+
+    def blocked_stop(*args, **kwargs):
+        discarded.set()
+        assert finish_shutdown.wait(10)
+
+    def request():
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            return ctx
+
+    with patch.object(target, name, blocked_start), patch.object(type(aggregator.writer), "stop", blocked_stop):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            pending = executor.submit(request)
+            stopped = None
+            try:
+                assert entered.wait(10)
+                stopped = executor.submit(product.stop)
+                assert discarded.wait(10)
+                assert not aggregator._traces
+                with core.context_with_event(event) as skipped:
+                    assert skipped.get_item("_inner_span") is None
+                resume.set()
+                ctx = pending.result(timeout=10)
+                assert not aggregator._traces
+            finally:
+                resume.set()
+                finish_shutdown.set()
+            stopped.result(timeout=10)
+    ctx.dispatch_ended_event()
+    assert not aggregator._traces
+    assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.ended.web.request")

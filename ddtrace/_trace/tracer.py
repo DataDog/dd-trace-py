@@ -203,6 +203,8 @@ class Tracer:
         self._new_process = False
 
         self._store_metadata()
+        # Reconcile listeners after reinitializing a previously shut-down root tracer.
+        core.dispatch("tracing.enabled", (self, self.enabled))
 
     def _store_metadata(self) -> None:
         metadata = PyTracerMetadata(
@@ -761,7 +763,7 @@ class Tracer:
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled:
+        if not self._shutting_down and (self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled):
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
