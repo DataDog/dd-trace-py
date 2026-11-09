@@ -380,19 +380,24 @@ def test_evaluate_custom_tags_ignore_reserved_ai_guard_keys(mock_execute_request
     assert span.get_tag("customer.tenant") == "acme"
 
 
+@pytest.mark.parametrize("max_messages", [0, 1, 16])
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
-def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, max_messages):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = []
-    for i in range(aiguard_config._ai_guard_max_messages_length + 1):
-        messages.append(Message(role="user", content="Tell me 10 things I should know about DataDog"))
-    ai_guard_client.evaluate(messages)
+    for i in range(max_messages + 1):
+        messages.append(Message(role="user", content=f"Message {i}"))
+    with override_ai_guard_config(dict(_ai_guard_max_messages_length=max_messages)):
+        evaluation = ai_guard_client.evaluate(messages)
 
     span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
-    assert len(meta["messages"]) == aiguard_config._ai_guard_max_messages_length
+    assert len(meta["messages"]) == max_messages
+    assert meta["messages"] == messages[1:]
+    assert_mock_execute_request_call(mock_execute_request, ai_guard_client, messages)
+    assert evaluation["messages"] is messages
     assert_telemetry(telemetry_mock, "truncated", (("type", "messages"),))
 
 
