@@ -1,18 +1,12 @@
-"""Parity and lifetime tests for the native (Rust) libddwaf backend.
-
-The ctypes serializer and backend are the reference: native encoding must produce the same raw
-native values (type tags and exact bytes) and truncation reports, and evaluations must reach the
-same security decisions.
-"""
+"""Native WAF input contracts, ancestor outcome fixtures, and lifecycle tests."""
 
 from collections import UserDict
 from collections import UserList
 from concurrent.futures import ThreadPoolExecutor
-import ctypes
 import gc
 import json
 import os
-import struct
+from pathlib import Path
 import subprocess
 import sys
 import uuid
@@ -24,54 +18,14 @@ from hypothesis import strategies as st
 import pytest
 
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._ddwaf import ddwaf_types as ctypes_types
 from ddtrace.appsec._ddwaf import waf as native_waf
-from ddtrace.appsec._ddwaf import waf_ctypes
 from ddtrace.internal.native._native import ddwaf as native
+from tests.appsec.appsec.waf_input_contract import reference_encode
 import tests.appsec.rules as rules
 
 
-def ctypes_view(obj):
-    """Raw view of a ctypes-built object, in the shape returned by native._encode."""
-    tags = ctypes_types.DDWAF_OBJ_TYPE
-    tag = obj.type
-    if tag == tags.DDWAF_OBJ_SMALL_STRING:
-        value = obj.value.sstr
-        return (
-            "string",
-            ctypes.string_at(ctypes.addressof(value) + ctypes_types._SMALL_STRING_DATA_OFFSET, value.size),
-        )
-    if tag in (tags.DDWAF_OBJ_STRING, tags.DDWAF_OBJ_LITERAL_STRING):
-        value = obj.value.str
-        return ("string", ctypes.string_at(value.ptr, value.size) if value.size else b"")
-    if tag == tags.DDWAF_OBJ_ARRAY:
-        value = obj.value.array
-        return ("array", [ctypes_view(value.ptr[i]) for i in range(value.size)])
-    if tag == tags.DDWAF_OBJ_MAP:
-        value = obj.value.map
-        return ("map", [(ctypes_view(value.ptr[i].key), ctypes_view(value.ptr[i].val)) for i in range(value.size)])
-    if tag == tags.DDWAF_OBJ_SIGNED:
-        return ("signed", obj.value.i64.val)
-    if tag == tags.DDWAF_OBJ_UNSIGNED:
-        return ("unsigned", obj.value.u64.val)
-    if tag == tags.DDWAF_OBJ_BOOL:
-        return ("bool", obj.value.b8.val)
-    if tag == tags.DDWAF_OBJ_FLOAT:
-        return ("float", struct.unpack("<Q", struct.pack("<d", obj.value.f64.val))[0])
-    return ("null",) if tag == tags.DDWAF_OBJ_NULL else ("invalid",)
-
-
-def ctypes_encode(value, **limits):
-    observator = ctypes_types._observator()
-    obj = ctypes_types.ddwaf_object(value, observator=observator, **limits)
-    try:
-        return ctypes_view(obj), (observator.string_length, observator.container_size, observator.container_depth)
-    finally:
-        ctypes_types.ddwaf_object_free(obj)
-
-
 def assert_same_encoding(value, **limits):
-    assert native._encode(value, **limits) == ctypes_encode(value, **limits)
+    assert native._encode(value, **limits) == reference_encode(value, **limits)
 
 
 class _Str:
@@ -145,19 +99,19 @@ CASES = [
         {"max_objects": 2**31, "max_depth": 1000, "max_string_length": 2**31},
     ],
 )
-def test_encoding_matches_ctypes(value, limits):
+def test_encoding_matches_contract(value, limits):
     try:
-        expected = ctypes_encode(value, **limits)
-    except (RecursionError, ctypes.ArgumentError):
-        # The Python serializer cannot reach the unlimited depth of a cycle; the native one can.
+        expected = reference_encode(value, **limits)
+    except RecursionError:
+        # The Python contract traversal is limited by Python recursion for cyclic input.
         native._encode(value, **limits)
         return
     assert native._encode(value, **limits) == expected
 
 
 @pytest.mark.parametrize("container", ["list", "dict"])
-def test_uint16_capacity_cap_matches_ctypes(container):
-    n = ctypes_types.DDWAF_OBJ_MAX_CAPACITY + 10
+def test_uint16_capacity_cap_matches_contract(container):
+    n = 65535 + 10
     value = list(range(n)) if container == "list" else {str(i): i for i in range(n)}
     assert_same_encoding(value, max_objects=2**31)
 
@@ -177,7 +131,7 @@ VALUES = st.recursive(
     max_depth=st.sampled_from([0, 1, 3, 20]),
     max_string_length=st.sampled_from([0, 2, 14, 15, 4096]),
 )
-def test_generated_encoding_matches_ctypes(value, max_objects, max_depth, max_string_length):
+def test_generated_encoding_matches_contract(value, max_objects, max_depth, max_string_length):
     assert_same_encoding(value, max_objects=max_objects, max_depth=max_depth, max_string_length=max_string_length)
 
 
@@ -256,29 +210,27 @@ REQUESTS = {
 }
 
 
-@pytest.mark.parametrize("rules_path", [rules.RULES_GOOD_PATH, DEFAULT.RULES])
+ANCESTOR_RESULTS = json.loads(Path(__file__).with_name("waf_ancestor_results.json").read_text())
+
+
+@pytest.mark.parametrize("label,rules_path", [("custom", rules.RULES_GOOD_PATH), ("default", DEFAULT.RULES)])
 @pytest.mark.parametrize("name", list(REQUESTS))
-def test_evaluation_matches_ctypes(rules_path, name):
-    with open(rules_path, "rb") as f:
-        ruleset = f.read()
-    observed = []
-    for backend in (native_waf, waf_ctypes):
-        waf = backend.DDWaf(ruleset, b"", b"")
-        assert waf.initialized
-        ctx = waf._at_request_start()
-        observed.append([_observe(waf.run(ctx, data, timeout_ms=1000)) for data in REQUESTS[name]])
-    assert observed[0] == observed[1]
+def test_evaluation_matches_ancestor(label, rules_path, name):
+    waf = native_waf.DDWaf(Path(rules_path).read_bytes(), b"", b"")
+    assert waf.initialized
+    ctx = waf._at_request_start()
+    observed = [_observe(waf.run(ctx, data, timeout_ms=1000)) for data in REQUESTS[name]]
+    assert json.loads(json.dumps(observed)) == ANCESTOR_RESULTS["evaluations"][label + "/" + name]
 
 
-def test_info_matches_ctypes():
-    for path in (rules.RULES_GOOD_PATH, rules.ROOT_DIR + "/rules-with-2-errors.json"):
-        with open(path, "rb") as f:
-            ruleset = f.read()
-        infos = [backend.DDWaf(ruleset, b"", b"").info for backend in (native_waf, waf_ctypes)]
-        assert repr(infos[0]) == repr(infos[1])
-        assert sorted(native_waf.DDWaf(ruleset, b"", b"").required_data) == sorted(
-            waf_ctypes.DDWaf(ruleset, b"", b"").required_data
-        )
+@pytest.mark.parametrize(
+    "label,path", [("valid", rules.RULES_GOOD_PATH), ("partial", rules.ROOT_DIR + "/rules-with-2-errors.json")]
+)
+def test_info_matches_ancestor(label, path):
+    waf = native_waf.DDWaf(Path(path).read_bytes(), b"", b"")
+    expected = ANCESTOR_RESULTS["info"][label]
+    assert repr(waf.info) == expected["repr"]
+    assert sorted(waf.required_data) == expected["addresses"]
 
 
 @pytest.fixture
@@ -367,7 +319,7 @@ def test_invalid_ruleset_json():
 
 def test_registration_does_not_load_and_load_failures_are_typed(tmp_path):
     script = """
-import ctypes.util, sys
+import _struct, sys
 from ddtrace.internal.native._native import ddwaf
 try:
     ddwaf.Builder()
@@ -381,11 +333,11 @@ except OSError:
     pass
 else:
     raise AssertionError("missing library loaded")
-libc = ctypes.util.find_library("c") or "libc.so.6"
+libc = _struct.__file__
 try:
     ddwaf.load(["/nonexistent/libddwaf.so", libc])
 except OSError as e:
-    assert "missing required symbol" in str(e) or "could not load" in str(e), e
+    assert "missing libddwaf symbol" in str(e), e
 else:
     raise AssertionError("libc accepted as libddwaf")
 """

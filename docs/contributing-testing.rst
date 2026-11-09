@@ -182,7 +182,6 @@ For a macOS host build, select Xcode's library and SDK before building:
 .. code-block:: bash
 
     $ source .gitlab/scripts/setup-libclang-macos.sh
-    $ python3 .gitlab/scripts/check-libclang.py
 
 On Windows, install LLVM and set ``LIBCLANG_PATH`` to its ``bin`` directory. The library architecture must
 match the process generating bindings; an x64 Rust host can generate bindings for an x86 wheel.

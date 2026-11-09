@@ -1,0 +1,433 @@
+{
+  "ancestor": "2db57e5bdbc20e81c5726f661ba9f3bbd549ebdf",
+  "evaluations": {
+    "custom/api_security": [
+      [
+        0,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "custom/benign": [
+      [
+        0,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "custom/blocking_ip": [
+      [
+        1,
+        [
+          {
+            "rule": {
+              "id": "blk-001-001",
+              "name": "Block IP addresses",
+              "on_match": [
+                "block"
+              ],
+              "tags": {
+                "category": "blocking",
+                "type": "ip_addresses"
+              }
+            },
+            "rule_matches": [
+              {
+                "operator": "ip_match",
+                "operator_value": "",
+                "parameters": [
+                  {
+                    "address": "http.client_ip",
+                    "highlight": [
+                      "8.8.4.4"
+                    ],
+                    "key_path": [],
+                    "value": "8.8.4.4"
+                  }
+                ]
+              }
+            ],
+            "security_response_id": "response-0"
+          }
+        ],
+        {
+          "block_request": {
+            "grpc_status_code": 10,
+            "security_response_id": "response-0",
+            "status_code": 403,
+            "type": "auto"
+          }
+        },
+        true,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "custom/sqli": [
+      [
+        1,
+        [
+          {
+            "rule": {
+              "id": "crs-942-100",
+              "name": "SQL Injection Attack Detected via libinjection",
+              "on_match": [],
+              "tags": {
+                "category": "attack_attempt",
+                "crs_id": "942100",
+                "type": "sql_injection"
+              }
+            },
+            "rule_matches": [
+              {
+                "operator": "is_sqli",
+                "operator_value": "",
+                "parameters": [
+                  {
+                    "address": "server.request.cookies",
+                    "highlight": [
+                      "s&sos"
+                    ],
+                    "key_path": [
+                      "attack"
+                    ],
+                    "value": "1' or '1' = '1'"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        {},
+        true,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "custom/staged": [
+      [
+        0,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ],
+      [
+        1,
+        [
+          {
+            "rule": {
+              "id": "crs-942-100",
+              "name": "SQL Injection Attack Detected via libinjection",
+              "on_match": [],
+              "tags": {
+                "category": "attack_attempt",
+                "crs_id": "942100",
+                "type": "sql_injection"
+              }
+            },
+            "rule_matches": [
+              {
+                "operator": "is_sqli",
+                "operator_value": "",
+                "parameters": [
+                  {
+                    "address": "server.request.body",
+                    "highlight": [
+                      "s&sos"
+                    ],
+                    "key_path": [
+                      "q"
+                    ],
+                    "value": "1' or '1' = '1'"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        {},
+        true,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "custom/truncated": [
+      [
+        0,
+        [],
+        {},
+        false,
+        false,
+        [
+          8192,
+          300,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "default/api_security": [
+      [
+        1,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {
+          "_dd.appsec.fp.http.header": "hdr-0000000100--0-",
+          "_dd.appsec.fp.http.network": "net-0-0000000000"
+        },
+        {},
+        {
+          "_dd.appsec.s.req.body": [
+            {
+              "a": [
+                [
+                  [
+                    {
+                      "b": [
+                        8
+                      ]
+                    }
+                  ],
+                  [
+                    4
+                  ]
+                ],
+                {
+                  "len": 3
+                }
+              ]
+            }
+          ],
+          "_dd.appsec.s.req.headers": [
+            {
+              "content-type": [
+                8
+              ]
+            }
+          ]
+        }
+      ]
+    ],
+    "default/benign": [
+      [
+        0,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "default/blocking_ip": [
+      [
+        0,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "default/sqli": [
+      [
+        1,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {
+          "_dd.appsec.fp.session": "ssn--fca30679-cb6ee4d3-"
+        },
+        {},
+        {}
+      ]
+    ],
+    "default/staged": [
+      [
+        1,
+        [],
+        {},
+        false,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {
+          "_dd.appsec.fp.http.header": "hdr-0000000000-5f1e8e17-1-4740ae63",
+          "_dd.appsec.fp.http.network": "net-0-0000000000"
+        },
+        {},
+        {}
+      ],
+      [
+        1,
+        [
+          {
+            "rule": {
+              "id": "crs-942-100",
+              "name": "SQL Injection Attack Detected via libinjection",
+              "on_match": [],
+              "tags": {
+                "capec": "1000/152/248/66",
+                "category": "attack_attempt",
+                "crs_id": "942100",
+                "cwe": "89",
+                "module": "waf",
+                "type": "sql_injection"
+              }
+            },
+            "rule_matches": [
+              {
+                "operator": "is_sqli",
+                "operator_value": "",
+                "parameters": [
+                  {
+                    "address": "server.request.body",
+                    "highlight": [
+                      "s&sos"
+                    ],
+                    "key_path": [
+                      "q"
+                    ],
+                    "value": "1' or '1' = '1'"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        {},
+        true,
+        false,
+        [
+          null,
+          null,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ],
+    "default/truncated": [
+      [
+        0,
+        [],
+        {},
+        false,
+        false,
+        [
+          8192,
+          300,
+          null
+        ],
+        {},
+        {},
+        {}
+      ]
+    ]
+  },
+  "info": {
+    "partial": {
+      "addresses": [
+        "server.request.body",
+        "server.request.cookies",
+        "server.request.path_params",
+        "server.request.query"
+      ],
+      "repr": "{loaded: 1, failed: 2, errors: {\"missing key 'conditions'\":[\"crs-913-110\"],\"missing key 'tags'\":[\"crs-942-100\"]}, version: 5.5.5}"
+    },
+    "valid": {
+      "addresses": [
+        "grpc.server.request.message",
+        "http.client_ip",
+        "server.request.body",
+        "server.request.cookies",
+        "server.request.path_params",
+        "server.request.query",
+        "usr.id"
+      ],
+      "repr": "{loaded: 8, failed: 0, errors: , version: rules_good}"
+    }
+  }
+}

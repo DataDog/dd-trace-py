@@ -66,9 +66,7 @@ libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v4
     "cbindgen",
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1" }
-# Includes caller-controlled loading, direct string initialization, and Windows x86/ARM64 support.
 libddwaf = { git = "https://github.com/DataDog/libddwaf-rust", rev = "fe5a0589c058425ae521626d7fb6466366ea702a", features = ["dynamic-manual"] }
-# The high-level crate disables sys defaults; select the release downloader's TLS provider explicitly.
 libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", rev = "fe5a0589c058425ae521626d7fb6466366ea702a", default-features = false, features = ["ring", "dynamic-manual"] }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v46.1.1" }
 native-proc-macro = { path = "native_proc_macro" }

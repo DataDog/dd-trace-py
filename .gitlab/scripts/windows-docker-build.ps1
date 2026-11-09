@@ -43,9 +43,6 @@ $env:_DD_NATIVE_CARGO_TARGET_DIR = 'C:\cargo-target'
 Write-Host "=== Enabling git long paths ==="
 git config --global core.longpaths true
 
-# bindgen runs in the x64 Rust host process even when compiling an x86 wheel.
-& uv run --no-project --python cpython-3.12-windows-x86_64 C:\workspace\.gitlab\scripts\check-libclang.py
-if ($LASTEXITCODE -ne 0) { throw 'libclang C API check failed' }
 
 Write-Host "=== Building wheel ==="
 $distDir = 'C:\workspace\dist'

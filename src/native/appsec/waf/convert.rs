@@ -5,8 +5,7 @@
 //! the Python buffer into its final native location. Decoding reads native results directly
 //! into Python objects, without an intermediate Rust tree.
 //!
-//! Coercion, limits and truncation reporting mirror the ctypes serializer in
-//! `ddtrace/appsec/_ddwaf/ddwaf_types.py`, which stays the differential oracle in tests.
+//! Coercion, limits and truncation reporting preserve the existing Python input contract.
 
 use libddwaf::object::*;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -15,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyList, PyString, PyTuple};
 
-/// Reported as the truncated depth whatever the configured limit, like the ctypes serializer.
+/// Reported as the truncated depth whatever the configured limit, like the input contract.
 const DDWAF_MAX_CONTAINER_DEPTH: usize = 20;
 
 #[derive(Clone, Copy)]
@@ -31,7 +30,7 @@ impl Limits {
         depth: 20,
         string: 4096,
     };
-    /// Rule configurations: `create_without_limits` in the ctypes serializer.
+    /// Rule configurations: `create_without_limits` in the input contract.
     pub const UNLIMITED: Limits = Limits {
         objects: 1 << 31,
         depth: 1000,
@@ -87,7 +86,7 @@ fn utf8_len(point: u32) -> usize {
 }
 
 /// Writes exactly `out.len()` bytes of the UTF-8 encoding; truncation may split a code point,
-/// matching the byte-based `encoded[:limit]` slice of the ctypes serializer.
+/// matching the byte-based `encoded[:limit]` slice of the input contract.
 #[inline]
 fn write_utf8(out: &mut [u8], points: impl Iterator<Item = u32>) {
     let mut written = 0;
@@ -140,7 +139,7 @@ impl<'py> Encoder<'py> {
                 return self.array(list.len(), list.iter().map(Ok), depth, || Ok(list.len()));
             }
             if ffi::PyLong_CheckExact(ptr) != 0 {
-                // ctypes c_int64 arguments wrap arbitrary Python integers modulo 2**64.
+                // Python integers wrap modulo 2**64.
                 let wrapped = ffi::PyLong_AsUnsignedLongLongMask(ptr);
                 if wrapped == u64::MAX {
                     if let Some(err) = PyErr::take(self.py) {
@@ -287,7 +286,7 @@ impl<'py> Encoder<'py> {
     ) -> PyResult<bool> {
         let (key, item) = pair;
         let key_ptr = key.as_ptr();
-        // Only exact str/bytes keys are kept; the ctypes serializer drops the others.
+        // Only exact str/bytes keys are kept; the input contract drops the others.
         let is_text = unsafe { ffi::PyUnicode_CheckExact(key_ptr) } != 0;
         if !is_text && unsafe { ffi::PyBytes_CheckExact(key_ptr) } == 0 {
             return Ok(true);
@@ -419,7 +418,7 @@ fn decode_str<'py>(py: Python<'py>, bytes: &[u8]) -> PyResult<Bound<'py, PyAny>>
     }
 }
 
-/// Raw native view (types and exact bytes) for differential tests against ctypes.
+/// Raw native view (types and exact bytes) for input contract tests.
 pub fn describe<'py>(py: Python<'py>, obj: &WafObject) -> PyResult<Bound<'py, PyAny>> {
     if let Some(text) = obj.as_type::<WafString>() {
         return Ok(("string", PyBytes::new(py, text.as_bytes()))

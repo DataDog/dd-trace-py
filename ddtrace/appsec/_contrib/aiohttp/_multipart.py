@@ -16,7 +16,7 @@ from aiohttp.web import Request
 from ddtrace.appsec._contrib.aiohttp._utils import decode_text
 from ddtrace.appsec._contrib.aiohttp._utils import parse_form
 from ddtrace.appsec._contrib.aiohttp._utils import single_or_list
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_CONTAINER_DEPTH
+from ddtrace.appsec._ddwaf._types import DDWAF_MAX_CONTAINER_DEPTH
 from ddtrace.contrib.internal.aiohttp.middlewares import DEFAULT_CLIENT_MAX_SIZE
 from ddtrace.contrib.internal.aiohttp.middlewares import _restore_request_body
 from ddtrace.internal.logger import get_logger

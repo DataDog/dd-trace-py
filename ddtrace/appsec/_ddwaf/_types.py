@@ -1,4 +1,4 @@
-"""WAF input/output types shared by both libddwaf backends, without loading the library."""
+"""WAF input/output types and input limits."""
 
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -17,3 +17,7 @@ class DDWafSqlTokenizer(str, Enum):
     ORACLE = "oracle"
     POSTGRESQL = "postgresql"
     SQLITE = "sqlite"
+
+
+DDWAF_MAX_STRING_LENGTH = 4096
+DDWAF_MAX_CONTAINER_DEPTH = 20
