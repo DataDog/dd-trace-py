@@ -6,12 +6,6 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
-## Module import hooks
-
-`ModuleWatchdog` dispatches name-based hooks without resolving filesystem paths.
-Keep origin tracking in `DebuggerModuleWatchdog`, which indexes loaded modules when
-installed and tracks subsequent imports.
-
 ## Span attribute limits
 
 `ddtrace.internal._limits` defines the span attribute size limits used by span
