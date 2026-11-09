@@ -4,7 +4,7 @@ aiosignal==1.4.0
 attrs==26.1.0
 aws-sdk-bedrock-runtime==0.11.0
 aws-sdk-signers==0.3.1
-coverage[toml]==7.17.2
+coverage[toml]==7.17.0
 frozenlist==1.8.0
 hypothesis==6.45.0
 idna==3.20

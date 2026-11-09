@@ -4,20 +4,20 @@ aiosignal==1.4.0
 attrs==26.1.0
 aws-sdk-bedrock-runtime==0.11.0
 aws-sdk-signers==0.3.1
-coverage[toml]==7.17.2
+coverage[toml]==7.16.2
 frozenlist==1.8.0
 hypothesis==6.45.0
 idna==3.20
 ijson==3.6.0
 iniconfig==2.3.1
 mock==5.2.0
-multidict==7.2.1
+multidict==7.1.0
 packaging==26.3
 pluggy==1.7.0
 propcache==0.5.4
 pygments==2.21.0
-pytest==9.2.0
-pytest-asyncio==1.4.1.post1
+pytest==9.1.1
+pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 pytest-mock==3.17.0
 smithy-aws-core[eventstream, json]==0.11.0
