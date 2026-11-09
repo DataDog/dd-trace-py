@@ -40,7 +40,7 @@ class ProfilerStats
     // Sticky: fell back to syscall copy (init failure, foreign handler, etc.)
     std::optional<bool> fast_copy_memory_syscall_fallback;
 
-    // Persistent intent to use safe_memcpy; unlike _enabled, warmup does not clear it
+    // Desired: reclaim intent surviving warmup (active is cleared)
     std::optional<bool> fast_copy_memory_desired;
 
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
