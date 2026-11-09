@@ -1,4 +1,6 @@
 import asyncio
+from contextlib import closing
+from copy import deepcopy
 import io
 import json
 import logging
@@ -13,6 +15,7 @@ from fastapi import Request
 from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
+from fastapi.testclient import TestClient
 import pytest
 import requests.utils
 from starlette.background import BackgroundTask
@@ -39,6 +42,7 @@ from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_hea
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.internal.security._constants import STACK_TRACE
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
@@ -1213,6 +1217,107 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
         assert len(list_vulnerabilities) == 16, (
             f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
         )
+
+
+@pytest.mark.parametrize("mounted", [False, True])
+@pytest.mark.parametrize("inferred_proxy", [False, True])
+def test_iast_analysis_survives_response_middleware(tracer, test_spans, monkeypatch, mounted, inferred_proxy):
+    import sqlite3
+
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _iast_request_sampling=100,
+            _iast_deduplication_enabled=False,
+            _inferred_proxy_services_enabled=inferred_proxy,
+        )
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        baseline = debug_context_array_free_slots_number()
+        monkeypatch.setattr(tracer._span_aggregator, "partial_flush_enabled", True)
+        monkeypatch.setattr(tracer._span_aggregator, "partial_flush_min_spans", 1)
+        exported = []
+        write = test_spans.writer.write
+
+        def capture(spans):
+            # Snapshot at export: later mutations cannot repair an already sent span.
+            exported.extend(
+                (span.span_id, deepcopy(load_iast_report(span)), deepcopy(span._get_struct_tag(STACK_TRACE.TAG)))
+                for span in spans
+            )
+            return write(spans)
+
+        monkeypatch.setattr(test_spans.writer, "write", capture)
+        child = FastAPI()
+        application = FastAPI() if mounted else child
+        if mounted:
+            application.mount("/child", child)
+        owners = []
+
+        @child.get("/")
+        async def endpoint(request: Request):
+            request.state.query = request.query_params["query"]
+            request.state.request_span = tracer.current_span()
+            return PlainTextResponse("ok")
+
+        class InspectResponse:
+            def __init__(self, app):
+                self.app = app
+
+            async def __call__(self, scope, receive, send):
+                if scope["type"] != "http":
+                    return await self.app(scope, receive, send)
+
+                owner = tracer.current_span()
+                owners.append(owner)
+                messages = []
+
+                async def buffer_send(message):
+                    messages.append(message)
+
+                # Let the child finish before inspecting and forwarding its response.
+                await self.app(scope, receive, buffer_send)
+                assert scope["state"]["request_span"].finished is mounted
+                assert not owner.finished
+                query = scope["state"]["query"]
+                assert get_tainted_ranges(query)
+                with closing(sqlite3.connect(":memory:")) as connection:
+                    connection.execute(query)
+                for message in messages:
+                    await send(message)
+
+        application.add_middleware(InspectResponse)
+
+        with TestClient(application) as client:
+            headers = (
+                {
+                    "x-dd-proxy": "aws-apigateway",
+                    "x-dd-proxy-request-time-ms": "1736973768000",
+                    "x-dd-proxy-domain-name": "gateway.example",
+                }
+                if inferred_proxy
+                else {}
+            )
+            response = client.get("/child/" if mounted else "/", params={"query": "SELECT 1"}, headers=headers)
+        assert response.status_code == 200
+        reports = [(span, load_iast_report(span)) for trace in test_spans.pop_traces() for span in trace]
+        if inferred_proxy:
+            proxy_spans = [span for span, _ in reports if span.get_tag("component") == "aws-apigateway"]
+            assert proxy_spans and all(span.get_metric(IAST.ENABLED) is None for span in proxy_spans)
+        findings = [(span, report) for span, report in reports if report]
+        assert len(findings) == 1
+        span, report = findings[0]
+        assert span.span_id == owners[0].span_id
+        assert span.get_tag("component") == "fastapi"
+        assert [v["type"] for v in report["vulnerabilities"]] == [VULN_SQL_INJECTION]
+        exported_findings = [(span_id, report, stacks) for span_id, report, stacks in exported if report]
+        assert len(exported_findings) == 1
+        span_id, report, stacks = exported_findings[0]
+        assert span_id == owners[0].span_id
+        for vulnerability in report["vulnerabilities"]:
+            assert vulnerability["location"]["spanId"] == span_id
+            assert vulnerability["location"]["stackId"] in {stack["id"] for stack in stacks[STACK_TRACE.IAST]}
+        assert debug_context_array_free_slots_number() == baseline
 
 
 def test_streaming_background_work_cannot_taint_a_later_request(tracer):

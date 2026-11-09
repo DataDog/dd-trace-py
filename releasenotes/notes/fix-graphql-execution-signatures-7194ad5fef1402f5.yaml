@@ -1,0 +1,5 @@
+fixes:
+  - |
+    graphql: Fixes an issue where queries fail with a TypeError when resolver
+    tracing is enabled with graphql-core 3.2.10 or later. Restores resolver
+    tracing for synchronous execution with graphql-core 3.3.

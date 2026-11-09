@@ -455,7 +455,9 @@ def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer,
 @pytest.mark.snapshot(
     ignores=["metrics.kafka.message_offset", "meta.kafka.group_id", "meta.messaging.kafka.bootstrap.servers"]
 )
-@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
+@pytest.mark.subprocess(
+    env={"DD_DATA_STREAMS_ENABLED": "true", "DD_KAFKA_EMPTY_POLL_ENABLED": "false"}, ddtrace_run=True, err=None
+)
 def test_data_streams_kafka_enabled():
     """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to Kafka messages."""
     import confluent_kafka

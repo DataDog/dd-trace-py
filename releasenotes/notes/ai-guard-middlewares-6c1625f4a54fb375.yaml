@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    AI Guard: Introduces filters and callbacks through middlewares in ``ddtrace.aiguard.middleware``,
+    to control which requests AI Guard evaluates and to run custom logic around each evaluation.
+    See the `AI Guard documentation <https://docs.datadoghq.com/security/ai_guard/>`_ for how to use them.

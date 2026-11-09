@@ -170,6 +170,13 @@ def test_capture_exc_info():
     assert serialized["message"] == "'bad'"
 
 
+def test_capture_exc_info_no_traceback():
+    serialized = utils.capture_exc_info((ValueError, ValueError("bad"), None))
+
+    assert serialized is not None
+    assert serialized["stacktrace"] == []
+
+
 def capture_context(*args, **kwargs):
     return _capture_context(sys._getframe(1), *args, **kwargs)
 

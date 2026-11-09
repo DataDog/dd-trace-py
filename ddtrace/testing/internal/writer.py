@@ -616,6 +616,9 @@ def serialize_test_run(test_run: TestRun) -> Event:
 
 
 def serialize_suite(suite: TestSuite) -> Event:
+    # The plugin sets a module's path when it discovers the module; a module built without one still serializes.
+    module_path = getattr(suite.module, "module_path", None)
+    module_path_tag = {"test.module_path": module_path} if module_path is not None else {}
     content = {
         "service": suite.service,
         "resource": suite.name,
@@ -625,6 +628,8 @@ def serialize_suite(suite: TestSuite) -> Event:
         "duration": suite.duration_ns,
         "meta": {
             "span.kind": "test",
+            "test.module": suite.module.name,
+            **module_path_tag,
             "test.suite": suite.name,
             "test.status": suite.get_status().value,
             "type": "test_suite_end",

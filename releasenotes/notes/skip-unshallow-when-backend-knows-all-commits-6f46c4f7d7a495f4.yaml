@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: skip the ``git fetch --shallow-since`` unshallow on shallow clones when the backend
+    already knows all local commits and the pull request merge-base is not needed or user-supplied
+    (``DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA``); shallow-graph merge-bases are untrusted and recomputed.

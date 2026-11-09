@@ -36,22 +36,26 @@ BASE_PLATFORMS = [
     "win32",
     "win_amd64",
 ]
-# "build linux" and "build linux serverless" in .gitlab/package.yml are the only jobs whose
-# matrix carries cp315-cp315, and they cover manylinux2014 + musllinux on amd64 + arm64.
-# macOS and Windows stop at 3.14.
-CP315_PLATFORMS = [
+# Linux cp315 from "build linux" / "build linux serverless"; macOS cp315 from
+# "build macos". Windows still stops at 3.14. UNSUPPORTED_TAGS is empty so
+# publish prune leaves these cp315 wheels alone.
+CP315_LINUX_PLATFORMS = [
     "manylinux2014_aarch64.manylinux_2_17_aarch64",
     "manylinux2014_x86_64.manylinux_2_17_x86_64",
     "musllinux_1_2_aarch64",
     "musllinux_1_2_x86_64",
 ]
+CP315_MACOS_PLATFORMS = [
+    "macosx_14_0_arm64",
+    "macosx_14_0_x86_64",
+]
 
 SUPPORTED_WHEELS = [
     f"ddtrace-{VERSION}-{tag}-{tag}-{platform}.whl" for tag in SUPPORTED_TAGS for platform in BASE_PLATFORMS
 ] + [f"ddtrace-{VERSION}-{tag}-{tag}-win_arm64.whl" for tag in WIN_ARM64_TAGS]
-CP315_WHEELS = [f"ddtrace-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_PLATFORMS] + [
-    f"ddtrace_serverless-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_PLATFORMS
-]
+CP315_WHEELS = [
+    f"ddtrace-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_LINUX_PLATFORMS + CP315_MACOS_PLATFORMS
+] + [f"ddtrace_serverless-{VERSION}-cp315-cp315-{platform}.whl" for platform in CP315_LINUX_PLATFORMS]
 SDIST = f"ddtrace-{VERSION}.tar.gz"
 
 PYPI_ADMS_COMMANDS: tuple[str, ...] = ("twine upload", "adms first-party python upload")
@@ -132,19 +136,19 @@ def _listing(tmp_path, name):
     return sorted(p.name for p in (tmp_path / name).iterdir())
 
 
-def test_cp315_wheels_are_deleted_and_everything_else_survives(prune, tmp_path):
+def test_cp315_wheels_survive_when_unsupported_tags_is_empty(prune, tmp_path):
+    """cp315 is no longer in UNSUPPORTED_TAGS; prune must leave those wheels alone."""
     proc = prune("pywheels", contents={"pywheels": SUPPORTED_WHEELS + CP315_WHEELS + [SDIST]})
+    assert proc.returncode == 0
+    remaining = {p.name for p in (tmp_path / "pywheels").iterdir()}
+    assert remaining == set(SUPPORTED_WHEELS + CP315_WHEELS + [SDIST])
 
-    assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == sorted(SUPPORTED_WHEELS + [SDIST])
 
-
-def test_both_ddtrace_and_serverless_cp315_wheels_are_deleted(prune, tmp_path):
+def test_both_ddtrace_and_serverless_cp315_wheels_survive(prune, tmp_path):
     proc = prune("pywheels", contents={"pywheels": CP315_WHEELS})
-
-    assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == []
-    assert "ddtrace_serverless" in proc.stdout
+    assert proc.returncode == 0
+    remaining = {p.name for p in (tmp_path / "pywheels").iterdir()}
+    assert remaining == set(CP315_WHEELS)
 
 
 def test_pruning_is_a_no_op_when_no_cp315_is_present(prune, tmp_path):
@@ -163,7 +167,7 @@ def test_debug_symbol_archives_are_left_alone(prune, tmp_path):
     assert _listing(tmp_path, "pywheels") == sorted([symbols, SDIST])
 
 
-def test_several_directories_are_pruned_in_one_call(prune, tmp_path):
+def test_several_directories_are_accepted_in_one_call(prune, tmp_path):
     proc = prune(
         "pywheels",
         "pywheels-patched",
@@ -171,8 +175,8 @@ def test_several_directories_are_pruned_in_one_call(prune, tmp_path):
     )
 
     assert proc.returncode == 0, proc.stderr
-    assert _listing(tmp_path, "pywheels") == [SDIST]
-    assert _listing(tmp_path, "pywheels-patched") == []
+    assert _listing(tmp_path, "pywheels") == sorted(CP315_WHEELS + [SDIST])
+    assert _listing(tmp_path, "pywheels-patched") == sorted(CP315_WHEELS)
 
 
 def test_an_empty_directory_is_accepted(prune, tmp_path):
