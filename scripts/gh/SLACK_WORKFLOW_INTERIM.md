@@ -37,4 +37,6 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
 
 7. **Publish** the workflow. Dry-run the script first (`--dry-run --slack`) and confirm the JSON keys match. Only then wet-post.
 
+When `.env.local` still has a `triggers/` URL, `--dry-run --slack` prints **structured JSON + a Workflow-rendered mock** (not Incoming Webhook mrkdwn). Freeform mrkdwn preview is only for `services/` URLs.
+
 Until steps 1–7 are done, wet posts to the old Workflow will still look wrong even though the script no longer sends a mrkdwn blob.

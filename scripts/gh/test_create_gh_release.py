@@ -64,6 +64,7 @@ from create_gh_release import format_ci_failure_guidance  # noqa: E402
 from create_gh_release import format_included_since_section  # noqa: E402
 from create_gh_release import format_notes_for_version  # noqa: E402
 from create_gh_release import format_slack_announce  # noqa: E402
+from create_gh_release import format_workflow_rendered_mock  # noqa: E402
 from create_gh_release import format_workflow_trigger_payload  # noqa: E402
 from create_gh_release import generated_by_pr_line  # noqa: E402
 from create_gh_release import is_incoming_webhook_url  # noqa: E402
@@ -367,10 +368,41 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("|vlad/release-create-release-rc-script>", body)
         self.assertNotIn("Draft patch release", body)
 
-    def test_print_slack_announce_preview_prints_exact_body(self) -> None:
-        with mock.patch.dict("os.environ", {}, clear=True):
+    def test_print_slack_announce_preview_services_prints_mrkdwn(self) -> None:
+        env: dict[str, str] = {
+            SLACK_CHANNEL_PROD_ENV: "https://hooks.slack.com/services/T/B/x",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
             with mock.patch("create_gh_release.resolve_runner_display", return_value=_FAKE_RUNNER):
                 expected: str = format_slack_announce("4.16.2", "deadbeef", "https://example/draft")
+                with mock.patch("builtins.print") as print_mock:
+                    print_slack_announce_preview(
+                        version="4.16.2",
+                        target_sha="deadbeef",
+                        draft_url="https://example/draft",
+                        test_dm=False,
+                        channel="prod",
+                    )
+        printed: list[str] = [str(c.args[0]) for c in print_mock.call_args_list if c.args]
+        self.assertTrue(any("#apm-python-release" in line for line in printed))
+        self.assertIn("----- SLACK MESSAGE (Incoming Webhook mrkdwn) -----", printed)
+        self.assertIn(expected, printed)
+        self.assertIn("----- END SLACK MESSAGE -----", printed)
+        self.assertFalse(any("WORKFLOW TRIGGER JSON" in line for line in printed))
+
+    def test_print_slack_announce_preview_triggers_prints_structured(self) -> None:
+        env: dict[str, str] = {
+            SLACK_CHANNEL_PROD_ENV: "https://hooks.slack.com/triggers/T/1/x",
+        }
+        with mock.patch.dict("os.environ", env, clear=True):
+            with mock.patch("create_gh_release.resolve_gh_login", return_value="test-runner"):
+                fields: dict[str, str] = format_workflow_trigger_payload(
+                    version="4.16.2",
+                    target_sha="deadbeef",
+                    draft_url="https://example/draft",
+                    channel="prod",
+                )
+                mock_body: str = format_workflow_rendered_mock(fields)
                 with mock.patch("builtins.print") as print_mock:
                     with mock.patch("sys.stderr"):
                         print_slack_announce_preview(
@@ -382,11 +414,35 @@ class SlackDefaultsTests(unittest.TestCase):
                         )
         printed: list[str] = [str(c.args[0]) for c in print_mock.call_args_list if c.args]
         self.assertTrue(any("#apm-python-release" in line for line in printed))
-        self.assertIn("----- SLACK MESSAGE (Incoming Webhook mrkdwn) -----", printed)
-        self.assertIn(expected, printed)
-        self.assertIn("----- END SLACK MESSAGE -----", printed)
         self.assertTrue(any("WORKFLOW TRIGGER JSON" in line for line in printed))
         self.assertTrue(any('"version": "4.16.2"' in line for line in printed))
+        self.assertIn("----- WORKFLOW-RENDERED MOCK (after rebuilt template) -----", printed)
+        self.assertIn(mock_body, printed)
+        self.assertFalse(any("Incoming Webhook mrkdwn" in line for line in printed))
+
+    def test_format_workflow_rendered_mock_matches_interim_template(self) -> None:
+        fields: dict[str, str] = {
+            "version": "4.16.4",
+            "kind": "patch release",
+            "draft_url": "https://example/draft",
+            "target_sha": "9c767d7dd482",
+            "reviewer_brett": SLACK_USER_BRETT_ID,
+            "reviewer_emmett": SLACK_USER_EMMETT_ID,
+            "runner": "vlad-scherbich",
+            "script": _RELEASE_SCRIPT_PATH,
+            "script_branch": _RELEASE_SCRIPT_BRANCH_NAME,
+            "script_branch_url": _RELEASE_SCRIPT_BRANCH_URL,
+            "commands_hint": "patch / rc / final",
+        }
+        body: str = format_workflow_rendered_mock(fields)
+        self.assertIn(":package: *Draft* patch release 4.16.4 is ready for review", body)
+        self.assertIn("https://example/draft  ·  target 9c767d7dd482", body)
+        self.assertIn(f"<@{SLACK_USER_BRETT_ID}>", body)
+        self.assertIn(f"<@{SLACK_USER_EMMETT_ID}>", body)
+        self.assertIn("*Publish release*", body)
+        self.assertIn("_Brought to you by release automation —", body)
+        self.assertIn("Run by vlad-scherbich", body)
+        self.assertNotIn("<https://example/draft|Open draft release / notes>", body)
 
     def test_format_workflow_trigger_payload_fields(self) -> None:
         with mock.patch.dict("os.environ", {}, clear=True):
