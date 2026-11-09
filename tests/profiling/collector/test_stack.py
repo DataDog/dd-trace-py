@@ -479,6 +479,42 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
         unregister_thread.assert_called_with(thread_id)
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="uses the glibc __cxa_atexit exit-handler order")
+@pytest.mark.subprocess(err=None)
+def test_sampler_survives_native_exit_handlers() -> None:
+    """The sampler must survive the C++ static destructors that exit() runs while it is sampling, as under uWSGI."""
+    import ctypes
+    import threading
+    import time
+
+    libc = ctypes.CDLL(None)
+    EXIT_HANDLER = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+
+    def keep_sampling(_arg: object) -> None:
+        time.sleep(0.5)
+
+    # Like uWSGI's exit handler: registered before the profiler, so it runs after its static destructors.
+    handler = EXIT_HANDLER(keep_sampling)
+    libc.__cxa_atexit(handler, None, None)
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+
+    ddup.config(env="test", service="test_sampler_survives_native_exit_handlers", version="my_version")
+    ddup.start()
+    stack.StackCollector().start()
+
+    def sleep_forever() -> None:
+        while True:
+            time.sleep(0.001)
+
+    for _ in range(16):
+        threading.Thread(target=sleep_forever, daemon=True).start()
+    time.sleep(0.5)
+
+    libc.exit(0)
+
+
 def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
     tracer._endpoint_call_counter_span_processor.enable()
 
