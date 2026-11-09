@@ -53,6 +53,7 @@ DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL=https://hooks.slack.com/services/
 ## Human gates (typical)
 
 - Fix / backport / bump PR review and merge
+- **Bump `pyproject.toml` on the release tip to the exact version you will tag** (e.g. `4.16.4`) and merge that bump **before** draft/Publish — GitLab `package version` requires `CI_COMMIT_TAG == v{pyproject}`; mismatch blocks PyPI (`create_gh_release` wet path refuses)
 - CI green on `origin/X.Y` (or candidate SHA) — wet `patch`/`rc`/`final`/`draft-release` poll by default (`--wait-ci`, ~75m / 45s); `--dry-run` never waits; `--no-wait-ci` exits `WAITING ON` immediately if still pending
 - Maintainer publish of the draft (tag ruleset) — creates the Git tag only
 - GitLab **tag** pipeline green (`release_pypi_prod` is `on_success`); branch CI before draft is not enough

@@ -332,6 +332,75 @@ def read_pyproject_version_at(ref: str) -> str:
     return str(data["project"]["version"])
 
 
+def format_pyproject_version_mismatch_error(
+    *,
+    version: str,
+    pyproject_version: str,
+    ref: str,
+) -> str:
+    """Clear refuse text when release version ≠ pyproject at the tip/tag."""
+    ver: str = normalize_version_str(version)
+    py: str = normalize_version_str(pyproject_version)
+    return (
+        f"pyproject.toml at {ref} is {py!r} but release version is {ver!r}. "
+        "GitLab job `package version` requires CI_COMMIT_TAG == v{pyproject} "
+        f"(Publish would create tag v{ver}). Bump version on the release "
+        f"branch before drafting/tagging — open and merge "
+        f"`chore: bump version to {ver}` (or set version) so pyproject is "
+        f"{ver!r} on the tip you draft. Skipping the bump is how v4.16.4 "
+        "shipped with pyproject 4.16.3 and blocked PyPI."
+    )
+
+
+def ensure_pyproject_matches_release_version(
+    *,
+    version: str,
+    ref: str,
+    dry_run: bool = False,
+    allow_mismatch: bool = False,
+) -> None:
+    """Refuse when ``pyproject.toml`` at ``ref`` ≠ release ``version``.
+
+    Wet draft/publish paths always refuse a mismatch (no override). Dry-run
+    may pass ``allow_mismatch=True`` to preview notes only — prints a warning.
+    Source of truth for the shipped package version is ``pyproject.toml``;
+    ``ddtrace.version`` reads installed metadata from that build.
+    """
+    ver: str = normalize_version_str(version)
+    pyproject_version: str = normalize_version_str(read_pyproject_version_at(ref))
+    if ver == pyproject_version:
+        return
+    msg: str = format_pyproject_version_mismatch_error(
+        version=ver,
+        pyproject_version=pyproject_version,
+        ref=ref,
+    )
+    if dry_run and allow_mismatch:
+        print(f"WARN (--allow-version-mismatch, dry-run only): {msg}", file=sys.stderr)
+        return
+    if allow_mismatch and not dry_run:
+        raise SystemExit(f"{msg}\n--allow-version-mismatch is dry-run only; wet path always refuses.")
+    raise SystemExit(msg)
+
+
+def ensure_tag_pyproject_matches_version(version: str) -> None:
+    """Refuse when the published tag's tree has the wrong pyproject version."""
+    ver: str = normalize_version_str(version)
+    tag: str = f"v{ver}"
+    try:
+        run(["git", "fetch", "origin", f"refs/tags/{tag}:refs/tags/{tag}"], cwd=REPO_ROOT)
+    except SystemExit:
+        # Tag may already be local; rev-parse below is authoritative.
+        pass
+    try:
+        sha: str = run_out(["git", "rev-parse", f"{tag}^{{commit}}"], cwd=REPO_ROOT)
+    except SystemExit as exc:
+        raise SystemExit(
+            f"cannot resolve tag {tag} locally after fetch — confirm the GitHub release created it. Underlying: {exc}"
+        ) from exc
+    ensure_pyproject_matches_release_version(version=ver, ref=sha, dry_run=False, allow_mismatch=False)
+
+
 def write_pyproject_version(new_version: str, source: Path = PYPROJECT) -> None:
     """Replace the single ``version = "..."`` (or single-quoted) line in pyproject.toml.
 
@@ -1720,20 +1789,16 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
     print(f"target:     origin/{target} ({short_sha})")
     print(f"pyproject@target: {target_pyproject_version}")
 
-    # Pre-flight: refuse if the runner's --version disagrees with pyproject on
-    # the target branch. The doc-prescribed flow is to bump pyproject first
-    # ([docs/contributing-release.rst, "Set / Validate version strings on
-    # branches"]); skipping that step risks shipping a release with a
-    # version-string mismatch (the wheel reports one version, the GitHub tag
-    # claims another). --allow-version-mismatch is the explicit escape hatch
-    # for the team's current practice of cutting subsequent rcs without
-    # re-bumping pyproject.
-    if args.version and args.version != target_pyproject_version and not args.allow_version_mismatch:
-        raise SystemExit(
-            f"--version {args.version!r} disagrees with pyproject@origin/{target} "
-            f"({target_pyproject_version!r}). Either bump pyproject first (the "
-            "doc-prescribed flow) or pass --allow-version-mismatch to override."
-        )
+    # Hard gate: tip pyproject must equal the release version before draft.
+    # GitLab `package version` on the tag pipeline exits 1 when
+    # CI_COMMIT_TAG != v{pyproject}; that blocks release_pypi_prod (v4.16.4).
+    # --allow-version-mismatch is dry-run only (notes preview).
+    ensure_pyproject_matches_release_version(
+        version=version,
+        ref=target_sha,
+        dry_run=dry_run,
+        allow_mismatch=bool(getattr(args, "allow_version_mismatch", False)),
+    )
 
     announce: bool = bool(getattr(args, "slack", False) or getattr(args, "test_dm", False))
     existing_draft_url: Optional[str] = check_existing_release(version, dry_run=dry_run, reuse_drafts=announce)
@@ -2922,6 +2987,9 @@ def ensure_pypi_version_from_args(version: str, args: argparse.Namespace) -> Non
 def cmd_wait_pypi(args: argparse.Namespace) -> int:
     """Poll until PyPI lists the version (tag-pipeline follow-up)."""
     version: str = normalize_version_str(args.version)
+    # Catch the v4.16.4 class of failure early: tag exists but pyproject on the
+    # tagged commit still has the previous version → package version red forever.
+    ensure_tag_pyproject_matches_version(version)
     if bool(getattr(args, "dry_run", False)):
         ensure_pypi_version_from_args(version, args)
         return 0
@@ -2941,6 +3009,8 @@ def cmd_post_release(args: argparse.Namespace) -> int:
     if is_draft:
         raise WaitingOn(f"GitHub release v{version} is still a draft ({url})")
     print(f"GitHub release published: {url}")
+
+    ensure_tag_pyproject_matches_version(version)
 
     # Branch CI green ≠ done: Publish creates the tag; GitLab tag pipeline must
     # succeed so release_pypi_prod can upload. Wait for PyPI as the gate.
@@ -3791,9 +3861,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-version-mismatch",
         action="store_true",
         help=(
-            "skip the pre-flight that refuses when --version disagrees with the "
-            "pyproject version at --target. Use only when intentionally cutting "
-            "a release without bumping pyproject first."
+            "dry-run only: warn instead of refusing when --version disagrees "
+            "with pyproject at --target (notes preview). Wet path always "
+            "refuses — bump pyproject on the release branch before drafting."
         ),
     )
     _add_ci_flags(dr)

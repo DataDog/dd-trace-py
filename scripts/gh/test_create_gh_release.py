@@ -865,6 +865,46 @@ class ReleaseStateResolverTests(unittest.TestCase):
 
 
 class DraftReleaseMismatchTests(unittest.TestCase):
+    def test_ensure_pyproject_matches_release_version_ok(self) -> None:
+        import create_gh_release as mod
+
+        with mock.patch.object(mod, "read_pyproject_version_at", return_value="4.16.4"):
+            mod.ensure_pyproject_matches_release_version(
+                version="4.16.4",
+                ref="deadbeef",
+                dry_run=False,
+                allow_mismatch=False,
+            )
+
+    def test_ensure_pyproject_matches_release_version_refuses_wet(self) -> None:
+        import create_gh_release as mod
+
+        with mock.patch.object(mod, "read_pyproject_version_at", return_value="4.16.3"):
+            with self.assertRaises(SystemExit) as ctx:
+                mod.ensure_pyproject_matches_release_version(
+                    version="4.16.4",
+                    ref="be205bc3e6ae",
+                    dry_run=False,
+                    allow_mismatch=True,
+                )
+        msg: str = str(ctx.exception)
+        self.assertIn("4.16.3", msg)
+        self.assertIn("4.16.4", msg)
+        self.assertIn("Bump version", msg)
+        self.assertIn("dry-run only", msg)
+
+    def test_ensure_pyproject_matches_release_version_dry_run_warns(self) -> None:
+        import create_gh_release as mod
+
+        with mock.patch.object(mod, "read_pyproject_version_at", return_value="4.16.3"):
+            with mock.patch("sys.stderr"):
+                mod.ensure_pyproject_matches_release_version(
+                    version="4.16.4",
+                    ref="be205bc3e6ae",
+                    dry_run=True,
+                    allow_mismatch=True,
+                )
+
     def test_mismatch_raises_without_override(self) -> None:
         import argparse as ap
 
@@ -900,12 +940,44 @@ class DraftReleaseMismatchTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 mod.cmd_draft_release(args)
             msg: str = str(ctx.exception)
-            self.assertIn("disagrees with pyproject", msg)
+            self.assertIn("Bump version", msg)
+            self.assertIn("4.9.0rc1", msg)
+            self.assertIn("4.9.0rc99", msg)
         finally:
             setattr(mod, "run", original_run)
             setattr(mod, "run_out", original_run_out)
             setattr(mod, "ensure_gh_auth", original_ensure_auth)
             setattr(mod, "read_pyproject_version_at", original_read_pyproject)
+
+    def test_wet_allow_version_mismatch_still_refuses(self) -> None:
+        import argparse as ap
+
+        import create_gh_release as mod
+
+        with mock.patch.object(mod, "ensure_gh_auth"):
+            with mock.patch.object(mod, "run"):
+                with mock.patch.object(
+                    mod,
+                    "run_out",
+                    return_value="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                ):
+                    with mock.patch.object(mod, "read_pyproject_version_at", return_value="4.16.3"):
+                        args = ap.Namespace(
+                            target="4.16",
+                            version="4.16.4",
+                            allow_version_mismatch=True,
+                            allow_ci_failure=False,
+                            dry_run=False,
+                            slack=False,
+                            slack_channel="prod",
+                            slack_precheck=False,
+                            test_dm=False,
+                            collapse_rcs=False,
+                            earliest_version=None,
+                        )
+                        with self.assertRaises(SystemExit) as ctx:
+                            mod.cmd_draft_release(args)
+        self.assertIn("dry-run only", str(ctx.exception))
 
 
 class CiFailureClassifyTests(unittest.TestCase):
