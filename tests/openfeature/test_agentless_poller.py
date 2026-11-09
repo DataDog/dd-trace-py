@@ -248,6 +248,8 @@ def test_api_key_header_present_and_absent(harness):
         ENDPOINT + "&cap_dependent-flags-variant-key=v2",
         ENDPOINT + "&cap_dependent-flags-variant-key=v1&cap_dependent-flags-variant-key=v1",
         ENDPOINT + "&%63ap_dependent-flags-variant-key=v1",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo",
+        ENDPOINT + "&ap_dependent-flags-variant-key=v1&invalid=foo",
     ],
 )
 def test_evaluator_capability_query_on_initial_and_conditional_requests(
@@ -261,10 +263,9 @@ def test_evaluator_capability_query_on_initial_and_conditional_requests(
     assert len(src._requests) == 2
     capability_param = "cap_dependent-flags-variant-key"
     original = urlsplit(endpoint)
-    expected_query = [
-        (key, value) for key, value in parse_qsl(original.query, keep_blank_values=True) if key != capability_param
-    ]
+    expected_query = parse_qsl(original.query, keep_blank_values=True)
     if expected is not None:
+        expected_query = [(key, value) for key, value in expected_query if key != capability_param]
         expected_query.append((capability_param, expected))
     for request in src._requests:
         target = urlsplit(request["target"])
@@ -272,7 +273,7 @@ def test_evaluator_capability_query_on_initial_and_conditional_requests(
         assert parse_qsl(target.query, keep_blank_values=True) == expected_query
         assert not target.fragment
         assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in request["headers"]
-        if "custom" in original.path:
+        if expected is None or "custom" in original.path:
             expected_raw_query = original.query
             if expected is not None:
                 expected_raw_query += ("&" if expected_raw_query else "") + "cap_dependent-flags-variant-key=v1"
@@ -281,11 +282,12 @@ def test_evaluator_capability_query_on_initial_and_conditional_requests(
     assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
 
 
-def test_missing_native_capability_reporter_omits_query_parameter(harness, monkeypatch):
+@pytest.mark.parametrize("endpoint", [ENDPOINT, ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo"])
+def test_missing_native_capability_reporter_preserves_query(harness, monkeypatch, endpoint):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
-    src = harness([_FakeResponse(200, _ufc_body())])
+    src = harness([_FakeResponse(200, _ufc_body())], endpoint=endpoint)
     src.periodic()
-    assert src._requests[0]["target"] == urlsplit(ENDPOINT)._replace(scheme="", netloc="").geturl()
+    assert src._requests[0]["target"] == urlsplit(endpoint)._replace(scheme="", netloc="").geturl()
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
 
 
