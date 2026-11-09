@@ -37,7 +37,11 @@ class _ActivityInboundInterceptor(temporalio.worker.ActivityInboundInterceptor):
             parent_ctx=self.root.propagator.extract_headers(input.headers),
             resource_name=info.activity_type,
             activate=True,
-            span_id=fnv1_64(f"{info.workflow_run_id}:{info.activity_id}:{info.attempt}".encode()),
+            span_id=(
+                fnv1_64(f"{info.workflow_run_id}:{info.activity_id}:{info.attempt}".encode())
+                if info.workflow_run_id
+                else None
+            ),
             attributes=self._get_activity_attributes(info),
             parent_from_header=True,
         )
