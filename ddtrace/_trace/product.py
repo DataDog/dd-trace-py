@@ -63,10 +63,11 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
-    # Tracer shutdown does not drain request contexts. Keep completion listeners
-    # registered so requests that finish later can close their spans.
-    if tracer.enabled:
-        tracer.shutdown()
+    # Terminal stop discards pending traces, including when tracing was already disabled.
+    # Leave listeners installed if shutdown fails before completing that cleanup.
+    tracer.shutdown()
+    for bundle in subscriber_bundles:
+        bundle.unregister()
 
 
 def skip_exit():
