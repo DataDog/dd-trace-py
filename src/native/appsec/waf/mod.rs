@@ -11,10 +11,31 @@ use libddwaf::{RunError, RunResult, RunnableContext};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
+use std::ffi::CStr;
 use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
+
+fn checked_version() -> PyResult<&'static CStr> {
+    let version = libddwaf::version();
+    if version.is_empty() {
+        return Err(PyRuntimeError::new_err("libddwaf could not be loaded"));
+    }
+    if version.to_bytes() != libddwaf::VERSION.as_bytes() {
+        return Err(PyRuntimeError::new_err(format!(
+            "expected libddwaf {}, found {}",
+            libddwaf::VERSION,
+            version.to_string_lossy()
+        )));
+    }
+    Ok(version)
+}
+
+#[pyfunction]
+fn version() -> PyResult<String> {
+    Ok(checked_version()?.to_string_lossy().into_owned())
+}
 
 #[inline]
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -138,6 +159,7 @@ fn validate_path(path: &str) -> PyResult<()> {
 impl Builder {
     #[new]
     fn new() -> PyResult<Self> {
+        checked_version()?;
         let raw = libddwaf::Builder::new(None)
             .ok_or_else(|| PyRuntimeError::new_err("ddwaf_builder_init failed"))?;
         Ok(Self {
@@ -344,6 +366,7 @@ fn _encode<'py>(
     max_depth: i64,
     max_string_length: usize,
 ) -> PyResult<(Bound<'py, PyAny>, Truncations)> {
+    checked_version()?;
     let mut encoder = Encoder::new(
         py,
         Limits {
@@ -358,10 +381,7 @@ fn _encode<'py>(
 
 #[pymodule]
 pub fn ddwaf(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add(
-        "version",
-        libddwaf::version().to_string_lossy().into_owned(),
-    )?;
+    m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(_encode, m)?)?;
     m.add_class::<Builder>()?;
     m.add_class::<Handle>()?;

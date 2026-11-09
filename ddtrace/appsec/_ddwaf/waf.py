@@ -30,7 +30,7 @@ DDWAF_ERR_INTERNAL = -3
 ASM_DD_DEFAULT = "ASM_DD/default"
 OBFUSCATOR_CONFIG = "obfuscator/config"
 
-asm_config._ddwaf_version = _native.version
+asm_config._ddwaf_version = _native.version()
 
 
 class DDWafContext:

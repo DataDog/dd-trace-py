@@ -291,29 +291,28 @@ Normal wheels statically link libddwaf into the native extension. They do not
 package or load a separate libddwaf shared library. The pinned ``libddwaf-sys``
 dependency downloads the release archive and verifies its pinned SHA-256 checksum.
 
-To compile libddwaf from its pinned C++ sources instead, select ``source-static``
-through ``setup.cfg``:
+Distribution packages on Linux and FreeBSD can use a separately installed
+libddwaf instead:
 
 .. code-block:: ini
 
     [build_py]
-    libddwaf_mode = source-static
+    no_bundle_libddwaf = 1
 
-This uses the ``libddwaf-src`` crate, statically embeds the resulting library, and
-requires CMake, a C++ compiler, and libclang. Leave ``LIBDDWAF_PREFIX`` unset.
+This mode bundles no WAF library and performs no WAF release downloads. Bindings
+are generated from the system development package's ``ddwaf.h``. The default
+prefix is ``/usr`` on Linux and ``/usr/local`` on FreeBSD; set ``LIBDDWAF_PREFIX``
+for another prefix containing ``include/ddwaf.h`` and a ``lib`` directory.
 
-``source-static`` disables Cargo network resolution and bypasses WAF release
-downloads. Prepare Rust dependencies, including the libdatadog workspace used by
-header generation, beforehand. Also pre-provision Python build requirements and
-the tracer's other native dependencies. Cargo offline mode does not prevent
-arbitrary build scripts from making HTTP requests; verify complete offline builds
-with networking disabled.
+Cargo network resolution is disabled. Pre-provision Rust dependencies, including
+the libdatadog workspace used by header generation, Python build requirements,
+and the tracer's other native dependencies for an offline build.
 
-The old ``--no-bundle-libddwaf`` / ``no_bundle_libddwaf = 1`` option is no longer
-supported. Remove it and explicitly select ``source-static`` for a source build.
-This embeds libddwaf instead of using an independently installed system library;
-the old option fails with migration instructions rather than changing that
-behavior silently.
+At AppSec initialization, the runtime loader tries ``libddwaf.so.2`` and then
+``libddwaf.so`` through the OS search path. The system library must match the
+pinned libddwaf version. An unavailable or incompatible library disables AppSec
+with a warning while tracing remains usable. Declare a runtime dependency on the
+distribution's libddwaf package; its development package is only needed to build.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

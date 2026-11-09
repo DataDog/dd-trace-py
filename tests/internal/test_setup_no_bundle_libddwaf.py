@@ -1,4 +1,4 @@
-"""WAF build modes and migration from --no-bundle-libddwaf."""
+"""Static and system libddwaf packaging."""
 
 import os
 from pathlib import Path
@@ -64,11 +64,11 @@ def _staged(downloader):
     return sorted(p.name for p in staged.rglob("*") if p.is_file())
 
 
-@pytest.mark.parametrize("mode", [None, "static", "source-static"])
-def test_build_modes_use_static_libraries(tmp_path, mode):
+@pytest.mark.parametrize("no_bundle", [False, True])
+def test_build_modes_package_no_shared_library(tmp_path, no_bundle):
     downloader, libddwaf_dir = _library_downloader(tmp_path)
     _bundled_library(libddwaf_dir)
-    downloader.libddwaf_mode = mode
+    downloader.no_bundle_libddwaf = no_bundle
 
     downloader.run()
 
@@ -90,7 +90,7 @@ def test_setup_cfg_sets_the_option_on_the_build_py_command(tmp_path, monkeypatch
 
     source = SETUP_PY.read_text()
     code = source[source.index("class LibraryDownloader(BuildPyCommand):") : source.index("class CleanLibraries(")]
-    namespace = {"BuildPyCommand": build_py}
+    namespace = {"BuildPyCommand": build_py, "CURRENT_OS": "Linux"}
     exec(code, namespace)  # noqa: S102
 
     (tmp_path / "setup.cfg").write_text("[build_py]\nno_bundle_libddwaf = 1\n")
@@ -102,25 +102,15 @@ def test_setup_cfg_sets_the_option_on_the_build_py_command(tmp_path, monkeypatch
 
     assert isinstance(command, namespace["LibraryDownloader"])
     assert command.no_bundle_libddwaf is True
-    with pytest.raises(RuntimeError, match="source-static"):
-        command.waf_mode()
+    assert command.waf_mode() == "system"
 
 
-def test_invalid_mode_fails_before_removing_artifacts(tmp_path):
-    downloader, directory = _library_downloader(tmp_path)
-    library = _bundled_library(directory)
-    downloader.libddwaf_mode = "invalid"
-    with pytest.raises(RuntimeError, match="must be"):
-        downloader.run()
-    assert library.exists()
-
-
-@pytest.mark.parametrize("mode", [None, "source-static"])
-def test_no_bundle_fails_with_migration_before_removing_artifacts(tmp_path, mode):
+@pytest.mark.parametrize("system", ["Darwin", "Windows"])
+def test_unbundled_mode_is_rejected_before_removing_artifacts(tmp_path, system):
     downloader, directory = _library_downloader(tmp_path)
     library = _bundled_library(directory)
     downloader.no_bundle_libddwaf = 1
-    downloader.libddwaf_mode = mode
-    with pytest.raises(RuntimeError, match="statically embeds it"):
+    type(downloader).run.__globals__["CURRENT_OS"] = system
+    with pytest.raises(RuntimeError, match="only supported on Linux and FreeBSD"):
         downloader.run()
     assert library.exists()

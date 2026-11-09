@@ -1343,9 +1343,12 @@ def scan_distributions(
     ...
 
 class ddwaf:
-    """AppSec evaluation boundary backed by statically linked libddwaf."""
+    """AppSec evaluation boundary backed by libddwaf."""
 
-    version: str
+    @staticmethod
+    def version() -> str:
+        """Load libddwaf on first use and check that its version matches the bindings."""
+        ...
 
     @staticmethod
     def _encode(

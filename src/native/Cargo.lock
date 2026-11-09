@@ -2207,7 +2207,7 @@ dependencies = [
 [[package]]
 name = "libddwaf"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=43d3d6ba56ed1c04c0bec5cd167a6f2b17085d4c#43d3d6ba56ed1c04c0bec5cd167a6f2b17085d4c"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=ffdffd855878debe9faa74ada5d4278842310416#ffdffd855878debe9faa74ada5d4278842310416"
 dependencies = [
  "libddwaf-sys",
  "serde",
@@ -2220,23 +2220,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5acece08068121a621ebe522e42b18d57f45a973bd5ccbbdc590cdd249337015"
 dependencies = [
  "cmake",
- "link-cplusplus",
 ]
 
 [[package]]
 name = "libddwaf-sys"
 version = "2.1.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?rev=43d3d6ba56ed1c04c0bec5cd167a6f2b17085d4c#43d3d6ba56ed1c04c0bec5cd167a6f2b17085d4c"
+source = "git+https://github.com/DataDog/libddwaf-rust?rev=ffdffd855878debe9faa74ada5d4278842310416#ffdffd855878debe9faa74ada5d4278842310416"
 dependencies = [
  "bindgen",
  "flate2",
  "hyper-rustls",
+ "lazy_static",
  "libc",
  "libddwaf-src",
+ "libloading",
  "reqwest 0.12.28",
  "rustls",
  "sha2",
  "tar",
+ "tempfile",
+ "tracing",
  "yoke-derive",
  "zstd",
 ]
@@ -2256,15 +2259,6 @@ name = "libyaml-rs"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e126dda6f34391ab7b444f9922055facc83c07a910da3eb16f1e4d9c45dc777"
-
-[[package]]
-name = "link-cplusplus"
-version = "1.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f78c730aaa7d0b9336a299029ea49f9ee53b0ed06e9202e8cb7db9bae7b8c82"
-dependencies = [
- "cc",
-]
 
 [[package]]
 name = "linux-raw-sys"

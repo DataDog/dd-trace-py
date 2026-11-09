@@ -330,13 +330,22 @@ if not SERVERLESS_BUILD:
 
 def configure_waf_build(distribution):
     mode = distribution.get_command_obj("build_py").waf_mode()
+    prefix = os.environ.get("LIBDDWAF_PREFIX")
+    if mode == "system":
+        prefix = str(Path(prefix or ("/usr/local" if CURRENT_OS == "FreeBSD" else "/usr")).resolve())
+        if not (Path(prefix) / "include" / "ddwaf.h").is_file() or not (Path(prefix) / "lib").is_dir():
+            raise RuntimeError("unbundled builds require LIBDDWAF_PREFIX with include/ddwaf.h and lib/")
     for ext in distribution.rust_extensions:
-        ext.features = [feature for feature in ext.features if feature != "waf-source-static"]
-        if mode == "source-static":
-            ext.features.append("waf-source-static")
+        ext.features = [feature for feature in ext.features if feature != "waf-system"]
+        if mode == "system":
+            ext.features.append("waf-system")
             ext.env.env["CARGO_NET_OFFLINE"] = "true"
         else:
             ext.env.env.pop("CARGO_NET_OFFLINE", None)
+        if prefix is not None:
+            ext.env.env["LIBDDWAF_PREFIX"] = prefix
+        else:
+            ext.env.env.pop("LIBDDWAF_PREFIX", None)
     return mode
 
 
@@ -543,27 +552,18 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
 
 class LibraryDownloader(BuildPyCommand):
     user_options = BuildPyCommand.user_options + [
-        ("libddwaf-mode=", None, "WAF build mode: static (default) or source-static"),
-        ("no-bundle-libddwaf", None, "deprecated; use --libddwaf-mode=source-static"),
+        ("no-bundle-libddwaf", None, "use a separately installed libddwaf (Linux and FreeBSD)"),
     ]
     boolean_options = BuildPyCommand.boolean_options + ["no-bundle-libddwaf"]
 
     def initialize_options(self) -> None:
         BuildPyCommand.initialize_options(self)
         self.no_bundle_libddwaf = 0
-        self.libddwaf_mode = None
 
     def waf_mode(self):
-        if self.no_bundle_libddwaf:
-            raise RuntimeError(
-                "--no-bundle-libddwaf is no longer supported. Remove no_bundle_libddwaf from [build_py] "
-                "in setup.cfg and set libddwaf_mode = source-static instead. This builds libddwaf from "
-                "source and statically embeds it; it does not use a system library."
-            )
-        mode = self.libddwaf_mode or "static"
-        if mode not in ("static", "source-static"):
-            raise RuntimeError("libddwaf_mode must be static or source-static")
-        return mode
+        if self.no_bundle_libddwaf and CURRENT_OS not in ("Linux", "FreeBSD"):
+            raise RuntimeError("no-bundle-libddwaf is only supported on Linux and FreeBSD")
+        return "system" if self.no_bundle_libddwaf else "static"
 
     def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
