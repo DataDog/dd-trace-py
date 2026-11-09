@@ -9,14 +9,11 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
@@ -43,7 +40,6 @@ def _supported_versions() -> dict[str, str]:
 
 
 class TraceTool(cherrypy.Tool):
-    @requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
     def __init__(self, app, service, use_distributed_tracing=None):
         self.app = app
         config.cherrypy["service"] = schematize_service_name(service)
@@ -114,16 +110,13 @@ class TraceTool(cherrypy.Tool):
 
     def _close_request(self, ctx, exc_info=(None, None, None)):
         try:
-            span = span_from_context(ctx)
-            if span is None:
-                return
-
             event = cast(WebFrameworkRequestEvent, ctx.event)
+            span = ctx.get_item("_inner_span") if event.span_creation_enabled else None
 
             # Let users specify their own resource in middleware if they so desire.
             # See case https://github.com/DataDog/dd-trace-py/issues/353
             # Comparing against event.operation_name also works under schema v1.
-            if span.resource == event.operation_name:
+            if span is None or span.resource == event.operation_name:
                 # In the future, mask virtual path components in a
                 # URL e.g. /dispatch/abc123 becomes /dispatch/{{test_value}}/
                 # Following investigation, this should be possible using
@@ -134,7 +127,9 @@ class TraceTool(cherrypy.Tool):
                 # For now, default resource is method and path:
                 #   GET /
                 #   POST /save
-                span.resource = f"{cherrypy.request.method} {cherrypy.request.path_info}"
+                event.resource = f"{cherrypy.request.method} {cherrypy.request.path_info}"
+                if span is not None:
+                    span.resource = event.resource
 
             status_code, _, _ = valid_status(cherrypy.response.status)
             event.response_status_code = status_code

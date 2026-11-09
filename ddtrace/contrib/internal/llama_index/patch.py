@@ -9,7 +9,6 @@ from typing import Optional
 import llama_index.core as llama_core
 
 from ddtrace import config
-from ddtrace._trace._registration import LLM_SUBSCRIBERS
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.llama_index._constants import TAG_MODEL
 from ddtrace.contrib.internal.llama_index._constants import TAG_PROVIDER
@@ -289,8 +288,6 @@ def _patched_init(original_init):
 
 
 def patch():
-    LLM_SUBSCRIBERS.register()
-
     if getattr(llama_core, "_datadog_patch", False):
         return
     llama_core._datadog_patch = True

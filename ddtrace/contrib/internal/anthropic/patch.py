@@ -5,7 +5,6 @@ from typing import Callable
 import anthropic
 
 from ddtrace import config
-from ddtrace._trace._registration import LLM_SUBSCRIBERS
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.anthropic._constants import COMPONENT
 from ddtrace.contrib.internal.anthropic._constants import TAG_MODEL
@@ -108,8 +107,6 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
 
 
 def patch() -> None:
-    LLM_SUBSCRIBERS.register()
-
     if getattr(anthropic, "_datadog_patch", False):
         return
 

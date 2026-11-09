@@ -3,7 +3,6 @@ import sys
 from google import genai
 
 from ddtrace import config
-from ddtrace._trace._registration import LLM_SUBSCRIBERS
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.google_genai._constants import COMPONENT
 from ddtrace.contrib.internal.google_genai._constants import TAG_MODEL
@@ -16,7 +15,6 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal import integration_hooks
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.streaming import make_traced_stream
 
@@ -102,7 +100,6 @@ async def traced_async_embed_content(func, instance, args, kwargs):
         return event.response
 
 
-@requires_subscribers(LLM_SUBSCRIBERS)
 def patch() -> None:
     if getattr(genai, "_datadog_patch", False):
         return

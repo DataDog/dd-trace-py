@@ -221,6 +221,16 @@ class Tracer:
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
     @property
+    def enabled(self) -> bool:
+        """Whether APM tracing is enabled."""
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        self._enabled = value
+        core.dispatch("tracing.enabled", (self, value))
+
+    @property
     def _agent_url(self) -> Optional[str]:
         if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
             # For HTTPWriter, and AgentWriterInterface, we can return the intake_url directly
@@ -399,6 +409,9 @@ class Tracer:
 
         if context_provider is not None:
             self.context_provider = context_provider
+
+        # Standalone requirements can change without changing enabled.
+        core.dispatch("tracing.enabled", (self, self.enabled))
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:

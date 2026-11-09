@@ -7,13 +7,14 @@ from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import SubscriberBundle
 
 
-def test_tracing_bundle_registration_preserves_request_completion(tracer, test_spans) -> None:
+def test_tracing_bundle_registration_preserves_request_completion(tracer, test_spans, monkeypatch) -> None:
     from ddtrace._trace.product import subscriber_bundles
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal.settings._config import Config
     from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.internal.span_bus import span_from_context
 
+    monkeypatch.setitem(core.root._data, "tracer", tracer)
     subscriber_bundles[0].register()
     subscriber_bundles[0].register()
     event = WebFrameworkRequestEvent(
@@ -34,7 +35,7 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
     assert test_spans.pop() == [span]
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
 def test_direct_integration_import_does_not_register_web_subscribers() -> None:
     import sys
 
@@ -49,7 +50,7 @@ def test_direct_integration_import_does_not_register_web_subscribers() -> None:
     assert not core.has_listeners("context.ended.web.request")
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
 def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     import sys
 
@@ -71,7 +72,7 @@ def test_tracing_product_registers_bundles_and_retains_listeners_on_stop(tracing
         tracer.enabled = tracing_enabled
         tracer.shutdown.side_effect = lambda: bundle.unregister.assert_not_called()
         product.start()
-        bundle.register.assert_called_once_with()
+        bundle.ensure_registered.assert_called_once_with()
         product.stop()
         bundle.unregister.assert_not_called()
         assert tracer.shutdown.call_count == int(tracing_enabled)
@@ -128,7 +129,7 @@ def test_tracing_product_stop_preserves_active_request_completion() -> None:
     assert span.get_tag("http.status_code") == "201"
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
 def test_tracing_subscriber_imports_do_not_activate_listeners() -> None:
     from importlib import import_module
 
@@ -145,7 +146,7 @@ def test_tracing_subscriber_imports_do_not_activate_listeners() -> None:
                 assert not core.has_listeners(f"context.ended.{event_name}")
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
 def test_tracing_bundle_declarations_do_not_import_optional_integrations() -> None:
     import sys
 
@@ -169,10 +170,10 @@ def test_tracing_bundle_declarations_do_not_import_optional_integrations() -> No
         assert core.has_listeners(f"context.ended.{event_name}")
     assert core.has_listeners("molten.router.match")
     assert "ddtrace._trace.subscribers.ray" not in sys.modules
-    assert "ddtrace._trace.subscribers.aws_durable" not in sys.modules
+    assert "ddtrace._trace.subscribers.aws_durable" in sys.modules
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
 def test_aws_durable_bundle_registers_without_importing_sdk() -> None:
     import sys
 
@@ -185,3 +186,31 @@ def test_aws_durable_bundle_registers_without_importing_sdk() -> None:
         assert core.has_listeners(f"context.started.{event_name}")
         assert core.has_listeners(f"context.ended.{event_name}")
     assert "aws_durable_execution_sdk_python" not in sys.modules
+
+
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "true"})
+def test_global_tracer_startup_activates_subscribers_without_loading_integrations():
+    import sys
+
+    from ddtrace.internal import core
+
+    for event in ("web.request", "llm.request", "http.client.request", "messaging.produce", "kafka.produce"):
+        assert core.has_listeners(f"context.started.{event}")
+        assert core.has_listeners(f"context.ended.{event}")
+    for module in ("aiohttp", "requests", "ray", "mistralai", "vllm", "aws_durable_execution_sdk_python"):
+        assert module not in sys.modules
+    assert "ddtrace._trace.subscribers.ray" not in sys.modules
+
+    from ddtrace import config
+    from ddtrace.contrib._events.llm import LlmRequestEvent
+    from ddtrace.internal.settings.integration import IntegrationConfig
+
+    for component in ("vllm", "mistralai", "google_genai"):
+        event = LlmRequestEvent(
+            component=component, integration_config=IntegrationConfig(config, component), provider="test"
+        )
+        with core.context_with_event(event) as ctx:
+            span = ctx.get_item("_inner_span")
+            assert span is not None
+            assert span.name == f"{component}.request"
+        assert span.finished

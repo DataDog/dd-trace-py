@@ -2,9 +2,10 @@ from ddtrace.contrib.internal.mistralai.patch import patch
 from ddtrace.contrib.internal.mistralai.patch import unpatch
 
 
-def test_direct_patch_restores_tracing_after_listener_reset(test_spans):
+def test_tracing_startup_owns_listeners_for_direct_patch(test_spans):
     from ddtrace import config
     from ddtrace._trace._registration import LLM_SUBSCRIBERS
+    from ddtrace._trace._registration import initialize_subscribers
     from ddtrace.contrib._events.llm import LlmRequestEvent
     from ddtrace.internal import core
 
@@ -16,6 +17,8 @@ def test_direct_patch_restores_tracing_after_listener_reset(test_spans):
             assert not core.has_listeners("context.ended.llm.request")
             patch()
             patch()
+            assert not core.has_listeners("context.started.llm.request")
+            initialize_subscribers()
             event = LlmRequestEvent(
                 component="mistralai",
                 integration_config=config.mistralai,

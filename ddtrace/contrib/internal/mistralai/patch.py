@@ -10,7 +10,6 @@ from mistralai.client.models.chatcompletionresponse import ChatCompletionRespons
 from mistralai.client.models.embeddingresponse import EmbeddingResponse
 
 from ddtrace import config
-from ddtrace._trace._registration import LLM_SUBSCRIBERS
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
@@ -20,7 +19,6 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal import integration_hooks
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.streaming import make_traced_stream
 
@@ -177,7 +175,6 @@ async def async_traced_embed_generate(
         return resp
 
 
-@requires_subscribers(LLM_SUBSCRIBERS)
 def patch() -> None:
     if getattr(client, "_datadog_patch", False):
         return

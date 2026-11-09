@@ -2,7 +2,6 @@ import requests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace._registration import HTTP_CLIENT_SUBSCRIBERS
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
@@ -41,7 +40,6 @@ def _supported_versions() -> dict[str, str]:
 
 def patch():
     """Activate http calls tracing"""
-    HTTP_CLIENT_SUBSCRIBERS.register()
 
     if getattr(requests, "__datadog_patch", False):
         return

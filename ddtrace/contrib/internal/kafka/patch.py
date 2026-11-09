@@ -4,7 +4,6 @@ from time import time_ns
 import confluent_kafka
 
 from ddtrace import config
-from ddtrace._trace._registration import KAFKA_SUBSCRIBERS
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.kafka import KafkaConsumeEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
@@ -112,8 +111,6 @@ class TracedSerializingProducer(TracedProducerMixin, confluent_kafka.Serializing
 
 
 def patch():
-    KAFKA_SUBSCRIBERS.register()
-
     if getattr(confluent_kafka, "_datadog_patch", False):
         return
     confluent_kafka._datadog_patch = True

@@ -5,8 +5,6 @@ import aiohttp
 import wrapt
 from yarl import URL
 
-from ddtrace._trace._registration import HTTP_CLIENT_SUBSCRIBERS
-from ddtrace._trace._registration import SPAN_SUBSCRIBERS
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -128,9 +126,6 @@ def _traced_clientsession_init(func, instance, args, kwargs):
 
 
 def patch():
-    SPAN_SUBSCRIBERS.register()
-    HTTP_CLIENT_SUBSCRIBERS.register()
-
     if getattr(aiohttp, "_datadog_patch", False):
         return
 

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
 from typing import Optional
 
@@ -23,6 +24,9 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
 
     span_type = SpanTypes.WEB
     span_kind = SpanKind.SERVER
+
+    # Only an admitted tracing subscriber can enable the request span lifecycle.
+    span_creation_enabled: bool = field(init=False, default=False)
 
     # Whether header keys should preserve their original casing during extraction.
     headers_case_sensitive: bool = event_field()

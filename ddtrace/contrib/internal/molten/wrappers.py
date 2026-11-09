@@ -71,7 +71,7 @@ class WrapperRouter(wrapt.ObjectProxy):
         route_and_params = func(*args, **kwargs)
 
         pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
+        if not pin:
             return route_and_params
 
         if route_and_params is not None:

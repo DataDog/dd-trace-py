@@ -7,14 +7,12 @@ from typing import Optional
 import vllm
 
 from ddtrace import config
-from ddtrace._trace._registration import LLM_SUBSCRIBERS
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal import integration_hooks
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
@@ -239,7 +237,6 @@ def traced_output_processor_process_outputs(func, instance, args, kwargs):
     return result
 
 
-@requires_subscribers(LLM_SUBSCRIBERS)
 def patch() -> None:
     """Patch vLLM V1 library for Datadog tracing."""
     if getattr(vllm, ATTR_DATADOG_PATCH, False):

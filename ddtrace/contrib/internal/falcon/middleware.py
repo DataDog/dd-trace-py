@@ -3,21 +3,17 @@ import sys
 from falcon import http_status_to_code
 
 from ddtrace import config
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace.http_tags import set_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 
 
 class TraceMiddleware:
-    @requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
     def __init__(self, tracer=None, service=None, distributed_tracing=None):
         if service is None:
             service = schematize_service_name("falcon")
@@ -67,7 +63,11 @@ class TraceMiddleware:
         if ctx is None:
             return
 
-        span = span_from_context(ctx)
+        event: WebFrameworkRequestEvent = ctx.event
+        event.request_route = (req.root_path or "") + (req.uri_template or "")
+        # Preserve resource customizations made by the resource handler.
+        event.set_resource = False
+        span = ctx.get_item("_inner_span") if event.span_creation_enabled else None
         if span is None:
             return
 
@@ -81,11 +81,6 @@ class TraceMiddleware:
         else:
             set_instrumentation_resource(span, "%s %s" % (req.method, _name(resource)))
 
-        # Prevent the subscriber from replacing a resource customized by the
-        # resource handler.
-        event: WebFrameworkRequestEvent = ctx.event
-        event.set_resource = False
-
     def process_response(self, req, resp, resource, req_succeeded=None):
         # req_succeeded is unavailable in Falcon 1.0.
         # TODO[manu]: drop the support at some point
@@ -94,11 +89,8 @@ class TraceMiddleware:
             return
 
         try:
-            span = span_from_context(ctx)
-            if span is None:
-                return
-
             event: WebFrameworkRequestEvent = ctx.event
+            span = ctx.get_item("_inner_span") if event.span_creation_enabled else None
             try:
                 status = http_status_to_code(resp.status)
             except ValueError:
@@ -108,7 +100,9 @@ class TraceMiddleware:
             # proper status code, so retain the existing inference.
             if resource is None:
                 status = 404
-                set_instrumentation_resource(span, "%s 404" % req.method)
+                event.resource = "%s 404" % req.method
+                if span is not None:
+                    set_instrumentation_resource(span, event.resource)
             else:
                 err_type = sys.exc_info()[0]
                 if err_type is not None:
@@ -130,7 +124,8 @@ def _is_404(err_type):
 def _detect_and_set_status_error(err_type, span):
     """Detect the HTTP status code and set the traceback on the span."""
     if not _is_404(err_type):
-        span.set_traceback()
+        if span is not None:
+            span.set_traceback()
         return 500
 
     return 404

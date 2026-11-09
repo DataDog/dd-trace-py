@@ -15,3 +15,5 @@ subscriber_first_activation:
   api: subscriber_first_activation
 subscriber_reset_recovery:
   api: subscriber_reset_recovery
+web_request:
+  api: web_request

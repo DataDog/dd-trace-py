@@ -4,6 +4,7 @@ import typing as t
 from envier import En
 
 from ddtrace._trace._registration import SUBSCRIBER_BUNDLES
+from ddtrace._trace._registration import initialize_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -51,8 +52,7 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
-    for bundle in subscriber_bundles:
-        bundle.register()
+    initialize_subscribers(subscriber_bundles)
 
 
 def restart(join=False):
@@ -62,8 +62,9 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
-    # Tracer shutdown does not drain request contexts. Keep completion listeners
-    # registered so requests that finish later can close their spans.
+    # Web subscribers close admission when shutdown disables the tracer, retaining
+    # completion listeners until their active requests finish. Other families retain
+    # their existing completion listeners.
     if tracer.enabled:
         tracer.shutdown()
 

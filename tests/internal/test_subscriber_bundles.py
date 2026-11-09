@@ -511,8 +511,38 @@ def test_events_api_benchmark_scenarios_smoke() -> None:
         "subscriber_setup",
         "subscriber_first_activation",
         "subscriber_reset_recovery",
+        "web_request",
     ):
         scenario = EventsAPIScenario(name=api, api=api)
         workload = scenario.run()
         next(workload)(2)
         assert next(workload, None) is None
+
+
+@pytest.mark.subprocess()
+def test_events_core_benchmark_does_not_accumulate_listeners():
+    import sys
+    from unittest.mock import patch
+
+    from ddtrace.trace import tracer
+
+    sys.path.insert(0, "benchmarks")
+    with patch("bm._scenario._register"):
+        from benchmarks.events_api.scenario import EventsAPIScenario
+
+    created = []
+    original = tracer.trace
+
+    def trace(*args, **kwargs):
+        span = original(*args, **kwargs)
+        created.append(span)
+        return span
+
+    scenario = EventsAPIScenario(name="core", api="core")
+    with patch.object(tracer, "trace", side_effect=trace):
+        for _ in range(3):
+            workload = scenario.run()
+            next(workload)(2)
+            assert next(workload, None) is None
+    assert len(created) == 6
+    assert all(span.finished for span in created)

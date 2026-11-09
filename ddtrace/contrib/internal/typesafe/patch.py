@@ -4,7 +4,6 @@ from typing import Callable
 import typesafe_sdk
 
 from ddtrace import config
-from ddtrace._trace._registration import LLM_SUBSCRIBERS
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -78,8 +77,6 @@ async def traced_async_system_one(func: Callable[..., Any], instance: Any, args:
 
 
 def patch() -> None:
-    LLM_SUBSCRIBERS.register()
-
     if getattr(typesafe_sdk, "_datadog_patch", False):
         return
 

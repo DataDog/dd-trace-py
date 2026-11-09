@@ -554,7 +554,9 @@ def test_web_subscriber_owns_enablement_at_entry(
     monkeypatch.setattr(web_framework, "standalone_config", policy)
     monkeypatch.setattr(tracer, "enabled", tracing_enabled)
     monkeypatch.setitem(core.root._data, "tracer", tracer if tracer_available else None)
-    web_framework.WebFrameworkRequestSubscriber.register()
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
         component="aiohttp",
@@ -577,7 +579,7 @@ def test_web_subscriber_owns_enablement_at_entry(
 
 
 @pytest.mark.parametrize("component", ["bottle", "cherrypy", "falcon", "molten", "pyramid", "sanic"])
-def test_web_subscriber_preserves_span_dependent_integrations(test_spans, monkeypatch, component):
+def test_web_subscriber_skips_disabled_integrations(test_spans, monkeypatch, component):
     from ddtrace import config
     from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
@@ -594,9 +596,9 @@ def test_web_subscriber_preserves_span_dependent_integrations(test_spans, monkey
         headers_case_sensitive=True,
     )
     with core.context_with_event(event) as ctx:
-        span = ctx.get_item("_inner_span")
-        assert span is not None
-    assert span.finished
+        assert ctx.get_item("_inner_span") is None
+        assert not event.span_creation_enabled
+    test_spans.assert_span_count(0)
 
 
 def test_skipped_web_request_does_not_finish_parent_span(test_spans, monkeypatch):
@@ -607,7 +609,9 @@ def test_skipped_web_request_does_not_finish_parent_span(test_spans, monkeypatch
     monkeypatch.setattr(web_framework, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
-    web_framework.WebFrameworkRequestSubscriber.register()
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
     def event():
         return WebFrameworkRequestEvent(
@@ -685,7 +689,9 @@ def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_sp
     monkeypatch.setattr(web_framework, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
-    web_framework.WebFrameworkRequestSubscriber.register()
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
     def event():
         return WebFrameworkRequestEvent(
