@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    opentelemetry: When both ``DD_RUNTIME_METRICS_ENABLED`` and ``DD_METRICS_OTEL_ENABLED`` are set,
+    runtime metrics are exported over OTLP with OpenTelemetry names, such as ``process.cpu.time`` and
+    ``cpython.gc.collections``, instead of being sent over DogStatsD. GC pause time metrics are not
+    exported over OTLP. If the OpenTelemetry SDK or the OTLP exporter is not installed, runtime metrics are
+    still sent over DogStatsD.

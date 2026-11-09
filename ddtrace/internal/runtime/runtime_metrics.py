@@ -17,6 +17,7 @@ from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
 from ..serverless import in_aws_lambda_microvm
+from . import otlp_runtime_metrics
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
 from .metric_collectors import GCRuntimeMetricCollector
@@ -90,6 +91,10 @@ class RuntimeWorker(periodic.PeriodicService):
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
+        # In OpenTelemetry mode, the first periodic run tries to switch to OTLP export. It is deferred
+        # to this thread so the OpenTelemetry SDK is imported after the application patched gevent.
+        self._otlp_pending: bool = config._otel_metrics_enabled
+        self._otlp_started = False
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
         # A MicroVM /run transition rotates the runtime ID mid-process without a fork, so MicroVMs
@@ -129,6 +134,8 @@ class RuntimeWorker(periodic.PeriodicService):
             #    _eintr_retry_call (/usr/lib/python2.7/subprocess.py:125)
             # which is the eventual cause of the deadlock.
             cls._instance.join(1)
+            if cls._instance._otlp_started:
+                otlp_runtime_metrics.stop()
             cls._instance = None
             cls.enabled = False
             core.root.set_item(RUNTIME_METRICS_ENABLED_KEY, False)
@@ -154,7 +161,23 @@ class RuntimeWorker(periodic.PeriodicService):
         super().stop(*args, **kwargs)
         self._runtime_metrics.stop()
 
+    def periodic(self) -> None:
+        if self._otlp_pending:
+            self._start_otlp()
+        self.flush()
+
+    def _start_otlp(self) -> None:
+        self._otlp_pending = False
+        self._otlp_started = otlp_runtime_metrics.start()
+        if not self._otlp_started:
+            return
+        if self.dogstatsd_url is not None:
+            log.debug("Ignoring dogstatsd_url=%r: runtime metrics are exported over OTLP", self.dogstatsd_url)
+        self._runtime_metrics.stop()
+
     def flush(self) -> None:
+        if self._otlp_pending or self._otlp_started:
+            return
         if self._identity_refresh_enabled:
             # PlatformTagsV2 reads the current runtime ID, which a MicroVM /run refresh rotates.
             self._platform_tags = self._collect_platform_tags()
@@ -182,5 +205,4 @@ class RuntimeWorker(periodic.PeriodicService):
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         return [f"{k}:{v}" for k, v in tags]
 
-    periodic = flush
     on_shutdown = flush

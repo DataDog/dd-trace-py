@@ -77,9 +77,9 @@ def _otel_signals(_):
         set_otel_logs_provider()
 
     if config._otel_metrics_enabled:
-        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+        from ddtrace.internal.opentelemetry.metrics import ensure_otel_meter_provider
 
-        set_otel_meter_provider()
+        ensure_otel_meter_provider()
 
 
 @ModuleWatchdog.after_module_imported("gevent.monkey")

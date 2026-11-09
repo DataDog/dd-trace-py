@@ -20,6 +20,16 @@ MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
 API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")[:3])
 
 DD_METRICS_PROVIDER_CONFIGURED = False
+_METER_PROVIDER_SETUP_ATTEMPTED = False
+
+
+def ensure_otel_meter_provider() -> bool:
+    """Set up the OpenTelemetry Metrics exporter at most once and return whether ddtrace configured it."""
+    global _METER_PROVIDER_SETUP_ATTEMPTED
+    if not _METER_PROVIDER_SETUP_ATTEMPTED:
+        _METER_PROVIDER_SETUP_ATTEMPTED = True
+        set_otel_meter_provider()
+    return DD_METRICS_PROVIDER_CONFIGURED
 
 
 def set_otel_meter_provider():

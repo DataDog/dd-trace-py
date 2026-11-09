@@ -634,6 +634,8 @@ computation to the OpenTelemetry Collector or Datadog intake by default.
      description: |
         When used with ``ddtrace-run`` this configuration enables support for exporting OTLP metrics generated
         by the OpenTelemetry Metrics API. The application must also include its own OTLP metrics exporter.
+        When ``DD_RUNTIME_METRICS_ENABLED`` is also set, runtime metrics are exported over OTLP with
+        OpenTelemetry names instead of being sent over DogStatsD.
 
      version_added:
        v3.11.0:
