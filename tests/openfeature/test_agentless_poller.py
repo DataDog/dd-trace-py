@@ -419,7 +419,7 @@ def test_debug_logs_effective_settings_on_start(harness, caplog, endpoint, api_k
 
     assert (
         f"Feature Flags: agentless configuration source settings: sdk_env=prod, requested_env={requested_env}, "
-        f"DD-API-KEY header {api_key_header}, poll interval 30.0s, request timeout 5.0s"
+        f"DD-API-KEY header {api_key_header}, flag selection not sent, poll interval 30.0s, request timeout 5.0s"
     ) in _debug_messages(caplog)
     assert "secret" not in caplog.text
 

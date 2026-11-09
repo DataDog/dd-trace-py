@@ -16,6 +16,13 @@ from urllib.parse import urlsplit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import build_agentless_endpoint
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
+from ddtrace.internal.openfeature._flag_selection import NO_SELECTION
+from ddtrace.internal.openfeature._flag_selection import FlagSelection
+from ddtrace.internal.openfeature._flag_selection import claim_process_selection
+from ddtrace.internal.openfeature._flag_selection import recording_loaded_selection
+from ddtrace.internal.openfeature._flag_selection import release_process_selection
+from ddtrace.internal.openfeature._flag_selection import selection_request_url
+from ddtrace.internal.openfeature._flag_selection import warn_remote_config
 from ddtrace.internal.settings.openfeature import AGENTLESS
 from ddtrace.internal.settings.openfeature import DISABLED as DISABLED
 from ddtrace.internal.settings.openfeature import REMOTE_CONFIG as REMOTE_CONFIG
@@ -27,18 +34,25 @@ log = get_logger(__name__)
 
 
 def create_agentless_source(
-    ffe_config: OpenFeatureConfig, apply_configuration: Callable[["dict[str, Any]"], None]
+    ffe_config: OpenFeatureConfig,
+    apply_configuration: Callable[["dict[str, Any]"], None],
+    flag_selection: FlagSelection = NO_SELECTION,
 ) -> Optional[AgentlessConfigurationSource]:
     """Build the agentless poller when agentless is the resolved source, else None.
 
     The default Datadog endpoint requires ``DD_API_KEY`` and sends it. A custom
     endpoint is operator-owned trust: it starts without an API key and omits the
     header, letting the endpoint report any authentication failure itself.
+
+    A returned source holds a reference to the process flag selection, which the
+    caller drops with release_process_selection() when it stops using the source.
     """
     source = resolve_configuration_source(ffe_config)
     if source == DISABLED:
         return None
     if source != AGENTLESS:
+        if source == REMOTE_CONFIG:
+            warn_remote_config(flag_selection)
         log.debug("Feature Flags: configuration source is %s, not agentless; skipping agentless setup", source)
         return None
 
@@ -58,15 +72,23 @@ def create_agentless_source(
         log.error("Unable to configure Feature Flagging configuration source: %s", e)
         return None
 
-    log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
-    return AgentlessConfigurationSource(
-        endpoint=endpoint,
-        apply_configuration=apply_configuration,
-        api_key=None if has_custom_endpoint else api_key,
-        poll_interval=ffe_config.configuration_source_agentless_poll_interval_seconds,
-        request_timeout=ffe_config.configuration_source_agentless_request_timeout_seconds,
-        env=dd_config.env,
-    )
+    claimed = claim_process_selection(flag_selection)
+    try:
+        endpoint, flag_selection_sent = selection_request_url(endpoint, flag_selection, claimed)
+
+        log.debug("Feature Flags: starting agentless configuration source at %s", _redacted_origin(endpoint))
+        return AgentlessConfigurationSource(
+            endpoint=endpoint,
+            apply_configuration=recording_loaded_selection(apply_configuration, claimed),
+            api_key=None if has_custom_endpoint else api_key,
+            poll_interval=ffe_config.configuration_source_agentless_poll_interval_seconds,
+            request_timeout=ffe_config.configuration_source_agentless_request_timeout_seconds,
+            env=dd_config.env,
+            flag_selection_sent=flag_selection_sent,
+        )
+    except BaseException:
+        release_process_selection()
+        raise
 
 
 def _redacted_origin(url: str) -> str:

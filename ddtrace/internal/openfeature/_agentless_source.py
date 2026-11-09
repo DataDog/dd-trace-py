@@ -30,6 +30,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
+from ddtrace.internal.openfeature._flag_selection import FLAG_SELECTION_IGNORED_HEADER
+from ddtrace.internal.openfeature._flag_selection import report_ignored
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.http import get_connection
@@ -71,7 +73,11 @@ _URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
-_PollResponse = namedtuple("_PollResponse", ["status", "etag", "content_encoding", "body", "error"])
+_PollResponse = namedtuple(
+    "_PollResponse",
+    ["status", "etag", "content_encoding", "body", "error", "flag_selection_ignored"],
+    defaults=(None,),
+)
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
@@ -105,6 +111,7 @@ class AgentlessConfigurationSource(PeriodicService):
         poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
         env: Optional[str] = None,
+        flag_selection_sent: bool = False,
     ) -> None:
         # A non-positive interval would make PeriodicThread schedule the next run
         # immediately, turning polling into a tight loop against the CDN, so fall
@@ -138,6 +145,7 @@ class AgentlessConfigurationSource(PeriodicService):
         # the environment the flags were configured for.
         self._env = env
         self._request_timeout = request_timeout
+        self._flag_selection_sent = flag_selection_sent
 
         # Split the endpoint into an origin (for the connection) and a request
         # target (path + query). get_connection drops the query, so the target
@@ -178,10 +186,11 @@ class AgentlessConfigurationSource(PeriodicService):
         self._stopping = False
         log.debug(
             "Feature Flags: agentless configuration source settings: sdk_env=%s, requested_env=%s, "
-            "DD-API-KEY header %s, poll interval %.1fs, request timeout %.1fs",
+            "DD-API-KEY header %s, flag selection %s, poll interval %.1fs, request timeout %.1fs",
             self._env or "unset",
             self._requested_env or "not sent",
             "sent" if self._api_key else "not sent",
+            "sent" if self._flag_selection_sent else "not sent",
             self.interval,
             self._request_timeout,
         )
@@ -338,12 +347,16 @@ class AgentlessConfigurationSource(PeriodicService):
             conn.request("GET", self._request_target, None, self._headers())
             resp = conn.getresponse()
             body = resp.read()
+            flag_selection_ignored = None
+            if self._flag_selection_sent and resp.status == 200:
+                flag_selection_ignored = resp.getheader(FLAG_SELECTION_IGNORED_HEADER)
             return _PollResponse(
                 status=resp.status,
                 etag=resp.getheader("ETag"),
                 content_encoding=resp.getheader("Content-Encoding"),
                 body=body,
                 error=None,
+                flag_selection_ignored=flag_selection_ignored,
             )
         except Exception as e:
             return _PollResponse(status=None, etag=None, content_encoding=None, body=None, error=e)
@@ -431,6 +444,8 @@ class AgentlessConfigurationSource(PeriodicService):
         etag = (response.etag or "").strip()
         self._etag = etag or None
         self._record_recovery()
+        if response.flag_selection_ignored is not None:
+            report_ignored(response.flag_selection_ignored)
 
         # The SDK environment, the environment requested from the endpoint and the
         # environment the configuration was built for can each differ.
@@ -472,7 +487,14 @@ class AgentlessConfigurationSource(PeriodicService):
             return
         self._failure_warnings.add(category)
 
-        if status:
+        if status in (400, 414) and self._flag_selection_sent:
+            log.warning(
+                "Feature Flagging agentless endpoint returned HTTP %d. Possible causes: the flag_selection query, "
+                "missing or invalid API key, API key not permitted to read this environment, wrong site or endpoint "
+                "URL, unknown environment, or a temporary service problem",
+                status,
+            )
+        elif status:
             log.warning(
                 "Feature Flagging agentless endpoint returned HTTP %d. Possible causes: missing or invalid API key, "
                 "API key not permitted to read this environment, wrong site or endpoint URL, unknown environment, "
