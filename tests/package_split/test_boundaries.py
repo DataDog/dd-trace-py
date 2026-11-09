@@ -16,6 +16,7 @@ from package_split.gates import boundaries
 from ._support import Args
 from ._support import make_report
 from ._support import make_tree
+from ._support import manifest_text
 from ._support import write_pyproject
 
 
@@ -41,6 +42,46 @@ def test_clean_package_passes(tmp_path):
     write_pyproject(tmp_path, "sample", dependencies=[])
     report = run_boundaries(tmp_path / "package-contract.toml", tmp_path)
     assert report.status == PASS, report.summary()
+
+
+def test_workspace_src_layout_gates_pass_vacuously(tmp_path):
+    # KNOWN FALSE-GREEN, pinned deliberately (codeowners port trial, Nov 2026):
+    # module names are derived relative to the manifest root, stripping only
+    # a *top-level* "src/" segment. A destination-style workspace layout
+    # ("packages/<dist>/src/<module>/...") therefore produces dotted names
+    # like "packages.sample.src.sample.mod" which never match the manifest's
+    # import_roots. internal_edges filters out every edge, so import-cycles
+    # and edge-policy checks pass without evaluating anything -- even with an
+    # undeclared external import that a matching layout would fail on.
+    # If this test starts failing, name derivation was fixed for workspace
+    # layouts; collapse the two halves into one passing assertion.
+    workspace_files = {
+        "__init__.py": "__version__ = '1.0'\n",
+        "mod.py": "import json\n",
+    }
+    for relative, content in workspace_files.items():
+        path = tmp_path / "packages" / "sample" / "src" / "sample" / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    manifest_kwargs = {"import_root": "sample", "source_path": "packages/sample/src", "external": []}
+    (tmp_path / "package-contract.toml").write_text(manifest_text(**manifest_kwargs), encoding="utf-8")
+    write_pyproject(tmp_path, "sample", dependencies=[])
+    report = run_boundaries(tmp_path / "package-contract.toml", tmp_path)
+    assert report.status == PASS, report.summary()
+
+    # Control: the same tree discovered from the package's own directory
+    # (per-package manifest, source_path="src") names modules correctly and
+    # the undeclared "import json" must fail edge-policy.
+    pkg_root = tmp_path / "packages" / "sample"
+    make_tree(
+        pkg_root,
+        "src/sample",
+        workspace_files,
+        manifest_kwargs={"import_root": "sample", "source_path": "src", "external": []},
+    )
+    write_pyproject(pkg_root, "sample", dependencies=[])
+    report = run_boundaries(pkg_root / "package-contract.toml", pkg_root)
+    assert report.status == FAIL
 
 
 def test_forbidden_static_import_fails(tmp_path):
