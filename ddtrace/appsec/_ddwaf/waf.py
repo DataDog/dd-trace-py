@@ -12,7 +12,6 @@ from platform import system
 import time
 from typing import Any
 from typing import Optional
-from typing import Union
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf._types import DDWafInputType
@@ -49,13 +48,6 @@ class DDWafContext:
         self.native = native
         self.run = native.run
         self.rc_products = rc_products
-
-
-DDWafSubContext = DDWafContext
-
-
-def py_ddwaf_builder_get_config_paths(builder: _native.Builder, filter_str: str) -> int:
-    return builder.config_paths_count(filter_str)
 
 
 class DDWaf:
@@ -179,7 +171,7 @@ class DDWaf:
         self._lifespan += 1
         return DDWafContext(native, f"[{self._rc_products_str}] u:{self._rc_updates} r:{self._lifespan}")
 
-    def new_subcontext(self, ctx: Optional[DDWafContext]) -> Optional[DDWafSubContext]:
+    def new_subcontext(self, ctx: Optional[DDWafContext]) -> Optional[DDWafContext]:
         """Create a fresh subcontext from the per-request main context.
 
         Subcontexts inherit the context's persistent data but evaluate non-persisting data (RASP,
@@ -195,7 +187,7 @@ class DDWaf:
 
     def run(
         self,
-        target: Union[DDWafContext, DDWafSubContext],
+        target: Optional[DDWafContext],
         data: DDWafInputType,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:

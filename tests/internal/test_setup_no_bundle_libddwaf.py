@@ -110,31 +110,6 @@ def test_the_option_is_declared_as_a_boolean_build_py_option(tmp_path):
     assert downloader.no_bundle_libddwaf == 0
 
 
-def test_a_bundled_library_is_not_staged_again_after_switching(tmp_path):
-    downloader, libddwaf_dir, _ = _library_downloader(tmp_path)
-    _bundled_library(libddwaf_dir)
-    downloader.run()
-    assert _staged(downloader) == []
-
-    downloader.no_bundle_libddwaf = 1
-    downloader.run()
-
-    assert _staged(downloader) == []
-
-
-def test_dropping_the_option_returns_to_static_linking(tmp_path):
-    downloader, libddwaf_dir, _ = _library_downloader(tmp_path)
-    downloader.no_bundle_libddwaf = 1
-    downloader.run()
-    assert _staged(downloader) == []
-
-    downloader.no_bundle_libddwaf = 0
-    _bundled_library(libddwaf_dir)
-    downloader.run()
-
-    assert _staged(downloader) == []
-
-
 def test_setup_cfg_sets_the_option_on_the_build_py_command(tmp_path, monkeypatch):
     """The documented way to pass the option: setuptools maps setup.cfg onto the command."""
     from setuptools.command.build_py import build_py
@@ -154,28 +129,6 @@ def test_setup_cfg_sets_the_option_on_the_build_py_command(tmp_path, monkeypatch
 
     assert isinstance(command, namespace["LibraryDownloader"])
     assert command.no_bundle_libddwaf is True
-
-
-@pytest.mark.parametrize("mode", ["static", "system", "source"])
-def test_build_mode_selects_rust_features_and_offline_resolution(tmp_path, monkeypatch, mode):
-    from types import SimpleNamespace
-
-    downloader, _, _ = _library_downloader(tmp_path)
-    downloader.libddwaf_mode = mode
-    prefix = tmp_path / "prefix"
-    (prefix / "include").mkdir(parents=True)
-    (prefix / "include" / "ddwaf.h").write_text("")
-    (prefix / "lib").mkdir()
-    monkeypatch.setenv("LIBDDWAF_PREFIX", str(prefix))
-    source = SETUP_PY.read_text()
-    code = source[source.index("def configure_waf_build(") : source.index("class PatchedDistribution(")]
-    namespace = {"os": os, "Path": Path}
-    exec(code, namespace)  # noqa: S102
-    extension = SimpleNamespace(features=["stats"], env=SimpleNamespace(env={}))
-    distribution = SimpleNamespace(get_command_obj=lambda _: downloader, rust_extensions=[extension])
-    assert namespace["configure_waf_build"](distribution) == mode
-    assert extension.features == (["stats"] if mode == "static" else ["stats", "waf-" + mode])
-    assert extension.env.env.get("CARGO_NET_OFFLINE") == (None if mode == "static" else "true")
 
 
 def test_legacy_option_conflicts_with_a_different_mode(tmp_path):

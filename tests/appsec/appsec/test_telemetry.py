@@ -9,7 +9,7 @@ import pytest
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-import ddtrace.appsec._ddwaf
+from ddtrace.appsec._ddwaf.waf import DDWaf
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import AppSecCallback
 from ddtrace.appsec._utils import DDWaf_result
@@ -380,7 +380,7 @@ def test_log_metric_error_ddwaf_update(telemetry_writer, test_agent_session):
     assert f"waf_version:{asm_config._ddwaf_version}" in update_logs[0]["tags"]
 
 
-unpatched_run = ddtrace.appsec._ddwaf.DDWaf.run
+unpatched_run = DDWaf.run
 
 
 def _wrapped_run(*args, **kwargs):
@@ -389,7 +389,7 @@ def _wrapped_run(*args, **kwargs):
     return DDWaf_result(-3, [], {}, 0, 0, False, _observator(), {})
 
 
-@mock.patch.object(ddtrace.appsec._ddwaf.DDWaf, "run", new=_wrapped_run)
+@mock.patch.object(DDWaf, "run", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer, test_agent_session):
     """Test that an internal error is logged when the WAF returns an internal error."""
 

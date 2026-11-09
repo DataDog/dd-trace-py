@@ -140,7 +140,7 @@ def test_an_unknown_name_is_not_loadable():
 
 
 def test_the_installed_library_loads():
-    pytest.importorskip("ddtrace.appsec._ddwaf")
+    pytest.importorskip("ddtrace.appsec._ddwaf.waf")
     from ddtrace.internal.settings.asm import config
 
     version = config._ddwaf_version

@@ -8,8 +8,6 @@ from typing import Union
 
 DDWafInputType = Union[None, int, float, str, Sequence["DDWafInputType"], Mapping[str, "DDWafInputType"]]
 
-DDWafOutputType = Union[None, int, float, str, list["DDWafOutputType"], dict[str, "DDWafOutputType"]]
-
 
 class DDWafSqlTokenizer(str, Enum):
     GENERIC = "generic"

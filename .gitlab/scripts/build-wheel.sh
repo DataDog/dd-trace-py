@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Source helper functions
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "${SCRIPT_DIR}/build-wheel-helpers.sh"
+source "$(dirname "$0")/build-wheel-helpers.sh"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  source "${SCRIPT_DIR}/setup-libclang-macos.sh"
+  export LIBCLANG_PATH="$(dirname "$(xcrun --find clang)")/../lib"
+  export SDKROOT="$(xcrun --show-sdk-path)"
 fi
 
 setup

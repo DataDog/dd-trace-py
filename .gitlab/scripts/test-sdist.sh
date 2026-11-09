@@ -52,9 +52,7 @@ tar -xzf "${SDIST_FILE}" -C "${SDIST_DIR}" --strip-components=1
 cd "$(mktemp -d)"
 twine check "${SDIST_FILE}"
 
-
 section_start "install_sdist" "Installing ${SDIST_FILE##*/}"
-# The image's pip builds local projects in place, preserving the stable sccache paths.
 pip install "${SDIST_DIR}"
 section_end "install_sdist"
 

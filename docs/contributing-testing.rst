@@ -176,16 +176,6 @@ If you previously added a ``docker-compose.override.yml`` that sets ``user: "${U
 not work with the current image, because the image's home directory, which holds the Python and Rust
 installations, is not accessible to other users.
 
-Native builds that generate C bindings require the libclang shared library. The test runner image includes it.
-For a macOS host build, select Xcode's library and SDK before building:
-
-.. code-block:: bash
-
-    $ source .gitlab/scripts/setup-libclang-macos.sh
-
-On Windows, install LLVM and set ``LIBCLANG_PATH`` to its ``bin`` directory. The library architecture must
-match the process generating bindings; an x64 Rust host can generate bindings for an x86 wheel.
-
 Build issues when running tests
 -------------------------------
 

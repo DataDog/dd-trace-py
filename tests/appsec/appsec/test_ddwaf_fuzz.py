@@ -1,4 +1,5 @@
 import builtins
+import struct
 import sys
 
 from hypothesis import given
@@ -7,7 +8,24 @@ import pytest
 from requests.structures import CaseInsensitiveDict
 
 from ddtrace.internal.native._native import ddwaf
-from tests.appsec.appsec.waf_input_contract import encoded_value
+
+
+def _encoded_value(value, **limits):
+    view, truncation = ddwaf._encode(value, **limits)
+
+    def decode(obj):
+        kind, *parts = obj
+        if kind == "string":
+            return parts[0].decode("utf-8", "ignore")
+        if kind == "array":
+            return [decode(item) for item in parts[0]]
+        if kind == "map":
+            return {decode(key): decode(item) for key, item in parts[0]}
+        if kind == "float":
+            return struct.unpack("<d", struct.pack("<Q", parts[0]))[0]
+        return parts[0] if parts else None
+
+    return decode(view), truncation
 
 
 DDWAF_NO_LIMIT = 1 << 31
@@ -58,7 +76,7 @@ class _AnyObject:
     ],
 )
 def test_small_objects(obj, res):
-    assert encoded_value(obj)[0] == res
+    assert _encoded_value(obj)[0] == res
 
 
 @pytest.mark.parametrize(
@@ -75,7 +93,7 @@ def test_small_objects(obj, res):
     ),
 )
 def test_mappings_and_sequences(obj, res):
-    assert encoded_value(obj)[0] == res
+    assert _encoded_value(obj)[0] == res
 
 
 @pytest.mark.parametrize(
@@ -95,9 +113,17 @@ def test_mappings_and_sequences(obj, res):
 )
 def test_limits(obj, res, trunc):
     # truncation of max_string_length takes the last C null byte into account
-    value, observed = encoded_value(obj, max_objects=1, max_depth=1, max_string_length=2)
+    value, observed = _encoded_value(obj, max_objects=1, max_depth=1, max_string_length=2)
     assert value == res
     assert observed == trunc
+
+
+def test_cyclic_input_is_depth_limited():
+    cycle = []
+    cycle.append(cycle)
+    value, observed = _encoded_value(cycle, max_depth=1)
+    assert value == [[]]
+    assert observed == (None, 1, 20)
 
 
 @pytest.mark.parametrize(
@@ -113,7 +139,22 @@ def test_limits(obj, res, trunc):
 def test_string_with_embedded_nul(obj, res):
     # libddwaf 2.0 strings are length-delimited (not NUL-terminated). Reading must preserve
     # embedded NUL bytes for both the inline "small string" and heap string representations.
-    assert encoded_value(obj)[0] == res
+    assert _encoded_value(obj)[0] == res
+
+
+@pytest.mark.parametrize(
+    "value,limit,expected",
+    [
+        ("é" * 7, 4096, ("é" * 7).encode()),
+        ("é" * 8, 4096, ("é" * 8).encode()),
+        ("\ud800\udfff" * 16, 4096, b""),
+        ("🦆" * 4, 15, ("🦆" * 4).encode()[:15]),
+        ("é", 0, b""),
+        (b"\xff\x00" * 8, 15, (b"\xff\x00" * 8)[:15]),
+    ],
+)
+def test_utf8_and_binary_string_encoding(value, limit, expected):
+    assert ddwaf._encode(value, max_string_length=limit)[0] == ("string", expected)
 
 
 @pytest.mark.parametrize("container", ["list", "dict"])
@@ -126,7 +167,7 @@ def test_large_container_capped_at_uint16(container):
         value = list(range(n))
     else:
         value = {str(i): i for i in range(n)}
-    result, observed = encoded_value(
+    result, observed = _encoded_value(
         value,
         max_objects=DDWAF_NO_LIMIT,
         max_depth=DDWAF_DEPTH_NO_LIMIT,

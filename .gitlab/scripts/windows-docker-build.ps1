@@ -43,7 +43,6 @@ $env:_DD_NATIVE_CARGO_TARGET_DIR = 'C:\cargo-target'
 Write-Host "=== Enabling git long paths ==="
 git config --global core.longpaths true
 
-
 Write-Host "=== Building wheel ==="
 $distDir = 'C:\workspace\dist'
 if (Test-Path $distDir) {

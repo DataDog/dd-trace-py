@@ -8,7 +8,7 @@ in every compared wheel are used.
 import bm
 
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf.waf import DDWaf
 
 
 HEADERS = {

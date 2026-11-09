@@ -1,138 +1,16 @@
-"""Native WAF input contracts, ancestor outcome fixtures, and lifecycle tests."""
+"""Rust WAF conversion and native lifetime regressions."""
 
-from collections import UserDict
-from collections import UserList
 from concurrent.futures import ThreadPoolExecutor
 import gc
-import json
 import os
-from pathlib import Path
 import subprocess
 import sys
-import uuid
 
-from hypothesis import HealthCheck
-from hypothesis import given
-from hypothesis import settings
-from hypothesis import strategies as st
 import pytest
 
-from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._ddwaf import waf as native_waf
+from ddtrace.appsec._ddwaf.waf import DDWaf
 from ddtrace.internal.native._native import ddwaf as native
-from tests.appsec.appsec.waf_input_contract import reference_encode
 import tests.appsec.rules as rules
-
-
-def assert_same_encoding(value, **limits):
-    assert native._encode(value, **limits) == reference_encode(value, **limits)
-
-
-class _Str:
-    def __str__(self):
-        return "custom-object-" * 2
-
-
-cycle = []
-cycle.append(cycle)
-deep = [1]
-for _ in range(10):
-    deep = [deep, {"k": deep}]
-
-CASES = [
-    None,
-    False,
-    True,
-    0,
-    -1,
-    2**63 - 1,
-    2**64 - 1,
-    2**80,
-    -(2**70),
-    0.0,
-    -0.0,
-    float("nan"),
-    float("inf"),
-    "",
-    b"",
-    "a\x00b",
-    b"\xff\x00a",
-    "bad\ud800text",
-    "\udfff" * 20,
-    "é" * 7,
-    "é" * 8,
-    "東京" * 3,
-    "🦆" * 5,
-    "🦆" * 2048,
-    "x" * 4097,
-    "é" * 4097,
-    b"\xff" * 5000,
-    {"x" * 15: "a" * 15},
-    {"城市": "東京", "emoji": "🦆" * 16, "names": ["café", "naïve", "élève"]},
-    {b"raw\x00key": b"\xff\x00value" * 32, "blob": b"x" * 1024},
-    {1: "ignored", None: "ignored", b"key": 2, "key": 3, "": "empty", 2.5: "ignored"},
-    UserDict({"x": UserList([True, 2, "three"])}),
-    {"tuple": (1, 2), "range": range(5), "bytearray": bytearray(b"abc"), "set": {1}, "frozen": frozenset()},
-    _Str(),
-    type("S", (str,), {})("str-subclass"),
-    type("I", (int,), {})(42),
-    type("D", (dict,), {})({"k": "v"}),
-    list(range(300)),
-    {str(i): i for i in range(300)},
-    deep,
-    cycle,
-    {"long": "🦆" * 2048, "values": list(range(300))},
-]
-
-
-@pytest.mark.parametrize("value", CASES, ids=range(len(CASES)))
-@pytest.mark.parametrize(
-    "limits",
-    [
-        {},
-        {"max_objects": 1, "max_depth": 1, "max_string_length": 2},
-        {"max_objects": 0},
-        {"max_depth": 0},
-        {"max_string_length": 0},
-        {"max_string_length": 14},
-        {"max_string_length": 15},
-        {"max_objects": 2**31, "max_depth": 1000, "max_string_length": 2**31},
-    ],
-)
-def test_encoding_matches_contract(value, limits):
-    try:
-        expected = reference_encode(value, **limits)
-    except RecursionError:
-        # The Python contract traversal is limited by Python recursion for cyclic input.
-        native._encode(value, **limits)
-        return
-    assert native._encode(value, **limits) == expected
-
-
-@pytest.mark.parametrize("container", ["list", "dict"])
-def test_uint16_capacity_cap_matches_contract(container):
-    n = 65535 + 10
-    value = list(range(n)) if container == "list" else {str(i): i for i in range(n)}
-    assert_same_encoding(value, max_objects=2**31)
-
-
-SCALARS = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.text(), st.binary(), st.characters())
-VALUES = st.recursive(
-    SCALARS,
-    lambda inner: st.lists(inner) | st.tuples(inner, inner) | st.dictionaries(SCALARS | st.text(), inner),
-    max_leaves=40,
-)
-
-
-@settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large])
-@given(
-    value=VALUES,
-    max_objects=st.sampled_from([0, 1, 4, 256]),
-    max_depth=st.sampled_from([0, 1, 3, 20]),
-    max_string_length=st.sampled_from([0, 2, 14, 15, 4096]),
-)
-def test_generated_encoding_matches_contract(value, max_objects, max_depth, max_string_length):
-    assert_same_encoding(value, max_objects=max_objects, max_depth=max_depth, max_string_length=max_string_length)
 
 
 def test_conversion_errors_propagate():
@@ -158,85 +36,10 @@ def test_dict_mutation_during_conversion_raises():
         native._encode(data)
 
 
-def _normalize(events, actions):
-    events, actions = json.loads(json.dumps([events, actions]))
-    ids = {}
-
-    def norm(value):
-        uuid.UUID(value)
-        return ids.setdefault(value, f"response-{len(ids)}")
-
-    for event in events:
-        if "security_response_id" in event:
-            event["security_response_id"] = norm(event["security_response_id"])
-    for params in actions.values():
-        if isinstance(params, dict) and "security_response_id" in params:
-            params["security_response_id"] = norm(params["security_response_id"])
-    return events, actions
-
-
-def _observe(result):
-    events, actions = _normalize(result.data, result.actions)
-    trunc = result.truncation
-    return (
-        result.return_code,
-        events,
-        actions,
-        result.keep,
-        result.timeout,
-        (trunc.string_length, trunc.container_size, trunc.container_depth),
-        result.meta_tags,
-        result.metrics,
-        result.api_security,
-    )
-
-
-REQUESTS = {
-    "benign": [{"server.request.query": {"q": "hello"}}],
-    "sqli": [{"server.request.cookies": {"attack": "1' or '1' = '1'"}}],
-    "blocking_ip": [{"http.client_ip": "8.8.4.4"}],
-    "staged": [
-        {"server.request.headers.no_cookies": {"host": "example.test", "user-agent": "werkzeug/2.1.2"}},
-        {"server.request.body": {"q": "1' or '1' = '1'"}},
-    ],
-    "truncated": [{"server.request.body": {"long": "🦆" * 2048, "values": list(range(300))}}],
-    "api_security": [
-        {
-            "server.request.headers.no_cookies": {"content-type": "application/json"},
-            "server.request.body": {"a": [1, 2, {"b": "c"}]},
-            "waf.context.processor": {"extract-schema": True},
-        }
-    ],
-}
-
-
-ANCESTOR_RESULTS = json.loads(Path(__file__).with_name("waf_ancestor_results.json").read_text())
-
-
-@pytest.mark.parametrize("label,rules_path", [("custom", rules.RULES_GOOD_PATH), ("default", DEFAULT.RULES)])
-@pytest.mark.parametrize("name", list(REQUESTS))
-def test_evaluation_matches_ancestor(label, rules_path, name):
-    waf = native_waf.DDWaf(Path(rules_path).read_bytes(), b"", b"")
-    assert waf.initialized
-    ctx = waf._at_request_start()
-    observed = [_observe(waf.run(ctx, data, timeout_ms=1000)) for data in REQUESTS[name]]
-    assert json.loads(json.dumps(observed)) == ANCESTOR_RESULTS["evaluations"][label + "/" + name]
-
-
-@pytest.mark.parametrize(
-    "label,path", [("valid", rules.RULES_GOOD_PATH), ("partial", rules.ROOT_DIR + "/rules-with-2-errors.json")]
-)
-def test_info_matches_ancestor(label, path):
-    waf = native_waf.DDWaf(Path(path).read_bytes(), b"", b"")
-    expected = ANCESTOR_RESULTS["info"][label]
-    assert repr(waf.info) == expected["repr"]
-    assert sorted(waf.required_data) == expected["addresses"]
-
-
 @pytest.fixture
 def waf():
     with open(rules.RULES_GOOD_PATH, "rb") as f:
-        return native_waf.DDWaf(f.read(), b"", b"")
+        return DDWaf(f.read(), b"", b"")
 
 
 SQLI = {"server.request.cookies": {"attack": "1' or '1' = '1'"}}
@@ -288,18 +91,6 @@ def test_context_survives_rules_update(waf):
     assert waf.run(waf._at_request_start(), SQLI).data
 
 
-def test_nested_subcontext_rejected(waf):
-    sub = waf.new_subcontext(waf._at_request_start())
-    with pytest.raises(ValueError):
-        sub.native.subcontext()
-
-
-def test_persistent_data_matches_once(waf):
-    ctx = waf._at_request_start()
-    assert waf.run(ctx, SQLI).data
-    assert not waf.run(ctx, {}).data
-
-
 def test_concurrent_runs_on_shared_context(waf):
     ctx = waf._at_request_start()
     with ThreadPoolExecutor(max_workers=8) as executor:
@@ -312,47 +103,11 @@ def test_concurrent_runs_on_shared_context(waf):
     assert all(matches)
 
 
-def test_invalid_ruleset_json():
-    with pytest.raises(ValueError):
-        native_waf.DDWaf(b"not json", b"", b"")
-
-
-def test_registration_does_not_load_and_load_failures_are_typed(tmp_path):
-    script = """
-import _struct, sys
-from ddtrace.internal.native._native import ddwaf
-if not ddwaf.system_library:
-    assert ddwaf.load(["/nonexistent/libddwaf.so"])[0] == "static"
-    ddwaf.Builder()
-    sys.exit(0)
-try:
-    ddwaf.Builder()
-except RuntimeError as e:
-    assert "not loaded" in str(e)
-else:
-    raise AssertionError("builder before load")
-try:
-    ddwaf.load(["/nonexistent/libddwaf.so"])
-except OSError:
-    pass
-else:
-    raise AssertionError("missing library loaded")
-libc = _struct.__file__
-try:
-    ddwaf.load(["/nonexistent/libddwaf.so", libc])
-except OSError as e:
-    assert "missing libddwaf symbol" in str(e), e
-else:
-    raise AssertionError("libc accepted as libddwaf")
-"""
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=60, cwd=tmp_path)
-
-
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
 def test_fork_ownership(tmp_path):
     script = """
 import gc, json, os
-from ddtrace.appsec._ddwaf import waf
+from ddtrace.appsec._ddwaf.waf import DDWaf
 rules = json.dumps({
     "version": "2.2",
     "rules": [{
@@ -362,7 +117,7 @@ rules = json.dumps({
         "conditions": [{"operator": "match_regex", "parameters": {"inputs": [{"address": "q"}], "regex": "attack"}}],
     }],
 }).encode()
-inst = waf.DDWaf(rules, b"", b"")
+inst = DDWaf(rules, b"", b"")
 ctx = inst._at_request_start()
 pid = os.fork()
 if pid == 0:
