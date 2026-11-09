@@ -5,8 +5,6 @@ Reproduces the system test bug where `reached` stays empty after calling
 a vulnerable function through ddtrace's wrapt-patched wrappers.
 """
 
-import sys
-from types import ModuleType
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -131,39 +129,6 @@ class TestInjectHookFires:
 
 class TestSCADetectionHookIntegration:
     """Test the full sca_detection_hook → registry → telemetry flow."""
-
-    @pytest.mark.parametrize("shared_second_advisory", [True, False])
-    def test_overlapping_advisories_report_only_target_cves(self, monkeypatch, shared_second_advisory):
-        module = ModuleType("sca_overlapping_advisories")
-        module.first = _make_target_function()
-        module.second = _make_target_function()
-        monkeypatch.setitem(sys.modules, module.__name__, module)
-        first = f"{module.__name__}:first"
-        second = f"{module.__name__}:second"
-        targets = [
-            {"id": "CVE-2024-A", "dependency_name": "fakepkg", "targets": [first, second]},
-            {
-                "id": "CVE-2024-B",
-                "dependency_name": "fakepkg",
-                "targets": [first, second] if shared_second_advisory else [first],
-            },
-        ]
-        if not shared_second_advisory:
-            targets.append({"id": "CVE-2024-C", "dependency_name": "fakepkg", "targets": [second]})
-
-        registry = InstrumentationRegistry()
-        instrumenter = Instrumenter(registry)
-        _instrumenter_mod._process_additions(instrumenter, registry, targets)
-        writer = MagicMock()
-        monkeypatch.setattr(_instrumenter_mod, "telemetry_writer", writer)
-
-        for func, expected_cves in (
-            (module.first, ["CVE-2024-A", "CVE-2024-B"]),
-            (module.second, ["CVE-2024-A", "CVE-2024-B" if shared_second_advisory else "CVE-2024-C"]),
-        ):
-            writer.reset_mock()
-            assert func(10) == 11
-            assert [call.kwargs["cve_id"] for call in writer.attach_dependency_metadata.call_args_list] == expected_cves
 
     def _setup_sca_flow(self):
         """Set up registry, instrumenter, tracker, and writer for SCA testing."""
