@@ -104,12 +104,15 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
         effective_parent = parent_ctx
         if trace_id is not None and parent_ctx is None:
             effective_parent = Context(trace_id=trace_id, span_id=None, is_remote=True)
+        # Defer activation until the deterministic span_id is applied so the
+        # profiler's _link_span (triggered on context activation) records the
+        # final ID rather than the random one the tracer generated.
         span = tracer.start_span(
             name=f"{TEMPORAL_TAG_PREFIX}{operation_name}",
             child_of=effective_parent,
             service=self._service_name,
             resource=resource_name,
-            activate=activate,
+            activate=False,
         )
         span._ignore_exception(temporalio.workflow.ContinueAsNewError)
         span._ignore_exception(temporalio.activity._CompleteAsyncError)
@@ -118,6 +121,8 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
         if span_id is not None:
             span.span_id = span_id
             span.context.span_id = span_id
+        if activate:
+            tracer.context_provider.activate(span)
         force_keep = parent_ctx is None or parent_from_header
         self._annotator.annotate(span, operation_name, attributes, self.propagator.get_baggage(parent_ctx), force_keep)
         self.propagator.set_baggage(span.context)
