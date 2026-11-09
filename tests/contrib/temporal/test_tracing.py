@@ -32,6 +32,7 @@ from tests.contrib.temporal._workflows import LoggingActivityWorkflow
 from tests.contrib.temporal._workflows import LoggingWorkflow
 from tests.contrib.temporal._workflows import ParentWithSignalChildWorkflow
 from tests.contrib.temporal._workflows import ParentWorkflow
+from tests.contrib.temporal._workflows import SignalAndUpdateWorkflow
 from tests.contrib.temporal._workflows import TestRequest
 from tests.contrib.temporal._workflows import TestWorkflow
 from tests.contrib.temporal._workflows import UpdateTestWorkflow
@@ -2168,3 +2169,200 @@ async def test_concurrent_workflows_log_isolation(
             assert record.__dict__.get("dd.span_id") == expected_span_id, (
                 f"{marker}: expected dd.span_id={expected_span_id}, got {record.__dict__.get('dd.span_id')}"
             )
+
+
+@pytest.mark.asyncio
+async def test_disabled_handler_type_does_not_reuse_span_id(
+    client: Client,
+    env: WorkflowEnvironment,
+    span_collector: _SpanCollector,
+) -> None:
+    """When a handler type is disabled between worker generations, span IDs stay unique."""
+    if env.supports_time_skipping:
+        pytest.skip("time-skipping server not supported")
+
+    interceptor = _make_interceptor()
+    tc = _traced_client(client, interceptor)
+    tq = _task_queue()
+    wf_id = f"wf-{uuid.uuid4()}"
+
+    async with Worker(
+        tc,
+        task_queue=tq,
+        workflows=[SignalAndUpdateWorkflow],
+    ):
+        handle = await tc.start_workflow(
+            SignalAndUpdateWorkflow.run,
+            id=wf_id,
+            task_queue=tq,
+        )
+        for _ in range(50):
+            try:
+                await handle.query(SignalAndUpdateWorkflow.my_query)
+                break
+            except Exception:
+                await asyncio.sleep(0.05)
+        await handle.signal(SignalAndUpdateWorkflow.my_signal)
+        await _wait_for_history_events(
+            handle,
+            "workflow_execution_signaled_event_attributes",
+        )
+
+    _dd_tracer._span_aggregator._traces.clear()
+
+    disabled_interceptor = _make_interceptor(
+        workflow_tracing_config=WorkflowTracingConfig(
+            disable_signal_tracing=True,
+            disable_query_tracing=False,
+            disable_update_tracing=False,
+        ),
+    )
+    disabled_tc = _traced_client(client, disabled_interceptor)
+    async with Worker(
+        disabled_tc,
+        task_queue=tq,
+        workflows=[SignalAndUpdateWorkflow],
+    ):
+        await handle.execute_update(SignalAndUpdateWorkflow.my_update)
+        await handle.result()
+
+    update_span = span_collector.one("HandleUpdate")
+    run_id = handle.first_execution_run_id or ""
+    signal_counter_key = f"WorkflowInboundInterceptor:default:{wf_id}:{run_id}:2"
+    signal_span_id = fnv1_64(signal_counter_key.encode())
+    assert update_span.span_id != signal_span_id, (
+        f"HandleUpdate span_id {update_span.span_id} collides with HandleSignal "
+        f"span_id from worker A ({signal_span_id}, key={signal_counter_key!r})"
+    )
+
+
+@pytest.mark.asyncio
+async def test_uninstrumented_client_handler_joins_workflow_trace(
+    client: Client,
+    env: WorkflowEnvironment,
+    span_collector: _SpanCollector,
+) -> None:
+    """A handler span joins the RunWorkflow trace even when the client is uninstrumented."""
+    if env.supports_time_skipping:
+        pytest.skip("time-skipping server not supported")
+
+    interceptor = _make_interceptor()
+    tc = _traced_client(client, interceptor)
+    tq = _task_queue()
+    wf_id = f"wf-{uuid.uuid4()}"
+
+    async with Worker(
+        tc,
+        task_queue=tq,
+        workflows=[TestWorkflow],
+        activities=[echo_activity],
+    ):
+        handle = await client.start_workflow(
+            TestWorkflow.run,
+            TestRequest(wait_for_kick=True),
+            id=wf_id,
+            task_queue=tq,
+        )
+        for _ in range(50):
+            try:
+                await handle.query(TestWorkflow.get_status)
+                break
+            except Exception:
+                await asyncio.sleep(0.05)
+        await handle.signal(TestWorkflow.kick)
+        await handle.result()
+
+    run = span_collector.one("RunWorkflow")
+    signal = span_collector.one("HandleSignal")
+    assert signal.trace_id == run.trace_id, (
+        f"HandleSignal trace_id {signal.trace_id} does not match RunWorkflow "
+        f"trace_id {run.trace_id} — handler span became an unrelated root trace"
+    )
+
+
+@pytest.mark.asyncio
+async def test_service_baggage_propagated_when_service_name_none(
+    client: Client,
+    env: WorkflowEnvironment,
+    span_collector: _SpanCollector,
+) -> None:
+    """peer.service is set on consumer spans when only DD_SERVICE is configured."""
+    if env.supports_time_skipping:
+        pytest.skip("time-skipping server not supported")
+
+    client_interceptor = DatadogTracingInterceptor()
+    tc = _traced_client(client, client_interceptor)
+
+    worker_interceptor = DatadogTracingInterceptor(service_name="worker-svc")
+    worker_tc = _traced_client(client, worker_interceptor)
+
+    tq = _task_queue()
+    wf_id = f"wf-{uuid.uuid4()}"
+
+    async with Worker(
+        worker_tc,
+        task_queue=tq,
+        workflows=[TestWorkflow],
+        activities=[echo_activity],
+    ):
+        handle = await tc.start_workflow(
+            TestWorkflow.run,
+            TestRequest(use_activity=True),
+            id=wf_id,
+            task_queue=tq,
+        )
+        await handle.result()
+
+    run = span_collector.one("RunWorkflow")
+    peer_service = run.get_tag("peer.service")
+    assert peer_service is not None, "RunWorkflow has no peer.service tag"
+
+
+@pytest.mark.asyncio
+async def test_handler_inherits_run_workflow_sampling_not_client(
+    client: Client,
+    env: WorkflowEnvironment,
+    span_collector: _SpanCollector,
+) -> None:
+    """A handler span inherits the live RunWorkflow context, not the stale start headers."""
+    if env.supports_time_skipping:
+        pytest.skip("time-skipping server not supported")
+
+    interceptor = _make_interceptor()
+    tc = _traced_client(client, interceptor)
+    tq = _task_queue()
+    wf_id = f"wf-{uuid.uuid4()}"
+
+    async with Worker(
+        tc,
+        task_queue=tq,
+        workflows=[TestWorkflow],
+        activities=[echo_activity],
+    ):
+        handle = await tc.start_workflow(
+            TestWorkflow.run,
+            TestRequest(wait_for_kick=True),
+            id=wf_id,
+            task_queue=tq,
+        )
+        for _ in range(50):
+            try:
+                await handle.query(TestWorkflow.get_status)
+                break
+            except Exception:
+                await asyncio.sleep(0.05)
+        await handle.signal(TestWorkflow.kick)
+        await handle.result()
+
+    run = span_collector.one("RunWorkflow")
+    signal = span_collector.one("HandleSignal")
+
+    # If RunWorkflow was force-sampled (entry point, no in-process parent),
+    # the handler must inherit the SAME sampling decision, not the client's
+    # original sampling from the stale start headers.
+    run_sampling = run.get_metric("_sampling_priority_v1")
+    signal_sampling = signal.get_metric("_sampling_priority_v1")
+    if run_sampling is not None:
+        assert signal_sampling == run_sampling, (
+            f"HandleSignal sampling {signal_sampling} != RunWorkflow sampling {run_sampling}"
+        )
