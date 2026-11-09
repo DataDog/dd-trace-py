@@ -650,6 +650,34 @@ def test_aggregator_unbuffered_span_finish_does_not_flush_open_spans():
     assert writer.pop() == [root]
 
 
+@pytest.mark.parametrize(
+    "partial_flush_enabled,partial_flush_min_spans",
+    [(False, 0), (True, 300)],
+)
+def test_aggregator_unbuffered_span_finish_does_not_complete_trace(partial_flush_enabled, partial_flush_min_spans):
+    # Without a partial flush to clear it, an unbuffered finish must not count toward trace completion.
+    writer = DummyWriter()
+    aggr = SpanAggregator(partial_flush_enabled=partial_flush_enabled, partial_flush_min_spans=partial_flush_min_spans)
+    aggr.writer = writer
+
+    root = Span("root", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(root)
+    child = Span("child", on_finish=[aggr.on_span_finish])
+    child.trace_id = root.trace_id
+    child.parent_id = root.span_id
+    aggr.on_span_start(child)
+    unbuffered = Span("unbuffered", on_finish=[aggr.on_span_finish])
+    unbuffered.trace_id = root.trace_id
+
+    unbuffered.finish()
+    child.finish()
+    assert writer.pop() == []
+    assert root.trace_id in aggr._traces
+
+    root.finish()
+    assert writer.pop() == [root, child]
+
+
 def test_aggregator_duplicate_finish_does_not_flush_open_spans():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
