@@ -1579,6 +1579,9 @@ class RemoteConfigClient:
     Passing ``api_key`` (together with ``site`` and ``hostname``) selects agentless
     mode: configs are fetched from ``config.<site>`` rather than from the agent.
 
+    With otel_semantics_enabled, collector_endpoint can supply a separate HTTPS
+    collector origin. site still selects the Datadog trust roots.
+
     ``config_root`` and ``director_root`` are raw signed TUF root metadata that replace the
     roots libdatadog embeds for the site. This is mostly for testing. They apply to agentless mode only.
     """
@@ -1604,6 +1607,8 @@ class RemoteConfigClient:
         hostname: Optional[str] = None,
         config_root: Optional[str] = None,
         director_root: Optional[str] = None,
+        otel_semantics_enabled: bool = False,
+        collector_endpoint: Optional[str] = None,
     ) -> RemoteConfigClient: ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""

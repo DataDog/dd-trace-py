@@ -201,6 +201,34 @@ Traces
          disabled. This setting takes precedence over conflicting trace API, schema, and
          peer-service settings.
 
+   DD_REMOTE_CONFIGURATION_URL:
+     type: String
+     default: None
+
+     description: |
+         HTTPS origin of a Collector remote configuration proxy, for example
+         ``https://collector.example.com:8234``. Used only with agentless remote
+         configuration (for example, ``DD_AGENTLESS_ENABLED=true``) and
+         ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``. Without this
+         setting, remote configuration continues to use ``config.<DD_SITE>``.
+
+         The proxy must forward ``GET /api/v0.1/org`` and
+         ``POST /api/v0.1/configurations``. Configure this endpoint separately from
+         the OTLP trace endpoint; an ordinary OTLP receiver does not serve remote
+         configuration. Keep ``DD_SITE`` set to the Datadog site and retain
+         ``DD_API_KEY`` in the application. Normal TLS, organization and signed
+         configuration validation remain enabled.
+
+         Example::
+
+             export DD_AGENTLESS_ENABLED=true
+             export DD_API_KEY="${DD_API_KEY:?Set a real Datadog API key}"
+             export DD_SITE=datadoghq.com
+             export DD_TRACE_OTEL_SEMANTICS_ENABLED=true
+             export DD_REMOTE_CONFIGURATION_URL=https://collector.example.com:8234
+             export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://collector.example.com:4318/v1/traces
+             ddtrace-run python app.py
+
    DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH:
       type: Integer
       default: 10

@@ -1,0 +1,6 @@
+features:
+  - |
+    tracing: Adds ``DD_REMOTE_CONFIGURATION_URL`` to route agentless remote
+    configuration through an HTTPS Collector proxy when
+    ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``. ``DD_SITE`` continues to select
+    the Datadog site for configuration verification.

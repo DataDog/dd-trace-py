@@ -837,6 +837,83 @@ def test_agentless_client_targets_the_backend_directly(monkeypatch):
     assert captured["hostname"] == "a-host"
 
 
+@pytest.mark.parametrize("otel_semantics", [False, True])
+@pytest.mark.parametrize("collector_endpoint", [None, "https://collector.example.com:8234", "not a URI"])
+def test_agentless_collector_routing_settings(monkeypatch, otel_semantics, collector_endpoint):
+    from ddtrace.internal.remoteconfig import client as client_mod
+    from tests.utils import override_global_config
+
+    captured = {}
+
+    def fake_native(_runtime, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    if collector_endpoint is None:
+        monkeypatch.delenv("DD_REMOTE_CONFIGURATION_URL", raising=False)
+    else:
+        monkeypatch.setenv("DD_REMOTE_CONFIGURATION_URL", collector_endpoint)
+    monkeypatch.setattr(client_mod, "agentless_rc_config", client_mod.RemoteConfigAgentlessConfig())
+    monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", fake_native)
+
+    with (
+        _agentless_settings(DD_AGENTLESS_ENABLED="true", DD_API_KEY="an-api-key"),
+        override_global_config(
+            dict(_otel_trace_semantics_enabled=otel_semantics, _dd_api_key="an-api-key", _dd_site="datad0g.com")
+        ),
+    ):
+        client_mod.RemoteConfigClient().ensure_native()
+
+    assert captured["otel_semantics_enabled"] is otel_semantics
+    assert captured["collector_endpoint"] == collector_endpoint
+    assert captured["site"] == "datad0g.com"
+    assert captured["api_key"] == "an-api-key"
+
+
+def _native_agentless_client(otel_semantics, collector_endpoint):
+    from ddtrace.internal.native import RemoteConfigClient as NativeClient
+    from ddtrace.internal.native_runtime import get_native_runtime
+
+    return NativeClient(
+        get_native_runtime(),
+        agent_url="http://127.0.0.1:8126",
+        tracer_version="1.0.0",
+        client_id="collector-test",
+        runtime_id="collector-runtime",
+        service="collector-test",
+        env="test",
+        app_version="1",
+        site="datad0g.com",
+        api_key="test-api-key",
+        hostname="test-host",
+        otel_semantics_enabled=otel_semantics,
+        collector_endpoint=collector_endpoint,
+    )
+
+
+@pytest.mark.parametrize(
+    "collector_endpoint",
+    [
+        "http://collector.example.com:8234",
+        "https://collector.example.com/path",
+        "https://collector.example.com?query=value",
+        "https://collector.example.com#fragment",
+        "https://user:password@collector.example.com",
+        "not a URI",
+    ],
+)
+def test_native_agentless_collector_rejects_invalid_origin(collector_endpoint):
+    with pytest.raises(ValueError, match="Remote Config") as error:
+        _native_agentless_client(True, collector_endpoint)
+    assert collector_endpoint not in str(error.value)
+
+
+@pytest.mark.parametrize("collector_endpoint", ["not a URI", "https://collector.example.com#fragment"])
+def test_native_agentless_collector_ignores_url_without_otel_semantics(collector_endpoint):
+    client = _native_agentless_client(False, collector_endpoint)
+    assert client.get_refresh_interval() > 0
+
+
 def test_agent_client_is_not_given_intake_credentials(monkeypatch):
     from ddtrace.internal.remoteconfig import worker as worker_mod
     from tests.utils import override_global_config
@@ -861,6 +938,8 @@ def test_agent_client_is_not_given_intake_credentials(monkeypatch):
 
     assert "site" not in captured
     assert "api_key" not in captured
+    assert "collector_endpoint" not in captured
+    assert "otel_semantics_enabled" not in captured
     # Only the agentless fetcher carries a server-recommended interval.
     assert poller._client.refresh_interval() is None
 

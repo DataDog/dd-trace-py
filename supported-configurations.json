@@ -3426,6 +3426,13 @@
         "default": "true"
       }
     ],
+    "DD_REMOTE_CONFIGURATION_URL": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS": [
       {
         "implementation": "C",

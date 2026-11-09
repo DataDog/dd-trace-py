@@ -49,7 +49,7 @@ pub struct RemoteConfigCapabilities(pub RemoteConfigCapabilitiesNative);
 ///
 /// `content` is the raw unparsed config bytes for adds/updates, or `None` to
 /// signal a deletion.
-#[pyclass(frozen, name = "RemoteConfigChange", skip_from_py_object)]
+#[pyclass(frozen, name = "RemoteConfigChange")]
 #[derive(Clone)]
 pub struct ChangeRecord {
     #[pyo3(get)]
@@ -148,6 +148,8 @@ impl RemoteConfigClient {
         hostname=None,
         config_root=None,
         director_root=None,
+        otel_semantics_enabled=false,
+        collector_endpoint=None,
     ))]
     fn new(
         runtime: PyRef<'_, SharedRuntimePy>,
@@ -168,6 +170,8 @@ impl RemoteConfigClient {
         hostname: Option<String>,
         config_root: Option<String>,
         director_root: Option<String>,
+        otel_semantics_enabled: bool,
+        collector_endpoint: Option<String>,
     ) -> PyResult<Self> {
         let rt = runtime.as_arc()?;
 
@@ -196,7 +200,25 @@ impl RemoteConfigClient {
                     test_token,
                     use_system_resolver: true,
                 };
+                let collector_endpoint = if otel_semantics_enabled {
+                    collector_endpoint
+                        .map(|url| {
+                            if url.contains('#') {
+                                anyhow::bail!("collector endpoint must not contain a fragment");
+                            }
+                            parse_uri(&url)
+                        })
+                        .transpose()
+                        .map_err(|_| {
+                            PyValueError::new_err("invalid Remote Config collector endpoint")
+                        })?
+                } else {
+                    None
+                };
                 let mut agentless = AgentlessConfig::new(hostname.unwrap_or_default(), &intake)
+                    .and_then(|cfg| {
+                        cfg.with_otel_collector_endpoint(otel_semantics_enabled, collector_endpoint)
+                    })
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
                 // Raw signed TUF root metadata, replacing the root embedded for this site.
                 if let Some(root) = config_root {

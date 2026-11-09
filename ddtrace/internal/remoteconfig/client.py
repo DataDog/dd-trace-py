@@ -62,16 +62,17 @@ class RemoteConfigClientConfig(DDConfig):
 config = RemoteConfigClientConfig()
 
 
-class RemoteConfigTufConfig(DDConfig):
-    """TUF trust roots for testing agentless Remote Configuration."""
+class RemoteConfigAgentlessConfig(DDConfig):
+    """Transport and TUF settings for agentless Remote Configuration."""
 
     __prefix__ = "dd.remote_configuration"
 
+    url = DDConfig.v(Optional[str], "url", default=None)
     config_root = DDConfig.v(Optional[str], "config_root", default=None)
     director_root = DDConfig.v(Optional[str], "director_root", default=None)
 
 
-tuf_config = RemoteConfigTufConfig()
+agentless_rc_config = RemoteConfigAgentlessConfig()
 
 
 def _build_tags(tracer_version: str) -> list[tuple[str, str]]:
@@ -137,8 +138,10 @@ class RemoteConfigClient:
                     "site": ddtrace.config._dd_site,
                     "api_key": ddtrace.config._dd_api_key,
                     "hostname": get_hostname(),
-                    "config_root": tuf_config.config_root,
-                    "director_root": tuf_config.director_root,
+                    "config_root": agentless_rc_config.config_root,
+                    "director_root": agentless_rc_config.director_root,
+                    "otel_semantics_enabled": ddtrace.config._otel_trace_semantics_enabled,
+                    "collector_endpoint": agentless_rc_config.url,
                 }
                 if self.agentless
                 else {}
