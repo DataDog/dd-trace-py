@@ -17,6 +17,10 @@ log = logging.getLogger(__name__)
 @lru_cache(maxsize=64)
 def _build_client(base_url: str, timeout_ms: int) -> Any:
     from ddtrace.internal.http_client import HTTPClient
+    from ddtrace.internal.native_runtime import on_runtime_replaced
+
+    # The clients' connections belong to the runtime they are built on.
+    on_runtime_replaced(_build_client.cache_clear)
 
     return HTTPClient(base_url, timeout_ms=timeout_ms, treat_http_errors_as_errors=False)
 

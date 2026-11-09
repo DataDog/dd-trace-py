@@ -37,6 +37,7 @@ from ddtrace.internal.module import origin
 from ddtrace.internal.native import SymDBSender
 from ddtrace.internal.native import uuid4
 from ddtrace.internal.native_runtime import get_native_runtime
+from ddtrace.internal.native_runtime import on_runtime_replaced
 from ddtrace.internal.periodic import Timer
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
@@ -606,8 +607,13 @@ class ScopeContext:
 
     @cached_property
     def _sender(self) -> SymDBSender:
-        # Built on the first upload to reduce startup cost.
+        # Built on the first upload to reduce startup cost, and again after the shared
+        # runtime it is built on is replaced.
+        on_runtime_replaced(self._drop_sender)
         return build_symdb_sender()
+
+    def _drop_sender(self) -> None:
+        self.__dict__.pop("_sender", None)
 
     def _reset_on_fork(self) -> None:
         # Runs after fork in the child. The runtime module's own forksafe

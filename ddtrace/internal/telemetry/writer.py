@@ -230,14 +230,8 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in Python-managed forked children, and whenever the
-            # shared runtime is replaced, e.g. after its descriptors were closed. Imported
-            # here, like the worker itself, so importing telemetry never hard-fails if the
-            # native module has not been built.
-            from ddtrace.internal.native_runtime import on_runtime_replaced
-
+            # Rebuild the native worker in Python-managed forked children.
             forksafe.register(self._fork_writer)
-            on_runtime_replaced(self._replace_worker)
             error_handler = DDTelemetryErrorHandler(self)
             if self._is_microvm:
                 on_runtime_identity_refresh(self._refresh_runtime_identity)
@@ -256,6 +250,11 @@ class TelemetryWriter:
         # symbol has not been built yet.
         from ddtrace.internal.native import TelemetryWorker
         from ddtrace.internal.native_runtime import get_native_runtime
+        from ddtrace.internal.native_runtime import on_runtime_replaced
+
+        # Rebuild the worker whenever the shared runtime is replaced, e.g. after its
+        # descriptors were closed.
+        on_runtime_replaced(self._replace_worker)
         from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
         application = get_application(config.SERVICE, config.VERSION, config.ENV)

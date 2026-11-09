@@ -469,47 +469,6 @@ assert os.waitstatus_to_exitcode(status) == 0
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
-def test_native_runtime_stopped_for_exec(run_python_code_in_subprocess):
-    """os.exec* replaces the process image with the runtime stopped, and a failed exec resumes it."""
-    code = """
-import os
-import sys
-import warnings
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-import ddtrace
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.trace import tracer
-
-
-pid = os.fork()
-if pid == 0:
-    os.execv(sys.executable, [sys.executable, "-c", "pass"])
-
-_, status = os.waitpid(pid, 0)
-assert os.waitstatus_to_exitcode(status) == 0
-
-try:
-    os.execvp("ddtrace-no-such-executable", ["ddtrace-no-such-executable"])
-except OSError:
-    pass
-else:
-    raise AssertionError("expected the exec to fail")
-
-with tracer.trace("after-failed-exec"):
-    pass
-telemetry_writer.periodic(force_flush=True)
-tracer.flush()
-"""
-
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
-
-    assert status == 0, stderr
-    assert b"panic" not in stderr.lower(), stderr
-
-
-@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
 @pytest.mark.parametrize("cleanup", ["closerange", "celery"])
 def test_native_runtime_replaced_after_cleanup_with_live_connections(run_python_code_in_subprocess, tmp_path, cleanup):
     """Closing descriptors after the workers have connected must not break later use.
@@ -731,6 +690,112 @@ deadline = time.monotonic() + 5
 while tokio_threads() > before and time.monotonic() < deadline:
     time.sleep(0.05)
 assert tokio_threads() <= before, (tokio_threads(), before)
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_fork_close_exec_like_gevent_subprocess(run_python_code_in_subprocess):
+    """gevent's subprocess: fork, close every inherited descriptor one by one, exec.
+
+    The runtime rebuilt in the child's fork hook loses its descriptors to the
+    os.close calls. Nothing may use it before the exec, which must go through,
+    and the parent must carry on tracing.
+    """
+    code = """
+import os
+import select
+import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+with tracer.trace("before"):
+    pass
+tracer.flush()
+
+for _ in range(5):
+    errpipe_read, errpipe_write = os.pipe()
+    os.set_inheritable(errpipe_write, False)
+    pid = os.fork()
+    if pid == 0:
+        try:
+            for name in os.listdir("/proc/self/fd" if os.path.isdir("/proc/self/fd") else "/dev/fd"):
+                fd = int(name)
+                if fd < 3 or fd == errpipe_write:
+                    continue
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            os.execv(sys.executable, [sys.executable, "-c", "pass"])
+        except BaseException as e:
+            os.write(errpipe_write, repr(e).encode())
+        os._exit(255)
+    os.close(errpipe_write)
+    ready, _, _ = select.select([errpipe_read], [], [], 30)
+    if not ready:
+        os.kill(pid, 9)
+        os.waitpid(pid, 0)
+        raise AssertionError("the child neither exec'd nor exited")
+    error = os.read(errpipe_read, 4096)
+    os.close(errpipe_read)
+    _, status = os.waitpid(pid, 0)
+    assert not error, error
+    assert os.waitstatus_to_exitcode(status) == 0, status
+
+with tracer.trace("after"):
+    pass
+tracer.flush()
+telemetry_writer.periodic(force_flush=True)
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+def test_native_runtime_replacement_rebuilds_owners(run_python_code_in_subprocess):
+    """Objects built on the replaced runtime are dropped or rebuilt straight away."""
+    code = """
+import os
+
+import ddtrace
+from ddtrace.internal import http
+from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.trace import tracer
+
+
+http._build_client("http://localhost:8126", 1000)
+assert http._build_client.cache_info().currsize == 1
+
+rc = RemoteConfigClient()
+rc.ensure_native()
+assert rc._native is not None
+
+writer = tracer._span_aggregator.writer
+
+fd = os.open(os.devnull, os.O_RDONLY)
+os.closerange(fd, fd + 1)
+
+assert http._build_client.cache_info().currsize == 0
+assert rc._native is None
+# The writer is rebuilt on the new runtime now, not on the next span start.
+assert not tracer._post_fork_writer_pending
+assert tracer._span_aggregator.writer is not writer
+
+with tracer.trace("after-replacement"):
+    pass
+tracer.flush()
 """
 
     _, stderr, status, _ = run_python_code_in_subprocess(code)

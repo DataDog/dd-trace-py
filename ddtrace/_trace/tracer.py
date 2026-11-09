@@ -445,12 +445,13 @@ class Tracer:
 
     def _on_native_runtime_replaced(self) -> None:
         # The writer's exporter runs on the replaced runtime, whose connections may refer to
-        # closed descriptors. Drop it without shutting it down, and rebuild the writer on the
-        # next span start, as after a fork.
+        # closed descriptors. Drop it without shutting it down, and rebuild the writer now, on
+        # the new runtime, so that its periodic flush never sends through the dropped exporter.
         drop_exporter = getattr(self._span_aggregator.writer, "_drop_exporter", None)
         if drop_exporter is not None:
             drop_exporter()
         self._post_fork_writer_pending = True
+        self._ensure_post_fork_writer()
 
     def _ensure_post_fork_writer(self) -> bool:
         """Recreate the inherited writer once after a fork."""

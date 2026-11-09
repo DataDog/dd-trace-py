@@ -128,6 +128,11 @@ class RemoteConfigClient:
         if self._native is None:
             from ddtrace.internal.native import RemoteConfigClient as _NativeClient
             from ddtrace.internal.native_runtime import get_native_runtime
+            from ddtrace.internal.native_runtime import on_runtime_replaced
+
+            # The client's connections belong to the runtime it is built on: rebuild it
+            # on the next request when that runtime is replaced.
+            on_runtime_replaced(self._drop_native)
 
             tracer_version = _pep440_to_semver()
             # In agentless mode the API key selects the direct-to-backend fetcher;
@@ -162,6 +167,9 @@ class RemoteConfigClient:
                 self._native.add_capabilities(self._capability_values)
             self._unconfirmed = set(self._applied)
         return self._native
+
+    def _drop_native(self) -> None:
+        self._native = None
 
     def switch_to_agentless(self) -> None:
         self.agentless = True

@@ -3,9 +3,12 @@ from functools import wraps
 import logging
 import os
 import sys
+from types import MethodType
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Union
+from weakref import WeakMethod
 
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
@@ -117,21 +120,31 @@ class NativeRuntime(SharedRuntime):
 _runtime: Optional[NativeRuntime] = None
 
 # Called after the runtime is replaced outside a fork, so that the owners of
-# workers on the old runtime rebuild them, as they do in a fork child.
-_replacement_hooks: list[Callable[[], None]] = []
+# objects built on the old runtime (workers, clients with connection pools)
+# rebuild them. Bound methods are held weakly, so that short-lived owners do not
+# accumulate here.
+_HookEntry = Union[Callable[[], None], "WeakMethod[Callable[[], None]]"]
+_replacement_hooks: list[_HookEntry] = []
+
+
+def _resolve_hook(entry: _HookEntry) -> Optional[Callable[[], None]]:
+    return entry() if isinstance(entry, WeakMethod) else entry
 
 
 def on_runtime_replaced(hook: Callable[[], None]) -> Callable[[], None]:
-    """Register a hook to run after the runtime is replaced, e.g. by a descriptor cleanup."""
-    _replacement_hooks.append(hook)
+    """Register a hook to run after the runtime is replaced, e.g. by a descriptor cleanup.
+
+    Owners register when they build an object on the runtime; registering the
+    same hook again has no effect.
+    """
+    if any(_resolve_hook(entry) == hook for entry in _replacement_hooks):
+        return hook
+    _replacement_hooks.append(WeakMethod(hook) if isinstance(hook, MethodType) else hook)
     return hook
 
 
 def unregister_on_runtime_replaced(hook: Callable[[], None]) -> None:
-    try:
-        _replacement_hooks.remove(hook)
-    except ValueError:
-        pass
+    _replacement_hooks[:] = [entry for entry in _replacement_hooks if _resolve_hook(entry) not in (hook, None)]
 
 
 def _reserve_standard_fds() -> list[int]:
@@ -169,7 +182,11 @@ def _replace_runtime(runtime: NativeRuntime) -> None:
         runtime.replace_runtime()
     finally:
         _release_standard_fds(reserved)
-    for hook in list(_replacement_hooks):
+    _replacement_hooks[:] = [entry for entry in _replacement_hooks if _resolve_hook(entry) is not None]
+    for entry in list(_replacement_hooks):
+        hook = _resolve_hook(entry)
+        if hook is None:
+            continue
         try:
             hook()
         except Exception:
@@ -263,36 +280,14 @@ def _closerange_closes_open_fds(fd_low: int, fd_high: int) -> bool:
     return True
 
 
-def _stop_before_exec(execute: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap an exec function so the process image is replaced with the runtime stopped."""
-    if getattr(execute, "__ddtrace_native_runtime__", False):
-        return execute
-
-    @wraps(execute)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        runtime = _runtime
-        if runtime is None or runtime._shut_down:
-            return execute(*args, **kwargs)
-
-        runtime.before_fork()
-        try:
-            return execute(*args, **kwargs)
-        except BaseException:
-            # The exec failed and this process carries on: resume the runtime
-            # with its workers' state intact, as in a fork parent.
-            runtime.after_fork_parent()
-            raise
-
-    setattr(wrapper, "__ddtrace_native_runtime__", True)
-    return wrapper
-
-
 # Daemonizing libraries such as python-daemon fork, close every inherited
-# descriptor with os.closerange and keep running. Every os.exec* function goes
-# through os.execv or os.execve, which os looks up by name on each call.
+# descriptor with os.closerange and keep running.
+#
+# os.exec* is deliberately left alone: the kernel ends the runtime's threads at
+# exec, and stopping the runtime first would wake its I/O driver, whose
+# descriptors may already be closed. gevent's subprocess, for one, closes every
+# inherited descriptor with os.close before calling os.execvp.
 setattr(os, "closerange", _stop_while_closing_fds(os.closerange, _closerange_closes_open_fds))
-setattr(os, "execv", _stop_before_exec(os.execv))
-setattr(os, "execve", _stop_before_exec(os.execve))
 
 
 @ModuleWatchdog.after_module_imported("celery.platforms")
