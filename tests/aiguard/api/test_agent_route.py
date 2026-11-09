@@ -8,10 +8,13 @@ from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import Message
 from ddtrace.aiguard._api_client import _agent_route
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.aiguard._initialization import load_ai_guard
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.threads import Thread
 from ddtrace.internal.threads import original_Event
+from tests.aiguard.utils import override_ai_guard_config
+from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -161,6 +164,27 @@ def test_start_can_retry_after_thread_creation_fails():
         _agent_route.start()
 
     assert thread.return_value.start.call_count == 2
+
+
+@pytest.mark.parametrize("error", [OSError("thread resources exhausted"), RuntimeError("cannot start thread")])
+def test_background_thread_failure_preserves_listener_installation(error):
+    with (
+        override_global_config(dict(_dd_api_key="", _dd_app_key="")),
+        override_ai_guard_config(dict(_ai_guard_enabled=True)),
+        patch("ddtrace.aiguard._initialization._AI_GUARD_TO_BE_LOADED", True),
+        patch("ddtrace.aiguard._api_client.Thread") as thread,
+        patch("ddtrace.aiguard._listener._openai_listen") as openai_listen,
+        patch("ddtrace.aiguard._listener._anthropic_listen"),
+        patch("ddtrace.aiguard._listener._langchain_listen"),
+        patch("ddtrace.aiguard._listener.core.on"),
+        patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}),
+        patch.object(agent_config, "trace_agent_url", "http://agent:8126"),
+    ):
+        thread.return_value.start.side_effect = error
+        load_ai_guard()
+        openai_listen.assert_called_once()
+        client = openai_listen.call_args.args[0]
+        assert client._resolve_base_url() == "http://agent:8126"
 
 
 @pytest.mark.parametrize("failure", [None, ConnectionFailedError("Agent unavailable")])

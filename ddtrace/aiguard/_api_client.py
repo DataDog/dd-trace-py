@@ -1008,6 +1008,11 @@ def new_ai_guard_client(
     # which this client has no credentials to call, and it is no evidence of Agent support.
     # The route is resolved per evaluation rather than here: an Agent that is not ready yet, or
     # not yet configured with an application key, must not stop AI Guard from being set up.
-    _agent_route.start()
+    try:
+        _agent_route.start()
+    except (OSError, RuntimeError):
+        # Background probing is optional: listener installation must survive thread
+        # resource failures so evaluations can discover the Agent synchronously.
+        logger.debug("Could not start AI Guard Agent discovery in the background", exc_info=True)
     path = f"{AI_GUARD.AGENT_PROXY_ENDPOINT}{AI_GUARD.AGENT_PROXY_API_PATH}"
     return AIGuardClient(path, agent_transport=True)
