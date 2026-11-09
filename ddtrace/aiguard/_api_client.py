@@ -885,12 +885,15 @@ class _AgentRouteDiscovery:
         unsupported = False
         base_url, reason = None, "the Agent /info endpoint could not be read"
         try:
-            info = agent.info()
+            info = agent.info(raise_on_404=True)
             if info is not None:
                 endpoints = {endpoint.lstrip("/") for endpoint in (info.get("endpoints") or [])}
                 unsupported = AI_GUARD.AGENT_PROXY_ENDPOINT.lstrip("/") not in endpoints
                 reason = "the Agent does not advertise the AI Guard proxy route" if unsupported else ""
                 base_url = agent_config.trace_agent_url.rstrip("/") if not unsupported else None
+        except agent.AgentInfoNotFoundError:
+            unsupported = True
+            reason = "the Agent does not expose the /info endpoint"
         except Exception:
             logger.debug("Could not read the Agent /info endpoint", exc_info=True)
             unsupported = False

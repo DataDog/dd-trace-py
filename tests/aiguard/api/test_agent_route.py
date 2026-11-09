@@ -1,4 +1,5 @@
 import os
+from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
@@ -19,7 +20,7 @@ def pending_probe():
     release = original_Event()
     workers = []
 
-    def info():
+    def info(*, raise_on_404):
         entered.set()
         assert release.wait(5), "probe was not released"
         return {"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}
@@ -86,7 +87,7 @@ def test_evaluation_shares_pending_discovery(pending_probe, tracer):
     assert "error" not in result
     assert result["evaluation"]["action"] == "ALLOW"
     connection.assert_called_once()
-    mock_info.assert_called_once_with()
+    mock_info.assert_called_once_with(raise_on_404=True)
 
 
 def test_pending_discovery_wait_is_bounded(pending_probe):
@@ -96,7 +97,7 @@ def test_pending_discovery_wait_is_bounded(pending_probe):
 
     assert base_url is None
     assert "in progress" in reason
-    mock_info.assert_called_once_with()
+    mock_info.assert_called_once_with(raise_on_404=True)
 
 
 def test_start_is_idempotent_until_reset(pending_probe):
@@ -109,7 +110,7 @@ def test_start_is_idempotent_until_reset(pending_probe):
     for _ in range(10):
         _agent_route.start()
     assert len(workers) == 1
-    mock_info.assert_called_once_with()
+    mock_info.assert_called_once_with(raise_on_404=True)
 
     _agent_route.reset()
     _agent_route.start()
@@ -176,6 +177,16 @@ def test_transient_discovery_failure_is_retried_by_next_evaluation(failure):
         assert _agent_route.resolve() == ("http://agent:8126", "")
 
     assert mock_info.call_count == 2
+
+
+@pytest.mark.parametrize("status, expected_probes", [(404, 1), (503, 2)])
+def test_only_confirmed_unsupported_info_is_throttled(status, expected_probes):
+    response = Mock(status=status, reason="Agent unavailable")
+    with patch("ddtrace.internal.agent._request_info", return_value=(response, b"")) as request_info:
+        assert _agent_route.resolve()[0] is None
+        assert _agent_route.resolve()[0] is None
+
+    assert request_info.call_count == expected_probes
 
 
 @pytest.mark.subprocess()
