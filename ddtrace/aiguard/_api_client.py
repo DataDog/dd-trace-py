@@ -886,7 +886,8 @@ class _AgentRouteDiscovery:
         try:
             info = agent.info()
             if info is not None:
-                unsupported = AI_GUARD.AGENT_PROXY_ENDPOINT not in (info.get("endpoints") or [])
+                endpoints = {endpoint.lstrip("/") for endpoint in (info.get("endpoints") or [])}
+                unsupported = AI_GUARD.AGENT_PROXY_ENDPOINT.lstrip("/") not in endpoints
                 reason = "the Agent does not advertise the AI Guard proxy route" if unsupported else ""
                 base_url = agent_config.trace_agent_url.rstrip("/") if not unsupported else None
         except Exception:

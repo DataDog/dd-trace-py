@@ -924,10 +924,11 @@ def recording_connection():
         ("unix:///var/run/datadog/apm.socket", "unix:///var/run/datadog/apm.socket"),
     ],
 )
-def test_agent_transport_reaches_the_proxy_route(agent_url, expected_base, recording_connection):
+@pytest.mark.parametrize("advertised_route", ["/ai_guard/proxy/", "ai_guard/proxy/"])
+def test_agent_transport_reaches_the_proxy_route(agent_url, expected_base, advertised_route, recording_connection):
     """Without credentials the evaluation goes to the Agent route, keys left to the Agent."""
     with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
-        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [advertised_route]}):
             with patch.object(agent_config, "trace_agent_url", agent_url):
                 client = new_ai_guard_client()
                 client.evaluate([Message(role="user", content="hi")])
