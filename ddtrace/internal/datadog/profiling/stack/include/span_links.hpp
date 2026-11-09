@@ -185,7 +185,6 @@ class SpanLinks
     void assign_locked(const SpanLinkKey& key, std::optional<Span> span);
     void retarget_locked(uint64_t span_id, const std::optional<Span>& replacement);
     void remove_locked(const SpanLinkKey& key);
-    void index_locked(const SpanLinkKey& key, uint64_t span_id);
     void unindex_locked(const SpanLinkKey& key, uint64_t span_id);
     void unindex_locked(const SpanLinkKey& key, const std::optional<Span>& span);
     void clear_maps_locked();

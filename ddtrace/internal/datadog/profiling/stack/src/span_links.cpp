@@ -5,23 +5,8 @@
 #include <stdint.h>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace Datadog {
-
-void
-SpanLinks::index_locked(const SpanLinkKey& key, uint64_t span_id)
-{
-    auto [it, created] = span_to_keys.try_emplace(span_id);
-    try {
-        it->second.insert(key);
-    } catch (...) {
-        if (created) {
-            span_to_keys.erase(it);
-        }
-        throw;
-    }
-}
 
 void
 SpanLinks::unindex_locked(const SpanLinkKey& key, uint64_t span_id)
@@ -55,60 +40,42 @@ SpanLinks::remove_locked(const SpanLinkKey& key)
     key_to_entry.erase(it);
 }
 
-// Writes span to one key and keeps span_to_keys in sync with it. If an allocation throws, both maps are left as they
-// were.
+// Writes span to one key and keeps span_to_keys in sync with it.
 void
 SpanLinks::assign_locked(const SpanLinkKey& key, std::optional<Span> span)
 {
     auto it = key_to_entry.find(key);
+    if (it != key_to_entry.end()) {
+        unindex_locked(key, it->second.span);
+    }
 
     if (!span) {
         if (it == key_to_entry.end()) {
             // "No span" never creates a key.
             return;
         }
-        unindex_locked(key, it->second.span);
-        if (!key.is_thread()) {
+        if (key.is_thread()) {
+            key_to_entry.erase(it);
+        } else {
             // Keep a tombstone, so the key keeps its birth for the rest of the object's life.
             it->second.span.reset();
-        } else {
-            key_to_entry.erase(it);
         }
         return;
     }
 
-    const uint64_t span_id = span->span_id;
-    const bool index = span->kind == SpanLinkKind::Span;
-    bool already_indexed = false;
-    if (index && it != key_to_entry.end()) {
-        const std::optional<Span>& existing = it->second.span;
-        already_indexed = existing.has_value() && existing->kind == SpanLinkKind::Span && existing->span_id == span_id;
-    }
-
-    // Index before touching the entry, so a failed allocation leaves the key as it was. Index only the span itself, not
-    // its local root: a local root can finish before an active child, and that must not move the child's link.
-    if (index && !already_indexed) {
-        index_locked(key, span_id);
+    // Index only the span itself, not its local root: a local root can finish before an active child, and that must
+    // not move the child's link.
+    if (span->kind == SpanLinkKind::Span) {
+        span_to_keys[span->span_id].insert(key);
     }
 
     if (it != key_to_entry.end()) {
-        if (!already_indexed) {
-            unindex_locked(key, it->second.span);
-        }
         it->second.span = std::move(span);
-        return;
-    }
-
-    const uint64_t birth = !key.is_thread() ? birth_counter.load(std::memory_order_relaxed) + 1 : 0;
-    try {
+    } else if (key.is_thread()) {
+        key_to_entry.emplace(key, SpanLinkEntry{ std::move(span), 0 });
+    } else {
+        const uint64_t birth = birth_counter.load(std::memory_order_relaxed) + 1;
         key_to_entry.emplace(key, SpanLinkEntry{ std::move(span), birth });
-    } catch (...) {
-        if (index) {
-            unindex_locked(key, span_id);
-        }
-        throw;
-    }
-    if (!key.is_thread()) {
         birth_counter.store(birth, std::memory_order_release);
     }
 }
@@ -140,70 +107,16 @@ SpanLinks::link(uint64_t token,
 void
 SpanLinks::retarget_locked(uint64_t span_id, const std::optional<Span>& replacement)
 {
-    auto source_it = span_to_keys.find(span_id);
-    if (source_it == span_to_keys.end()) {
+    auto it = span_to_keys.find(span_id);
+    if (it == span_to_keys.end()) {
         return;
     }
-    // References to elements survive a rehash of span_to_keys, iterators do not.
-    KeySet& source = source_it->second;
-
-    // Allocate everything that can fail before changing anything, so that a failed allocation leaves every key and
-    // the index as they were.
-    std::vector<Span> copies;
-    if (replacement) {
-        copies.reserve(source.size());
-        for (size_t i = 0; i < source.size(); ++i) {
-            copies.push_back(*replacement);
-        }
+    // Take the keys out first, since assign_locked may index the replacement and rehash span_to_keys.
+    const KeySet keys = std::move(it->second);
+    span_to_keys.erase(it);
+    for (const auto& key : keys) {
+        assign_locked(key, replacement);
     }
-
-    if (replacement && replacement->kind == SpanLinkKind::Span && replacement->span_id == span_id) {
-        // The keys stay indexed under the same span id, only their labels change.
-        size_t next_copy = 0;
-        for (const auto& key : source) {
-            auto entry_it = key_to_entry.find(key);
-            if (entry_it != key_to_entry.end()) {
-                entry_it->second.span = std::move(copies[next_copy++]);
-            }
-        }
-        return;
-    }
-
-    KeySet* target = nullptr;
-    if (replacement && replacement->kind == SpanLinkKind::Span) {
-        auto [target_it, created] = span_to_keys.try_emplace(replacement->span_id);
-        try {
-            target_it->second.reserve(target_it->second.size() + source.size());
-        } catch (...) {
-            if (created) {
-                span_to_keys.erase(target_it);
-            }
-            throw;
-        }
-        target = &target_it->second;
-    }
-
-    // Nothing below allocates. Index nodes move from source to target without being reallocated.
-    size_t next_copy = 0;
-    for (auto key_it = source.begin(); key_it != source.end();) {
-        auto entry_it = key_to_entry.find(*key_it);
-        if (entry_it != key_to_entry.end()) {
-            if (replacement) {
-                entry_it->second.span = std::move(copies[next_copy++]);
-            } else if (!key_it->is_thread()) {
-                entry_it->second.span.reset();
-            } else {
-                key_to_entry.erase(entry_it);
-            }
-        }
-
-        if (target != nullptr) {
-            target->insert(source.extract(key_it++));
-        } else {
-            ++key_it;
-        }
-    }
-    span_to_keys.erase(span_id);
 }
 
 void
