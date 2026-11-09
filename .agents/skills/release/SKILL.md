@@ -54,7 +54,7 @@ DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL=https://hooks.slack.com/services/
 
 ## Human gates (typical) — order matters
 
-1. **Bump `pyproject.toml` on the release tip to the exact version you will tag** (e.g. `4.16.4`) and merge that bump **first** — before CI wait, draft notes, Slack, or Publish. GitLab `package version` requires `CI_COMMIT_TAG == v{pyproject}`; mismatch blocks PyPI. `patch` / `draft-release` open or reuse the bump PR and exit `WAITING ON` merge when tip ≠ version (wet path never drafts on mismatch). **GH PR is enough** for bump review — no Slack announce for the bump.
+1. **Bump PR (release-run step 1):** `patch` / `draft-release` open or reuse a **ready-for-review** (not draft) bump PR into the release branch (`pyproject.toml` → exact tag version, e.g. `4.16.4`) and exit `WAITING ON` merge when tip ≠ version — before CI wait, GitHub release draft, Slack, or Publish. GitLab `package version` requires `CI_COMMIT_TAG == v{pyproject}`; mismatch blocks PyPI. Reviewers come from CODEOWNERS (`DataDog/python-guild` on `pyproject.toml`); **no Slack** for the bump — channel ping is draft-ready only.
 2. Fix / backport PR review and merge (bump can land in parallel once the cut is started).
 3. CI green on `origin/X.Y` (or candidate SHA) — wet `patch`/`rc`/`final`/`draft-release` poll by default (`--wait-ci`, ~75m / 45s); `--dry-run` never waits; `--no-wait-ci` exits `WAITING ON` immediately if still pending
 4. Maintainer publish of the draft (tag ruleset) — creates the Git tag only

@@ -996,6 +996,40 @@ class DraftReleaseMismatchTests(unittest.TestCase):
         self.assertEqual(mod.suggested_next_version_from_tip("4.17.0rc1"), "4.17.0rc2")
         self.assertIsNone(mod.suggested_next_version_from_tip("4.16.4.dev0"))
 
+    def test_bump_pr_create_args_are_ready_not_draft(self) -> None:
+        import create_gh_release as mod
+
+        args: list[str] = mod.build_version_bump_pr_create_args(
+            base_branch="4.16",
+            head_branch="bump-version/4.16.4",
+            title="chore: bump version to 4.16.4",
+            pr_body="body",
+        )
+        self.assertNotIn("--draft", args)
+        self.assertIn("--reviewer", args)
+        self.assertIn(mod.BUMP_PR_REVIEWER_TEAM, args)
+        self.assertEqual(args[args.index("--base") + 1], "4.16")
+
+    def test_reuse_open_bump_ensures_ready(self) -> None:
+        import create_gh_release as mod
+
+        with mock.patch.object(
+            mod,
+            "find_open_bump_prs",
+            return_value=[
+                {"number": 21616, "url": "https://github.com/DataDog/dd-trace-py/pull/21616", "isDraft": True}
+            ],
+        ):
+            with mock.patch.object(mod, "ensure_bump_pr_ready_for_review") as ensure_ready:
+                with self.assertRaises(WaitingOn) as ctx:
+                    mod.open_or_wait_version_bump(
+                        base_branch="4.16",
+                        new_version="4.16.4",
+                        dry_run=False,
+                    )
+        ensure_ready.assert_called_once_with(21616, dry_run=False)
+        self.assertIn("21616", ctx.exception.message)
+
     def test_wet_allow_version_mismatch_still_refuses(self) -> None:
         import argparse as ap
 

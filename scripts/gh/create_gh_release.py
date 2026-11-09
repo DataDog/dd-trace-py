@@ -132,13 +132,16 @@ Failure recovery:
   ensure-branch checked out a local branch but `git push` failed:
       git checkout main && git branch -D <X.Y>   # then re-run ensure-branch
 
-Bump-first (patch / draft-release):
+Bump-first (patch / draft-release) — step 1 of the release run:
   Tip ``pyproject.toml`` must equal the release version **before** CI wait,
   draft notes, Slack, or Publish. When tip is still the previous patch/RC,
-  the script opens (or reuses) a bump PR and exits WAITING ON merge — it
-  never drafts on a mismatch. ``--allow-version-mismatch`` is dry-run notes
-  preview only. Source of truth is ``pyproject.toml`` (``scripts/verify-package-version``
-  on the bump commit); ``ddtrace.version`` comes from the built wheel metadata.
+  the script opens (or reuses) a **ready-for-review** bump PR into the
+  release branch and exits WAITING ON merge — it never creates a GitHub
+  *release* draft on a mismatch. Bump PRs are ready (not ``--draft``) so
+  CODEOWNERS can review immediately. ``--allow-version-mismatch`` is dry-run
+  notes preview only. Source of truth is ``pyproject.toml``
+  (``scripts/verify-package-version`` on the bump commit);
+  ``ddtrace.version`` comes from the built wheel metadata.
 
 Gotchas:
   - Workflow Builder triggers/ URLs: script posts structured fields. The
@@ -219,6 +222,8 @@ SLACK_DM_ENV: str = "DDTRACE_RELEASE_DM_URL"
 # Slack User Group for people with tag/publish perms (Brett confirmed
 # 2026-11-09). Mosaic pack: https://mosaic.us1.ddbuild.io/packs/pack/dd-trace-py-releasers
 SLACK_RELEASERS_HANDLE: str = "dd-trace-py-releasers"
+# CODEOWNERS for pyproject.toml — request on ready bump PRs (not Slack).
+BUMP_PR_REVIEWER_TEAM: str = "DataDog/python-guild"
 SLACK_RELEASERS_SUBTEAM_ENV: str = "DD_SLACK_RELEASERS_SUBTEAM_ID"
 # #apm-python-release — from docs/contributing-release.rst (not a secret).
 SLACK_CHANNEL_PROD_ID: str = "C04MK6NNDG9"
@@ -404,6 +409,36 @@ def suggested_next_version_from_tip(tip_version: str) -> Optional[str]:
     return None
 
 
+def ensure_bump_pr_ready_for_review(pr_number: int, *, dry_run: bool) -> None:
+    """Mark an open bump PR ready for review (not draft). No-op if already ready."""
+    if dry_run:
+        print(f"(dry-run) would ensure PR #{pr_number} is ready for review (not draft)")
+        return
+    cp: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--repo",
+            GH_REPO,
+            "--json",
+            "isDraft",
+            "--jq",
+            ".isDraft",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(REPO_ROOT),
+    )
+    if cp.returncode != 0:
+        return
+    if cp.stdout.strip().lower() == "true":
+        run(["gh", "pr", "ready", str(pr_number), "--repo", GH_REPO], cwd=REPO_ROOT)
+        print(f"marked bump PR #{pr_number} ready for review")
+
+
 def open_or_wait_version_bump(
     *,
     base_branch: str,
@@ -411,14 +446,17 @@ def open_or_wait_version_bump(
     dry_run: bool,
     body_extra: str = "",
 ) -> None:
-    """Open or reuse a version-bump PR, then always raise ``WaitingOn``.
+    """Open or reuse a ready bump PR, then always raise ``WaitingOn``.
 
-    Never continues to CI/draft/Slack — tip must match after the bump merges.
+    Never continues to CI/GitHub-release-draft/Slack — tip must match after merge.
     """
     ver: str = normalize_version_str(new_version)
     open_bps: list[dict[str, Any]] = find_open_bump_prs(base_branch, ver)
     if open_bps:
         url: str = str(open_bps[0].get("url") or "")
+        number_raw: Any = open_bps[0].get("number")
+        if number_raw is not None:
+            ensure_bump_pr_ready_for_review(int(number_raw), dry_run=dry_run)
         raise WaitingOn(
             f"merge of bump PR to {ver}"
             + (f" ({url})" if url else "")
@@ -426,9 +464,9 @@ def open_or_wait_version_bump(
         )
     title: str = f"chore: bump {ver}" if is_rc_version(ver) else f"chore: bump version to {ver}"
     extra: str = body_extra.strip() or (
-        "Bump-first: tip `pyproject.toml` must equal the release version before "
-        "CI wait, draft notes, Slack, or Publish (GitLab `package version` "
-        "requires `CI_COMMIT_TAG == v{pyproject}`)."
+        "Bump-first (release run step 1): tip `pyproject.toml` must equal the "
+        "release version before CI wait, draft notes, Slack, or Publish "
+        "(GitLab `package version` requires `CI_COMMIT_TAG == v{pyproject}`)."
     )
     pr_url: Optional[str] = open_version_bump_pr(
         base_branch=base_branch,
@@ -1533,22 +1571,12 @@ def cmd_bump_rc(args: argparse.Namespace) -> int:
     )
     try:
         pr_url: str = run_out(
-            [
-                "gh",
-                "pr",
-                "create",
-                "--draft",
-                "--base",
-                base_branch,
-                "--head",
-                branch,
-                "--label",
-                "changelog/no-changelog",
-                "--title",
-                f"chore: bump {next_version}",
-                "--body",
-                pr_body,
-            ],
+            build_version_bump_pr_create_args(
+                base_branch=base_branch,
+                head_branch=branch,
+                title=f"chore: bump {next_version}",
+                pr_body=pr_body,
+            ),
             cwd=REPO_ROOT,
         )
     except subprocess.CalledProcessError:
@@ -1561,7 +1589,7 @@ def cmd_bump_rc(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         raise
-    print(f"\nPR opened: {pr_url}")
+    print(f"\nReady-for-review bump PR opened: {pr_url}")
     return 0
 
 
@@ -2099,7 +2127,7 @@ def find_open_bump_prs(branch: str, version: str) -> list[dict[str, Any]]:
             "--search",
             f"bump {version} in:title",
             "--json",
-            "number,title,url,headRefName",
+            "number,title,url,headRefName,isDraft",
             "--limit",
             "20",
         ]
@@ -2450,6 +2478,33 @@ def build_version_bump_pr_body(
     return "\n\n".join(parts) + "\n"
 
 
+def build_version_bump_pr_create_args(
+    *,
+    base_branch: str,
+    head_branch: str,
+    title: str,
+    pr_body: str,
+) -> list[str]:
+    """``gh pr create`` argv for a ready-for-review version bump (not ``--draft``)."""
+    return [
+        "gh",
+        "pr",
+        "create",
+        "--base",
+        base_branch,
+        "--head",
+        head_branch,
+        "--label",
+        "changelog/no-changelog",
+        "--reviewer",
+        BUMP_PR_REVIEWER_TEAM,
+        "--title",
+        title,
+        "--body",
+        pr_body,
+    ]
+
+
 def open_version_bump_pr(
     *,
     base_branch: str,
@@ -2458,7 +2513,11 @@ def open_version_bump_pr(
     dry_run: bool,
     body_extra: str = "",
 ) -> Optional[str]:
-    """Create a version-bump branch/PR. Returns PR URL or None on dry-run."""
+    """Create a ready-for-review version-bump PR. Returns PR URL or None on dry-run.
+
+    Part of the release run (step 1): bump PRs are opened ready (not ``--draft``)
+    so CODEOWNERS can review immediately. GitHub *release* drafts stay ``--draft``.
+    """
     branch: str = f"bump-version/{new_version}"
     run(["git", "fetch", "origin", base_branch], cwd=REPO_ROOT)
     pr_body: str = build_version_bump_pr_body(
@@ -2467,10 +2526,20 @@ def open_version_bump_pr(
         body_extra=body_extra,
     )
     if dry_run:
-        print(f"(dry-run) would open PR {title!r} on base {base_branch} via branch {branch}")
+        print(
+            f"(dry-run) would open ready-for-review PR {title!r} on base "
+            f"{base_branch} via branch {branch} (reviewer {BUMP_PR_REVIEWER_TEAM})"
+        )
         print("--- bump PR body ---")
         print(pr_body.rstrip())
         print("--- end bump PR body ---")
+        create_preview: list[str] = build_version_bump_pr_create_args(
+            base_branch=base_branch,
+            head_branch=branch,
+            title=title,
+            pr_body="<body>",
+        )
+        print(f"(dry-run) would: {' '.join(create_preview)}")
         return None
     ensure_gh_auth()
     ensure_gh_push_scope()
@@ -2494,22 +2563,12 @@ def open_version_bump_pr(
     run(["git", "commit", "-m", title], cwd=REPO_ROOT)
     run(["git", "push", "-u", "origin", branch], cwd=REPO_ROOT)
     pr_url: str = run_out(
-        [
-            "gh",
-            "pr",
-            "create",
-            "--draft",
-            "--base",
-            base_branch,
-            "--head",
-            branch,
-            "--label",
-            "changelog/no-changelog",
-            "--title",
-            title,
-            "--body",
-            pr_body,
-        ],
+        build_version_bump_pr_create_args(
+            base_branch=base_branch,
+            head_branch=branch,
+            title=title,
+            pr_body=pr_body,
+        ),
         cwd=REPO_ROOT,
     )
     return pr_url
