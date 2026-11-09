@@ -11,6 +11,7 @@ Functions:
   - emit_ddtest_jobs: emit plan + run jobs for one ddtest suite
 """
 
+import shlex
 import typing as t
 
 
@@ -140,6 +141,10 @@ def emit_ddtest_jobs(
 
     def emit_before_script(plan: bool) -> None:
         print("  before_script:", file=f)
+        # Apply empty suite values before setup to override forwarded pipeline variables.
+        empty_env = [f"{key}=" for key, value in env.items() if value == ""]
+        if empty_env:
+            print(f"    - export {shlex.join(empty_env)}", file=f)
         ref_base = plan_base if plan else base
         print(f"    - !reference [{ref_base}, before_script]", file=f)
         print(f'    - export NIGHTLY_BUILD="{_get_bool_env("NIGHTLY_BUILD")}"', file=f)
@@ -160,6 +165,8 @@ def emit_ddtest_jobs(
         print("  variables:", file=f)
         print(f"    SUITE_NAME: {suite_name}", file=f)
         for key, value in env.items():
+            if value == "":
+                value = '""'
             print(f"    {key}: {value}", file=f)
         if extra:
             for key, value in extra.items():

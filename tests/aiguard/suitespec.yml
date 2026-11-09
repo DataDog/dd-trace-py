@@ -108,6 +108,10 @@ suites:
     # TODO(py-315): litellm resolves fastuuid 0.14.0 (PyO3 supports up to 3.14),
     # so the environments fail to build on 3.15. Re-add 3.15 once litellm drops
     # or updates fastuuid.
+    env:
+      # Disable the internal index to test vulnerable LiteLLM versions.
+      PIP_INDEX_URL: ""
+      UV_DEFAULT_INDEX: ""
     paths:
       - '@bootstrap'
       - '@ai_guard'
