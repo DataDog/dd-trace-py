@@ -188,6 +188,18 @@ response preparation does not leave their contexts open. Response completion rem
 pending fallback callback so keep-alive tasks do not retain completed requests. Cancellation retains the existing
 behavior of not being tagged as a tracing error.
 
+Flask and WSGI use one deferred `WebFrameworkRequestEvent` context. Application
+return emits `wsgi.application.returned` while that context is still current, so
+AppSec and IAST finalize at their existing boundary before response iteration.
+`WebFrameworkResponseEvent` describes the returned response; tracing creates its
+response child span. The response iterable reports exhaustion, failure, and early
+closure by completing the request context. Tracing finishes the response span
+before the request span, preserving response-only error attribution for streaming
+failures and ignoring `GeneratorExit`. Closing an iterable that raises still
+completes its lifecycle, and repeated completion or close does not finish spans twice.
+Flask's route, body inspection, response preparation, and blocking hooks retain
+their existing order. These integrations remain span-dependent.
+
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping also retains the bundle listeners as described above.

@@ -75,7 +75,7 @@ def iast_listen() -> None:
     core.on("starlette.route.handle", _iast_instrument_starlette_scope)
     core.on("aiohttp.request.start", _on_aiohttp_request_start)
 
-    core.on("context.ended.wsgi.__call__", _iast_context_end)
+    core.on("wsgi.application.returned", _iast_context_end)
     core.on("context.ended.asgi.__call__", _iast_context_end)
 
     # Sink points

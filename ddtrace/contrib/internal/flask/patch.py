@@ -1,4 +1,5 @@
 from inspect import unwrap
+from typing import Any
 import weakref
 
 import flask
@@ -6,10 +7,12 @@ import werkzeug
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 
+from ddtrace._trace._registration import FLASK_REQUEST_SUBSCRIBERS
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
@@ -113,9 +116,14 @@ werkzeug_version = parse_version(werkzeug_version_str)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
+    _request_context_name = "flask.request"
     _request_call_name = schematize_url_operation("flask.request", protocol="http", direction=SpanDirection.INBOUND)
     _application_call_name = "flask.application"
     _response_call_name = "flask.response"
+
+    @requires_subscribers(FLASK_REQUEST_SUBSCRIBERS)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
 
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
         core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
@@ -128,19 +136,19 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 ).block_requested
                 if result_content:
                     _, status, response_headers = result_content.value
-                    result = start_response(str(status), response_headers)
+                    result = start_response(str(status), response_headers, exc_info)
                 else:
                     response_headers = (
                         [] if block_config.type == "none" else [("content-type", block_config.content_type)]
                     )
-                    result = start_response(str(block_config.status_code), response_headers)
+                    result = start_response(str(block_config.status_code), response_headers, exc_info)
                 core.dispatch(
                     "flask.start_response.blocked", (ctx, config.flask, response_headers, block_config.status_code)
                 )
             else:
-                result = start_response(status_code, headers)
+                result = start_response(status_code, headers, exc_info)
         else:
-            result = start_response(status_code, headers)
+            result = start_response(status_code, headers, exc_info)
         return result
 
     def _request_call_modifier(self, ctx, parsed_headers=None):
@@ -148,6 +156,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
+        event = ctx.event
+        event.request_method = request.method
+        event.request_url = request.base_url
+        event.request_headers = dict(request.headers)
+        event.query = request.query_string
 
         req_body = None
         result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -168,6 +181,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         core.dispatch("flask.request_call_modifier.post", (ctx, config.flask, request, req_body))
 
 
+@requires_subscribers(FLASK_REQUEST_SUBSCRIBERS)
 def patch():
     """
     Patch `flask` module for tracing

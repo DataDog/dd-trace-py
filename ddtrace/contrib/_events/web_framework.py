@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
+from typing import Callable
 from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
@@ -67,3 +69,15 @@ class WebFrameworkRequestExceptionEvent(Event):
     request_context: core.ExecutionContext[WebFrameworkRequestEvent]
     request_event: WebFrameworkRequestEvent
     exc_info: ExcInfoType
+
+
+@dataclass
+class WebFrameworkResponseEvent(Event):
+    """A deferred response is ready for iteration after its application returns."""
+
+    event_name = "web.response"
+
+    request_context: core.ExecutionContext[WebFrameworkRequestEvent]
+    operation_name: str
+    response: Any
+    span_modifier: Callable[[Any, Any], None]
