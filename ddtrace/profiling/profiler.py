@@ -57,7 +57,7 @@ class Profiler:
             active = Profiler._active_instance
             if active is not None and active is not self and active._profiler.status == service.ServiceStatus.RUNNING:
                 LOG.error(
-                    "A profiler is already running. Only one profiler instance can be active at a time. "
+                    "[profiling] A profiler is already running. Only one profiler instance can be active at a time. "
                     "The second profiler will not be started."
                 )
                 return
@@ -163,7 +163,7 @@ class Profiler:
         with Profiler._active_lock:
             if Profiler._active_instance is not None:
                 LOG.error(
-                    "A profiler is already running. Only one profiler instance can be active at a time. "
+                    "[profiling] A profiler is already running. Only one profiler instance can be active at a time. "
                     "The second profiler will not be started."
                 )
                 return
@@ -486,7 +486,7 @@ class _ProfilerInstance(service.Service):
             else:
                 LOG.warning("Native heap profiling requested but GOT overrides were not installed")
         except Exception:
-            LOG.error("Failed to arm native heap profiling", exc_info=True)
+            LOG.error("[profiling] Failed to arm native heap profiling", exc_info=True)
 
     def _start_collectors(self) -> None:
         started_collectors: list[collector.Collector | memalloc.MemoryCollector] = []
@@ -502,7 +502,7 @@ class _ProfilerInstance(service.Service):
                 LOG.debug("[profiling] Collector %r is unavailable, disabling", col)
                 self._rollback_collector_start(col)
             except Exception:
-                LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                LOG.error("[profiling] Failed to start collector %r, disabling.", col, exc_info=True)
                 self._rollback_collector_start(col)
             else:
                 started_collectors.append(col)
