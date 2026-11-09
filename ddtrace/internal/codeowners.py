@@ -1,6 +1,35 @@
+"""Bridge for the extracted ``ddtrace.internal.codeowners`` module.
+
+The implementation was extracted to datadog-apm-python as
+``_ddtrace_internal_base.codeowners`` (distribution ``ddtrace-internal-base``,
+the stdlib-only base layer of the package split -- see
+docs/package-split/plan.md and the port trial report,
+docs/package-split/codeowners-port-trial-2026-11.md). This module keeps the
+pre-extraction import surface: the vendored implementation below is the
+default (and the static type-checking view, identical to the extracted
+provider), and an installed provider takes precedence at runtime.
+
+The provider import is inert when ``ddtrace-internal-base`` is absent: the
+vendored copy simply stays in place during the compatibility window. A
+provider that is installed but fails to import (a broken installation)
+surfaces loudly instead of silently falling back. The extraction is recorded
+in package-freeze.toml; the bridge and vendored fallback are owned by
+@DataDog/apm-core-python.
+
+Removal condition: drop the vendored implementation when
+``ddtrace-internal-base`` becomes a pinned dd-trace-py runtime dependency;
+keep the re-export for the compatibility window approved in the freeze
+manifest.
+"""
+
+import importlib.util
 import os
 import re
+from typing import TYPE_CHECKING
 from typing import Optional
+
+
+__all__ = ["Codeowners", "path_to_regex"]
 
 
 def path_to_regex(pattern: str) -> re.Pattern:
@@ -197,3 +226,16 @@ class Codeowners:
             if pattern.search(path):
                 return owners
         return []
+
+
+if not TYPE_CHECKING:
+    try:
+        # Installed provider wins over the vendored implementation; the
+        # explicit `as` re-exports keep this a compatibility surface.
+        from _ddtrace_internal_base.codeowners import Codeowners as Codeowners  # noqa: F401
+        from _ddtrace_internal_base.codeowners import path_to_regex as path_to_regex  # noqa: F401
+    except ImportError:
+        # Fall back only for an absent provider; never paper over a broken
+        # installation (the provider is present but its import failed).
+        if importlib.util.find_spec("_ddtrace_internal_base") is not None:
+            raise
