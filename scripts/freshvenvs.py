@@ -277,14 +277,7 @@ def output_outdated_packages(all_updatable_contribs, environments, bounds):
         if not _versions_fully_cover_bounds(bounds[contrib_module], ordered):
             outdated_packages.append(contrib_module)
 
-    # `test-requirements lock` takes environment names; a package without a same-named environment would abort it.
-    lockable = {environment.name for environment in environments}
-    for package in outdated_packages:
-        if package not in lockable:
-            print(
-                f"::warning::{package} is outdated but has no test environment of that name; skipped", file=sys.stderr
-            )
-    print(" ".join(package for package in outdated_packages if package in lockable))
+    print(" ".join(outdated_packages))
 
 
 def main():
