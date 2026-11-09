@@ -151,7 +151,7 @@ def _canonical(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def test_every_integration_tests_latest_package_version():
+def test_every_integration_tests_latest_package_version(registry_content):
     """Each integration needs a suitespec environment with its package unpinned (or floor-only), so the
     nightly lock bump tests the newest release. Pinned-only integrations go in LATEST_NOT_TESTED.
     """
@@ -176,6 +176,18 @@ def test_every_integration_tests_latest_package_version():
                 seen.add(integration)
                 if {s.operator for s in requirement.specifier} <= {">=", ">"}:
                     tested_latest.add(integration)
+
+    registry = {entry["integration_name"]: entry for entry in registry_content["integrations"]}
+    tracked = {name for name, entry in registry.items() if entry["is_external_package"] and entry["is_tested"]} - set(
+        EXCLUDED_FROM_TESTING
+    )
+    unmatched = tracked - seen
+    assert not unmatched, (
+        f"no environment lists the package of {sorted(unmatched)} as a direct dependency, so its version "
+        "coverage cannot be checked; fix the dependency name mapping"
+    )
+    unknown = LATEST_NOT_TESTED.keys() - registry.keys() - seen
+    assert not unknown, f"remove from LATEST_NOT_TESTED, no such integration: {sorted(unknown)}"
 
     missing = seen - tested_latest - LATEST_NOT_TESTED.keys()
     assert not missing, (
