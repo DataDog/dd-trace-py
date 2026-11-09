@@ -1343,13 +1343,10 @@ def scan_distributions(
     ...
 
 class ddwaf:
-    system_library: bool
-    """AppSec libddwaf evaluation boundary. Registering it does not load libddwaf; ``load`` does."""
+    """AppSec evaluation boundary backed by statically linked libddwaf."""
 
-    @staticmethod
-    def load(candidates: list[str]) -> tuple[str, str]:
-        """Load libddwaf from the first loadable candidate; return (loaded path, version)."""
-        ...
+    version: str
+
     @staticmethod
     def _encode(
         data: Any, max_objects: int = 256, max_depth: int = 20, max_string_length: int = 4096

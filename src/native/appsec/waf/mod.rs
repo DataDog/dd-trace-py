@@ -8,81 +8,17 @@ mod convert;
 use convert::{decode, describe, Encoder, Limits, Truncations};
 use libddwaf::object::{WafMap, WafObject, WafOwnedDefaultAllocator};
 use libddwaf::{RunError, RunResult, RunnableContext};
-#[cfg(feature = "waf-system")]
-use pyo3::exceptions::PyOSError;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
 use std::mem::ManuallyDrop;
-#[cfg(feature = "waf-system")]
-use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(feature = "waf-system")]
-use std::sync::OnceLock;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
-
-#[cfg(feature = "waf-system")]
-static LOADED: OnceLock<(String, String)> = OnceLock::new();
-#[cfg(feature = "waf-system")]
-static LOAD_LOCK: Mutex<()> = Mutex::new(());
-
-#[cfg(not(feature = "waf-system"))]
-fn require_loaded() -> PyResult<()> {
-    Ok(())
-}
-
-#[cfg(feature = "waf-system")]
-fn require_loaded() -> PyResult<()> {
-    LOADED
-        .get()
-        .map(|_| ())
-        .ok_or_else(|| PyRuntimeError::new_err("libddwaf is not loaded"))
-}
 
 #[inline]
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// Returns the linked library version or loads a system-library candidate.
-#[cfg(not(feature = "waf-system"))]
-#[pyfunction]
-fn load(candidates: Vec<String>) -> PyResult<(String, String)> {
-    let _ = candidates;
-    Ok((
-        "static".to_owned(),
-        libddwaf::version().to_string_lossy().into_owned(),
-    ))
-}
-
-#[cfg(feature = "waf-system")]
-#[pyfunction]
-fn load(candidates: Vec<String>) -> PyResult<(String, String)> {
-    let _guard = lock(&LOAD_LOCK);
-    if let Some(loaded) = LOADED.get() {
-        return Ok(loaded.clone());
-    }
-    let mut errors = Vec::new();
-    for candidate in candidates {
-        // SAFETY: candidates follow the existing system libddwaf policy.
-        // The crate validates the pinned version and complete generated symbol table.
-        match unsafe { libddwaf::load_library(Some(Path::new(&candidate))) } {
-            Ok(()) => {
-                let loaded = (
-                    candidate,
-                    libddwaf::version().to_string_lossy().into_owned(),
-                );
-                let _ = LOADED.set(loaded.clone());
-                return Ok(loaded);
-            }
-            Err(error) => errors.push(error.to_string()),
-        }
-    }
-    Err(PyOSError::new_err(format!(
-        "could not load libddwaf: {}",
-        errors.join("; ")
-    )))
 }
 
 /// Tracks operations in flight on a `Builder` across `fork()`. A quiescent builder
@@ -202,7 +138,6 @@ fn validate_path(path: &str) -> PyResult<()> {
 impl Builder {
     #[new]
     fn new() -> PyResult<Self> {
-        require_loaded()?;
         let raw = libddwaf::Builder::new(None)
             .ok_or_else(|| PyRuntimeError::new_err("ddwaf_builder_init failed"))?;
         Ok(Self {
@@ -423,8 +358,10 @@ fn _encode<'py>(
 
 #[pymodule]
 pub fn ddwaf(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("system_library", cfg!(feature = "waf-system"))?;
-    m.add_function(wrap_pyfunction!(load, m)?)?;
+    m.add(
+        "version",
+        libddwaf::version().to_string_lossy().into_owned(),
+    )?;
     m.add_function(wrap_pyfunction!(_encode, m)?)?;
     m.add_class::<Builder>()?;
     m.add_class::<Handle>()?;

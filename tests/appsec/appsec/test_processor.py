@@ -524,20 +524,22 @@ def test_ddwaf_not_raises_exception():
         )
 
 
-@pytest.mark.subprocess(err="Disabling AppSec: libddwaf failed to load (mock libddwaf load failure)\n")
+@pytest.mark.subprocess(
+    err="Disabling AppSec: libddwaf failed to load (import of ddtrace.appsec._ddwaf.waf halted; None in sys.modules)\n"
+)
 def test_appsec_abort_on_waf_failure():
-    """Simulate a libddwaf loading error
+    """Simulate a WAF module import error.
 
     AppSecSpanProcessor enablement occurs in `load_appsec` with `override_global_config` and should abort
     completely if an error is found in the bindings layer.
     """
+    import sys
     from unittest import mock
 
-    from ddtrace.internal.native._native import ddwaf as native_ddwaf
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
 
-    with mock.patch.object(native_ddwaf, "load", side_effect=OSError("mock libddwaf load failure")):
+    with mock.patch.dict(sys.modules, {"ddtrace.appsec._ddwaf.waf": None}):
         with override_global_config(
             dict(
                 _asm_enabled=True,

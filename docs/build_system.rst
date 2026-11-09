@@ -231,16 +231,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.10.0:
 
-  DD_SETUP_CACHE_DOWNLOADS:
-    type: Boolean
-    default: True
-
-    description: |
-        Caches the download of artifacts needed by the build process.
-
-    version_added:
-        v3.10.0:
-
   DD_DOWNLOAD_MAX_RETRIES:
     type: Integer
     default: 10
@@ -301,30 +291,29 @@ Normal wheels statically link libddwaf into the native extension. They do not
 package or load a separate libddwaf shared library. The pinned ``libddwaf-sys``
 dependency downloads the release archive and verifies its pinned SHA-256 checksum.
 
-Distribution packagers can select another mode through ``setup.cfg``:
+To compile libddwaf from its pinned C++ sources instead, select ``source-static``
+through ``setup.cfg``:
 
 .. code-block:: ini
 
     [build_py]
-    libddwaf_mode = system
+    libddwaf_mode = source-static
 
-``system`` uses ``LIBDDWAF_PREFIX/include/ddwaf.h`` to generate bindings and loads
-an independently installed library at AppSec initialization. The prefix must also
-contain a ``lib`` directory. This mode supports Linux and FreeBSD. The existing
-``no_bundle_libddwaf = 1`` option remains an alias for ``libddwaf_mode = system``.
-The runtime library must match the pinned ``libddwaf-rust`` version. Loading failure
-disables AppSec without preventing the common native extension from importing.
+This uses the ``libddwaf-src`` crate, statically embeds the resulting library, and
+requires CMake, a C++ compiler, and libclang. Leave ``LIBDDWAF_PREFIX`` unset.
 
-``libddwaf_mode = source`` compiles and statically links the C++ sources supplied
-by the pinned ``libddwaf-src`` crate. It supports Linux, macOS, and Windows and
-requires CMake and a C++ compiler. Leave ``LIBDDWAF_PREFIX`` unset in this mode.
+``source-static`` disables Cargo network resolution and bypasses WAF release
+downloads. Prepare Rust dependencies, including the libdatadog workspace used by
+header generation, beforehand. Also pre-provision Python build requirements and
+the tracer's other native dependencies. Cargo offline mode does not prevent
+arbitrary build scripts from making HTTP requests; verify complete offline builds
+with networking disabled.
 
-System and source modes disable Cargo network resolution and bypass the WAF
-release downloads. Prepare all Rust dependencies beforehand, using a local Cargo
-registry/cache or ``cargo vendor --locked``. Also pre-provision Python build
-requirements and the tracer's other native dependencies. Cargo offline mode does
-not prevent arbitrary build scripts from making HTTP requests; verify a complete
-offline build with networking disabled.
+The old ``--no-bundle-libddwaf`` / ``no_bundle_libddwaf = 1`` option is no longer
+supported. Remove it and explicitly select ``source-static`` for a source build.
+This embeds libddwaf instead of using an independently installed system library;
+the old option fails with migration instructions rather than changing that
+behavior silently.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -341,8 +330,7 @@ How the Build Works
     scripts/run-tests
       └─ pip install -e .
            ├─ build_py  → LibraryDownloader.run()
-           │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
-           │    └─ LibDDWafDownload.run()
+           │    └─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
            └─ build_ext → CustomBuildExt.run()
                 ├─ build_rust()          → Rust _native extension
                 ├─ build_libdd_wrapper() → libdd_wrapper.so (C++)

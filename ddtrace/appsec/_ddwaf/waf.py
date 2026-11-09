@@ -2,13 +2,10 @@
 
 Python keeps the configuration policy (default ruleset, remote config bookkeeping, diagnostics
 reporting); conversion, evaluation, result decoding and native lifetimes live in Rust.
-System-library builds load libddwaf when this module initializes; a loading
-failure disables AppSec. Normal builds use the statically linked library.
 """
 
 from collections.abc import Sequence
 import json
-from platform import system
 import time
 from typing import Any
 from typing import Optional
@@ -19,7 +16,6 @@ from ddtrace.appsec._metrics import report_error
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
-from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ddwaf as _native
@@ -34,9 +30,7 @@ DDWAF_ERR_INTERNAL = -3
 ASM_DD_DEFAULT = "ASM_DD/default"
 OBFUSCATOR_CONFIG = "obfuscator/config"
 
-asm_config._asm_libddwaf, asm_config._ddwaf_version = _native.load(
-    list(_libddwaf_platform.load_candidates(asm_config._asm_libddwaf, system()))
-)
+asm_config._ddwaf_version = _native.version
 
 
 class DDWafContext:
