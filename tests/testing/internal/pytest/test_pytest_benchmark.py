@@ -5,12 +5,23 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
 
 class TestPytestBenchmark:
+    # pytest-benchmark releases available at the time of writing (up to 5.3.0) read
+    # Node._nodeid, which pytest 9.2 removed, so the nested benchmark session cannot
+    # run. The dedicated pytest_benchmark suite pins pytest in tests/ci_visibility/
+    # suitespec.yml, and the collection hook in tests/conftest.py covers tests that
+    # request the benchmark fixture directly. Remove when pytest-benchmark supports
+    # pytest >= 9.2.
+    @pytest.mark.skipif(
+        parse_version(pytest.__version__) >= (9, 2, 0),
+        reason="pytest-benchmark does not support pytest 9.2 or newer yet",
+    )
     def test_pytest_benchmark(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         pytester.makepyfile(
             test_foo="""

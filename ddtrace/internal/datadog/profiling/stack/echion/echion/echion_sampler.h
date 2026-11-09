@@ -12,6 +12,7 @@
 #include <random>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <echion/cache.h>
 #include <echion/config.h>
@@ -63,6 +64,9 @@ class EchionSampler
     std::optional<BoundaryFrame> asyncio_boundary_frame_;
     std::optional<BoundaryFrame> uvloop_boundary_frame_;
     std::unordered_set<PyObject*> previous_task_objects_;
+    // Weakly linked children that were missing from the last Task snapshot. Always a subset of the
+    // weak_task_link_map_ keys. Guarded by task_link_map_lock_.
+    std::unordered_set<PyObject*> missing_weak_link_children_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
     // (Sampler::sampling_thread) touches this. unwind_frame clears it on
@@ -94,6 +98,16 @@ class EchionSampler
     // Caches
     StringTable string_table_;
     LRUCache<uintptr_t, Frame> frame_cache_;
+#if PY_VERSION_HEX >= 0x030e0000
+    struct InterpreterCodeGeneration
+    {
+        int64_t interpreter_id = 0;
+        uint64_t generation = 0;
+    };
+
+    // Code object generation of each interpreter seen in the previous sampling cycle.
+    std::vector<InterpreterCodeGeneration> code_object_generations_;
+#endif
 
     // Stack renderer for outputting samples
     Datadog::StackRenderer renderer_;
@@ -132,6 +146,36 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*>& task_link_map() { return task_link_map_; }
     std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
+
+    // The caller must hold task_link_map_lock_.
+    void weak_link_task(PyObject* parent, PyObject* child)
+    {
+        weak_task_link_map_[child] = parent;
+        // Give a new link the full grace period of prune_weak_task_links, even if a finished Task at
+        // the same address was missing from the last snapshot.
+        missing_weak_link_children_.erase(child);
+    }
+
+    // Remove the weak links of children that are missing from two Task snapshots in a row. A child can be
+    // missing from one snapshot without having finished: it may have been created and linked after the
+    // snapshot was taken, or the lock-free snapshot may have failed to read it. Removing its link then
+    // would detach it from its parent for the rest of its life.
+    // The caller must hold task_link_map_lock_.
+    void prune_weak_task_links(const std::unordered_set<PyObject*>& live_task_origins)
+    {
+        for (auto it = weak_task_link_map_.begin(); it != weak_task_link_map_.end();) {
+            PyObject* child = it->first;
+            if (live_task_origins.find(child) != live_task_origins.end()) {
+                missing_weak_link_children_.erase(child);
+                ++it;
+            } else if (missing_weak_link_children_.erase(child) > 0) {
+                it = weak_task_link_map_.erase(it);
+            } else {
+                missing_weak_link_children_.insert(child);
+                ++it;
+            }
+        }
+    }
 
     std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
     std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map() { return greenlet_parent_map_; }
@@ -194,6 +238,50 @@ class EchionSampler
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
+    // Clears every cache keyed by a CPython object address (code objects and their name/filename strings), since
+    // CPython 3.14 can free and reuse them together. Sampling thread only: lookups return references into the table.
+    void invalidate_frame_identity_cache()
+    {
+        frame_cache_.clear();
+        string_table_.clear();
+        renderer_.clear_string_id_cache();
+        asyncio_boundary_frame_.reset();
+        uvloop_boundary_frame_.reset();
+    }
+
+#if PY_VERSION_HEX >= 0x030e0000
+    // CPython keeps a code object generation per interpreter, but the frame identity caches are shared by all
+    // interpreters, so a generation change or removal of any one interpreter thrashes them for every interpreter.
+    // Returns false, after invalidating, when the snapshot is incomplete and the cycle must not be sampled.
+    bool validate_code_object_generations(const std::vector<InterpreterInfo>& interpreters,
+                                          bool all_interpreter_data_captured)
+    {
+        if (!all_interpreter_data_captured || interpreters.empty()) {
+            invalidate_frame_identity_cache();
+            code_object_generations_.clear();
+            return false;
+        }
+
+        // Invalidate only if a previously seen interpreter is gone or its generation changed. A newly added interpreter
+        // has nothing cached yet, so it is only recorded.
+        for (const auto& previous : code_object_generations_) {
+            const auto current = std::find_if(interpreters.begin(), interpreters.end(), [&](const auto& interpreter) {
+                return interpreter.id == previous.interpreter_id;
+            });
+            if (current == interpreters.end() || current->code_object_generation != previous.generation) {
+                invalidate_frame_identity_cache();
+                break;
+            }
+        }
+
+        code_object_generations_.clear();
+        for (const auto& interpreter : interpreters) {
+            code_object_generations_.push_back({ interpreter.id, interpreter.code_object_generation });
+        }
+        return true;
+    }
+#endif
+
     void postfork_child()
     {
         // Re-init mutexes (placement new to avoid UB)
@@ -208,6 +296,9 @@ class EchionSampler
         // because the Sampling Thread may have been modifying the cache when fork
         // took its snapshot. Traversing a corrupted list to free nodes would crash.
         frame_cache_.postfork_child();
+#if PY_VERSION_HEX >= 0x030e0000
+        new (&code_object_generations_) std::vector<InterpreterCodeGeneration>();
+#endif
 
         // Also use placement new for all containers touched by the sampling thread.
         // Using placement new means the existing containers are abandoned and
@@ -221,6 +312,7 @@ class EchionSampler
         new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
         new (&previous_task_objects_) std::unordered_set<PyObject*>();
+        new (&missing_weak_link_children_) std::unordered_set<PyObject*>();
 
         asyncio_boundary_frame_.reset();
         uvloop_boundary_frame_.reset();

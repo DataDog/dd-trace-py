@@ -5,6 +5,7 @@ Writer for Feature Flag Exposure events to EVP proxy intake.
 import atexit
 from collections.abc import Callable
 import json
+import time
 from typing import Any
 from typing import Optional
 from typing import TypedDict
@@ -158,11 +159,14 @@ class ExposureWriter(PeriodicService):
             return
 
         super().stop(timeout=timeout)
-        logger.debug("stopped ExposureWriter to %s", self._url)
         atexit.unregister(self.on_shutdown)
 
     def on_shutdown(self):
-        self.periodic()
+        with self._lock:
+            pending = len(self._buffer)
+        logger.debug("Feature Flags: flushing %d pending exposure event(s) before shutdown", pending)
+        count, outcome = self._flush()
+        logger.debug("Feature Flags: exposure writer shutdown flush outcome: %d event(s) %s", count, outcome)
 
     def enqueue(self, event: ExposureEvent) -> None:
         """
@@ -184,30 +188,52 @@ class ExposureWriter(PeriodicService):
 
             self._buffer.append(event)
             self._buffer_size += event_size
-            logger.debug("enqueued exposure event, buffer size: %d", len(self._buffer))
+            # Queued, not delivered: the periodic flush reports the delivery outcome.
+            logger.debug(
+                "enqueued exposure event for %s, buffer size: %d", event.get("flag", {}).get("key"), len(self._buffer)
+            )
 
     def periodic(self) -> None:
         """
         Periodically flush buffered events to the intake.
         """
+        self._flush()
+
+    def _flush(self) -> tuple[int, str]:
+        """Drain one batch and report what happened for shutdown diagnostics."""
         with self._lock:
             if not self._buffer:
-                return
+                return 0, "had no pending work"
             events = self._buffer
             self._buffer = []
             self._buffer_size = 0
 
-        payload = self._encode(events)
-        if not payload:
-            return
-
         try:
+            logger.debug("Feature Flags: flushing %d exposure event(s)", len(events))
+            payload = self._encode(events)
+            if not payload:
+                return len(events), "dropped because encoding failed"
             route = self._route_selector.select()
             if route is None:
-                return
-            self._send_payload_with_retry(payload, len(events), route)
+                logger.debug(
+                    "Feature Flags: dropping %d exposure event(s): no event delivery route is available", len(events)
+                )
+                return len(events), "dropped because no delivery route was available"
+            response = self._send_payload_with_retry(payload, len(events), route)
+            status = getattr(response, "status", None)
+            if isinstance(status, int) and status >= 300:
+                logger.debug(
+                    "Feature Flags: %d exposure event(s) not delivered (HTTP %d); dropping them", len(events), status
+                )
+                return len(events), "dropped after HTTP %d" % status
+            if isinstance(status, int):
+                return len(events), "accepted by the selected route (HTTP %d)" % status
+            return len(events), "sent with no HTTP status available"
         except Exception:
-            logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
+            logger.debug(
+                "failed to send %d exposure events to %s; dropping them", len(events), self._intake, exc_info=True
+            )
+            return len(events), "dropped after a delivery error"
 
     def _send_payload_with_retry(self, payload: bytes, num_events: int, route: EVPRoute) -> Response:
         if self._route_selector.configuration_source != REMOTE_CONFIG:
@@ -220,13 +246,18 @@ class ExposureWriter(PeriodicService):
             attempts=self.RETRY_ATTEMPTS,
             initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             until=lambda result: not (isinstance(result, Exception) and _is_definitive_pre_send_failure(result)),
-            sleep_func=self._retry_wait,
+            sleep_func=self._wait_before_retry,
         )(self._send_payload)
         response: Union[Response, Exception] = send(payload, num_events, route)
         # The retry helper returns terminal exceptions accepted by until.
         if isinstance(response, Exception):
             raise response
         return response
+
+    def _wait_before_retry(self, delay: float) -> None:
+        if delay:
+            logger.debug("Feature Flags: exposure request failed before sending; retrying in %.3fs", delay)
+        (self._retry_wait or time.sleep)(delay)
 
     def _encode(self, events: list[ExposureEvent]) -> bytes:
         """
@@ -248,7 +279,6 @@ class ExposureWriter(PeriodicService):
                 batched["context"] = context
 
             encoded = json.dumps(batched).encode("utf-8")
-            logger.debug("encoded %d exposure events to be sent", len(events))
             return encoded
         except (TypeError, ValueError):
             logger.debug("failed to encode %d exposure events", len(events), exc_info=True)
@@ -280,7 +310,16 @@ class ExposureWriter(PeriodicService):
                         response.status,
                     )
                 else:
-                    logger.debug("sent %d exposure events to %s%s", num_events, active_route.intake, endpoint)
+                    logger.debug(
+                        "sent %d exposure events to %s%s (HTTP %d; %s)",
+                        num_events,
+                        active_route.intake,
+                        endpoint,
+                        response.status,
+                        "intake accepted"
+                        if active_route.direct
+                        else "relay accepted; downstream delivery is not observed",
+                    )
                 return response
             except Exception:
                 logger.debug("failed to send %d exposure events", num_events, exc_info=True)

@@ -130,11 +130,12 @@ async def _handle_request(ctx, request, handler):
     return response
 
 
-def _restore_request_body(request, body):
+def _restore_request_body(request: web.Request, body: bytes) -> None:
     stream = StreamReader(request.protocol, max(len(body), 2**16), loop=asyncio.get_running_loop())
     stream.feed_data(body)
     stream.feed_eof()
     request._payload = stream
+    request._cache.pop("content", None)
 
 
 def _blocked_response(ctx, request, block_config):
