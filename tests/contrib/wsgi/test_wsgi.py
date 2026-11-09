@@ -1,25 +1,29 @@
 from collections.abc import Iterator
+from contextvars import ContextVar
+from contextvars import copy_context
 import os
+from typing import Any
 from unittest import mock
 
 import pytest
-from pytest_mock import MockerFixture
 from webtest import TestApp
 
 from ddtrace import config
-from ddtrace._trace.trace_handlers import _TracedIterable
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.wsgi import wsgi as wsgi_module
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
+from ddtrace.contrib.internal.wsgi.wsgi import _WSGIResponseIterable
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from ddtrace.internal import core
-from ddtrace.trace import Span
+from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer as global_tracer
 from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.utils import override_config
@@ -534,16 +538,12 @@ class _ClosableIterable:
         self.closed = True
 
 
-def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes(mocker: MockerFixture) -> None:
+def test_wsgi_response_iterable_completes_once_and_forwards_attributes() -> None:
     wrapped = _ClosableIterable([b"one", b"two"])
-    parent_span = Span("wsgi.request")
-    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
-    finish = mocker.spy(Span, "finish")
-    iterable = _TracedIterable(wrapped, span, parent_span, wrapped_is_iterator=True)
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(wrapped, completions.append, wrapped_is_iterator=True)
 
-    assert not span.finished
-    assert not parent_span.finished
-
+    assert completions == []
     assert iterable.__wrapped__ is wrapped
     assert iterable.__class__ is _ClosableIterable
     assert isinstance(iterable, _ClosableIterable)
@@ -554,45 +554,221 @@ def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes(mocker: Moc
     assert not hasattr(wrapped, "custom_attribute")
     assert not hasattr(iterable, "__len__"), "WSGI iterables should not expose __len__"
     assert list(iterable) == [b"one", b"two"]
-    assert span.finished
-    assert parent_span.finished
-    assert span.error == 0
-    assert parent_span.error == 0
-    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
-
-    iterable.close()
     assert wrapped.closed
-    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+    assert completions == [(None, None, None)]
+    iterable.close()
+    iterable.close()
+    assert completions == [(None, None, None)]
+    with pytest.raises(StopIteration):
+        next(iterable)
 
 
-def test_wsgi_traced_iterable_finishes_spans_on_error(mocker: MockerFixture) -> None:
+def test_wsgi_response_iterable_reports_error_once() -> None:
     error = RuntimeError("test error")
 
     def raising_iterable() -> Iterator[bytes]:
         yield b"one"
         raise error
 
-    parent_span = Span("wsgi.request")
-    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
-    finish = mocker.spy(Span, "finish")
-    iterable = _TracedIterable(raising_iterable(), span, parent_span)
-
+    completions: list[ExcInfoType] = []
+    iterable = _WSGIResponseIterable(raising_iterable(), completions.append)
     assert next(iterable) == b"one"
-    assert not span.finished
-    assert not parent_span.finished
+    assert completions == []
     with pytest.raises(RuntimeError, match="test error") as exc_info:
         next(iterable)
-
     assert exc_info.value is error
-    assert span.error == 1
-    assert span.get_tag(ERROR_TYPE) == "builtins.RuntimeError"
-    assert span.get_tag(ERROR_MSG) == "test error"
-    assert "raising_iterable" in span.get_tag(ERROR_STACK)
-    assert "RuntimeError: test error" in span.get_tag(ERROR_STACK)
-    assert parent_span.error == 0
-    assert span.finished
-    assert parent_span.finished
-    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+    assert len(completions) == 1
+    assert completions[0][0] is RuntimeError
+    assert completions[0][1] is error
+    assert completions[0][2] is not None
+    iterable.close()
+    assert len(completions) == 1
+
+
+@pytest.mark.parametrize("terminal", ["exhaustion", "early_close", "close_error", "stream_error"])
+def test_wsgi_shared_request_lifecycle_through_response(tracer, test_spans, terminal: str) -> None:
+    contexts: list[core.ExecutionContext[WebFrameworkRequestEvent]] = []
+    phases: list[str] = []
+    completions: list[ExcInfoType] = []
+    close_calls: list[None] = []
+    finish_order: list[str] = []
+    chunks: list[Any] = []
+    error = RuntimeError("response failed")
+
+    def request_started(ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        contexts.append(ctx)
+
+    def request_ended(ctx: core.ExecutionContext[WebFrameworkRequestEvent], exc_info: ExcInfoType) -> None:
+        assert ctx is contexts[0]
+        completions.append(exc_info)
+        phases.append("response_completed")
+
+    def application_returned(ctx: core.ExecutionContext[WebFrameworkRequestEvent], exc_info: ExcInfoType) -> None:
+        assert ctx is contexts[0]
+        assert exc_info == (None, None, None)
+        assert not span_from_context(ctx).finished
+        phases.append("application_returned")
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            phases.append("iteration_started")
+            with global_tracer.trace("stream.chunk") as chunk:
+                chunks.append(chunk)
+            yield b"one"
+            if terminal == "stream_error":
+                raise error
+            yield b"two"
+
+        def close(self) -> None:
+            close_calls.append(None)
+            if terminal == "close_error":
+                raise error
+
+    def streaming_application(environ: dict[str, Any], start_response: Any) -> Response:
+        start_response("200 OK", [("Content-Type", "text/plain")])
+        return Response()
+
+    middleware = DDWSGIMiddleware(streaming_application)
+    listeners = (
+        ("context.started.web.request", request_started),
+        ("context.ended.web.request", request_ended),
+        ("wsgi.application.returned", application_returned),
+    )
+    for event_name, callback in listeners:
+        core.on(event_name, callback)
+    try:
+        response = middleware(
+            {
+                "REQUEST_METHOD": "GET",
+                "PATH_INFO": "/stream",
+                "QUERY_STRING": "",
+                "SERVER_NAME": "localhost",
+                "SERVER_PORT": "80",
+                "wsgi.url_scheme": "http",
+            },
+            lambda *args: None,
+        )
+        assert len(contexts) == 1
+        ctx = contexts[0]
+        request_span = span_from_context(ctx)
+        response_span = ctx.get_item("response_span")
+        app_span = ctx.get_item("app_span")
+        response_span._on_finish_callbacks.append(lambda span: finish_order.append("response"))
+        request_span._on_finish_callbacks.append(lambda span: finish_order.append("request"))
+        assert phases == ["application_returned"]
+        assert not request_span.finished
+        assert not response_span.finished
+        assert app_span.finished
+        assert app_span.parent_id == request_span.span_id
+        assert response_span.parent_id == request_span.span_id
+        assert completions == []
+        assert next(response) == b"one"
+        assert phases == ["application_returned", "iteration_started"]
+        assert not request_span.finished
+        assert not response_span.finished
+        assert chunks[0].parent_id == response_span.span_id
+
+        if terminal == "exhaustion":
+            assert next(response) == b"two"
+            assert not request_span.finished
+            with pytest.raises(StopIteration):
+                next(response)
+        elif terminal == "stream_error":
+            with pytest.raises(RuntimeError, match="response failed") as raised:
+                next(response)
+            assert raised.value is error
+        elif terminal == "close_error":
+            with pytest.raises(RuntimeError, match="response failed") as raised:
+                response.close()
+            assert raised.value is error
+        else:
+            response.close()
+
+        assert all(span.finished for span in (request_span, response_span))
+        assert request_span.error == 0
+        assert app_span.error == 0
+        assert finish_order == ["response", "request"]
+        assert request_span.get_tag("http.status_code") == "200"
+        assert len(completions) == 1
+        assert phases.count("response_completed") == 1
+        if terminal in ("stream_error", "close_error"):
+            assert completions[0][0] is RuntimeError
+            assert completions[0][1] is error
+            assert response_span.error == 1
+            assert response_span.get_tag(ERROR_TYPE) == "builtins.RuntimeError"
+            assert response_span.get_tag(ERROR_MSG) == "response failed"
+            assert "RuntimeError: response failed" in response_span.get_tag(ERROR_STACK)
+        else:
+            assert completions == [(None, None, None)]
+            assert response_span.error == 0
+        response.close()
+        response.close()
+        assert close_calls == [None]
+        assert finish_order == ["response", "request"]
+        assert len(completions) == 1
+        spans = test_spans.pop()
+        assert sum(span.name == "wsgi.request" for span in spans) == 1
+        assert sum(span.name == "wsgi.response" for span in spans) == 1
+    finally:
+        for event_name, callback in listeners:
+            core.reset_listeners(event_name, callback)
+
+
+def test_wsgi_response_iterable_preserves_context_and_original_error() -> None:
+    value: ContextVar[str] = ContextVar("wsgi_response_context", default="caller")
+    completions: list[ExcInfoType] = []
+    phases: list[tuple[str, str]] = []
+    error = RuntimeError("iteration failed")
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            phases.append(("iteration", value.get()))
+            value.set("stream")
+            yield b"one"
+            raise error
+
+        def close(self) -> None:
+            phases.append(("close", value.get()))
+            raise ValueError("cleanup failed")
+
+    def complete(exc_info: ExcInfoType) -> None:
+        phases.append(("completion", value.get()))
+        completions.append(exc_info)
+
+    token = value.set("application")
+    context = copy_context()
+    value.reset(token)
+    iterable = _WSGIResponseIterable(Response(), complete, context=context)
+    assert next(iterable) == b"one"
+    assert value.get() == "caller"
+    with pytest.raises(RuntimeError, match="iteration failed") as raised:
+        next(iterable)
+    assert raised.value is error
+    assert value.get() == "caller"
+    assert phases == [("iteration", "application"), ("close", "stream"), ("completion", "stream")]
+    assert len(completions) == 1
+    assert completions[0][1] is error
+    iterable.close()
+    assert len(completions) == 1
+
+
+def test_wsgi_response_iterable_close_can_reenter() -> None:
+    closed: list[None] = []
+    completions: list[ExcInfoType] = []
+
+    class Response:
+        def __iter__(self) -> Iterator[bytes]:
+            return iter([b"one"])
+
+        def close(self) -> None:
+            closed.append(None)
+            response.close()
+
+    response = _WSGIResponseIterable(Response(), completions.append, context=copy_context())
+    response.close()
+    response.close()
+    assert closed == [None]
+    assert completions == [(None, None, None)]
 
 
 @pytest.mark.parametrize(
