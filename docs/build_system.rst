@@ -14,6 +14,17 @@ For Rust, you need the `rustc` and `cargo` tools installed. Install them by foll
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
 
+The Rust WAF bindings also require the libclang shared library. Install ``libclang-dev`` on Debian/Ubuntu,
+``clang-dev`` on Alpine, or LLVM on Windows. If it is not discovered automatically, set ``LIBCLANG_PATH``
+to the directory containing the library (LLVM's ``bin`` directory on Windows).
+
+On macOS, use the library and SDK supplied by Xcode or its command-line tools:
+
+.. code-block:: bash
+
+    export LIBCLANG_PATH="$(dirname "$(xcrun --find clang)")/../lib"
+    export SDKROOT="$(xcrun --show-sdk-path)"
+
 For C++, requirements vary by system, but you’ll need a C++ compiler and `cmake`. Install them as follows:
 
 - On Ubuntu:

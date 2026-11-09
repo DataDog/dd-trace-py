@@ -1,0 +1,4 @@
+upgrade:
+  - |
+    internal: Building from source now requires the libclang shared library. Install ``libclang-dev`` on
+    Debian/Ubuntu, ``clang-dev`` on Alpine, or LLVM on Windows; macOS users can use Xcode's libclang.
