@@ -69,8 +69,12 @@ Slack env vars (preferred names; no DD_ prefix required for this tooling):
   DD_RELEASE_SLACK_WEBHOOK_URL_PROD  legacy alias for the apm-python-release webhook
   DD_RELEASE_SLACK_WEBHOOK_URL_TEST  webhook bound to your test channel
   DD_RELEASE_SLACK_WEBHOOK_URL       legacy single-channel fallback
-  DD_SLACK_USER_BRETT/EMMETT         optional overrides for reviewer user IDs;
-                                     defaults are hardcoded member IDs
+  DD_SLACK_RELEASERS_SUBTEAM_ID      optional Slack usergroup ID (S…) for
+                                     @dd-trace-py-releasers in Incoming Webhook
+                                     mrkdwn (``<!subteam^ID|handle>``). Without
+                                     it, mrkdwn uses ``@dd-trace-py-releasers``
+                                     as plain text. Workflow path: put a static
+                                     User Group mention in the rebuilt template.
   DDTRACE_RELEASE_SLACK_WORKFLOW_STRUCTURED
                                      set to 1 to force the structured Workflow
                                      payload even when the URL is not triggers/
@@ -135,9 +139,10 @@ Gotchas:
     (services/) for correct freeform mrkdwn without a Workflow rebuild.
   - Optional ``--slack-precheck`` sends a short connectivity ping before
     the real announce (off by default — avoid dual channel noise).
-  - Hardcoded Brett/Emmett member IDs (or DD_SLACK_USER_* overrides) that
-    go stale render as broken mentions like `<@U_OLD>` with no error.
-    Refresh the constants from Slack profile when reviewers change.
+  - Draft review ping targets ``@dd-trace-py-releasers`` (not individual
+    users). For Incoming Webhook mrkdwn set ``DD_SLACK_RELEASERS_SUBTEAM_ID``
+    so the subteam mention notifies; Workflow rebuilds should insert a
+    static User Group mention (see ``SLACK_WORKFLOW_INTERIM.md``).
   - Requires `gh` CLI 2.x for `--jq` support and `aws` CLI for SSM lookup.
 """
 
@@ -203,13 +208,10 @@ SLACK_CHANNEL_PROD_ENV_LEGACY: str = "DD_RELEASE_SLACK_WEBHOOK_URL_PROD"
 SLACK_CHANNEL_GUILD_ENV: str = "DDTRACE_RELEASE_GUILD_CHANNEL_URL"
 SLACK_CHANNEL_TEST_ENV: str = "DD_RELEASE_SLACK_WEBHOOK_URL_TEST"
 SLACK_DM_ENV: str = "DDTRACE_RELEASE_DM_URL"
-SLACK_USER_BRETT_ENV: str = "DD_SLACK_USER_BRETT"
-SLACK_USER_EMMETT_ENV: str = "DD_SLACK_USER_EMMETT"
-# Hardcoded approver Slack member IDs (not secrets). Env vars above remain
-# optional overrides. Source: Slack workspace lookup 2026-10-29
-# (brettlangdon → UD1N1U7JQ; emmett.butler@datadoghq.com → U04HER8LNAZ).
-SLACK_USER_BRETT_ID: str = "UD1N1U7JQ"
-SLACK_USER_EMMETT_ID: str = "U04HER8LNAZ"
+# Slack User Group for people with tag/publish perms (Brett confirmed
+# 2026-11-09). Mosaic pack: https://mosaic.us1.ddbuild.io/packs/pack/dd-trace-py-releasers
+SLACK_RELEASERS_HANDLE: str = "dd-trace-py-releasers"
+SLACK_RELEASERS_SUBTEAM_ENV: str = "DD_SLACK_RELEASERS_SUBTEAM_ID"
 # #apm-python-release — from docs/contributing-release.rst (not a secret).
 SLACK_CHANNEL_PROD_ID: str = "C04MK6NNDG9"
 SLACK_CHANNEL_PROD_NAME: str = "apm-python-release"
@@ -3029,6 +3031,24 @@ def slack_mention(env_var: str, default_user_id: str) -> str:
     return f"<@{user_id}>"
 
 
+def slack_releasers_subteam_id() -> str:
+    """Optional ``S…`` usergroup ID for ``@dd-trace-py-releasers`` (env only)."""
+    return os.environ.get(SLACK_RELEASERS_SUBTEAM_ENV, "").strip()
+
+
+def slack_releasers_mention() -> str:
+    """Incoming Webhook mrkdwn mention for ``@dd-trace-py-releasers``.
+
+    With ``DD_SLACK_RELEASERS_SUBTEAM_ID=S…`` → ``<!subteam^S…|handle>`` (notifies).
+    Without it → plain ``@handle`` (readable; may not notify on webhooks).
+    """
+    subteam: str = slack_releasers_subteam_id()
+    handle: str = SLACK_RELEASERS_HANDLE
+    if subteam:
+        return f"<!subteam^{subteam}|{handle}>"
+    return f"@{handle}"
+
+
 def resolve_runner_plain() -> str:
     """Plain GitHub login (or local name) for Workflow text vars — no mrkdwn."""
     login: str = resolve_gh_login()
@@ -3060,14 +3080,13 @@ def format_slack_announce(version: str, target_sha: str, draft_url: str) -> str:
     """Build the Slack mrkdwn body for a draft-ready review ping."""
     ver: str = normalize_version_str(version)
     kind: str = draft_kind_phrase(ver)
-    brett: str = slack_mention(SLACK_USER_BRETT_ENV, SLACK_USER_BRETT_ID)
-    emmett: str = slack_mention(SLACK_USER_EMMETT_ENV, SLACK_USER_EMMETT_ID)
+    releasers: str = slack_releasers_mention()
     return (
         f":package: *Draft {kind}* `{ver}` is ready for review\n"
         f"\n"
         f"<{draft_url}|Open draft release / notes>  ·  target `{target_sha}`\n"
         f"\n"
-        f"{brett} {emmett} — can I get a :lgtm:? Please review and "
+        f"{releasers} — can I get a :lgtm:? Please review and "
         f"*Publish release* when ready (needs repo-owner perms; the tag is created at publish).\n"
         f"\n"
         f"{auto_created_footer()}"
@@ -3084,8 +3103,9 @@ def format_workflow_trigger_payload(
     """Flat string fields for a Workflow Builder ``triggers/`` webhook.
 
     Workflow "Send a message" cannot render freeform mrkdwn in a text
-    variable. Callers rebuild the Workflow to insert these keys (user-ID
-    typed vars for reviewers; text for the rest). See
+    variable. Rebuild the Workflow to insert these keys; ping reviewers with
+    a **static** ``@dd-trace-py-releasers`` User Group mention in the editor
+    (do not send User ID vars for Brett/Emmett). See
     ``scripts/gh/SLACK_WORKFLOW_INTERIM.md``.
     """
     ver: str = normalize_version_str(version)
@@ -3098,8 +3118,9 @@ def format_workflow_trigger_payload(
         "kind": kind,
         "draft_url": draft_url,
         "target_sha": target_sha,
-        "reviewer_brett": slack_user_id(SLACK_USER_BRETT_ENV, SLACK_USER_BRETT_ID),
-        "reviewer_emmett": slack_user_id(SLACK_USER_EMMETT_ENV, SLACK_USER_EMMETT_ID),
+        # Handle only — Workflow should use a static User Group mention for
+        # a real ping; inserting this text field alone does not notify.
+        "releasers_handle": SLACK_RELEASERS_HANDLE,
         "runner": resolve_runner_plain(),
         "channel_id": channel_id,
         # Footer pieces so Workflow can italicize the "Brought to you by" note
@@ -3162,15 +3183,15 @@ def format_workflow_rendered_mock(fields: dict[str, str]) -> str:
 
     Mirrors ``scripts/gh/SLACK_WORKFLOW_INTERIM.md`` (static bold/italic in the
     Workflow editor + inserted variables). Not posted — dry-run preview only.
+    Use ``:lgtm:`` (not ``:+1:`` / thumbs-up) in the Workflow template.
     """
-    brett: str = f"<@{fields['reviewer_brett']}>"
-    emmett: str = f"<@{fields['reviewer_emmett']}>"
+    handle: str = fields.get("releasers_handle", SLACK_RELEASERS_HANDLE)
     return (
         f":package: *Draft* {fields['kind']} {fields['version']} is ready for review\n"
         f"\n"
         f"{fields['draft_url']}  ·  target {fields['target_sha']}\n"
         f"\n"
-        f"{brett} {emmett} — can I get a :lgtm:? Please review and "
+        f"@{handle} — can I get a :lgtm:? Please review and "
         f"*Publish release* when ready.\n"
         f"\n"
         f"_Brought to you by release automation — {fields['script']} on "

@@ -40,8 +40,8 @@ from create_gh_release import SLACK_CHANNEL_PROD_ENV  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_PROD_ENV_LEGACY  # noqa: E402
 from create_gh_release import SLACK_CHANNEL_PROD_ID  # noqa: E402
 from create_gh_release import SLACK_DM_ENV  # noqa: E402
-from create_gh_release import SLACK_USER_BRETT_ID  # noqa: E402
-from create_gh_release import SLACK_USER_EMMETT_ID  # noqa: E402
+from create_gh_release import SLACK_RELEASERS_HANDLE  # noqa: E402
+from create_gh_release import SLACK_RELEASERS_SUBTEAM_ENV  # noqa: E402
 from create_gh_release import SLACK_WORKFLOW_STRUCTURED_ENV  # noqa: E402
 from create_gh_release import CiFailureDetail  # noqa: E402
 from create_gh_release import ReleaseState  # noqa: E402
@@ -78,6 +78,7 @@ from create_gh_release import resolve_runner_display  # noqa: E402
 from create_gh_release import review_text  # noqa: E402
 from create_gh_release import should_mark_latest  # noqa: E402
 from create_gh_release import slack_mention  # noqa: E402
+from create_gh_release import slack_releasers_mention  # noqa: E402
 from create_gh_release import use_workflow_structured_payload  # noqa: E402
 from create_gh_release import write_pyproject_version  # noqa: E402
 from create_gh_release import xy_branch_for_version  # noqa: E402
@@ -283,22 +284,26 @@ class EolComposeTests(unittest.TestCase):
 
 
 class SlackDefaultsTests(unittest.TestCase):
-    def test_hardcoded_approver_ids_are_real_looking(self) -> None:
-        self.assertTrue(SLACK_USER_BRETT_ID.startswith("U"))
-        self.assertTrue(SLACK_USER_EMMETT_ID.startswith("U"))
-        self.assertNotEqual(SLACK_USER_BRETT_ID, SLACK_USER_EMMETT_ID)
+    def test_releasers_handle_is_dd_trace_py_releasers(self) -> None:
+        self.assertEqual(SLACK_RELEASERS_HANDLE, "dd-trace-py-releasers")
 
-    def test_slack_mention_uses_hardcoded_default(self) -> None:
+    def test_slack_releasers_mention_plain_without_subteam(self) -> None:
         with mock.patch.dict("os.environ", {}, clear=True):
-            brett: str = slack_mention("DD_SLACK_USER_BRETT", SLACK_USER_BRETT_ID)
-            emmett: str = slack_mention("DD_SLACK_USER_EMMETT", SLACK_USER_EMMETT_ID)
-        self.assertEqual(brett, f"<@{SLACK_USER_BRETT_ID}>")
-        self.assertEqual(emmett, f"<@{SLACK_USER_EMMETT_ID}>")
+            mention: str = slack_releasers_mention()
+        self.assertEqual(mention, f"@{SLACK_RELEASERS_HANDLE}")
 
-    def test_slack_mention_env_override(self) -> None:
-        with mock.patch.dict("os.environ", {"DD_SLACK_USER_BRETT": "UOVERRIDE"}, clear=True):
-            mention: str = slack_mention("DD_SLACK_USER_BRETT", SLACK_USER_BRETT_ID)
-        self.assertEqual(mention, "<@UOVERRIDE>")
+    def test_slack_releasers_mention_subteam_env(self) -> None:
+        with mock.patch.dict("os.environ", {SLACK_RELEASERS_SUBTEAM_ENV: "S0TESTSUBTEAM"}, clear=True):
+            mention: str = slack_releasers_mention()
+        self.assertEqual(mention, f"<!subteam^S0TESTSUBTEAM|{SLACK_RELEASERS_HANDLE}>")
+
+    def test_slack_mention_helper_still_works(self) -> None:
+        with mock.patch.dict("os.environ", {}, clear=True):
+            mention: str = slack_mention("DD_SLACK_USER_UNUSED", "UDEFAULT")
+        self.assertEqual(mention, "<@UDEFAULT>")
+        with mock.patch.dict("os.environ", {"DD_SLACK_USER_UNUSED": "UOVERRIDE"}, clear=True):
+            mention_ov: str = slack_mention("DD_SLACK_USER_UNUSED", "UDEFAULT")
+        self.assertEqual(mention_ov, "<@UOVERRIDE>")
 
     def test_intent_commands_accept_slack_flags(self) -> None:
         parser = build_parser()
@@ -354,9 +359,11 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("`4.17.0rc2`", body)
         self.assertIn("<https://example/draft|Open draft release / notes>", body)
         self.assertIn("target `abc123`", body)
-        self.assertIn(f"<@{SLACK_USER_BRETT_ID}>", body)
-        self.assertIn(f"<@{SLACK_USER_EMMETT_ID}>", body)
+        self.assertIn(f"@{SLACK_RELEASERS_HANDLE}", body)
+        self.assertNotIn("<@UD1N1U7JQ>", body)
+        self.assertNotIn("<@U04HER8LNAZ>", body)
         self.assertIn(":lgtm:", body)
+        self.assertNotIn(":+1:", body)
         self.assertIn("*Publish release*", body)
         self.assertIn(f"Run by {_FAKE_RUNNER}", body)
         self.assertIn("release automation", body)
@@ -426,8 +433,7 @@ class SlackDefaultsTests(unittest.TestCase):
             "kind": "patch release",
             "draft_url": "https://example/draft",
             "target_sha": "9c767d7dd482",
-            "reviewer_brett": SLACK_USER_BRETT_ID,
-            "reviewer_emmett": SLACK_USER_EMMETT_ID,
+            "releasers_handle": SLACK_RELEASERS_HANDLE,
             "runner": "vlad-scherbich",
             "script": _RELEASE_SCRIPT_PATH,
             "script_branch": _RELEASE_SCRIPT_BRANCH_NAME,
@@ -437,8 +443,9 @@ class SlackDefaultsTests(unittest.TestCase):
         body: str = format_workflow_rendered_mock(fields)
         self.assertIn(":package: *Draft* patch release 4.16.4 is ready for review", body)
         self.assertIn("https://example/draft  ·  target 9c767d7dd482", body)
-        self.assertIn(f"<@{SLACK_USER_BRETT_ID}>", body)
-        self.assertIn(f"<@{SLACK_USER_EMMETT_ID}>", body)
+        self.assertIn(f"@{SLACK_RELEASERS_HANDLE}", body)
+        self.assertIn("can I get a :lgtm:?", body)
+        self.assertNotIn(":+1:", body)
         self.assertIn("*Publish release*", body)
         self.assertIn("_Brought to you by release automation —", body)
         self.assertIn("Run by vlad-scherbich", body)
@@ -457,8 +464,9 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(fields["kind"], "patch release")
         self.assertNotIn("branch", fields)
         self.assertEqual(fields["target_sha"], "824a3b275151")
-        self.assertEqual(fields["reviewer_brett"], SLACK_USER_BRETT_ID)
-        self.assertEqual(fields["reviewer_emmett"], SLACK_USER_EMMETT_ID)
+        self.assertEqual(fields["releasers_handle"], SLACK_RELEASERS_HANDLE)
+        self.assertNotIn("reviewer_brett", fields)
+        self.assertNotIn("reviewer_emmett", fields)
         self.assertEqual(fields["channel_id"], SLACK_CHANNEL_PROD_ID)
         self.assertEqual(fields["runner"], "test-runner")
         self.assertEqual(fields["script"], _RELEASE_SCRIPT_PATH)
@@ -761,7 +769,8 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertEqual(url, "https://hooks.slack.com/triggers/T/1/x")
         self.assertEqual(fields["version"], "4.16.2")
         self.assertEqual(fields["kind"], "patch release")
-        self.assertEqual(fields["reviewer_brett"], SLACK_USER_BRETT_ID)
+        self.assertEqual(fields["releasers_handle"], SLACK_RELEASERS_HANDLE)
+        self.assertNotIn("reviewer_brett", fields)
         self.assertNotIn("text", fields)
 
     def test_notify_slack_prod_legacy_env(self) -> None:

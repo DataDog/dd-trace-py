@@ -12,8 +12,7 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
 | `kind` | `patch release` | Text |
 | `draft_url` | `https://github.com/.../releases/tag/v4.15.8` | Text |
 | `target_sha` | `503be289517c…` | Text |
-| `reviewer_brett` | `UD1N1U7JQ` | **User ID** |
-| `reviewer_emmett` | `U04HER8LNAZ` | **User ID** |
+| `releasers_handle` | `dd-trace-py-releasers` | Text (optional; prefer static User Group below) |
 | `runner` | `vlad-scherbich` | Text (GitHub login) |
 | `channel_id` | `C04MK6NNDG9` | Channel ID (optional) |
 | `script` | `scripts/gh/create_gh_release.py` | Text |
@@ -21,18 +20,20 @@ When `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` is a `hooks.slack.com/trig
 | `script_branch_url` | `https://github.com/DataDog/dd-trace-py/compare/main...vlad/release-create-release-rc-script` | Text |
 | `commands_hint` | `patch / rc / final` | Text |
 
+**Removed:** `reviewer_brett` / `reviewer_emmett` User ID vars. Ping the whole releasers group instead.
+
 ## Rebuild the Workflow (click path)
 
 1. Slack → **Workflow Builder** → open the release announce workflow (or create one: **Create workflow** → **From a webhook**).
-2. Under **From a webhook**, delete the old single `text` variable (if present).
-3. **Add variables** with the **exact** names above and types from the table (`reviewer_*` must be **User ID**).
+2. Under **From a webhook**, delete the old single `text` variable (if present) and any `reviewer_brett` / `reviewer_emmett` variables.
+3. **Add variables** with the **exact** names above and types from the table.
 4. Publish / copy the new `hooks.slack.com/triggers/...` URL into `scripts/gh/.env.local` as `DDTRACE_RELEASE_APM_PYTHON_RELEASE_CHANNEL_URL` (keep the file gitignored).
 5. **Add step** → **Send a message to a channel** → `#apm-python-release`.
 6. Message body (type static formatting in the editor; insert variables with **Insert a variable**):
 
    - Line 1: `:package:` then bold **Draft** then insert `kind` then insert `version` then ` is ready for review`
    - Line 2: insert `draft_url` (bare URL usually auto-links) · `target` then insert `target_sha`
-   - Line 3: insert `reviewer_brett` and `reviewer_emmett` (User ID vars become real @mentions) then ` — can I get a :lgtm:? Please review and` then bold **Publish release** then ` when ready.`
+   - Line 3: type a **static User Group mention** `@dd-trace-py-releasers` (Insert → mention the usergroup — do **not** rely on inserting `releasers_handle` as plain text; that does not notify). Then ` — can I get a ` then **`:lgtm:`** (not `:+1:` / thumbs-up) then `? Please review and` then bold **Publish release** then ` when ready.`
    - Footer (italic in the editor): `Brought to you by release automation — ` then insert `script` then ` on ` then insert `script_branch_url` / `script_branch` then ` . Run by ` then insert `runner` then ` . Try ` then insert `commands_hint` then `.`
 
 7. **Publish** the workflow. Dry-run the script first (`--dry-run --slack`) and confirm the JSON keys match. Only then wet-post.
