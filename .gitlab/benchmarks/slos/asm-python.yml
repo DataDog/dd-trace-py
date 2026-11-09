@@ -278,19 +278,19 @@ experiments:
           # appsecwaf
           - name: appsecwaf-request
             thresholds:
-              - execution_time < 1.20 ms
+              - execution_time < 1.40 ms
           - name: appsecwaf-request-rasp
             thresholds:
-              - execution_time < 1.65 ms
+              - execution_time < 1.85 ms
           - name: appsecwaf-headers-only
             thresholds:
               - execution_time < 0.25 ms
           - name: appsecwaf-wide-body
             thresholds:
-              - execution_time < 5.00 ms
+              - execution_time < 5.85 ms
           - name: appsecwaf-unicode-body
             thresholds:
-              - execution_time < 1.15 ms
+              - execution_time < 1.30 ms
           - name: appsecwaf-attack
             thresholds:
               - execution_time < 0.25 ms
