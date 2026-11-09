@@ -3771,6 +3771,32 @@ def format_workflow_rendered_mock(fields: dict[str, str]) -> str:
     )
 
 
+def render_slack_announce_resolved(
+    *,
+    version: str,
+    target_sha: str,
+    draft_url: str,
+    channel: str = SLACK_CHANNEL_DEFAULT,
+    workflow: bool = True,
+) -> str:
+    """Fully resolved channel message for dry-run (template + substituted fields).
+
+    When ``workflow=True`` (triggers/ path): fill the FR Workflow Send-a-message
+    template from ``format_workflow_trigger_payload`` (releasers, :lgtm:, Run by
+    footer). When ``workflow=False`` (services/ Incoming Webhook): return the
+    mrkdwn body Slack would show from ``format_slack_announce``. Never POSTs.
+    """
+    if workflow:
+        fields: dict[str, str] = format_workflow_trigger_payload(
+            version=version,
+            target_sha=target_sha,
+            draft_url=draft_url,
+            channel=channel,
+        )
+        return format_workflow_rendered_mock(fields)
+    return format_slack_announce(version, target_sha, draft_url)
+
+
 def print_slack_announce_preview(
     *,
     version: str,
@@ -3779,30 +3805,47 @@ def print_slack_announce_preview(
     test_dm: bool,
     channel: str,
 ) -> None:
-    """Print the Slack preview that matches the configured webhook URL type.
+    """Print the dry-run Slack announce: resolved channel text first (never POST).
 
-    ``hooks.slack.com/triggers/`` (or ``DDTRACE_RELEASE_SLACK_WORKFLOW_STRUCTURED``):
-    structured Workflow JSON + channel-rendered mock — not freeform mrkdwn
-    (literals on unrebuilt / wrong templates). ``hooks.slack.com/services/``:
-    Incoming Webhook mrkdwn. See ``scripts/gh/SLACK_WORKFLOW_INTERIM.md``.
+    Primary check is the **fully resolved** message (Workflow template filled, or
+    Incoming Webhook mrkdwn). Structured JSON for ``triggers/`` is secondary.
+    See ``scripts/gh/SLACK_WORKFLOW_INTERIM.md``.
     """
     dest: str = _slack_announce_destination(test_dm=test_dm, channel=channel)
     url: str = _preview_webhook_url(test_dm=test_dm, channel=channel)
+    as_workflow: bool = bool(url) and use_workflow_structured_payload(url)
+    resolved: str = render_slack_announce_resolved(
+        version=version,
+        target_sha=target_sha,
+        draft_url=draft_url,
+        channel=channel,
+        workflow=as_workflow,
+    )
     print(f"\n(dry-run) would post to {dest}:")
+    if as_workflow:
+        print("----- RESOLVED CHANNEL MESSAGE (Workflow FR, after rebuilt template) -----")
+    elif url and is_incoming_webhook_url(url):
+        print("----- RESOLVED CHANNEL MESSAGE (Incoming Webhook mrkdwn) -----")
+    elif not url:
+        print(
+            "----- RESOLVED CHANNEL MESSAGE "
+            "(Incoming Webhook mrkdwn; no webhook URL in env — defaulting to services/ shape) -----"
+        )
+    else:
+        print("----- RESOLVED CHANNEL MESSAGE (webhook text / mrkdwn) -----")
+    print(resolved)
+    print("----- END RESOLVED CHANNEL MESSAGE -----")
 
-    if url and use_workflow_structured_payload(url):
+    if as_workflow:
         workflow_payload: dict[str, str] = format_workflow_trigger_payload(
             version=version,
             target_sha=target_sha,
             draft_url=draft_url,
             channel=channel,
         )
-        print("----- WORKFLOW TRIGGER JSON (hooks.slack.com/triggers/) -----")
+        print("----- WORKFLOW TRIGGER JSON (secondary; hooks.slack.com/triggers/) -----")
         print(json.dumps(workflow_payload, indent=2, sort_keys=True))
         print("----- END WORKFLOW TRIGGER JSON -----")
-        print("----- WORKFLOW-RENDERED MOCK (after rebuilt template) -----")
-        print(format_workflow_rendered_mock(workflow_payload))
-        print("----- END WORKFLOW-RENDERED MOCK -----")
         print(
             "warning: structured Workflow JSON only renders correctly after the "
             "Slack Workflow is rebuilt for these variable names "
@@ -3810,19 +3853,6 @@ def print_slack_announce_preview(
             "do not wet-post to an unrebuilt triggers/ Workflow.",
             file=sys.stderr,
         )
-        return
-
-    text: str = format_slack_announce(version, target_sha, draft_url)
-    if url and is_incoming_webhook_url(url):
-        print("----- SLACK MESSAGE (Incoming Webhook mrkdwn) -----")
-    elif not url:
-        print(
-            "----- SLACK MESSAGE (Incoming Webhook mrkdwn; no webhook URL in env — defaulting to services/ shape) -----"
-        )
-    else:
-        print("----- SLACK MESSAGE (webhook text / mrkdwn) -----")
-    print(text)
-    print("----- END SLACK MESSAGE -----")
 
 
 def is_workflow_trigger_url(url: str) -> bool:

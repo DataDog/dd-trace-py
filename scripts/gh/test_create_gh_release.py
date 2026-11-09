@@ -74,6 +74,7 @@ from create_gh_release import is_workflow_trigger_url  # noqa: E402
 from create_gh_release import load_local_env  # noqa: E402
 from create_gh_release import print_slack_announce_preview  # noqa: E402
 from create_gh_release import refuse_freeform_mrkdwn_on_workflow_trigger  # noqa: E402
+from create_gh_release import render_slack_announce_resolved  # noqa: E402
 from create_gh_release import resolve_runner_display  # noqa: E402
 from create_gh_release import review_text  # noqa: E402
 from create_gh_release import should_mark_latest  # noqa: E402
@@ -392,12 +393,12 @@ class SlackDefaultsTests(unittest.TestCase):
                     )
         printed: list[str] = [str(c.args[0]) for c in print_mock.call_args_list if c.args]
         self.assertTrue(any("#apm-python-release" in line for line in printed))
-        self.assertIn("----- SLACK MESSAGE (Incoming Webhook mrkdwn) -----", printed)
+        self.assertIn("----- RESOLVED CHANNEL MESSAGE (Incoming Webhook mrkdwn) -----", printed)
         self.assertIn(expected, printed)
-        self.assertIn("----- END SLACK MESSAGE -----", printed)
+        self.assertIn("----- END RESOLVED CHANNEL MESSAGE -----", printed)
         self.assertFalse(any("WORKFLOW TRIGGER JSON" in line for line in printed))
 
-    def test_print_slack_announce_preview_triggers_prints_structured(self) -> None:
+    def test_print_slack_announce_preview_triggers_prints_resolved_first(self) -> None:
         env: dict[str, str] = {
             SLACK_CHANNEL_PROD_ENV: "https://hooks.slack.com/triggers/T/1/x",
         }
@@ -421,11 +422,40 @@ class SlackDefaultsTests(unittest.TestCase):
                         )
         printed: list[str] = [str(c.args[0]) for c in print_mock.call_args_list if c.args]
         self.assertTrue(any("#apm-python-release" in line for line in printed))
-        self.assertTrue(any("WORKFLOW TRIGGER JSON" in line for line in printed))
-        self.assertTrue(any('"version": "4.16.2"' in line for line in printed))
-        self.assertIn("----- WORKFLOW-RENDERED MOCK (after rebuilt template) -----", printed)
+        self.assertIn(
+            "----- RESOLVED CHANNEL MESSAGE (Workflow FR, after rebuilt template) -----",
+            printed,
+        )
         self.assertIn(mock_body, printed)
+        self.assertIn("----- END RESOLVED CHANNEL MESSAGE -----", printed)
+        # Resolved text is primary; JSON is secondary.
+        resolved_idx: int = printed.index("----- RESOLVED CHANNEL MESSAGE (Workflow FR, after rebuilt template) -----")
+        json_idx: int = next(i for i, line in enumerate(printed) if "WORKFLOW TRIGGER JSON" in line)
+        self.assertLess(resolved_idx, json_idx)
+        self.assertTrue(any('"version": "4.16.2"' in line for line in printed))
         self.assertFalse(any("Incoming Webhook mrkdwn" in line for line in printed))
+
+    def test_render_slack_announce_resolved_workflow_fills_template(self) -> None:
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with mock.patch("create_gh_release.resolve_gh_login", return_value="vlad-scherbich"):
+                body: str = render_slack_announce_resolved(
+                    version="4.16.4",
+                    target_sha="593e9eaa255a",
+                    draft_url="https://github.com/DataDog/dd-trace-py/releases/tag/untagged-6c4169f2cee574ee7099",
+                    channel="prod",
+                    workflow=True,
+                )
+        self.assertIn(":package: *Draft* patch release 4.16.4 is ready for review", body)
+        self.assertIn(
+            "https://github.com/DataDog/dd-trace-py/releases/tag/untagged-6c4169f2cee574ee7099  ·  target 593e9eaa255a",
+            body,
+        )
+        self.assertIn(f"@{SLACK_RELEASERS_HANDLE}", body)
+        self.assertIn(":lgtm:", body)
+        self.assertNotIn(":+1:", body)
+        self.assertIn("Run by vlad-scherbich", body)
+        self.assertIn("Try `patch` / `rc` / `final`", body)
+        self.assertIn(_RELEASE_SCRIPT_BRANCH_URL, body)
 
     def test_format_workflow_rendered_mock_matches_interim_template(self) -> None:
         fields: dict[str, str] = {
