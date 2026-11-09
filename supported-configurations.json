@@ -5626,9 +5626,9 @@
     ],
     "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": [
       {
-        "implementation": "C",
+        "implementation": "D",
         "type": "string",
-        "default": "grpc"
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT": [
@@ -5690,9 +5690,9 @@
     ],
     "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE": [
@@ -5711,9 +5711,9 @@
     ],
     "OTEL_EXPORTER_OTLP_PROTOCOL": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "http/protobuf"
       }
     ],
     "OTEL_EXPORTER_OTLP_TIMEOUT": [
