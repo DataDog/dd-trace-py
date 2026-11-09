@@ -1,6 +1,5 @@
 # `ddtrace`
 
-[![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/main.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/main)
 [![PypiVersions](https://badge.fury.io/py/ddtrace.svg)](https://pypi.org/project/ddtrace/)
 [![Pyversions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FDataDog%2Fdd-trace-py%2Fmain%2Fpyproject.toml&style=flat)](https://pypi.org/project/ddtrace/)
 

@@ -156,18 +156,19 @@ def test_class_subprocess(pytester, monkeypatch):
         import asyncio
         import os
         from pathlib import Path
-        import unittest
         import pytest
+        from tests.contrib.asyncio.utils import AsyncioTestCase
 
         MODE = os.getenv("CHILD_MODE", "parent")
 
-        class TestCase(unittest.IsolatedAsyncioTestCase):
+        class TestCase(AsyncioTestCase):
             async def asyncSetUp(self):
                 assert MODE == "child"
                 assert os.getpid() != int(os.environ["PARENT_PID"])
                 self.loop = asyncio.get_running_loop()
 
             async def asyncTearDown(self):
+                await asyncio.sleep(0)
                 assert asyncio.get_running_loop() is self.loop
                 with Path(os.environ["EVENTS"]).open("a") as stream:
                     stream.write(self._testMethodName + "\\n")
@@ -179,7 +180,7 @@ def test_class_subprocess(pytester, monkeypatch):
                 assert os.environ["CASE"] in ("one", "two")
 
             @pytest.mark.subprocess(env={"CHILD_MODE": "child", "PYTHONOPTIMIZE": "1"})
-            def test_failure(self):
+            async def test_failure(self):
                 assert False, "class assertion must execute"
         """
     )
