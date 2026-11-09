@@ -2,7 +2,6 @@
 //!
 //! Convert directly into owned WAF storage while attached, evaluate with the
 //! interpreter detached, and decode borrowed results directly into Python.
-//! Loading remains explicit and product-scoped; module registration does not load a library.
 
 mod convert;
 
@@ -66,7 +65,7 @@ fn load(candidates: Vec<String>) -> PyResult<(String, String)> {
     }
     let mut errors = Vec::new();
     for candidate in candidates {
-        // SAFETY: candidates follow the existing bundled/system libddwaf policy.
+        // SAFETY: candidates follow the existing system libddwaf policy.
         // The crate validates the pinned version and complete generated symbol table.
         match unsafe { libddwaf::load_library(Some(Path::new(&candidate))) } {
             Ok(()) => {

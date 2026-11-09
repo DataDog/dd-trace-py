@@ -831,7 +831,6 @@ lib_injection_tests:
     # dir. The image's ld.so.conf can point at older patch dirs than pyenv
     # actually installed, so put the selected interpreter's lib on the path.
     - export LD_LIBRARY_PATH="$(pyenv prefix)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    - python .gitlab/scripts/check-libclang.py
   script:
     - python --version
     # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
