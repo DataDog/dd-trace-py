@@ -96,6 +96,7 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
             span._set_ctx_item(PROXY_REQUEST, True)
         integration._annotate_integration_tag(span)
         integration._stamp_llmobs_span_kind_at_start(span, event.operation, operation=event.operation)
+        integration._on_request_span_started(span, instance=event.instance, operation=event.operation)
 
     @classmethod
     def on_finishing(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:
@@ -105,7 +106,7 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
         event = ctx.event
         integration.llmobs_set_tags(
             span_from_context(ctx),
-            args=[],
+            args=list(event.request_args),
             kwargs=event.request_kwargs,
             response=event.response,
             operation=event.operation,
