@@ -1,7 +1,6 @@
 import fnmatch
 import re
 
-from mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
 from mappings import EXCLUDED_FROM_TESTING
 from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING
 from packaging.requirements import InvalidRequirement
@@ -142,6 +141,7 @@ LATEST_NOT_TESTED = {
     "botocore": "SigV4 propagation tests fail on the latest botocore (traceparent missing from SignedHeaders)",
     "claude_agent_sdk": "PyPI deletes old releases, so unpinned locks go stale",
     "pydantic_ai": "only capped versions are tested",
+    "ray": "ray tests fail on the latest ray (local_mode is no longer supported)",
     "ray_serve": "ray_serve tests fail on the latest ray",
     "vertica": "only capped versions are tested",
 }
@@ -159,9 +159,7 @@ def test_every_integration_tests_latest_package_version(registry_content):
     seen = set()
     for environments in get_test_environments(nightly=False).values():
         for environment in environments:
-            integration = DEPENDENCY_TO_INTEGRATION_MAPPING.get(
-                environment.integration_name, environment.integration_name
-            )
+            integration = environment.integration_name
             if integration in EXCLUDED_FROM_TESTING:
                 continue
             names = {_canonical(n) for n in INTEGRATION_TO_DEPENDENCY_MAPPING.get(integration) or {integration}}
