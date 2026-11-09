@@ -17,8 +17,8 @@ pub mod ffe {
 
     /// UFC extensions supported by both the linked evaluator and this binding.
     /// Only add a token after its evaluation semantics, error propagation, and
-    /// exposure reporting are supported. In particular, the linked evaluator does not support dependent
-    /// flags yet, so transports must not advertise that capability.
+    /// exposure reporting are supported. Prerequisite records and exposure eligibility
+    /// are not yet surfaced by this binding, so transports must not advertise support.
     #[pyfunction]
     fn get_evaluator_capabilities() -> Vec<&'static str> {
         Vec::new()
@@ -67,7 +67,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int, skip_from_py_object)]
+    #[pyclass(eq, eq_int)]
     enum Reason {
         Static,
         Default,
@@ -81,7 +81,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int, skip_from_py_object)]
+    #[pyclass(eq, eq_int)]
     enum ErrorCode {
         /// The type of the flag value does not match the expected type.
         TypeMismatch,
