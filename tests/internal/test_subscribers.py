@@ -48,6 +48,10 @@ def test_base_subscriber():
             called.append(event_instance.event_name)
 
     core.dispatch_event(SubscriberEvent())
+    assert called == []
+    DirectSubscriber.register()
+
+    core.dispatch_event(SubscriberEvent())
 
     assert called == [SubscriberEvent.event_name], "subscriber should be called once with the event name; got %r" % (
         called,
@@ -64,9 +68,8 @@ def test_base_subscriber():
     assert called == [SubscriberEvent.event_name]
 
 
-def test_base_subscriber_can_defer_registration():
+def test_base_subscriber_requires_explicit_registration():
     class ExplicitSubscriber(Subscriber):
-        auto_register = False
         event_names = (SubscriberEvent.event_name,)
 
         @classmethod
@@ -96,6 +99,8 @@ def test_base_subscriber_inheritance():
         def on_event(cls, event_instance):
             called.append("child")
 
+    ChildSubscriber.register()
+
     core.dispatch_event(SubscriberEvent())
 
     assert called == ["parent", "child"], "parent and child subscribers should run in order; got %r" % (called,)
@@ -118,6 +123,8 @@ def test_base_subscriber_multiple_event_names():
         @classmethod
         def on_event(cls, event_instance):
             called.append(event_instance.event_name)
+
+    MultiEventSubscriber.register()
 
     core.dispatch_event(SubscriberEventOne())
     core.dispatch_event(SubscriberEventTwo())
@@ -153,6 +160,11 @@ def test_base_context_subscriber():
         @classmethod
         def on_ended(cls, ctx, exc_info):
             called.append("ended")
+
+    with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
+        pass
+    assert called == []
+    DirectSubscriber.register()
 
     with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
         pass
@@ -199,6 +211,8 @@ def test_base_context_subscriber_inheritance():
         def on_ended(cls, ctx, exc_info):
             called.append("child_ended")
 
+    ChildSubscriber.register()
+
     with core.context_with_event(TestContextEvent()):
         pass
 
@@ -221,6 +235,8 @@ def test_base_tracing_subscriber(test_spans):
 
     class TestTracingSubscriber(TracingSubscriber):
         event_names = (TestTracingEvent.event_name,)
+
+    TestTracingSubscriber.register()
 
     with core.context_with_event(
         TestTracingEvent(
@@ -261,6 +277,8 @@ def test_tracing_subscriber_entry_decision(test_spans, monkeypatch, tracing_enab
         def on_ended(cls, ctx, exc_info):
             called.append("ended")
 
+    TestTracingSubscriber.register()
+
     event = TestTracingEvent(component="test-component", integration_config={})
     # Model the internal decision set by a tracing subscriber at entry.
     event.span_creation_enabled = tracing_enabled
@@ -292,6 +310,8 @@ def test_span_context_event_missing_required_field(test_spans):
     class TestTracingSubscriber(TracingSubscriber):
         event_names = (TestTracingEvent.event_name,)
 
+    TestTracingSubscriber.register()
+
     with pytest.raises(AttributeError):
         with core.context_with_event(TestTracingEvent(component="component", integration_config={})):
             pass
@@ -322,6 +342,8 @@ def test_span_context_event_with_custom_fields(test_spans):
         def on_ended(cls, ctx: core.ExecutionContext, exc_info) -> None:
             span = span_from_context(ctx)
             span._set_attribute("http.status_code", ctx.event.status_code)
+
+    TestSpanSubscriber.register()
 
     with core.context_with_event(
         TestTracingEvent(my_op="op", my_arg="arg", component="comp", status_code=200, integration_config={})
@@ -370,6 +392,8 @@ def test_span_context_event_inheritance(test_spans):
             span = span_from_context(ctx)
             span._set_attribute("http.method", ctx.event.method)
 
+    HTTPClientSubscriber.register()
+
     with core.context_with_event(
         HTTPClientEvent(url="http://example.com", component="http", method="GET", integration_config={})
     ):
@@ -397,6 +421,8 @@ def test_span_context_event_with_exception(test_spans):
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
 
+    TestSpanSubscriber.register()
+
     with pytest.raises(ValueError):
         with core.context_with_event(TestSpanEvent(component="test_component", integration_config={})):
             raise ValueError("test error")
@@ -422,6 +448,8 @@ def test_span_parent_child_default(test_spans):
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
+
+    TestSpanSubscriber.register()
 
     with tracer.trace("local.processing"):
         with core.context_with_event(
@@ -452,6 +480,8 @@ def test_span_context_event_no_active_context_with_distributed_context(test_span
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
+
+    TestSpanSubscriber.register()
 
     with tracer.trace("local.processing"):
         with core.context_with_event(
@@ -487,6 +517,8 @@ def test_span_context_event_end_span_false(test_spans):
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
+
+    TestSpanSubscriber.register()
 
     with core.context_with_event(TestSpanEvent(component="test_component", integration_config={})):
         pass
@@ -524,11 +556,12 @@ def test_web_subscriber_owns_enablement_at_entry(
     monkeypatch.setattr(web_framework, "standalone_config", policy)
     monkeypatch.setattr(tracer, "enabled", tracing_enabled)
     monkeypatch.setitem(core.root._data, "tracer", tracer if tracer_available else None)
-    web_framework.WebFrameworkRequestSubscriber.register()
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
         component=component,
-        supports_spanless_lifecycle=True,
         integration_config=config.aiohttp,
         request_url="http://localhost/",
         request_method="GET",
@@ -548,7 +581,7 @@ def test_web_subscriber_owns_enablement_at_entry(
 
 
 @pytest.mark.parametrize("component", ["aiohttp", "bottle", "cherrypy", "falcon", "molten", "pyramid", "sanic"])
-def test_web_subscriber_preserves_span_dependent_integrations(test_spans, monkeypatch, component):
+def test_web_subscriber_skips_disabled_integrations(test_spans, monkeypatch, component):
     from ddtrace import config
     from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
@@ -565,9 +598,9 @@ def test_web_subscriber_preserves_span_dependent_integrations(test_spans, monkey
         headers_case_sensitive=True,
     )
     with core.context_with_event(event) as ctx:
-        span = ctx.get_item("_inner_span")
-        assert span is not None
-    assert span.finished
+        assert ctx.get_item("_inner_span") is None
+        assert not event.span_creation_enabled
+    test_spans.assert_span_count(0)
 
 
 def test_skipped_web_request_does_not_finish_parent_span(test_spans, monkeypatch):
@@ -578,13 +611,14 @@ def test_skipped_web_request_does_not_finish_parent_span(test_spans, monkeypatch
     monkeypatch.setattr(web_framework, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
-    web_framework.WebFrameworkRequestSubscriber.register()
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
     def event():
         return WebFrameworkRequestEvent(
             http_operation="test.request",
             component="aiohttp",
-            supports_spanless_lifecycle=True,
             integration_config=config.aiohttp,
             request_url="http://localhost/",
             request_method="GET",
@@ -626,10 +660,11 @@ def test_web_subscriber_owns_span_observed_by_metadata_consumers(test_spans, mon
         def on_ended(cls, ctx, exc_info):
             observed.append((ctx.get_item("_inner_span"), "ended"))
 
+    MetadataSubscriber.register()
+
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
         component="aiohttp",
-        supports_spanless_lifecycle=True,
         integration_config=config.aiohttp,
         request_url="http://localhost/",
         request_method="GET",
@@ -657,14 +692,14 @@ def test_skipped_aiohttp_request_does_not_finish_span_borrowed_by_appsec(test_sp
     monkeypatch.setattr(web_framework, "standalone_config", Mock(apm_opt_out=False))
     monkeypatch.setattr(tracer, "enabled", True)
     monkeypatch.setitem(core.root._data, "tracer", tracer)
-    web_framework.WebFrameworkRequestSubscriber.register()
-    web_framework.WebFrameworkRequestExceptionSubscriber.register()
+    from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+
+    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
     def event():
         return WebFrameworkRequestEvent(
             http_operation="test.request",
             component="aiohttp",
-            supports_spanless_lifecycle=True,
             integration_config=config.aiohttp,
             request_url="http://localhost/",
             request_method="GET",

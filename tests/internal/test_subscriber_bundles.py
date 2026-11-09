@@ -43,7 +43,6 @@ def test_shared_bundle_is_idempotent_and_can_restore_listeners() -> None:
     calls = []
 
     class RequestSubscriber(Subscriber):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -110,7 +109,6 @@ def test_products_can_share_events_without_sharing_listener_ownership(monkeypatc
     calls: list[str] = []
 
     class TracingRequestSubscriber(Subscriber):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -118,7 +116,6 @@ def test_products_can_share_events_without_sharing_listener_ownership(monkeypatc
             calls.append("tracing")
 
     class SecurityRequestSubscriber(ContextSubscriber[RegistrationEvent]):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -165,7 +162,6 @@ def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.
     calls: list[str] = []
 
     class RequestSubscriber(ContextSubscriber[RegistrationEvent]):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -238,7 +234,6 @@ def test_setup_declaration_supports_constructor_and_listener_reset() -> None:
     calls = []
 
     class RequestSubscriber(Subscriber):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -283,7 +278,6 @@ def request_bundle(monkeypatch):
     calls = []
 
     class RequestSubscriber(Subscriber):
-        auto_register = False
         event_names = (RegistrationEvent.event_name,)
 
         @classmethod
@@ -517,8 +511,38 @@ def test_events_api_benchmark_scenarios_smoke() -> None:
         "subscriber_setup",
         "subscriber_first_activation",
         "subscriber_reset_recovery",
+        "web_request",
     ):
         scenario = EventsAPIScenario(name=api, api=api)
         workload = scenario.run()
         next(workload)(2)
         assert next(workload, None) is None
+
+
+@pytest.mark.subprocess()
+def test_events_core_benchmark_does_not_accumulate_listeners():
+    import sys
+    from unittest.mock import patch
+
+    from ddtrace.trace import tracer
+
+    sys.path.insert(0, "benchmarks")
+    with patch("bm._scenario._register"):
+        from benchmarks.events_api.scenario import EventsAPIScenario
+
+    created = []
+    original = tracer.trace
+
+    def trace(*args, **kwargs):
+        span = original(*args, **kwargs)
+        created.append(span)
+        return span
+
+    scenario = EventsAPIScenario(name="core", api="core")
+    with patch.object(tracer, "trace", side_effect=trace):
+        for _ in range(3):
+            workload = scenario.run()
+            next(workload)(2)
+            assert next(workload, None) is None
+    assert len(created) == 6
+    assert all(span.finished for span in created)

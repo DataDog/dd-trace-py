@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional
 
+from ddtrace._trace._registration import SPAN_SUBSCRIBERS
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
@@ -73,6 +74,7 @@ def test_tracing_event_can_create_and_finish_span(test_spans):
 
 
 def test_tracing_event_create_can_dispatch_without_subclass(test_spans):
+    SPAN_SUBSCRIBERS.register()
     event = TracingEvent.create(
         component="comp",
         integration_config={},

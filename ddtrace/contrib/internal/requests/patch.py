@@ -40,6 +40,7 @@ def _supported_versions() -> dict[str, str]:
 
 def patch():
     """Activate http calls tracing"""
+
     if getattr(requests, "__datadog_patch", False):
         return
     requests.__datadog_patch = True

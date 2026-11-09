@@ -10,7 +10,7 @@ from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
+from ddtrace._trace.sampling_rule import SamplingRule as TraceSamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -1130,3 +1130,35 @@ def test_configure_agentless_writer_releases_an_unstarted_exporter():
                 aggregator.writer.stop()
             except ServiceStatusError:
                 pass
+
+
+def test_shutdown_discards_a_span_already_entering_aggregation():
+    from collections import defaultdict
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    entered = Event()
+    resume = Event()
+    aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggregator.writer = DummyWriter()
+
+    class BlockedBuffer(defaultdict):
+        def __getitem__(self, key):
+            entered.set()
+            assert resume.wait(5)
+            return super().__getitem__(key)
+
+    aggregator._traces = BlockedBuffer(aggregator._traces.default_factory)
+    span = Span("request")
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(aggregator.on_span_start, span)
+        try:
+            assert entered.wait(5)
+            aggregator.shutdown(timeout=0.1)
+            assert not aggregator._traces
+        finally:
+            resume.set()
+        pending.result(timeout=5)
+    assert not aggregator._traces
+    aggregator.on_span_start(Span("after shutdown"))
+    assert not aggregator._traces

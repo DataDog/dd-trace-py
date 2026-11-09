@@ -27,7 +27,10 @@ from .version import __version__  # noqa: E402
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+    from ddtrace._trace._registration import initialize_subscribers  # noqa: E402
     from ddtrace.trace import tracer  # noqa: F401
+
+    initialize_subscribers()
 
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: E402, F401

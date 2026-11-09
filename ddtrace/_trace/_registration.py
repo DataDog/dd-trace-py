@@ -1,9 +1,179 @@
-"""Lazy subscriber declarations shared by tracing startup and integration setup."""
+"""Lazy subscriber bundles owned by tracing."""
 
+from dataclasses import dataclass
+from dataclasses import field
+from importlib import import_module
+import sys
+from types import ModuleType
+from typing import cast
+
+from ddtrace.internal import core
+from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.subscriber import SubscriberBundle
+from ddtrace.internal.module import ModuleWatchdog
 
 
-WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
-    module="ddtrace._trace.subscribers.web_framework",
-    subscribers=("WebFrameworkRequestSubscriber", "WebFrameworkRequestExceptionSubscriber"),
+@dataclass(frozen=True)
+class _WebFrameworkSubscriberBundle(SubscriberBundle):
+    """Tracing-owned admission policy shared by product startup and integration setup."""
+
+    _enabled: bool = field(default=True, init=False, compare=False, repr=False)
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def ensure_registered(self) -> None:
+        # Standalone span requirements are independent of APM listener admission.
+        WEB_FRAMEWORK_EXCEPTION_SUBSCRIBERS.ensure_registered()
+        STANDALONE_WEB_FRAMEWORK_SUBSCRIBERS.ensure_registered()
+        if self._enabled:
+            super().ensure_registered()
+
+    def register(self) -> None:
+        """Allow APM requests again; ordinary setup only ensures the current policy."""
+        with event_hub._registration_lock:
+            object.__setattr__(self, "_enabled", True)
+            object.__setattr__(self, "_registered_generation", -1)
+        self.ensure_registered()
+
+    def unregister(self) -> None:
+        """Close admission immediately and drain completion listeners asynchronously."""
+        with event_hub._registration_lock:
+            object.__setattr__(self, "_enabled", False)
+            object.__setattr__(self, "_registered_generation", -1)
+            resolved = self._resolved
+            if resolved is None:
+                module = sys.modules.get(self.module)
+                # An overlapping import can publish its module before defining classes.
+                # Its eventual register() call also checks this bundle's admission policy.
+                if module is None or any(not hasattr(module, name) for name in self.subscribers):
+                    return
+                resolved = self._resolve(module)
+            for subscriber in resolved:
+                subscriber.unregister()
+
+
+class _RaySubscriberBundle(SubscriberBundle):
+    """Recheck terminal shutdown after resolving optional SDK imports."""
+
+    def ensure_registered(self) -> None:
+        with event_hub._registration_lock:
+            resolved = self._resolved
+        # Resolving may block on another import; shutdown must remain independent.
+        module = import_module(self.module) if resolved is None else None
+        with event_hub._registration_lock:
+            tracer = core.root.get_item("tracer")
+            if tracer is None or getattr(tracer, "_shutting_down", False):
+                return
+            if self._resolved is None:
+                object.__setattr__(self, "_resolved", self._resolve(cast(ModuleType, module)))
+            # With resolution complete, installation cannot take an import lock.
+            super().ensure_registered()
+
+
+SPAN_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers._base",
+    subscribers=("TracingSubscriber",),
 )
+HTTP_CLIENT_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.http_client",
+    subscribers=("HttpClientTracingSubscriber",),
+)
+WEB_FRAMEWORK_SUBSCRIBERS = _WebFrameworkSubscriberBundle(
+    module="ddtrace._trace.subscribers.web_framework",
+    subscribers=("WebFrameworkRequestSubscriber",),
+)
+# Exception notifications can arrive after request completion, so this stateless
+# consumer keeps the admitted event's decision independently of request admission.
+WEB_FRAMEWORK_EXCEPTION_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.web_framework",
+    subscribers=("WebFrameworkRequestExceptionSubscriber",),
+)
+STANDALONE_WEB_FRAMEWORK_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.web_framework",
+    subscribers=("StandaloneWebFrameworkRequestSubscriber",),
+)
+MESSAGING_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.messaging",
+    subscribers=("MessagingProduceSubscriber", "MessagingConsumeSubscriber"),
+)
+KAFKA_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.kafka",
+    subscribers=("KafkaProduceSubscriber", "KafkaConsumeSubscriber"),
+)
+LLM_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.llm",
+    subscribers=("LlmTracingSubscriber",),
+)
+MOLTEN_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.molten",
+    subscribers=("MoltenRouteSubscriber",),
+)
+AWS_DURABLE_SUBSCRIBERS = SubscriberBundle(
+    module="ddtrace._trace.subscribers.aws_durable",
+    subscribers=("AwsDurableExecuteSubscriber", "AwsDurableInvokeSubscriber", "AwsDurableOperationSubscriber"),
+)
+RAY_SUBSCRIBERS = _RaySubscriberBundle(
+    module="ddtrace._trace.subscribers.ray",
+    subscribers=(
+        "RayJobStartSubscriber",
+        "RayExecutionSubscriber",
+        "RayCoreAPITracingSubscriber",
+        "RaySubmissionSubscriber",
+        "RayContextInjectionSubscriber",
+    ),
+)
+
+# All SDK-independent tracing subscribers are activated by tracing startup.
+SUBSCRIBER_BUNDLES = (
+    WEB_FRAMEWORK_SUBSCRIBERS,
+    SPAN_SUBSCRIBERS,
+    HTTP_CLIENT_SUBSCRIBERS,
+    MESSAGING_SUBSCRIBERS,
+    KAFKA_SUBSCRIBERS,
+    LLM_SUBSCRIBERS,
+    MOLTEN_SUBSCRIBERS,
+    AWS_DURABLE_SUBSCRIBERS,
+)
+
+
+_ray_hook_registered = False
+
+
+def _register_ray_subscribers(module: ModuleType) -> None:
+    tracer = core.root.get_item("tracer")
+    if tracer is not None and not getattr(tracer, "_shutting_down", False):
+        RAY_SUBSCRIBERS.ensure_registered()
+
+
+def initialize_subscribers(bundles: tuple[SubscriberBundle, ...] = SUBSCRIBER_BUNDLES) -> None:
+    """Activate tracing-owned listeners without coupling integrations to their consumers."""
+    global _ray_hook_registered
+
+    for bundle in bundles:
+        bundle.ensure_registered()
+
+    # Ray's subscriber helpers require its optional SDK. Tracing owns this hook
+    # so the integration never needs to import or activate tracing subscribers.
+    if not _ray_hook_registered:
+        ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.ray.patch", _register_ray_subscribers)
+        _ray_hook_registered = True
+    elif "ddtrace.contrib.internal.ray.patch" in sys.modules:
+        _register_ray_subscribers(sys.modules["ddtrace.contrib.internal.ray.patch"])
+
+
+def unregister_subscribers(bundles: tuple[SubscriberBundle, ...] = SUBSCRIBER_BUNDLES) -> None:
+    """Remove tracing subscriptions after terminal shutdown has discarded active work."""
+    global _ray_hook_registered
+
+    if _ray_hook_registered:
+        ModuleWatchdog.unregister_module_hook("ddtrace.contrib.internal.ray.patch", _register_ray_subscribers)
+        _ray_hook_registered = False
+    for bundle in bundles:
+        bundle.unregister()
+    WEB_FRAMEWORK_EXCEPTION_SUBSCRIBERS.unregister()
+    STANDALONE_WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+    # A partially imported optional subscriber has not installed any callbacks.
+    if RAY_SUBSCRIBERS._resolved is not None:
+        RAY_SUBSCRIBERS.unregister()

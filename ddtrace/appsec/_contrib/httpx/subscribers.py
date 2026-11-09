@@ -23,7 +23,6 @@ APPSEC_SSRF_ANALYZE_BODY_KEY = "appsec.ssrf_analyze_body"
 
 
 class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEvent]):
-    auto_register = False
     event_names = (HttpClientEvents.HTTPX_REQUEST.value,)
 
     @classmethod
@@ -75,7 +74,6 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
 
 
 class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSendEvent]):
-    auto_register = False
     event_names = (HttpClientEvents.HTTPX_SEND_REQUEST.value,)
 
     @classmethod

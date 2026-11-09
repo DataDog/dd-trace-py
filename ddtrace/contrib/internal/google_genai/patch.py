@@ -100,7 +100,7 @@ async def traced_async_embed_content(func, instance, args, kwargs):
         return event.response
 
 
-def patch():
+def patch() -> None:
     if getattr(genai, "_datadog_patch", False):
         return
 

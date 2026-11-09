@@ -203,6 +203,8 @@ class Tracer:
         self._new_process = False
 
         self._store_metadata()
+        # Reconcile listeners after reinitializing a previously shut-down root tracer.
+        core.dispatch("tracing.enabled", (self, self.enabled))
 
     def _store_metadata(self) -> None:
         metadata = PyTracerMetadata(
@@ -219,6 +221,16 @@ class Tracer:
             self._config_on_disk = store_metadata(metadata)
         except Exception as e:
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
+
+    @property
+    def enabled(self) -> bool:
+        """Whether APM tracing is enabled."""
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        self._enabled = value
+        core.dispatch("tracing.enabled", (self, value))
 
     @property
     def _agent_url(self) -> Optional[str]:
@@ -399,6 +411,9 @@ class Tracer:
 
         if context_provider is not None:
             self.context_provider = context_provider
+
+        # Standalone requirements can change without changing enabled.
+        core.dispatch("tracing.enabled", (self, self.enabled))
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
@@ -748,7 +763,7 @@ class Tracer:
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled:
+        if not self._shutting_down and (self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled):
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)

@@ -3,7 +3,10 @@ import typing as t
 
 from envier import En
 
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+from ddtrace._trace._registration import SUBSCRIBER_BUNDLES
+from ddtrace._trace._registration import initialize_subscribers
+from ddtrace._trace._registration import unregister_subscribers
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -16,8 +19,7 @@ log = get_logger(__name__)
 
 requires = ["remote-configuration"]
 
-
-subscriber_bundles = (WEB_FRAMEWORK_SUBSCRIBERS,)
+subscriber_bundles = SUBSCRIBER_BUNDLES
 
 
 class _Config(En):
@@ -52,8 +54,7 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
-    for bundle in subscriber_bundles:
-        bundle.register()
+    initialize_subscribers(subscriber_bundles)
 
 
 def restart(join=False):
@@ -63,11 +64,11 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
-    # Terminal stop discards pending traces, including when tracing was already disabled.
-    # Leave listeners installed if shutdown fails before completing that cleanup.
+    # Terminal shutdown discards pending work even if tracing was already disabled.
+    # Keep listeners intact if shutdown raises before that cleanup succeeds.
     tracer.shutdown()
-    for bundle in subscriber_bundles:
-        bundle.unregister()
+    core.dispatch("tracing.stopped", (tracer,))
+    unregister_subscribers(subscriber_bundles)
 
 
 def skip_exit():

@@ -33,6 +33,13 @@ Typed event-driven pattern using `core.context_with_event()` with `TracingEvent`
 subclasses and `TracingSubscriber`. Infrastructure exists in `ddtrace/_trace/events.py`
 and `ddtrace/_trace/subscribers/`. Read concrete contrib examples such as
 `ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`.
+Subscriber definitions never activate listeners. Owning products must call `register()` explicitly, directly or through a product-owned
+`SubscriberBundle`. Shared tracing bundles live in `ddtrace/_trace/_registration.py`;
+normal global tracer initialization and tracing product startup activate them.
+Integrations must not import tracing bundles or activate tracing subscribers from
+patch functions or manual middleware setup.
+A bundle names one module and one or more classes; compose bundles for multiple modules.
+Retain completion listeners while active requests can still finish.
 See `ddtrace/internal/core/__init__.py` for the API. An event is available through
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
@@ -41,27 +48,25 @@ Lifecycle dispatch must not depend on a tracing span being present: with tracing
 disabled, other products can still consume the same events. Do not call
 `span_from_context()` simply to check whether a request can be finalized, since it
 creates a fallback span when no tracing subscriber is registered.
-Emit events without computing tracing product enablement. TracingEvent.span_creation_enabled
-is internal state excluded from constructor/factory arguments. The web tracing
-subscriber sets it for events declaring supports_spanless_lifecycle=True from two separate inputs: tracer APM
-enablement and standalone products' span requirements. The field describes span
-lifecycle, not APM enablement; the base guards retain it through completion. Do not
-infer ownership from `_inner_span`, since AppSec can populate it with a borrowed parent
-span. Existing span-dependent integrations retain the default tracing behavior until
-their lifecycle can run without spans. A capability declares span independence; it must
-not encode the product's enablement decision. Report aiohttp exceptions synchronously
-through WebFrameworkRequestExceptionEvent rather than retaining exceptions or tracebacks
-on a deferred context. Deferred completion carries final response metadata separately.
-Declare the shared web
-framework bundle with `@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)` on
-synchronous instrumentation setup (middleware or plugin constructors, enabled tween
-creation, or patching), rather than registering subscriber classes directly. Keep
-conditional enablement outside the decorated helper and never decorate request
-handlers. The decorator activates bundles at setup invocation, not module import.
-This preserves manual instrumentation when tracing product startup is skipped. Active
-bundles skip repeated registration; core listener resets invalidate activation so the
-next setup restores listeners. Registration is idempotent; do not unregister the shared subscriber when unpatching one integration,
-since other integrations and active requests still need its listeners.
+Emit events without computing tracing product enablement. Web request events start
+with span_creation_enabled false; the tracing-owned admission policy sets it only
+when a request receives an owned span. Standalone span requirements are handled
+separately from APM admission. An explicit WEB_FRAMEWORK_SUBSCRIBERS.unregister()
+closes APM admission and drains active requests; tracing startup uses
+ensure_registered() rather than explicitly reopening the bundle. Integration setup
+does not activate product listeners.
+Only an explicit owner register() call reopens manual admission.
+
+All shared web integrations must tolerate a missing request span: update metadata
+and dispatch completion regardless, and avoid span_from_context() fallback lookup.
+Do not infer ownership from _inner_span alone, because AppSec can borrow a parent.
+Keep integration enablement separate from product listener ownership. Core resets
+invalidate cached bundle activation, but do not override tracing's manual admission policy. Retain completion listeners until
+requests admitted by that owner finish; unpatching one integration must not remove
+shared listeners needed by other integrations. Report aiohttp exceptions synchronously
+through WebFrameworkRequestExceptionEvent without retaining tracebacks on deferred
+contexts. Its stateless tracing consumer uses the original admission decision and
+remains subscribed independently so already-admitted requests can report late errors.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

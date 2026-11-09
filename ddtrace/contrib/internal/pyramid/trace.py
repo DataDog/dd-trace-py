@@ -8,16 +8,13 @@ from pyramid.settings import asbool
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.span_bus import span_from_context
 
 # project
 from ddtrace.trace import tracer
@@ -61,7 +58,7 @@ def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
     service = settings.get(SETTINGS_SERVICE) or schematize_service_name("pyramid")
-    enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
+    enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, True))
 
     # ensure distributed tracing within pyramid settings matches config
     config.pyramid.distributed_tracing_enabled = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
@@ -73,7 +70,6 @@ def trace_tween_factory(handler, registry):
     return handler
 
 
-@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
 def _make_trace_tween(handler: Callable[[Request], Response], service: str) -> Callable[[Request], Response]:
     # make a request tracing function
     def trace_tween(request: Request) -> Response:
@@ -114,7 +110,9 @@ def _make_trace_tween(handler: Callable[[Request], Response], service: str) -> C
                 if request.matched_route:
                     event.resource = f"{request.method} {request.matched_route.name}"
                     event.request_route = request.matched_route.pattern
-                    span_from_context(ctx)._set_attribute("pyramid.route.name", request.matched_route.name)
+                    span = ctx.get_item("_inner_span") if event.span_creation_enabled else None
+                    if span is not None:
+                        span._set_attribute("pyramid.route.name", request.matched_route.name)
                 # set response tags
                 if response:
                     status = response.status_code

@@ -237,7 +237,7 @@ def traced_output_processor_process_outputs(func, instance, args, kwargs):
     return result
 
 
-def patch():
+def patch() -> None:
     """Patch vLLM V1 library for Datadog tracing."""
     if getattr(vllm, ATTR_DATADOG_PATCH, False):
         return

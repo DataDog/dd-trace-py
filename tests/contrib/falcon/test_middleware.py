@@ -66,8 +66,9 @@ def test_process_response_route_includes_root_path(root_path, uri_template, want
     resp.status = "200 OK"
     resp._headers = {}
 
-    with mock.patch("ddtrace.contrib.internal.falcon.middleware.span_from_context", return_value=span):
-        middleware.process_response(req, resp, mock.MagicMock(), req_succeeded=True)
+    ctx.event.span_creation_enabled = True
+    ctx.get_item.return_value = span
+    middleware.process_response(req, resp, mock.MagicMock(), req_succeeded=True)
 
     assert ctx.event.request_route == want_route
     assert ctx.event.response_status_code == 200
@@ -76,20 +77,20 @@ def test_process_response_route_includes_root_path(root_path, uri_template, want
 
 
 @pytest.mark.parametrize("startup", ["manual", "auto"])
-def test_disabled_tracing_finishes_request_spans(run_python_code_in_subprocess, startup):
+def test_disabled_tracing_emits_metadata_without_spans(run_python_code_in_subprocess, startup):
     code = """
 import falcon
 from falcon import testing
 from ddtrace.contrib.internal.falcon.middleware import TraceMiddleware
 from ddtrace.trace import tracer
 
-spans = []
+from ddtrace.internal import core
+ended = []
+core.on("context.ended.web.request", lambda ctx, exc_info: ended.append(ctx.event.response_status_code))
 class Resource:
     def on_get(self, req, resp):
         span = tracer.current_span()
-        assert span is not None
-        assert span.name == "falcon.request", span.name
-        spans.append(span)
+        assert span is None
         resp.text = "ok"
 
 app = falcon.App(middleware=[TraceMiddleware()])
@@ -97,9 +98,8 @@ app.add_route("/", Resource())
 client = testing.TestClient(app)
 for _ in range(2):
     assert client.simulate_get("/").status_code == 200
-    assert spans[-1].finished
     assert tracer.current_span() is None
-assert len(spans) == 2
+assert ended == [200, 200]
 """
     if startup == "auto":
         code = "import ddtrace.auto\n" + code

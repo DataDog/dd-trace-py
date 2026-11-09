@@ -454,10 +454,12 @@ def test_stream_finalizes_after_unpatch(llama_index, llama_index_llmobs, test_sp
 
 def test_shared_subscribers_isolate_components_and_repatch(monkeypatch):
     from ddtrace import config
+    from ddtrace._trace._registration import LLM_SUBSCRIBERS
     from ddtrace.contrib._events.llm import LlmRequestEvent
     from ddtrace.internal import core
     from ddtrace.llmobs import _subscribers
 
+    LLM_SUBSCRIBERS.register()
     monkeypatch.setattr(_subscribers, "_integration_classes", {})
     monkeypatch.setattr(_subscribers, "_integrations", {})
     first = mock.Mock(llmobs_enabled=False)

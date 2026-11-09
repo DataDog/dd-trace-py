@@ -29,6 +29,8 @@ TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
 def _finish_span(
     ctx: core.ExecutionContext[TracingEventType],
     exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    *,
+    event: Optional[TracingEventType] = None,
 ) -> None:
     """Finish the span in the context.
 
@@ -41,7 +43,8 @@ def _finish_span(
     if not span:
         return
 
-    set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
+    event = ctx.event if event is None else event
+    set_service_and_source(span, ctx.get_item("service", event.service), event.integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -119,7 +122,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     span_creation_enabled at entry to skip tracing handlers for the entire context.
 
     Example:
-        class MySpanSubscriber(SpanTracingSubscriber):
+        class MySpanSubscriber(TracingSubscriber):
             event_names = ("my.span",)
 
             @classmethod
@@ -130,6 +133,8 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
             def on_ended(cls, ctx, exc_info):
                 if exc_info[1]:
                     span_from_context(ctx).set_tag("error", True)
+
+        MySpanSubscriber.register()
     """
 
     # Register here events that just create / finish spans

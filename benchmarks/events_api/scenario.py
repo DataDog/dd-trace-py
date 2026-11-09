@@ -67,8 +67,8 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
             def _context_ended_handler(ctx: core.ExecutionContext[Event], exc_info: ExcInfoType) -> None:
                 _finish_span(ctx, exc_info)
 
-            core.on("context.started.core.api.event", _context_started_handler)
-            core.on("context.ended.core.api.event", _context_ended_handler)
+            core.on("context.started.core.api.event", _context_started_handler, name="benchmark.core.started")
+            core.on("context.ended.core.api.event", _context_ended_handler, name="benchmark.core.ended")
 
             for _ in range(loops):
                 with core.context_with_data(
@@ -97,6 +97,7 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                     span._set_attribute("http.method", event.method)
                     span._set_attribute("http.status_code", event.status_code)
 
+            SpanContextSubscriber.register()
             for _ in range(loops):
                 with core.context_with_event(
                     BenchmarkTracingEvent(
@@ -116,7 +117,7 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
             def _dispatch_listener(*_args: object) -> None:
                 pass
 
-            core.on("core.api.dispatch.event", _dispatch_listener)
+            core.on("core.api.dispatch.event", _dispatch_listener, name="benchmark.core.dispatch")
 
             for _ in range(loops):
                 core.dispatch("core.api.dispatch.event", ("myurl.com", "GET", 200))
@@ -129,6 +130,7 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 def on_event(cls, event_instance: BenchmarkDispatchEvent) -> None:
                     pass
 
+            DispatchEventSubscriber.register()
             for _ in range(loops):
                 core.dispatch_event(BenchmarkDispatchEvent(url="myurl.com", method="GET", status_code=200))
 
@@ -146,6 +148,30 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 span._set_attribute("http.method", "GET")
                 span._set_attribute("http.status_code", 200)
                 span.finish()
+
+        if self.api == "web_request":
+            from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+            from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+
+            WEB_FRAMEWORK_SUBSCRIBERS.register()
+
+            def benchmark_web_request(loops: int) -> None:
+                for _ in range(loops):
+                    event = WebFrameworkRequestEvent(
+                        http_operation="benchmark.request",
+                        component="benchmarking",
+                        integration_config=integration_config,
+                        request_url="http://localhost/items/42",
+                        request_method="GET",
+                        request_route="/items/{id}",
+                        request_headers={},
+                        headers_case_sensitive=True,
+                    )
+                    with core.context_with_event(event):
+                        event.response_status_code = 200
+
+            yield benchmark_web_request
+            return
 
         if self.api in ("subscriber_setup", "subscriber_first_activation", "subscriber_reset_recovery"):
             # Keep existing configurations usable with baselines predating bundles.

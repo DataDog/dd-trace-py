@@ -51,6 +51,7 @@ def patch():
     This duplicated doesn't look nice. The nicer alternative is to use an ObjectProxy on top
     of Kombu. However, it means that any "import kombu.Connection" won't be instrumented.
     """
+
     if getattr(kombu, "_datadog_patch", False):
         return
     kombu._datadog_patch = True

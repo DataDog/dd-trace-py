@@ -96,13 +96,9 @@ def stop(join=False):
 ```
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
-and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so importing their module does not
-register them implicitly.
-
-Existing subscribers retain automatic registration until their activation paths
-are migrated. Once all consumers register explicitly, automatic registration and
-the `auto_register` flag can be removed.
+and resolves every declared name before registering listeners. Defining subscriber
+classes or importing their modules never installs listeners; the owning product or
+their owning products must activate them explicitly.
 
 `register()` delegates to `ensure_registered()`: the first activation resolves the
 classes and installs their listeners; later calls reuse the active bundle without
@@ -121,82 +117,79 @@ lifecycle; it does not discover or manage bundles. Products choose registration
 ordering, enablement, and failure handling. A registration error propagating out of
 `start()` is handled as a product startup failure by the manager.
 
-Products that require active contexts to finish must keep completion listeners
-registered until draining succeeds; if draining raises, retain the listeners.
-A terminal stop may instead discard active work and unregister after its shutdown
-cleanup succeeds. Unregistering removes both start and completion listeners.
+Products that require active contexts to finish retain completion listeners until
+those contexts drain. A terminal stop may discard active work and unregister after
+shutdown succeeds. Ordinary bundles then remove both start and completion listeners;
+the web bundle's runtime unregister instead drains its admitted requests.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
-Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`
-and includes it in `ddtrace._trace.product.subscriber_bundles`, an ordinary
-product-local tuple. Its
-`start()` registers the bundles. Its terminal `stop()` shuts down the tracer and then
-unregisters the bundles. Shutdown flushes finished traces, discards pending traces
-from the aggregator, stops processors, and clears the calling context's active span.
-It runs even if tracing was already disabled, since pending traces can still exist.
-If shutdown raises, the listeners remain registered. Requests completing after a
-successful stop still release their execution events, but their tracing subscribers
-no longer finish spans or attach response metadata. Existing tasks can retain a
-reference to a discarded span in their own ContextVar; shutdown does not reset other
-tasks' contexts. This terminal cleanup is distinct from temporarily disabling tracing
-or unpatching one integration, which must retain shared completion listeners.
+Tracing declares its shared bundles in `ddtrace._trace._registration` and exposes
+them through `ddtrace._trace.product.subscriber_bundles`. Normal global tracer
+initialization and tracing product startup call `initialize_subscribers()`, which
+uses `ensure_registered()` and respects tracing's activation policy. Integration
+setup emits events without importing or activating tracing subscribers.
+`WEB_FRAMEWORK_SUBSCRIBERS.unregister()` closes APM admission immediately;
+subsequent setup and product startup cannot reactivate it. An explicit
+`WEB_FRAMEWORK_SUBSCRIBERS.register()` reopens APM admission when tracing is enabled.
 
-Importing `ddtrace._trace.subscribers` or its web framework module does not register
-the web framework subscriber. Integrations declare setup dependencies with the
-shared `requires_subscribers` decorator:
+The web subscriber retains completion listeners until every admitted request has
+finished, including deferred or streaming responses. Unregistering returns without
+waiting for requests. The final request removes the remaining completion listener.
+Ownership is claimed once under the registration lock, and the admitted event is
+retained until its span finishes, even if two producers dispatch completion
+concurrently. A runtime change to `tracer.enabled` reconciles admission through a
+tracing event; disabling rejects new APM requests while existing requests finish.
+Re-enabling tracing respects an explicitly unregistered bundle.
 
-```python
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
-from ddtrace.internal.core.subscriber import requires_subscribers
+Standalone products have a separate activation handle, governed by
+`standalone_config.apm_opt_out`. Their span requirement is independent of the APM
+bundle's manual admission flag. One web lifecycle controller chooses admission from
+these inputs, retaining stable callbacks when ownership switches between APM and
+standalone. Each admitted request keeps its span through completion. A request
+without admission cannot finish a borrowed parent span.
 
-@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
-def patch() -> None:
-    ...
-```
+All seven shared web integrations emit lifecycle metadata without requiring a
+request span. Integrations must not import tracing registration bundles or activate
+tracing subscribers from patch functions, middleware constructors, or plugins.
+Normal global tracer startup installs SDK-independent subscribers even when an
+integration never loads; events that never fire have no request cost. This also
+supports direct patching and manual middleware without tracing product-manager
+startup. Explicitly deferred global tracer initialization requires tracing product
+startup to activate listeners.
 
-Apply the decorator to synchronous setup functions, including middleware or plugin
-constructors. Decoration does not import or activate subscribers; invocation registers
-the bundles before setup runs. The wrapper preserves the callable's signature and
-metadata. Direct calls work without tracing product startup or the common patching
-machinery. Each invocation ensures activation, skipping registration while the bundle
-is still active and restoring listeners after a reset. Registration errors propagate
-before setup runs. Keep enablement checks outside decorated helpers when disabled
-setup must remain inactive, as in Pyramid's tween factory. Keep the decorator off
-request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
-integrations retain their request span creation and completion listeners. Integrations
-cannot supply `TracingEvent.span_creation_enabled` to the constructor or factory. The web
-tracing subscriber sets this internal field for events declaring
-`supports_spanless_lifecycle=True` (currently aiohttp), using the
-APM enablement from the tracer separately from the span requirements of standalone
-products. A standalone product can require span creation while APM tracing remains
-disabled; the captured field describes span lifecycle, not APM enablement. The base subscriber's existing guards
-reuse the captured decision through completion, so runtime disable still finishes
-in-flight spans and runtime enable does not start tracing a previously skipped request.
-The decision must not be inferred from `_inner_span`: AppSec can populate that slot
-with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events with
-`DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
-behavior until their request code can run without spans. Subscriber families not yet
-migrated to bundles continue to register automatically.
+Event producers must not use `span_from_context()` to test whether a request has a
+span, because it creates a fallback. Only access a local request span when
+`span_creation_enabled` is true; the tracing owner sets this internal field at
+admission. Continue updating event metadata and dispatching completion when the
+field is false. Explicit integration opt-outs still control whether instrumentation
+runs, without controlling product listener ownership.
 
-Aiohttp reports request exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
-The tracing subscriber consumes the live exception immediately; deferred contexts never
-store the exception or its traceback. Completion dispatch carries response metadata, while
-exception details are available during the separate exception notification. Consumers must
-not retain that notification or its exception tuple. The original request event accompanies
-it so tracing can honor the entry decision even if response preparation released `ctx.event`.
-Late errors can update a finished span object, but cannot guarantee updating an already
-exported trace. Failed or cancelled requests schedule a task-completion fallback so missing
-response preparation does not leave their contexts open. Response completion removes any
-pending fallback callback so keep-alive tasks do not retain completed requests. Cancellation retains the existing
-behavior of not being tagged as a tracing error.
+Terminal tracing product `stop()` calls tracer shutdown even when tracing is already
+disabled, then unregisters all tracing bundles and the optional Ray import hook.
+Shutdown flushes finished traces, discards pending traces, stops processors, and
+clears its calling context's active span. It does not reset other tasks' ContextVars.
+A tracing-owned stop notification invalidates request ownership before removing
+completion listeners, so callbacks already running cannot finish discarded requests
+or change a later generation's request count. If shutdown raises, listeners remain
+installed. This terminal cleanup is separate from runtime web unregistering or
+temporarily disabling tracing, which preserve admitted requests through completion.
+Tracing's `skip_exit()` preserves its tracer-owned exit handling.
 
-Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
-`stop()` is not called by the product manager at process exit. Explicit product
-stopping unregisters its bundles after shutdown as described above. Later explicit
-instrumentation setup can register bundles again; this is not a persistent activation
-policy and does not restart the shut-down tracer.
+AWS Durable subscribers load with the other SDK-independent subscribers. Ray
+subscriber helpers require its optional SDK, so tracing owns an import hook that
+activates them after the Ray integration module loads.
+
+Aiohttp reports handler errors synchronously through
+`WebFrameworkRequestExceptionEvent`; producers and consumers must not retain its
+traceback on deferred contexts. Its separate tracing subscription remains available
+for late errors on admitted spans after response completion or runtime APM
+unregistering; terminal product stop removes it.
+The event's original admission decision prevents tagging a borrowed parent span.
+Failed or cancelled requests use a task-completion fallback when no response was
+prepared; response completion removes pending callbacks so keep-alive tasks do not
+retain completed requests. Cancellation preserves the existing non-error behavior.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

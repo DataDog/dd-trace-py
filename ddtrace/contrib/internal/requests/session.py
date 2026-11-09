@@ -6,5 +6,3 @@ class TracedSession(requests.Session):
     You can use it if you want a finer grained control for your
     HTTP clients.
     """
-
-    pass

@@ -128,11 +128,13 @@ def test_event_based_agent_parent_attributes_child(llmobs, llmobs_events):
     """Same guard for the event-based path: llama_index creates its agent span via the event
     subscriber (kind stamped in ``on_started``), not ``trace()``.
     """
+    from ddtrace._trace._registration import LLM_SUBSCRIBERS
     from ddtrace.contrib._events.llm import LlmRequestEvent
     from ddtrace.internal import core
     from ddtrace.internal.span_bus import span_from_context
     from ddtrace.llmobs._integrations.llama_index import LlamaIndexIntegration
 
+    LLM_SUBSCRIBERS.register()
     integration = LlamaIndexIntegration(IntegrationConfig(config, "llama_index"))
     event = LlmRequestEvent(
         component="llama_index",

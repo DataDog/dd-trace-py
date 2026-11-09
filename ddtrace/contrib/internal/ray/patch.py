@@ -216,8 +216,6 @@ def patch():
     if getattr(ray, "_datadog_patch", False):
         return
 
-    import ddtrace._trace.subscribers.ray  # noqa: F401
-
     ray._datadog_patch = True
 
     from ray.util.tracing import tracing_helper
