@@ -92,16 +92,8 @@ class RaySpanManager:
         finished_spans = []
         with aggregator._lock:
             if span.trace_id in aggregator._traces:
-                trace = aggregator._traces[span.trace_id]
-                finished_spans = []
-                remaining_spans = []
-
-                for s in trace.spans:
-                    if s not in trace.pending and s is not span:
-                        finished_spans.append(s)
-                    else:
-                        remaining_spans.append(s)
-                trace.spans[:] = remaining_spans
+                # The long-running job span is still pending, so it stays buffered.
+                finished_spans = aggregator._traces[span.trace_id].remove_finished()
 
         spans_to_write = [partial_span] + finished_spans
         try:
