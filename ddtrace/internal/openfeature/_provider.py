@@ -181,37 +181,17 @@ class DataDogProvider(AbstractProvider):
         # Why the selected source could not start; initialize() then fails without waiting.
         self._configuration_source_error: typing.Optional[str] = None
 
-        # Initialize flag evaluation metrics tracking
-        # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
+        # Evaluation hooks; built by _build_evaluation_hooks() and torn down by shutdown().
         self._flag_eval_metrics: typing.Optional[FlagEvalMetrics] = None
         self._flag_eval_metrics_hook: typing.Optional[FlagEvalMetricsHook] = None
-        if self._active:
-            self._flag_eval_metrics = FlagEvalMetrics()
-            self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
-
-        # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
-        # (default on). Gates ONLY the EVP path; the OTel path above is always registered
-        # when the provider is enabled (preserves the existing OTel non-regression).
-        # the killswitch is read through the ddtrace config system
-        # (OpenFeatureConfig.flagging_evaluation_counts_enabled, registered in
-        # supported-configurations.json) rather than raw os.environ. It comes from the
-        # fresh instance_config built at the top of __init__, so the value reflects the
-        # environment at provider-construction time (the config var parses the live
-        # environment via the DDConfig var system), which keeps the killswitch overridable
-        # per-instance in tests.
         self._flag_eval_evp_writer: typing.Optional[FlagEvaluationWriter] = None
         self._flag_eval_evp_hook: typing.Optional[FlagEvalEVPHook] = None
-        evp_counts_enabled = instance_config.flagging_evaluation_counts_enabled
-        if self._active and evp_counts_enabled:
-            self._flag_eval_evp_writer = FlagEvaluationWriter()
-            self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
-
-        # APM span enrichment hook (experimental, distinct gate, OFF by default).
-        # Constructed ONLY when the gate is on, so nothing is allocated and
-        # nothing subscribes to span finish when it is off (DG-005).
         self._span_enrichment_hook: typing.Optional[SpanEnrichmentHook] = None
-        if self._active and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
-            self._span_enrichment_hook = SpanEnrichmentHook()
+        # DD_FLAGGING_EVALUATION_COUNTS_ENABLED (default on) gates only the EVP path. It is read
+        # through the fresh instance_config, so it reflects the environment at construction time
+        # and stays overridable per instance in tests.
+        self._evp_counts_enabled = instance_config.flagging_evaluation_counts_enabled
+        self._build_evaluation_hooks()
 
         # Evaluation-detail logging for self-diagnosis. Registered only when debug
         # logs would actually be emitted, so it costs nothing otherwise. The
@@ -221,6 +201,25 @@ class DataDogProvider(AbstractProvider):
         if self._active and debug_logging_enabled():
             self._debug_logging_hook = DebugLoggingHook()
             warn_raw_evaluation_data_logged()
+
+    def _build_evaluation_hooks(self) -> None:
+        """Build the evaluation hooks that are missing, so initialize() after shutdown() restores them.
+
+        - OTel flag evaluation metrics (emitted when DD_METRICS_OTEL_ENABLED=true): always, while enabled.
+        - EVP flagevaluation writer and hook: when DD_FLAGGING_EVALUATION_COUNTS_ENABLED is on.
+        - APM span enrichment (experimental, off by default): only when its gate is on, so
+          nothing is allocated and nothing subscribes to span finish when it is off (DG-005).
+        """
+        if not self._active:
+            return
+        if self._flag_eval_metrics is None:
+            self._flag_eval_metrics = FlagEvalMetrics()
+            self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
+        if self._evp_counts_enabled and self._flag_eval_evp_writer is None:
+            self._flag_eval_evp_writer = FlagEvaluationWriter()
+            self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
+        if ffe_config.experimental_flagging_provider_span_enrichment_enabled and self._span_enrichment_hook is None:
+            self._span_enrichment_hook = SpanEnrichmentHook()
 
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
@@ -291,6 +290,8 @@ class DataDogProvider(AbstractProvider):
             "Feature Flags: waiting for provider initialization (timeout %.1fs)...", self._initialization_timeout
         )
         self._initialization_failed = False
+        # shutdown() tears the hooks down; rebuild them for a re-initialization.
+        self._build_evaluation_hooks()
 
         # Register for RC config callbacks (in initialize, not __init__, so
         # re-initialization after shutdown re-registers the provider)
@@ -346,16 +347,17 @@ class DataDogProvider(AbstractProvider):
         # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
         # non-blocking registration and propagates it for blocking registration.
-        if not self._mark_initialization_failed():
-            logger.debug("Feature Flags: provider initialized successfully (configuration received at the timeout)")
-            return  # SDK will dispatch PROVIDER_READY
         # Warning rather than error: errors are forwarded to telemetry, and a routine
-        # initialization timeout should not inflate its volume.
+        # initialization timeout should not inflate its volume. Logged before the failure is
+        # recorded, so a configuration that arrives meanwhile takes the success path.
         logger.warning(
             "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
             "evaluations will return default values until configuration arrives",
             self._initialization_timeout,
         )
+        if not self._mark_initialization_failed():
+            logger.debug("Feature Flags: provider initialized successfully (configuration received at the timeout)")
+            return  # SDK will dispatch PROVIDER_READY
         raise ProviderNotReadyError("No Feature Flagging configuration received before the initialization timeout")
 
     def _mark_initialization_failed(self) -> bool:

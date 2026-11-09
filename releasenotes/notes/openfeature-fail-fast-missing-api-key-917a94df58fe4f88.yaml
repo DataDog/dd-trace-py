@@ -5,3 +5,6 @@ fixes:
     when the agentless configuration source cannot start, for example when ``DD_API_KEY`` is not set
     for the default Datadog endpoint. Initialization now fails immediately with an error that names the
     cause, and flag evaluations return their default values.
+  - |
+    openfeature: Fixes an issue where a provider stops sending flag evaluation metrics,
+    evaluation counts, and span enrichment after shutdown and re-initialization.

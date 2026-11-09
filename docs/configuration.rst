@@ -1536,6 +1536,10 @@ Feature Flagging
          and ``remote_config`` (deliver via the Datadog Agent's Remote
          Configuration). ``offline`` is reserved and currently unsupported; any
          unsupported value disables the provider without contacting either source.
+         ``agentless`` requires ``DD_API_KEY`` unless
+         ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL`` is set;
+         without either, provider initialization fails at once and evaluations
+         return their default values.
 
    DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
      type: String

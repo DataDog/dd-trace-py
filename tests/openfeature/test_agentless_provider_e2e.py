@@ -27,6 +27,8 @@ except ImportError:
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.openfeature._provider import _apply_agentless_configuration
 from ddtrace.internal.openfeature._source_selection import MISSING_API_KEY_MESSAGE
@@ -354,8 +356,40 @@ def test_late_configuration_after_missing_api_key_emits_ready(agentless_source, 
             provider.shutdown()
 
 
+def test_configuration_received_while_recording_the_failure_emits_ready(agentless_source, mocker):
+    """A configuration that arrives while initialize() records the failure waits for it, then recovers."""
+    with override_global_config({"_dd_api_key": None}):
+        provider = DataDogProvider(initialization_timeout=LONG_INITIALIZATION_TIMEOUT)
+        emit_ready = mocker.spy(provider, "_emit_ready_event")
+        delivery = threading.Thread(
+            target=process_ffe_configuration,
+            args=(create_config(create_boolean_flag("my-flag", enabled=True)),),
+            daemon=True,
+        )
+        is_set = provider._config_received.is_set
+
+        def check_while_delivery_runs():
+            received = is_set()
+            if delivery.ident is None:
+                delivery.start()
+                # Delivery blocks on the lock in on_configuration_received until initialize() records the failure.
+                delivery.join(timeout=0.5)
+            return received
+
+        mocker.patch.object(provider._config_received, "is_set", side_effect=check_while_delivery_runs)
+        try:
+            with pytest.raises(ProviderNotReadyError):
+                provider.initialize(EvaluationContext())
+            delivery.join(timeout=5.0)
+
+            assert provider._status == ProviderStatus.READY
+            emit_ready.assert_called_once_with()
+        finally:
+            provider.shutdown()
+
+
 def test_initialize_retries_source_start_after_shutdown(agentless_source, mock_cdn):
-    """Each initialization re-checks the source, so a later attempt with a key succeeds."""
+    """Each initialization re-checks the source and rebuilds the hooks that shutdown() removed."""
     mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
     provider = DataDogProvider(initialization_timeout=5.0)
     try:
@@ -370,6 +404,8 @@ def test_initialize_retries_source_start_after_shutdown(agentless_source, mock_c
         assert provider._configuration_source_error is None
         assert provider._configuration_source is not None
         assert provider.resolve_boolean_details("my-flag", False).value is True
+        hook_types = {type(hook) for hook in provider.get_provider_hooks()}
+        assert {FlagEvalMetricsHook, FlagEvalEVPHook} <= hook_types
     finally:
         provider.shutdown()
 
