@@ -65,13 +65,79 @@ gets extended to add support for additional features.
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
 | `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported |
-| `post_start() -> None` | Called after the product's `start()` succeeds and the manager finishes the complete start pass; use for work that requires all enabled products to register first |
 | `activated() -> bool` | Called after `start()` succeeds; its result is the enablement state reported in product telemetry (defaults to `True`). Use when a product can start without being active, e.g. AppSec waiting for remote activation |
 | `skip_exit() -> bool` | Return `True` to skip calling `stop()` at process exit; use when the product registers its own `atexit` hooks or when a graceful shutdown is unnecessary |
 | `APMCapabilities: Type[enum.IntFlag]` | A set of capabilities that the product provides |
 | `apm_tracing_rc: (dict, ddtrace.settings._core.Config) -> None` | Product-specific remote configuration handler (e.g. remote enablement) |
 | `before_fork() -> None` | A function with the logic required to prepare the product for a fork |
 
+
+## Subscriber bundles
+
+Products can group related subscribers with `SubscriberBundle` from
+`ddtrace.internal.core.subscriber`:
+
+```python
+from ddtrace.internal.core.subscriber import SubscriberBundle
+
+REQUEST_SUBSCRIBERS = SubscriberBundle(
+    module="example_product.subscribers",
+    subscribers=("RequestSubscriber", "RequestContextSubscriber"),
+)
+
+def start():
+    # Initialize product state before activating its listeners.
+    REQUEST_SUBSCRIBERS.register()
+
+
+def stop(join=False):
+    # Drain active work before removing its completion listeners.
+    REQUEST_SUBSCRIBERS.unregister()
+```
+
+Declarations do not import subscriber modules. Calling `register()` loads the module
+and resolves every declared name before registering listeners. Bundle-managed
+subscribers must set `auto_register = False` so importing their module does not
+activate them.
+
+Existing subscribers retain automatic registration until their activation paths
+are migrated. Once all consumers register explicitly, automatic registration and
+the `auto_register` flag can be removed.
+
+Repeated registration uses named-listener deduplication and can restore listeners
+after a reset. Import and callback failures propagate to the caller; registration
+is not a transaction across callback failures.
+
+Products call bundle `register()` and `unregister()` explicitly from their own
+`start()` and `stop()` functions. `ProductManager` only invokes the existing product
+lifecycle; it does not discover or manage bundles. Products choose registration
+ordering, enablement, and failure handling. A registration error propagating out of
+`start()` is handled as a product startup failure by the manager.
+
+Keep completion listeners registered while draining active contexts. Call
+`unregister()` only after draining succeeds; if draining raises, retain the listeners.
+Products that cannot guarantee all active contexts have drained must retain their
+completion listeners after `stop()` returns.
+`unregister()` never imports an unused module. Products registering listeners outside
+`start()`, or remaining active while `enabled()` is false, must arrange their own
+cleanup because the manager skips `stop()` for disabled products.
+
+LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
+LLMObs registers the shared lifecycle listener, including when product startup calls
+`LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
+integration adapters also register it when an integration is patched, including direct
+patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
+component removes its factory and cached integration; shared listeners stay registered
+so other components and in-flight requests can finish. Product stop and LLMObs disable
+also retain these completion listeners.
+
+AppSec declares exploit-prevention bundles in
+`ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
+only after AppSec is active and exploit prevention is enabled. Direct activation,
+remote activation, and runtime switches share `load_appsec()` / `disable_appsec()`;
+product `stop()` also removes the operation listeners. These bundles do not own
+request cleanup, whose listeners remain registered separately. Repeated activation
+restores listeners after a reset without caching registration state.
 
 ## Remote Configuration Callbacks
 
@@ -172,14 +238,6 @@ dispatched by the RC subscriber, as well as periodic calls.  If this is the
 first callback being registered, the RC poller is started automatically (if
 `DD_REMOTE_CONFIGURATION_ENABLED` is set).
 
-During automatic instrumentation bootstrap, the remote-configuration product
-temporarily defers that automatic start. The product manager releases the
-barrier through the product's optional `post_start()` hook, after all enabled
-products have started. This lets dependent products register and enable their
-RC subscriptions before the poller's immediate first request, including when
-products start after a uWSGI fork. Outside product bootstrap, first-callback
-registration continues to start the poller immediately.
-
 Registering a callback **does not** enable the product: the product name will
 **not** appear in client payloads until `enable_product()` is called.
 
@@ -211,6 +269,18 @@ Adds the product name to the `products` field of client payloads sent to the
 agent, signalling that this client wants to receive configurations for it.
 `register_callback()` must be called first so that the agent's responses can be
 dispatched to a handler.
+
+The poller sends no requests while no product is enabled. Enabling a new product
+wakes the poller up, which then waits until no new product has been enabled for
+`RemoteConfigPoller._PRODUCT_COLLECTION_WINDOW` before sending a request. Each
+enablement restarts that wait, so products enabled in quick succession, like
+those the product manager starts on boot, are batched into a single request.
+
+The window is a debounce, not a barrier: it does not guarantee that the first
+request includes every product the product manager starts. A product enabled
+after the window has expired, including while a request is in flight, wakes the
+poller up again and opens a new window. Once that window expires, the poller
+sends another request without waiting for the regular poll interval.
 
 ```python
 remoteconfig_poller.enable_product("MY_PRODUCT")

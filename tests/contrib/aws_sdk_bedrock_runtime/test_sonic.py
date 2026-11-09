@@ -128,6 +128,12 @@ def test_capture_replay(monkeypatch, fixture, expected_turns):
         assert all(
             0 <= data(span)["metrics"][audio_key] <= data(span)["metrics"][direction + "_tokens"] for span in responses
         )
+    for direction in ("input", "output"):
+        text_key = direction + "_text_tokens"
+        assert (
+            sum(data(span)["metrics"][text_key] for span in responses)
+            == final_usage["details"]["total"][direction]["textTokens"]
+        )
     roots = [span for span in integration.spans if span.name == "nova sonic audio turn"]
     assert len({root.span_id for root in roots}) == expected_turns
     assert all(root.parent_id is None for root in roots)
@@ -639,6 +645,102 @@ def test_audio_delta_cannot_exceed_aggregate_delta():
     }
 
 
+def named_usage(input_tokens, output_tokens, input_text, output_text, input_audio, output_audio):
+    return event(
+        "usageEvent",
+        {
+            "totalInputTokens": input_tokens,
+            "totalOutputTokens": output_tokens,
+            "details": {
+                "total": {
+                    "input": {"textTokens": input_text, "speechTokens": input_audio},
+                    "output": {"textTokens": output_text, "speechTokens": output_audio},
+                }
+            },
+        },
+    )
+
+
+def test_named_usage_routes_deltas_and_deduplicates():
+    sonic, integration = state()
+    first = named_usage(85, 129, 6, 24, 79, 105)
+    sonic.observe(first)
+    assert sonic.pending.metrics == {
+        "input_tokens": 85,
+        "output_tokens": 129,
+        "total_tokens": 214,
+        "input_text_tokens": 6,
+        "input_audio_tokens": 79,
+        "output_text_tokens": 24,
+        "output_audio_tokens": 105,
+    }
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "AUDIO"}, 1)
+    sonic.observe(first)
+    sonic.pending.user_text = "next turn"
+    second = named_usage(95, 139, 8, 28, 87, 111)
+    sonic.observe(second)
+    sonic.observe(second)
+    sonic.observe(first)
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "AUDIO"}, 2)
+    sonic.observe(named_usage(95, 149, 8, 31, 87, 118))
+    sonic.finish()
+    assert [data(span)["metrics"] for span in llms(integration)] == [
+        {
+            "input_tokens": 85,
+            "output_tokens": 139,
+            "total_tokens": 224,
+            "input_text_tokens": 6,
+            "input_audio_tokens": 79,
+            "output_text_tokens": 28,
+            "output_audio_tokens": 111,
+        },
+        {
+            "input_tokens": 10,
+            "output_tokens": 10,
+            "total_tokens": 20,
+            "input_text_tokens": 2,
+            "input_audio_tokens": 8,
+            "output_text_tokens": 3,
+            "output_audio_tokens": 7,
+        },
+    ]
+
+
+@pytest.mark.parametrize("value", [None, -1, True, False, "2", 1.5, 11])
+def test_invalid_text_does_not_discard_audio(value):
+    sonic, integration = state()
+    sonic.observe(named_usage(10, 5, value, 2, 8, 3))
+    sonic.finish()
+    metrics = data(llms(integration)[0])["metrics"]
+    assert "input_text_tokens" not in metrics
+    assert metrics["input_audio_tokens"] == 8
+    assert metrics["output_text_tokens"] == 2
+    assert metrics["total_tokens"] == 15
+
+
+@pytest.mark.parametrize("missing_text", [None, -1, 21])
+def test_text_zero_and_gap_recovery_remain_independent(missing_text):
+    sonic, integration = state()
+    sonic.observe(named_usage(10, 5, 0, 2, 10, 3))
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "AUDIO"}, 1)
+    assert sonic.current.metrics["input_text_tokens"] == 0
+    sonic.observe(named_usage(20, 10, missing_text, 4, 18, 6))
+    assert "input_text_tokens" not in sonic.current.metrics
+    sonic.pending.user_text = "second"
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "AUDIO"}, 2)
+    sonic.observe(named_usage(30, 15, 4, 6, 26, 9))
+    assert "input_text_tokens" not in sonic.current.metrics
+    assert sonic.current.metrics["input_audio_tokens"] == 8
+    sonic.pending.user_text = "third"
+    sonic.received("contentStart", {"contentId": "third", "role": "ASSISTANT", "type": "AUDIO"}, 3)
+    sonic.observe(named_usage(40, 20, 6, 8, 34, 12))
+    sonic.finish()
+    metrics = data(llms(integration)[2])["metrics"]
+    assert metrics["input_text_tokens"] == 2
+    assert metrics["input_audio_tokens"] == 8
+    assert metrics["input_tokens"] == 10
+
+
 @pytest.mark.parametrize("direction", ["input", "output"])
 @pytest.mark.parametrize("invalid", [None, -1, True, "5", 1.5])
 def test_unknown_aggregate_counter_is_not_zero(direction, invalid):
@@ -960,3 +1062,82 @@ def test_input_gap_ownership_follows_pending_user_speech():
     assert second["input_audio_tokens"] == 5
     assert second["output_tokens"] == 5
     assert second["total_tokens"] == 15
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+@pytest.mark.parametrize("text", [2, 8])
+def test_named_usage_validates_combined_modality_delta(direction, text):
+    sonic, integration = state()
+    counts = dict(input_tokens=10, output_tokens=10, input_text=2, output_text=2, input_audio=8, output_audio=8)
+    counts[direction + "_text"] = text
+    sonic.observe(named_usage(**counts))
+    sonic.finish()
+    metrics = data(llms(integration)[0])["metrics"]
+    assert metrics.get(direction + "_text_tokens") == (2 if text == 2 else None)
+    assert metrics["input_audio_tokens"] == 8
+    assert metrics["output_audio_tokens"] == 8
+    other = "output" if direction == "input" else "input"
+    assert metrics[other + "_text_tokens"] == 2
+    assert metrics["total_tokens"] == 20
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+def test_conflicting_text_stays_absent_for_turn_and_recovers_later(direction):
+    sonic, integration = state()
+
+    def usage(total, audio, text):
+        counts = dict(input_tokens=0, output_tokens=0, input_text=0, output_text=0, input_audio=0, output_audio=0)
+        counts.update({direction + "_tokens": total, direction + "_audio": audio, direction + "_text": text})
+        return named_usage(**counts)
+
+    sonic.observe(usage(100, 10, 10))
+    sonic.received("contentStart", {"contentId": "first", "role": "ASSISTANT", "type": "AUDIO"}, 1)
+    sonic.observe(usage(110, 18, 18))
+    sonic.observe(usage(120, 26, 20))
+    sonic.pending.user_text = "next turn"
+    sonic.received("contentStart", {"contentId": "second", "role": "ASSISTANT", "type": "AUDIO"}, 2)
+    sonic.observe(usage(130, 34, 22))
+    sonic.finish()
+    metrics = [data(span)["metrics"] for span in llms(integration)]
+    assert [m.get(direction + "_text_tokens") for m in metrics] == [None, 2]
+    assert [m[direction + "_audio_tokens"] for m in metrics] == [26, 8]
+    assert [m[direction + "_tokens"] for m in metrics] == [120, 10]
+
+
+@pytest.mark.parametrize("direction", ["input", "output"])
+def test_named_modalities_follow_unknown_aggregate_across_turns(direction):
+    sonic, integration = state()
+    field = "totalInputTokens" if direction == "input" else "totalOutputTokens"
+
+    def start(index):
+        sonic.pending.user_text = str(index)
+        sonic.received("contentStart", {"contentId": str(index), "role": "ASSISTANT", "type": "TEXT"}, index + 1)
+
+    start(0)
+    sonic.observe(named_usage(10, 10, 5, 5, 5, 5))
+    start(1)
+    payload = {
+        "totalInputTokens": 20,
+        "totalOutputTokens": 20,
+        "details": {
+            "total": {
+                "input": {"textTokens": 10, "speechTokens": 10},
+                "output": {"textTokens": 10, "speechTokens": 10},
+            }
+        },
+    }
+    payload[field] = None
+    sonic.received("usageEvent", payload, 2)
+    start(2)
+    sonic.observe(named_usage(30, 30, 15, 15, 15, 15))
+    start(3)
+    sonic.observe(named_usage(40, 40, 20, 20, 20, 20))
+    sonic.finish()
+    metrics = [data(span)["metrics"] for span in llms(integration)]
+    for unknown in metrics[1:3]:
+        for suffix in ("_tokens", "_audio_tokens", "_text_tokens"):
+            assert direction + suffix not in unknown
+        assert "total_tokens" not in unknown
+    assert metrics[-1][direction + "_tokens"] == 10
+    assert metrics[-1][direction + "_audio_tokens"] == 5
+    assert metrics[-1][direction + "_text_tokens"] == 5

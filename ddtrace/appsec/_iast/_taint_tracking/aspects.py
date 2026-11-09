@@ -1,4 +1,5 @@
 import _io
+import builtins
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
@@ -47,11 +48,14 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_utils import _taint_structure_eager
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast_context import is_iast_request_enabled
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
+_FROZENDICT_TYPE = getattr(builtins, "frozendict", None)
+_DICT_TYPES = (dict,) if _FROZENDICT_TYPE is None else (dict, _FROZENDICT_TYPE)
 
 _extend_aspect = aspects.extend_aspect
 _join_aspect = aspects.join_aspect
@@ -489,7 +493,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
 
     try:
         mapping = parse_params(0, "mapping", None, *args, **kwargs)
-        mapping_tuple = tuple(mapping if not isinstance(mapping, dict) else mapping.values())
+        mapping_tuple = tuple(mapping if not isinstance(mapping, _DICT_TYPES) else mapping.values())
         ranges_orig, candidate_text_ranges = are_all_text_all_ranges(
             candidate_text,
             args + mapping_tuple,
@@ -509,7 +513,7 @@ def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *
                     )
                     for key, value in mapping.items()
                 }
-                if isinstance(mapping, dict)
+                if isinstance(mapping, _DICT_TYPES)
                 else tuple(mapping)
             ),
             ranges_orig=ranges_orig,
@@ -1482,7 +1486,9 @@ def json_loads_aspect(*args: Any, **kwargs: Any) -> Any:
             ranges = get_tainted_ranges(args[0])
             if ranges and obj:
                 source = ranges[0].source
-                if isinstance(obj, (dict, list)):
+                if isinstance(obj, (dict, list)) or (
+                    type(obj) is _FROZENDICT_TYPE and taint_structure is _taint_structure_eager
+                ):
                     obj = taint_structure(obj, source.origin, source.origin)
                 elif isinstance(obj, IAST.TEXT_TYPES):
                     obj = taint_pyobject(obj, source.name, source.value, source.origin)

@@ -5,9 +5,9 @@ import math
 import time
 from typing import Any
 from typing import Optional
-from uuid import uuid4
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import uuid4
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES
@@ -291,7 +291,7 @@ class ConversationState:
         self.llmobs_parent = integration.capture_context()
         self.routing_context = get_routing_context()
         # Bootstrap fallback; initiation metadata supplies the provider conversation ID.
-        self.session_id = str(uuid4())
+        self.session_id = uuid4()
         self.input_rate = 0
         self.output_rate = 0
         self.pending = AudioBuffer()

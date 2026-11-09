@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    tracing: Adds gRPC support for OTLP trace export. Set
+    ``OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=grpc`` or ``OTEL_EXPORTER_OTLP_PROTOCOL=grpc``
+    to use gRPC; ``http/protobuf`` remains the default for traces. Applications that use
+    the global gRPC setting but require HTTP trace export must set
+    ``OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf``. gRPC trace export currently
+    supports plaintext ``http://`` endpoints only.
