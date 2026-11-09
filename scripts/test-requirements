@@ -40,11 +40,18 @@ def _select_named_environments(
     if not requested:
         return tuple(environments)
 
+    # A name selects environments by variant name or by integration, so a package like pytest
+    # (tested by the testing and pytest:flaky variants) locks all of them.
     names = set(requested)
-    unknown = sorted(names - {environment.name for environment in environments})
+    known = {environment.name for environment in environments} | {
+        environment.integration_name for environment in environments
+    }
+    unknown = sorted(names - known)
     if unknown:
-        raise LockError(f"unknown test environment name(s): {', '.join(unknown)}")
-    return tuple(environment for environment in environments if environment.name in names)
+        raise LockError(f"unknown test environment or integration name(s): {', '.join(unknown)}")
+    return tuple(
+        environment for environment in environments if {environment.name, environment.integration_name} & names
+    )
 
 
 def _require_lock_platform(command: str) -> None:
