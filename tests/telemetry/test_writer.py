@@ -804,6 +804,23 @@ def test_otel_exporter_list_ignored_entries_telemetry(test_agent_session, run_py
     assert test_agent_session.get_metrics("otel.env.invalid") == []
 
 
+def test_otel_blank_exporter_list_telemetry(test_agent_session, run_python_code_in_subprocess):
+    """A blank exporter list is unset: it is neither reported nor counted as hidden by a Datadog setting."""
+    env = os.environ.copy()
+    env["OTEL_TRACES_EXPORTER"] = ""
+    env["DD_TRACE_ENABLED"] = "true"
+    env["OTEL_METRICS_EXPORTER"] = " , "
+    env["DD_METRICS_OTEL_ENABLED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    assert test_agent_session.get_metrics("otel.env.hiding") == []
+    assert test_agent_session.get_metrics("otel.env.invalid") == []
+    configurations = {c["name"] for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
+    assert "OTEL_METRICS_EXPORTER" not in configurations
+
+
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
     """The OTEL_EXPORTER_OTLP_*_HEADERS family is excluded from configuration telemetry, while
     non-sensitive OTLP exporter configurations are still reported.

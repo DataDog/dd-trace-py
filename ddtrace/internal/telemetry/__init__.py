@@ -33,6 +33,13 @@ log = get_logger(__name__)
 __all__ = ["telemetry_writer"]
 
 
+def _is_otel_env_set(otel_env: str) -> bool:
+    """Whether an OpenTelemetry variable is set, an exporter list without entries counting as unset."""
+    if otel_env not in env:
+        return False
+    return not (otel_env in OTEL_EXPORTER_ENV_VARS and is_unset_exporter_list(env[otel_env]))
+
+
 def get_config(
     envs: t.Union[str, list[str]],
     default: t.Any = None,
@@ -83,8 +90,7 @@ def get_config(
 
     for otel_env_name in otel_envs:
         if otel_env_name in env:
-            if otel_env_name in OTEL_EXPORTER_ENV_VARS and is_unset_exporter_list(env[otel_env_name]):
-                # An exporter list without entries, such as an empty value, behaves like an unset one.
+            if not _is_otel_env_set(otel_env_name):
                 continue
             raw_val, parsed_val = parse_otel_env(otel_env_name)
             if parsed_val is not None:
@@ -110,7 +116,7 @@ def get_config(
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "env_var")
                 for otel_env_name in otel_envs:
-                    if otel_env_name in env:
+                    if _is_otel_env_set(otel_env_name):
                         _hiding_otel_config(otel_env_name, env_name)
             effective_val = val
             break
@@ -125,7 +131,7 @@ def get_config(
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "fleet_stable_config", config_id)
                 for otel_env_name in otel_envs:
-                    if otel_env_name in env:
+                    if _is_otel_env_set(otel_env_name):
                         _hiding_otel_config(otel_env_name, env_name)
             effective_val = val
             break
@@ -220,8 +226,10 @@ def validate_and_report_otel_metrics_exporter_enabled():
             _ignored_otel_exporters("OTEL_METRICS_EXPORTER")
         if exporter == "none":
             metrics_exporter_enabled = False
-        elif exporter is None and not is_unset_exporter_list(otel_value):
+        elif exporter is None:
             # Without a supported entry the value is ignored, like an unset one: metrics keep the otlp default.
+            if is_unset_exporter_list(otel_value):
+                return metrics_exporter_enabled
             _invalid_otel_config("OTEL_METRICS_EXPORTER")
 
         # Report to configuration telemetry
