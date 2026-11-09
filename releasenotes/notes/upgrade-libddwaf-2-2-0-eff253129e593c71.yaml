@@ -1,0 +1,3 @@
+upgrade:
+  - |
+    App and API Protection: Upgrades libddwaf to version 2.2.0.
