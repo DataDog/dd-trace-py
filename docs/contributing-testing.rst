@@ -372,6 +372,43 @@ environment variables. For example, to enable debug logs just for
 will set the ``DEBUG`` log level for any logger whose name is prefixed with
 ``ddtrace.debugging``.
 
+Isolated Python tests
+---------------------
+
+Use ``@pytest.mark.subprocess`` for isolated test logic and ``python_process``
+for applications with parent-side assertions:
+
+.. code-block:: python
+
+    @pytest.mark.subprocess(env={"DD_SERVICE": "example"})
+    def test_startup():
+        from ddtrace import config
+
+        assert config.service == "example"
+
+    def test_application(python_process):
+        out, err, status, pid = python_process("print('ready')", ddtrace_run=True)
+        assert status == 0, err
+        assert out == b"ready\n"
+
+Module-level scenarios need their imports inside the body. Class methods run
+through a minimal pytest session in the child, including setup and cleanup.
+Project ``conftest.py`` files, third-party plugins, and unrelated fixtures are
+not loaded. Pytest handles the ``unittest.TestCase`` lifecycle, including
+class/module setup and cleanups.
+Async unittest classes must inherit from ``unittest.IsolatedAsyncioTestCase``
+(or ``tests.contrib.asyncio.utils.AsyncioTestCase`` for tracer assertions), using
+``asyncSetUp`` and ``asyncTearDown`` for async fixtures. No event-loop wrapper is needed.
+Parent fixtures run only when explicitly requested with ``usefixtures``.
+
+The marker's ``env`` overrides inherited variables; a value of ``None`` removes
+that variable. ``python_process`` follows the standard subprocess ``env`` behavior:
+omit it to inherit the environment, or supply the complete child environment.
+
+Marked tests expect exit status zero and empty stdout/stderr unless ``status``,
+``out``, or ``err`` says otherwise. Processes time out after 60 seconds by default.
+
+
 Snapshot tests
 --------------
 
@@ -383,8 +420,7 @@ producers in the ``X-Datadog-Test-Session-Token`` header. Child processes must i
 Other test traffic gets a background token to keep it out of active snapshots.
 
 Finish spans and join background producers before leaving the context. Comparison
-runs once after successful execution. Unmatched traces retain their existing
-``xfail`` behavior; other snapshot differences fail the test. Concurrent
+runs once after successful execution, and mismatches fail the test. Concurrent
 contexts sharing a global writer remain unsupported; the agent also retains its
 legacy timing-based handling of untagged requests.
 

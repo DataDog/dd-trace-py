@@ -10,6 +10,9 @@ from ddtrace.constants import USER_REJECT
 
 WEB_REQUEST_STARTING_EVENT = "web.request.starting"
 _WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
+# core.root item kept current by RuntimeWorker, so shared code can tell whether runtime metrics
+# are running without importing the runtime metrics package.
+RUNTIME_METRICS_ENABLED_KEY = "runtime_metrics_enabled"
 
 
 class Constant_Class(type):
@@ -94,7 +97,6 @@ SPAN_LINKS_KEY = "_dd.span_links"
 SPAN_EVENTS_KEY = "events"
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
-SPAN_API_OPENTRACING = "opentracing"
 DEFAULT_BUFFER_SIZE = 20 << 20  # 20 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 20 << 20  # 20 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0

@@ -30,7 +30,7 @@ class OverheadControl:
     _lock = threading.Lock()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def reconfigure(self):
+    def reconfigure(self) -> None:
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def acquire_request(self, span: Optional[SpanData]) -> bool:

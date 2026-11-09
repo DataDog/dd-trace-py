@@ -763,12 +763,14 @@ impl SpanData {
         Ok(value)
     }
 
-    #[pyo3(signature = (decision))]
+    /// Set the mechanism before publishing the priority so injection sees the intended reason.
+    #[pyo3(signature = (decision, sampling_mechanism=MANUAL_SAMPLING_MECHANISM))]
     fn _override_sampling_decision(
         slf: &Bound<'_, Self>,
         decision: Option<&Bound<'_, PyAny>>,
+        sampling_mechanism: i64,
     ) -> PyResult<()> {
-        Self::_set_sampling_decision_maker(slf, MANUAL_SAMPLING_MECHANISM)?;
+        Self::_set_sampling_decision_maker(slf, sampling_mechanism)?;
         // Metadata callbacks can replace the context, so resolve it again before publishing.
         let context = Self::get_context(slf)?;
         if context.is_exact_instance_of::<Context>() {
