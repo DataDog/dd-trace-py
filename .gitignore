@@ -241,5 +241,5 @@ ddtrace/profiling/collector/build-test/
 uv.lock
 benchmark-artifacts/
 
-# package-split inventory output
-.package-split/
+# package-split inventory output (including per-scope --output dirs)
+.package-split*/

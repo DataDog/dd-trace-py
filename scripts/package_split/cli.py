@@ -39,6 +39,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--module", required=True, help="dotted target module prefix, e.g. ddtrace.internal.coverage"
     )
     api_usage.add_argument("--source-path", action="append", help=source_path_help)
+    api_usage.add_argument(
+        "--allow-absent-target",
+        action="store_true",
+        help="scan a consumer-only scope (e.g. tests/) whose source paths do not contain the target module",
+    )
 
     api_surface = subparsers.add_parser(
         "api-surface",
@@ -56,12 +61,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _inventory_inputs(args: argparse.Namespace) -> tuple[Path, list[Path], list[str]]:
-    """Scan root, source paths and import roots (top-level names of the scanned modules)."""
+def _inventory_inputs(args: argparse.Namespace) -> tuple[Path, list[Path], list[str], list[str]]:
+    """Scan root, source paths, import roots and the raw source-path args.
+
+    Import roots are the top-level names of the scanned modules; the raw
+    args are kept so evidence paths can encode the scan scope.
+    """
     root = Path.cwd()
-    source_paths = [root / p for p in args.source_path or DEFAULT_SOURCE_PATHS]
+    raw_source_paths = list(args.source_path or DEFAULT_SOURCE_PATHS)
+    source_paths = [root / p for p in raw_source_paths]
     import_roots = sorted({module.split(".", 1)[0] for module in module_names_for(root, source_paths)})
-    return root, source_paths, import_roots
+    return root, source_paths, import_roots, raw_source_paths
+
+
+def _scope_dir(raw_source_paths: list[str]) -> str:
+    """Deterministic evidence subdirectory for a scan scope.
+
+    The port workflow inventories the same target over several scopes
+    (production, then tests); a shared evidence path silently overwrote
+    earlier runs, so the scope -- the source paths -- is part of the path.
+    """
+
+    def clean(value: str) -> str:
+        value = value.strip("./")
+        return "_".join(value.split("/")) if value else "root"
+
+    return "__".join(clean(path) for path in raw_source_paths)
 
 
 def _warn_unparsed(unparsed: list[str]) -> None:
@@ -78,15 +103,16 @@ def _api_usage_command(args: argparse.Namespace) -> int:
     """
     from .api_usage import analyze_api_usage
 
-    root, source_paths, _ = _inventory_inputs(args)
-    report = analyze_api_usage(root, source_paths, args.module)
-    output_dir = Path(args.output) / "api-usage"
+    root, source_paths, _, raw_source_paths = _inventory_inputs(args)
+    report = analyze_api_usage(root, source_paths, args.module, require_target=not args.allow_absent_target)
+    output_dir = Path(args.output) / "api-usage" / _scope_dir(raw_source_paths)
     output_dir.mkdir(parents=True, exist_ok=True)
     evidence = output_dir / "api-usage.json"
     evidence.write_text(
         json.dumps(
             {
                 "target": report.target,
+                "source_paths": raw_source_paths,
                 "files_scanned": report.files_scanned,
                 "consumer_files": report.consumer_files,
                 "unparsed": report.unparsed,
@@ -113,7 +139,7 @@ def _api_surface_command(args: argparse.Namespace) -> int:
     from .api_surface import bundling_suggestions
     from .api_surface import summarize
 
-    root, source_paths, import_roots = _inventory_inputs(args)
+    root, source_paths, import_roots, raw_source_paths = _inventory_inputs(args)
 
     zones = None
     # An explicit --zones path must exist; only the default is optional.
@@ -126,12 +152,13 @@ def _api_surface_command(args: argparse.Namespace) -> int:
     report = analyze_api_surfaces(root, source_paths, import_roots, zones)
 
     suggestions = bundling_suggestions(report)
-    output_dir = Path(args.output) / "api-surface"
+    output_dir = Path(args.output) / "api-surface" / _scope_dir(raw_source_paths)
     output_dir.mkdir(parents=True, exist_ok=True)
     evidence = output_dir / "api-surface.json"
     evidence.write_text(
         json.dumps(
             {
+                "source_paths": raw_source_paths,
                 "report": report.to_dict(),
                 "zones": report.zones,
                 "bundling_suggestions": [s.to_dict() for s in suggestions],

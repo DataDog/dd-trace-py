@@ -9,7 +9,10 @@ Detection is static and over-approximating by design:
 - every import binding of the target (``import a.b as c``, ``from a.b import
   x``, relative imports, star imports) is tracked per consumer module;
 - usages are resolved through alias tracking and attribute chains rooted at
-  module bindings (``c.x.y`` -> ``a.b.x.y``);
+  module bindings (``c.x.y`` -> ``a.b.x.y``), and *through re-export
+  chains*: ``from m import x`` where m does ``from a.b import x`` is
+  attributed to ``a.b.x`` (this is how public facades re-extract into a
+  used-API surface -- a direct-import-only view misses those consumers);
 - each usage is classified by context: call, subclassed, exception-caught,
   raised, or plain read;
 - usages inside the target itself are excluded (self-usage is not an
@@ -87,6 +90,11 @@ class _UsageCollector(ast.NodeVisitor):
     resolved path starts at one of ``roots`` is recorded with its full
     resolved path, so a single pass can later be attributed to owning modules
     (api-surface mode).
+
+    ``origins`` maps each scanned module's import bindings
+    (``{module: {name: {dotted origin}}}``); it is what makes re-export
+    chains resolvable. It stays empty in api-surface mode, which remains
+    direct-import only.
     """
 
     def __init__(
@@ -96,12 +104,14 @@ class _UsageCollector(ast.NodeVisitor):
         target: str | None,
         report: ApiUsageReport,
         roots: set[str] | None = None,
+        origins: dict[str, dict[str, set[str]]] | None = None,
     ) -> None:
         self.importer = importer
         self.file = file
         self.target = target
         self.report = report
         self.roots = roots
+        self.origins = origins if origins is not None else {}
         # A name can be bound to several modules (try/except ImportError
         # fallbacks, imports in separate function scopes); keep every
         # alternative so usages over-approximate rather than go missing.
@@ -170,6 +180,18 @@ class _UsageCollector(ast.NodeVisitor):
                 # The import itself is the baseline usage fact: the symbol is
                 # consumed even if no qualified use site is detected.
                 self.report.usages.append(Usage(self.importer, self._symbol(binding), "import", self._location(node)))
+            else:
+                # Re-export chains: `from m import x` where m binds x via
+                # `from a.b import x` transitively consumes a.b.x. Follow the
+                # chain, attribute the import fact to the origin, and bind
+                # the local name to it so later use sites classify against
+                # the real owner rather than the facade.
+                for origin in self._resolve_chain(target_module, [alias.name]):
+                    if origin != binding and self._matches(origin):
+                        self._bind(alias.asname or alias.name, origin)
+                        self.report.usages.append(
+                            Usage(self.importer, self._symbol(origin), "import", self._location(node))
+                        )
 
     # -- pass 2: usages ----------------------------------------------------
     def _location(self, node: ast.AST) -> str:
@@ -239,6 +261,38 @@ class _UsageCollector(ast.NodeVisitor):
             return self.bindings[current.id], attrs
         return None
 
+    def _resolve_chain(self, binding: str, attrs: list[str]) -> list[str]:
+        """Every dotted path a module-rooted chain can mean, through re-exports.
+
+        ``r.x.y`` with r bound to m means ``m.x.y``; if m binds x via
+        ``from a.b import x`` it also means ``a.b.x.y`` -- and x may be
+        re-exported through any depth of facades (m -> m2 -> a.b), so every
+        new path's re-export bindings are followed transitively. The walk is
+        iterative and cycle-safe (each path expands once); the branch factor
+        per attribute hop is capped so pathological re-export graphs cannot
+        explode.
+        """
+        paths: list[str] = [binding]
+        for attr in attrs:
+            # Append the attribute to every known prefix, then follow each
+            # new path's re-export bindings transitively.
+            frontier = ["%s.%s" % (path, attr) if path else attr for path in paths]
+            expanded: list[str] = []
+            while frontier:
+                current = frontier.pop()
+                if current in expanded:
+                    continue
+                expanded.append(current)
+                owner, _, name = current.rpartition(".")
+                if owner:
+                    for origin in self.origins.get(owner, {}).get(name, ()):
+                        if origin not in expanded:
+                            frontier.append(origin)
+            paths = expanded[:8]
+            if not paths:
+                break
+        return paths
+
     def _scan_usages(self, tree: ast.AST) -> None:
         for node in ast.walk(tree):
             for child in ast.iter_child_nodes(node):
@@ -249,7 +303,8 @@ class _UsageCollector(ast.NodeVisitor):
                 if root is not None:
                     bindings, attrs = root
                     for binding in sorted(bindings):
-                        self._record(".".join([binding] + list(reversed(attrs))), node)
+                        for resolved in self._resolve_chain(binding, list(reversed(attrs))):
+                            self._record(resolved, node)
             elif isinstance(node, ast.Name):
                 for binding in sorted(self.bindings.get(node.id, ())):
                     self._record(binding, node)
@@ -259,7 +314,10 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
     """Map each .py file under the source paths to its dotted module name.
 
     Names are relative to root: ddtrace/internal/x.py is ddtrace.internal.x.
-    Vendored code (vendor/) is skipped because we do not control its structure.
+    Module trees may also live under a ``src`` directory -- at the scan root
+    (src/pkg/x.py) or in a workspace layout (packages/<dist>/src/pkg/x.py) --
+    so naming starts after the *last* ``src`` path segment. Vendored code
+    (vendor/) is skipped because we do not control its structure.
     """
     modules: dict[str, Path] = {}
     for source_path in source_paths:
@@ -268,8 +326,8 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
         files = sorted(source_path.rglob("*.py")) if source_path.is_dir() else [source_path]
         for py_file in files:
             rel = py_file.relative_to(root)
-            if rel.parts[0] == "src":
-                rel = Path(*rel.parts[1:])
+            if "src" in rel.parts:
+                rel = Path(*rel.parts[len(rel.parts) - rel.parts[::-1].index("src") :])
             if any(part in _EXCLUDED_DIRS for part in rel.parts):
                 continue
             parts = list(rel.with_suffix("").parts)
@@ -286,26 +344,60 @@ def parse_source(path: Path) -> ast.Module:
         return ast.parse(f.read(), filename=str(path))
 
 
-def analyze_api_usage(root: Path, source_paths: Iterable[Path], target: str) -> ApiUsageReport:
-    """Compute the used-API report for target across the source paths."""
+def analyze_api_usage(
+    root: Path, source_paths: Iterable[Path], target: str, require_target: bool = True
+) -> ApiUsageReport:
+    """Compute the used-API report for target across the source paths.
+
+    ``require_target=False`` is for consumer-only scopes (e.g. scanning
+    ``tests/`` for a module that lives under ``ddtrace/``): the target
+    itself is not scanned, so only its consumers are reported. Note that
+    re-export attribution needs the re-exporting module inside the scanned
+    scope; when in doubt, scan the target's source paths too.
+    """
     modules = module_names_for(root, source_paths)
-    if not any(module == target or module.startswith(target + ".") for module in modules):
-        # An empty report would be indistinguishable from an unused target.
-        raise ValueError("no scanned module matches %s" % target)
+    if require_target and not any(module == target or module.startswith(target + ".") for module in modules):
+        # An empty report would be indistinguishable from an unused target
+        # (or a typo), unless the caller explicitly scopes to consumers only.
+        raise ValueError(
+            "no scanned module matches %s; pass the target's source path too, or use --allow-absent-target "
+            "for a consumer-only scan" % target
+        )
     report = ApiUsageReport(target=target, files_scanned=len(modules))
 
-    consumers = 0
+    # One parse per module, shared by both passes below.
+    trees: dict[str, ast.Module | None] = {}
     for module, path in sorted(modules.items()):
+        try:
+            trees[module] = parse_source(path)
+        except (SyntaxError, UnicodeDecodeError) as exc:
+            trees[module] = None
+            report.unparsed.append("%s: %s" % (path.relative_to(root), exc))
+
+    # Re-export facts: each module's import bindings, used to resolve
+    # `from m import x` chains through facades back to the origin module.
+    origins: dict[str, dict[str, set[str]]] = {}
+    for module, tree in trees.items():
+        if tree is None:
+            continue
+        collector = _UsageCollector(module, str(modules[module].relative_to(root)), None, report)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                collector.visit_Import(node)
+            elif isinstance(node, ast.ImportFrom):
+                collector.visit_ImportFrom(node)
+        origins[module] = collector.bindings
+
+    consumers = 0
+    for module in sorted(modules):
         # The target's own modules consume themselves by definition; only
         # external consumers define the extraction surface.
         if module == target or module.startswith(target + "."):
             continue
-        try:
-            tree = parse_source(path)
-        except (SyntaxError, UnicodeDecodeError) as exc:
-            report.unparsed.append("%s: %s" % (path.relative_to(root), exc))
-            continue
-        collector = _UsageCollector(module, str(path.relative_to(root)), target, report)
+        tree = trees[module]
+        if tree is None:
+            continue  # already recorded as unparsed
+        collector = _UsageCollector(module, str(modules[module].relative_to(root)), target, report, origins=origins)
         # Pass 1: bindings (imports). Pass 2 must see assignments inside
         # function bodies too, so a plain two-visit order is not enough --
         # bindings are collected first, usages scanned after.

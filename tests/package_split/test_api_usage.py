@@ -255,3 +255,101 @@ def test_source_encoding_declaration_is_honored(tmp_path):
         "# -*- coding: euc-jp -*-\nfrom pkg.lib import f\nf('日本')\n".encode("euc-jp")
     )
     assert "call" in symbols_of(analyze(tmp_path, "pkg", {}))["f"]
+
+
+def test_reexport_consumer_is_attributed(tmp_path):
+    # Consumers importing through a facade module must land in the used-API
+    # surface: `from m import x` where m does `from a.b import x` consumes
+    # a.b.x. This is how re-export shims (e.g. ddtrace.testing.internal.
+    # tracer_api re-exporting Codeowners) hid real consumers.
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "facade.py").write_text(
+        "from pkg.lib import A  # noqa: F401\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "pkg" / "consumer16.py").write_text(
+        "from pkg.facade import A\nA()\n",
+        encoding="utf-8",
+    )
+    report = analyze(tmp_path, "pkg", {})
+    # The import fact and the call site are both attributed to the consumer.
+    consumer_usages = [u for u in report.usages if u.importer == "pkg.consumer16"]
+    assert {(u.symbol, u.kind) for u in consumer_usages} == {("A", "import"), ("A", "call")}
+    # The facade itself is still a direct consumer.
+    assert any(u.importer == "pkg.facade" for u in report.usages)
+
+
+def test_reexport_chain_resolves_transitively(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "facade1.py").write_text(
+        "from pkg.facade2 import f  # noqa: F401\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "pkg" / "facade2.py").write_text(
+        "from pkg.lib import f  # noqa: F401\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "pkg" / "consumer17.py").write_text(
+        "from pkg.facade1 import f\nf(1)\n",
+        encoding="utf-8",
+    )
+    symbols = symbols_of(analyze(tmp_path, "pkg", {}))
+    assert "call" in symbols["f"]
+
+
+def test_reexport_cycle_does_not_hang(tmp_path):
+    # facade1 -> facade2 -> facade1 is a genuine re-export cycle, but
+    # facade2 also binds f directly from the target (the over-approximating
+    # multi-binding case), so the origin is still reached and the walk
+    # must terminate instead of chasing the cycle forever.
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "facade1.py").write_text(
+        "from pkg.facade2 import f  # noqa: F401\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "pkg" / "facade2.py").write_text(
+        "from pkg.facade1 import f  # noqa: F401\nfrom pkg.lib import f  # noqa: F401\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "pkg" / "consumer18.py").write_text(
+        "from pkg.facade1 import f\nf(1)\n",
+        encoding="utf-8",
+    )
+    symbols = symbols_of(analyze(tmp_path, "pkg", {}))
+    assert "call" in symbols["f"]
+
+
+def test_attribute_chain_through_reexported_module(tmp_path):
+    # `import m as r; r.x()` where m re-exports x from the target.
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "facade.py").write_text(
+        "from pkg.lib import A  # noqa: F401\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "pkg" / "consumer19.py").write_text(
+        "import pkg.facade as r\nr.A()\n",
+        encoding="utf-8",
+    )
+    symbols = symbols_of(analyze(tmp_path, "pkg", {}))
+    assert "call" in symbols["A"]
+
+
+def test_module_names_follow_workspace_src_layout(tmp_path):
+    # uv-workspace destination layout: packages/<dist>/src/<module>/x.py
+    # must name as <module>.x, not packages.<dist>.src.<module>.x (which
+    # would match no import root and gate nothing).
+    from package_split.api_usage import module_names_for
+
+    path = tmp_path / "packages" / "some-dist" / "src" / "pkg" / "mod.py"
+    path.parent.mkdir(parents=True)
+    path.write_text("value = 1\n", encoding="utf-8")
+    assert module_names_for(tmp_path, [tmp_path / "packages" / "some-dist" / "src"]) == {"pkg.mod": path}
+
+
+def test_module_names_keep_root_src_layout(tmp_path):
+    from package_split.api_usage import module_names_for
+
+    path = tmp_path / "src" / "pkg" / "mod.py"
+    path.parent.mkdir(parents=True)
+    path.write_text("value = 1\n", encoding="utf-8")
+    assert module_names_for(tmp_path, [tmp_path / "src"]) == {"pkg.mod": path}
