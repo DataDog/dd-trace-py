@@ -1,24 +1,23 @@
-name: Testrunner
-
+name: Restore main testrunner tag
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'main'
-    paths:
-      - 'docker/**'
-
+permissions:
+  contents: read
+  packages: write
 jobs:
-  build-and-publish:
-    uses: ./.github/workflows/build-and-publish-image.yml
-    permissions:
-      contents: read
-      packages: write
-    with:
-      tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
-      # No "/v8": buildx publishes arm64 without a variant, so the USER check can't find it.
-      platforms: 'linux/amd64,linux/arm64'
-      build-args: ''
-      context: ./docker
-    secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore main tag if it still points to the temporary branch image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          task_image=ghcr.io/datadog/dd-trace-py/testrunner
+          task_current_digest=$(docker buildx imagetools inspect "$task_image:latest" | awk '$1 == "Digest:" { print $2; exit }')
+          if [ "$task_current_digest" = sha256:be51150ca17270aefe1f54174ca763ade6e236f659207dd8d06fc367498f5a50 ]; then
+            docker buildx imagetools create --tag "$task_image:latest" "$task_image@sha256:353ed516769847690dc3fe7d80b63628a6c31f6f698c98b9ccc6bbadd6302746"
+          else
+            echo "Latest has already moved to $task_current_digest; leaving it unchanged."
+          fi
