@@ -90,5 +90,5 @@ class _SpanAnnotator:
         kind = self._SPAN_KIND.get(operation)
         if kind:
             span.set_tag(SPAN_KIND, kind)
-            if kind == SpanKind.CONSUMER and parent_service_name and parent_service_name != self.service_name:
+            if kind == SpanKind.CONSUMER and parent_service_name and parent_service_name != span.service:
                 span.set_tag(self._PEER_SERVICE_TAG, parent_service_name)
