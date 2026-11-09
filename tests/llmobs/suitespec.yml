@@ -517,7 +517,9 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 1
+    venvs_per_job: 2
+    # Allow time for GPU placement in addition to the 15-minute test target.
+    timeout: 50m
     paths:
       - '@bootstrap'
       - '@llmobs'
