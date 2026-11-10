@@ -12,9 +12,10 @@ pytestmark = pytest.mark.skipif(not stack_module.is_available, reason="stack pro
 
 def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.MonkeyPatch, tracer: Tracer) -> None:
     cleared = []
-    monkeypatch.setattr(stack_module, "clear_span", lambda: cleared.append(True))
+    monkeypatch.setattr(stack_module, "clear_span", lambda task_id: cleared.append(task_id))
 
     collector = StackCollector(tracer=tracer)
     collector._link_span(tracer.context_provider, None)
 
-    assert cleared == [True]
+    # Outside an asyncio task, there is no task link to clear.
+    assert cleared == [0]

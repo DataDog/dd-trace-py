@@ -15,6 +15,7 @@
 #include <string_view>
 
 #include "dd_wrapper/include/sample.hpp"
+#include "span_links.hpp"
 
 #include "echion/frame.h"
 #include "echion/timing.h"
@@ -87,6 +88,9 @@ class StackRenderer
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
     std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
 
+    // Add span labels for unit's span, or for the thread's span when a task or greenlet has none of its own.
+    void push_span_labels(SpanLinkKey unit);
+
   public:
     StackRenderer();
     void render_thread_begin(PyThreadState* tstate,
@@ -94,9 +98,12 @@ class StackRenderer
                              microsecond_t wall_time_us,
                              uintptr_t thread_id,
                              unsigned long native_id);
+    // Label a sample of the thread's own stack with the thread's span. Task and greenlet samples get their span labels
+    // from render_task_begin instead.
+    void render_thread_span();
     void render_task_begin(std::string_view task_name,
                            bool on_cpu,
-                           uint64_t task_id,
+                           SpanLinkKey task_key,
                            std::optional<int64_t> walltime_ns_override = std::nullopt);
     void render_frame(Frame& frame);
     void mark_truncated();

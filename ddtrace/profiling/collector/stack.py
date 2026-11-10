@@ -15,6 +15,7 @@ from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.profiling import _asyncio
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
@@ -120,6 +121,9 @@ class StackCollector(collector.Collector):
     ) -> None:
         if self.tracer is None or provider is not self.tracer.context_provider:
             return
+        # Also link the span to the running asyncio task, so that task's samples keep it when other tasks on the
+        # thread activate their own spans.
+        task_id = _asyncio.current_task_id()
         if isinstance(span, SpanData):
             span_id = span.span_id
             local_root = typing.cast(typing.Any, span)._local_root
@@ -135,12 +139,12 @@ class StackCollector(collector.Collector):
             else:
                 local_root_span_id = local_root.span_id
                 local_root_span_type = local_root.span_type
-            stack.link_span(span_id, local_root_span_id, local_root_span_type)
+            stack.link_span(span_id, local_root_span_id, local_root_span_type, task_id)
         elif isinstance(span, Context) and span.span_id is not None:
             local_root_span_id, span_type = context_meta.read_profiler_link(span)
-            stack.link_span(span.span_id, local_root_span_id, span_type)
+            stack.link_span(span.span_id, local_root_span_id, span_type, task_id)
         else:
-            stack.clear_span()
+            stack.clear_span(task_id)
 
     @staticmethod
     def snapshot() -> None:

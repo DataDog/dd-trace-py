@@ -59,12 +59,8 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     sample->push_walltime(thread_state.wall_time_ns, 1);
 
-    const std::optional<Span> active_span = SpanLinks::get_instance().get_active_span(SpanLinkKey::thread(thread_id));
-    if (active_span) {
-        sample->push_span_id(active_span->span_id);
-        sample->push_local_root_span_id(active_span->local_root_span_id);
-        sample->push_trace_type(std::string_view(active_span->span_type));
-    }
+    // Span labels come later, from render_thread_span or render_task_begin. The first task on a thread reuses this
+    // sample and needs its own span, not the thread's.
 
     // If this thread is a ThreadPoolExecutor worker running work offloaded by an
     // asyncio task, record the originating task so the sample can be correlated
@@ -77,9 +73,33 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
+StackRenderer::push_span_labels(SpanLinkKey unit)
+{
+    auto& links = SpanLinks::get_instance();
+    std::optional<Span> active_span = links.get_active_span(unit);
+    if (!active_span && unit.domain != SpanLinkDomain::Thread) {
+        active_span = links.get_active_span(SpanLinkKey::thread(thread_state.id));
+    }
+    if (active_span) {
+        sample->push_span_id(active_span->span_id);
+        sample->push_local_root_span_id(active_span->local_root_span_id);
+        sample->push_trace_type(std::string_view(active_span->span_type));
+    }
+}
+
+void
+StackRenderer::render_thread_span()
+{
+    if (sample == nullptr) {
+        return;
+    }
+    push_span_labels(SpanLinkKey::thread(thread_state.id));
+}
+
+void
 StackRenderer::render_task_begin(std::string_view task_name,
                                  bool on_cpu,
-                                 uint64_t task_id,
+                                 SpanLinkKey task_key,
                                  std::optional<int64_t> walltime_ns_override)
 {
     static bool failed = false;
@@ -111,15 +131,6 @@ StackRenderer::render_task_begin(std::string_view task_name,
 
         sample->push_monotonic_ns(thread_state.now_time_ns);
 
-        // We also want to make sure the tid -> span_id mapping is present in the sample for the task
-        const std::optional<Span> active_span =
-          SpanLinks::get_instance().get_active_span(SpanLinkKey::thread(thread_state.id));
-        if (active_span) {
-            sample->push_span_id(active_span->span_id);
-            sample->push_local_root_span_id(active_span->local_root_span_id);
-            sample->push_trace_type(std::string_view(active_span->span_type));
-        }
-
         const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
         if (origin_task) {
             sample->push_origin_task_id(origin_task->task_id);
@@ -127,8 +138,9 @@ StackRenderer::render_task_begin(std::string_view task_name,
         }
     }
 
+    push_span_labels(task_key);
     sample->push_task_name(task_name);
-    sample->push_task_id(task_id);
+    sample->push_task_id(task_key.identifier);
 }
 
 void

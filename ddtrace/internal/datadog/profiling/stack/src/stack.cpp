@@ -177,6 +177,8 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     uint64_t span_id;
     uint64_t local_root_span_id;
     const char* span_type = nullptr;
+    // id() of the asyncio task running on this thread, or 0 outside a task.
+    uint64_t task_id = 0;
 
     PyThreadState* state = PyThreadState_Get();
 
@@ -186,10 +188,11 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
     thread_id = state->thread_id;
 
-    static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", nullptr };
+    static const char* const_kwlist[] = { "span_id", "local_root_span_id", "span_type", "task_id", nullptr };
     static char** kwlist = const_cast<char**>(const_kwlist);
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "KKz", kwlist, &span_id, &local_root_span_id, &span_type)) {
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "KKz|K", kwlist, &span_id, &local_root_span_id, &span_type, &task_id)) {
         return nullptr;
     }
 
@@ -204,6 +207,10 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Py_BEGIN_ALLOW_THREADS;
     links.link_span(SpanLinkKey::thread(thread_id), span_id, local_root_span_id, std::string(span_type));
+    if (task_id != 0) {
+        links.link_span(
+          SpanLinkKey{ SpanLinkDomain::AsyncioTask, task_id }, span_id, local_root_span_id, std::string(span_type));
+    }
     Py_END_ALLOW_THREADS;
 
     if (links.on_link_end(span_id)) {
@@ -246,7 +253,12 @@ static PyObject*
 stack_clear_span(PyObject* self, PyObject* args)
 {
     (void)self;
-    (void)args;
+    // id() of the asyncio task running on this thread, or 0 outside a task.
+    uint64_t task_id = 0;
+
+    if (!PyArg_ParseTuple(args, "|K", &task_id)) {
+        return nullptr;
+    }
 
     PyThreadState* state = PyThreadState_Get();
     if (!state) {
@@ -255,6 +267,9 @@ stack_clear_span(PyObject* self, PyObject* args)
 
     Py_BEGIN_ALLOW_THREADS;
     SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(state->thread_id));
+    if (task_id != 0) {
+        SpanLinks::get_instance().unlink_span(SpanLinkKey{ SpanLinkDomain::AsyncioTask, task_id });
+    }
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -1155,12 +1170,15 @@ static PyMethodDef stack_methods[] = {
     { "link_span",
       reinterpret_cast<PyCFunction>(stack_link_span),
       METH_VARARGS | METH_KEYWORDS,
-      "Link a span to a thread" },
+      "Link a span to the current thread and, if given, the running asyncio task" },
     { "unlink_span",
       stack_unlink_span,
       METH_VARARGS,
       "Clear the span linked to the current thread if its ID matches the expected span ID" },
-    { "clear_span", stack_clear_span, METH_NOARGS, "Clear the span linked to the current thread" },
+    { "clear_span",
+      stack_clear_span,
+      METH_VARARGS,
+      "Clear the span linked to the current thread and, if given, the running asyncio task" },
     { "unlink_finished_span",
       stack_unlink_finished_span,
       METH_VARARGS,
