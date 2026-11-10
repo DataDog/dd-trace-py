@@ -1529,7 +1529,10 @@ def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any]
 
 
 def _openai_decision_body(value: Any, image_parts: list[ImagePart]) -> Any:
+    """Replace inline images in input_image parts with a marker; input_json data is caller data, so it is kept as is."""
     if isinstance(value, dict):
+        if value.get("type") == "input_json":
+            return value
         if value.get("type") == "input_image":
             image_part, image_text = _openai_image_part(value)
             if image_part:

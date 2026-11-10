@@ -2644,7 +2644,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
     )
     def test_decision_images_only_from_image_parts(self, openai, openai_llmobs, test_spans):
-        """Only input_image URLs are read as images, also in SDK models and {"url": ...} objects; data: text stays."""
+        """Only input_image parts are read as images, also in SDK models; text and input_json data stay as sent."""
         pydantic = pytest.importorskip("pydantic")
 
         class InputImage(pydantic.BaseModel):
@@ -2660,6 +2660,8 @@ MUL: "*"
                     {"type": "input_text", "text": DECISION_IMAGE_URL},
                     InputImage(type="input_image", image_url=DECISION_IMAGE_URL),
                     {"type": "input_image", "image_url": {"url": DECISION_IMAGE_URL}},
+                    {"type": "input_json", "data": {"type": "input_image", "image_url": DECISION_IMAGE_URL}},
+                    {"type": "input_json", "data": {"type": "input_image", "count": 3}},
                 ],
             }
         ]
@@ -2679,6 +2681,8 @@ MUL: "*"
                         {"type": "input_text", "text": DECISION_IMAGE_URL},
                         {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
                         {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
+                        {"type": "input_json", "data": {"type": "input_image", "image_url": DECISION_IMAGE_URL}},
+                        {"type": "input_json", "data": {"type": "input_image", "count": 3}},
                     ],
                 }
             ],
