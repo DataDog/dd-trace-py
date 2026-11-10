@@ -473,6 +473,13 @@ def test_a_proxy_router_span_is_marked_before_its_request_exists(logger, monkeyp
         ('{"model": "unterminated', None),
         ("not json", None),
         ({"model": "from-a-dict"}, "from-a-dict"),
+        # Gemini and Vertex AI name the served model in modelVersion, after the candidates.
+        (
+            '{"candidates": [{"modelVersion": "nested"}], "modelVersion": "gemini-2.5-flash-001"}',
+            "gemini-2.5-flash-001",
+        ),
+        ('{"model": "top", "modelVersion": "version"}', "top"),
+        ({"modelVersion": "gemini-2.5-flash-001"}, "gemini-2.5-flash-001"),
     ],
 )
 def test_the_response_model_is_the_top_level_one(original, model):
@@ -649,6 +656,35 @@ def test_a_client_that_leaves_after_a_chat_stream_finished(installed, writer, fi
     assert attempt.get("error_type") == attempt_error
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert request["error_type"] == "client_disconnected"
+
+
+def multi_choice_chunk(*choices):
+    return {"usage": None, "choices": [{"index": i, "finish_reason": reason} for i, reason in choices], "model": None}
+
+
+@pytest.mark.parametrize(
+    "chunks, attempt_error",
+    [
+        # With n > 1, one choice finishing does not end the response: the other was still being generated.
+        ([multi_choice_chunk((0, None), (1, None)), multi_choice_chunk((0, "stop"))], "client_disconnected"),
+        (
+            [
+                multi_choice_chunk((0, None), (1, None)),
+                multi_choice_chunk((0, "stop")),
+                multi_choice_chunk((1, "stop")),
+            ],
+            None,
+        ),
+    ],
+)
+def test_a_chat_stream_with_several_choices_finishes_with_its_last_choice(installed, writer, chunks, attempt_error):
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    feed(StreamWrapper("openai"), *chunks)
+    proxy.succeeded(0.5, first_chunk=0.1, error_class="ClientDisconnected")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt.get("error_type") == attempt_error
 
 
 def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(installed, writer):

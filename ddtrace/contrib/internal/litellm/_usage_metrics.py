@@ -419,6 +419,8 @@ def _json_object(raw: Optional[str]) -> Optional[dict[str, Any]]:
 
 
 _MODEL = ("model",)
+# Where Gemini and Vertex AI responses name the model that served the call.
+_MODEL_VERSION = ("modelVersion",)
 _EVENT_TYPE = ("type",)
 _EVENT_MODEL = ("response", "model")
 _EVENT_USAGE = ("response", "usage")
@@ -426,8 +428,9 @@ _RESPONSES_EVENT_FIELDS = frozenset({_EVENT_TYPE, _EVENT_MODEL, _EVENT_USAGE})
 
 
 def _top_level_model(text: str) -> Optional[str]:
-    """The top-level "model" of a JSON object; providers put it near the start."""
-    return _json_string(_json_paths(text, frozenset({_MODEL})).get(_MODEL))
+    """The top-level "model" of a JSON object, else Gemini's "modelVersion"."""
+    models = _json_paths(text, frozenset({_MODEL, _MODEL_VERSION}))
+    return _json_string(models.get(_MODEL)) or _json_string(models.get(_MODEL_VERSION))
 
 
 def _response_model(kwargs: dict[str, Any]) -> Optional[str]:
@@ -438,8 +441,10 @@ def _response_model(kwargs: dict[str, Any]) -> Optional[str]:
     if isinstance(original, str) and original.startswith("{"):
         return _top_level_model(original)
     if isinstance(original, dict):
-        model = original.get("model")
-        return model if isinstance(model, str) and model else None
+        for key in ("model", "modelVersion"):
+            model = original.get(key)
+            if isinstance(model, str) and model:
+                return model
     return None
 
 
