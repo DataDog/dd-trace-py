@@ -757,10 +757,11 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
         "origin": "otel_env_var",
         "value": "always_on",
     }
+    # OTEL_SDK_DISABLED=true takes precedence over OTEL_TRACES_EXPORTER=none.
     assert configurations["DD_TRACE_ENABLED"] == {
         "name": "DD_TRACE_ENABLED",
         "origin": "otel_env_var",
-        "value": "none",
+        "value": "true",
     }
     assert configurations["DD_TAGS"] == {
         "name": "DD_TAGS",

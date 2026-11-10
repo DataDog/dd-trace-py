@@ -327,7 +327,7 @@ class _ConfigItem:
         default: Union[_JSONType, Callable[[], _JSONType]],
         envs: list[str],
         modifier: Callable[[str], Any],
-        otel_env: Optional[str] = None,
+        otel_env: Optional[Union[str, list[str]]] = None,
     ) -> None:
         # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
         self._name = envs[0]
@@ -405,7 +405,8 @@ def _default_config() -> dict[str, _ConfigItem]:
         "_tracing_enabled": _ConfigItem(
             default=True,
             envs=["DD_TRACE_ENABLED"],
-            otel_env="OTEL_TRACES_EXPORTER",
+            # OTEL_SDK_DISABLED=true takes precedence over OTEL_TRACES_EXPORTER.
+            otel_env=["OTEL_TRACES_EXPORTER", "OTEL_SDK_DISABLED"],
             modifier=asbool,
         ),
         "_llmobs_enabled": _ConfigItem(

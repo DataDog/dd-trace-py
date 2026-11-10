@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where setting ``OTEL_SDK_DISABLED=true`` did not disable tracing, including OTLP trace
+    export configured with ``OTEL_TRACES_EXPORTER=otlp``. ``DD_TRACE_ENABLED`` still takes precedence when set.

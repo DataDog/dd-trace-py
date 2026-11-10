@@ -773,6 +773,61 @@ def test_otel_sdk_disabled_configuration_true():
     assert config._otel_trace_enabled is False, config._otel_trace_enabled
 
 
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_ENABLED": None}, err=b"")
+def test_otel_sdk_disabled_true_disables_tracing():
+    from ddtrace import config
+    from ddtrace.trace import tracer
+
+    assert config._tracing_enabled is False, config._tracing_enabled
+    assert tracer.enabled is False
+
+
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "TRUE", "DD_TRACE_ENABLED": None}, err=b"")
+def test_otel_sdk_disabled_is_case_insensitive():
+    from ddtrace import config
+
+    assert config._tracing_enabled is False, config._tracing_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_ENABLED": "true"}, err=b"")
+def test_dd_trace_enabled_takes_precedence_over_otel_sdk_disabled():
+    from ddtrace import config
+
+    assert config._tracing_enabled is True, config._tracing_enabled
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_SDK_DISABLED": "true", "OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_ENABLED": None}, err=b""
+)
+def test_otel_sdk_disabled_takes_precedence_over_otel_traces_exporter():
+    from ddtrace import config
+
+    assert config._tracing_enabled is False, config._tracing_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_ENABLED": None}, err=b"")
+def test_otel_sdk_disabled_false_keeps_tracing_enabled():
+    from ddtrace import config
+
+    assert config._tracing_enabled is True, config._tracing_enabled
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_SDK_DISABLED": "false", "OTEL_TRACES_EXPORTER": "none", "DD_TRACE_ENABLED": None}, err=b""
+)
+def test_otel_sdk_disabled_false_does_not_override_otel_traces_exporter():
+    from ddtrace import config
+
+    assert config._tracing_enabled is False, config._tracing_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "", "DD_TRACE_ENABLED": None})
+def test_otel_sdk_disabled_empty_keeps_tracing_enabled():
+    from ddtrace import config
+
+    assert config._tracing_enabled is True, config._tracing_enabled
+
+
 @pytest.mark.subprocess(
     env={"OTEL_RESOURCE_ATTRIBUTES": "service.version=1.0"},
 )
