@@ -271,13 +271,19 @@ macrobenchmarks:
 apm-sdks-benchmarks:
   stage: benchmarks
   needs:
-    - job: "upload all"
+    # The benchmark uses only the cp312 Linux x86_64 and aarch64 wheels. This job
+    # uploads them right after the Linux builds. Thus the benchmark does not wait
+    # for the macOS and Windows builds or for "ddtrace package".
+    - job: "upload manylinux2014"
   variables:
     # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
     # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
-    # all". Inside a child pipeline that variable is the child's own ID, not
+    # manylinux2014". Inside a child pipeline that variable is the child's own ID, not
     # this (parent) pipeline's, so it must be passed explicitly.
     TARGET_REF: $CI_PIPELINE_ID
+    # "upload manylinux2014" writes this index under TARGET_REF. Without this value,
+    # the script reads index.html, which "upload all" writes later.
+    WHEEL_INDEX_FILE: "index-manylinux2014.html"
     # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
     # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
     # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
