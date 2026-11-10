@@ -277,7 +277,7 @@ def distribution_record_files(
 ) -> dict[str, list[str]]:
     """Map installed distribution -> list of files it owns (from RECORD).
 
-    Missing RECORDs fail closed for the distributions named in ``required``:
+    Missing RECORD files fail closed for the distributions named in ``required``:
     ownership and native content of those cannot be verified. Distributions
     outside ``required`` that have no RECORD -- uv workspace virtual roots
     installed alongside the package -- own no files and are skipped.
