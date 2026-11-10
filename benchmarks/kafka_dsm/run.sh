@@ -25,9 +25,15 @@ export DD_TRACE_STARTUP_LOGS=${DD_TRACE_STARTUP_LOGS:-false}
 export DD_TRACE_AGENT_URL=${DD_TRACE_AGENT_URL:-http://127.0.0.1:18127}
 
 export UV_PYTHON=${UV_PYTHON:-3.14}
-# First sync builds ddtrace's native extensions in-tree (several minutes); later runs are no-ops.
-: > /tmp/empty-gitconfig  # ignore the global git config: an insteadOf rewrite of github.com to SSH breaks cargo's libdatadog fetch
-GIT_CONFIG_GLOBAL=/tmp/empty-gitconfig CARGO_NET_GIT_FETCH_WITH_CLI=true uv sync --quiet
+if [ -n "${DDTRACE_WHEEL:-}" ]; then
+  # Prebuilt wheel (CI): locked deps from uv.lock, then the wheel instead of the checkout.
+  uv sync --quiet --frozen --no-install-package ddtrace
+  uv pip install --quiet --no-deps --reinstall "$DDTRACE_WHEEL"
+else
+  # First sync builds ddtrace's native extensions in-tree (several minutes); later runs are no-ops.
+  : > /tmp/empty-gitconfig  # ignore the global git config: an insteadOf rewrite of github.com to SSH breaks cargo's libdatadog fetch
+  GIT_CONFIG_GLOBAL=/tmp/empty-gitconfig CARGO_NET_GIT_FETCH_WITH_CLI=true uv sync --quiet
+fi
 
 case $SCENARIO in
   baseline) unset DD_DATA_STREAMS_ENABLED; exec uv run --no-sync python bench.py ;;

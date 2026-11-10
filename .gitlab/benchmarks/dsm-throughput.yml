@@ -1,0 +1,69 @@
+# DSM overhead benchmark: runs benchmarks/kafka_dsm via the benchmarking-platform
+# branch python/data-streams-monitoring, against this pipeline's cp314 wheel.
+stages:
+  - build
+  - benchmarks
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
+variables:
+  DSM_THROUGHPUT_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-dsm
+  DSM_BENCHMARKING_BRANCH: python/data-streams-monitoring
+  PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
+
+candidate:
+  image: $PACKAGE_IMAGE
+  stage: build
+  tags: [ "arch:amd64" ]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      interruptible: false
+    - interruptible: true
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: "build linux: [amd64, cp314-cp314, v133965508-8f84bce-manylinux2014_x86_64]"
+      artifacts: true
+  script: |
+    cp pywheels/*-cp314-cp314-manylinux*_x86_64*.whl ./
+    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
+  artifacts:
+    reports:
+      dotenv: candidate.env
+    paths:
+      - "*.whl"
+
+dsm_throughput:
+  stage: benchmarks
+  needs: [ "candidate" ]
+  tags: [ "runner:apm-k8s-same-cpu" ]
+  image: $DSM_THROUGHPUT_CI_IMAGE
+  timeout: 1h
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      interruptible: false
+    - interruptible: true
+  retry:
+    max: 2
+    when:
+      - unknown_failure
+      - data_integrity_failure
+      - runner_system_failure
+      - scheduler_failure
+      - api_failure
+  script:
+    - git clone --branch "${DSM_BENCHMARKING_BRANCH}" https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    - bp-runner bp-runner.yml --debug
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - platform/artifacts/
+    expire_in: 3 months
+  variables:
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: benchmarking-platform
+    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
+    # Tracer and workload come from this pipeline: no clone, no source build.
+    DD_TRACE_PY_SRC_DIR: "${CI_PROJECT_DIR}"
+    DDTRACE_WHEEL: "${CI_PROJECT_DIR}/${CANDIDATE_WHL}"

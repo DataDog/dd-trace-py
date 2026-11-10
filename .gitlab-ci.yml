@@ -268,6 +268,27 @@ macrobenchmarks:
     - when: manual
       allow_failure: true
 
+# DSM overhead (baseline / apm-only / apm+dsm) on benchmarks/kafka_dsm. Not gating yet.
+dsm-throughput:
+  stage: benchmarks
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp314-cp314"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+  trigger:
+    include: .gitlab/benchmarks/dsm-throughput.yml
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    DD_DISABLE_VPA: true
+  allow_failure: true
+  rules:
+    - if: !reference [.is_main]
+      when: on_success
+    - when: manual
+
 apm-sdks-benchmarks:
   stage: benchmarks
   needs:

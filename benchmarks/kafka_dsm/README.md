@@ -43,6 +43,10 @@ port adds connection-error overhead to the tracer scenarios.
 | `PROFILE` | 0 | 1: cProfile only the timed produce+consume phases of the timed iterations |
 | `PROFILE_OUTPUT` | `$OUT_DIR/python-<slug>.<scenario-slug>` | writes `<PROFILE_OUTPUT>.prof` and `.top.txt` |
 | `PROFILE_TOP_N` | 40 | rows in the top lists |
+| `DDTRACE_WHEEL` | unset | path to a prebuilt ddtrace wheel to install instead of building the checkout (CI) |
+
+CI: `.gitlab/benchmarks/dsm-throughput.yml` runs this on benchmarking-platform branch
+`python/data-streams-monitoring` with the pipeline's cp314 wheel (automatic on `main`, manual elsewhere).
 
 Measure timings with `PROFILE=0`; profiling inflates them. cProfile sees only the main thread, so
 ddtrace background threads (DSM flush, trace writer) are not in the profile.
