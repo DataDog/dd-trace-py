@@ -223,14 +223,16 @@ benchmarks-pr-comment:
       post-pr-comment.sh || :
     fi
   variables:
-    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
-    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
-    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
     KUBERNETES_CPU_REQUEST: 4
     KUBERNETES_CPU_LIMIT: 4
     KUBERNETES_MEMORY_REQUEST: 8Gi
     KUBERNETES_MEMORY_LIMIT: 8Gi
+  artifacts:
+    name: "reports"
+    when: always
+    paths:
+      - reports/
+    expire_in: "7 days"
 
 # Unlike pre-release SLO checks that run unconditionally (which have
 # "when: always"), this PR-level check runs only if benchmarks succeed.
