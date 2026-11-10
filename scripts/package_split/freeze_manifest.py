@@ -72,6 +72,21 @@ def validate_freeze(data: Any) -> list[str]:
         if not isinstance(entry, dict):
             issues.append("%s: expected a table" % where)
             continue
+        # Unknown keys are rejected like at the top level: a typo in an
+        # optional field (build_inputs, approved_rewrites, ...) would
+        # otherwise validate cleanly and then be silently ignored by the
+        # gate, leaving the intended protection unset.
+        supported_keys = {
+            "destination_repository",
+            "extraction_revision",
+            "owner",
+            "source_paths",
+            "hashes",
+            "build_inputs",
+            "approved_rewrites",
+        }
+        for key in sorted(set(entry) - supported_keys):
+            issues.append("%s: unknown field %r" % (where, key))
         for field in ("destination_repository", "extraction_revision", "owner"):
             value = entry.get(field)
             if not isinstance(value, str) or not value.strip():
