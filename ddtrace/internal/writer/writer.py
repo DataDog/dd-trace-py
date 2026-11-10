@@ -1050,9 +1050,17 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._shutdown_exporter(old_exporter)
 
     def _begin_shutdown(self) -> None:
-        if self._writer_lock is not None:
+        if self._writer_lock is None:
+            self._exporter_stopping = True
+        else:
             with self._exporter_lifecycle_lock:
                 self._exporter_stopping = True
+
+    def _start_service(self, *args: Any, **kwargs: Any) -> None:
+        # Service.start holds the same lock as stop, so a late write cannot restart the worker.
+        if self._exporter_stopping:
+            raise ServiceStatusError(self.__class__, self.status)
+        super()._start_service(*args, **kwargs)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         # Close publication even when the periodic service never started, or its join times out.
@@ -1289,14 +1297,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.flush_queue()
 
     def _write_without_flush(self, spans: Optional[Sequence[SpanData]] = None) -> bool:
-        """Buffer spans; return False if an identity refresh already discarded this writer."""
+        """Buffer spans unless shutdown or an identity refresh has closed this writer."""
+        if self._exporter_stopping:
+            return False
         # Identity refresh can discard the buffer concurrently; only MicroVM writers need this lock.
         writer_lock = self._writer_lock
         if writer_lock is None:
             self._write_unlocked(spans)
             return True
         with writer_lock:
-            if not self._accepting_writes:
+            if self._exporter_stopping or not self._accepting_writes:
                 return False
             self._write_unlocked(spans)
             return True
@@ -1338,6 +1348,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     self.start()
 
             except service.ServiceStatusError:
+                if self._exporter_stopping:
+                    return
                 _safelog(log.warning, "failed to start writer service")
 
         self._metrics_dist("writer.accepted.traces")

@@ -1,4 +1,5 @@
 fixes:
   - |
-    tracing: Prevents repeated processor cleanup after successful tracer shutdown
-    and unfinished traces being retained when new spans begin during shutdown.
+    tracing: Fixes repeated cleanup and retained unfinished traces when requests
+    overlap tracer shutdown. Prevents tracing callbacks and background writer
+    threads from remaining active after concurrent shutdown.

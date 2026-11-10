@@ -68,3 +68,22 @@ experiments:
           - name: flasksqli-tracer-enabled
             thresholds:
               - execution_time < 2.31 ms
+
+          # TODO: Calibrate events_api thresholds from stable CI measurements.
+          # CI runs and reports these new workloads before their timing gates are calibrated.
+          - name: eventsapiscenario-core_api
+            thresholds: []
+          - name: eventsapiscenario-events_api
+            thresholds: []
+          - name: eventsapiscenario-dispatch
+            thresholds: []
+          - name: eventsapiscenario-dispatch_event
+            thresholds: []
+          - name: eventsapiscenario-trace_api
+            thresholds: []
+          - name: eventsapiscenario-subscriber_setup
+            thresholds: []
+          - name: eventsapiscenario-subscriber_registration
+            thresholds: []
+          - name: eventsapiscenario-subscriber_reset_recovery
+            thresholds: []

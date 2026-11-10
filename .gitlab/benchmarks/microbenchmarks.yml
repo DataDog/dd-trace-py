@@ -59,6 +59,14 @@ variables:
         run-benchmarks.sh
       fi
 
+      if [[ $SCENARIO == events_api ]]; then
+        # Calibration-only entries have no SLO missing-result check yet.
+        /app/benchmarks/.venv_candidate/bin/python .gitlab/benchmarks/steps/check-results.py \
+          "benchmarks/${SCENARIO}/config.yaml" \
+          "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/" \
+          "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
+      fi
+
       # Join all config results into a single results.json
       .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
       .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"

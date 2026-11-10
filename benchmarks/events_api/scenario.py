@@ -148,28 +148,44 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 span.finish()
 
         if self.api in ("subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"):
-            # Keep existing configurations usable with baselines predating bundles.
-            from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
-            from ddtrace.internal.core.subscriber import SubscriberBundle
+            from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
+            from ddtrace.internal.core import subscriber as subscriber_api
+
+            # Release baselines predate bundles; compare the same listener activation with their direct API.
+            bundle_type = getattr(subscriber_api, "SubscriberBundle", None)
+            register: Callable[[], None]
+            if bundle_type is not None:
+                subscribers = bundle_type(
+                    "ddtrace._trace.subscribers.web_framework", ("WebFrameworkRequestSubscriber",)
+                )
+                register = subscribers.register
+
+                def benchmark_subscriber_registration(loops: int) -> None:
+                    # Modules are already loaded. Use startup's fresh-process scenarios for cold imports.
+                    for _ in range(loops):
+                        core.reset_listeners("context.started.web.request")
+                        core.reset_listeners("context.ended.web.request")
+                        bundle_type(subscribers.module, subscribers.subscribers).register()
+            else:
+                register = WebFrameworkRequestSubscriber.register
+
+                def benchmark_subscriber_registration(loops: int) -> None:
+                    for _ in range(loops):
+                        core.reset_listeners("context.started.web.request")
+                        core.reset_listeners("context.ended.web.request")
+                        register()
 
             def benchmark_subscriber_setup(loops: int) -> None:
                 # Product startup may already have activated the shared bundle.
-                WEB_FRAMEWORK_SUBSCRIBERS.register()
+                register()
                 for _ in range(loops):
-                    WEB_FRAMEWORK_SUBSCRIBERS.register()
-
-            def benchmark_subscriber_registration(loops: int) -> None:
-                # Modules are already loaded. Use startup's fresh-process scenarios for cold imports.
-                for _ in range(loops):
-                    core.reset_listeners("context.started.web.request")
-                    core.reset_listeners("context.ended.web.request")
-                    SubscriberBundle(WEB_FRAMEWORK_SUBSCRIBERS.module, WEB_FRAMEWORK_SUBSCRIBERS.subscribers).register()
+                    register()
 
             def benchmark_subscriber_reset_recovery(loops: int) -> None:
-                WEB_FRAMEWORK_SUBSCRIBERS.register()
+                register()
                 for _ in range(loops):
                     core.reset_listeners("context.started.web.request")
-                    WEB_FRAMEWORK_SUBSCRIBERS.register()
+                    register()
 
             if self.api == "subscriber_setup":
                 yield benchmark_subscriber_setup
