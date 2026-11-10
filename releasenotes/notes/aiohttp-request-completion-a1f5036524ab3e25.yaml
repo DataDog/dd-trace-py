@@ -1,0 +1,4 @@
+fixes:
+  - |
+    aiohttp: Fixes unfinished request spans when a streaming response fails or a
+    request is cancelled, including when no response is prepared.
