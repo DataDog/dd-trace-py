@@ -101,6 +101,16 @@ def validate_freeze(data: Any) -> list[str]:
                 value = rewrite.get(field)
                 if not isinstance(value, str) or not value.strip():
                     issues.append("%s.approved_rewrites[%d]: missing or empty %r" % (where, j, field))
+            # An approved rewrite pins the exact content it authorizes: a
+            # path-scoped approval alone would pre-authorize every future
+            # edit to the rewritten path, giving the freeze gate no ongoing
+            # protection (trial finding F19).
+            post_hash = rewrite.get("post_hash")
+            if not isinstance(post_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", post_hash):
+                issues.append(
+                    "%s.approved_rewrites[%d]: must pin the approved post-rewrite content "
+                    "as post_hash (SHA-256 of the file content the rewrite authorizes)" % (where, j)
+                )
 
     exceptions = data.get("freeze_exceptions", [])
     if not isinstance(exceptions, list):

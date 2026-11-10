@@ -49,7 +49,17 @@ build_inputs = ["pyproject.toml"]
 {rewrites}{exceptions}
 """
 
-REWRITE = """
+REWRITE_TEMPLATE = """
+[[frozen.approved_rewrites]]
+path = "sample/mod.py"
+reason = "compatibility shim"
+approver = "test-owner"
+sync_record = "recorded"
+post_hash = "{post_hash}"
+"""
+
+# Legacy-style rewrite (path-scoped, no pinned content) -- rejected since F19.
+REWRITE_WITHOUT_HASH = """
 [[frozen.approved_rewrites]]
 path = "sample/mod.py"
 reason = "compatibility shim"
@@ -174,12 +184,58 @@ def test_head_option_measures_pr_drift_not_base(tmp_path):
 
 
 def test_approved_rewrite_tolerated(tmp_path):
-    repo = FreezeRepo(tmp_path, rewrites=REWRITE)
+    # The approved rewrite pins the exact post-rewrite content; the head
+    # matches it.
+    rewrites = REWRITE_TEMPLATE.format(post_hash=hashlib.sha256(b"value = 2\n").hexdigest())
+    repo = FreezeRepo(tmp_path, rewrites=rewrites)
     (repo.root / "sample" / "mod.py").write_text("value = 2\n", encoding="utf-8")
     repo.commit_change("approved rewrite")
     report = repo.run()
     assert report.status == PASS, report.summary()
     assert any(c.name == "approved-rewrites" for c in report.checks)
+
+
+def test_second_edit_after_approved_rewrite_fails(tmp_path):
+    # F19: an approved rewrite authorizes exactly its pinned content, not
+    # the path -- a second, different edit to the rewritten path is
+    # unauthorized drift.
+    rewrites = REWRITE_TEMPLATE.format(post_hash=hashlib.sha256(b"value = 2\n").hexdigest())
+    repo = FreezeRepo(tmp_path, rewrites=rewrites)
+    (repo.root / "sample" / "mod.py").write_text("value = 3\n", encoding="utf-8")
+    repo.commit_change("second, unapproved edit")
+    report = repo.run()
+    assert report.status == FAIL
+    source_freeze = [c for c in report.checks if c.name == "source-freeze"]
+    assert source_freeze and source_freeze[0].status == FAIL
+    assert any("post_hash" in p for p in source_freeze[0].data["problems"])
+
+
+def test_rewrite_without_post_hash_is_rejected(tmp_path):
+    # Path-scoped rewrites pre-authorize every future edit to the path
+    # (F19); manifests without pinned post-rewrite content are invalid.
+    repo = FreezeRepo(tmp_path, rewrites=REWRITE_WITHOUT_HASH)
+    (repo.root / "sample" / "mod.py").write_text("value = 2\n", encoding="utf-8")
+    repo.commit_change("rewrite with a legacy path-scoped approval")
+    report = repo.run()
+    assert report.status == FAIL
+    freeze_manifest = [c for c in report.checks if c.name == "freeze-manifest"]
+    assert freeze_manifest and freeze_manifest[0].status == FAIL
+    assert "post_hash" in str(freeze_manifest[0].detail)
+
+
+def test_multiple_approved_rewrites_for_a_path(tmp_path):
+    # Sequential rewrites of the same path (an upstream fix, then the
+    # extraction bridge): the head must match one of the pinned contents.
+    approved_content = "value = 2\n"
+    bridged_content = "value = 2  # bridged\n"
+    rewrites = REWRITE_TEMPLATE.format(
+        post_hash=hashlib.sha256(approved_content.encode()).hexdigest()
+    ) + REWRITE_TEMPLATE.format(post_hash=hashlib.sha256(bridged_content.encode()).hexdigest())
+    repo = FreezeRepo(tmp_path, rewrites=rewrites)
+    (repo.root / "sample" / "mod.py").write_text(bridged_content, encoding="utf-8")
+    repo.commit_change("extraction bridge")
+    report = repo.run()
+    assert report.status == PASS, report.summary()
 
 
 def test_expired_exception_fails(tmp_path):

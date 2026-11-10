@@ -116,7 +116,14 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
         extraction_revision = entry["extraction_revision"]
         source_paths = entry["source_paths"]
         hashes = entry.get("hashes", {})
-        approved = {rewrite["path"] for rewrite in entry.get("approved_rewrites", [])}
+        rewrites = entry.get("approved_rewrites", [])
+        approved = {rewrite["path"] for rewrite in rewrites}
+        # A path may accumulate approved rewrites over time (e.g. an
+        # upstream typing fix, then the extraction bridge); the head
+        # content must match one of the pinned post-rewrite hashes.
+        approved_hashes: dict[str, set[str]] = {}
+        for rewrite in rewrites:
+            approved_hashes.setdefault(rewrite["path"], set()).add(rewrite["post_hash"])
 
         # 1. Recorded hashes must match the content at the extraction
         # revision (freeze manifest integrity).
@@ -147,17 +154,26 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
             + entry.get("build_inputs", []),
         )
         for status, path in zip(name_status[::2], name_status[1::2]):
-            if path not in approved:
-                change = {"M": "edit", "A": "addition", "D": "deletion"}.get(status, "change")
-                problems.append("unauthorized %s to frozen path %r" % (change, path))
+            if path in approved:
+                # A rewritten path stays protected (F19): the drift is
+                # tolerated only when the head content is exactly one of
+                # the approved post-rewrite contents; any further edit
+                # needs a new approved rewrite with its own post_hash.
+                head_content = _path_content(root, path, head)
+                head_hash = hashlib.sha256(head_content).hexdigest() if head_content is not None else None
+                if head_hash is None or head_hash not in approved_hashes[path]:
+                    problems.append(
+                        "frozen path %r has approved rewrites, but the head content matches none "
+                        "of their post_hash values: further changes need a new approved rewrite" % path
+                    )
+                continue
+            change = {"M": "edit", "A": "addition", "D": "deletion"}.get(status, "change")
+            problems.append("unauthorized %s to frozen path %r" % (change, path))
 
-        # 3. Approved rewrites must still differ from the frozen baseline only
-        # in the ways their owners approved; record them as evidence.
-        rewrites = [
-            {"path": r["path"], "reason": r["reason"], "approver": r["approver"]}
-            for r in entry.get("approved_rewrites", [])
-        ]
-        if rewrites:
+        # 3. Approved rewrites are recorded as evidence; the drift check
+        # above pins each one to its exact approved content.
+        rewrite_evidence = [{"path": r["path"], "reason": r["reason"], "approver": r["approver"]} for r in rewrites]
+        if rewrite_evidence:
             report.record(
                 "approved-rewrites",
                 PASS,
