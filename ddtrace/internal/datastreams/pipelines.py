@@ -402,7 +402,7 @@ class _StandaloneFlusher:
         With force=True the window is flushed even if it has not fully elapsed
         (used by the atexit hook, mirroring the DSM shutdown flush).
         """
-        service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
+        service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))  # type: ignore[no-untyped-call]
         env = compat.ensure_text(config.env or "")
         report = self._reporter.take_report(service, env, due=not force)
         if report is None:

@@ -49,11 +49,11 @@ _local = threading.local()
 
 def get_current_message() -> Optional[CurrentMessageContext]:
     """The thread's current consumed-message context, or ``None``."""
-    return getattr(_local, "value", None)  # type: ignore[attr-defined]
+    return getattr(_local, "value", None)
 
 
 def _ensure_current_message() -> CurrentMessageContext:
-    message = getattr(_local, "value", None)  # type: ignore[attr-defined]
+    message = getattr(_local, "value", None)
     if message is None:
         message = CurrentMessageContext()
         _local.value = message
