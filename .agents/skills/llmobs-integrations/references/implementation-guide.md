@@ -56,7 +56,32 @@ Key points:
 - LLMObs tag setting is handled by product subscribers, not directly in the patch wrapper
 - The async variant is identical but uses `async def` / `await`
 
-Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans or agent/tool child spans; keep their creation, extraction, and finishing under one owner.
+Agent and tool spans can use the same event. Pass `operation="agent"` or `"tool"` and set
+`event.operation_name` after construction when the span name is not `<component>.request`
+(`ddtrace/contrib/internal/crewai/patch.py`). When the span outlives the wrapper, the object
+that finishes it must dispatch the ended event only once, since the context drops its event afterwards
+(`ddtrace/contrib/internal/mcp/patch.py`). The LLMObs subscriber stamps the span kind at start from
+`operation`, so override `_llmobs_span_kind()` to read `kwargs["operation"]`.
+
+State that LLMObs tracks per span from creation, such as span-link bookkeeping or an ADK session
+id that children inherit, belongs in an `_on_request_started()` override. The subscriber calls it
+with the event's `instance`, `operation` and `request_kwargs` whether or not LLMObs is enabled
+(`ddtrace/llmobs/_integrations/crewai.py`). Pass the object it reads as the event's `instance`,
+since the request kwargs are still the wrapped call's own at start.
+`_llmobs_agent_name_at_start()` also receives `instance`.
+
+For LLMObs work outside a traced span, such as CrewAI's task links or MCP's intent-argument
+handling, the patch dispatches a `core` event. Define the event names in the contrib's
+`_constants.py`; the hook module subscribes in `listen()` and looks the integration up with
+`get_integration()` (`ddtrace/llmobs/_contrib/crewai/`, `ddtrace/llmobs/_contrib/mcp/`).
+
+LLMObs tagging runs in the finishing phase, before the span records an exception passed to
+`dispatch_ended_event()`. When extraction reads `span.error`, record it first with
+`span_from_context(ctx).set_exc_info(...)` (`ddtrace/contrib/internal/mcp/utils.py`). To finish a
+span at an earlier time, set `ctx.event._end_span = False`, dispatch the ended event, then call
+`span.finish(finish_time=...)` (Google ADK's abandoned tool streams).
+
+Preserve direct calls to `integration.trace()` and `integration.llmobs_set_tags()` where the integration owns that lifecycle (for example Vertex AI). Use direct spans when the behavior requires them, such as OpenAI MCP tool spans; keep their creation, extraction, and finishing under one owner.
 
 Existing events carrying `llmobs_integration` are handled directly by `LlmTracingSubscriber`.
 Preserve that contract when extending those integrations; use product subscribers for new

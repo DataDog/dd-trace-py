@@ -6,6 +6,7 @@ from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
 from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.internal.logger import get_logger
@@ -82,14 +83,18 @@ def get_client_info_tags(client_info: Any) -> dict[str, str]:
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
-        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """Nothing to do: MCP spans carry no provider or model tags."""
 
-        mcp_span_type = kwargs.get("type", None)
-        if mcp_span_type:
-            span._set_ctx_item(MCP_SPAN_TYPE, mcp_span_type)
-
-        return span
+    def _on_request_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        if operation == SESSION_OPERATION_NAME:
+            span._set_ctx_item(MCP_SPAN_TYPE, "client_session")
 
     # Inject intent capture properties into inputSchemas on the response
     def inject_tools_list_response(self, response: Any) -> None:
@@ -144,7 +149,7 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_server_middleware(span, args, kwargs, response)
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)
-        elif operation == "session":
+        elif operation == SESSION_OPERATION_NAME:
             self._llmobs_set_tags_session(span, args, kwargs, response)
 
     def _llmobs_set_tags_client(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
@@ -264,6 +269,9 @@ class MCPIntegration(BaseLLMIntegration):
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
     ) -> None:
         responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
+        if responder is None:
+            # The request finished without a response being sent.
+            return
         response_value = get_argument_value(args, kwargs, 0, "response", optional=True)
 
         request = getattr(responder, "request", None)

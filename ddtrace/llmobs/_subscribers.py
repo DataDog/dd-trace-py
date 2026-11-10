@@ -95,7 +95,12 @@ class LLMObsLlmSubscriber(SpanLifecycleListener):
         if integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         integration._annotate_integration_tag(span)
-        integration._stamp_llmobs_span_kind_at_start(span, event.operation, operation=event.operation)
+        integration._stamp_llmobs_span_kind_at_start(
+            span, event.operation, operation=event.operation, instance=event.instance
+        )
+        integration._on_request_started(
+            span, instance=event.instance, operation=event.operation, request_kwargs=event.request_kwargs
+        )
 
     @classmethod
     def on_finishing(cls, ctx: core.ExecutionContext[LlmRequestEvent]) -> None:

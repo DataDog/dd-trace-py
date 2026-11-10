@@ -9,15 +9,20 @@ from _ddtrace_internal.modules import check_module_path
 import google.adk as adk
 
 from ddtrace import config
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.google_adk._constants import COMPONENT
+from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.time import Time
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import iswrapped
-from ddtrace.llmobs._integrations import GoogleAdkIntegration
-from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
 
 logger = get_logger(__name__)
@@ -102,9 +107,43 @@ def _is_wrapped_by(obj, traced_fn):
     return iswrapped(obj) and getattr(obj, "_self_wrapper", None) is traced_fn
 
 
+def _request_event(resource, operation, provider_name, model_name, args, kwargs, instance=None) -> LlmRequestEvent:
+    return LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.google_adk,
+        service=int_service(None, config.google_adk),
+        resource=resource,
+        provider=provider_name,
+        model=model_name,
+        submit_to_llmobs=True,
+        request_args=args,
+        request_kwargs=kwargs,
+        # LLMObs names the agent span after the agent when the span starts.
+        instance=instance,
+        operation=operation,
+    )
+
+
+def _start_request(event: LlmRequestEvent) -> core.ExecutionContext[LlmRequestEvent]:
+    """Start the request's span, which stays active until _finish_request is called."""
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        pass
+    return ctx
+
+
+def _finish_request(ctx, response=None, exc_info=None):
+    """Dispatch the request's deferred ended event, which tags and finishes the span.
+
+    LLMObs tagging runs before the span records an error passed to the ended event, so errors are recorded first.
+    """
+    if exc_info is not None:
+        span_from_context(ctx).set_exc_info(*exc_info)
+    ctx.event.response = response
+    ctx.dispatch_ended_event()
+
+
 def _traced_agent_run_async(wrapped, instance, args, kwargs):
     """Trace the main execution of an agent (async generator)."""
-    integration: GoogleAdkIntegration = adk._datadog_integration
     agent = getattr(instance, "agent", None)
     model = getattr(agent, "model", None)
     provider_name, model_name = extract_provider_and_model_name(instance=model, model_name_attr="model")
@@ -112,75 +151,69 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
     # run_live accepts a deprecated `session` object as an alternative to explicit user_id/session_id
     # keyword arguments. Fall back to the session's fields so its metadata is captured for that path.
     session = kwargs.get("session")
-    session_id = kwargs.get("session_id") or getattr(session, "id", None)
-    user_id = kwargs.get("user_id") or getattr(session, "user_id", None)
-    app_name = getattr(instance, "app_name", None) or getattr(session, "app_name", None)
+    # Pass a copy with the resolved agent/session metadata so the original call kwargs are left untouched.
+    # LLMObs reads the session id when the span starts, so it propagates to the child tool and
+    # code-execute spans the wrapped coroutine produces.
+    tag_kwargs = dict(kwargs)
+    tag_kwargs["instance"] = agent
+    tag_kwargs["session_id"] = kwargs.get("session_id") or getattr(session, "id", None)
+    tag_kwargs["user_id"] = kwargs.get("user_id") or getattr(session, "user_id", None)
+    tag_kwargs["app_name"] = getattr(instance, "app_name", None) or getattr(session, "app_name", None)
 
-    span = integration.trace(
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="agent",
-        submit_to_llmobs=True,
-        _dd_agent=agent,
-        **kwargs,
+    ctx = _start_request(
+        _request_event(
+            "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+            "agent",
+            provider_name,
+            model_name,
+            args,
+            tag_kwargs,
+            instance=agent,
+        )
     )
-
-    # Propagate the ADK session id to this span (and its child tool/code-execute spans) at creation
-    # time, before the wrapped coroutine produces those children.
-    integration.set_session_id(span, session_id)
 
     try:
         agen = wrapped(*args, **kwargs)
     except Exception:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
+        _finish_request(ctx, [], sys.exc_info())
         raise
 
     async def _generator():
         response_events = []
+        exc_info = None
         try:
             async for event in agen:
                 response_events.append(event)
                 yield event
         except Exception:
-            span.set_exc_info(*sys.exc_info())
+            exc_info = sys.exc_info()
             raise
         finally:
-            # Pass a copy with the resolved agent/session metadata so the original call kwargs are
-            # left untouched.
-            tag_kwargs = dict(kwargs)
-            tag_kwargs["instance"] = instance.agent
-            tag_kwargs["session_id"] = session_id
-            tag_kwargs["user_id"] = user_id
-            tag_kwargs["app_name"] = app_name
-            integration.llmobs_set_tags(span, args=args, kwargs=tag_kwargs, response=response_events, operation="agent")
-            span.finish()
+            _finish_request(ctx, response_events, exc_info)
 
     return _generator()
 
 
+def _tool_request_event(wrapped, instance, agent, args, kwargs) -> LlmRequestEvent:
+    provider_name, model_name = extract_provider_and_model_name(
+        instance=getattr(agent, "model", {}), model_name_attr="model"
+    )
+    return _request_event(
+        "%s.%s" % (instance.__class__.__name__, wrapped.__name__), "tool", provider_name, model_name, args, kwargs
+    )
+
+
 async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
-    integration: GoogleAdkIntegration = adk._datadog_integration
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
         logger.warning("Unable to trace google adk tool call, could not extract agent from tool context.")
         return await wrapped(*args, **kwargs)
 
-    provider_name, model_name = extract_provider_and_model_name(
-        instance=getattr(agent, "model", {}), model_name_attr="model"
-    )
     # The streaming call path invokes this function with keyword arguments only, so the tool cannot
     # be read from a fixed positional index.
     instance = instance or get_argument_value(args, kwargs, 0, "tool")
 
-    span = integration.trace(
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="tool",
-        submit_to_llmobs=True,
-    )
+    ctx = _start_request(_tool_request_event(wrapped, instance, agent, args, kwargs))
 
     result = None
     stream_handed_off = False
@@ -192,10 +225,8 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
             # google-adk >= 2.7.0 returns an async generator for streaming tools. Keep the span
             # open so the streamed items are tagged instead of the generator object.
             state = {"started": False, "handoff": Time.time_ns() / 1e9}
-            stream = _traced_tool_stream(result, span, integration, args, kwargs, state)
-            weakref.finalize(
-                stream, _finish_unstarted_stream_span, span, integration, args, kwargs, state
-            ).atexit = False
+            stream = _traced_tool_stream(result, ctx, state)
+            weakref.finalize(stream, _finish_unstarted_stream_span, ctx, span_from_context(ctx), state).atexit = False
             stream_handed_off = True
             return stream
         return result
@@ -205,13 +236,10 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
     finally:
         # streamed spans are finished separately by _traced_tool_stream; cancellation finishes here
         if not stream_handed_off:
-            if exc_info is not None:
-                span.set_exc_info(*exc_info)
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
-            span.finish()
+            _finish_request(ctx, result, exc_info)
 
 
-def _finish_unstarted_stream_span(span, integration, args, kwargs, state):
+def _finish_unstarted_stream_span(ctx, span, state):
     """Finish a tool span whose stream was handed off but never iterated.
 
     A generator that never starts never runs its finally, and the non-live dispatch does not
@@ -221,22 +249,25 @@ def _finish_unstarted_stream_span(span, integration, args, kwargs, state):
     if state["started"] or span.duration_ns is not None:
         return
     try:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="tool")
+        # Tag the span through the ended event, then finish it at the handoff time.
+        ctx.event._end_span = False
+        _finish_request(ctx)
         span.finish(finish_time=state["handoff"])
     except Exception:
         logger.debug("Error finishing abandoned google adk tool stream span.", exc_info=True)
 
 
-async def _traced_tool_stream(agen, span, integration, args, kwargs, state=None):
+async def _traced_tool_stream(agen, ctx, state=None):
     if state is not None:
         state["started"] = True
     chunks = []
+    exc_info = None
     try:
         async for item in agen:
             chunks.append(item)
             yield item
     except Exception:
-        span.set_exc_info(*sys.exc_info())
+        exc_info = sys.exc_info()
         raise
     finally:
         # A consumer that stops early closes this generator, but the one it wraps would otherwise
@@ -248,8 +279,7 @@ async def _traced_tool_stream(agen, span, integration, args, kwargs, state=None)
             except Exception:
                 logger.debug("Error closing google adk tool stream.", exc_info=True)
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
-            span.finish()
+            _finish_request(ctx, chunks, exc_info)
 
 
 async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
@@ -262,26 +292,14 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
 
         return
 
-    integration: GoogleAdkIntegration = adk._datadog_integration
-
-    provider_name, model_name = extract_provider_and_model_name(
-        instance=getattr(agent, "model", {}), model_name_attr="model"
-    )
-
     # Build the stream before starting the span: an activated span that never finishes would
     # reparent everything after it.
     agen = wrapped(*args, **kwargs)
 
     # _traced_tool_stream owns the span from here: it tags the streamed items and finishes.
-    span = integration.trace(
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="tool",
-        submit_to_llmobs=True,
-    )
+    ctx = _start_request(_tool_request_event(wrapped, instance, agent, args, kwargs))
 
-    stream = _traced_tool_stream(agen, span, integration, args, kwargs)
+    stream = _traced_tool_stream(agen, ctx)
     try:
         async for item in stream:
             yield item
@@ -292,34 +310,31 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
 
 def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
     """Trace the execution of code by the agent (sync)."""
-    integration: GoogleAdkIntegration = adk._datadog_integration
     invocation_context = get_argument_value(args, kwargs, 0, "invocation_context")
     agent = getattr(getattr(invocation_context, "agent", None), "model", {})
     provider_name, model_name = extract_provider_and_model_name(instance=agent, model_name_attr="model")
 
     # Signature: execute_code(self, invocation_context, code_execution_input)
-    with integration.trace(
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="tool",
-        submit_to_llmobs=True,
-    ) as span:
-        result = None
-        try:
-            result = wrapped(*args, **kwargs)
-            return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="code_execute",
-            )
+    ctx = _start_request(
+        _request_event(
+            "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+            "code_execute",
+            provider_name,
+            model_name,
+            args,
+            kwargs,
+        )
+    )
+    result = None
+    exc_info = None
+    try:
+        result = wrapped(*args, **kwargs)
+        return result
+    except Exception:
+        exc_info = sys.exc_info()
+        raise
+    finally:
+        _finish_request(ctx, result, exc_info)
 
 
 def extract_agent_from_tool_context(args: Any, kwargs: Any) -> Union[str, None]:
@@ -345,8 +360,6 @@ def patch():
         return
 
     setattr(adk, "_datadog_patch", True)
-    integration: GoogleAdkIntegration = GoogleAdkIntegration(integration_config=config.google_adk)
-    setattr(adk, "_datadog_integration", integration)
 
     # Agent entrypoints (async generators)
     wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async)
@@ -369,12 +382,18 @@ def patch():
                 _traced_code_executor_execute_code,
             )
 
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
+
 
 def unpatch():
     """Unpatch the `google.adk` library."""
     if not hasattr(adk, "_datadog_patch") or not getattr(adk, "_datadog_patch"):
         return
     setattr(adk, "_datadog_patch", False)
+
+    integration_hooks.on_unpatch(COMPONENT)
 
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
@@ -390,5 +409,3 @@ def unpatch():
     for code_executor in CODE_EXECUTOR_CLASSES:
         if check_module_path(adk, f"code_executors.{code_executor}.execute_code"):
             unwrap(getattr(adk.code_executors, code_executor), "execute_code")
-
-    delattr(adk, "_datadog_integration")

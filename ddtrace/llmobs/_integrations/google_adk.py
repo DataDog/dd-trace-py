@@ -31,18 +31,29 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         if provider:
             span.set_tag("google_adk.request.provider", provider)
 
-    def set_session_id(self, span: Span, session_id: Optional[str]) -> None:
-        """Set the ADK session id as the LLMObs session for this span.
+    def _on_request_started(
+        self,
+        span: Span,
+        instance: Any = None,
+        operation: str = "",
+        request_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Set the ADK session id as the LLMObs session of an agent span.
 
-        Called at agent-span creation so the session id propagates to child tool and
-        code-execute spans, which are created before the agent span finishes.
+        Set at creation so the session id propagates to child tool and code-execute spans,
+        which are created before the agent span finishes.
         """
-        if not self.llmobs_enabled or not session_id:
+        if operation != "agent" or not self.llmobs_enabled:
             return
-        _annotate_llmobs_span_data(span, session_id=session_id)
+        session_id = (request_kwargs or {}).get("session_id")
+        if session_id:
+            _annotate_llmobs_span_data(span, session_id=session_id)
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        return "agent" if kwargs.get("operation") == "agent" else None
 
     def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
-        agent = kwargs.get("_dd_agent")
+        agent = kwargs.get("instance")
         return getattr(agent, "name", None) if agent else None
 
     def _llmobs_set_tags(

@@ -519,38 +519,25 @@ def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, m
     assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
 
 
-def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
-    """Regression: llmobs_set_tags must run AFTER await func(), not before.
+def test_respond_records_request_after_respond(mcp_setup):
+    """Regression: LLMObs tagging must not run before await func().
 
-    Before the fix, llmobs_set_tags ran synchronously before ``await func(*args, **kwargs)``.
-    This widened the race window in which the MCP session's ``_receive_loop`` could exit and
-    close ``_write_stream``, causing ``anyio.ClosedResourceError`` instead of a clean
-    cancellation (see TASK_MCP_CLOSED_RESOURCE_ERROR.md).
-
-    The fix wraps ``await func(...)`` in a try/finally so that llmobs_set_tags is called
-    AFTER the response is sent.  This test verifies:
-    1. ``func`` (i.e. ``respond``) is called before ``llmobs_set_tags``.
-    2. ``llmobs_set_tags`` still runs even when ``func`` raises ``ClosedResourceError``.
+    Tagging before ``await func(*args, **kwargs)`` widened the race window in which the MCP session's
+    ``_receive_loop`` could exit and close ``_write_stream``, causing ``anyio.ClosedResourceError``
+    instead of a clean cancellation. respond() only records the request on the event once func has
+    returned or raised, and the request is tagged when the responder's __exit__ finishes it.
     """
     import anyio
 
     from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
 
-    call_order = []
+    mock_instance = mock.MagicMock()
+    mock_instance._dd_ctx.event.request_kwargs = {}
+    recorded_before_func = []
 
     async def mock_func_raises_closed_resource(*args, **kwargs):
-        call_order.append("func")
+        recorded_before_func.append(dict(mock_instance._dd_ctx.event.request_kwargs))
         raise anyio.ClosedResourceError()
-
-    mock_instance = mock.MagicMock()
-    mock_instance._dd_span = mock.MagicMock()
-
-    original_llmobs_set_tags = mcp_setup._datadog_integration.llmobs_set_tags
-
-    def tracking_llmobs_set_tags(*args, **kwargs):
-        call_order.append("llmobs_set_tags")
-
-    mcp_setup._datadog_integration.llmobs_set_tags = tracking_llmobs_set_tags
 
     async def run():
         try:
@@ -561,8 +548,6 @@ def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
             pass
 
     asyncio.run(run())
-    mcp_setup._datadog_integration.llmobs_set_tags = original_llmobs_set_tags
 
-    assert call_order == ["func", "llmobs_set_tags"], (
-        f"llmobs_set_tags must run after func (in finally block), not before it. Actual call order: {call_order}"
-    )
+    assert recorded_before_func == [{}]
+    assert mock_instance._dd_ctx.event.request_kwargs == {"request_responder": mock_instance}

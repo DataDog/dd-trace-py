@@ -20,16 +20,23 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib._events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.mcp._constants import COMPONENT
 from ddtrace.contrib.internal.mcp._constants import DD_TRACE_CONTEXT_META_KEY
 from ddtrace.contrib.internal.mcp._constants import SERVER_MIDDLEWARE_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.contrib.internal.mcp._constants import SERVER_TOOL_CALL_OPERATION_NAME
+from ddtrace.contrib.internal.mcp._constants import TELEMETRY_ARGUMENT_EVENT
 from ddtrace.contrib.internal.mcp._constants import TELEMETRY_KEY
+from ddtrace.contrib.internal.mcp._constants import TOOLS_LIST_RESPONSE_EVENT
 from ddtrace.contrib.internal.mcp._tool_result import DEFAULT_TOOL_ERROR_MESSAGE
 from ddtrace.contrib.internal.mcp._tool_result import get_tool_error_message
 from ddtrace.contrib.internal.mcp._tool_result import is_tool_error
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
+from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
@@ -101,23 +108,62 @@ def extract_distributed_headers_from_mcp_request(request_root: Request) -> Optio
     return headers if headers else None
 
 
+def request_event(
+    resource: str,
+    operation: str,
+    span_name: Optional[str] = None,
+    args: tuple[Any, ...] = (),
+    kwargs: Optional[dict[str, Any]] = None,
+) -> LlmRequestEvent:
+    event = LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.mcp,
+        service=int_service(None, config.mcp),
+        resource=resource,
+        provider="",
+        submit_to_llmobs=True,
+        request_args=args,
+        request_kwargs=kwargs if kwargs is not None else {},
+        operation=operation,
+    )
+    if span_name:
+        event.operation_name = span_name
+    return event
+
+
+def start_request(event: LlmRequestEvent) -> core.ExecutionContext[LlmRequestEvent]:
+    """Start the request's span, which stays active until finish_request is called."""
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        pass
+    return ctx
+
+
+def finish_request(ctx: core.ExecutionContext[LlmRequestEvent], response: Any = None, error: bool = False) -> None:
+    """Dispatch the request's deferred ended event, which tags and finishes the span.
+
+    LLMObs tagging runs before the span records an error passed to the ended event, so errors are recorded first.
+    """
+    if error:
+        span_from_context(ctx).set_exc_info(*sys.exc_info())
+    ctx.event.response = response
+    ctx.dispatch_ended_event()
+
+
 class DatadogServerMiddleware:
     """mcp>=2 server middleware. Every transport and protocol version runs each inbound
     message through Server.middleware, so this replaces the RequestResponder patches used for mcp<2.
     """
 
     async def __call__(self, ctx: Any, call_next: Callable[[Any], Awaitable[Any]]) -> Any:
-        # Typed loosely: contrib must not import the LLM Observability integration class
-        integration: Any = getattr(mcp, "_datadog_integration", None)
         # Server.middleware is provisional upstream, so ctx fields are read defensively
         method = getattr(ctx, "method", None)
-        if integration is None or getattr(ctx, "request_id", None) is None:
+        if not getattr(mcp, "__datadog_patch", False) or getattr(ctx, "request_id", None) is None:
             return await call_next(ctx)
 
         if method == "tools/list":
             result = await call_next(ctx)
             if config.mcp.capture_intent:
-                integration.inject_tools_list_response(result)
+                core.dispatch(TOOLS_LIST_RESPONSE_EVENT, (result,))
             return result
 
         # While this middleware sees all requests, we only trace these types right now
@@ -125,30 +171,30 @@ class DatadogServerMiddleware:
             return await call_next(ctx)
 
         try:
-            span, ctx = start_server_span(integration, method, ctx)
+            request_ctx, ctx = start_server_request(method, ctx)
         except Exception:
             log.debug("Error starting MCP server span", exc_info=True)
             return await call_next(ctx)
 
         result = None
+        error = False
         try:
             result = await call_next(ctx)
             if method == "tools/call" and is_tool_error(result):
+                span = span_from_context(request_ctx)
                 span.error = 1
                 span.set_tag(ERROR_TYPE, "ToolError")
                 span.set_tag(ERROR_MSG, get_tool_error_message(result) or DEFAULT_TOOL_ERROR_MESSAGE)
             return result
         except Exception:
-            span.set_exc_info(*sys.exc_info())
+            error = True
             raise
         finally:
-            integration.llmobs_set_tags(
-                span, args=[], kwargs={"ctx": ctx}, response=result, operation=SERVER_MIDDLEWARE_OPERATION_NAME
-            )
-            span.finish()
+            request_ctx.event.request_kwargs["ctx"] = ctx
+            finish_request(request_ctx, result, error)
 
 
-def start_server_span(integration: Any, method: str, ctx: Any) -> tuple[Span, Any]:
+def start_server_request(method: str, ctx: Any) -> tuple[core.ExecutionContext[LlmRequestEvent], Any]:
     if (
         method == "tools/call"
         and config.mcp.distributed_tracing
@@ -157,18 +203,20 @@ def start_server_span(integration: Any, method: str, ctx: Any) -> tuple[Span, An
         activate_distributed_headers(tracer, config.mcp, headers)
 
     operation_name = SERVER_TOOL_CALL_OPERATION_NAME if method == "tools/call" else SERVER_REQUEST_OPERATION_NAME
-    span = integration.trace(operation_name, submit_to_llmobs=True, span_name=f"mcp.{method}")
+    request_ctx = start_request(
+        request_event(operation_name, SERVER_MIDDLEWARE_OPERATION_NAME, span_name=f"mcp.{method}")
+    )
 
     if method == "tools/call":
         try:
-            ctx = strip_telemetry_argument(integration, span, ctx)
+            ctx = strip_telemetry_argument(span_from_context(request_ctx), ctx)
         except Exception:
-            span.finish()
+            finish_request(request_ctx)
             raise
-    return span, ctx
+    return request_ctx, ctx
 
 
-def strip_telemetry_argument(integration: Any, span: Span, ctx: Any) -> Any:
+def strip_telemetry_argument(span: Span, ctx: Any) -> Any:
     """Records and removes the intent argument. Middleware must not mutate the wire params, so
     the stripped copy is passed down the chain through a replaced context.
     """
@@ -177,5 +225,5 @@ def strip_telemetry_argument(integration: Any, span: Span, ctx: Any) -> Any:
     if not isinstance(arguments, dict) or TELEMETRY_KEY not in arguments:
         return ctx
     params = {**params, "arguments": dict(arguments)}
-    integration.process_telemetry_argument(span, {"params": params})
+    core.dispatch(TELEMETRY_ARGUMENT_EVENT, (span, {"params": params}))
     return dataclasses.replace(ctx, params=params)
