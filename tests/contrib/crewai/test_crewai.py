@@ -1,6 +1,7 @@
 from crewai import Crew
 import pytest
 
+from ddtrace.llmobs._contrib._subscribers import get_integration
 from tests.contrib.crewai.utils import CREWAI_VERSION
 from tests.contrib.crewai.utils import FailingTool
 from tests.contrib.crewai.utils import MaxTool
@@ -30,6 +31,43 @@ async def test_basic_crew_async(crewai, basic_crew, request_vcr):
 async def test_basic_crew_async_for_each(crewai, basic_crew, request_vcr):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         await basic_crew.kickoff_for_each_async(inputs=[{"topic": "AI"}])
+
+
+def _crew_state_sizes():
+    integration = get_integration("crewai")
+    return (
+        len(integration._crews_to_task_span_ids),
+        len(integration._crews_to_tasks),
+        len(integration._planning_crew_ids),
+    )
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_basic_crew")
+def test_basic_crew_does_not_retain_crew_state(crewai, basic_crew, request_vcr):
+    """Without LLM Observability, finished crews must not leave per-crew bookkeeping behind."""
+    assert not get_integration("crewai").llmobs_enabled
+    before = _crew_state_sizes()
+    with request_vcr.use_cassette("test_basic_crew.yaml"):
+        basic_crew.kickoff(inputs={"topic": "AI"})
+    assert _crew_state_sizes() == before
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_crew_with_async_tasks")
+def test_crew_with_async_tasks_does_not_retain_crew_state(crewai, async_exec_crew, request_vcr):
+    assert not get_integration("crewai").llmobs_enabled
+    before = _crew_state_sizes()
+    with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
+        async_exec_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+    assert _crew_state_sizes() == before
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_hierarchical_crew")
+def test_planning_crew_does_not_retain_crew_state(crewai, hierarchical_crew, request_vcr):
+    assert not get_integration("crewai").llmobs_enabled
+    before = _crew_state_sizes()
+    with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
+        hierarchical_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+    assert _crew_state_sizes() == before
 
 
 @pytest.mark.snapshot
