@@ -1,3 +1,7 @@
+from typing import Callable
+from typing import TypeVar
+from typing import cast
+
 from wrapt import wrap_function_wrapper as _w
 
 
@@ -15,18 +19,21 @@ except ImportError:
 from ._utils import get_source_code_link
 
 
-def _setup(wrapped, instance, args, kwargs):
+T = TypeVar("T")
+
+
+def _setup(wrapped: Callable[..., T], instance: object, args: tuple[object, ...], kwargs: dict[str, object]) -> T:
     source_code_link = get_source_code_link()
 
     if "project_urls" not in kwargs:
         kwargs["project_urls"] = {}
 
-    kwargs["project_urls"]["source_code_link"] = source_code_link
+    cast(dict[str, str], kwargs["project_urls"])["source_code_link"] = source_code_link
 
     return wrapped(*args, **kwargs)
 
 
-def _patch():
+def _patch() -> None:
     if distutils_core and setuptools:
         _w(distutils_core, "setup", _setup)
         _w(setuptools, "setup", _setup)
