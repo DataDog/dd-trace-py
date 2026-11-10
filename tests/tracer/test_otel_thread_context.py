@@ -203,7 +203,8 @@ def test_thread_context_listeners_can_be_disabled():
         assert is_context_watcher_registered() is False
 
 
-@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
+# The span's flush to the (absent) agent logs to stderr.
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"}, err=None)
 def test_global_tracer_listener_is_registered_on_explicit_import():
     """The global tracer publishes its context even when ddtrace does not create it on import."""
     import sys
