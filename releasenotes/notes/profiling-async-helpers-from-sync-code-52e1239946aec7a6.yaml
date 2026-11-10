@@ -1,4 +1,3 @@
 fixes:
   - |
-    Profiling: A bug that would raise exceptions when certain asyncio helpers were used from synchronous code
-    has been fixed.
+    Profiling: Fixes an issue where ``asyncio.as_completed`` and ``asyncio.shield`` raise ``RuntimeError`` when called from synchronous code.
