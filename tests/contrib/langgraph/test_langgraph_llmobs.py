@@ -1,6 +1,7 @@
 import json
 import random
 import sys
+from unittest import mock
 
 import pytest
 
@@ -448,6 +449,46 @@ class TestLangGraphLLMObs:
 
         react_agent_metadata = get_llmobs_metadata(react_agent_span) or {}
         assert react_agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
+
+    @pytest.mark.skipif(
+        LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
+    )
+    @pytest.mark.parametrize(
+        "model,expected_model_info",
+        [
+            ("gpt-4o-mini", {"model": "gpt-4o-mini"}),
+            ("openai:gpt-4o-mini", {"model": "gpt-4o-mini", "model_provider": "openai"}),
+        ],
+    )
+    def test_agent_manifest_from_create_react_agent_model_string(
+        self, langgraph, langgraph_llmobs, monkeypatch, model, expected_model_info
+    ):
+        """A model string without a provider prefix is valid in create_react_agent and must not raise."""
+        from langgraph.prebuilt import create_react_agent
+
+        monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
+        agent = create_react_agent(model, tools=[], name="string_model_agent")
+
+        manifest = langgraph._datadog_integration._agent_manifests[agent]
+        assert manifest == {**expected_model_info, "name": "string_model_agent"}
+
+    @pytest.mark.skipif(
+        LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
+    )
+    def test_create_react_agent_manifest_error_does_not_raise(self, langgraph, langgraph_llmobs):
+        from langchain_openai import ChatOpenAI
+        from langgraph.prebuilt import create_react_agent
+
+        model = ChatOpenAI(model="gpt-4o-mini", api_key="<not-a-real-key>")
+        with mock.patch(
+            "ddtrace.llmobs._integrations.langgraph._get_model_info", side_effect=RuntimeError("boom")
+        ) as get_model_info:
+            agent = create_react_agent(model=model, tools=[])
+
+        get_model_info.assert_called_once()
+
+        assert agent is not None
+        assert agent not in langgraph._datadog_integration._agent_manifests
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_populates_tools_from_tool_node(
