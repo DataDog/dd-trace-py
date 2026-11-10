@@ -643,25 +643,28 @@ def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
-        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
-    }
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+    },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["http/protobuf", "grpc"]},
 )
 def test_explicit_otlp_settings_win_over_agentless():
     """A user pointing OTLP at their own collector must keep it, agentless or not."""
+    import os
+
     from ddtrace.internal.opentelemetry.metrics import _prepare_agentless_export
     from ddtrace.internal.settings import env
     from ddtrace.internal.settings._opentelemetry import otel_config
 
-    assert otel_config.exporter.METRICS_PROTOCOL == "grpc"
+    protocol = os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]
+    assert otel_config.exporter.METRICS_PROTOCOL == protocol
     # ddtrace must not override the global endpoint the user set...
     _prepare_agentless_export(
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "grpc", "metrics"
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", protocol, "metrics"
     )
     # ...nor attach Datadog credentials to a third-party collector.
     assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") is None
-    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector:4317"
-    assert otel_config.exporter.ENDPOINT == "http://collector:4317"
+    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector:4318"
+    assert otel_config.exporter.ENDPOINT == "http://collector:4318"
 
 
 @pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
@@ -898,25 +901,50 @@ def test_native_trace_metrics_exporter_sends_custom_headers_and_the_api_key():
         "DD_LOGS_OTEL_ENABLED": "false",
         "DD_METRICS_OTEL_ENABLED": "false",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+        "DD_TRACE_LOGGING_RATE": "0",
+        "OTEL_EXPORTER_OTLP_COMPRESSION": "invalid-global-compression",
+        "OTEL_EXPORTER_OTLP_LOGS_COMPRESSION": "invalid-logs-compression",
+        "OTEL_EXPORTER_OTLP_METRICS_COMPRESSION": "invalid-metrics-compression",
     },
-    err=b"",
+    err=lambda err: err.count("Falling back") == 4
+    and "OpenTelemetry Logs exporter protocol 'http/json'" in err
+    and "OpenTelemetry Metrics exporter protocol 'http/json'" in err
+    and "invalid-logs-compression" in err
+    and "invalid-metrics-compression" in err
+    and "invalid-global-compression" not in err,
 )
-def test_global_json_protocol_without_logs_or_metrics_does_not_warn():
+def test_global_json_protocol_and_invalid_compression_warn_for_disabled_signals():
     from ddtrace.internal.settings._opentelemetry import otel_config
 
     assert otel_config.exporter.TRACES_PROTOCOL == "http/json"
+    for signal in ("LOGS", "METRICS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
+        assert getattr(otel_config.exporter, signal + "_COMPRESSION") == "none"
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc"},
+    env={"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc", "DD_TRACE_LOGGING_RATE": "0"},
     parametrize={
         "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": ["HTTP/PROTOBUF", "unsupported", "http/json"],
         "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": ["HTTP/PROTOBUF", "unsupported", "http/json"],
     },
 )
 def test_log_and_metric_protocol_fallback_uses_http_endpoint():
-    from ddtrace.internal.settings._opentelemetry import otel_config
+    from contextlib import redirect_stderr
+    from io import StringIO
+    import os
 
+    stderr = StringIO()
+    with redirect_stderr(stderr):
+        from ddtrace.internal.settings._opentelemetry import otel_config
+
+    expected_warnings = "".join(
+        f"OpenTelemetry {signal.title()} exporter protocol {protocol!r} is not supported. "
+        "Falling back to 'http/protobuf'.\n"
+        for signal in ("LOGS", "METRICS")
+        if (protocol := os.environ["OTEL_EXPORTER_OTLP_" + signal + "_PROTOCOL"]) != "HTTP/PROTOBUF"
+    )
+    assert stderr.getvalue() == expected_warnings
     for signal in ("LOGS", "METRICS"):
         assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
         assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4318/v1/" + signal.lower())
@@ -924,11 +952,25 @@ def test_log_and_metric_protocol_fallback_uses_http_endpoint():
 
 
 @pytest.mark.subprocess(
+    env={"DD_TRACE_LOGGING_RATE": "0"},
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["HTTP/PROTOBUF", " HTTP/PROTOBUF ", "unsupported", "http/json"]},
 )
 def test_global_otlp_protocol_fallback_uses_http_endpoint():
-    from ddtrace.internal.settings._opentelemetry import otel_config
+    from contextlib import redirect_stderr
+    from io import StringIO
+    import os
 
+    stderr = StringIO()
+    with redirect_stderr(stderr):
+        from ddtrace.internal.settings._opentelemetry import otel_config
+
+    protocol = os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]
+    expected_warnings = "".join(
+        f"OpenTelemetry {signal} exporter protocol {protocol!r} is not supported. Falling back to 'http/protobuf'.\n"
+        for signal in ("Logs", "Metrics")
+        if protocol in ("unsupported", "http/json")
+    )
+    assert stderr.getvalue() == expected_warnings
     for signal in ("LOGS", "METRICS"):
         assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "http/protobuf"
         assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4318/v1/" + signal.lower())
