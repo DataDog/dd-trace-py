@@ -54,9 +54,9 @@ from_prefix = "ddtrace"
 to_prefixes = ["ddtrace"]
 external = ["*"]
 [compatibility]
-python = [">=3.9,<3.15"]
+python = [">=3.9,<3.16"]
 platforms = ["linux", "macos", "windows"]
-dependency_ranges = { bytecode = ">=0.13.0,<1", envier = "~=0.6.1", wrapt = ">=1,!=2.2.0,<3" }
+dependency_ranges = { bytecode = ">=0.13.0,<1", ddtrace-internal = "==0.2.0", envier = "~=0.6.1", opentelemetry-api = ">=1,<2", wrapt = ">=1,!=2.2.0,<3" }
 # The deprecation policy is defined by the plan's compatibility window;
 # this field records where the policy is maintained, not its contents.
 deprecation_policy = "docs/package-split/plan.md"
@@ -79,7 +79,7 @@ supported_version_combinations = []
 # isolated, falling back to python -m build).
 build_command = []
 artifact_expectations = ["wheel", "sdist"]
-entry_points = { console_scripts = ["ddtrace-run"] }
+entry_points = { console_scripts = ["ddtrace-run", "_dd_crashtracker_receiver"], pytest11 = ["ddtrace"], opentelemetry_context = ["ddcontextvars_context"], "mlflow.request_header_provider" = ["datadog"], "ddtrace.products" = ["apm-tracing-rc", "llmobs", "code-origin-for-spans", "dynamic-instrumentation", "exception-replay", "profiler", "live-debugger", "error-tracking", "openfeature", "remote-configuration", "symbol-database", "appsec", "aiguard", "iast", "sca", "tracer"], "ddtrace.integration_hooks" = ["anthropic", "google_genai", "llama_index", "litellm", "mistralai", "typesafe", "mlflow", "vllm"] }
 resources = ["ddtrace:py.typed"]
 publishing_owner = "@DataDog/apm-core-python"
 rollback_procedure = "docs/package-split/plan.md (Deliverable 4, release rehearsal and cutover)"

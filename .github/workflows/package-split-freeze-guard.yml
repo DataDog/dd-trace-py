@@ -24,6 +24,13 @@ on:
       - opened
       - reopened
       - synchronize
+      # Retargeting a PR (base change) emits `edited`, not `synchronize`:
+      # without this trigger a PR could be validated against a branch with
+      # no active freeze and then retargeted to a frozen branch without the
+      # guard inspecting it under the new rules. Title/body edits also fire
+      # `edited`; the run is read-only and idempotent, so the extra runs are
+      # harmless.
+      - edited
 
 permissions:
   contents: read

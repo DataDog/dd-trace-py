@@ -88,6 +88,10 @@ class GateReport:
         self.finished: Optional[str] = None
         self.error: Optional[str] = None
         self.source_revision = _git_revision(manifest_path.parent or Path("."))
+        # The revision a gate actually inspected, when different from the
+        # checkout HEAD (e.g. a PR head passed as --head): source_revision
+        # alone cannot identify which content was validated.
+        self.inspected_head: Optional[str] = None
         self.environment: dict[str, Any] = {
             "python": sys.version,
             "python_version": platform.python_version(),
@@ -134,6 +138,8 @@ class GateReport:
             % (self.harness_version, self.manifest_path, self.manifest_sha256),
             "  source revision: %s" % self.source_revision,
         ]
+        if self.inspected_head is not None:
+            lines.append("  inspected head: %s" % self.inspected_head)
         if self.error is not None:
             lines.append("  gate error: %s" % self.error)
         for check in self.checks:
@@ -149,6 +155,7 @@ class GateReport:
             "harness_version": self.harness_version,
             "manifest": {"path": str(self.manifest_path), "sha256": self.manifest_sha256},
             "source_revision": self.source_revision,
+            "inspected_head": self.inspected_head,
             "started": self.started,
             "finished": self.finished,
             "environment": self.environment,
