@@ -1,5 +1,5 @@
-// AsyncioDebug table tests: validation of tables and list heads built in test memory on every Python version, and
-// discovery through the real _asyncio module state on Python 3.14+.
+// AsyncioDebug table tests: validation of tables built in test memory on every Python version, and discovery
+// through the real _asyncio module state on Python 3.14+.
 
 #include "asyncio_debug_test_table.h"
 
@@ -28,18 +28,6 @@ layout_of(const PyAsyncioDebugOffsets& table)
                               table.task.task_awaited_by_is_set,
                               table.task.task_coro,
                               table.task.task_node };
-}
-
-struct Node
-{
-    uintptr_t next;
-    uintptr_t prev;
-};
-
-uintptr_t
-address_of(const Node& node)
-{
-    return reinterpret_cast<uintptr_t>(&node);
 }
 
 // Provides one inaccessible page, so tests can point at memory that read_own_memory cannot read.
@@ -187,87 +175,6 @@ TEST_F(AsyncioMemory, RejectsTaskLayoutDifferingByOneField)
     layout = layout_of(table);
     layout.size += sizeof(uintptr_t);
     EXPECT_FALSE(read_asyncio_debug_offsets_at(reinterpret_cast<uintptr_t>(&table), layout));
-}
-
-TEST_F(AsyncioMemory, AcceptsEmptyAndTwoNodeLists)
-{
-    Node empty{};
-    empty.next = empty.prev = address_of(empty);
-    EXPECT_TRUE(asyncio_list_head_is_consistent(address_of(empty)));
-
-    Node head{}, first{}, second{};
-    head.next = address_of(first);
-    head.prev = address_of(second);
-    first.next = address_of(second);
-    first.prev = address_of(head);
-    second.next = address_of(head);
-    second.prev = address_of(first);
-    EXPECT_TRUE(asyncio_list_head_is_consistent(address_of(head)));
-}
-
-TEST_F(AsyncioMemory, RejectsInconsistentOrUnreadableHeads)
-{
-    Node head{}, neighbor{};
-    const auto link = [&]() {
-        head.next = head.prev = address_of(neighbor);
-        neighbor.next = neighbor.prev = address_of(head);
-    };
-
-    link();
-    ASSERT_TRUE(asyncio_list_head_is_consistent(address_of(head)));
-
-    link();
-    head.next = 0;
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
-
-    link();
-    head.prev = 0;
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
-
-    link();
-    neighbor.prev = address_of(neighbor);
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
-
-    link();
-    neighbor.next = address_of(neighbor);
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
-
-    EXPECT_FALSE(asyncio_list_head_is_consistent(unreadable()));
-
-    link();
-    head.next = head.prev = unreadable();
-    EXPECT_FALSE(asyncio_list_head_is_consistent(address_of(head)));
-}
-
-TEST_F(AsyncioMemory, ChecksThreadHeadAlwaysAndInterpreterHeadWhenGiven)
-{
-    // Each state is one list head preceded by 16 bytes, so the head offset is 16 for both.
-    struct FakeState
-    {
-        unsigned char padding[16];
-        Node head;
-    };
-    FakeState thread{}, interp{};
-    thread.head.next = thread.head.prev = address_of(thread.head);
-    interp.head.next = interp.head.prev = address_of(interp.head);
-    const AsyncioOffsets offsets{ .interpreter_tasks_head = offsetof(FakeState, head),
-                                  .thread_tasks_head = offsetof(FakeState, head) };
-    const auto thread_base = reinterpret_cast<uintptr_t>(&thread);
-    const auto interp_base = reinterpret_cast<uintptr_t>(&interp);
-
-    EXPECT_TRUE(asyncio_offsets_match_live_heads(offsets, thread_base, interp_base));
-
-    interp.head.next = 0;
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, thread_base, interp_base));
-    // The free-threaded path passes no interpreter base and must not look at that head.
-    EXPECT_TRUE(asyncio_offsets_match_live_heads(offsets, thread_base, 0));
-
-    thread.head.next = 0;
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, thread_base, 0));
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(offsets, 0, 0));
-
-    const AsyncioOffsets overflowing{ .interpreter_tasks_head = 16, .thread_tasks_head = SIZE_MAX };
-    EXPECT_FALSE(asyncio_offsets_match_live_heads(overflowing, thread_base, 0));
 }
 
 TEST(AsyncioReadOwnMemory, ReadsReadableMemoryAndRejectsUnreadableMemory)
