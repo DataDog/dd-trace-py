@@ -2,6 +2,8 @@
 
 import threading
 
+import pytest
+
 from ddtrace.appsec.sca._registry import InstrumentationRegistry
 from ddtrace.appsec.sca._registry import get_global_registry
 
@@ -131,18 +133,25 @@ def test_registry_thread_safety():
         assert registry.has_target(f"target{i}")
 
 
-def test_registry_merge_cve_ids():
+@pytest.mark.parametrize("second_cve", ["CVE-2024-5678", "CVE-2024-OTHER"])
+def test_registry_merge_cve_ids(second_cve):
     registry = InstrumentationRegistry()
+    cve_ids = ["CVE-2024-1234"]
     registry.add_target(
         "module.path:function",
         package_name="requests",
-        cve_ids=["CVE-2024-1234"],
+        cve_ids=cve_ids,
     )
+    registry.add_target("module.path:second", package_name="requests", cve_ids=cve_ids)
     # Merge new CVEs
     assert registry.merge_cve_ids("module.path:function", ["CVE-2024-5678", "CVE-2024-9999"])
     info = registry.get_target_info("module.path:function")
     assert info is not None
     assert set(info.cve_ids) == {"CVE-2024-1234", "CVE-2024-5678", "CVE-2024-9999"}
+
+    # Updating one target must not change another target registered with the same list.
+    assert registry.merge_cve_ids("module.path:second", [second_cve])
+    assert registry.get_target_info("module.path:second").cve_ids == ("CVE-2024-1234", second_cve)
 
 
 def test_registry_merge_cve_ids_no_duplicates():

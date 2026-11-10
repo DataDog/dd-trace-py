@@ -1,0 +1,4 @@
+fixes:
+  - |
+    django: Fixes an issue where enabling Interactive Application Security Testing (IAST) suppresses
+    response header validation errors instead of allowing the application to handle them.

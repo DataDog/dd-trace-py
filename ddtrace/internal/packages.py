@@ -13,6 +13,7 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal import forksafe
+from ddtrace.internal import uwsgi
 from ddtrace.internal.module import origin
 from ddtrace.internal.native import scan_distributions
 from ddtrace.internal.native.exceptions import is_panic_exception
@@ -583,8 +584,7 @@ def _installed_distributions() -> list[_DistributionRecord]:
     return _installed().records
 
 
-def _prefetch() -> None:
-    _IN_PREFETCH.active = True
+def _scan_installed() -> None:
     try:
         _installed(check=False)
     except Exception:
@@ -594,6 +594,12 @@ def _prefetch() -> None:
         if not is_panic_exception(exc):
             raise
         LOG.debug("Failed to prefetch installed distributions", exc_info=True)
+
+
+def _prefetch() -> None:
+    _IN_PREFETCH.active = True
+    try:
+        _scan_installed()
     finally:
         _end_prefetch()
 
@@ -611,6 +617,11 @@ def prefetch_distributions() -> None:
     """
     global _PREFETCH_THREAD
     if _INSTALLED is not None or _PREFETCH_THREAD is not None:
+        return
+    if uwsgi.will_fork_without_fork_hooks():
+        # The fork hooks that join the thread won't run, and a worker forked while it holds the GIL hangs.
+        # Scan now instead: the workers inherit the result.
+        _scan_installed()
         return
     thread = Thread(_prefetch, name=f"{__name__}:prefetch")
     _PREFETCH_THREAD = thread

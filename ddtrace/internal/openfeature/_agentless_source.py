@@ -22,8 +22,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from urllib.parse import parse_qs
-from urllib.parse import parse_qsl
-from urllib.parse import urlencode
+from urllib.parse import unquote_plus
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -92,12 +91,6 @@ def _describe_error(error: BaseException) -> str:
     return f"{name}: {message}" if message else name
 
 
-def _dependent_flags_variant_key_parameter() -> Optional[str]:
-    if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
-        return "v1"
-    return None
-
-
 def _is_retryable_status(status: Optional[int]) -> bool:
     if status is None:
         return True
@@ -154,8 +147,17 @@ class AgentlessConfigurationSource(PeriodicService):
         # must carry it.
         parts = urlsplit(endpoint)
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
-        self._request_path = parts.path
-        self._request_query = parts.query
+        # Negotiate once for the loaded evaluator, keeping conditional polls on
+        # the same URL variant. Without support, preserve the configured query,
+        # including an explicitly supplied capability parameter, as Node.js does.
+        query = parts.query
+        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
+            capability_param = "cap_dependent-flags-variant-key"
+            items = query.split("&") if query else []
+            items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
+            items.append(capability_param + "=v1")
+            query = "&".join(items)
+        self._request_target = urlunsplit(("", "", parts.path, query, "")) or "/"
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
@@ -320,14 +322,6 @@ class AgentlessConfigurationSource(PeriodicService):
 
     # -- request ------------------------------------------------------------
 
-    def _request_target(self) -> str:
-        query = parse_qsl(self._request_query, keep_blank_values=True)
-        query = [(name, value) for name, value in query if name != "cap_dependent-flags-variant-key"]
-        parameter = _dependent_flags_variant_key_parameter()
-        if parameter is not None:
-            query.append(("cap_dependent-flags-variant-key", parameter))
-        return urlunsplit(("", "", self._request_path, urlencode(query), "")) or "/"
-
     def _headers(self) -> "dict[str, str]":
         headers = {
             "Accept-Encoding": "gzip",
@@ -354,7 +348,7 @@ class AgentlessConfigurationSource(PeriodicService):
                 self._in_flight_conn = conn
             # Suppress self-tracing: no HTTP span, no trace-header injection.
             setattr(conn, _HTTPLIB_NO_TRACE_REQUEST, True)
-            conn.request("GET", self._request_target(), None, self._headers())
+            conn.request("GET", self._request_target, None, self._headers())
             resp = conn.getresponse()
             body = resp.read()
             return _PollResponse(

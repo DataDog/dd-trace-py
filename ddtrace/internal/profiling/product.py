@@ -41,7 +41,7 @@ def post_preload() -> None:
         try:
             import ddtrace.profiling.auto  # noqa: F401
         except Exception:
-            log.error("failed to enable profiling", exc_info=True)
+            log.error("[profiling] failed to enable profiling", exc_info=True)
 
 
 def enabled() -> bool:

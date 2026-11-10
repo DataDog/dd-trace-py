@@ -16,6 +16,7 @@ from unittest import mock
 from urllib.parse import parse_qs
 from urllib.parse import urlsplit
 
+from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 from openfeature.exception import ErrorCode
 import pytest
@@ -31,6 +32,7 @@ from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
 
 
@@ -185,9 +187,18 @@ def delivery(request, monkeypatch):
                 endpoint=endpoint.url + "/ufc", apply_configuration=_apply_agentless_configuration, api_key="test-key"
             )
             endpoint.poll = source.periodic
-            endpoint.disable_capability = lambda: monkeypatch.setattr(
-                _agentless_source, "get_evaluator_capabilities", lambda: ()
-            )
+
+            def disable_capability():
+                monkeypatch.setattr(_agentless_source, "get_evaluator_capabilities", lambda: ())
+                # Capabilities are negotiated when a source is constructed.
+                replacement = _agentless_source.AgentlessConfigurationSource(
+                    endpoint=endpoint.url + "/ufc",
+                    apply_configuration=_apply_agentless_configuration,
+                    api_key="test-key",
+                )
+                endpoint.poll = replacement.periodic
+
+            endpoint.disable_capability = disable_capability
         else:
             poller = RemoteConfigPoller()
             poller._client.agent_url = endpoint.url
@@ -208,14 +219,32 @@ def delivery(request, monkeypatch):
     _set_ffe_config(None)
 
 
+class _ClientBackedProvider:
+    """Exercise provider finalization through the OpenFeature client lifecycle."""
+
+    def __init__(self, provider):
+        self._provider = provider
+
+    def __getattr__(self, name):
+        return getattr(self._provider, name)
+
+    def resolve_boolean_details(self, flag_key, default_value, evaluation_context):
+        return api.get_client().get_boolean_details(flag_key, default_value, evaluation_context)
+
+
 @pytest.fixture
 def provider(monkeypatch):
     writer = mock.Mock()
     monkeypatch.setattr("ddtrace.internal.openfeature._provider.get_exposure_writer", lambda: writer)
     with override_global_config({"experimental_flagging_provider_enabled": True}):
         instance = DataDogProvider()
-        instance._flag_eval_evp_writer = mock.Mock()
-        yield instance, writer
+        monkeypatch.setattr(instance._flag_eval_evp_writer, "enqueue", mock.Mock())
+        api.set_evaluation_context(EvaluationContext())
+        set_openfeature_provider(instance)
+        try:
+            yield _ClientBackedProvider(instance), writer
+        finally:
+            api.clear_providers()
 
 
 def _exposed(writer):
@@ -236,7 +265,7 @@ def test_capability_advertisement_delivers_evaluable_dependencies(delivery, prov
     assert result.variant == "true"
     assert result.error_code is None
     assert sorted(_exposed(writer)) == ["child", "parent"]
-    assert _evaluated(instance) == ["parent"]
+    assert _evaluated(instance) == ["parent", "child"]
     if delivery.transport == "agentless":
         assert delivery.requests[-1]["parameter"] == "v1"
     else:
@@ -289,7 +318,7 @@ def test_authored_order_controls_prerequisite_evaluation_and_exposure(delivery, 
     delivery.poll()
     assert instance.resolve_boolean_details("child", True, _CONTEXT).value is False
     assert _exposed(writer) == ["child"]
-    assert _evaluated(instance) == (["parent"] if prerequisite_first else [])
+    assert _evaluated(instance) == (["parent"] if prerequisite_first else []) + ["child"]
 
 
 def test_expanded_rules_memoize_prerequisite_and_expose_only_successful_path(delivery, provider):
@@ -304,7 +333,7 @@ def test_expanded_rules_memoize_prerequisite_and_expose_only_successful_path(del
     for _ in range(2):
         assert instance.resolve_boolean_details("child", False, _CONTEXT).value is True
     # Memoization lasts for one root evaluation; exposure dedup spans calls.
-    assert _evaluated(instance) == ["parent", "parent"]
+    assert _evaluated(instance) == ["parent", "child", "parent", "child"]
     assert sorted(_exposed(writer)) == ["child", "parent"]
 
 
@@ -324,7 +353,7 @@ def test_prerequisite_membership_matches_variant_keys(delivery, provider, operat
     assert result.value is matched
     assert result.error_code is None
     assert sorted(_exposed(writer)) == (["child", "parent"] if matched else ["child"])
-    assert _evaluated(instance) == ["parent"]
+    assert _evaluated(instance) == ["parent", "child"]
 
 
 @pytest.mark.parametrize("parent_logging,child_logging", [(False, True), (True, False), (False, False)])
@@ -339,7 +368,7 @@ def test_dependency_and_root_exposures_respect_do_log(delivery, provider, parent
     assert sorted(_exposed(writer)) == sorted(
         key for key, enabled in [("parent", parent_logging), ("child", child_logging)] if enabled
     )
-    assert _evaluated(instance) == ["parent"]
+    assert _evaluated(instance) == ["parent", "child"]
 
 
 def test_transitive_prerequisite_on_rejected_parent_rule_has_no_exposure(delivery, provider):
@@ -353,7 +382,7 @@ def test_transitive_prerequisite_on_rejected_parent_rule_has_no_exposure(deliver
     delivery.publish(config)
     delivery.poll()
     assert instance.resolve_boolean_details("child", False, _CONTEXT).value is True
-    assert sorted(_evaluated(instance)) == ["leaf", "parent"]
+    assert sorted(_evaluated(instance)) == ["child", "leaf", "parent"]
     assert sorted(_exposed(writer)) == ["child", "parent"]
 
 
@@ -366,7 +395,7 @@ def test_later_dependency_error_suppresses_earlier_successful_prerequisite_expos
     result = instance.resolve_boolean_details("child", False, _CONTEXT)
     assert result.value is False
     assert result.error_code is not None
-    assert _evaluated(instance) == ["parent", "missing"]
+    assert _evaluated(instance) == ["parent", "missing", "child"]
     assert _exposed(writer) == []
 
 

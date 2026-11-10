@@ -53,6 +53,10 @@ jobs:
           fi
 
       - name: Download wheels from S3
+        env:
+          # On pushes, the GitLab pipeline that uploads the wheels can start 35-90 min after
+          # the push. Keep the 30 min default on PRs, where a failed GitLab build never uploads.
+          POLL_TIMEOUT: ${{ github.event_name == 'pull_request' && '1800' || '7200' }}
         run: |
           bash scripts/download-s3-wheels.sh \
             "${{ steps.resolve-sha.outputs.sha }}" \

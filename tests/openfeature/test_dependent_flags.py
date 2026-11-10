@@ -17,6 +17,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_M
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.openfeature import DataDogProvider
+from ddtrace.openfeature import ExposureHook
 from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
 from tests.openfeature.conftest import set_openfeature_provider
@@ -482,3 +483,40 @@ def test_successful_after_hook_cannot_mutate_staged_exposure_subject(evaluated, 
     assert exposure_keys(exposures) == (["parent", "root"] if dependent else ["root"])
     for call in exposures.call_args_list:
         assert call.args[0]["subject"]["attributes"] == {"plan": "pro"}
+
+
+@pytest.mark.parametrize("reject", [False, True])
+def test_prerequisite_split_features_and_public_exposure_hook(evaluated, reject):
+    provider, client, _, exposures, _ = evaluated
+    parent = create_boolean_flag("parent")
+    root = dependent_flag()
+    for flag, value in ((parent, "parent-layer"), (root, "root-layer")):
+        flag["allocations"][0]["splits"][0]["features"] = [
+            {"key": "layer", "value": value, "destinations": ["HOOK", "EXPOSURE"]}
+        ]
+    assert process_ffe_configuration(create_config(parent, root))
+    received = []
+    api.add_hooks([ExposureHook(received.append)])
+    try:
+        result = client.get_boolean_details(
+            "root",
+            False,
+            EvaluationContext(targeting_key="subject"),
+            FlagEvaluationOptions(hooks=[RejectAfter()] if reject else []),
+        )
+        assert received[-1].should_send is (not reject)
+        if reject:
+            assert result.reason == Reason.ERROR
+            assert not exposures.called
+            assert not provider._exposure_cache
+            assert client.get_boolean_value("root", False, EvaluationContext(targeting_key="subject")) is True
+        else:
+            assert result.value is True
+        assert exposure_keys(exposures) == ["parent", "root"]
+        assert [call.args[0]["features"] for call in exposures.call_args_list] == [
+            {"layer": "parent-layer"},
+            {"layer": "root-layer"},
+        ]
+        assert dict(received[-1].features) == {"layer": "root-layer"}
+    finally:
+        api.clear_hooks()

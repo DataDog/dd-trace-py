@@ -3,7 +3,7 @@ import json
 import logging
 import socket
 from types import SimpleNamespace
-from urllib.parse import parse_qs
+from urllib.parse import parse_qsl
 from urllib.parse import urlsplit
 
 import pytest
@@ -236,37 +236,58 @@ def test_api_key_header_present_and_absent(harness):
         ((), None),
         (("unknown-feature-v1",), None),
         (("dependent-flag-variant-key-v1",), "v1"),
+        (["unknown-feature-v1", "dependent-flag-variant-key-v1"], "v1"),
     ],
 )
 @pytest.mark.parametrize(
-    "existing_parameters",
-    ["", "&cap_dependent-flags-variant-key=v1&cap_dependent-flags-variant-key=unsupported"],
+    "endpoint",
+    [
+        ENDPOINT,
+        "https://flags.example.test/custom",
+        "https://flags.example.test/custom?tag=a%2fb&tag=c%20d&empty=&token=a%2Bb#ignored",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v2",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v1&cap_dependent-flags-variant-key=v1",
+        ENDPOINT + "&%63ap_dependent-flags-variant-key=v1",
+        ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo",
+        ENDPOINT + "&ap_dependent-flags-variant-key=v1&invalid=foo",
+    ],
 )
-def test_evaluator_capability_parameter_on_initial_and_conditional_requests(
-    harness, monkeypatch, capabilities, expected, existing_parameters
+def test_evaluator_capability_query_on_initial_and_conditional_requests(
+    harness, monkeypatch, capabilities, expected, endpoint
 ):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace(get_evaluator_capabilities=lambda: capabilities))
-    endpoint = ENDPOINT + "&token=preserved&blank=&repeated=one&repeated=two" + existing_parameters
     src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)], endpoint=endpoint)
     src.periodic()
     src.periodic()
 
     assert len(src._requests) == 2
+    capability_param = "cap_dependent-flags-variant-key"
+    original = urlsplit(endpoint)
+    expected_query = parse_qsl(original.query, keep_blank_values=True)
+    if expected is not None:
+        expected_query = [(key, value) for key, value in expected_query if key != capability_param]
+        expected_query.append((capability_param, expected))
     for request in src._requests:
-        query = parse_qs(urlsplit(request["target"]).query, keep_blank_values=True)
-        expected_query = {"dd_env": ["prod"], "token": ["preserved"], "blank": [""], "repeated": ["one", "two"]}
-        if expected is not None:
-            expected_query["cap_dependent-flags-variant-key"] = [expected]
-        assert query == expected_query
+        target = urlsplit(request["target"])
+        assert target.path == original.path
+        assert parse_qsl(target.query, keep_blank_values=True) == expected_query
+        assert not target.fragment
+        assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in request["headers"]
+        if expected is None or "custom" in original.path:
+            expected_raw_query = original.query
+            if expected is not None:
+                expected_raw_query += ("&" if expected_raw_query else "") + "cap_dependent-flags-variant-key=v1"
+            assert target.query == expected_raw_query
+    assert src._requests[0]["target"] == src._requests[1]["target"]
     assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
 
 
-def test_missing_native_capability_reporter_omits_parameter(harness, monkeypatch):
+@pytest.mark.parametrize("endpoint", [ENDPOINT, ENDPOINT + "&cap_dependent-flags-variant-key=v1&invalid=foo"])
+def test_missing_native_capability_reporter_preserves_query(harness, monkeypatch, endpoint):
     monkeypatch.setattr(native_mod, "ffe", SimpleNamespace())
-    endpoint = ENDPOINT + "&cap_dependent-flags-variant-key=v1"
     src = harness([_FakeResponse(200, _ufc_body())], endpoint=endpoint)
     src.periodic()
-    assert "cap_dependent-flags-variant-key" not in parse_qs(urlsplit(src._requests[0]["target"]).query)
+    assert src._requests[0]["target"] == urlsplit(endpoint)._replace(scheme="", netloc="").geturl()
     assert "X-DD-FEATURE-FLAGS-CAPABILITIES" not in src._requests[0]["headers"]
 
 

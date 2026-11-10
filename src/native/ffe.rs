@@ -4,13 +4,19 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod ffe {
-    use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+    use std::sync::Arc;
+
+    use pyo3::{
+        exceptions::PyValueError,
+        prelude::*,
+        types::{PyDict, PyTuple},
+    };
     use tracing::debug;
 
     use libdd_ffe::rules_based as ffe;
     use libdd_ffe::rules_based::{
         now, Assignment, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
-        EvaluationError, EvaluationOptions, Str, UniversalFlagConfig,
+        EvaluationError, EvaluationOptions, Feature, Str, UniversalFlagConfig,
     };
 
     /// UFC extensions supported by both the linked evaluator and this binding,
@@ -39,6 +45,7 @@ pub mod ffe {
         do_log: bool,
         #[pyo3(get)]
         exposure_eligible: bool,
+        features: Option<Arc<[Feature]>>,
     }
 
     #[pyclass(frozen)]
@@ -81,6 +88,7 @@ pub mod ffe {
         serial_id: Option<i64>,
         #[pyo3(get)]
         dependency_evaluations: Vec<DependencyEvaluation>,
+        features: Option<Arc<[Feature]>>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,6 +201,7 @@ pub mod ffe {
                         reason: details.reason,
                         do_log: details.do_log,
                         exposure_eligible: record.exposure_eligible,
+                        features: details.features,
                     }
                 })
                 .collect();
@@ -201,8 +210,39 @@ pub mod ffe {
         }
     }
 
+    fn features_to_python<'py>(
+        py: Python<'py>,
+        features: Option<&[Feature]>,
+    ) -> PyResult<Option<Bound<'py, PyTuple>>> {
+        let Some(features) = features else {
+            return Ok(None);
+        };
+        let items = features
+            .iter()
+            .map(|feature| {
+                let destinations =
+                    PyTuple::new(py, feature.destinations.iter().map(|d| d.as_str()))?;
+                (feature.key.as_str(), &feature.value, destinations).into_pyobject(py)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        PyTuple::new(py, items).map(Some)
+    }
+
+    #[pymethods]
+    impl DependencyEvaluation {
+        #[getter]
+        fn features<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyTuple>>> {
+            features_to_python(py, self.features.as_deref())
+        }
+    }
+
     #[pymethods]
     impl ResolutionDetails {
+        #[getter]
+        fn features<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyTuple>>> {
+            features_to_python(py, self.features.as_deref())
+        }
+
         #[getter]
         fn flag_metadata<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
             // Provider resolution reads allocation_key directly. Build the public
@@ -226,6 +266,7 @@ pub mod ffe {
                 allocation_key: Some(assignment.allocation_key),
                 do_log: assignment.do_log,
                 serial_id: assignment.serial_id.map(i64::from),
+                features: assignment.features,
                 dependency_evaluations: Vec::new(),
             }
         }
@@ -240,6 +281,7 @@ pub mod ffe {
                 allocation_key: None,
                 do_log: false,
                 serial_id: None,
+                features: None,
                 dependency_evaluations: Vec::new(),
             }
         }
@@ -254,6 +296,7 @@ pub mod ffe {
                 allocation_key: None,
                 do_log: false,
                 serial_id: None,
+                features: None,
                 dependency_evaluations: Vec::new(),
             }
         }

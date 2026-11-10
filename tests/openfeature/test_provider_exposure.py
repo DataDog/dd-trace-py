@@ -9,6 +9,7 @@ import signal
 import threading
 from unittest import mock
 
+from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
 import pytest
 
@@ -19,19 +20,50 @@ from tests.openfeature.config_helpers import create_boolean_flag
 from tests.openfeature.config_helpers import create_config
 from tests.openfeature.config_helpers import create_integer_flag
 from tests.openfeature.config_helpers import create_string_flag
+from tests.openfeature.conftest import set_openfeature_provider
 from tests.utils import override_global_config
+
+
+class _ClientBackedProvider:
+    """Evaluates through an OpenFeature client, so the provider hooks that send exposures run."""
+
+    def __init__(self, provider):
+        self._provider = provider
+        self._client = api.get_client()
+
+    def __getattr__(self, name):
+        return getattr(self._provider, name)
+
+    def resolve_boolean_details(self, flag_key, default_value, evaluation_context=None):
+        return self._client.get_boolean_details(flag_key, default_value, evaluation_context)
+
+    def resolve_string_details(self, flag_key, default_value, evaluation_context=None):
+        return self._client.get_string_details(flag_key, default_value, evaluation_context)
+
+    def resolve_integer_details(self, flag_key, default_value, evaluation_context=None):
+        return self._client.get_integer_details(flag_key, default_value, evaluation_context)
+
+    def resolve_float_details(self, flag_key, default_value, evaluation_context=None):
+        return self._client.get_float_details(flag_key, default_value, evaluation_context)
+
+    def resolve_object_details(self, flag_key, default_value, evaluation_context=None):
+        return self._client.get_object_details(flag_key, default_value, evaluation_context)
 
 
 @pytest.fixture
 def provider():
-    """Create a DataDogProvider instance for testing."""
+    """Create a DataDogProvider registered with OpenFeature for testing."""
     with override_global_config({"experimental_flagging_provider_enabled": True}):
         provider_instance = DataDogProvider()
+        # Other tests can leave a global context whose targeting key would leak into these.
+        api.set_evaluation_context(EvaluationContext())
+        set_openfeature_provider(provider_instance)
         # Ensure exposure cache is cleared for each test
         provider_instance.clear_exposure_cache()
-        yield provider_instance
+        yield _ClientBackedProvider(provider_instance)
         # Clean up after test
         provider_instance.clear_exposure_cache()
+        api.clear_providers()
 
 
 @pytest.fixture
@@ -68,7 +100,7 @@ def test_exposure_publication_after_fork_with_lock_held(provider, evaluation_con
             if publication:
                 provider.resolve_boolean_details("fork-flag", False, evaluation_context)
             else:
-                with provider._exposure_lock:
+                with provider._exposure_cache_lock:
                     entered.set()
                     release.wait(timeout=10.0)
 
@@ -89,9 +121,8 @@ def test_exposure_publication_after_fork_with_lock_held(provider, evaluation_con
                     result = provider.resolve_boolean_details("fork-flag", False, evaluation_context)
                     assert result.value is True
                     assert result.error_code is None
-                    assert get_writer.return_value.enqueue.call_count == (0 if cached else 1) + int(publication)
+                    assert get_writer.return_value.enqueue.call_count == (0 if cached else 1)
                     assert provider._exposure_cache
-                    assert not provider._exposure_publications
                     provider.clear_exposure_cache()
                     assert not provider._exposure_cache
                     os.write(write_fd, b"ok")
@@ -155,12 +186,12 @@ def test_slow_publication_does_not_block_other_subjects(provider, fail_first, ot
                 assert duplicate_started.wait(timeout=2)
                 other = executor.submit(resolve, "other")
                 assert other.result(timeout=2).value is True
-                assert provider._exposure_cache.get(("flag", "slow")) is None
+                assert provider._exposure_cache[("flag", "slow")] == ("allocation-default", "true", None)
             finally:
                 release.set()
             assert first.result(timeout=2).value is True
             assert second.result(timeout=2).value is True
-        assert len(attempts) == (2 if fail_first else 1)
+        assert len(attempts) == 1  # Main records the decision before best-effort delivery.
         assert provider._exposure_cache[("flag", "slow")][1] == "true"
 
 
@@ -409,6 +440,7 @@ class TestExposureReporting:
             mock_details_a.do_log = True  # Enable exposure logging
             mock_details_a.serial_id = None
             mock_details_a.dependency_evaluations = []
+            mock_details_a.features = None
             mock_resolve.return_value = mock_details_a
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -430,6 +462,7 @@ class TestExposureReporting:
             mock_details_b.do_log = True  # Enable exposure logging
             mock_details_b.serial_id = None
             mock_details_b.dependency_evaluations = []
+            mock_details_b.features = None
             mock_resolve.return_value = mock_details_b
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -451,6 +484,7 @@ class TestExposureReporting:
             mock_details_b2.do_log = True  # Enable exposure logging
             mock_details_b2.serial_id = None
             mock_details_b2.dependency_evaluations = []
+            mock_details_b2.features = None
             mock_resolve.return_value = mock_details_b2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -469,6 +503,7 @@ class TestExposureReporting:
             mock_details_a2.do_log = True  # Enable exposure logging
             mock_details_a2.serial_id = None
             mock_details_a2.dependency_evaluations = []
+            mock_details_a2.features = None
             mock_resolve.return_value = mock_details_a2
 
             result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
@@ -517,6 +552,7 @@ class TestExposureReporting:
             mock_details.do_log = False  # Exposure logging disabled
             mock_details.serial_id = None
             mock_details.dependency_evaluations = []
+            mock_details.features = None
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("no-log-flag", False, evaluation_context)
@@ -549,6 +585,7 @@ class TestExposureReporting:
             mock_details.do_log = True  # Exposure logging enabled
             mock_details.serial_id = None
             mock_details.dependency_evaluations = []
+            mock_details.features = None
             mock_resolve.return_value = mock_details
 
             result = provider.resolve_boolean_details("log-flag", False, evaluation_context)
