@@ -78,10 +78,10 @@ def _normalize_signal_compression(compression: str, protocol: str, variable: str
 
 def _derive_signal_compression(signal: str, protocol: str) -> str:
     variable = f"OTEL_EXPORTER_OTLP_{signal}_COMPRESSION"
-    compression = env.get(variable)
+    compression = get_config(variable)
     if compression is None:
         variable = "OTEL_EXPORTER_OTLP_COMPRESSION"
-        compression = env.get(variable, "none")
+        compression = get_config(variable, "none")
     return _normalize_signal_compression(compression, protocol, variable)
 
 

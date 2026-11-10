@@ -195,7 +195,8 @@ The following environment variables are supported:
   Compression used for OTLP metrics and logs. Signal-specific configuration takes precedence
   over the global ``OTEL_EXPORTER_OTLP_COMPRESSION`` setting. Supported values include ``none``
   (default) and ``gzip``; HTTP exporters also support ``deflate``. Invalid or unsupported values
-  produce a warning and disable compression for the corresponding signal.
+  produce a warning and disable compression for the corresponding signal. Each setting
+  uses fleet configuration first, then environment variables, then local configuration.
 
 OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
 

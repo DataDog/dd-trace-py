@@ -437,3 +437,27 @@ def test_otlp_explicit_compression_override_preserves_constructor_value(
     assert status == 0, (stdout, stderr)
     assert b"invalid-global-compression" in stderr, stderr
     assert b"invalid-signal-compression" in stderr, stderr
+
+
+@pytest.mark.parametrize("signal", ["logs", "metrics"])
+@pytest.mark.parametrize("source", ["local", "fleet"])
+@pytest.mark.parametrize("signal_specific", [False, True])
+def test_otlp_compression_from_stable_config_exports(
+    signal, source, signal_specific, tmp_path, ddtrace_run_python_code_in_subprocess
+):
+    from tests.opentelemetry.utils import capture_otlp_signal
+
+    variable = "OTEL_EXPORTER_OTLP_" + (signal.upper() + "_" if signal_specific else "") + "COMPRESSION"
+    config_file = tmp_path / (source + ".yaml")
+    config_file.write_text(f"apm_configuration_default:\n  {variable}: ' GZIP '\n")
+    env = _otlp_test_env(signal, "http/protobuf")
+    env["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
+    env["_DD_SC_LOCAL_FILE_OVERRIDE"] = str(tmp_path / "local.yaml")
+    env["_DD_SC_MANAGED_FILE_OVERRIDE"] = str(tmp_path / "fleet.yaml")
+    with capture_otlp_signal(signal, "http/protobuf") as requests:
+        stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(
+            code=f"from tests.opentelemetry.test_exporter_config import _export_signal\n_export_signal({signal!r})",
+            env=env,
+        )
+    assert status == 0, (stdout, stderr)
+    _assert_exported_probe(requests, signal, "http/protobuf", "gzip")
