@@ -25,7 +25,10 @@ identified by ID:
 
 ## 1. Get the diff
 
-- Your own change: `git diff $(git merge-base origin/main HEAD)` (includes uncommitted work).
+- Your own change: `git diff $(git merge-base origin/main HEAD)` covers committed and
+  uncommitted edits to tracked files. It skips new files you haven't staged, so also review
+  every path from `git ls-files --others --exclude-standard`, or run `git add -N <paths>` first
+  so the diff includes them.
 - A PR: `gh pr diff <number>`. To run the detectors, check the PR out in a separate worktree
   (`git fetch origin pull/<number>/head` then `git worktree add <tmpdir> FETCH_HEAD`) and keep
   your own working tree untouched.
