@@ -29,18 +29,18 @@ from confluent_kafka.admin import AdminClient
 from confluent_kafka.admin import NewTopic
 
 
-def positive_int_env(name, default):
+def int_env(name, default, minimum):
     value = os.environ.get(name, default)
-    if not re.fullmatch(r"[0-9]+", value) or int(value) < 1:
-        print(f"{name} must be an integer >= 1, got {value!r}", file=sys.stderr)
+    if not re.fullmatch(r"[0-9]+", value) or int(value) < minimum:
+        print(f"{name} must be an integer >= {minimum}, got {value!r}", file=sys.stderr)
         sys.exit(2)
     return int(value)
 
 
-COMMIT_EVERY = positive_int_env("COMMIT_EVERY", "100")
+COMMIT_EVERY = int_env("COMMIT_EVERY", "100", 1)
 NUM_THREADS = int(os.environ.get("NUM_THREADS", "1"))
-WARMUP = int(os.environ.get("WARMUP", "5"))
-COUNT = positive_int_env("COUNT", "25")
+WARMUP = int_env("WARMUP", "5", 0)
+COUNT = int_env("COUNT", "25", 1)
 BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 TOPIC_BASE = os.environ.get("KAFKA_TOPIC", "benchmark-topic-python-default")
 OUTPUT = os.environ.get("TIMEIT_OUTPUT", "results.json")
@@ -93,7 +93,7 @@ def run_iteration(index, profiler):
     consumer.subscribe([topic])
     while not consumer.assignment():
         consumer.poll(0.1)
-    # Must be a dict: ddtrace's DSM hook skips list/tuple headers.
+    # Dict (map form): older ddtrace DSM hooks skip list/tuple headers.
     headers = {f"key{k}": f"value{k}".encode() for k in range(5)}
     payload = b"x" * 1024
 
@@ -152,7 +152,8 @@ def main():
         "metrics": {
             "process.internal_duration_ms.median": median_ms,
             "process.internal_duration_ms.std_err": std_err,
-            "process.rss_bytes.median": statistics.median(r["rss_bytes"] for r in runs),
+            # median_low keeps a whole byte count for even COUNT.
+            "process.rss_bytes.median": statistics.median_low(r["rss_bytes"] for r in runs),
             "phase.produce_ms.median": statistics.median(r["produce_ms"] for r in runs),
             "phase.consume_ms.median": statistics.median(r["consume_ms"] for r in runs),
             "config.commit_every": COMMIT_EVERY,

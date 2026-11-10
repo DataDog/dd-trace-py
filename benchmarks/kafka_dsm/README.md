@@ -8,7 +8,7 @@ Each iteration: create a fresh single-partition topic and consumer group; (untim
 unkeyed messages (`b"x" * 1024`, headers `key0..key4` -> `value0..value4`) + `flush()`; (timed)
 consume them with a synchronous `commit(msg)` every `COMMIT_EVERY` messages and after the last
 one; (untimed) `consumer.close()`, then sample process RSS. Headers are a dict (ddtrace's DSM hook
-skips list/tuple). Duration per iteration = produce + consume.
+skips list/tuple on older ddtrace versions). Duration per iteration = produce + consume.
 
 ## Run
 
@@ -35,10 +35,10 @@ port adds connection-error overhead to the tracer scenarios.
 |---|---|---|
 | `COMMIT_EVERY` | 100 | sync commit every N messages; integer >= 1 |
 | `NUM_THREADS` | 1 | only 1 is implemented |
-| `WARMUP` / `COUNT` | 5 / 25 | discarded / timed iterations (`COUNT` >= 1) |
+| `WARMUP` / `COUNT` | 5 / 25 | discarded / timed iterations (`WARMUP` >= 0, `COUNT` >= 1) |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | |
 | `KAFKA_TOPIC` | `benchmark-topic-python-<scenario-slug>-<slug>` | base name; run id and iteration are appended |
-| `OUT_DIR` | `out` | default directory for the outputs below |
+| `OUT_DIR` | `out/` in this folder | default directory for the outputs below |
 | `TIMEIT_OUTPUT` | `$OUT_DIR/python-<slug>.<scenario-slug>.json` | result JSON (see below) |
 | `PROFILE` | 0 | 1: cProfile only the timed produce+consume phases of the timed iterations |
 | `PROFILE_OUTPUT` | `$OUT_DIR/python-<slug>.<scenario-slug>` | writes `<PROFILE_OUTPUT>.prof` and `.top.txt` |
@@ -58,5 +58,7 @@ ddtrace background threads (DSM flush, trace writer) are not in the profile.
   "phase.consume_ms.median": <ms>, "config.commit_every": <int>}}]
 ```
 
-Per-iteration `produce_ms` / `consume_ms` / `rss_bytes` go to the sibling `<name>.runs.json`.
+Per-iteration `produce_ms` / `consume_ms` / `rss_bytes` go to a sibling file: `TIMEIT_OUTPUT=<name>.json`
+also writes `<name>.runs.json` in the same directory (not the canonical schema; consumers globbing
+`*.json` must skip `*.runs.json`). `process.rss_bytes.median` is the lower median of the samples.
 RSS is the current RSS (`/proc/self/status` `VmRSS`; `ps` where `/proc` is missing, e.g. macOS).
