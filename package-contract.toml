@@ -40,7 +40,6 @@ native_policy = "native-required"
 forbidden_namespaces = []
 
 [dependencies.extras]
-opentracing = ["opentracing"]
 opentelemetry = ["opentelemetry-exporter-otlp"]
 openfeature = ["openfeature-sdk"]
 
@@ -80,6 +79,16 @@ supported_version_combinations = []
 build_command = []
 artifact_expectations = ["wheel", "sdist"]
 entry_points = { console_scripts = ["ddtrace-run", "_dd_crashtracker_receiver"], pytest11 = ["ddtrace"], opentelemetry_context = ["ddcontextvars_context"], "mlflow.request_header_provider" = ["datadog"], "ddtrace.products" = ["apm-tracing-rc", "llmobs", "code-origin-for-spans", "dynamic-instrumentation", "exception-replay", "profiler", "live-debugger", "error-tracking", "openfeature", "remote-configuration", "symbol-database", "appsec", "aiguard", "iast", "sca", "tracer"], "ddtrace.integration_hooks" = ["anthropic", "google_genai", "llama_index", "litellm", "mistralai", "typesafe", "mlflow", "vllm"] }
-resources = ["ddtrace:py.typed"]
+# Every runtime resource setup.py ships via package_data (plus the type
+# marker): artifact checks preserve them across the split.
+resources = [
+  "ddtrace:py.typed",
+  "ddtrace.appsec:rules.json",
+  "ddtrace.appsec._ddwaf:libddwaf/*/lib/libddwaf.*",
+  "ddtrace.appsec._iast._taint_tracking:_native/*.pyi",
+  "ddtrace.appsec.sca:_cve_data.json",
+  "ddtrace.internal:third-party.tar.gz",
+  "ddtrace.internal.datadog.profiling:libdd_wrapper*.*",
+]
 publishing_owner = "@DataDog/apm-core-python"
 rollback_procedure = "docs/package-split/plan.md (Deliverable 4, release rehearsal and cutover)"
