@@ -171,6 +171,7 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
   vertexai:
+    venvs_per_job: 5
     paths:
       - '@bootstrap'
       - '@vertexai'
