@@ -272,8 +272,15 @@ def _verify_freeze(
         # approved rewrite (e.g. the extraction bridge) lands on the base, a
         # PR reverting the file to its pre-extraction content shows no
         # cumulative drift (extraction_revision..head is empty) and would
-        # silently remove the landed rewrite. The PR's own change
-        # (base..head) must leave rewritten paths at an approved content too.
+        # silently remove the landed rewrite. The PR's own change must leave
+        # rewritten paths at an approved content too. The comparison is
+        # three-dot (merge-base..head): a PR that branched before a rewrite
+        # landed on the base shows that base-only rewrite as its own change
+        # in a two-dot diff, which would block unrelated older PRs.
+        # Backward transitions are rejected: once a later rewrite has landed,
+        # returning to an earlier approved content removes the newer rewrite
+        # without a new approval, so the head must sit at the newest approved
+        # content at or after the merge base's own rewrite index.
         pr_name_status = _git_lines(
             root,
             [
@@ -281,16 +288,38 @@ def _verify_freeze(
                 "--name-status",
                 "--no-renames",
                 "-z",
-                base,
-                head,
+                "%s...%s" % (base, head),
                 "--",
             ]
             + source_paths
             + entry.get("build_inputs", []),
         )
+
+        def _rewrite_index(path: str, revision: str) -> Optional[int]:
+            """Index of the approved content present at a revision, or None."""
+            content = _path_content(root, path, revision)
+            content_hash = hashlib.sha256(content).hexdigest() if content is not None else None
+            if content_hash is None:
+                return None
+            ordered_hashes = [rewrite["post_hash"] for rewrite in rewrites if rewrite["path"] == path]
+            if content_hash in ordered_hashes:
+                return ordered_hashes.index(content_hash)
+            return None
+
         for status, path in zip(pr_name_status[::2], pr_name_status[1::2]):
-            if path in approved and path not in exempted:
-                _check_rewritten_path(path, head)
+            if path not in approved or _excepted(path):
+                if path in approved and _excepted(path) and path not in exempted:
+                    exempted.append(path)
+                continue
+            base_index = _rewrite_index(path, base)
+            head_index = _rewrite_index(path, head)
+            if base_index is not None and head_index is not None and head_index < base_index:
+                problems.append(
+                    "frozen path %r reverts to an older approved rewrite: returning to a "
+                    "superseded post_hash needs a new approved rewrite" % path
+                )
+                continue
+            _check_rewritten_path(path, head)
 
         # 3. Approved rewrites are recorded as evidence; the drift check
         # above pins each one to its exact approved content, and active

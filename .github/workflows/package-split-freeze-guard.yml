@@ -24,14 +24,31 @@ on:
       - opened
       - reopened
       - synchronize
+      # Retargeting a PR (base change) emits `edited`, not `synchronize`:
+      # without this trigger a PR could be validated against a branch with
+      # no active freeze and then retargeted to a frozen branch without the
+      # guard inspecting it under the new rules. Title/body edits also fire
+      # `edited`; the run is read-only and idempotent, so the extra runs are
+      # harmless.
+      - edited
+  # When the protected base itself advances (e.g. the freeze-first commit
+  # lands while PRs are already open), none of the pull_request activities
+  # fire for those PRs and their earlier check results remain attached to the
+  # old, weaker rules. Revalidate every open PR head against the new base
+  # so a frozen path changed before the freeze cannot ride its old green.
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   freeze-guard:
     name: Package split freeze guard
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_target'
 
     steps:
       - name: Check out the base branch (protected harness and freeze rules)
@@ -68,7 +85,69 @@ jobs:
             --base "${{ github.event.pull_request.base.sha }}" \
             --head refs/remotes/pr/head
 
+      - name: Upload freeze evidence
+        if: always() && steps.active.outputs.active == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: freeze-evidence-pr-${{ github.event.pull_request.number }}
+          path: .package-split/
+          retention-days: 14
+
       - name: No active freeze
         if: steps.active.outputs.active != 'true'
         run: |
           echo "No package-freeze.toml on ${{ github.event.pull_request.base.ref }}: package-split freeze not yet established."
+
+  revalidate-open-prs:
+    # Base-advance path: when the freeze rules themselves land on main (or
+    # main moves), revalidate every open PR head against the new rules.
+    # Without this, a PR that touched a newly frozen path before the freeze
+    # existed keeps its old green check result and can merge unreviewed.
+    name: Revalidate open PRs
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Check out the advanced base (protected harness and freeze rules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: List open PRs touching frozen paths
+        id: prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "prs<<EOF" >> "$GITHUB_OUTPUT"
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName \
+            --jq '.[] | "\(.number) \(.headRefName)"' >> "$GITHUB_OUTPUT" || true
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Revalidate each open PR head
+        if: steps.prs.outputs.prs != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo '${{ steps.prs.outputs.prs }}' | while read -r number head_ref; do
+            [ -z "$number" ] && continue
+            echo "Revalidating PR #$number ($head_ref)"
+            git fetch --no-tags origin "refs/pull/$number/head:refs/remotes/pr/$number/head"
+            if scripts/package-split freeze \
+              --manifest package-contract.toml \
+              --output ".package-split/pr-$number" \
+              --base "$GITHUB_SHA" \
+              --head "refs/remotes/pr/$number/head"; then
+              echo "PR #$number: PASS"
+            else
+              echo "::warning::PR #$number fails the freeze guard against the new rules"
+            fi
+          done
+
+      - name: Upload freeze evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: freeze-evidence-revalidation
+          path: .package-split/
+          retention-days: 14

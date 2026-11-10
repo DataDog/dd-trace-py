@@ -16,7 +16,8 @@ def test_repository_manifest_loads():
     assert manifest.distribution == "ddtrace"
     assert manifest.import_roots == ["ddtrace"]
     assert manifest.native_policy == "native-required"
-    assert manifest.extras["opentracing"] == ["opentracing"]
+    assert manifest.extras["opentelemetry"] == ["opentelemetry-exporter-otlp"]
+    assert "opentracing" not in manifest.extras
 
 
 def test_valid_generated_manifest(tmp_path):

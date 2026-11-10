@@ -369,3 +369,66 @@ def test_missing_freeze_manifest_is_not_run(tmp_path):
     report = repo.run(base=repo.extraction_revision)
     assert report.status == FAIL
     assert any(c.status == NOT_RUN for c in report.checks)
+
+
+def test_merge_base_comparison_not_base_only_changes(tmp_path):
+    # A PR branched before the rewrite landed on the base: its unchanged
+    # frozen file carries the extraction baseline, and a two-dot base..head
+    # diff would show the base-only rewrite as the PR's own change. The
+    # three-dot (merge-base..head) comparison must not block it.
+    rewrites = REWRITE_TEMPLATE.format(post_hash=hashlib.sha256(b"value = 2\n").hexdigest())
+    repo = FreezeRepo(tmp_path, rewrites=rewrites)
+    # Land the rewrite on the default branch (the base).
+    (repo.root / "sample" / "mod.py").write_text("value = 2\n", encoding="utf-8")
+    repo.commit_change("land the rewrite")
+    # An older PR whose branch still carries the pre-extraction baseline.
+    git(repo.root, "checkout", "-b", "older-pr", "HEAD~1")
+    git(repo.root, "checkout", "main")
+
+    report = repo.run(base="main", head="older-pr")
+    assert report.status == PASS, report.summary()
+
+
+def test_revert_to_older_approved_rewrite_fails(tmp_path):
+    # After the second approved rewrite lands on the base, a PR replacing
+    # the current content with the FIRST (older) approved content passes a
+    # membership test over all historical post_hash values. Backward
+    # transitions must be rejected.
+    approved_content = "value = 2\n"
+    bridged_content = "value = 3\n"
+    rewrites = REWRITE_TEMPLATE.format(
+        post_hash=hashlib.sha256(approved_content.encode()).hexdigest()
+    ) + REWRITE_TEMPLATE.format(post_hash=hashlib.sha256(bridged_content.encode()).hexdigest())
+    repo = FreezeRepo(tmp_path, rewrites=rewrites)
+    # The bridge (second rewrite) lands on the base.
+    (repo.root / "sample" / "mod.py").write_text(bridged_content, encoding="utf-8")
+    repo.commit_change("land the bridge")
+    # PR: revert to the older approved content.
+    git(repo.root, "checkout", "-b", "pr-head")
+    (repo.root / "sample" / "mod.py").write_text(approved_content, encoding="utf-8")
+    repo.commit_change("revert to the older approved rewrite")
+    git(repo.root, "checkout", "main")
+
+    report = repo.run(base="main", head="pr-head")
+    assert report.status == FAIL
+    assert any(
+        "older approved rewrite" in p
+        for c in report.checks
+        if c.name == "source-freeze"
+        for p in c.data.get("problems", [])
+    )
+
+
+def test_unknown_frozen_entry_key_rejected(tmp_path):
+    # A typo in an optional field (build_inputs) would validate cleanly
+    # and then be silently ignored, leaving the intended protection unset.
+    repo = FreezeRepo(tmp_path)
+    freeze_text = (tmp_path / "package-freeze.toml").read_text(encoding="utf-8")
+    freeze_text = freeze_text.replace('build_inputs = ["pyproject.toml"]', 'build_input = ["pyproject.toml"]')
+    (tmp_path / "package-freeze.toml").write_text(freeze_text, encoding="utf-8")
+    repo.commit_change("typo in build_inputs")
+    report = repo.run(base="HEAD")
+    assert report.status == FAIL
+    freeze_manifest = [c for c in report.checks if c.name == "freeze-manifest"]
+    assert freeze_manifest and freeze_manifest[0].status == FAIL
+    assert "build_input" in str(freeze_manifest[0].detail)
