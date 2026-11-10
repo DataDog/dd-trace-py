@@ -1,11 +1,13 @@
 """Tests for ddtrace.testing.internal.http module."""
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import types
 import typing as t
 from unittest.mock import Mock
@@ -1425,7 +1427,11 @@ class _FakeGevent:
         self.hub = types.SimpleNamespace(threadpool=Threadpool())
         gevent = types.ModuleType("gevent")
         hub_local = types.ModuleType("gevent._hub_local")
-        hub_local.get_hub_if_exists = lambda: self.hub if hub_exists else None  # type: ignore[attr-defined]
+        # Real hubs are thread-local; background requests must not use this test's fake hub.
+        test_thread = threading.current_thread()
+        hub_local.get_hub_if_exists = (  # type: ignore[attr-defined]
+            lambda: self.hub if hub_exists and threading.current_thread() is test_thread else None
+        )
         gevent.Timeout = Timeout  # type: ignore[attr-defined]
         gevent.getcurrent = lambda: self.hub if in_hub else object()  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, "gevent", gevent)
@@ -1445,6 +1451,27 @@ class TestGevent:
     """Where a gevent hub runs, greenlets share the thread, and a native request runs on the hub's threadpool so that
     they keep running while it waits.
     """
+
+    @patch("ddtrace.testing.internal.http.HTTPClient")
+    def test_requests_from_other_threads_do_not_use_the_fake_hub(
+        self, mock_http_client: Mock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gevent = _FakeGevent(monkeypatch)
+        gevent.expire_while_spawning = True
+        client = _ok_client(mock_http_client)
+
+        def request():
+            return BackendConnector(url="http://localhost:8126", timeout_seconds=2.0).request(
+                "POST", "/x", data=b"x", max_attempts=1
+            )
+
+        with ThreadPoolExecutor() as pool:
+            result = pool.submit(request).result()
+
+        assert result.error_type is None
+        assert gevent.deadlines == []
+        assert gevent.spawned == []
+        assert client.post.call_count == 1
 
     @patch("ddtrace.testing.internal.http.HTTPClient")
     def test_requests_run_on_the_threadpool_where_a_hub_runs(
