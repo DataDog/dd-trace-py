@@ -201,7 +201,9 @@ the locks and commit both changes:
 
   $ scripts/test-requirements lock <environment-name>
 
-Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+The name is a variant name or an integration name; an integration name selects every variant that tests it
+(``pytest`` locks ``testing``, ``pytest:flaky`` and the other pytest variants).
+Omit the name to generate all missing locks and prune locks that no longer have a corresponding
 environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
 On Apple Silicon, select that image architecture explicitly:
 
