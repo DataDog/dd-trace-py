@@ -339,7 +339,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         self,
         method: str,
         endpoint: str,
-        payload: dict,
+        payload: dict[str, t.Any],
         metric_names: APIRequestMetricNames,
         timeout: t.Optional[float] = None,
         read_from_cache: bool = True,
@@ -536,7 +536,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         }
 
         try:
-            skippable_response: _SkippableResponse = self._do_request_with_telemetry(
+            skippable_response: t.Optional[_SkippableResponse] = self._do_request_with_telemetry(
                 "POST", SKIPPABLE_ENDPOINT, payload, metric_names, timeout, read_from_cache=read_from_cache
             )
         except Exception:  # noqa: E722
@@ -773,7 +773,7 @@ class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
         super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
         self._api_key = api_key
 
-    def _get_headers(self):
+    def _get_headers(self) -> dict[str, str]:
         return {AGENTLESS_API_KEY_HEADER_NAME: self._api_key}
 
     def _redact_headers(self) -> dict[str, str]:
@@ -800,7 +800,7 @@ class EVPProxyTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
         base_url = combine_url_path(agent_url, evp_proxy_base_url)
         super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
 
-    def _get_headers(self):
+    def _get_headers(self) -> dict[str, str]:
         return {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
 
     def _redact_headers(self) -> dict[str, str]:
