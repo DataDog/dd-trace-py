@@ -2450,7 +2450,7 @@
     ],
     "DD_LITELLM_USAGE_METRICS_EXPORTER": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
         "default": "dogstatsd"
       }

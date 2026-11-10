@@ -636,6 +636,21 @@ def test_a_client_that_leaves_after_the_provider_finished(installed, writer, eve
     assert request["error_type"] == "client_disconnected"
 
 
+@pytest.mark.parametrize("finish_reason, attempt_error", [("stop", None), (None, "client_disconnected")])
+def test_a_client_that_leaves_after_a_chat_stream_finished(installed, writer, finish_reason, attempt_error):
+    # A client that closes after the provider's last chat chunk, before the proxy's generator ended: the provider
+    # attempt ended as it should, and the request keeps the error.
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    feed(StreamWrapper("openai"), chunk(model="gpt-4o-mini"), chunk(finish_reason=finish_reason))
+    proxy.succeeded(0.5, first_chunk=0.1, error_class="ClientDisconnected")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt.get("error_type") == attempt_error
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["error_type"] == "client_disconnected"
+
+
 def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(installed, writer):
     proxy = Proxy(installed, call_type="aresponses", stream=True, route="gpt")
     proxy.start()
@@ -1451,6 +1466,35 @@ def test_the_logger_survives_the_proxy_callback_setup(enabled, tmp_path, value):
     unpatch()
     assert not hasattr(callback_utils.initialize_callbacks_on_proxy, "__wrapped__")
     assert not hasattr(proxy_server.initialize_callbacks_on_proxy, "__wrapped__")
+
+
+@pytest.mark.subprocess()
+def test_unpatch_restores_the_callback_setup_the_proxy_server_imported_after_patching():
+    # The proxy server imports the already wrapped callback setup by name; unpatching restores that name too.
+    import os
+    import sys
+
+    os.environ["DD_LITELLM_USAGE_METRICS_ENABLED"] = "true"
+    os.environ["DD_LITELLM_USAGE_METRICS_EXPORTER"] = "dogstatsd"
+
+    from ddtrace.contrib.internal.litellm.patch import patch
+    from ddtrace.contrib.internal.litellm.patch import unpatch
+    from ddtrace.internal.ai_usage import ai_usage
+
+    try:
+        from litellm.proxy.common_utils import callback_utils
+    except ImportError:
+        callback_utils = None
+    if ai_usage is not None and callback_utils is not None and "litellm.proxy.proxy_server" not in sys.modules:
+        original = callback_utils.initialize_callbacks_on_proxy
+        patch()
+        assert callback_utils.initialize_callbacks_on_proxy is not original
+        from litellm.proxy import proxy_server
+
+        assert proxy_server.initialize_callbacks_on_proxy is callback_utils.initialize_callbacks_on_proxy
+        unpatch()
+        assert callback_utils.initialize_callbacks_on_proxy is original
+        assert proxy_server.initialize_callbacks_on_proxy is original
 
 
 def mock_call():

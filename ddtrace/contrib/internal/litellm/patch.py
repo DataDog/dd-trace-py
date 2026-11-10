@@ -207,8 +207,10 @@ def traced_chunk_creator(func, instance, args, kwargs):
             real = (_count(prompt) and prompt > 0) or (_count(completion) and completion > 0)
             input_reported = real and _count(prompt)
             output_reported = real and _count(completion)
+            choices = _field(chunk, "choices") or [None]
+            # The provider ended the response: a client that leaves after this chunk does not fail the attempt.
+            finished = any(_field(choice, "finish_reason") for choice in choices)
             if output_reported and getattr(instance, "custom_llm_provider", None) == "anthropic":
-                choices = _field(chunk, "choices") or [None]
                 output_reported = bool(_field(choices[0], "finish_reason"))
             reasoning = _field(_field(usage, "completion_tokens_details"), "reasoning_tokens")
             model = _field(chunk, "model")
@@ -227,6 +229,7 @@ def traced_chunk_creator(func, instance, args, kwargs):
                 model if isinstance(model, str) else None,
                 isinstance(reasoning, int),
                 tier if isinstance(tier, str) else None,
+                completed=finished,
             )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
@@ -400,12 +403,16 @@ def _wrap_proxy_shutdown(module):
 
 def _wrap_initialize_callbacks(module):
     """Wrap the proxy's callback setup where it is defined and where the proxy server imported it by name, unless
-    that name already refers to the wrapped definition.
+    that name already refers to the wrapped definition: the proxy server imported after patching. Unpatching then
+    restores that name to the original too.
     """
     try:
         defining = sys.modules.get(_PROXY_CALLBACKS_MODULE)
         if module is not defining and defining is not None:
             if vars(module).get(_INITIALIZE_CALLBACKS) is vars(defining).get(_INITIALIZE_CALLBACKS):
+                original = _wrapped_stream_methods.get((defining, _INITIALIZE_CALLBACKS))
+                if original is not None:
+                    _wrapped_stream_methods.setdefault((module, _INITIALIZE_CALLBACKS), original)
                 return
         _wrap_stream_method(module, _INITIALIZE_CALLBACKS, traced_initialize_callbacks_on_proxy)
     except Exception:
