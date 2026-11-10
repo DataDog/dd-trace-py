@@ -412,7 +412,7 @@ def _assert_explicit_compression_override(signal, protocol):
                 if protocol == "grpc":
                     assert create_channel.call_args.kwargs["compression"] == Compression.Gzip
                 else:
-                    assert exporter._compression == Compression.Gzip
+                    assert exporter._compression.value == "gzip"
             finally:
                 exporter.shutdown()
         assert warnings == initial_warnings, warnings
