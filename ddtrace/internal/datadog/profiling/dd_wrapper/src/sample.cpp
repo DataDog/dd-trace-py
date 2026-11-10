@@ -15,6 +15,7 @@
 #include "python_helpers.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <datadog/profiling.h>
 #include <string_view>
@@ -33,8 +34,12 @@ Datadog::intern_string(std::string_view s)
     auto insert_str_res = ddog_prof_ProfilesDictionary_insert_str(
       &string_id, *maybe_dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
 
-    if (insert_str_res.flags) {
-        std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
+    if (status_is_error(insert_str_res)) {
+        // Under memory pressure this fails for every frame, so only report it once.
+        static std::atomic<bool> already_warned{ false };
+        if (!already_warned.exchange(true, std::memory_order_relaxed)) {
+            std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
+        }
         return std::nullopt;
     }
 
@@ -58,8 +63,11 @@ Datadog::intern_function(string_id name, string_id filename)
 
     ddog_prof_FunctionId2 function_id;
     auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, *maybe_dict, &my_function);
-    if (insert_function_res.flags) {
-        std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
+    if (status_is_error(insert_function_res)) {
+        static std::atomic<bool> already_warned{ false };
+        if (!already_warned.exchange(true, std::memory_order_relaxed)) {
+            std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
+        }
         return std::nullopt;
     }
 
