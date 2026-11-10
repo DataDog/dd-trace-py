@@ -90,7 +90,7 @@ _RESERVED_EXTRA_TAGS = frozenset(
         _SPAN_MEASURED_KEY,
     )
 )
-_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "attack_categories", "sds", "tag_probs"))
+_RESERVED_EXTRA_STRUCT_KEYS = frozenset(("messages", "mcp_servers", "attack_categories", "sds", "tag_probs"))
 # Root span tags that anomaly detection reads under their OTel names when OTel semantics are enabled.
 _OTEL_ANOMALY_SOURCE_TAGS = {
     http.USER_AGENT: otel_http.USER_AGENT_ORIGINAL,
@@ -572,7 +572,12 @@ class AIGuardClient:
                     if redaction_enabled:
                         span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
 
-                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
+                    meta_struct: dict[str, Any] = {
+                        "messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)
+                    }
+                    # Resolves the mcp.server_id of the tool calls in messages to the server it names.
+                    if mcp_servers:
+                        meta_struct["mcp_servers"] = deepcopy(mcp_servers)
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                     if attack_categories:
