@@ -12,6 +12,7 @@ from .._toml import tomllib
 from ..evidence import FAIL
 from ..evidence import NOT_RUN
 from ..evidence import PASS
+from ..evidence import SKIP
 from ..freeze_manifest import FreezeManifestError
 from ..freeze_manifest import validate_freeze
 from ..manifest import Manifest
@@ -49,7 +50,9 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
     report.record("freeze-manifest", PASS, "validated (read from %s)" % source)
 
     try:
-        problems, exempted = _verify_freeze(manifest.root, data, report, head=getattr(args, "head", None) or "HEAD")
+        problems, exempted = _verify_freeze(
+            manifest.root, data, report, base=base, head=getattr(args, "head", None) or "HEAD"
+        )
     except RuntimeError as exc:
         report.record("source-freeze", FAIL, str(exc))
         return
@@ -68,6 +71,16 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
             "all frozen paths match the extraction baseline",
             applied_exceptions=exempted,
         )
+    if expired := data.get("freeze_exceptions", []):
+        expired_paths = [e["path"] for e in expired if datetime.date.fromisoformat(e["expiry"]) < datetime.date.today()]
+        if expired_paths:
+            # Visible but not gate-failing: see the comment on exception
+            # expiry handling in _verify_freeze.
+            report.record(
+                "freeze-exceptions",
+                SKIP,
+                "expired exception(s) no longer exempt drift: %s" % ", ".join(sorted(set(expired_paths))),
+            )
 
 
 def _resolve_revision(root: Path, revision: str) -> Optional[str]:
@@ -123,7 +136,31 @@ def _path_content(root: Path, path: str, revision: Optional[str]) -> Optional[by
     return None
 
 
-def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "HEAD") -> tuple[list[str], list[str]]:
+def _is_regular_file(root: Path, path: str, revision: Optional[str]) -> bool:
+    """Whether the path is a regular-file entry (not a symlink/special).
+
+    A symlink to the approved content carries the same blob bytes and
+    would otherwise pass a post_hash comparison while changing checkout
+    and import behavior.
+    """
+    if revision is None:
+        file = root / path
+        return file.is_file() and not file.is_symlink()
+    result = subprocess.run(  # nosec B603, B607 - fixed argv, PATH-resolved git
+        ["git", "ls-tree", revision, "--", path],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return False
+    return result.stdout.split()[0] in ("100644", "100755")
+
+
+def _verify_freeze(
+    root: Path, data: dict[str, Any], report: Any, base: str, head: str = "HEAD"
+) -> tuple[list[str], list[str]]:
     import hashlib
 
     problems: list[str] = []
@@ -132,12 +169,18 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
 
     # Exceptions must be current (never expired) with complete records;
     # active ones exempt their covered paths from the drift checks below
-    # until they expire.
+    # until they expire. An expired exception stops exempting -- drift
+    # under it becomes unauthorized again -- but expiry alone is not a
+    # gate failure: the rules are read from the PR base revision, so a
+    # failing expiry would block the very PR that renews or removes the
+    # entry (and every unrelated PR) with no bypass. Expired entries are
+    # recorded in the evidence instead.
     active_exceptions: list[str] = []
+    expired_exceptions: list[str] = []
     for exception in data.get("freeze_exceptions", []):
         expiry = datetime.date.fromisoformat(exception["expiry"])
         if expiry < today:
-            problems.append("freeze exception for %r expired on %s" % (exception["path"], exception["expiry"]))
+            expired_exceptions.append(exception["path"])
         else:
             active_exceptions.append(exception["path"].rstrip("/"))
 
@@ -185,6 +228,30 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
             + source_paths
             + entry.get("build_inputs", []),
         )
+
+        def _check_rewritten_path(path: str, revision: str) -> None:
+            """A rewritten path stays protected at the revision under test.
+
+            The entry must be a regular file -- a symlink or special entry
+            carrying the same blob would otherwise pass the post_hash check
+            while changing checkout and import behavior -- and the content
+            must match one of the approved post-rewrite contents (F19).
+            """
+            if not _is_regular_file(root, path, revision):
+                problems.append(
+                    "frozen path %r is not a regular file at the inspected revision: "
+                    "symlinked or special entries are not accepted" % path
+                )
+                return
+            content = _path_content(root, path, revision)
+            content_hash = hashlib.sha256(content).hexdigest() if content is not None else None
+            if content_hash is None or content_hash not in approved_hashes[path]:
+                problems.append(
+                    "frozen path %r has approved rewrites, but the content at the inspected "
+                    "revision matches none of their post_hash values: further changes need a "
+                    "new approved rewrite" % path
+                )
+
         for status, path in zip(name_status[::2], name_status[1::2]):
             if _excepted(path):
                 # An active, unexpired exception covers this path: the
@@ -193,19 +260,37 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
                 continue
             if path in approved:
                 # A rewritten path stays protected (F19): the drift is
-                # tolerated only when the head content is exactly one of
-                # the approved post-rewrite contents; any further edit
-                # needs a new approved rewrite with its own post_hash.
-                head_content = _path_content(root, path, head)
-                head_hash = hashlib.sha256(head_content).hexdigest() if head_content is not None else None
-                if head_hash is None or head_hash not in approved_hashes[path]:
-                    problems.append(
-                        "frozen path %r has approved rewrites, but the head content matches none "
-                        "of their post_hash values: further changes need a new approved rewrite" % path
-                    )
+                # tolerated only when the content is exactly one of the
+                # approved post-rewrite contents, and the entry stays a
+                # regular file.
+                _check_rewritten_path(path, head)
                 continue
             change = {"M": "edit", "A": "addition", "D": "deletion"}.get(status, "change")
             problems.append("unauthorized %s to frozen path %r" % (change, path))
+
+        # 2b. Rewritten paths also keep their per-PR drift pinned. Once an
+        # approved rewrite (e.g. the extraction bridge) lands on the base, a
+        # PR reverting the file to its pre-extraction content shows no
+        # cumulative drift (extraction_revision..head is empty) and would
+        # silently remove the landed rewrite. The PR's own change
+        # (base..head) must leave rewritten paths at an approved content too.
+        pr_name_status = _git_lines(
+            root,
+            [
+                "diff",
+                "--name-status",
+                "--no-renames",
+                "-z",
+                base,
+                head,
+                "--",
+            ]
+            + source_paths
+            + entry.get("build_inputs", []),
+        )
+        for status, path in zip(pr_name_status[::2], pr_name_status[1::2]):
+            if path in approved and path not in exempted:
+                _check_rewritten_path(path, head)
 
         # 3. Approved rewrites are recorded as evidence; the drift check
         # above pins each one to its exact approved content, and active

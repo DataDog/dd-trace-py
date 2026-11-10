@@ -15,6 +15,7 @@ import subprocess
 from package_split.evidence import FAIL
 from package_split.evidence import NOT_RUN
 from package_split.evidence import PASS
+from package_split.evidence import SKIP
 from package_split.gates import freeze
 
 from ._support import Args
@@ -266,11 +267,80 @@ def test_inspected_head_recorded_in_evidence(tmp_path):
     assert evidence["inspected_head"] == pr_head_sha
 
 
-def test_expired_exception_fails(tmp_path):
-    repo = FreezeRepo(tmp_path, exceptions=EXCEPTION.format(expiry="2001-01-01"))
+def test_expired_exception_without_drift_is_visible_not_blocking(tmp_path):
+    # Expired exceptions stop exempting but do not fail the gate on their
+    # own: rules are read from the PR base, so a failing expiry would block
+    # the very PR that renews or removes the entry (and every unrelated
+    # PR). The expiry is visible as a freeze-exceptions skip instead.
+    exceptions = EXCEPTION.format(expiry="2001-01-01")
+    repo = FreezeRepo(tmp_path, exceptions=exceptions)
+    report = repo.run()
+    assert report.status == PASS, report.summary()
+    freeze_exceptions = [c for c in report.checks if c.name == "freeze-exceptions"]
+    assert freeze_exceptions and freeze_exceptions[0].status == SKIP
+    assert "sample/" in freeze_exceptions[0].detail
+
+
+def test_expired_exception_drift_becomes_unauthorized(tmp_path):
+    # Once the exception expires, drift under its path is unauthorized
+    # again -- the time box is enforced by the drift check, not by
+    # failing every unrelated PR.
+    exceptions = EXCEPTION.format(expiry="2001-01-01")
+    repo = FreezeRepo(tmp_path, exceptions=exceptions)
+    (repo.root / "sample" / "mod.py").write_text("value = 2\n", encoding="utf-8")
+    repo.commit_change("edit under an expired exception")
     report = repo.run()
     assert report.status == FAIL
-    assert any("expired" in str(c.data.get("problems", [])) for c in report.checks)
+    assert any(
+        "unauthorized edit" in p for c in report.checks if c.name == "source-freeze" for p in c.data.get("problems", [])
+    )
+
+
+def test_revert_of_landed_rewrite_fails(tmp_path):
+    # Once an approved rewrite (the bridge) lands on the base, a PR
+    # reverting the file to its pre-extraction content shows no cumulative
+    # drift (extraction..head is empty); the PR's own change (base..head)
+    # must still leave the rewritten path at an approved content.
+    rewrites = REWRITE_TEMPLATE.format(post_hash=hashlib.sha256(b"value = 2\n").hexdigest())
+    repo = FreezeRepo(tmp_path, rewrites=rewrites)
+    original = (repo.root / "sample" / "mod.py").read_text()
+    bridged = original + "# bridge\n"
+    # Land the bridge on the default branch (the base).
+    (repo.root / "sample" / "mod.py").write_text(bridged, encoding="utf-8")
+    repo.commit_change("land the bridge")
+    # PR: revert to the pre-extraction content.
+    git(repo.root, "checkout", "-b", "pr-head")
+    (repo.root / "sample" / "mod.py").write_text(original, encoding="utf-8")
+    repo.commit_change("revert the bridge")
+    git(repo.root, "checkout", "main")
+
+    report = repo.run(base="main", head="pr-head")
+    assert report.status == FAIL
+    assert any("post_hash" in p for c in report.checks if c.name == "source-freeze" for p in c.data.get("problems", []))
+
+
+def test_symlink_with_matching_content_fails(tmp_path):
+    # A symlink entry whose blob bytes equal the approved content passes a
+    # naive post_hash comparison while changing checkout/import behavior;
+    # the entry type is part of the approval.
+    rewrites = REWRITE_TEMPLATE.format(post_hash=hashlib.sha256(b"value = 2\n").hexdigest())
+    repo = FreezeRepo(tmp_path, rewrites=rewrites)
+    # Replace the regular file with a symlink whose target string has the
+    # exact approved content bytes.
+    target = repo.root / "sample" / "value = 2\n"
+    target.write_bytes(b"")
+    mod = repo.root / "sample" / "mod.py"
+    mod.unlink()
+    mod.symlink_to(target)
+    repo.commit_change("rewrite as a symlink with identical content")
+    report = repo.run()
+    assert report.status == FAIL
+    assert any(
+        "not a regular file" in p
+        for c in report.checks
+        if c.name == "source-freeze"
+        for p in c.data.get("problems", [])
+    )
 
 
 def test_recorded_hash_mismatch_fails(tmp_path):
