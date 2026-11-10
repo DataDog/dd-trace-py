@@ -1418,6 +1418,28 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
+    def test_flask_insecure_cookie_mixed_arguments(self):
+        @self.app.route("/mixed_cookie/")
+        def mixed_cookie():
+            from flask import Response
+
+            response = Response("OK")
+            response.set_cookie("session", value="token", secure=False, httponly=True, samesite="Strict")
+            return response
+
+        with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
+            response = self.client.get("/mixed_cookie/")
+            assert response.status_code == 200
+            assert "session=token" in response.headers["Set-Cookie"]
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            report = load_iast_report(root_span)
+            assert report is not None
+            assert len(report["vulnerabilities"]) == 1
+            vulnerability = report["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_INSECURE_COOKIE
+            assert vulnerability["evidence"] == {"valueParts": [{"value": "session"}]}
+
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_insecure_cookie_empty(self):
         @self.app.route("/insecure_cookie_empty/", methods=["GET", "POST"])
