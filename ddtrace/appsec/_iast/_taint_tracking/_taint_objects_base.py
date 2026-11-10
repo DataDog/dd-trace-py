@@ -85,8 +85,7 @@ def is_pyobject_tainted(pyobject: object) -> bool:
         return False
 
     try:
-        is_tainted: bool = is_in_taint_map(pyobject, context_id)
-        return is_tainted
+        return is_in_taint_map(pyobject, context_id)
     except ValueError as e:
         iast_propagation_error_log("Checking tainted object error", exc=e)
     return False
