@@ -203,8 +203,9 @@ def traced_chunk_creator(func, instance, args, kwargs):
             input_reported = "input_tokens" in fields
             output_reported = "output_tokens" in fields
             choices = _field(chunk, "choices") or [None]
-            # The provider ended the response: a client that leaves after this chunk does not fail the attempt.
-            finished = any(_field(choice, "finish_reason") for choice in choices)
+            # The provider ended the response, every choice of it: a client that leaves after this chunk does not
+            # fail the attempt.
+            finished = _stream_finished(instance, choices)
             if output_reported and getattr(instance, "custom_llm_provider", None) == "anthropic":
                 output_reported = bool(_field(choices[0], "finish_reason"))
             model = _field(chunk, "model")
@@ -228,6 +229,39 @@ def traced_chunk_creator(func, instance, args, kwargs):
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
     return func(*args, **kwargs)
+
+
+# The choice indexes each chat or text stream has shown, and those that finished, by LiteLLM's stream wrapper. With
+# n > 1, choices finish in different chunks.
+_stream_choices: "weakref.WeakKeyDictionary[object, tuple[set[int], set[int]]]" = weakref.WeakKeyDictionary()
+
+
+def _requested_choices(stream) -> Optional[int]:
+    """The number of choices the request asked for (n), from the parameters LiteLLM sent the provider."""
+    n = _field(getattr(getattr(stream, "logging_obj", None), "optional_params", None), "n")
+    return n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else None
+
+
+def _stream_finished(stream, choices) -> bool:
+    """Whether every choice of the stream has finished: every requested one when the request's n is known, else every
+    one the stream has shown so far, these chunk choices included.
+    """
+    try:
+        seen, finished = _stream_choices.setdefault(stream, (set(), set()))
+    except TypeError:
+        # A stream that takes no weak reference: only this chunk's choices are known.
+        seen, finished = set(), set()
+    for position, choice in enumerate(choices):
+        index = _field(choice, "index")
+        index = index if isinstance(index, int) else position
+        seen.add(index)
+        if _field(choice, "finish_reason"):
+            finished.add(index)
+    requested = _requested_choices(stream)
+    if requested is not None:
+        # A choice can finish before another's first chunk arrives.
+        seen = seen | set(range(requested))
+    return bool(finished) and seen <= finished
 
 
 # The model and service tier each Anthropic chat stream's message_start event names, by LiteLLM's stream iterator.
