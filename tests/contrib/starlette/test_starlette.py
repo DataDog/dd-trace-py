@@ -914,6 +914,68 @@ def test_resource_with_nested_empty_mounts(tracer, test_spans):
         assert span.resource == "GET /users/{user_id}"
 
 
+def test_resource_with_route_endpoint_router_over_empty_mount(tracer, test_spans):
+    """A Mount("") reached through a route whose endpoint is a Router is nested in that route,
+    so the route keeps its path although it is in a Mount("") too.
+    """
+    from starlette.routing import Mount
+    from starlette.routing import Router
+
+    async def hello(scope, receive, send):
+        await PlainTextResponse("hello")(scope, receive, send)
+
+    endpoint = Router(routes=[Mount("", app=hello)])
+    app = Starlette(routes=[Mount("", routes=[Route("/hello/{name}", endpoint=endpoint)])])
+
+    with TestClient(app) as client:
+        r = client.get("/hello/x")
+
+    assert r.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "GET /hello/{name}"
+    assert request_span.get_tag("http.route") == "/hello/{name}"
+
+
+@pytest.mark.parametrize("mount_path", ["", "/api"])
+def test_resource_with_route_shared_by_two_routers(tracer, test_spans, mount_path):
+    """When the request is routed again through another Mount with the same Route object, the
+    route records its path again for the new routing pass.
+    """
+    from starlette.middleware import Middleware
+    from starlette.routing import Mount
+    from starlette.routing import Router
+
+    async def item(request):
+        return PlainTextResponse("ok")
+
+    routes = [Route("/items/{item_id:int}", endpoint=item)]
+
+    class SharedRoutesMiddleware:
+        """Handles the request with its own Mount over the shared routes, then passes it on."""
+
+        def __init__(self, app):
+            self.app = app
+            self.router = Router(routes=[Mount(mount_path, routes=routes)])
+
+        async def __call__(self, scope, receive, send):
+            async def discard(message):
+                pass
+
+            if scope["type"] == "http":
+                await self.router(dict(scope), receive, discard)
+            await self.app(scope, receive, send)
+
+    app = Starlette(routes=[Mount(mount_path, routes=routes)], middleware=[Middleware(SharedRoutesMiddleware)])
+
+    with TestClient(app) as client:
+        r = client.get(mount_path + "/items/1")
+
+    assert r.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "GET " + mount_path + "/items/{item_id:int}"
+    assert request_span.get_tag("http.route") == mount_path + "/items/{item_id:int}"
+
+
 def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
     """Starlette route resolution is safe before span finish and request teardown.
 

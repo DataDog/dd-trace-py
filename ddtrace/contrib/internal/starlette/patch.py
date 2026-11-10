@@ -266,8 +266,13 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
 
 def _add_resource_path(scope: dict[str, Any], instance: Any) -> None:
     resource_paths: list[str] = scope["datadog"].setdefault("resource_paths", [])
-    # (path, root_path, request span count) of each Mount in resource_paths, None for routes
-    mounts: list[Optional[tuple[str, Optional[str], int]]] = scope["datadog"].setdefault("_dd_resource_path_mounts", [])
+    # (path, root_path, request span count, child route paths) of each Mount in resource_paths,
+    # None for routes
+    mounts: list[Optional[tuple[str, Optional[str], int, Optional[tuple[Optional[str], ...]]]]] = scope[
+        "datadog"
+    ].setdefault("_dd_resource_path_mounts", [])
+    # id() of the Mount or route that added each entry of resource_paths
+    instance_ids: list[int] = scope["datadog"].setdefault("_dd_resource_path_instance_ids", [])
     mount = None
     if isinstance(instance, starlette.routing.Mount):
         # Mount.matches() sets root_path to everything matched so far. A Mount handled in the
@@ -276,15 +281,23 @@ def _add_resource_path(scope: dict[str, Any], instance: Any) -> None:
         # one Router with the same Mount per middleware. Routing again starts at the first such
         # Mount and replaces everything from there instead of adding the paths a second time.
         # Nested Mount("") levels don't change root_path either, so an empty Mount only counts
-        # as routing again once a route was handled after the earlier one.
-        mount = (instance.path, scope.get("root_path"), len(scope["datadog"].get("request_spans", ())))
+        # as routing again once a route was handled after the earlier one, and only if it has
+        # the same child routes: a route's endpoint can be a Router with a Mount("") of its own.
+        child_paths = None
+        if not instance.path:
+            child_paths = tuple(getattr(route, "path", None) for route in instance.routes)
+        mount = (instance.path, scope.get("root_path"), len(scope["datadog"].get("request_spans", ())), child_paths)
         if mount in mounts:
             index = mounts.index(mount)
             if instance.path or None in mounts[index:]:
+                # Routes shared with the earlier routing pass must record their paths again.
+                scope["datadog"].get("_dd_seen_routes", set()).difference_update(instance_ids[index:])
                 del resource_paths[index:]
                 del mounts[index:]
+                del instance_ids[index:]
     resource_paths.append(instance.path)
     mounts.append(mount)
+    instance_ids.append(id(instance))
 
 
 def _get_fastapi_effective_path(scope: Mapping[str, Any]) -> Optional[str]:
