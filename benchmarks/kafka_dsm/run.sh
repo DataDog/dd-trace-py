@@ -26,9 +26,9 @@ export DD_TRACE_AGENT_URL=${DD_TRACE_AGENT_URL:-http://127.0.0.1:18127}
 
 export UV_PYTHON=${UV_PYTHON:-3.14}
 if [ -n "${DDTRACE_WHEEL:-}" ]; then
-  # Prebuilt wheel (CI): locked deps from uv.lock, then the wheel instead of the checkout.
+  # Prebuilt wheel (CI): locked workload deps, then the wheel with its own (current) requirements.
   uv sync --quiet --frozen --no-install-package ddtrace
-  uv pip install --quiet --no-deps --reinstall "$DDTRACE_WHEEL"
+  uv pip install --quiet --python .venv --reinstall-package ddtrace "$DDTRACE_WHEEL"
 else
   # First sync builds ddtrace's native extensions in-tree (several minutes); later runs are no-ops.
   : > /tmp/empty-gitconfig  # ignore the global git config: an insteadOf rewrite of github.com to SSH breaks cargo's libdatadog fetch
