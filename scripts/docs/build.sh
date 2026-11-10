@@ -19,5 +19,5 @@ else
   fi
   sphinx-build -vvv -W -b spelling docs docs/_build/spelling || (cat docs/_build/spelling/*.spelling && exit 1)
 fi
-reno lint
+python scripts/reno_compat.py lint
 sphinx-build -vvv -W -b html docs docs/_build/html

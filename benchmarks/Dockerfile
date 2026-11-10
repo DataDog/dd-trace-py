@@ -33,8 +33,6 @@ ENV PIP_RETRIES=10
 ENV UV_HTTP_TIMEOUT=120
 ENV UV_HTTP_RETRIES=10
 
-RUN pip install -U pip
-
 ARG SCENARIO=base
 
 ENV PYTHONUNBUFFERED 1
@@ -62,6 +60,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
+
+# The copied Python needs runtime libraries (including libssl via curl) before pip.
+RUN pip install -U pip
 
 # Install Rust toolchain
 # TODO: Pin to a specific rustup-init version with SHA256 verification.
