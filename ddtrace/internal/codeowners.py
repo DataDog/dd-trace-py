@@ -9,12 +9,16 @@ pre-extraction import surface: the vendored implementation below is the
 default (and the static type-checking view, identical to the extracted
 provider), and an installed provider takes precedence at runtime.
 
+The vendored copy absorbs upstream typing hardening as it lands on main
+(currently dd-trace-py#21630: re.Pattern[str], annotated locals, dead-check
+removal) so the bridge never regresses main's state; the extraction freeze
+manifest records the approved rewrite and its exact post-rewrite content.
+
 The provider import is inert when ``ddtrace-internal-base`` is absent: the
 vendored copy simply stays in place during the compatibility window. A
 provider that is installed but fails to import (a broken installation)
-surfaces loudly instead of silently falling back. The extraction is recorded
-in package-freeze.toml; the bridge and vendored fallback are owned by
-@DataDog/apm-core-python.
+surfaces loudly instead of silently falling back. The bridge and vendored
+fallback are owned by @DataDog/apm-core-python.
 
 Removal condition: drop the vendored implementation when
 ``ddtrace-internal-base`` becomes a pinned dd-trace-py runtime dependency;
@@ -32,7 +36,7 @@ from typing import Optional
 __all__ = ["Codeowners", "path_to_regex"]
 
 
-def path_to_regex(pattern: str) -> re.Pattern:
+def path_to_regex(pattern: str) -> re.Pattern[str]:
     """
     source https://github.com/sbdchd/codeowners/blob/c95e13d384ac09cfa1c23be1a8601987f41968ea/codeowners/__init__.py
 
@@ -145,12 +149,12 @@ class Codeowners:
         ".gitlab/CODEOWNERS",
     )
 
-    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None):
+    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None) -> None:
         """Initialize Codeowners object.
 
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
         """
-        self.patterns: list[tuple[re.Pattern, list[str]]] = []
+        self.patterns: list[tuple[re.Pattern[str], list[str]]] = []
         self.path: Optional[str] = None
 
         path = path or self.location(cwd)
@@ -176,7 +180,7 @@ class Codeowners:
             return
 
         with open(self.path) as f:
-            patterns = []
+            patterns: list[tuple[re.Pattern[str], list[str]]] = []
             for line in f.readlines():
                 line = line.strip()
 
@@ -199,9 +203,6 @@ class Codeowners:
                     continue
 
                 path = elements[0]
-                if path is None:
-                    continue
-
                 try:
                     pattern = path_to_regex(path)
                 except (ValueError, IndexError):
