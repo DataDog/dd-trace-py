@@ -1053,7 +1053,7 @@ integrations:
   tested_versions_by_dependency:
     trio:
       min: 0.21.0
-      max: 0.34.0
+      max: 0.35.0
 
 - integration_name: typesafe
   is_external_package: true
