@@ -1391,7 +1391,10 @@ def snapshot_context(
         url = client._url(
             "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
         )
-        status, body = client._request("GET", url, timeout=timeout, retry=False)
+        # Parallel snapshot workers can briefly backlog the shared test agent while
+        # opening their isolated sessions. Give session setup three normal request
+        # windows without extending snapshot verification or cleanup deadlines.
+        status, body = client._request("GET", url, timeout=timeout * 3, retry=False)
         if status != 200:
             pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
         session_started = True
