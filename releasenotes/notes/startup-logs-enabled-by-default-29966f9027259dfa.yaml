@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    tracing: ``DD_TRACE_STARTUP_LOGS`` now defaults to ``true``, so ``ddtrace-run`` and ``ddtrace.auto`` log startup
+    diagnostics, such as a warning when the agent is not reachable. The diagnostics run in a background thread and do
+    not delay the application start. Set ``DD_TRACE_STARTUP_LOGS=false`` to disable them.

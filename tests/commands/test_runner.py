@@ -592,3 +592,85 @@ def test_ddtrace_run_sync_sigint():
 
     threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
     time.sleep(10)
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_STARTUP_LOGS": None})
+def test_startup_logs_enabled_by_default():
+    from ddtrace import config
+
+    assert config._startup_logs_enabled is True
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    # Nothing listens there, so the agent check fails right away.
+    env={"DD_TRACE_STARTUP_LOGS": None, "DD_TRACE_AGENT_URL": "http://127.0.0.1:1"},
+    err=lambda s: "DATADOG TRACER DIAGNOSTIC - Agent not reachable" in s,
+)
+def test_startup_diagnostics_logged_by_default_before_exit():
+    """The diagnostics thread finishes before a process that does nothing exits."""
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_STARTUP_LOGS": "true"})
+def test_startup_diagnostics_run_off_the_main_thread():
+    import threading
+
+    from ddtrace.trace import tracer
+
+    ran = threading.Event()
+    idents = []
+
+    def diagnostics():
+        idents.append(threading.get_ident())
+        ran.set()
+
+    tracer._generate_diagnostic_logs = diagnostics
+
+    import ddtrace.auto  # noqa: F401
+
+    assert ran.wait(10)
+    assert idents != [threading.get_ident()], idents
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_STARTUP_LOGS": "true"})
+def test_startup_diagnostics_run_inline_when_uwsgi_forks_without_fork_hooks():
+    import threading
+
+    from ddtrace.internal import uwsgi
+    from ddtrace.trace import tracer
+
+    idents = []
+    uwsgi.will_fork_without_fork_hooks = lambda: True
+    tracer._generate_diagnostic_logs = lambda: idents.append(threading.get_ident())
+
+    import ddtrace.auto  # noqa: F401
+
+    assert idents == [threading.get_ident()], idents
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_STARTUP_LOGS": "false", "DD_TRACE_DEBUG": "false"})
+def test_startup_diagnostics_skipped_when_disabled():
+    from ddtrace.trace import tracer
+
+    calls = []
+    tracer._generate_diagnostic_logs = lambda: calls.append(True)
+
+    import ddtrace.auto  # noqa: F401
+
+    assert calls == []
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={"DD_TRACE_STARTUP_LOGS": "true", "DD_TRACE_AGENT_URL": "http://127.0.0.1:1"},
+    err=lambda s: "DATADOG TRACER DIAGNOSTIC - Agent not reachable" in s and "Traceback" not in s,
+)
+def test_startup_diagnostics_with_gevent():
+    """The diagnostics thread keeps working when the application monkey-patches with gevent."""
+    import gevent.monkey
+
+    gevent.monkey.patch_all()
+
+    import gevent
+
+    gevent.sleep(0.1)
