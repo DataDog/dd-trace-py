@@ -2644,7 +2644,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
     )
     def test_decision_images_only_from_image_parts(self, openai, openai_llmobs, test_spans):
-        """Only input_image URLs are read as images, including in SDK model objects; text starting with data: stays."""
+        """Only input_image URLs are read as images, also in SDK models and {"url": ...} objects; data: text stays."""
         pydantic = pytest.importorskip("pydantic")
 
         class InputImage(pydantic.BaseModel):
@@ -2659,6 +2659,7 @@ MUL: "*"
                     {"type": "input_text", "text": "data: customer reports a duplicate charge"},
                     {"type": "input_text", "text": DECISION_IMAGE_URL},
                     InputImage(type="input_image", image_url=DECISION_IMAGE_URL),
+                    {"type": "input_image", "image_url": {"url": DECISION_IMAGE_URL}},
                 ],
             }
         ]
@@ -2677,12 +2678,13 @@ MUL: "*"
                         {"type": "input_text", "text": "data: customer reports a duplicate charge"},
                         {"type": "input_text", "text": DECISION_IMAGE_URL},
                         {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
+                        {"type": "input_image", "image_url": {"url": "([IMAGE DETECTED])"}},
                     ],
                 }
             ],
             "questions": questions,
         }
-        assert len(get_llmobs_input_messages(spans[0])[0]["image_parts"]) == 1
+        assert len(get_llmobs_input_messages(spans[0])[0]["image_parts"]) == 2
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"

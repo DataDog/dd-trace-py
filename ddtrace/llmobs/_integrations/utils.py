@@ -1533,7 +1533,18 @@ def _openai_decision_body(value: Any, image_parts: list[ImagePart]) -> Any:
 
 
 def _openai_decision_image_url(url: Any, image_parts: list[ImagePart]) -> Any:
-    """Capture an inline image as an image part and return the marker that replaces it in the body."""
+    """Capture an inline image as an image part and return the marker that replaces it in the body.
+
+    The SDK does not enforce the string shape at runtime, so a chat-shaped {"url": ...} object is unwrapped too.
+    """
+    if not isinstance(url, (str, dict)):
+        url = load_data_value(url)
+    if isinstance(url, dict):
+        return {
+            str(k): _openai_decision_image_url(v, image_parts) if k == "url" else _openai_decision_body(v, image_parts)
+            for k, v in url.items()
+            if not _is_openai_sentinel(v)
+        }
     image_part, marker = _capture_inline_image(url)
     if image_part:
         image_parts.append(image_part)
