@@ -49,6 +49,34 @@ class AI_GUARD(metaclass=Constant_Class):
     REQUESTS_METRIC: Literal["requests"] = "requests"
     TRUNCATED_METRIC: Literal["truncated"] = "truncated"
     ERROR_METRIC: Literal["error"] = "error"
+    # Which transport the client chose, reported with the "transport" tag.
+    TRANSPORT_METRIC: Literal["transport"] = "transport"
+    # One point per evaluation sent through the Agent route, tagged status_code, error_type
+    # and agent_error.
+    AGENT_REQUESTS_METRIC: Literal["agent.requests"] = "agent.requests"
+    TRANSPORT_TAG: Literal["transport"] = "transport"
+    AGENT_ERROR_TAG: Literal["agent_error"] = "agent_error"
+    ERROR_TYPE_TAG: Literal["error_type"] = "error_type"
+    STATUS_CODE_TAG: Literal["status_code"] = "status_code"
+    # Header the Agent sets on the errors it generates itself, as opposed to Datadog's responses
+    # which it forwards untouched.
+    AGENT_ERROR_HEADER: Literal["Datadog-Agent-Proxy-Error"] = "Datadog-Agent-Proxy-Error"
+    # Every registered Agent endpoint answers with this header, so a 404 without it did not come
+    # from the Agent route.
+    AGENT_VERSION_HEADER: Literal["Datadog-Agent-Version"] = "Datadog-Agent-Version"
+    # Statuses reported by the agent.requests metric, which unlike the error metric also has to
+    # describe the requests that succeeded. Still an allowlist, so the tag stays bounded.
+    AGENT_STATUSES: tuple[int, ...] = (200, 400, 401, 403, 404, 408, 413, 429, 500, 502, 503, 504)
+    # Reported when the request never produced a response at all.
+    STATUS_NONE: Literal["none"] = "none"
+    AGENT_STATUS_OTHER: Literal["other"] = "other"
+    # Values of the "error_type" tag on the agent.requests metric.
+    AGENT_ERROR_NONE: Literal["none"] = "none"
+    AGENT_ERROR_OTHER: Literal["other"] = "other"
+
+    # Values of the "transport" tag: how evaluations reach the AI Guard API.
+    TRANSPORT_DIRECT: Literal["direct"] = "direct"
+    TRANSPORT_AGENT: Literal["agent"] = "agent"
 
     # Values of the "type" tag on the error metric.
     ERROR_CLIENT: Literal["client_error"] = "client_error"
@@ -85,6 +113,12 @@ class AI_GUARD(metaclass=Constant_Class):
     INTEGRATION_LANGCHAIN: Literal["langchain"] = "langchain"
     INTEGRATION_LITELLM: Literal["litellm"] = "litellm"
     INTEGRATION_STRANDS: Literal["strands"] = "strands"
+
+    # The Agent route that proxies evaluations to api.<site> with the Agent's own credentials,
+    # as advertised in the Agent's /info endpoint list.
+    AGENT_PROXY_ENDPOINT: str = "/ai_guard/proxy/"
+    # The AI Guard API path, appended to the Agent route in Agent transport mode.
+    AGENT_PROXY_API_PATH: str = "api/v2/ai-guard"
 
     # Closed tag sets: anything else reaching the metrics is clamped back to these defaults,
     # so a bad value from a caller cannot invent telemetry series.
