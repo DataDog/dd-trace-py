@@ -1616,6 +1616,16 @@ Feature Flagging
          The per-request timeout in seconds for agentless Universal Flag
          Configuration polls.
 
+   DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Controls whether feature flag exposure events are sent to Datadog. When
+         ``False``, the provider sends no exposures to Datadog. It does not stop
+         flag evaluation counts, which ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED``
+         controls. ``DD_FFE_INTAKE_ENABLED`` is a deprecated alias that will be
+         removed in 5.0.0; when both are set, this setting takes precedence.
+
 Other
 -----
 
