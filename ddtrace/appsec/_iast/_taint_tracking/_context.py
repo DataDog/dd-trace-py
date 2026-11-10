@@ -1,6 +1,3 @@
-from typing import Optional
-from typing import Protocol
-
 from ddtrace.appsec._iast._taint_tracking._native.context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._native.context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._native.context import debug_context_array_size
@@ -8,16 +5,9 @@ from ddtrace.appsec._iast._taint_tracking._native.context import debug_num_taint
 from ddtrace.appsec._iast._taint_tracking._native.context import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking._native.context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._native.context import get_tainted_object_map_by_ctx_id
-from ddtrace.appsec._iast._taint_tracking._native.context import is_in_taint_map as _is_in_taint_map
+from ddtrace.appsec._iast._taint_tracking._native.context import is_in_taint_map
 from ddtrace.appsec._iast._taint_tracking._native.context import start_request_context
 from ddtrace.appsec._iast_context import _get_iast_context_id
-
-
-class _TaintMapPredicate(Protocol):
-    def __call__(self, tainted_obj: object, context_id: Optional[int] = None) -> bool: ...
-
-
-is_in_taint_map: _TaintMapPredicate = _is_in_taint_map
 
 
 def _num_objects_tainted_in_request() -> int:

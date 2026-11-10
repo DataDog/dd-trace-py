@@ -1990,6 +1990,7 @@ setup(
         "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.appsec._iast._taint_tracking": ["_native/*.pyi"],
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
