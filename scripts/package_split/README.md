@@ -39,7 +39,10 @@ One `[[frozen]]` entry per extraction:
 ## How the gate runs
 
 - **Checks:** `freeze-manifest` (schema + hash integrity, read from the
-  `--base` revision so a PR cannot weaken its own rules), `source-freeze`
+  `--base` revision so a PR cannot weaken its own rules), `candidate-rules`
+  (the head's own copies of `package-freeze.toml` / `package-contract.toml`
+  are schema-validated too, so a malformed candidate cannot merge green and
+  become the base rules that fail every later PR), `source-freeze`
   (drift between `extraction_revision` and `--head`: unauthorized
   adds/deletes/renames/edits; rewritten paths tolerated only when the head
   content matches a pinned `post_hash`), `approved-rewrites` (evidence).

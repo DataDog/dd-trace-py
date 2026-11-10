@@ -106,6 +106,12 @@ jobs:
     name: Revalidate open PRs
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
+    # Least privilege for this job only: read for the checkout and the PR
+    # listing, statuses: write to invalidate stale-green results.
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
 
     steps:
       - name: Check out the advanced base (protected harness and freeze rules)
@@ -120,16 +126,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "prs<<EOF" >> "$GITHUB_OUTPUT"
-          gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName \
-            --jq '.[] | "\(.number) \(.headRefName)"' >> "$GITHUB_OUTPUT" || true
+          # --paginate enumerates every page of open PRs: stopping after the
+          # first page would leave PRs beyond it with their stale validation
+          # once the repository has more open PRs than one page.
+          # No `|| true`: a failed enumeration (API, auth, rate limit) must
+          # fail the job instead of silently skipping revalidation.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" \
+            --jq '.[] | "\(.number) \(.head.ref) \(.head.sha)"' >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Revalidate each open PR head
         if: steps.prs.outputs.prs != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          # The PR list (branch names are fork-controlled data) is passed
+          # through the environment, never interpolated into the shell
+          # source below: a branch name containing quotes would otherwise
+          # execute arbitrary commands with this job's token.
+          PRS: ${{ steps.prs.outputs.prs }}
         run: |
-          echo '${{ steps.prs.outputs.prs }}' | while read -r number head_ref; do
+          printf '%s\n' "$PRS" | while read -r number head_ref head_sha; do
             [ -z "$number" ] && continue
             echo "Revalidating PR #$number ($head_ref)"
             git fetch --no-tags origin "refs/pull/$number/head:refs/remotes/pr/$number/head"
@@ -141,6 +157,16 @@ jobs:
               echo "PR #$number: PASS"
             else
               echo "::warning::PR #$number fails the freeze guard against the new rules"
+              # The PR's earlier green result was produced under the old,
+              # weaker base and no pull_request event will refresh it: post
+              # a failing commit status on its immutable head SHA in the
+              # guard's check context so the stale result cannot be merged
+              # on while it is still displayed.
+              gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$head_sha" \
+                -f state=failure \
+                -f context="Package split freeze guard" \
+                -f description="fails revalidation against the advanced base" \
+                > /dev/null
             fi
           done
 

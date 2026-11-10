@@ -89,7 +89,10 @@ class Manifest:
 
     # -- compatibility ------------------------------------------------------
     @property
-    def dependency_ranges(self) -> dict[str, str]:
+    def dependency_ranges(self) -> dict[str, str | list[str]]:
+        # A range is either one string applying to every supported Python,
+        # or a list of marker-annotated strings preserving per-Python floors
+        # (e.g. bytecode's environment markers in pyproject.toml).
         return dict(self.data["compatibility"]["dependency_ranges"])
 
     # -- contracts ----------------------------------------------------------
@@ -289,8 +292,18 @@ def validate_manifest(data: Any) -> list[str]:
         ranges = compatibility.get("dependency_ranges")
         if isinstance(ranges, dict):
             for name, value in ranges.items():
-                if not isinstance(value, str):
-                    issues.append("[compatibility].dependency_ranges.%s: expected a string range" % name)
+                # A range is either one string applying to every supported
+                # Python, or a list of marker-annotated strings preserving
+                # per-Python floors (e.g. bytecode's environment markers).
+                if isinstance(value, list):
+                    if not value or not all(isinstance(v, str) and v.strip() for v in value):
+                        issues.append(
+                            "[compatibility].dependency_ranges.%s: expected a non-empty list of marker ranges" % name
+                        )
+                elif not isinstance(value, str) or not value.strip():
+                    issues.append(
+                        "[compatibility].dependency_ranges.%s: expected a string or list of marker ranges" % name
+                    )
 
     _check_table(
         issues,

@@ -16,6 +16,7 @@ from ..evidence import SKIP
 from ..freeze_manifest import FreezeManifestError
 from ..freeze_manifest import validate_freeze
 from ..manifest import Manifest
+from ..manifest import validate_manifest
 
 
 def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
@@ -48,6 +49,44 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
         report.record("freeze-manifest", FAIL, str(exc)[:2000])
         return
     report.record("freeze-manifest", PASS, "validated (read from %s)" % source)
+
+    # The head's own candidate rules are validated, never enforced: the
+    # checks below run the base's rules, but a malformed candidate
+    # package-freeze.toml or package-contract.toml would otherwise merge
+    # green and become the base rules that fail every later PR before
+    # drift validation even runs. Deletions are not flagged: unfreezing is
+    # a maintainer-controlled base change, like removing the freeze
+    # itself (see the guard's comment on tightening vs unfreezing).
+    candidate_problems: list[str] = []
+    candidate_freeze = _content_at_revision(manifest.root, head, freeze_path)
+    if candidate_freeze is not None and candidate_freeze != content:
+        try:
+            candidate_problems = [
+                "candidate package-freeze.toml: %s" % issue
+                for issue in validate_freeze(tomllib.loads(candidate_freeze))
+            ]
+        except tomllib.TOMLDecodeError as exc:
+            candidate_problems = ["candidate package-freeze.toml is not valid TOML: %s" % exc]
+    candidate_contract = _content_at_revision(manifest.root, head, manifest.path.relative_to(manifest.root))
+    if candidate_contract is not None:
+        try:
+            candidate_data = tomllib.loads(candidate_contract)
+        except tomllib.TOMLDecodeError as exc:
+            candidate_problems.append("candidate package-contract.toml is not valid TOML: %s" % exc)
+        else:
+            if candidate_data != manifest.data:
+                candidate_problems += [
+                    "candidate package-contract.toml: %s" % issue for issue in validate_manifest(candidate_data)
+                ]
+    if candidate_problems:
+        report.record(
+            "candidate-rules",
+            FAIL,
+            "candidate freeze rules at the head are invalid (merging them would break every later PR)",
+            problems=candidate_problems,
+        )
+    else:
+        report.record("candidate-rules", PASS, "head's candidate rules are absent, unchanged or valid")
 
     try:
         problems, exempted = _verify_freeze(
@@ -302,8 +341,12 @@ def _verify_freeze(
             if content_hash is None:
                 return None
             ordered_hashes = [rewrite["post_hash"] for rewrite in rewrites if rewrite["path"] == path]
+            # Repeated hashes resolve to their latest approval: with
+            # approvals A, B, A an explicit reapproval appends A again, and
+            # resolving it to its first occurrence would keep rejecting the
+            # authorized rollback as a backward transition.
             if content_hash in ordered_hashes:
-                return ordered_hashes.index(content_hash)
+                return len(ordered_hashes) - 1 - ordered_hashes[::-1].index(content_hash)
             return None
 
         for status, path in zip(pr_name_status[::2], pr_name_status[1::2]):
