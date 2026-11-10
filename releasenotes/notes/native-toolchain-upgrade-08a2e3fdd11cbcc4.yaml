@@ -1,3 +1,0 @@
-upgrade:
-  - |
-    internal: Building from source now requires Rust 1.91.1 or later.

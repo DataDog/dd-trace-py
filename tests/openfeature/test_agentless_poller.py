@@ -256,8 +256,8 @@ def test_missing_native_capability_reporter_omits_header(harness, monkeypatch):
 
 
 def test_linked_evaluator_does_not_advertise_dependent_flags():
-    # The native dependency does not implement prerequisite evaluation yet.
-    # Enabling its token requires updating the evaluator and its integration tests.
+    # Prerequisite records and exposure eligibility are not yet surfaced by this binding,
+    # so transports must not advertise support.
     assert native_mod.ffe.get_evaluator_capabilities() == []
     assert "dependent-flag-variant-key-v1" not in native_mod.get_evaluator_capabilities()
 

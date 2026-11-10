@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, ops::Deref as _};
 
 use libdd_trace_model::{AttributeValue, TraceText, ValueTypes};
-use libdd_trace_utils::span::{v04::VecMap, SpanBytes, SpanText, TraceData};
+use libdd_trace_utils::span::{vec_map::VecMap, SpanBytes, SpanText, TraceData};
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAnyMethods as _, PyBytesMethods as _, PyString, PyStringMethods as _},
@@ -324,6 +324,39 @@ impl std::fmt::Debug for PyBackedString {
     }
 }
 
+// libdatadog requires `Clone` for `TraceText`, and it can call `clone` on a thread that has no
+// Python thread state, for example during interpreter shutdown. Attaching to Python from that
+// thread can panic or hang. For that reason, `clone` never touches `py_object`. It copies a
+// `Rust` or `PyObject` string into new Rust-owned memory, and the copy loses the Python object.
+// A clone of Python `None` becomes an empty string, and `is_py_none` returns false for it.
+// To keep the Python object, hold the GIL and call `clone_ref`.
+// No test covers this path: PyO3 cannot start an interpreter in `cargo test`.
+impl Clone for PyBackedString {
+    fn clone(&self) -> Self {
+        match self.tag {
+            Tag::Static => Self {
+                view_ptr: self.view_ptr,
+                view_len: self.view_len,
+                tag: Tag::Static,
+                py_object: None,
+            },
+            Tag::Rust | Tag::PyObject => Self::from_box(Box::<str>::from(self.deref())),
+        }
+    }
+}
+
+impl From<String> for PyBackedString {
+    fn from(value: String) -> Self {
+        Self::from_box(value.into_boxed_str())
+    }
+}
+
+impl TraceText for PyBackedString {
+    fn from_static(s: &'static str) -> Self {
+        <Self as SpanText>::from_static_str(s)
+    }
+}
+
 impl SpanText for PyBackedString {
     fn from_static_str(value: &'static str) -> Self {
         Self {
@@ -336,35 +369,6 @@ impl SpanText for PyBackedString {
 
     fn from_owned(value: String) -> Self {
         Self::from_box(value.into_boxed_str())
-    }
-}
-
-impl From<String> for PyBackedString {
-    fn from(value: String) -> Self {
-        Self::from_owned(value)
-    }
-}
-
-impl Clone for PyBackedString {
-    fn clone(&self) -> Self {
-        // Native trace-model copies need only the text and may run without the GIL.
-        // Python-facing copies use clone_ref to preserve bytes/None and object identity.
-        if self.tag == Tag::Static {
-            Self {
-                view_ptr: self.view_ptr,
-                view_len: self.view_len,
-                tag: Tag::Static,
-                py_object: None,
-            }
-        } else {
-            Self::from_box(Box::<str>::from(self.deref()))
-        }
-    }
-}
-
-impl TraceText for PyBackedString {
-    fn from_static(value: &'static str) -> Self {
-        Self::from_static_str(value)
     }
 }
 
@@ -391,5 +395,4 @@ impl ValueTypes for PyTraceData {
     type Array = Vec<AttributeValue<Self>>;
     type Map = VecMap<PyBackedString, AttributeValue<Self>>;
 }
-
 impl TraceData for PyTraceData {}
