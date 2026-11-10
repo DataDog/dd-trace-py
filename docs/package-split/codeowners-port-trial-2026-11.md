@@ -143,6 +143,20 @@ Grouped: (A) inventory, (B) gates/harness, (C) destination port, (D) process/doc
   (`re.Pattern[str]`, a dead `is None` check, module docstring) -- the
   "verbatim port then lint locally" workflow needs a documented policy for
   harness copies.
+- **F21 — pre-commit `--all-files` skips untracked files, so local lint
+  under-reported until commit time.** The destination package's 13 ruff
+  findings (complexity, pathlib, loop-variable, docstring-format rules)
+  passed the local `scripts/lint check` because the package files were
+  still untracked when the check ran; CI failed on the exact same tree.
+  Local rule: commit (or at least stage) new files before the final lint
+  run, and run per-tool commands directly on untracked paths. Lesson for
+  future extractions: budget a lint-adaptation pass beyond the verbatim
+  copy -- a behavior-identical port can still fail a stricter baseline.
+  (Post-fix: behavior verified identical by a differential corpus test
+  against the pre-extraction implementation; the Datadog code-quality
+  warnings on the vendored harness (astdeps.py nested-blocks,
+  no-range-loop-with-len) are now ignored in static-analysis.datadog.yml,
+  consistent with the ruff exclusion.)
 - **F14 — No stdlib exemption in edge-policy.** `typing` and `__future__` count
   as undeclared external dependencies; a stdlib-only package (exactly the
   `ddtrace_internal_base` rule) must enumerate every stdlib module in
