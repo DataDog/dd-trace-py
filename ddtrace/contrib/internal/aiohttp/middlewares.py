@@ -1,4 +1,10 @@
 import asyncio
+from collections.abc import Awaitable
+from collections.abc import Callable
+from collections.abc import MutableMapping
+import sys
+from typing import Any
+from typing import cast
 
 from aiohttp import web
 from aiohttp.streams import StreamReader
@@ -7,11 +13,11 @@ from aiohttp.web_urldispatcher import SystemRoute
 from ddtrace import config
 from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.http import _format_template
@@ -25,7 +31,9 @@ REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
 DEFAULT_CLIENT_MAX_SIZE = 1024**2
 
 
-async def trace_middleware(app, handler):
+async def trace_middleware(
+    app: web.Application, handler: Callable[[web.Request], Awaitable[web.StreamResponse]]
+) -> Callable[[web.Request], Awaitable[web.StreamResponse]]:
     """
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
@@ -35,7 +43,7 @@ async def trace_middleware(app, handler):
     * the ``Context`` attached to the request can be freely used in the application code
     """
 
-    async def attach_context(request):
+    async def attach_context(request: web.Request) -> web.StreamResponse:
         # application configs
         app_config = app[CONFIG_KEY]
         service = app_config["service"]
@@ -47,7 +55,7 @@ async def trace_middleware(app, handler):
         route = None
         if hasattr(request.match_info, "route"):
             aiohttp_route = request.match_info.route
-            if not isinstance(aiohttp_route, SystemRoute):
+            if not isinstance(aiohttp_route, SystemRoute) and aiohttp_route.resource is not None:
                 # SystemRoute objects exist to throw HTTP errors and have no path
                 route = aiohttp_route.resource.canonical
 
@@ -60,8 +68,9 @@ async def trace_middleware(app, handler):
             WebFrameworkRequestEvent(
                 http_operation="aiohttp.request",
                 component=config.aiohttp.integration_name,
+                supports_spanless_lifecycle=True,
                 integration_config=config.aiohttp,
-                request_headers=request.headers,
+                request_headers=cast(MutableMapping[str, str], request.headers),
                 request_method=request.method,
                 request_url=str(request.url),  # DEV: request.url is a yarl's URL object,
                 request_route=route,
@@ -75,12 +84,13 @@ async def trace_middleware(app, handler):
             ),
             dispatch_end_event=False,
         ) as ctx:
-            req_span = span_from_context(ctx)
+            request_event = ctx.event
+            req_span = ctx.get_item("_inner_span")
 
             # attach the execution context to the request
             request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
             # legacy request key kept for backwards compatibility with documentation
-            request[REQUEST_CONTEXT_KEY] = req_span.context
+            request[REQUEST_CONTEXT_KEY] = req_span.context if req_span is not None else None
 
             try:
                 try:
@@ -99,13 +109,22 @@ async def trace_middleware(app, handler):
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
                 # when its status is an error status.
                 if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
-                    req_span.set_traceback()
+                    core.dispatch_event(
+                        WebFrameworkRequestExceptionEvent(
+                            request_context=ctx, request_event=request_event, exc_info=sys.exc_info()
+                        )
+                    )
                 raise
+        raise RuntimeError("Request context suppressed an exception without a response")
 
     return attach_context
 
 
-async def _handle_request(ctx, request, handler):
+async def _handle_request(
+    ctx: core.ExecutionContext[WebFrameworkRequestEvent],
+    request: web.Request,
+    handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
+) -> web.StreamResponse:
     max_body_size = getattr(request, "_client_max_size", 0) or DEFAULT_CLIENT_MAX_SIZE
     core.dispatch("aiohttp.request.start", (ctx, request, max_body_size))
     read_body = ctx.get_item("aiohttp_request_body")
@@ -138,12 +157,14 @@ def _restore_request_body(request: web.Request, body: bytes) -> None:
     request._cache.pop("content", None)
 
 
-def _blocked_response(ctx, request, block_config):
+def _blocked_response(
+    ctx: core.ExecutionContext[WebFrameworkRequestEvent], request: web.Request, block_config: Any
+) -> web.StreamResponse:
     started_response = request.get(REQUEST_STARTED_RESPONSE_KEY)
     if started_response is not None:
         if request.transport is not None:
             request.transport.close()
-        return started_response
+        return cast(web.StreamResponse, started_response)
     core.dispatch("aiohttp.request.block", (ctx, block_config))
     block_response = ctx.get_item("aiohttp_block_response")
     ctx.discard_local_item("aiohttp_block_response")
@@ -155,10 +176,10 @@ def _blocked_response(ctx, request, block_config):
     )
 
 
-def finish_request_span(request, response):
+def finish_request_span(request: web.Request, response: web.StreamResponse) -> None:
     # Response preparation and the task callback can both finalize a request; the first releases its event.
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or ctx._end_event_dispatched or not span_from_context(ctx):
+    if not ctx or ctx._end_event_dispatched:
         return
 
     # default resource name
@@ -168,12 +189,7 @@ def finish_request_span(request, response):
         # collect the resource name based on http resource type
         res_info = request.match_info.route.resource.get_info()
 
-        if res_info.get("path"):
-            resource = res_info.get("path")
-        elif res_info.get("formatter"):
-            resource = res_info.get("formatter")
-        elif res_info.get("prefix"):
-            resource = res_info.get("prefix")
+        resource = res_info.get("path") or res_info.get("formatter") or res_info.get("prefix") or resource
 
         # prefix the resource name by the http method
         resource = f"{request.method} {resource}"

@@ -11,10 +11,13 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.span_bus import span_from_context
 
 
@@ -25,6 +28,17 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     """Shared tracing logic for web framework integrations."""
 
     event_names = (WebFrameworkRequestEvent.event_name,)
+
+    @classmethod
+    def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
+        # Other frameworks still require a span in their request lifecycle.
+        if ctx.event.supports_spanless_lifecycle:
+            tracer = core.root.get_item("tracer")
+            apm_enabled = tracer is not None and tracer.enabled
+            standalone_spans_required = tracer is not None and standalone_config.apm_opt_out
+            # Standalone products need span lifecycle without enabling APM tracing.
+            ctx.event.span_creation_enabled = apm_enabled or standalone_spans_required
+        super()._on_context_started(ctx)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
@@ -89,3 +103,18 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         _set_inferred_proxy_tags(span, status_code)
         for tk, tv in event.additional_tags.items():
             span._set_attribute(tk, tv)
+
+
+class WebFrameworkRequestExceptionSubscriber(Subscriber):
+    event_names = (WebFrameworkRequestExceptionEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, event: WebFrameworkRequestExceptionEvent) -> None:
+        # The context may have released its event at response preparation. Retain
+        # the original tracing decision, including when AppSec borrowed a parent span.
+        if not event.request_event.span_creation_enabled:
+            return
+        span = event.request_context.get_item("_inner_span")
+        exc_type, exc_value, traceback = event.exc_info
+        if span is not None and exc_type is not None and exc_value is not None and traceback is not None:
+            span.set_exc_info(exc_type, exc_value, traceback)

@@ -122,6 +122,30 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+Span-dependent
+integrations retain their request span creation and completion listeners. Integrations
+cannot supply `TracingEvent.span_creation_enabled` to the constructor or factory. The web
+tracing subscriber sets this internal field for events declaring
+`supports_spanless_lifecycle=True` (currently aiohttp), using the
+APM enablement from the tracer separately from the span requirements of standalone
+products. A standalone product can require span creation while APM tracing remains
+disabled; the captured field describes span lifecycle, not APM enablement. The base subscriber's existing guards
+reuse the captured decision through completion, so runtime disable still finishes
+in-flight spans and runtime enable does not start tracing a previously skipped request.
+The decision must not be inferred from `_inner_span`: AppSec can populate that slot
+with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events with
+`DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
+behavior until their request code can run without spans.
+
+Aiohttp reports request exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
+The tracing subscriber consumes the live exception immediately; deferred contexts never
+store the exception or its traceback. Completion dispatch carries response metadata, while
+exception details are available during the separate exception notification. Consumers must
+not retain that notification or its exception tuple. The original request event accompanies
+it so tracing can honor the entry decision even if response preparation released `ctx.event`.
+Late errors can update a finished span object, but cannot guarantee updating an already
+exported trace.
+
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls
 `LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned

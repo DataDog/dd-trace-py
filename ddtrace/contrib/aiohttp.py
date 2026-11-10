@@ -43,8 +43,8 @@ Server
 Enabling
 ~~~~~~~~
 
-Automatic instrumentation is not available for the server, instead
-the provided ``trace_app`` function must be used::
+Automatic instrumentation is not available for the server. Use the provided
+``trace_app`` function to enable server tracing::
 
     from aiohttp import web
     from ddtrace.contrib.aiohttp import trace_app
@@ -56,6 +56,10 @@ the provided ``trace_app`` function must be used::
     # trace your application handlers
     trace_app(app, service='async-api')
     web.run_app(app, port=8000)
+
+With ``DD_TRACE_ENABLED=false``, the middleware still emits request lifecycle
+events and completes requests without creating request spans. In this case,
+``request['datadog_context']`` is ``None``.
 
 Integration settings are attached to your application under the ``datadog_trace``
 namespace. You can read or update them as follows::
