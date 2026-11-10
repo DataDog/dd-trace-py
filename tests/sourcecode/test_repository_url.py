@@ -60,6 +60,15 @@ from ddtrace.sourcecode._utils import normalize_repository_url
             "https://gitlab-ci-token:12345AbcDFoo_qbcdef@gitlab.com/user/project.git",
             "https://gitlab.com/user/project",
         ),
+        # Supported schemes without a hostname preserve the path.
+        (
+            "https:///user/project.git",
+            "https:///user/project",
+        ),
+        (
+            "ssh:///user/project.git",
+            "https:///user/project",
+        ),
         # Not supported.
         (
             "ftp:///path/to/repo.git/",
