@@ -194,6 +194,11 @@ class _ImportCollector(ast.NodeVisitor):
             if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                 resolved: Optional[str] = arg.value
                 self.graph.dynamic_imports.append(DynamicImport(self.importer, location, resolved))
+                # A literal dynamic import is a real dependency edge: record
+                # it in the graph so cycle detection sees it (a cycle closed
+                # by import_module("...") is still a runtime cycle).
+                if resolved:
+                    self._record(resolved, "dynamic", any(self._guarded), location)
             else:
                 self.graph.dynamic_imports.append(DynamicImport(self.importer, location, None))
         self.generic_visit(node)
@@ -271,6 +276,17 @@ def find_cycles(graph: ModuleGraph) -> list[list[str]]:
     internal = set(graph.modules)
     adjacency: dict[str, set[str]] = {m: set() for m in graph.modules}
     for edge in graph.edges:
+        # Ancestor initializers already ran before the importer itself was
+        # reachable, so their implicit edges (X importing X.a.b implying
+        # X -> X.a) would pair with the natural parent -> child re-export
+        # pattern and report acyclic packages as cycles. Other initializers
+        # -- sibling packages like pkg.sub executing during an import of
+        # pkg.sub.b -- genuinely run during this import and must
+        # participate: pkg.a -> pkg.sub (implicit) + pkg.sub -> pkg.a (real,
+        # from pkg/sub/__init__.py importing pkg.a mid-definition) is a
+        # circular-import ImportError at runtime.
+        if edge.via_parent_init and (edge.importer == edge.imported or edge.importer.startswith(edge.imported + ".")):
+            continue
         if edge.importer in internal and edge.imported in internal:
             adjacency[edge.importer].add(edge.imported)
 

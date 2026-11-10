@@ -57,6 +57,7 @@ destination_repository = "datadog-apm-python-test"
 
 [dependencies]
 runtime = [{runtime}]
+build = [{build}]
 native_policy = "{native_policy}"
 forbidden_namespaces = [{forbidden}]
 {extras_section}
@@ -100,6 +101,7 @@ def manifest_text(
     source_path: str = "sample",
     distribution: Optional[str] = None,
     runtime: Optional[Iterable[str]] = None,
+    build: Optional[Iterable[str]] = None,
     native_policy: str = "native-free",
     forbidden: Optional[Iterable[str]] = None,
     external: Optional[Iterable[str]] = None,
@@ -122,6 +124,7 @@ def manifest_text(
         import_root=import_root,
         source_path=source_path,
         runtime=toml_list(runtime if runtime is not None else []),
+        build=toml_list(build if build is not None else ["setuptools"]),
         native_policy=native_policy,
         forbidden=toml_list(forbidden if forbidden is not None else []),
         # An explicitly empty external list must survive (falsy `or` would

@@ -55,24 +55,45 @@ def _record_and_raise(kind: str, detail: str) -> Callable[..., Any]:
     return guard
 
 
-def _install_interceptors() -> Callable[..., Any]:
-    # Network: any attempt is recorded and blocked. We patch the constructors
-    # and helpers rather than the low-level socket module so accidental use
-    # surfaces with a useful trace in the evidence.
+def _install_interceptors() -> None:
+    # Network and process creation are recorded; they abort the probe in
+    # import/contracts phases but call through during the explicit
+    # activation phases (activation may legitimately open sockets or spawn
+    # workers -- the reporting layer exempts activation-phase network and
+    # process effects, and blocking them would abort the probe before
+    # idempotency and cleanup can be evaluated).
+    activation_phases = ("activation", "second-activation", "deactivation")
+
+    def _record_or_passthrough(kind: str, detail: str, real: Callable[..., Any]) -> Callable[..., Any]:
+        def guard(*args: Any, **kwargs: Any) -> Any:
+            if PHASE in activation_phases:
+                return real(*args, **kwargs)
+            _violation(kind, detail % PHASE)
+            raise RuntimeError("package-split probe blocked %s" % kind)
+
+        return guard
+
+    real_socket = socket.socket
+
     class ProbedSocket(socket.socket):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
+            if PHASE in activation_phases:
+                real_socket.__init__(self, *args, **kwargs)  # noqa: SLF001
+                return
             _violation("network", "socket.socket() during %s" % PHASE)
             raise RuntimeError("package-split probe blocked socket creation")
 
     socket.socket = ProbedSocket  # type: ignore[misc] # nosec B603
-    socket.create_connection = _record_and_raise("network", "socket.create_connection during %s" % PHASE)
-    socket.getaddrinfo = _record_and_raise("network", "socket.getaddrinfo during %s" % PHASE)
+    socket.create_connection = _record_or_passthrough(
+        "network", "socket.create_connection during %s", socket.create_connection
+    )
+    socket.getaddrinfo = _record_or_passthrough("network", "socket.getaddrinfo during %s", socket.getaddrinfo)
 
     # Process creation.
-    subprocess.Popen = _record_and_raise("process", "subprocess.Popen during %s" % PHASE)  # type: ignore[assignment, misc] # nosec B603
-    os.system = _record_and_raise("process", "os.system during %s" % PHASE)  # nosec B603
+    subprocess.Popen = _record_or_passthrough("process", "subprocess.Popen during %s", subprocess.Popen)  # type: ignore[assignment, misc] # nosec B603
+    os.system = _record_or_passthrough("process", "os.system during %s", os.system)  # nosec B603 # noqa: A005
     if hasattr(os, "posix_spawn"):
-        os.posix_spawn = _record_and_raise("process", "os.posix_spawn during %s" % PHASE)  # nosec B603
+        os.posix_spawn = _record_or_passthrough("process", "os.posix_spawn during %s", os.posix_spawn)  # nosec B603
 
     # Thread starts are recorded, not blocked: activation may legitimately
     # start threads, imports may not.
@@ -98,31 +119,57 @@ def _install_interceptors() -> Callable[..., Any]:
         return real_atexit_register(*args, **kwargs)
 
     atexit.register = probed_register
-    return real_thread_start
 
 
 def _threads_snapshot() -> list[tuple[str, int | None, bool, bool]]:
     return [(t.name, t.ident, t.daemon, t.is_alive()) for t in threading.enumerate()]
 
 
-def _loggers_snapshot() -> dict[str, list[int]]:
-    handlers: dict[str, list[int]] = {}
-    root = logging.getLogger()
-    handlers["<root>"] = [id(h) for h in root.handlers]
+def _loggers_snapshot() -> dict[str, dict[str, Any]]:
+    """Per-logger configuration: handlers, level, propagation, disabled."""
+    snapshot: dict[str, dict[str, Any]] = {}
+
+    def record(name: str, logger: logging.Logger) -> None:
+        snapshot[name] = {
+            "handlers": [id(h) for h in logger.handlers],
+            "level": logger.level,
+            "propagate": logger.propagate,
+            "disabled": logger.disabled,
+        }
+
+    record("<root>", logging.getLogger())
     for name in list(logging.Logger.manager.loggerDict):
         logger = logging.getLogger(name)
-        handlers[name] = [id(h) for h in logger.handlers]
-    return handlers
+        if isinstance(logger, logging.Logger):
+            record(name, logger)
+    return snapshot
 
 
-def _loggers_delta(before: dict[str, list[int]]) -> dict[str, int]:
+def _loggers_delta(before: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Configuration changes between two snapshots, any direction.
+
+    Import inertness requires that imports neither add nor remove handlers
+    nor change logging configuration (levels, propagation, disabled state).
+    """
     after = _loggers_snapshot()
-    delta: dict[str, int] = {}
-    for name, handler_ids in after.items():
-        previous = before.get(name, [])
-        added = [h for h in handler_ids if h not in previous]
+    delta: dict[str, dict[str, Any]] = {}
+    for name, current in after.items():
+        previous = before.get(name)
+        if previous is None:
+            delta[name] = {"change": "logger-created", "config": current}
+            continue
+        changes: dict[str, Any] = {}
+        added = [h for h in current["handlers"] if h not in previous["handlers"]]
+        removed = [h for h in previous["handlers"] if h not in current["handlers"]]
         if added:
-            delta[name] = len(added)
+            changes["handlers_added"] = len(added)
+        if removed:
+            changes["handlers_removed"] = len(removed)
+        for key in ("level", "propagate", "disabled"):
+            if previous[key] != current[key]:
+                changes[key] = (previous[key], current[key])
+        if changes:
+            delta[name] = changes
     return delta
 
 
@@ -190,7 +237,7 @@ def _import_side_effects(spec: dict[str, Any]) -> dict[str, Any]:
         _violation("import-thread", "new threads alive after import: %r" % (new_threads,))
     logger_delta = _loggers_delta(before_loggers)
     if logger_delta:
-        _violation("logging", "log handlers added during import: %r" % (logger_delta,))
+        _violation("logging", "logging configuration changed during import: %r" % (logger_delta,))
     after_signals = _signals_snapshot()
     changed = [s for s, h in after_signals.items() if before_signals.get(s) != h]
     if changed:
@@ -236,7 +283,10 @@ def _activation(spec: dict[str, Any]) -> dict[str, Any]:
     module = importlib.import_module(api["module"])
     singletons: list[str] = api.get("singletons", [])
     activate: Callable[[], Any] = getattr(module, api["activate"])
-    deactivate: Callable[[], Any] | None = getattr(module, api.get("deactivate", ""), None)
+    # A declared entry point that does not resolve is a contract error, not
+    # a missing optional hook: getattr's default would silently skip
+    # cleanup checks for a manifest naming a nonexistent deactivation.
+    deactivate: Callable[[], Any] | None = getattr(module, api["deactivate"]) if "deactivate" in api else None
 
     baseline_threads = _threads_snapshot()
     baseline_singletons = _singleton_lengths(singletons)
@@ -258,6 +308,17 @@ def _activation(spec: dict[str, Any]) -> dict[str, Any]:
         _violation(
             "duplicate-activation",
             "registry changed on second activate(): %r -> %r" % (after_first["singletons"], after_second["singletons"]),
+        )
+
+    # Idempotent activation may not leak workers per call: any live thread
+    # after the second activate() that was not present after the first is
+    # an additional worker spawned by the repeated call.
+    first_thread_ids = {t[1] for t in after_first["threads"]}
+    extra_threads = [t for t in after_second["threads"] if t[1] not in first_thread_ids]
+    if extra_threads:
+        _violation(
+            "duplicate-activation",
+            "second activate() started additional live threads: %r" % (extra_threads,),
         )
 
     if deactivate is not None:
@@ -326,14 +387,23 @@ def _child_activation(api: dict[str, Any], singletons: list[str], queue: Any) ->
     try:
         module = importlib.import_module(api["module"])
         activate: Callable[[], Any] = getattr(module, api["activate"])
-        activate()
-        lengths: dict[str, int] = {}
-        for reference in singletons:
-            mod_name, _, attr = reference.partition(":")
-            owner = importlib.import_module(mod_name)
-            value = getattr(owner, attr)
-            lengths[reference] = len(value) if hasattr(value, "__len__") else 1
-        queue.put({"ok": True, "singletons": lengths})
+        deactivate: Callable[[], Any] | None = getattr(module, api["deactivate"]) if "deactivate" in api else None
+        try:
+            activate()
+            lengths: dict[str, int] = {}
+            for reference in singletons:
+                mod_name, _, attr = reference.partition(":")
+                owner = importlib.import_module(mod_name)
+                value = getattr(owner, attr)
+                lengths[reference] = len(value) if hasattr(value, "__len__") else 1
+            queue.put({"ok": True, "singletons": lengths})
+        finally:
+            # Deactivation must run before the child exits: a valid
+            # activation can start non-daemon workers and stop them during
+            # deactivation, and the child would otherwise hang on exit
+            # waiting for them.
+            if deactivate is not None:
+                deactivate()
     except Exception:
         queue.put({"ok": False, "error": traceback.format_exc()})
         sys.exit(1)

@@ -30,7 +30,16 @@ NATIVE_SUFFIXES = (".so", ".pyd", ".dylib", ".o", ".a", ".obj", ".lib")
 
 
 def is_native_file(path: str) -> bool:
-    return path.endswith(NATIVE_SUFFIXES)
+    """Whether a wheel/archive member looks like a native (compiled) artifact.
+
+    Covers Windows DLLs and versioned shared libraries (libexample.so.1)
+    alongside the plain suffixes, so native-free promises cannot be evaded
+    by platform-specific or versioned naming.
+    """
+    filename = path.lower()
+    if filename.endswith(NATIVE_SUFFIXES + (".dll",)):
+        return True
+    return re.search(r"\.so(?:\.\d+)+$", filename) is not None
 
 
 class BuildError(Exception):

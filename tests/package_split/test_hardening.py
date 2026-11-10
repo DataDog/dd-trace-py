@@ -119,12 +119,31 @@ def test_activation_exception_never_passes(tmp_path):
     manifest = make_tree(
         tmp_path,
         "sample",
-        {"__init__.py": "REGISTRY = []\ndef activate(): raise RuntimeError('broken')\n"},
+        {"__init__.py": ("REGISTRY = []\ndef activate(): raise RuntimeError('broken')\ndef deactivate(): pass\n")},
         manifest_kwargs={"contracts_extra": ACTIVATION.format(module="sample")},
     )
     report = run_lifecycle(manifest, activation_singletons=["sample:REGISTRY"])
     assert report.status == FAIL
     assert any("broken" in check.detail for check in report.checks)
+
+
+def test_declared_but_missing_entry_point_never_passes(tmp_path):
+    # A manifest naming a deactivation function the module does not define
+    # is a contract error, not a missing optional hook: the probe must fail
+    # instead of silently skipping cleanup checks.
+    manifest = make_tree(
+        tmp_path,
+        "sample",
+        {
+            "__init__.py": (
+                "REGISTRY = []\ndef activate(): pass\n"  # no deactivate despite the manifest
+            )
+        },
+        manifest_kwargs={"contracts_extra": ACTIVATION.format(module="sample")},
+    )
+    report = run_lifecycle(manifest, activation_singletons=["sample:REGISTRY"])
+    assert report.status == FAIL
+    assert any("deactivate" in check.detail for check in report.checks)
 
 
 def test_stdout_during_import_does_not_corrupt_probe(tmp_path):
