@@ -1,9 +1,12 @@
 from collections.abc import Iterator
 import contextlib
 import gc
+import queue
 import sys
 import threading
 import time
+from typing import Any
+from typing import Callable
 
 import pytest
 
@@ -11,6 +14,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.runtime import gc_monitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
+from ddtrace.internal.runtime.gc_monitor import PauseListener
 
 
 # Tests that call _on_gc manually while the monitor's gc.callbacks hook is
@@ -227,6 +231,61 @@ def test_callback_does_not_wait_for_the_lock() -> None:
     thread.join(timeout=5)
 
     assert not thread.is_alive()
+
+
+def test_stop_while_lock_held_on_same_thread_does_not_deadlock() -> None:
+    """Signal-style stop must not wait on the monitor lock this thread already holds.
+
+    Profiler SIGTERM/SIGINT handlers run on the main thread between bytecodes. If
+    that lands while _on_gc (or snapshot_and_reset) holds the non-reentrant lock,
+    blocking remove_listener/release deadlocks. Hold the lock the way _on_gc does
+    after a successful acquire, then stop on the same thread.
+    """
+    result: queue.Queue[str] = queue.Queue()
+
+    def target() -> None:
+        monitor: GCPauseMonitor = GCPauseMonitor()
+        monitor.acquire()
+
+        def listener(gen: int, pause_ns: int) -> None:
+            return None
+
+        pause_listener: PauseListener = listener
+        monitor.add_listener(pause_listener)
+
+        # Prefer the ownership-tracked helper when present so deferred stop matches
+        # production. Older trees fall back to the raw lock and hang on release —
+        # that is the bug this test pins.
+        lock_acquire: Callable[[bool], bool] = getattr(monitor, "_lock_acquire", monitor._lock.acquire)
+        if not lock_acquire(False):
+            result.put("acquire-failed")
+            return
+        try:
+            monitor.remove_listener(pause_listener)
+            monitor.release()
+            if getattr(monitor, "_lock_owned", lambda: False)():
+                work: list[Any] = monitor._drain_deferred_locked()
+                monitor._unlock_and_run(work)
+            else:
+                monitor._lock.release()
+            if monitor._refcount != 0:
+                result.put(f"refcount={monitor._refcount}")
+                return
+            if any(cb is monitor._gc_hook for cb in gc.callbacks):
+                result.put("callback-still-installed")
+                return
+            if pause_listener in monitor._listeners:
+                result.put("listener-still-registered")
+                return
+            result.put("ok")
+        except Exception as exc:
+            result.put(repr(exc))
+
+    thread: threading.Thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive(), "remove_listener/release deadlocked on the monitor lock"
+    assert result.get_nowait() == "ok"
 
 
 def test_snapshot_never_splits_a_pause(monkeypatch) -> None:
