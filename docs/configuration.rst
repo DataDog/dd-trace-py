@@ -637,14 +637,19 @@ computation to the OpenTelemetry Collector or Datadog intake by default.
 
    DD_LITELLM_USAGE_METRICS_EXPORTER:
      type: String
-     default: "otlp"
+     default: "dogstatsd"
 
      description: |
-         Where LiteLLM usage metrics are sent. ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality
-         to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``),
-         or else to Datadog's OTLP intake in agentless mode (``DD_AGENTLESS_ENABLED``) or to the Datadog Agent's OTLP
-         receiver, which has to be enabled in the Agent. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD
-         endpoint.
+         Where LiteLLM usage metrics are sent. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD endpoint
+         (``DD_DOGSTATSD_URL``). The Agent stores the counters as rate metrics and the durations as distributions,
+         the same types every other source of these metrics uses.
+         ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``
+         (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``), or else to Datadog's OTLP intake in
+         agentless mode (``DD_AGENTLESS_ENABLED``) or to the Datadog Agent's OTLP receiver, which has to be enabled
+         in the Agent. Use ``otlp`` only for backends other than Datadog: Datadog stores these OTLP counters as
+         ``count`` metrics, while other sources of the same metric names, such as AI gateways, send ``rate``
+         metrics. Datadog keeps one type per metric, so mixing them changes the type of every point and can make
+         totals off by up to 10 times.
 
    DD_LITELLM_USAGE_METRICS_TAGS:
      type: String
@@ -1610,6 +1615,16 @@ Feature Flagging
      description: |
          The per-request timeout in seconds for agentless Universal Flag
          Configuration polls.
+
+   DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Controls whether feature flag exposure events are sent to Datadog. When
+         ``False``, the provider sends no exposures to Datadog. It does not stop
+         flag evaluation counts, which ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED``
+         controls. ``DD_FFE_INTAKE_ENABLED`` is a deprecated alias that will be
+         removed in 5.0.0; when both are set, this setting takes precedence.
 
 Other
 -----

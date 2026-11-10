@@ -501,6 +501,21 @@ def test_a_client_that_leaves_after_the_provider_finished(installed, writer, eve
     assert request["error_type"] == "cancelled"
 
 
+@pytest.mark.parametrize("finish_reason, attempt_error", [("stop", None), (None, "cancelled")])
+def test_a_client_that_leaves_after_a_chat_stream_finished(installed, writer, finish_reason, attempt_error):
+    # A client that closes after the provider's last chat chunk, before the proxy's generator ended: the provider
+    # attempt ended as it should, and the request keeps the error.
+    proxy = Proxy(installed, stream=True)
+    proxy.start()
+    proxy.attempt(0)
+    feed(StreamWrapper("openai"), chunk(model="gpt-4o-mini"), chunk(finish_reason=finish_reason))
+    proxy.succeeded(0.5, first_chunk=0.1, error_class="ClientDisconnected")
+    [(attempt, _)] = writer.of(PROVIDER_ATTEMPT)
+    assert attempt.get("error_type") == attempt_error
+    [(request, _)] = writer.of(GATEWAY_REQUEST)
+    assert request["error_type"] == "cancelled"
+
+
 def test_a_responses_stream_the_provider_finished_is_not_an_attempt_error(installed, writer):
     proxy = Proxy(installed, call_type="aresponses", stream=True, route="gpt")
     proxy.start()
@@ -1244,6 +1259,35 @@ def test_the_logger_survives_the_proxy_callback_setup(enabled, tmp_path, value):
     assert not hasattr(proxy_server.initialize_callbacks_on_proxy, "__wrapped__")
 
 
+@pytest.mark.subprocess()
+def test_unpatch_restores_the_callback_setup_the_proxy_server_imported_after_patching():
+    # The proxy server imports the already wrapped callback setup by name; unpatching restores that name too.
+    import os
+    import sys
+
+    os.environ["DD_LITELLM_USAGE_METRICS_ENABLED"] = "true"
+    os.environ["DD_LITELLM_USAGE_METRICS_EXPORTER"] = "dogstatsd"
+
+    from ddtrace.contrib.internal.litellm.patch import patch
+    from ddtrace.contrib.internal.litellm.patch import unpatch
+    from ddtrace.internal.ai_usage import ai_usage
+
+    try:
+        from litellm.proxy.common_utils import callback_utils
+    except ImportError:
+        callback_utils = None
+    if ai_usage is not None and callback_utils is not None and "litellm.proxy.proxy_server" not in sys.modules:
+        original = callback_utils.initialize_callbacks_on_proxy
+        patch()
+        assert callback_utils.initialize_callbacks_on_proxy is not original
+        from litellm.proxy import proxy_server
+
+        assert proxy_server.initialize_callbacks_on_proxy is callback_utils.initialize_callbacks_on_proxy
+        unpatch()
+        assert callback_utils.initialize_callbacks_on_proxy is original
+        assert proxy_server.initialize_callbacks_on_proxy is original
+
+
 def mock_call():
     litellm.completion(model="gpt-4o-mini", messages=[{"role": "user", "content": "hi"}], mock_response="hello")
 
@@ -1462,6 +1506,42 @@ def test_a_failure_after_the_request_was_recorded_is_not_recorded_again(logger, 
     proxy.failed(Exception(), litellm_logging_obj=logging_object(0.6))
     [(request, _)] = writer.of(GATEWAY_REQUEST)
     assert "error_type" not in request
+
+
+@pytest.mark.subprocess()
+def test_usage_metrics_go_to_dogstatsd_by_default():
+    # The Agent stores DogStatsD counters as rate metrics, as every other source of these metric names sends them;
+    # Datadog would store OTLP delta sums as count metrics. OTLP is an opt-in only.
+    import os
+
+    os.environ["DD_LITELLM_USAGE_METRICS_ENABLED"] = "true"
+    os.environ.pop("DD_LITELLM_USAGE_METRICS_EXPORTER", None)
+
+    import litellm
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.litellm.patch import patch
+    from ddtrace.contrib.internal.litellm.patch import unpatch
+    from ddtrace.internal.ai_usage import ai_usage
+
+    assert config.litellm.usage_metrics_exporter == "dogstatsd"
+    if ai_usage is not None:
+        patch()
+        try:
+            writer = litellm._datadog_usage_metrics_writer
+            assert writer._dogstatsd is not None
+            assert writer._otlp is None
+        finally:
+            unpatch()
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_an_unknown_exporter_leaves_the_metrics_off(enabled, monkeypatch):
+    # No exporter replaces one that was asked for.
+    monkeypatch.setitem(config.litellm, "usage_metrics_exporter", "otlp-http")
+    patch()
+    assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None
+    assert getattr(litellm, "_datadog_usage_metrics_writer", None) is None
 
 
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")

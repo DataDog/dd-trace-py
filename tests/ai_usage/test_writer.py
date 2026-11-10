@@ -32,6 +32,12 @@ def UsageMetricsWriter(exporter, **kwargs):
     return _UsageMetricsWriter(exporter, scope_name=SCOPE_NAME, integration_name="test_integration", **kwargs)
 
 
+def test_an_unknown_exporter_is_refused():
+    # The writer never picks an exporter that was not asked for.
+    with pytest.raises(ValueError):
+        UsageMetricsWriter("statsd", interval=60)
+
+
 def observation(user="u1", input_tokens=12):
     return {
         "operation_name": "chat",
@@ -1033,6 +1039,50 @@ def test_dogstatsd_rechecks_the_deadline_after_resolving_the_host(monkeypatch):
     sender.send(["a:1|c"], deadline=time.monotonic() + 0.05)
     assert receiver.stop() == []
     assert sender._socket is None
+
+
+def test_dogstatsd_name_resolution_at_exit_is_bounded_by_the_deadline(monkeypatch):
+    # A lookup has no timeout of its own: a send at exit stops waiting for it at the deadline, for every packet.
+    release = threading.Event()
+
+    def hanging_getaddrinfo(host, *args, **kwargs):
+        release.wait(10)
+        return [(socket.AF_INET, socket.SOCK_DGRAM, 17, "", ("127.0.0.1", 9))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", hanging_getaddrinfo)
+    monkeypatch.setattr(agent_config, "dogstatsd_url", "udp://dogstatsd.test:9")
+    sender = _usage_metrics_writer._DogStatsdSender()
+    started = time.monotonic()
+    try:
+        # Two lines that need a datagram each.
+        sender.send(["a:" + "1" * 1000 + "|c", "b:" + "1" * 1000 + "|c"], deadline=started + 0.1)
+        assert time.monotonic() - started < 1.0
+        assert sender._socket is None
+    finally:
+        release.set()
+
+
+def test_dogstatsd_reuses_the_resolved_addresses_at_exit(monkeypatch):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    lookups = []
+
+    def getaddrinfo(host, *args, **kwargs):
+        lookups.append(host)
+        return [(socket.AF_INET, socket.SOCK_DGRAM, 17, "", ("127.0.0.1", port))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+    monkeypatch.setattr(agent_config, "dogstatsd_url", f"udp://dogstatsd.test:{port}")
+    receiver = Receiver(sock)
+    sender = _usage_metrics_writer._DogStatsdSender()
+    sender.send(["a:1|c"])
+    # The socket is gone at exit, as after a failed send: the exit send connects again without a lookup.
+    sender.close()
+    sender.send(["b:1|c"], deadline=time.monotonic() + 1.0)
+    sender.close()
+    assert lookups == ["dogstatsd.test"]
+    assert sorted(receiver.stop()) == [b"a:1|c", b"b:1|c"]
 
 
 class FullSocket:

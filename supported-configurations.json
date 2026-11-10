@@ -1802,11 +1802,14 @@
         "default": "true"
       }
     ],
-    "DD_FFE_INTAKE_ENABLED": [
+    "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "aliases": [
+          "DD_FFE_INTAKE_ENABLED"
+        ]
       }
     ],
     "DD_FFE_INTAKE_HEARTBEAT_INTERVAL": [
@@ -2447,9 +2450,9 @@
     ],
     "DD_LITELLM_USAGE_METRICS_EXPORTER": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
-        "default": "otlp"
+        "default": "dogstatsd"
       }
     ],
     "DD_LITELLM_USAGE_METRICS_TAGS": [

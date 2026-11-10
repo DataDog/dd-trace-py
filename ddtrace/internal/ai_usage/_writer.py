@@ -6,6 +6,7 @@ encodes each export window. This module only sends the bytes.
 
 from __future__ import annotations
 
+from _thread import start_new_thread
 from collections import deque
 import datetime
 import email.utils
@@ -32,6 +33,7 @@ from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import original_Event
 from ddtrace.version import __version__
 
 
@@ -231,6 +233,8 @@ class _OtlpSender:
         # Whether Datadog stores the export as it arrives (the Agent's receiver or the agentless intake). It then
         # follows the Datadog binding, cost in USD, so that metrics hold the same values as over DogStatsD; a
         # configured endpoint, such as a collector, gets the OpenTelemetry encoding, unless it is the intake itself.
+        # Datadog still stores these delta sums as count metrics, not as the rate metrics DogStatsD counters become,
+        # which is why OTLP is only an opt-in exporter.
         self.to_datadog = False
         headers = _parse_headers(
             _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
@@ -322,7 +326,8 @@ class _OtlpSender:
             log.warning(
                 "AI usage metrics: OTLP export to the Datadog Agent at %s failed (%s), kept for the next flush. "
                 "Enable the Agent's OTLP receiver (DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318) or "
-                "set DD_LITELLM_USAGE_METRICS_EXPORTER=dogstatsd",
+                "use the default DogStatsD exporter, which stores the counters as the same metric type as other "
+                "submitters",
                 self.endpoint,
                 failure,
             )
@@ -331,6 +336,10 @@ class _OtlpSender:
                 "AI usage metrics: OTLP export to %s failed (%s), kept for the next flush", self.endpoint, failure
             )
         return False
+
+
+class _ResolveTimeout(Exception):
+    """Resolving the DogStatsD host outlasted the deadline of a send at exit."""
 
 
 def _os_error_name(error: OSError) -> str:
@@ -366,6 +375,50 @@ class _DogStatsdSender:
         self._deadline: Optional[float] = None
         # Set by the writer's close(), so that a send already in progress, which was given no deadline, stops too.
         self._stop_deadline: Optional[float] = None
+        # The addresses the host last resolved to, which a send with a deadline reuses, and the lookup in progress
+        # that a send with a deadline stopped waiting for: (done, result).
+        self._resolved: Optional[list[Any]] = None
+        self._lookup: Optional[tuple[Any, list[Any]]] = None
+
+    def _resolve(self, host: str, port: int) -> list[Any]:
+        """The addresses host resolves to. A name lookup has no timeout of its own, so a send with a deadline, as at
+        exit, reuses the last addresses, or else waits for a lookup on its own thread only until the deadline.
+        """
+        deadline = min((d for d in (self._deadline, self._stop_deadline) if d is not None), default=None)
+        if deadline is None:
+            self._resolved = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
+            return self._resolved
+        if self._resolved is not None:
+            return self._resolved
+        lookup = self._lookup
+        if lookup is None:
+            done = original_Event()
+            result: list[Any] = []
+
+            def resolve() -> None:
+                try:
+                    result.append(socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM))
+                except BaseException as e:
+                    result.append(e)
+                finally:
+                    done.set()
+
+            try:
+                # A raw thread: unlike ddtrace's threads, a fork does not wait for it, and it does not keep the
+                # process from exiting while the lookup hangs.
+                start_new_thread(resolve, ())
+            except RuntimeError as e:
+                # No thread can start, as at interpreter shutdown.
+                raise _ResolveTimeout() from e
+            lookup = self._lookup = (done, result)
+        done, result = lookup
+        if not done.wait(max(deadline - time.monotonic(), 0.0)):
+            raise _ResolveTimeout()
+        self._lookup = None
+        if isinstance(result[0], BaseException):
+            raise result[0]
+        self._resolved = result[0]
+        return self._resolved
 
     def _connect(self) -> socket.socket:
         if self._socket is None:
@@ -375,8 +428,7 @@ class _DogStatsdSender:
                 # IPv4 first, as the DogStatsD client does, so that an Agent listening on IPv4 only keeps working on a
                 # host that resolves to both; a host that resolves to IPv6 only gets IPv6.
                 host, port = self._address
-                addresses = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
-                addresses.sort(key=lambda address: address[0] != socket.AF_INET)
+                addresses = sorted(self._resolve(host, port), key=lambda address: address[0] != socket.AF_INET)
                 candidates = [(family, address) for family, _, _, _, address in addresses]
                 if candidates:
                     start = self._failed_sends % len(candidates)
@@ -445,12 +497,17 @@ class _DogStatsdSender:
                 return
             try:
                 sock = self._connect()
-                # Resolving the host name is not bounded by the socket timeout and can outlast the deadline.
+                # Connecting can still take until the deadline.
                 if self._past_deadline():
                     log.debug("AI usage metrics: dropping %d DogStatsD lines at exit", lines)
                     self.close()
                     return
                 sock.send(data)
+                return
+            except _ResolveTimeout:
+                log.debug(
+                    "AI usage metrics: dropping %d DogStatsD lines at exit: resolving the host took too long", lines
+                )
                 return
             except OSError as e:
                 if e.errno == errno.EMSGSIZE:
@@ -484,6 +541,8 @@ class _DogStatsdSender:
                 return
 
     def close(self) -> None:
+        # A lookup that a send stopped waiting for is not waited for again: in a forked child its thread is gone.
+        self._lookup = None
         if self._socket is not None:
             try:
                 self._socket.close()
@@ -527,8 +586,10 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._pending: deque[bytes] = deque()
         if exporter == "dogstatsd":
             self._dogstatsd = _DogStatsdSender()
-        else:
+        elif exporter == "otlp":
             self._otlp = _OtlpSender()
+        else:
+            raise ValueError(f"Unknown usage metrics exporter {exporter!r}")
 
     def record(
         self, profile_ids: list[str], observation: dict[str, Any], deployment_attributes: Optional[dict[str, str]]

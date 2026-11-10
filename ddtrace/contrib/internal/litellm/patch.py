@@ -8,25 +8,35 @@ import litellm
 
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.litellm import _usage_metrics
+from ddtrace.contrib.internal.litellm._constants import COMPONENT
+from ddtrace.contrib.internal.litellm._constants import ROUTER_INSTANCE_KEY
+from ddtrace.contrib.internal.litellm._constants import TAG_HOST
+from ddtrace.contrib.internal.litellm._constants import TAG_MODEL
+from ddtrace.contrib.internal.litellm._constants import model_map
+from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
-from ddtrace.contrib.internal.stream_handler import make_traced_stream
+from ddtrace.contrib.internal.litellm.utils import has_downstream_openai_span
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import atexit
+from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal import integration_hooks
 from ddtrace.internal.ai_usage import _writer as _usage_metrics_writer
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings._opentelemetry import otel_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
-from ddtrace.llmobs._integrations import LiteLLMIntegration
+from ddtrace.internal.utils.streaming import make_traced_stream
 from ddtrace.trace import tracer
 
 
@@ -37,7 +47,7 @@ config._add(
     {
         "usage_metrics_enabled": _get_config("DD_LITELLM_USAGE_METRICS_ENABLED", default=False, modifier=asbool),
         "usage_metrics_tags": _get_config("DD_LITELLM_USAGE_METRICS_TAGS"),
-        "usage_metrics_exporter": _get_config("DD_LITELLM_USAGE_METRICS_EXPORTER", default="otlp"),
+        "usage_metrics_exporter": _get_config("DD_LITELLM_USAGE_METRICS_EXPORTER", default="dogstatsd"),
         "usage_metrics_client_source": _get_config("DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE"),
     },
 )
@@ -52,141 +62,125 @@ def _supported_versions() -> dict[str, str]:
     return {"litellm": "*"}
 
 
-def _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False):
+def _request_event(operation, args, kwargs, router=None):
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    host = extract_host_tag(kwargs)
+    tags = {}
+    if model is not None:
+        tags[TAG_MODEL] = model
+    if host is not None:
+        tags[TAG_HOST] = host
+    # Copy so the router instance never reaches the wrapped call.
+    request_kwargs = dict(kwargs)
+    if router is not None:
+        request_kwargs[ROUTER_INSTANCE_KEY] = router
+    return LlmRequestEvent(
+        component=COMPONENT,
+        integration_config=config.litellm,
+        service=int_service(None, config.litellm),
+        resource=operation,
+        # The provider is only known once litellm resolves the model.
+        provider="",
+        model=model,
+        tags=tags,
+        # Router spans are always submitted; plain calls defer to the OpenAI integration's span when there is one.
+        submit_to_llmobs=router is not None or not has_downstream_openai_span(kwargs, model),
+        request_args=args,
+        request_kwargs=request_kwargs,
+        operation=operation,
+    )
+
+
+def _handle_router_stream_response(resp, ctx, is_async=False):
     """
     Handle router streaming responses with fallback for different wrapper types.
 
     In litellm>=1.74.15, router streaming responses may be wrapped in FallbackStreamWrapper
     (for mid-stream fallback support) or other types that don't expose the .handler attribute.
     """
-    if hasattr(resp, "handler") and hasattr(resp.handler, "add_span"):
-        resp.handler.add_span(span, kwargs, instance)
+    handler = getattr(resp, "handler", None)
+    if isinstance(handler, BaseLiteLLMStreamHandler):
+        handler.add_context(ctx)
         return resp
 
     # Fallback: wrap the response in our own traced stream for compatibility
-    kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
     handler_class = LiteLLMAsyncStreamHandler if is_async else LiteLLMStreamHandler
-    return make_traced_stream(resp, handler_class(integration, span, args, kwargs))
+    return make_traced_stream(resp, handler_class(ctx))
 
 
 def traced_completion(func, instance, args, kwargs):
-    operation = func.__name__
-    integration = litellm._datadog_integration
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    host = extract_host_tag(kwargs)
-    span = integration.trace(
-        operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
-        submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
-    )
-    stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = func(*args, **kwargs)
-        if stream:
-            return make_traced_stream(resp, LiteLLMStreamHandler(integration, span, args, kwargs))
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        _usage_attempt_failed(kwargs)
-        raise
-    finally:
-        # streamed spans will be finished separately once the stream generator is exhausted
-        if not stream:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+    event = _request_event(func.__name__, args, kwargs)
+    if not kwargs.get("stream", False):
+        with core.context_with_event(event):
+            try:
+                event.response = func(*args, **kwargs)
+            except Exception:
+                _usage_attempt_failed(kwargs)
+                raise
+            return event.response
+    # The stream handler dispatches the ended event once the stream is consumed or closed.
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = func(*args, **kwargs)
+        except Exception:
+            _usage_attempt_failed(kwargs)
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        return make_traced_stream(resp, LiteLLMStreamHandler(ctx))
 
 
 async def traced_acompletion(func, instance, args, kwargs):
-    operation = func.__name__
-    integration = litellm._datadog_integration
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    host = extract_host_tag(kwargs)
-    span = integration.trace(
-        operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
-        submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
-    )
-    stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = await func(*args, **kwargs)
-        if stream:
-            return make_traced_stream(resp, LiteLLMAsyncStreamHandler(integration, span, args, kwargs))
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        _usage_attempt_failed(kwargs)
-        raise
-    finally:
-        # streamed spans will be finished separately once the stream generator is exhausted
-        if not stream:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+    event = _request_event(func.__name__, args, kwargs)
+    if not kwargs.get("stream", False):
+        with core.context_with_event(event):
+            try:
+                event.response = await func(*args, **kwargs)
+            except Exception:
+                _usage_attempt_failed(kwargs)
+                raise
+            return event.response
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        try:
+            resp = await func(*args, **kwargs)
+        except Exception:
+            _usage_attempt_failed(kwargs)
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        return make_traced_stream(resp, LiteLLMAsyncStreamHandler(ctx))
 
 
 def traced_router_completion(func, instance, args, kwargs):
-    operation = f"router.{func.__name__}"
-    integration = litellm._datadog_integration
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    host = extract_host_tag(kwargs)
-    span = integration.trace(
-        operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
-        submit_to_llmobs=True,
-    )
-    _mark_gateway_span(span, kwargs)
-    stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = func(*args, **kwargs)
-        if stream:
-            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False)
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if not stream:
-            kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+    event = _request_event(f"router.{func.__name__}", args, kwargs, router=instance)
+    if not kwargs.get("stream", False):
+        with core.context_with_event(event) as ctx:
+            _mark_gateway_context(ctx, kwargs)
+            event.response = func(*args, **kwargs)
+            return event.response
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        _mark_gateway_context(ctx, kwargs)
+        try:
+            resp = func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        return _handle_router_stream_response(resp, ctx, is_async=False)
 
 
 async def traced_router_acompletion(func, instance, args, kwargs):
-    operation = f"router.{func.__name__}"
-    integration = litellm._datadog_integration
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    host = extract_host_tag(kwargs)
-    span = integration.trace(
-        operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
-        submit_to_llmobs=True,
-    )
-    _mark_gateway_span(span, kwargs)
-    stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = await func(*args, **kwargs)
-        if stream:
-            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=True)
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if not stream:
-            kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+    event = _request_event(f"router.{func.__name__}", args, kwargs, router=instance)
+    if not kwargs.get("stream", False):
+        with core.context_with_event(event) as ctx:
+            _mark_gateway_context(ctx, kwargs)
+            event.response = await func(*args, **kwargs)
+            return event.response
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        _mark_gateway_context(ctx, kwargs)
+        try:
+            resp = await func(*args, **kwargs)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
+        return _handle_router_stream_response(resp, ctx, is_async=True)
 
 
 def _field(obj, name):
@@ -208,8 +202,10 @@ def traced_chunk_creator(func, instance, args, kwargs):
             fields = _usage_metrics.usage_fields(usage, False) if usage is not None else {}
             input_reported = "input_tokens" in fields
             output_reported = "output_tokens" in fields
+            choices = _field(chunk, "choices") or [None]
+            # The provider ended the response: a client that leaves after this chunk does not fail the attempt.
+            finished = any(_field(choice, "finish_reason") for choice in choices)
             if output_reported and getattr(instance, "custom_llm_provider", None) == "anthropic":
-                choices = _field(chunk, "choices") or [None]
                 output_reported = bool(_field(choices[0], "finish_reason"))
             model = _field(chunk, "model")
             # OpenAI's chunks name the tier at their top level; an Anthropic stream names it in message_start only.
@@ -227,6 +223,7 @@ def traced_chunk_creator(func, instance, args, kwargs):
                 model if isinstance(model, str) else None,
                 "reasoning_output_tokens" in fields,
                 tier if isinstance(tier, str) else None,
+                completed=finished,
             )
         except Exception:
             log.debug("LiteLLM usage metrics: failed to inspect a stream chunk", exc_info=True)
@@ -398,12 +395,16 @@ def _wrap_proxy_shutdown(module):
 
 def _wrap_initialize_callbacks(module):
     """Wrap the proxy's callback setup where it is defined and where the proxy server imported it by name, unless
-    that name already refers to the wrapped definition.
+    that name already refers to the wrapped definition: the proxy server imported after patching. Unpatching then
+    restores that name to the original too.
     """
     try:
         defining = sys.modules.get(_PROXY_CALLBACKS_MODULE)
         if module is not defining and defining is not None:
             if vars(module).get(_INITIALIZE_CALLBACKS) is vars(defining).get(_INITIALIZE_CALLBACKS):
+                original = _wrapped_stream_methods.get((defining, _INITIALIZE_CALLBACKS))
+                if original is not None:
+                    _wrapped_stream_methods.setdefault((module, _INITIALIZE_CALLBACKS), original)
                 return
         _wrap_stream_method(module, _INITIALIZE_CALLBACKS, traced_initialize_callbacks_on_proxy)
     except Exception:
@@ -431,6 +432,12 @@ def _usage_attempt_failed(kwargs):
     logger = getattr(litellm, "_datadog_usage_metrics_logger", None)
     if logger is not None:
         logger.attempt_failed(kwargs, sys.exc_info()[1])
+
+
+def _mark_gateway_context(ctx, kwargs):
+    """Mark the Router span the request event's context started as a gateway request."""
+    if getattr(litellm, "_datadog_usage_metrics_logger", None) is not None:
+        _mark_gateway_span(span_from_context(ctx), kwargs)
 
 
 def _mark_gateway_span(span, kwargs):
@@ -491,10 +498,17 @@ def _enable_usage_metrics():
     if _usage_metrics_writer.ai_usage is None:
         log.warning("LiteLLM usage metrics are not available in this build of ddtrace")
         return
-    exporter = (config.litellm.usage_metrics_exporter or "otlp").strip().lower()
+    # DogStatsD by default: the Agent stores its counters as rate metrics, as every other submitter of these metric
+    # names does, while Datadog stores OTLP delta sums as count metrics. OTLP is for other backends, and only when
+    # asked for. An unknown value is never replaced by another exporter.
+    exporter = (config.litellm.usage_metrics_exporter or "dogstatsd").strip().lower()
     if exporter not in ("otlp", "dogstatsd"):
-        log.warning("Unknown DD_LITELLM_USAGE_METRICS_EXPORTER %r, using otlp", exporter)
-        exporter = "otlp"
+        log.warning(
+            "LiteLLM usage metrics are not enabled: unknown DD_LITELLM_USAGE_METRICS_EXPORTER %r (expected dogstatsd "
+            "or otlp)",
+            exporter,
+        )
+        return
     if exporter == "otlp" and _usage_metrics_writer.otlp_endpoint_is_grpc():
         log.warning(
             "LiteLLM usage metrics are not enabled: they are sent over OTLP/HTTP, and the OTLP metrics endpoint is "
@@ -600,10 +614,8 @@ def _remove_usage_metrics_loggers():
 
 def traced_get_llm_provider(func, instance, args, kwargs):
     requested_model = get_argument_value(args, kwargs, 0, "model", None)
-    integration = litellm._datadog_integration
     model, custom_llm_provider, dynamic_api_key, api_base = func(*args, **kwargs)
-    # store the model name and provider in the integration
-    integration._model_map[requested_model] = (model, custom_llm_provider)
+    model_map[requested_model] = (model, custom_llm_provider)
     return model, custom_llm_provider, dynamic_api_key, api_base
 
 
@@ -612,9 +624,6 @@ def patch():
         return
 
     litellm._datadog_patch = True
-
-    integration = LiteLLMIntegration(integration_config=config.litellm)
-    litellm._datadog_integration = integration
 
     wrap("litellm", "completion", traced_completion)
     wrap("litellm", "acompletion", traced_acompletion)
@@ -627,6 +636,10 @@ def patch():
     wrap("litellm", "router.Router.text_completion", traced_router_completion)
     wrap("litellm", "router.Router.atext_completion", traced_router_acompletion)
 
+    # Let products (LLMObs) attach their own LlmEvents subscribers without this
+    # module importing them.
+    integration_hooks.on_patch(COMPONENT)
+
     if config.litellm.usage_metrics_enabled:
         _enable_usage_metrics()
 
@@ -636,6 +649,8 @@ def unpatch():
         return
 
     litellm._datadog_patch = False
+
+    integration_hooks.on_unpatch(COMPONENT)
 
     _disable_usage_metrics()
 
@@ -649,4 +664,3 @@ def unpatch():
     unwrap(litellm.router.Router, "acompletion")
     unwrap(litellm.router.Router, "text_completion")
     unwrap(litellm.router.Router, "atext_completion")
-    delattr(litellm, "_datadog_integration")

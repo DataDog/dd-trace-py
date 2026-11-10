@@ -13,7 +13,6 @@ At startup (when DD_APPSEC_SCA_ENABLED=true):
 """
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
@@ -23,7 +22,7 @@ requires: list[str] = []
 
 
 def enabled() -> bool:
-    return bool(appsec_telemetry_config.SCA_ENABLED) and not in_aws_lambda()
+    return bool(appsec_telemetry_config.SCA_ENABLED)
 
 
 def _get_installed_packages() -> dict[str, str]:

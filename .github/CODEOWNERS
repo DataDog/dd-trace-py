@@ -70,7 +70,6 @@ repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
 static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
-.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
 .github/                            @DataDog/python-guild  @DataDog/apm-core-python
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
