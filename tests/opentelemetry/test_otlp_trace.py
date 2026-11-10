@@ -190,9 +190,12 @@ def test_otlp_trace_metrics_exported_via_http():
     class OtlpHandler(BaseHTTPRequestHandler):
         def do_POST(self):
             length = int(self.headers.get("Content-Length", 0))
-            received.put((self.path, self.headers.get("Content-Type", ""), self.rfile.read(length)))
+            request = (self.path, self.headers.get("Content-Type", ""), self.rfile.read(length))
             self.send_response(200)
+            self.send_header("Content-Length", "0")
             self.end_headers()
+            self.wfile.flush()
+            received.put(request)
 
         def log_message(self, *args):
             pass
@@ -230,6 +233,8 @@ def test_otlp_trace_metrics_exported_via_http():
                 metrics_payload = (content_type, body)
                 break
 
+        # Drain and stop the native exporter while its local endpoint is still available.
+        tracer.shutdown()
         server.shutdown()
 
     assert metrics_payload is not None, "No OTLP metrics payload received by mock server"

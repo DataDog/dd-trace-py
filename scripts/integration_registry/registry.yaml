@@ -143,7 +143,7 @@ integrations:
   tested_versions_by_dependency:
     aws-durable-execution-sdk-python:
       min: 1.4.0
-      max: 1.4.0
+      max: 3.0.1
 
 - integration_name: aws_lambda
   is_external_package: true
@@ -409,7 +409,7 @@ integrations:
   tested_versions_by_dependency:
     elevenlabs:
       min: 2.70.0
-      max: 2.70.0
+      max: 2.75.0
 
 - integration_name: falcon
   is_external_package: true
@@ -429,7 +429,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.141.1
+      max: 0.162.0
 
 - integration_name: flask
   is_external_package: true
@@ -453,7 +453,7 @@ integrations:
       max: 0.13.1
     flask-caching:
       min: 1.10.1
-      max: 2.3.0
+      max: 2.5.1
 
 - integration_name: futures
   is_external_package: false
@@ -497,7 +497,7 @@ integrations:
   tested_versions_by_dependency:
     google-genai:
       min: 1.21.1
-      max: 2.25.0
+      max: 2.34.0
 
 - integration_name: graphql
   is_external_package: true
@@ -790,7 +790,7 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.3.6
+      max: 3.3.8
     psycopg2-binary:
       min: 2.9.10
       max: 2.9.13
@@ -853,7 +853,7 @@ integrations:
   tested_versions_by_dependency:
     pynamodb:
       min: 5.5.1
-      max: 5.5.1
+      max: 6.1.0
 
 - integration_name: pyodbc
   is_external_package: true
@@ -893,7 +893,7 @@ integrations:
   tested_versions_by_dependency:
     pytest-bdd:
       min: 4.1.0
-      max: 6.0.1
+      max: 9.0.1
 
 - integration_name: pytest_benchmark
   is_external_package: true
@@ -909,7 +909,7 @@ integrations:
   tested_versions_by_dependency:
     torch:
       min: 2.0.1
-      max: 2.14.0
+      max: 2.15.0
 
 - integration_name: ray
   is_external_package: true
@@ -1102,7 +1102,7 @@ integrations:
   tested_versions_by_dependency:
     google-cloud-aiplatform:
       min: 1.71.1
-      max: 1.71.1
+      max: 2.7.0
     vertexai:
       min: 1.71.1
       max: 1.71.1

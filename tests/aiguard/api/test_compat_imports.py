@@ -24,6 +24,8 @@ _PUBLIC_SYMBOLS = [
     "Evaluation",
     "Function",
     "ImageURL",
+    "MCP",
+    "MCPServer",
     "Message",
     "Options",
     "ToolCall",
