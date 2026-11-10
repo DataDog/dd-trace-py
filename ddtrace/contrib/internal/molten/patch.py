@@ -39,7 +39,7 @@ def _supported_versions() -> dict[str, str]:
     return {"molten": ">=1.0"}
 
 
-def patch() -> None:
+def patch():
     if getattr(molten, "_datadog_patch", False):
         return
     molten._datadog_patch = True
