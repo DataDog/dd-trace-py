@@ -188,8 +188,8 @@ class ProfilingConfig(DDConfig):
         help_type="Boolean",
         help=(
             "Enable Datadog profiling when using ``ddtrace-run``. "
-            "Experimental: when this is not set, Remote Configuration can start the profiler at runtime. "
-            "Set this to ``false`` to prevent Remote Configuration from starting the profiler."
+            "Experimental: Leave unset to let Remote Configuration start the profiler at runtime. "
+            "Set to ``false`` to prevent Remote Configuration from starting the profiler."
         ),
     )
 
