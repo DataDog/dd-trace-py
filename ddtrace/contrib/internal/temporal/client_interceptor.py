@@ -28,14 +28,18 @@ class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type
     async def start_workflow(
         self, input: temporalio.client.StartWorkflowInput
     ) -> temporalio.client.WorkflowHandle[Any, Any]:
-        operation_name = (
-            OperationNames.SIGNAL_WITH_START_WORKFLOW if input.start_signal else OperationNames.START_WORKFLOW
-        )
+        if input.start_signal and not self.root.workflow_tracing_config.disable_signal_tracing:
+            operation_name = OperationNames.SIGNAL_WITH_START_WORKFLOW
+        else:
+            operation_name = OperationNames.START_WORKFLOW
+        attributes = self._get_workflow_attributes(input)
+        if operation_name == OperationNames.SIGNAL_WITH_START_WORKFLOW:
+            attributes[SpanAttributes.SIGNAL_NAME] = input.start_signal
         return await self._start_operation(
             operation_name,
             input,
             input.workflow,
-            self._get_workflow_attributes(input),
+            attributes,
             super().start_workflow,
         )
 
@@ -87,8 +91,10 @@ class _ClientOutboundInterceptor(temporalio.client.OutboundInterceptor):  # type
             # Propagate the currently active trace into the workflow start headers so
             # RunWorkflow is not an unparented root when workflow tracing is enabled.
             active_ctx = tracer.context_provider.active()
+            active_span = tracer.current_span()
+            service = active_span.service if active_span is not None else None
             input.start_workflow_input.headers = self.root.propagator.inject_headers(
-                input.start_workflow_input.headers, active_ctx
+                input.start_workflow_input.headers, active_ctx, service
             )
             return await super().start_update_with_start_workflow(input)
 

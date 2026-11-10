@@ -25,6 +25,14 @@ the Temporal workflow sandbox so workflow code can call
 ``patch(logging=True)`` is recommended separately to opt in to ``dd.trace_id``
 log injection.
 
+Environment settings:
+
+- ``DD_TRACE_TEMPORAL_ENABLED`` — set to ``false`` to disable the
+  integration (default: ``true``).
+- ``DD_TEMPORAL_SERVICE`` / ``DD_TEMPORAL_SERVICE_NAME`` — override the
+  service name on all Temporal spans. When unset, the service falls back to
+  the global ``DD_SERVICE``.
+
 Workflow code can tag the ``RunWorkflow`` span, or detach the next
 ``continue_as_new`` run from the current trace::
 

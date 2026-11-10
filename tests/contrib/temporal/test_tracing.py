@@ -2466,3 +2466,38 @@ async def test_benign_workflow_error_does_not_mark_run_workflow_as_error(
     assert run_wf.error == 0, "Benign workflow error must not mark RunWorkflow as error"
     assert run_wf.get_tag("error.message") is None
     assert run_wf.get_tag("error.type") is None
+
+
+@pytest.mark.asyncio
+async def test_signal_with_start_records_signal_name(
+    client: Client,
+    env: WorkflowEnvironment,
+    span_collector: _SpanCollector,
+) -> None:
+    """SignalWithStartWorkflow carries the SignalName tag and correct resource."""
+    if env.supports_time_skipping:
+        pytest.skip("time-skipping server not supported")
+
+    interceptor = _make_interceptor()
+    tc = _traced_client(client, interceptor)
+    tq = _task_queue()
+
+    async with Worker(
+        tc,
+        task_queue=tq,
+        workflows=[SignalAndUpdateWorkflow],
+    ):
+        handle = await tc.start_workflow(
+            SignalAndUpdateWorkflow.run,
+            id=f"wf-{uuid.uuid4()}",
+            task_queue=tq,
+            start_signal="my_signal",
+        )
+        # The workflow needs both the signal and the update to finish.
+        await handle.execute_update(SignalAndUpdateWorkflow.my_update)
+        await handle.result()
+
+    span = span_collector.one("SignalWithStartWorkflow")
+    assert span_collector.tag(span, "SignalName") == "my_signal", (
+        "SignalWithStartWorkflow span must carry the temporal.SignalName tag"
+    )
