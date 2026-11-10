@@ -545,10 +545,12 @@ def test_exposure_cache_lock_is_released_in_a_forked_child():
     from ddtrace.openfeature import DataDogProvider
 
     provider = DataDogProvider()
-    provider._exposure_cache_lock.acquire()
+    # A pending exposure decision holds this same lock object across the fork.
+    lock = provider._exposure_cache_lock
+    lock.acquire()
     pid = os.fork()
     if pid == 0:
-        os._exit(0 if provider._exposure_cache_lock.acquire(timeout=1) else 1)
+        os._exit(0 if lock.acquire(timeout=1) else 1)
     _, status = os.waitpid(pid, 0)
 
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0

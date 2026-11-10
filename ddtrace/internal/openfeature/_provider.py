@@ -805,14 +805,15 @@ class DataDogProvider(AbstractProvider):
 
 
 # A plain lock is much cheaper than forksafe.Lock() on every evaluation, so the provider
-# resets its own lock in a forked child instead.
+# resets its own lock in a forked child instead. The reset is in place because pending
+# exposure decisions keep a reference to the lock.
 _providers_with_exposure_cache: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
 
 
 @forksafe.register
 def _reset_exposure_cache_locks() -> None:
     for provider in list(_providers_with_exposure_cache):
-        provider._exposure_cache_lock = Lock()
+        provider._exposure_cache_lock._at_fork_reinit()  # type: ignore[attr-defined]
 
 
 class ExposureLoggingHook(Hook):
