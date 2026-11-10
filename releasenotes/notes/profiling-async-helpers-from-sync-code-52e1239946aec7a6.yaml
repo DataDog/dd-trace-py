@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Profiling: A bug that would raise exceptions when certain asyncio helpers were used from synchronous code
+    has been fixed.
