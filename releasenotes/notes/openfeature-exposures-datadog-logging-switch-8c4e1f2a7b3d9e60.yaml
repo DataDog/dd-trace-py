@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    openfeature: Adds ``DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED``, which controls whether
+    feature flag exposure events are sent to Datadog. It defaults to ``true``. The same setting is
+    available in the other Datadog tracers.
+deprecations:
+  - |
+    openfeature: ``DD_FFE_INTAKE_ENABLED`` is deprecated and will be removed in 5.0.0. Use
+    ``DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED`` instead. Until then, ``DD_FFE_INTAKE_ENABLED``
+    keeps working. When both are set, ``DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED`` takes
+    precedence.
