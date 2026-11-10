@@ -15,6 +15,8 @@ import logging
 import os
 from pathlib import Path
 import sys
+import threading
+import types
 import typing
 
 import pytest
@@ -889,30 +891,89 @@ def test_custom_finders_run_outside_the_lock(
     assert list(mapping.items()) == [("from_finder.py", ("from-finder", "2.0")), ("on_path.py", ("on-path", "1.0"))]
 
 
-def test_unreadable_zip_member_is_reported(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A zip member that cannot be read (here bzip2, which the native reader does
-    not support) is reported like other unreadable metadata, not skipped quietly.
+def _zip_with_bzip2_metadata(archive: Path) -> Path:
+    """A zip whose second distribution has bzip2 members, which the native reader
+    cannot decode: Python code can still be imported from it, as it is deflated.
     """
     import zipfile
 
-    archive = tmp_path / "deps.zip"
-    with zipfile.ZipFile(archive, "w") as zf:
-        zf.writestr("ok/__init__.py", "")
-        zf.writestr("ok-1.0.dist-info/METADATA", "Name: ok\nVersion: 1.0\n")
-        zf.writestr("ok-1.0.dist-info/RECORD", "ok/__init__.py,,\n")
-        zf.writestr("bz-1.0.dist-info/METADATA", "Name: bz\nVersion: 1.0\n", compress_type=zipfile.ZIP_BZIP2)
-    monkeypatch.setattr(sys, "path", [str(archive)])
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("first/__init__.py", "")
+        zf.writestr("first-1.0.dist-info/METADATA", "Name: first\nVersion: 1.0\n")
+        zf.writestr("first-1.0.dist-info/RECORD", "first/__init__.py,,\n")
+        zf.writestr("bz/__init__.py", "")
+        for name, text in (("METADATA", "Name: bz\nVersion: 2.0\n"), ("RECORD", "bz/__init__.py,,\n")):
+            zf.writestr(f"bz-2.0.dist-info/{name}", text, compress_type=zipfile.ZIP_BZIP2)
+        zf.writestr("last/__init__.py", "")
+        zf.writestr("last-3.0.dist-info/METADATA", "Name: last\nVersion: 3.0\n")
+        zf.writestr("last-3.0.dist-info/RECORD", "last/__init__.py,,\n")
+    return archive
 
-    from ddtrace.internal.packages import _package_for_root_module_mapping
+
+def test_zip_members_the_native_reader_cannot_decode_are_read_by_zipfile(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Distributions with zip members in compression methods the native reader
+    lacks (here bzip2) are read through zipfile, in their place in discovery order.
+    """
+    archive = _zip_with_bzip2_metadata(tmp_path / "deps.zip")
+    monkeypatch.setattr(sys, "path", [str(archive)])
+    monkeypatch.setattr(sys, "meta_path", [PathFinder])
+
+    from ddtrace.internal import packages as _p
 
     with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.packages"):
-        mapping = _package_for_root_module_mapping()
+        records = _p._installed_distributions()
+        version = _p.get_version_for_package("BZ")
 
-    assert mapping == {"ok": ("ok", "1.0")}
-    warnings = [r.getMessage() for r in caplog.records if "Skipping distribution" in r.getMessage()]
-    assert len(warnings) == 1 and "bz-1.0.dist-info" in warnings[0]
+    assert records == [
+        ("first", "1.0", ["first"], ["first"]),
+        ("bz", "2.0", ["bz"], ["bz"]),
+        ("last", "3.0", ["last"], ["last"]),
+    ]
+    assert version == "2.0"
+    assert _p.is_distribution_available("bz")
+    assert not [r for r in caplog.records if "Skipping distribution" in r.getMessage()]
+
+
+def test_prefetch_leaves_zipfile_reads_to_readers(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The prefetch imports nothing, so it leaves reading through zipfile to the
+    first reader; the entries it did scan are not scanned again.
+    """
+    from ddtrace.internal import native
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "plain", "plain")
+    archive = _zip_with_bzip2_metadata(tmp_path / "deps.zip")
+    monkeypatch.setattr(sys, "path", [str(site), str(archive)])
+    monkeypatch.setattr(sys, "meta_path", [PathFinder])
+    scanned: list[str] = []
+    real_scan = native.scan_distributions
+
+    def counting_scan(entry, *args):
+        scanned.append(entry)
+        return real_scan(entry, *args)
+
+    monkeypatch.setattr(_p, "scan_distributions", counting_scan)
+    zip_reads: list[str] = []
+    real_zip_distribution = _p._zip_distribution
+
+    def zip_distribution(entry, directory):
+        zip_reads.append(threading.current_thread().name)
+        return real_zip_distribution(entry, directory)
+
+    monkeypatch.setattr(_p, "_zip_distribution", zip_distribution)
+
+    _prefetch_and_wait(_p)
+
+    assert _p._INSTALLED is None
+    assert zip_reads == []
+
+    assert [r[0] for r in _p._installed_distributions()] == ["plain", "first", "bz", "last"]
+    assert zip_reads == [threading.current_thread().name]
+    assert scanned == [str(site), str(archive), str(archive)]
 
 
 def test_relative_entries_follow_the_working_directory(
@@ -1045,6 +1106,7 @@ def test_name_lookups_list_entries_once(tmp_path: Path, reset_packages_caches, m
     assert listed == [str(site)] * 2
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="importlib.metadata normalizes names from Python 3.10")
 def test_name_lookups_match_importlib(reset_packages_caches) -> None:
     """Lookups by name find the same distribution as importlib on a real environment."""
     import importlib.metadata as importlib_metadata
@@ -1138,6 +1200,123 @@ class _DistFinder:
         if self.on_find is not None:
             self.on_find()
         return [importlib_metadata.PathDistribution(self.path)]
+
+
+def test_prefetch_leaves_custom_finders_to_readers(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Custom finders run arbitrary Python, so the prefetch does not ask them: it
+    scans sys.path only, and the first reader asks the finders on its own thread.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    asked: list[str] = []
+    finder = _DistFinder(
+        custom / "from_finder-1.0.dist-info", on_find=lambda: asked.append(threading.current_thread().name)
+    )
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [finder, PathFinder])
+
+    _prefetch_and_wait(_p)
+
+    assert asked == []
+    assert _p._INSTALLED is None
+    assert _p._ENTRY_RECORDS.keys() == {str(site)}
+
+    assert [r[0] for r in _p._installed_distributions()] == ["from-finder", "on-path"]
+    assert asked == [threading.current_thread().name]
+
+
+def test_reader_in_an_import_does_not_deadlock_with_the_prefetch(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reader can wait for the prefetch while importing a module, holding its
+    import lock. Were the prefetch to run a custom finder that imports the same
+    module, both threads would wait forever.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = _site_with_dist(tmp_path / "site", "on-path", "on_path")
+    custom = _site_with_dist(tmp_path / "custom", "from-finder", "from_finder")
+    modules = tmp_path / "modules"
+    modules.mkdir()
+    (modules / "reads_maps_on_import.py").write_text(
+        "from _prefetch_deadlock_events import importing\n"
+        "importing.set()\n"
+        "from ddtrace.internal import packages\n"
+        "RECORDS = [r[0] for r in packages._installed_distributions()]\n"
+    )
+    events = types.ModuleType("_prefetch_deadlock_events")
+    importing = events.importing = threading.Event()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "_prefetch_deadlock_events", events)
+
+    reader_thread: list[threading.Thread] = []
+    blocked: list[str] = []
+
+    def import_the_module() -> None:
+        # What a finder may do, once the reader is importing the module.
+        importing.wait(10)
+        if threading.current_thread() in reader_thread:
+            # Re-entrant: the module is already in sys.modules.
+            import reads_maps_on_import  # noqa: F401
+
+            return
+        # Another thread would wait for the reader's import lock, while the reader
+        # waits for this one: import on a helper with a timeout, so the test fails
+        # instead of hanging.
+        helper = threading.Thread(target=__import__, args=("reads_maps_on_import",), daemon=True)
+        helper.start()
+        helper.join(2)
+        if helper.is_alive():
+            blocked.append(threading.current_thread().name)
+
+    finder = _DistFinder(custom / "from_finder-1.0.dist-info", on_find=import_the_module)
+    monkeypatch.setattr(sys, "path", [str(site), str(modules)])
+    monkeypatch.setattr(sys, "meta_path", [finder, PathFinder])
+    monkeypatch.delitem(sys.modules, "reads_maps_on_import", raising=False)
+
+    _p.prefetch_distributions()
+    result: list[typing.Any] = []
+
+    def reader() -> None:
+        import reads_maps_on_import
+
+        result.append(reads_maps_on_import.RECORDS)
+
+    t = threading.Thread(target=reader, daemon=True)
+    reader_thread.append(t)
+    t.start()
+    t.join(30)
+    try:
+        assert not t.is_alive()
+        assert blocked == [], "the prefetch waited on the import lock of the waiting reader"
+        assert result == [["from-finder", "on-path"]]
+    finally:
+        sys.modules.pop("reads_maps_on_import", None)
+
+
+def test_found_distributions_are_available_without_readable_metadata(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """As with importlib.metadata.distribution, a metadata directory is enough for a
+    distribution to be available, and its version is read as importlib reads it.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = tmp_path / "site"
+    (site / "no_metadata-1.0.dist-info").mkdir(parents=True)
+    _write_dist_info(site, "no-name", "2.0", metadata_body="Version: 2.0\n")
+    _write_dist_info(site, "no-version", "3.0", metadata_body="Name: no-version\n")
+    monkeypatch.setattr(sys, "path", [str(site)])
+    monkeypatch.setattr(sys, "meta_path", [PathFinder])
+
+    assert all(_p.is_distribution_available(n) for n in ("no-metadata", "no-name", "no-version"))
+    assert not _p.is_distribution_available("missing")
+    assert _p.get_version_for_package("no-metadata") == ""
+    assert _p.get_version_for_package("no-name") == "2.0"
+    assert _p.get_version_for_package("no-version") == ""
 
 
 def test_custom_finder_added_after_prefetch_is_seen(

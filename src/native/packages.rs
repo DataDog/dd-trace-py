@@ -4,7 +4,7 @@
 //! when it could contribute something and parses METADATA headers only.
 //! Handles directory and zip `sys.path` entries, so it never runs Python code.
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -20,13 +20,33 @@ use zip::ZipArchive;
 type DistRecord = (String, Option<String>, Vec<String>, Vec<String>);
 /// (metadata path, error message) for a distribution that could not be read.
 type DistError = (String, String);
+/// (index into the records, metadata directory) for a distribution to be read
+/// in Python, in place at that index.
+type DistFallback = (usize, String);
+type ScanResult = (Vec<DistRecord>, Vec<DistError>, Vec<DistFallback>);
+
+/// Why a file could not be read.
+enum ReadError {
+    /// A zip member that Python's zipfile may still read (a compression method
+    /// the crate is built without, for one): the caller reads the whole
+    /// distribution in Python instead.
+    Unsupported(String),
+    /// Anything else, which Python could not read either.
+    Failed(String),
+}
+
+impl From<String> for ReadError {
+    fn from(message: String) -> Self {
+        ReadError::Failed(message)
+    }
+}
 
 /// Decode like PathDistribution.read_text: invalid UTF-8 fails the
 /// distribution. Line endings are left alone; see text_lines.
-fn decode(bytes: Vec<u8>, what: impl Display) -> Result<Option<String>, String> {
+fn decode(bytes: Vec<u8>, what: impl Display) -> Result<Option<String>, ReadError> {
     String::from_utf8(bytes)
         .map(Some)
-        .map_err(|e| format!("{what}: {e}"))
+        .map_err(|e| ReadError::Failed(format!("{what}: {e}")))
 }
 
 /// The lines of text as Python sees them after a text-mode read: split on
@@ -108,7 +128,7 @@ impl Root {
     }
 
     /// Absent and unreadable files count as missing, as in read_text.
-    fn read_text(&self, parts: &[&str]) -> Result<Option<String>, String> {
+    fn read_text(&self, parts: &[&str]) -> Result<Option<String>, ReadError> {
         match self {
             Root::Dir(dir) => {
                 let path = Self::dir_path(dir, parts);
@@ -120,12 +140,19 @@ impl Root {
             Root::Zip { archive, .. } => {
                 let name = parts.join("/");
                 let mut archive = archive.borrow_mut();
-                // Only a missing member is absent; anything else (unsupported
-                // compression, encryption, corruption) fails the distribution.
+                // Only a missing member is absent. Unsupported compression or
+                // encryption hands the distribution to zipfile; anything else
+                // (corruption) fails it.
                 let mut file = match archive.by_name(&name) {
                     Ok(file) => file,
                     Err(zip::result::ZipError::FileNotFound) => return Ok(None),
-                    Err(e) => return Err(format!("{}: {e}", self.display(parts))),
+                    Err(e @ zip::result::ZipError::UnsupportedArchive(_)) => {
+                        return Err(ReadError::Unsupported(format!(
+                            "{}: {e}",
+                            self.display(parts)
+                        )))
+                    }
+                    Err(e) => return Err(format!("{}: {e}", self.display(parts)).into()),
                 };
                 let mut bytes = Vec::new();
                 file.read_to_end(&mut bytes)
@@ -263,7 +290,7 @@ fn egg_info_relative(base: Option<&Path>, info_name: &str, entry: &str) -> Optio
 
 /// Distribution.files without the per-file existence filter, which the caller
 /// applies lazily.
-fn file_names(root: &Root, info: &str) -> Result<Option<Vec<String>>, String> {
+fn file_names(root: &Root, info: &str) -> Result<Option<Vec<String>>, ReadError> {
     if let Some(text) = non_empty(root.read_text(&[info, "RECORD"])?) {
         return Ok(Some(text_lines(&text).map(csv_first_field).collect()));
     }
@@ -336,11 +363,9 @@ fn module_name<'a>(file_name: &'a str, suffixes: &[String]) -> Option<&'a str> {
         .find_map(|suffix| file_name.strip_suffix(suffix.as_str()))
 }
 
-/// The name and version of a distribution, None if it has no name.
-fn read_name_and_version(
-    root: &Root,
-    info: &str,
-) -> Result<Option<(String, Option<String>)>, String> {
+/// The Name and Version headers of a distribution, either of which can be
+/// missing, as importlib reads them for metadata["Name"] and version.
+fn read_headers(root: &Root, info: &str) -> Result<(Option<String>, Option<String>), ReadError> {
     let text = match non_empty(root.read_text(&[info, "METADATA"])?) {
         Some(text) => Some(text),
         None => match non_empty(root.read_text(&[info, "PKG-INFO"])?) {
@@ -349,16 +374,38 @@ fn read_name_and_version(
             None => root.read_text(&[info])?,
         },
     };
-    let Some(text) = text else {
-        return Ok(None);
-    };
-    let (Some(name), version) = name_and_version(&text) else {
-        return Ok(None);
-    };
-    if name.is_empty() {
-        return Ok(None);
+    let (name, version) = text.map_or((None, None), |text| name_and_version(&text));
+    Ok((
+        name.filter(|n| !n.is_empty()),
+        version.filter(|v| !v.is_empty()),
+    ))
+}
+
+/// The name and version of a distribution, None if it has no name.
+fn read_name_and_version(
+    root: &Root,
+    info: &str,
+) -> Result<Option<(String, Option<String>)>, ReadError> {
+    Ok(match read_headers(root, info)? {
+        (Some(name), version) => Some((name, version)),
+        (None, _) => None,
+    })
+}
+
+/// A file-list result with failures moved to errors: they must not cost the
+/// name and version. Unsupported files still fail the distribution, which
+/// Python then reads in full.
+fn soft<T>(
+    result: Result<Option<T>, ReadError>,
+    errors: &mut Vec<String>,
+) -> Result<Option<T>, ReadError> {
+    match result {
+        Err(ReadError::Failed(e)) => {
+            errors.push(e);
+            Ok(None)
+        }
+        other => other,
     }
-    Ok(Some((name, version.filter(|v| !v.is_empty()))))
 }
 
 /// Read one distribution. File-list errors go to errors without losing the
@@ -369,27 +416,15 @@ fn scan_distribution(
     suffixes: &[String],
     regular: &mut FxHashMap<String, bool>,
     errors: &mut Vec<String>,
-) -> Result<Option<DistRecord>, String> {
+) -> Result<Option<DistRecord>, ReadError> {
     let Some((name, version)) = read_name_and_version(root, info)? else {
         return Ok(None);
     };
 
-    let mut file_errors = |result: Result<Option<String>, String>| {
-        result.unwrap_or_else(|e| {
-            errors.push(e);
-            None
-        })
-    };
-    let declared: Vec<String> = file_errors(root.read_text(&[info, "top_level.txt"]))
+    let declared: Vec<String> = soft(root.read_text(&[info, "top_level.txt"]), errors)?
         .map(|text| text.split_whitespace().map(str::to_string).collect())
         .unwrap_or_default();
-    let names = match file_names(root, info) {
-        Ok(names) => names.unwrap_or_default(),
-        Err(e) => {
-            errors.push(e);
-            Vec::new()
-        }
-    };
+    let names = soft(file_names(root, info), errors)?.unwrap_or_default();
     // Root keys only matter for distributions with a version, and inferred
     // top-level names only when top_level.txt declares none.
     let want_keys = version.is_some();
@@ -524,23 +559,29 @@ fn metadata_dirs(entry: &Path, children: Vec<String>) -> Vec<(String, String)> {
 //   have their results sorted back into discovery order;
 // - have their panics re-raised on join;
 // and Root::Zip's archive would need to go behind a Mutex.
-fn scan(entry: &Path, suffixes: &[String]) -> (Vec<DistRecord>, Vec<DistError>) {
+fn scan(entry: &Path, suffixes: &[String]) -> ScanResult {
     let Some((root, children)) = Root::open(entry) else {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new());
     };
     let mut regular = FxHashMap::default();
     let mut dists = Vec::new();
     let mut errors = Vec::new();
+    let mut fallbacks = Vec::new();
     for (_, info) in metadata_dirs(entry, children) {
         let mut dist_errors = Vec::new();
         match scan_distribution(&root, &info, suffixes, &mut regular, &mut dist_errors) {
             Ok(record) => dists.extend(record),
-            Err(error) => dist_errors.push(error),
+            Err(ReadError::Failed(error)) => dist_errors.push(error),
+            Err(ReadError::Unsupported(_)) => {
+                // Python reads it all again: its own errors would be duplicates.
+                fallbacks.push((dists.len(), info));
+                continue;
+            }
         }
         let path = root.display(&[&info]);
         errors.extend(dist_errors.into_iter().map(|e| (path.clone(), e)));
     }
-    (dists, errors)
+    (dists, errors, fallbacks)
 }
 
 /// A panic caught at the boundary, as a RuntimeError.
@@ -573,8 +614,10 @@ fn is_finalizing() -> bool {
 
 /// Scan one sys.path entry, a directory or a zip archive.
 ///
-/// Returns `(dists, errors)`: dists are `(name, version, keys, top_level)`,
-/// errors `(metadata_path, message)`. module_suffixes are
+/// Returns `(dists, errors, fallbacks)`: dists are `(name, version, keys,
+/// top_level)`, errors `(metadata_path, message)`, and fallbacks
+/// `(index, directory)` for distributions with zip members the native reader
+/// cannot decode, to be read in Python and inserted at index. module_suffixes are
 /// importlib.machinery.all_suffixes(), longest first. Panics are raised as
 /// RuntimeError: a PanicException at startup would get past every handler.
 ///
@@ -590,7 +633,7 @@ fn scan_distributions(
     entry: PathBuf,
     module_suffixes: Vec<String>,
     release_gil: bool,
-) -> PyResult<(Vec<DistRecord>, Vec<DistError>)> {
+) -> PyResult<ScanResult> {
     let result = if release_gil {
         py.detach(move || {
             let result = panic::catch_unwind(AssertUnwindSafe(|| scan(&entry, &module_suffixes)));
@@ -624,20 +667,28 @@ fn list_distributions(entry: PathBuf) -> PyResult<Vec<(String, String)>> {
     .map_err(|payload| panic_error(payload, "distribution listing"))
 }
 
-/// The `(name, version)` of the distribution in one metadata directory listed
-/// by list_distributions; None if it has no name or is gone. Raises ValueError
-/// if its metadata cannot be decoded.
+/// The `(name, version)` headers of the distribution in one metadata directory
+/// listed by list_distributions, either of which can be None as with
+/// importlib; None if the directory is gone. Raises ValueError if its metadata
+/// cannot be decoded, and NotImplementedError if it is a zip member the native
+/// reader cannot decode but Python's zipfile may.
 #[pyfunction]
 fn read_distribution(
     entry: PathBuf,
     directory: &str,
-) -> PyResult<Option<(String, Option<String>)>> {
+) -> PyResult<Option<(Option<String>, Option<String>)>> {
     panic::catch_unwind(AssertUnwindSafe(|| match Root::at(&entry) {
-        Some(root) => read_name_and_version(&root, directory),
+        // Removed since the listing: a zip that changed is listed again anyway,
+        // by its mtime.
+        Some(root @ Root::Dir(_)) if !root.exists(&[directory]) => Ok(None),
+        Some(root) => read_headers(&root, directory).map(Some),
         None => Ok(None),
     }))
     .map_err(|payload| panic_error(payload, "distribution read"))?
-    .map_err(PyValueError::new_err)
+    .map_err(|e| match e {
+        ReadError::Unsupported(message) => PyNotImplementedError::new_err(message),
+        ReadError::Failed(message) => PyValueError::new_err(message),
+    })
 }
 
 pub fn register_packages(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -789,9 +840,10 @@ mod tests {
         }
         zip.finish().unwrap();
 
-        let (dists, errors) = scan(&archive, &[".py".to_string()]);
+        let (dists, errors, fallbacks) = scan(&archive, &[".py".to_string()]);
         fs::remove_dir_all(&dir).unwrap();
         assert!(errors.is_empty(), "{errors:?}");
+        assert!(fallbacks.is_empty(), "{fallbacks:?}");
         assert_eq!(
             dists,
             vec![
@@ -840,9 +892,10 @@ mod tests {
         .unwrap();
         fs::write(egg.join("EGG-INFO/top_level.txt"), "legacy\n").unwrap();
 
-        let (dists, errors) = scan(&egg, &[".py".to_string()]);
+        let (dists, errors, fallbacks) = scan(&egg, &[".py".to_string()]);
         fs::remove_dir_all(&dir).unwrap();
         assert!(errors.is_empty(), "{errors:?}");
+        assert!(fallbacks.is_empty(), "{fallbacks:?}");
         assert_eq!(
             dists,
             vec![(
@@ -854,16 +907,20 @@ mod tests {
         );
     }
 
-    /// The first readable distribution called name, the way the Python side
-    /// looks it up from the listing.
-    fn find(entry: &Path, name: &str) -> Option<(String, Option<String>)> {
+    /// The headers of the first readable distribution called name, the way the
+    /// Python side looks it up from the listing.
+    fn find(entry: &Path, name: &str) -> Option<(Option<String>, Option<String>)> {
         let wanted = normalize(&name.to_lowercase());
         let (_, children) = Root::open(entry)?;
         let root = Root::at(entry)?;
         metadata_dirs(entry, children)
             .into_iter()
             .filter(|(dist_name, _)| *dist_name == wanted)
-            .find_map(|(_, info)| read_name_and_version(&root, &info).ok().flatten())
+            .find_map(|(_, info)| read_headers(&root, &info).ok())
+    }
+
+    fn found(name: &str, version: &str) -> Option<(Option<String>, Option<String>)> {
+        Some((Some(name.to_string()), Some(version.to_string())))
     }
 
     #[test]
@@ -880,16 +937,10 @@ mod tests {
             fs::create_dir_all(dir.join(info)).unwrap();
             fs::write(dir.join(info).join("METADATA"), metadata).unwrap();
         }
-        assert_eq!(
-            find(&dir, "zope-interface"),
-            Some(("zope.interface".to_string(), Some("6.0".to_string())))
-        );
-        assert_eq!(
-            find(&dir, "Legacy.Pkg"),
-            Some(("legacy-pkg".to_string(), Some("0.1".to_string())))
-        );
-        // A match without a name is skipped.
-        assert_eq!(find(&dir, "broken"), None);
+        assert_eq!(find(&dir, "zope-interface"), found("zope.interface", "6.0"));
+        assert_eq!(find(&dir, "Legacy.Pkg"), found("legacy-pkg", "0.1"));
+        // A match without a name still counts, as for importlib.
+        assert_eq!(find(&dir, "broken"), Some((None, Some("1.0".to_string()))));
         assert_eq!(find(&dir, "missing"), None);
         assert_eq!(find(&dir.join("nowhere"), "zope.interface"), None);
         fs::remove_dir_all(&dir).unwrap();
@@ -905,12 +956,9 @@ mod tests {
             "Name: legacy-egg\nVersion: 1.0\n",
         )
         .unwrap();
-        let found = find(&egg, "legacy-egg");
+        let result = find(&egg, "legacy-egg");
         fs::remove_dir_all(&dir).unwrap();
-        assert_eq!(
-            found,
-            Some(("legacy-egg".to_string(), Some("1.0".to_string())))
-        );
+        assert_eq!(result, found("legacy-egg", "1.0"));
     }
 
     #[test]
@@ -927,9 +975,9 @@ mod tests {
         .unwrap();
         zip.write_all(b"Name: zp\nVersion: 1.0\n").unwrap();
         zip.finish().unwrap();
-        let found = find(&archive, "ZP");
+        let result = find(&archive, "ZP");
         fs::remove_dir_all(&dir).unwrap();
-        assert_eq!(found, Some(("zp".to_string(), Some("1.0".to_string()))));
+        assert_eq!(result, found("zp", "1.0"));
     }
 
     #[test]

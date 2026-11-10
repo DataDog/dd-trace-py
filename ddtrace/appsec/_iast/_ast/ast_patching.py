@@ -12,6 +12,7 @@ from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_l
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.packages import get_package_distributions
+from ddtrace.internal.packages import is_querying_finders
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
@@ -107,7 +108,10 @@ def _should_iast_patch(module_name: str) -> bool:
     global IAST_PATCHING_LAZY_LOADED
     if IAST_PATCHING_LAZY_LOADED:
         initialize_iast_lists()
-        IAST_PATCHING_LAZY_LOADED = False
+        # A module imported by a custom finder while it lists its distributions
+        # gets a package list without them: initialize again on the next module.
+        if not is_querying_finders():
+            IAST_PATCHING_LAZY_LOADED = False
     result = False
     try:
         result = iastpatch.should_iast_patch(module_name)
