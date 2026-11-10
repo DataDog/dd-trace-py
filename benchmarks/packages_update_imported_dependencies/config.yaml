@@ -35,7 +35,7 @@ import_many: &import_many
     - langchain
     - numpy
     - openai
-    - opentracing
+    - requests
     - orjson
     - pandas
     - pluggy

@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 import logging
+import re
 import typing as t
 
 from ddtrace.internal.logger import get_logger
@@ -26,12 +27,38 @@ log.propagate = False
 
 # All the profiling configurations delivered to the current tracer through Remote Config that target it.
 # - The key is the Remote Config id of the configuration
-# - The value is the payload content
-# An updated configuration moves to the end, so it wins over the configurations of the same specificity.
+# - The value is the payload content, with only its valid targets
+# Between configurations of the same specificity, the one with the greatest id wins, so delivery order does not matter.
 debug_configs: dict[str, dict[str, t.Any]] = {}
 
-# Tags that scope a configuration to a single instance, the most specific scope.
-_INSTANCE_TAG_KEYS: frozenset[str] = frozenset(("pod_name", "container_id"))
+# Specificity levels of a target, from least to most specific:
+#   other tags < env < service < workload < container name < pod < container ID.
+# The infrastructure levels are recognized by the tag names the Datadog Agent assigns.
+_LEVEL_OTHER_TAGS: t.Final[int] = 1
+_LEVEL_ENV: t.Final[int] = 2
+_LEVEL_SERVICE: t.Final[int] = 3
+_LEVEL_BY_TAG_NAME: dict[str, int] = {
+    **dict.fromkeys(
+        (
+            "kube_deployment",
+            "kube_replica_set",
+            "kube_stateful_set",
+            "kube_daemon_set",
+            "kube_job",
+            "kube_cronjob",
+            "kube_argo_rollout",
+            "oshift_deployment",
+            "task_family",
+        ),
+        4,
+    ),
+    **dict.fromkeys(("kube_container_name", "container_name", "ecs_container_name"), 5),
+    **dict.fromkeys(("pod_name", "task_arn"), 6),
+    "container_id": 7,
+}
+# A level outranks any number of conditions, which only break ties within a level.
+_CONDITIONS_PER_LEVEL: t.Final[int] = 1000
+_MAX_SERVICE_LENGTH: t.Final[int] = 100
 
 # The Profiler arguments that remote config controls, and the dotted name of the profiling_config setting that enables
 # each collector. With the settings in _SETTINGS, they are all a restart can change, so the running profiler is
@@ -53,6 +80,9 @@ _SETTINGS: dict[str, tuple[str, type]] = {
     "pythonMemoryMemDomain": ("memory.mem_domain_enabled", bool),
 }
 
+# The settings of the schema that only apply to the tracers of other languages.
+_OTHER_LANGUAGE_SETTINGS: frozenset[str] = frozenset(("rubySignalWorkaround",))
+
 # The profiling_config variables by dotted name, to validate remote config values like the environment variables.
 _SETTING_VARIABLES: dict[str, t.Any] = dict(type(profiling_config).items(recursive=True))
 
@@ -65,10 +95,11 @@ def _profilers_from_env() -> dict[str, bool]:
     return {
         "cpuTime": stack,
         "wallTime": stack,
+        "heapObjects": memory,
         "heapSize": memory,
         "allocations": memory,
-        "exception": enabled and bool(profiling_config.exception.enabled),
-        "lock": enabled and bool(profiling_config.lock.enabled),
+        "exceptions": enabled and bool(profiling_config.exception.enabled),
+        "locks": enabled and bool(profiling_config.lock.enabled),
     }
 
 
@@ -139,35 +170,55 @@ def _apply_collectors(wanted: dict[str, bool]) -> None:
         setattr(*_setting_owner(_COLLECTOR_ARGUMENTS[argument]), enabled)
 
 
-def _parse_target(target: dict[str, t.Any]) -> tuple[list[str], list[str], bool, bool]:
-    """Returns the targeted services and environments, and whether the target has instance tags and other tags."""
+def _normalize(name: t.Optional[str]) -> t.Optional[str]:
+    """Normalize a service or env name like the Agent, which matches the targets against normalized values."""
+    if not name:
+        return None
+
+    normalized = re.sub(r"^[^a-z0-9]+", "", re.sub(r"[^a-z0-9_:./-]", "_", name.lower()))
+    return normalized[:_MAX_SERVICE_LENGTH]
+
+
+def _is_valid_target(target: t.Any) -> bool:
+    if not isinstance(target, dict):
+        return False
+
+    if any(target.get(key) is not None and not isinstance(target[key], str) for key in ("service", "env")):
+        return False
+
+    tags = target.get("tags")
+    return tags is None or (isinstance(tags, list) and all(isinstance(tag, str) for tag in tags))
+
+
+def _parse_target(target: dict[str, t.Any]) -> tuple[list[str], list[str], list[str]]:
+    """Returns the targeted services and environments, and the names of the other tags of the target."""
     services: list[str] = [target["service"]] if target.get("service") is not None else []
     environments: list[str] = [target["env"]] if target.get("env") is not None else []
-    has_instance_tags = False
-    has_other_tags = False
+    tag_names: list[str] = []
 
     for tag in target.get("tags") or []:
         key, _, value = tag.partition(":")
+        key = key.lower()
         if key == "service":
             services.append(value)
         elif key == "env":
             environments.append(value)
-        elif key in _INSTANCE_TAG_KEYS:
-            has_instance_tags = True
         else:
-            has_other_tags = True
+            tag_names.append(key)
 
-    return services, environments, has_instance_tags, has_other_tags
+    return services, environments, tag_names
 
 
 def _target_matches(target: dict[str, t.Any]) -> bool:
-    """Whether the target matches the service and env of the current tracer."""
-    services, environments, _, _ = _parse_target(target)
-    if any(service != "*" and service != global_config.service for service in services):
+    """Whether the target is consistent with the service and env of the current tracer."""
+    services, environments, _ = _parse_target(target)
+    service = _normalize(global_config.service)
+    if any(s != "*" and _normalize(s) != service for s in services):
         return False
 
     # The Agent may target configs using an environment configured only at the Agent level.
-    if global_config.env and any((env != "*" and env != global_config.env) for env in environments):
+    env = _normalize(global_config.env)
+    if env and any(e != "*" and _normalize(e) != env for e in environments):
         return False
 
     return True
@@ -176,22 +227,26 @@ def _target_matches(target: dict[str, t.Any]) -> bool:
 def _specificity(target: dict[str, t.Any]) -> int:
     """Return how specific the target is: a configuration with a higher value has precedence.
 
-    Each scope has its own bit, from least to most specific: env, other tags, service, instance (pod_name or
-    container_id). A scope wins over all the less specific scopes together, and a combination of scopes wins over
-    each of its scopes alone (e.g. service + env wins over service).
+    A target ranks by its most specific condition (see _LEVEL_BY_TAG_NAME), then by its number of conditions.
     """
-    services, environments, has_instance_tags, has_other_tags = _parse_target(target)
-    return (
-        (has_instance_tags << 3)
-        | (any(service != "*" for service in services) << 2)
-        | (has_other_tags << 1)
-        | (any(env != "*" for env in environments) << 0)
-    )
+    services, environments, tag_names = _parse_target(target)
+    service_conditions = sum(service != "*" for service in services)
+    env_conditions = sum(env != "*" for env in environments)
+
+    level = _LEVEL_SERVICE if service_conditions else _LEVEL_ENV if env_conditions else 0
+    for name in tag_names:
+        level = max(level, _LEVEL_BY_TAG_NAME.get(name, _LEVEL_OTHER_TAGS))
+
+    return level * _CONDITIONS_PER_LEVEL + service_conditions + env_conditions + len(tag_names)
 
 
 def _config_specificity(config: dict[str, t.Any]) -> int:
-    """Return the specificity of the most specific target of the configuration, 0 if it has no targets."""
-    return max((_specificity(target) for target in config.get("targets") or []), default=0)
+    """Return the specificity of the most specific target consistent with the current tracer, 0 if there is none.
+
+    Remote Config only delivers the configurations that apply to the tracer, so the targets only rank them. The tag
+    conditions are assumed to hold: the Agent matched them, and the tracer does not know all its tags.
+    """
+    return max((_specificity(target) for target in config.get("targets") or [] if _target_matches(target)), default=0)
 
 
 class ProfilingRCCallback(RCCallback):
@@ -209,7 +264,7 @@ class ProfilingRCCallback(RCCallback):
             config_id = raw_payload.metadata.id
             content = raw_payload.content
 
-            # A removed configuration has no content. An updated configuration can also stop targeting this tracer.
+            # A removed configuration has no content. An updated configuration can also become invalid.
             if debug_configs.pop(config_id, None) is not None:
                 changed = True
                 log.debug("[profiling-remote-config] Removed the previous version of config %s", config_id)
@@ -218,41 +273,32 @@ class ProfilingRCCallback(RCCallback):
                 log.warning("[profiling-remote-config] Skipping invalid payload %s", content)
                 continue
 
-            if "profilers" not in content:
+            if "profilers" not in content and "settings" not in content:
                 log.debug("[profiling-remote-config] Skipping non-profiling payload %s", content)
                 continue
 
             # A payload without targets targets all the tracers.
             all_targets: t.Union[list[t.Any], t.Any] = content.get("targets")
             if all_targets is None:
-                all_targets = [{}]
+                all_targets = []
             if not isinstance(all_targets, list):
                 log.warning("[profiling-remote-config] Skipping payload with invalid targets %s", content)
                 continue
 
-            matching_targets: list[dict[str, t.Any]] = []
+            valid_targets: list[dict[str, t.Any]] = []
             for target in all_targets:
-                if not isinstance(target, dict):
+                if not _is_valid_target(target):
                     log.warning("[profiling-remote-config] Skipping invalid target %s", target)
                     continue
 
-                tags = target.get("tags")
-                if tags is not None and not (isinstance(tags, list) and all(isinstance(tag, str) for tag in tags)):
-                    log.warning("[profiling-remote-config] Skipping target with invalid tags %s", target)
-                    continue
+                valid_targets.append(target)
 
-                if not _target_matches(target):
-                    log.debug("[profiling-remote-config] Skipping target %s", target)
-                    continue
-
-                matching_targets.append(target)
-
-            if not matching_targets:
-                log.debug("[profiling-remote-config] Skipping payload with no matching targets %s", content)
+            # A list of only invalid targets is rejected rather than treated as untargeted.
+            if all_targets and not valid_targets:
+                log.warning("[profiling-remote-config] Skipping payload with no valid targets %s", content)
                 continue
 
-            # Only the matching targets are kept, so the specificity of the configuration comes from them.
-            debug_configs[config_id] = {**content, "targets": matching_targets}
+            debug_configs[config_id] = {**content, "targets": valid_targets}
             changed = True
 
         # A profiler started by importing ddtrace.profiling.auto can run without matching the configuration from the
@@ -269,7 +315,7 @@ class ProfilingRCCallback(RCCallback):
             )
 
         with lifecycle.lock:
-            self.handle_profiling_configs(list(debug_configs.values()))
+            self.handle_profiling_configs([debug_configs[config_id] for config_id in sorted(debug_configs)])
 
     def handle_profiling_configs(self, configs: list[dict[str, t.Any]]) -> None:
         """Restart the Profiler if the merged configurations differ from its collectors or the applied settings."""
@@ -290,15 +336,19 @@ def _merge_configs(configs: list[dict[str, t.Any]]) -> dict[str, t.Any]:
 
     # Configurations are merged from "least specific scope" to "most specific scope" (see _specificity). Between
     # configurations of the same specificity, the last one in configs wins.
-    # - If a config is scoped to e.g. service + env, it is more specific than service or env alone.
+    # - A target ranks by its most specific condition, then by its number of conditions: service + env is more
+    #   specific than service alone, and kube_cluster_name + service too.
     # - The service and env tags count as the service and env fields.
-    # - If a config is scoped to e.g. kube_cluster_name + service, it is more specific than service alone.
+    # - A target that is not consistent with the service and env of the tracer does not rank the configuration.
     #
     # Precedence is defined as follows (from least to most specific):
-    # - environment and env tag
     # - tags (except for tags mentioned elsewhere in the order)
+    # - environment and env tag
     # - service and service tag
-    # - pod_name / container_id
+    # - workload (e.g. kube_deployment, task_family)
+    # - container name (e.g. kube_container_name)
+    # - pod (pod_name, task_arn)
+    # - container_id
     #
     # For profilers:
     # - If a profiler is enabled in a more specific configuration, it overrides the previous configuration.
@@ -325,7 +375,7 @@ def _merge_configs(configs: list[dict[str, t.Any]]) -> dict[str, t.Any]:
             continue
 
         for name, value in settings.items():
-            if value is None:
+            if value is None or name in _OTHER_LANGUAGE_SETTINGS:
                 continue
 
             if name not in _SETTINGS:
@@ -344,16 +394,18 @@ def _merge_configs(configs: list[dict[str, t.Any]]) -> dict[str, t.Any]:
 def _wanted_collectors(profilers: dict[str, bool]) -> dict[str, bool]:
     """Map the remote config profilers to the Profiler arguments in _COLLECTOR_ARGUMENTS.
 
-    The stack collector produces both CPU and wall time profiles, and the memory collector both heap and allocation
-    profiles, so each pair can only be enabled together.
+    The stack collector produces both CPU and wall time profiles, and the memory collector the heap live objects, heap
+    live size and allocation profiles, so the profiles of a collector can only be enabled together.
 
     Unavailable collectors are ignored.
     """
     return {
         "_stack_collector_enabled": stack_is_available and bool(profilers.get("cpuTime") or profilers.get("wallTime")),
-        "_memory_collector_enabled": bool(profilers.get("heapSize") or profilers.get("allocations")),
-        "_lock_collector_enabled": bool(profilers.get("lock")),
-        "_exception_profiling_enabled": exception_is_available and bool(profilers.get("exception")),
+        "_memory_collector_enabled": bool(
+            profilers.get("heapObjects") or profilers.get("heapSize") or profilers.get("allocations")
+        ),
+        "_lock_collector_enabled": bool(profilers.get("locks")),
+        "_exception_profiling_enabled": exception_is_available and bool(profilers.get("exceptions")),
     }
 
 
