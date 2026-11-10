@@ -20,6 +20,9 @@ import threading
 from typing import TYPE_CHECKING
 from typing import Optional
 
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import local
+
 
 if TYPE_CHECKING:
     from ddtrace.internal.datastreams.pipelines import SideKey
@@ -44,19 +47,32 @@ class CurrentMessageContext:
         self.pipelines_side: Optional[SideKey] = None
 
 
-_local = threading.local()
+# Created lazily from the application's threading so it is greenlet-local
+# under gevent; ddtrace's own threading copy is never monkey-patched.
+_local: Optional[threading.local] = None
+_local_lock = Lock()
+
+
+def _get_local() -> threading.local:
+    global _local
+    if _local is None:
+        with _local_lock:
+            if _local is None:
+                _local = local()
+    return _local
 
 
 def get_current_message() -> Optional[CurrentMessageContext]:
     """The thread's current consumed-message context, or ``None``."""
-    return getattr(_local, "value", None)
+    return getattr(_get_local(), "value", None)
 
 
 def _ensure_current_message() -> CurrentMessageContext:
-    message = getattr(_local, "value", None)
+    storage = _get_local()
+    message = getattr(storage, "value", None)
     if message is None:
         message = CurrentMessageContext()
-        _local.value = message
+        storage.value = message
     return message
 
 
@@ -82,9 +98,11 @@ def clear_current_message() -> None:
 
     Called by ``DataStreamsProcessor.__init__`` so a fresh processor starts
     with a fresh context, exactly as the processor's own thread-local did
-    before this slot was shared.
+    before this slot was shared. Re-binding drops every thread's context.
     """
-    _local.value = None
+    global _local
+    with _local_lock:
+        _local = local()
 
 
 def current_dsm_pathway() -> Optional[DataStreamsCtx]:
