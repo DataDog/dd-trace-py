@@ -269,11 +269,11 @@ suites:
         # Usage metrics, end to end through a LiteLLM proxy under ddtrace-run.
         - name: litellm-proxy
           python: ['3.10', '3.12', '3.13']
-          command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
+          command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_provider_ids.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
           dependencies: [vcrpy, msgpack, pytest-asyncio, 'litellm[proxy]==1.80.16', opentelemetry-proto]
         - name: litellm-proxy
           python: ['3.10', '3.12', '3.13']
-          command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
+          command: pytest {cmdargs} tests/contrib/litellm/test_litellm_usage_metrics.py tests/contrib/litellm/test_litellm_usage_metrics_provider_ids.py tests/contrib/litellm/test_litellm_usage_metrics_proxy.py
           dependencies: [vcrpy, msgpack, pytest-asyncio, 'litellm[proxy]==1.104.0', opentelemetry-proto]
   llmobs:
     # TODO(py-315): the suite fails on 3.15: one variant cannot import deepeval

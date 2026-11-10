@@ -428,9 +428,13 @@ _RESPONSES_EVENT_FIELDS = frozenset({_EVENT_TYPE, _EVENT_MODEL, _EVENT_USAGE})
 
 
 def _top_level_model(text: str) -> Optional[str]:
-    """The top-level "model" of a JSON object, else Gemini's "modelVersion"."""
-    models = _json_paths(text, frozenset({_MODEL, _MODEL_VERSION}))
-    return _json_string(models.get(_MODEL)) or _json_string(models.get(_MODEL_VERSION))
+    """The top-level "model" of a JSON object, else Gemini's "modelVersion". The scan for "model" stops where it is
+    found, near the start, before any generated content; only a response without one is scanned again, whole.
+    """
+    model = _json_string(_json_paths(text, frozenset({_MODEL})).get(_MODEL))
+    if model:
+        return model
+    return _json_string(_json_paths(text, frozenset({_MODEL_VERSION})).get(_MODEL_VERSION))
 
 
 def _response_model(kwargs: dict[str, Any]) -> Optional[str]:

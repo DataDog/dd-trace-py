@@ -242,8 +242,16 @@ def traced_chunk_creator(func, instance, args, kwargs):
 _stream_choices: "weakref.WeakKeyDictionary[object, tuple[set[int], set[int]]]" = weakref.WeakKeyDictionary()
 
 
+def _requested_choices(stream) -> Optional[int]:
+    """The number of choices the request asked for (n), from the parameters LiteLLM sent the provider."""
+    n = _field(getattr(getattr(stream, "logging_obj", None), "optional_params", None), "n")
+    return n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else None
+
+
 def _stream_finished(stream, choices) -> bool:
-    """Whether every choice the stream has shown so far, these chunk choices included, has finished."""
+    """Whether every choice of the stream has finished: every requested one when the request's n is known, else every
+    one the stream has shown so far, these chunk choices included.
+    """
     try:
         seen, finished = _stream_choices.setdefault(stream, (set(), set()))
     except TypeError:
@@ -255,6 +263,10 @@ def _stream_finished(stream, choices) -> bool:
         seen.add(index)
         if _field(choice, "finish_reason"):
             finished.add(index)
+    requested = _requested_choices(stream)
+    if requested is not None:
+        # A choice can finish before another's first chunk arrives.
+        seen = seen | set(range(requested))
     return bool(finished) and seen <= finished
 
 
