@@ -3780,7 +3780,7 @@ def format_workflow_rendered_mock(fields: dict[str, str]) -> str:
         f"*Publish release* when ready.\n"
         f"\n"
         f"_Brought to you by release automation — `{fields['script']}` on "
-        f"{fields['script_branch_url']} / {fields['script_branch']}. "
+        f"<{fields['script_branch_url']}|{fields['script_branch']}>. "
         f"Try {fields['commands_hint']}_\n"
         f"\n"
         f"_Run by {fields['runner']}._"

@@ -489,7 +489,14 @@ class SlackDefaultsTests(unittest.TestCase):
         self.assertIn("*Publish release*", body)
         self.assertIn("_Brought to you by release automation —", body)
         self.assertIn("`scripts/gh/create_gh_release.py`", body)
-        self.assertIn(_RELEASE_SCRIPT_BRANCH_URL, body)
+        self.assertIn(
+            f"<{_RELEASE_SCRIPT_BRANCH_URL}|{_RELEASE_SCRIPT_BRANCH_NAME}>",
+            body,
+        )
+        self.assertNotIn(
+            f"{_RELEASE_SCRIPT_BRANCH_URL} / {_RELEASE_SCRIPT_BRANCH_NAME}",
+            body,
+        )
         self.assertIn("Try `patch` / `rc` / `final`", body)
         self.assertTrue(body.endswith("_Run by vlad-scherbich._"))
         self.assertNotIn("Run by vlad-scherbich. Try", body)
