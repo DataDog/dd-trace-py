@@ -14,6 +14,7 @@ from temporalio import activity
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
+from temporalio.exceptions import ApplicationErrorCategory
 
 from ddtrace.contrib.internal.temporal.workflow_interceptor import disconnect_trace_span_from_workflow_context
 from ddtrace.contrib.internal.temporal.workflow_interceptor import span_from_workflow_context
@@ -203,6 +204,17 @@ class FailingWorkflow:
             failing_activity,
             start_to_close_timeout=timedelta(seconds=10),
             retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+
+
+@workflow.defn
+class BenignFailingWorkflow:
+    @workflow.run
+    async def run(self) -> str:
+        raise ApplicationError(
+            "not ready",
+            type="RESULT_NOT_READY",
+            category=ApplicationErrorCategory.BENIGN,
         )
 
 

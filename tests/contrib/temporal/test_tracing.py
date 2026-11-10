@@ -9,6 +9,7 @@ import temporalio.client
 from temporalio.client import Client
 import temporalio.common
 import temporalio.converter
+import temporalio.exceptions
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
@@ -19,6 +20,7 @@ from ddtrace.contrib.temporal import DatadogTracingInterceptor
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.trace import tracer as _dd_tracer
+from tests.contrib.temporal._workflows import BenignFailingWorkflow
 from tests.contrib.temporal._workflows import ChildWorkflow
 from tests.contrib.temporal._workflows import ConcurrentLoggingWorkflow
 from tests.contrib.temporal._workflows import ContinueAsNewWorkflow
@@ -2366,3 +2368,101 @@ async def test_handler_inherits_run_workflow_sampling_not_client(
         assert signal_sampling == run_sampling, (
             f"HandleSignal sampling {signal_sampling} != RunWorkflow sampling {run_sampling}"
         )
+
+
+@pytest.mark.parametrize(
+    ("exc", "wrap_in_timeout", "expected_error"),
+    [
+        pytest.param(
+            temporalio.exceptions.ApplicationError(
+                "not ready",
+                type="RESULT_NOT_READY",
+                category=temporalio.exceptions.ApplicationErrorCategory.BENIGN,
+            ),
+            False,
+            0,
+            id="benign",
+        ),
+        pytest.param(
+            temporalio.exceptions.ApplicationError("failed", type="FAILURE"),
+            False,
+            1,
+            id="non-benign",
+        ),
+        pytest.param(
+            temporalio.exceptions.ApplicationError(
+                "not ready",
+                category=temporalio.exceptions.ApplicationErrorCategory.BENIGN,
+            ),
+            True,
+            1,
+            id="timeout-wrapping-benign",
+        ),
+    ],
+)
+def test_finish_span_application_error(
+    span_collector: _SpanCollector,
+    exc: Exception,
+    wrap_in_timeout: bool,
+    expected_error: int,
+) -> None:
+    """Only top-level benign application errors avoid marking the span as an error."""
+    operation_name = "RunActivity"
+    if wrap_in_timeout:
+        timeout = temporalio.exceptions.TimeoutError(
+            "timed out",
+            type=temporalio.exceptions.TimeoutType.SCHEDULE_TO_CLOSE,
+            last_heartbeat_details=[],
+        )
+        timeout.__cause__ = exc
+        exc = timeout
+
+    interceptor = _make_interceptor()
+    span = interceptor._start_span(
+        operation_name=operation_name,
+        parent_ctx=None,
+        resource_name="test",
+        activate=False,
+    )
+
+    try:
+        raise exc
+    except Exception as error:
+        interceptor._finish_span(span, operation_name, error)
+
+    finished = span_collector.one(operation_name)
+    assert finished.error == expected_error
+    assert (finished.get_tag("error.message") is not None) == bool(expected_error)
+
+
+@pytest.mark.asyncio
+async def test_benign_workflow_error_does_not_mark_run_workflow_as_error(
+    client: Client,
+    env: WorkflowEnvironment,
+    span_collector: _SpanCollector,
+) -> None:
+    """A workflow failing with a BENIGN ApplicationError leaves RunWorkflow unmarked."""
+    if env.supports_time_skipping:
+        pytest.skip("time-skipping server not supported")
+
+    interceptor = _make_interceptor()
+    tc = _traced_client(client, interceptor)
+    tq = _task_queue()
+
+    async with Worker(
+        tc,
+        task_queue=tq,
+        workflows=[BenignFailingWorkflow],
+    ):
+        handle = await tc.start_workflow(
+            BenignFailingWorkflow.run,
+            id=f"wf-{uuid.uuid4()}",
+            task_queue=tq,
+        )
+        with pytest.raises(temporalio.client.WorkflowFailureError):
+            await handle.result()
+
+    run_wf = span_collector.one("RunWorkflow")
+    assert run_wf.error == 0, "Benign workflow error must not mark RunWorkflow as error"
+    assert run_wf.get_tag("error.message") is None
+    assert run_wf.get_tag("error.type") is None
