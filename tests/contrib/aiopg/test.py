@@ -20,7 +20,6 @@ from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib import shared_tests_async
 from tests.contrib.asyncio.utils import AsyncioTestCase
-from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import assert_is_measured
@@ -35,16 +34,14 @@ class AiopgTestCase(AsyncioTestCase):
         self._conn = None
         patch()
 
-    def tearDown(self):
+    async def asyncTearDown(self):
         if self._conn and not self._conn.closed:
             self._conn.close()
-            if not self.loop.is_closed():
-                # Let aiopg's notification queue finish its connection-close callback.
-                self.loop.run_until_complete(asyncio.sleep(0))
-        super().tearDown()
+            # Let aiopg's notification queue finish its connection-close callback.
+            await asyncio.sleep(0)
         unpatch()
+        await super().asyncTearDown()
 
-    @mark_asyncio
     async def test_query_is_blocked_before_execution(self):
         cursor = mock.AsyncMock()
         traced_cursor = AIOTracedCursor(cursor, Pin())
@@ -119,7 +116,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.get_tag("component") == "aiopg"
         assert span.get_tag("span.kind") == "client"
 
-    @mark_asyncio
     async def test_async_generator(self):
         conn = await self._get_conn()
         cursor = await conn.cursor()
@@ -135,7 +131,6 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == "postgres.query"
 
-    @mark_asyncio
     async def test_disabled_execute(self):
         conn = await self._get_conn()
         self.tracer.enabled = False
@@ -144,7 +139,6 @@ class AiopgTestCase(AsyncioTestCase):
         await (await conn.cursor()).execute("select 'blah'")
         assert not self.pop_spans()
 
-    @mark_asyncio
     async def test_manual_wrap_extension_types(self):
         conn = await self._get_conn()
         # NOTE: this will crash if it doesn't work.
@@ -152,20 +146,17 @@ class AiopgTestCase(AsyncioTestCase):
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_uuid(conn_or_curs=conn)
 
-    @mark_asyncio
     async def test_connect_factory(self):
         conn = await self._get_conn()
         await self.assert_conn_is_traced(self.tracer, conn)
         conn.close()
 
-    @mark_asyncio
     async def test_byte_query_uses_connection_encoding(self):
         for encoding, codec in (("UTF8", "utf-8"), ("WIN1252", "cp1252")):
             async with aiopg.connect(**POSTGRES_CONFIG, options=f"-c client_encoding={encoding}") as connection:
                 async with connection.cursor() as cursor:
                     await shared_tests_async._test_byte_query_event(cursor, codec, "postgres")
 
-    @mark_asyncio
     async def test_patch_unpatch(self):
         # Test patch idempotence
         patch()
@@ -200,7 +191,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @mark_asyncio
     async def test_connection_ctx_manager(self):
         for connect in (aiopg.connect, aiopg.connection.connect, aiopg.pool.connect):
             async with connect(**POSTGRES_CONFIG) as conn:
@@ -211,7 +201,6 @@ class AiopgTestCase(AsyncioTestCase):
             assert conn.closed
             assert len(self.pop_spans()) == 1
 
-    @mark_asyncio
     async def test_awaited_context_managers(self):
         conn = await self._get_conn()
         with pytest.raises(ValueError, match="close connection"):
@@ -226,7 +215,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert conn.closed
         assert len(self.pop_spans()) == 1
 
-    @mark_asyncio
     async def test_connection_context_close(self):
         closed = []
         for connect in (aiopg.connect.__wrapped__, aiopg.connect):
@@ -243,7 +231,6 @@ class AiopgTestCase(AsyncioTestCase):
         parse_version(aiopg.__version__) < (1, 0),
         reason="aiopg 1.x connection contexts close the connection during initialization",
     )
-    @mark_asyncio
     async def test_connection_context_close_during_initialization(self):
         async def initialize(context):
             return await context
@@ -266,7 +253,6 @@ class AiopgTestCase(AsyncioTestCase):
                     await asyncio.gather(task, return_exceptions=True)
                     context.close()
 
-    @mark_asyncio
     async def test_connection_context_abandoned(self):
         connections = []
         original_init = aiopg.connection.Connection.__init__
@@ -297,7 +283,6 @@ class AiopgTestCase(AsyncioTestCase):
         parse_version(aiopg.__version__) < (1, 0),
         reason="aiopg 0.16 pools use the asyncio.Condition protocol removed in Python 3.9",
     )
-    @mark_asyncio
     async def test_pool_context_manager(self):
         async with aiopg.create_pool(minsize=1, maxsize=1, **POSTGRES_CONFIG) as pool:
             with pytest.raises(ValueError, match="release connection"):
@@ -318,7 +303,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert pool.closed
         assert conn.closed
 
-    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_service_v0(self):
         """
@@ -343,7 +327,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         assert spans[0].service == "postgres"
 
-    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_service_v1(self):
         """
@@ -364,7 +347,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
-    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_unspecified_service_v1(self):
         """
@@ -381,7 +363,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
-    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_trace_span_name_v0_schema(self):
         conn = await self._get_conn()
@@ -393,7 +374,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         assert spans[0].name == "postgres.query"
 
-    @mark_asyncio
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_trace_span_name_v1_schema(self):
         conn = await self._get_conn()
@@ -405,7 +385,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         assert spans[0].name == "postgresql.query"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(DD_SERVICE="appsvc", DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
@@ -419,7 +398,6 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
         env_overrides=dict(DD_SERVICE="appsvc", DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
     )
@@ -433,7 +411,6 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_service_env_var_v0(self):
         conn = await self._get_conn()
@@ -445,7 +422,6 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "postgres"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_service_env_var_v1(self):
         conn = await self._get_conn()
@@ -457,7 +433,6 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_span_name_v0_schema(self):
         conn = await self._get_conn()
@@ -469,7 +444,6 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == "postgres.query"
 
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_span_name_v1_schema(self):
         conn = await self._get_conn()
@@ -510,7 +484,6 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
         span = spans[0]
         assert span.name == "postgres.query"
 
-    @mark_asyncio
     async def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228

@@ -188,8 +188,8 @@ LIBDDWAF_CHECKSUMS = {
 }
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v46.1.2 requires rust 1.87.0.
-RUST_MINIMUM_VERSION = "1.87.0"
+# libdatadog v48.0.0 requires rust 1.91.1.
+RUST_MINIMUM_VERSION = "1.91.1"
 
 
 SCCACHE_START_MAX_ATTEMPTS = 3
@@ -1990,6 +1990,7 @@ setup(
         "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.appsec._iast._taint_tracking": ["_native/*.pyi"],
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (

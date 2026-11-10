@@ -21,7 +21,7 @@ the provider's `_integration_name`. Supply the two provider-specific behaviors:
 
 Use the actual base/reference signatures and implement or inherit the behavior needed by the
 integration. For standard request integrations, construct it lazily in the LLMObs subscriber
-with `integration_config=config.<name>`; see `ddtrace/llmobs/_contrib/_subscribers.py`.
+with `integration_config=config.<name>`; see `ddtrace/llmobs/_subscribers.py`.
 Keep contrib free of LLMObs imports. When extending an integration that stores its instance on
 `module._datadog_integration`, preserve that ownership and cleanup unless migrating its lifecycle.
 
@@ -46,6 +46,8 @@ Standard LLM integrations should use `LlmRequestEvent` from `ddtrace/contrib/_ev
 
 Key points:
 - Construct `LlmRequestEvent(..., submit_to_llmobs=True, request_kwargs=kwargs, ...)` and leave `llmobs_integration` unset for subscriber-based integrations
+- Pass `request_args=args` when the wrapped call accepts positional arguments that extraction reads; the finishing subscriber forwards them to `llmobs_set_tags()`
+- `_get_base_url()` receives `instance` and `request_kwargs`, so integrations whose base URL is a request argument (LiteLLM's `api_base`) can still detect instrumented proxies
 - Set contrib-owned APM tags through the event's `tags`; pass `None` as the stream handler's integration when contrib has none
 - The event/subscriber path owns span creation and finishing; patch wrappers should not call `tracer.trace()`, `integration.trace()`, or create spans directly for standard request spans
 - Use `with core.context_with_event(event, dispatch_end_event=False) as ctx:` when streaming or when the wrapper needs to dispatch the ended event manually
@@ -65,8 +67,13 @@ standard request integrations so contrib does not import LLMObs.
 Follow `ddtrace/llmobs/_contrib/anthropic/` for integration registration.
 `LlmTracingSubscriber` is a `SpanLifecycleSubscriber`, so it dispatches each
 `SpanLifecycleEvents` phase as `"<phase>.llm.request"`. The shared subscribers in
-`ddtrace/llmobs/_contrib/_subscribers.py` receive an `ExecutionContext` and select the
-registered integration using `ctx.event.component`:
+`ddtrace/llmobs/_subscribers.py` receive an `ExecutionContext` and select the
+registered integration using `ctx.event.component`. The compatibility module
+`ddtrace/llmobs/_contrib/_subscribers.py` re-exports `register`, `unregister`, and
+`get_integration`; lifecycle changes belong in `ddtrace/llmobs/_subscribers.py`.
+When rebasing integration changes, move edits to the old subscriber bodies into the
+corresponding shared listener methods, preserving request arguments, base URL inputs,
+and integration start hooks. The lifecycle phases are:
 
 - `SpanLifecycleEvents.SPAN_STARTING`: before span creation, set `event.span_type = SpanTypes.LLM` when
   `event.submit_to_llmobs` and the integration's LLMObs enablement require it.
@@ -111,6 +118,10 @@ Subclass `StreamHandler`/`AsyncStreamHandler` from `ddtrace/internal/utils/strea
 When `__enter__` wraps a stream manager, the parent retains the child wrapper for the `with` body so `__del__` cannot finalize the shared handler early. `on_stream_created` runs before that retain; if it raises, the handler is finalized immediately because Python will not call `__exit__`.
 
 Wire into patch with `make_traced_stream(response, handler)`.
+
+When one stream completes several requests, the handler finishes each request's context.
+LiteLLM's Router streams the response of the inner `litellm.completion` call, so the router
+wrapper adds its context to that stream's handler (`ddtrace/contrib/internal/litellm/utils.py`).
 
 For the agent pattern (tool child spans within streams), see `ddtrace/llmobs/_integrations/claude_agent_sdk.py`.
 

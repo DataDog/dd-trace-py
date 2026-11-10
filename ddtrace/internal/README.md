@@ -122,6 +122,15 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
+LLMObs registers the shared lifecycle listener, including when product startup calls
+`LLMObs.enable()`. This restores listeners after a reset without requiring repatching. Product-owned
+integration adapters also register it when an integration is patched, including direct
+patching while LLMObs is disabled, so APM shadow tags remain available. Unpatching a
+component removes its factory and cached integration; shared listeners stay registered
+so other components and in-flight requests can finish. Product stop and LLMObs disable
+also retain these completion listeners.
+
 AppSec declares exploit-prevention bundles in
 `ddtrace.internal.appsec.product_subscribers`. Its activation path registers them
 only after AppSec is active and exploit prevention is enabled. Direct activation,

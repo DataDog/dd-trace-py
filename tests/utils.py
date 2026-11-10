@@ -723,7 +723,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         compute_stats_enabled: Optional[bool] = None,
         stats_opt_out: Optional[bool] = None,
     ) -> DummyWriter:
-        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._inner_writer._api_version
+        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled, api_version=api_version)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         self._inner_writer.flush_queue(raise_exc)
@@ -1369,15 +1370,10 @@ def snapshot_context(
             cast("AgentWriterInterface | HTTPWriter", writer_now).flush_queue(raise_exc=True)
 
     flush(before_start=True)
-    url = client._url(
-        "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
-    )
-    status, body = client._request("GET", url, timeout=timeout, retry=False)
-    if status != 200:
-        pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
     original_compute_stats_enabled = dd_config._trace_compute_stats
     original_stats_env = os.environ.get("DD_TRACE_STATS_COMPUTATION_ENABLED")
     completed = False
+    session_started = False
     try:
         headers = parse_tags_str(old_headers or "")
         headers[header] = session.token
@@ -1390,6 +1386,15 @@ def snapshot_context(
                 writer.set_test_session_token(session.token, compute_stats_enabled=compute_stats_enabled)
             else:
                 writer._headers[header] = session.token
+        # Retiring the previous exporter can flush a final stats bucket. Do it before
+        # opening the new session so trace-only snapshots cannot capture that payload.
+        url = client._url(
+            "/test/session/start", agent_sample_rate_by_service=json.dumps(agent_sample_rate_by_service or {})
+        )
+        status, body = client._request("GET", url, timeout=timeout, retry=False)
+        if status != 200:
+            pytest.fail(body.decode("utf-8", errors="replace"), pytrace=False)
+        session_started = True
         try:
             yield session
             completed = session.verify_on_exit
@@ -1413,7 +1418,8 @@ def snapshot_context(
         dd_config._trace_compute_stats = original_compute_stats_enabled
         failed = sys.exc_info()[0] is not None or not session.verify_on_exit
         try:
-            session.clear()
+            if session_started:
+                session.clear()
         except Exception:
             if not failed:
                 failed = True
