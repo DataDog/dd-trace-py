@@ -236,10 +236,52 @@ def test_events_api_benchmark_scenarios_smoke() -> None:
         "dispatch_event",
         "trace_api",
         "subscriber_setup",
-        "subscriber_first_activation",
+        "subscriber_registration",
         "subscriber_reset_recovery",
     ):
         scenario = EventsAPIScenario(name=api, api=api)
         workload = scenario.run()
         next(workload)(2)
         assert next(workload, None) is None
+
+
+@pytest.mark.subprocess
+def test_startup_benchmark_runs_tracing_in_fresh_processes() -> None:
+    from importlib import import_module
+    import subprocess
+    import sys
+    from unittest.mock import patch
+
+    sys.path.insert(0, "benchmarks")
+    with patch("bm._scenario._register"):
+        Startup = import_module("benchmarks.startup.scenario").Startup
+
+    check_call = subprocess.check_call
+    for auto in (True, False):
+        scenario = Startup(
+            name="import_ddtrace_auto" if auto else "ddtrace_run",
+            import_ddtrace=False,
+            import_ddtrace_auto=auto,
+            ddtrace_run=not auto,
+            import_flask=False,
+            import_django=False,
+            send_span=False,
+            env="{}",
+        )
+
+        def check_startup(*, args, env):
+            command = args.copy()
+            if auto:
+                command[-1] = "import sys; assert 'ddtrace._trace.subscribers' not in sys.modules; " + command[-1]
+            command[-1] = (command[-1] + "; " if command[-1] else "") + (
+                "from ddtrace.internal import core; "
+                "assert core.has_listeners('context.started.web.request'); "
+                "assert core.has_listeners('context.ended.web.request')"
+            )
+            check_call(command, env=env)
+
+        with patch("subprocess.check_call", side_effect=check_startup) as run:
+            workload = scenario.run()
+            next(workload)(2)
+            assert next(workload, None) is None
+        assert run.call_count == 2

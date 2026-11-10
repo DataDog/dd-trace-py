@@ -129,7 +129,11 @@ product-local tuple. Its
 unregisters the bundles. Shutdown flushes finished traces, discards pending traces
 from the aggregator, stops processors, and clears the calling context's active span.
 It runs even if tracing was already disabled, since pending traces can still exist.
-If shutdown raises, the listeners remain registered. Requests completing after a
+Completed processor cleanup is not repeated; pending writer retirement can be retried.
+If shutdown raises or another call is still
+performing cleanup, listeners remain registered; a later `stop()` retries teardown.
+Shutdown prevents new span processing, including standalone modes, and detaches the
+aggregator buffer so already-running starts cannot repopulate it. Requests completing after a
 successful stop still release their execution events, but their tracing subscribers
 no longer finish spans or attach response metadata. Existing tasks can retain a
 reference to a discarded span in their own ContextVar; shutdown does not reset other
@@ -150,6 +154,11 @@ Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 stopping unregisters its bundles after shutdown as described above. Later integration
 setup does not reactivate them. Explicit product startup can register bundles again;
 that registration alone does not restart the shut-down tracer.
+
+The `events_api` subscriber benchmarks measure repeated setup, registration with
+already-loaded modules, and listener-reset recovery. Cold activation is measured by
+`startup`'s `import_ddtrace_auto` and `ddtrace_run` configurations, which launch a
+fresh interpreter for every iteration.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

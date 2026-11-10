@@ -63,9 +63,12 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
-    # Terminal stop discards pending traces, including when tracing was already disabled.
-    # Leave listeners installed if shutdown fails before completing that cleanup.
+    # Terminal stop discards pending traces, even if tracing was already disabled.
+    # Shutdown skips completed cleanup and allows failed cleanup to be retried.
     tracer.shutdown()
+    if tracer.start_span != tracer._start_span_after_shutdown:
+        # A concurrent or reentrant shutdown may still own the cleanup. Retry stop later.
+        return
     for bundle in subscriber_bundles:
         bundle.unregister()
 

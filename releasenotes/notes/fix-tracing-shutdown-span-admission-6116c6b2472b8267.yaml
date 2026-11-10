@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: Prevents repeated processor cleanup after successful tracer shutdown
+    and unfinished traces being retained when new spans begin during shutdown.

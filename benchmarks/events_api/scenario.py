@@ -147,7 +147,7 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 span._set_attribute("http.status_code", 200)
                 span.finish()
 
-        if self.api in ("subscriber_setup", "subscriber_first_activation", "subscriber_reset_recovery"):
+        if self.api in ("subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"):
             # Keep existing configurations usable with baselines predating bundles.
             from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
             from ddtrace.internal.core.subscriber import SubscriberBundle
@@ -158,7 +158,8 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 for _ in range(loops):
                     WEB_FRAMEWORK_SUBSCRIBERS.register()
 
-            def benchmark_subscriber_first_activation(loops: int) -> None:
+            def benchmark_subscriber_registration(loops: int) -> None:
+                # Modules are already loaded. Use startup's fresh-process scenarios for cold imports.
                 for _ in range(loops):
                     core.reset_listeners("context.started.web.request")
                     core.reset_listeners("context.ended.web.request")
@@ -172,8 +173,8 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
 
             if self.api == "subscriber_setup":
                 yield benchmark_subscriber_setup
-            elif self.api == "subscriber_first_activation":
-                yield benchmark_subscriber_first_activation
+            elif self.api == "subscriber_registration":
+                yield benchmark_subscriber_registration
             else:
                 yield benchmark_subscriber_reset_recovery
             return
