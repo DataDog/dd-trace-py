@@ -24,7 +24,7 @@ variables:
   SYSTEM_TESTS_REF: "339de2815c638ce0faa98e02570301ad82e2473b"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v150993083-bbc05ac-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
@@ -36,8 +36,7 @@ variables:
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
-  # 110M/109M with 3.15 dep wheels; keep a little headroom above that.
-  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 135_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
 
   # Use Depot as the default PyPI mirror for Python packages.
@@ -210,7 +209,7 @@ microbenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+            IMAGE_TAG: "v150993077-bbc05ac-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -239,7 +238,7 @@ macrobenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+            IMAGE_TAG: "v150993077-bbc05ac-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:

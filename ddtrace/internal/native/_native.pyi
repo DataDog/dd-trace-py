@@ -1342,6 +1342,53 @@ def scan_distributions(
     """
     ...
 
+class ddwaf:
+    """AppSec evaluation boundary backed by libddwaf."""
+
+    @staticmethod
+    def version() -> str:
+        """Load libddwaf on first use and check that its version matches the bindings."""
+        ...
+
+    @staticmethod
+    def _encode(
+        data: Any, max_objects: int = 256, max_depth: int = 20, max_string_length: int = 4096
+    ) -> tuple[Any, tuple[Optional[int], Optional[int], Optional[int]]]:
+        """Test hook: raw native view of the encoded value and its truncations."""
+        ...
+
+    class Builder:
+        def __init__(self) -> None: ...
+        def add_or_update_config(self, path: str, config: Any) -> tuple[bool, Any]: ...
+        def remove_config(self, path: str) -> bool: ...
+        def config_paths_count(self, filter_str: Optional[str] = None) -> int: ...
+        def build(self) -> Optional[ddwaf.Handle]: ...
+
+    class Handle:
+        def known_addresses(self) -> list[str]: ...
+        def context(self) -> Optional[ddwaf.Context]: ...
+
+    class Context:
+        def subcontext(self) -> Optional[ddwaf.Context]: ...
+        def run(
+            self, data: Any, timeout_us: int
+        ) -> tuple[
+            int,
+            Optional[list[Any]],
+            Optional[dict[str, Any]],
+            int,
+            bool,
+            Optional[dict[str, Any]],
+            bool,
+            Optional[int],
+            Optional[int],
+            Optional[int],
+        ]:
+            """Return (code, events, actions, duration_ns, timeout, attributes, keep, truncated string
+            length, container size, container depth); result fields are None without a native result.
+            """
+            ...
+
 class config:
     """Native config module for tracer configuration managed in Rust."""
 

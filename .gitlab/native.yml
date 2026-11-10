@@ -7,7 +7,8 @@ include:
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
-  before_script: cd src/native
+  before_script:
+    - cd src/native
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_fmt[collapsed=true]\r\e[0Kcargo fmt"
@@ -15,7 +16,7 @@ include:
       echo -e "\e[0Ksection_end:`date +%s`:cargo_fmt\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_clippy[collapsed=true]\r\e[0Kcargo clippy"
-      cargo clippy --all-features -- -D warnings
+      cargo clippy --features stats,profiling,crashtracker,ffe -- -D warnings
       echo -e "\e[0Ksection_end:`date +%s`:cargo_clippy\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_test[collapsed=true]\r\e[0Kcargo test"
@@ -39,7 +40,7 @@ include:
 
 "clang-tidy profiling":
   stage: tests
-  image: registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native
+  image: registry.ddbuild.io/dd-trace-py:v150993083-bbc05ac-profiling_native
   tags: ["arch:amd64"]
   timeout: 20m
   needs: []

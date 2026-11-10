@@ -6,7 +6,7 @@ import json
 from typing import Optional
 from urllib.parse import parse_qs
 
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
+from ddtrace.appsec._ddwaf._types import DDWafInputType
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import MediaType
 from ddtrace.internal.utils.http import classify_media_type

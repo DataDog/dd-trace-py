@@ -4,6 +4,11 @@ set -euo pipefail
 # Source helper functions
 source "$(dirname "$0")/build-wheel-helpers.sh"
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  export LIBCLANG_PATH="$(dirname "$(xcrun --find clang)")/../lib"
+  export SDKROOT="$(xcrun --show-sdk-path)"
+fi
+
 setup
 restore_ext_cache
 build_wheel

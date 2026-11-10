@@ -3556,13 +3556,6 @@
         "default": null
       }
     ],
-    "DD_SETUP_CACHE_DOWNLOADS": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
     "DD_SETUP_FORCE_CYTHONIZE": [
       {
         "implementation": "A",

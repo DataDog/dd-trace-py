@@ -1,6 +1,3 @@
-import os.path
-from platform import machine
-from platform import system
 import sys
 from typing import Callable
 from typing import Optional
@@ -12,7 +9,6 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.compat import is_at_most_py
 from ddtrace.internal.serverless import in_aws_lambda
@@ -43,17 +39,6 @@ def _parse_options(options: list[str]) -> Callable[[str], str]:
 
 def _parse_optional_string(value: str) -> Optional[str]:
     return value if value != "" else None
-
-
-def build_libddwaf_filename() -> str:
-    """
-    Build the filename of the libddwaf library to load.
-
-    This is the path of the library bundled in the package, or, when the build
-    did not bundle one, the SONAME for the dynamic linker to resolve.
-    """
-    libddwaf_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "appsec", "_ddwaf", "libddwaf")
-    return _libddwaf_platform.resolve_library(libddwaf_dir, system(), machine(), sys.maxsize > (1 << 32))
 
 
 class ASMConfig(DDConfig):
@@ -99,8 +84,7 @@ class ASMConfig(DDConfig):
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
     _api_security_active = False
-    _asm_libddwaf = build_libddwaf_filename()
-    _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf, system())
+    _asm_libddwaf_available = True
     _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(

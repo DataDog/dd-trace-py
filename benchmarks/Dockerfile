@@ -33,8 +33,6 @@ ENV PIP_RETRIES=10
 ENV UV_HTTP_TIMEOUT=120
 ENV UV_HTTP_RETRIES=10
 
-RUN pip install -U pip
-
 ARG SCENARIO=base
 
 ENV PYTHONUNBUFFERED 1
@@ -49,6 +47,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   ca-certificates \
   # ddtrace includes c extensions
   build-essential \
+  libclang-dev \
   # libdatadog requires autoconf/automake/libtool to build
   autoconf \
   automake \
@@ -62,6 +61,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
+
+# Install runtime libraries before invoking the Python interpreter copied from the build stage.
+RUN pip install -U pip
 
 # Install Rust toolchain
 # TODO: Pin to a specific rustup-init version with SHA256 verification.

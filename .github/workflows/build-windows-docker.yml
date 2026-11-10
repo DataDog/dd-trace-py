@@ -50,5 +50,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           docker push ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }}
-          docker push ghcr.io/datadog/dd-trace-py/windows-build:latest
+          if ('${{ github.ref }}' -eq 'refs/heads/main') {
+            docker push ghcr.io/datadog/dd-trace-py/windows-build:latest
+          }
         shell: powershell

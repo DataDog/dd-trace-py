@@ -16,8 +16,8 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import DDWafContext
+from ddtrace.appsec._ddwaf.waf import DDWaf
+from ddtrace.appsec._ddwaf.waf import DDWafContext
 from ddtrace.appsec._metrics import log_waf_error
 from ddtrace.appsec._metrics import set_waf_init_metric
 from ddtrace.appsec._metrics import set_waf_updates_metric

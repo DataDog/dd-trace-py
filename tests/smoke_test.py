@@ -1,5 +1,6 @@
 import copy
 import ctypes
+import json
 import os
 import platform
 import subprocess
@@ -69,9 +70,35 @@ if __name__ == "__main__":
 
         print("Running WAF module load test...")
         # Proceed with the WAF module load test
-        import ddtrace.appsec._ddwaf  # noqa: F401
+        from ddtrace.appsec._ddwaf.waf import DDWaf
 
         assert module.loaded
+
+        rules = {
+            "version": "2.2",
+            "rules": [
+                {
+                    "id": "wheel-smoke",
+                    "name": "Wheel evaluation smoke test",
+                    "tags": {"type": "test", "category": "test"},
+                    "conditions": [
+                        {
+                            "operator": "match_regex",
+                            "parameters": {"inputs": [{"address": "waf.smoke"}], "regex": "attack"},
+                        }
+                    ],
+                }
+            ],
+        }
+        waf = DDWaf(json.dumps(rules).encode(), b"", b"")
+        benign = waf.run(waf._at_request_start(), {"waf.smoke": "safe"}, timeout_ms=1000)
+        assert benign.return_code == 0 and not benign.data and not benign.timeout
+        context = waf._at_request_start()
+        operation = waf.new_subcontext(context)
+        for target in (context, operation):
+            result = waf.run(target, {"waf.smoke": "attack"}, timeout_ms=1000)
+            assert result.return_code == 1 and result.data and not result.timeout
+        print("WAF request and subcontext evaluation tests completed successfully")
 
         from ddtrace.internal.products import manager
 

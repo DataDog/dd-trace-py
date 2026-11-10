@@ -394,6 +394,7 @@ whitespace
 workflow
 Wrapt
 wsgi
+Xcode
 xfail
 yaaredis
 openai-agents

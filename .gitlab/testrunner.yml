@@ -1,5 +1,5 @@
 variables:
-  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v147323619-47c5179-testrunner@sha256:d58e6573df2030a237764832ae4a2b675f6a3cc437b78b0caa3a682f37506fc5
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v150993080-bbc05ac-testrunner@sha256:48405812ac3d7b79fe1bdf83e54f03a1b1adb4916ac181be64df07964410df31
 
 .testrunner:
   extends: .retry_on_infrastructure_failure

@@ -14,6 +14,17 @@ For Rust, you need the `rustc` and `cargo` tools installed. Install them by foll
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
 
+The Rust WAF bindings also require the libclang shared library. Install ``libclang-dev`` on Debian/Ubuntu,
+``clang-dev`` on Alpine, or LLVM on Windows. If it is not discovered automatically, set ``LIBCLANG_PATH``
+to the directory containing the library (LLVM's ``bin`` directory on Windows).
+
+On macOS, use the library and SDK supplied by Xcode or its command-line tools:
+
+.. code-block:: bash
+
+    export LIBCLANG_PATH="$(dirname "$(xcrun --find clang)")/../lib"
+    export SDKROOT="$(xcrun --show-sdk-path)"
+
 For C++, requirements vary by system, but you’ll need a C++ compiler and `cmake`. Install them as follows:
 
 - On Ubuntu:
@@ -220,16 +231,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.10.0:
 
-  DD_SETUP_CACHE_DOWNLOADS:
-    type: Boolean
-    default: True
-
-    description: |
-        Caches the download of artifacts needed by the build process.
-
-    version_added:
-        v3.10.0:
-
   DD_DOWNLOAD_MAX_RETRIES:
     type: Integer
     default: 10
@@ -283,76 +284,35 @@ These environment variables modify aspects of the build process.
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
 
-Verifying the bundled libddwaf
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+WAF build modes
+~~~~~~~~~~~~~~~
 
-Each libddwaf archive is checked against the SHA-256 checksum pinned for it in ``LIBDDWAF_CHECKSUMS`` in ``setup.py``,
-both right after a download and before an archive from the download cache is reused. A cached archive that does not
-match is downloaded again; a downloaded archive that does not match fails the build and is not cached. A library already
-extracted in the source tree is only reused if it was extracted from an archive with the pinned checksum.
+Normal wheels statically link libddwaf into the native extension. They do not
+package or load a separate libddwaf shared library. The pinned ``libddwaf-sys``
+dependency downloads the release archive and verifies its pinned SHA-256 checksum.
 
-Bumping ``LIBDDWAF_VERSION`` therefore means replacing every entry of ``LIBDDWAF_CHECKSUMS`` with the checksum of the
-matching archive of the new release. This script does both:
-
-.. code-block:: bash
-
-    python scripts/update-libddwaf-checksums.py <version>
-
-It takes each checksum from the digest GitHub computed when the archive was uploaded, requires it to match the
-``.sha256`` asset published next to the archive, and only rewrites ``setup.py`` when every archive the build bundles
-checks out. Set ``GITHUB_TOKEN`` to avoid the GitHub API rate limit.
-
-A unit test fails if the table has no entry for an archive the build uses, or an entry for one it does not.
-
-Using a system-provided libddwaf
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-By default the build downloads the prebuilt libddwaf binaries from GitHub releases and bundles the one matching the target
-architecture into the package. Distribution packagers cannot do that: they build from source with no network access, and
-package libddwaf separately rather than vendoring it.
-
-The ``build_py`` command therefore takes a ``--no-bundle-libddwaf`` option. With it, nothing is downloaded and no library is
-bundled. Being a command option rather than an environment variable, it is set through ``setup.cfg``, which is how it
-reaches ``build_py`` through a PEP 517 frontend such as ``pip``:
+Distribution packages on Linux and FreeBSD can use a separately installed
+libddwaf instead:
 
 .. code-block:: ini
 
     [build_py]
     no_bundle_libddwaf = 1
 
-It can also be passed on the command line for a direct ``python setup.py build_py --no-bundle-libddwaf`` invocation. Default
-builds read no such section and bundle the library as before.
+This mode bundles no WAF library and performs no WAF release downloads. Bindings
+are generated from the system development package's ``ddwaf.h``. The default
+prefix is ``/usr`` on Linux and ``/usr/local`` on FreeBSD; set ``LIBDDWAF_PREFIX``
+for another prefix containing ``include/ddwaf.h`` and a ``lib`` directory.
 
-How the library is found at runtime
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Cargo network resolution is disabled. Pre-provision Rust dependencies, including
+the libdatadog workspace used by header generation, Python build requirements,
+and the tracer's other native dependencies for an offline build.
 
-The loader uses the bundled library when the package contains one. When it does not — which is what the option produces,
-but also what a partial or damaged install looks like — it asks the dynamic linker instead, trying ``libddwaf.so.2`` and
-then ``libddwaf.so``. Both names are tried because libddwaf's own CMake sets no ``SOVERSION``: an install built from
-upstream sources is plain ``libddwaf.so``, while a distribution that adds a ``SOVERSION`` ships ``libddwaf.so.2`` in its
-runtime package and keeps ``libddwaf.so`` in ``-devel``. The versioned name is tried first so that the runtime package is
-preferred over a development symlink.
-
-Because an unversioned SONAME guarantees no ABI, the loader checks ``ddwaf_get_version()`` once the library is in: anything
-that is not 2.x is refused.
-
-What the packaging must guarantee
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-- The library is installed where the dynamic linker looks for it — a normal ``/usr/lib64`` install registered in
-  ``ld.so.cache`` is enough, and ``-devel`` is not required since the versioned name is tried first. ``LD_LIBRARY_PATH``
-  also works.
-- The package declares a runtime dependency on libddwaf. The library is loaded at import time, not linked at build time, so
-  the build succeeds whether or not libddwaf is installed.
-- libddwaf 2.x, at least 2.0.0: every ``ddwaf_*`` symbol ddtrace resolves is present in 2.0.0, whose public header is
-  identical to 2.0.1's. ``LIBDDWAF_VERSION`` in ``setup.py`` is the version ddtrace pins and tests against, so prefer that
-  one; a 3.x will need a new ddtrace release.
-
-If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disables itself; the rest of the tracer is
-unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
-
-Linux and FreeBSD only: elsewhere the runtime has no system library to fall back to, so the build fails rather than
-produce a package that AppSec cannot load.
+At AppSec initialization, the runtime loader tries ``libddwaf.so.2`` and then
+``libddwaf.so`` through the OS search path. The system library must match the
+pinned libddwaf version. An unavailable or incompatible library disables AppSec
+with a warning while tracing remains usable. Declare a runtime dependency on the
+distribution's libddwaf package; its development package is only needed to build.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -369,8 +329,7 @@ How the Build Works
     scripts/run-tests
       └─ pip install -e .
            ├─ build_py  → LibraryDownloader.run()
-           │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
-           │    └─ LibDDWafDownload.run()
+           │    └─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
            └─ build_ext → CustomBuildExt.run()
                 ├─ build_rust()          → Rust _native extension
                 ├─ build_libdd_wrapper() → libdd_wrapper.so (C++)

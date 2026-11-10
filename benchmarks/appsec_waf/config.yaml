@@ -1,0 +1,18 @@
+request: &base
+  workload: request
+  rasp_calls: 0
+request-rasp:
+  <<: *base
+  rasp_calls: 5
+headers-only:
+  <<: *base
+  workload: headers_only
+wide-body:
+  <<: *base
+  workload: wide_body
+unicode-body:
+  <<: *base
+  workload: unicode_body
+attack:
+  <<: *base
+  workload: attack

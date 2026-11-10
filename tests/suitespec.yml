@@ -309,7 +309,6 @@ suites:
       - scripts/ddtest_jobs.py
       - scripts/gen_gitlab_config.py
       - scripts/run-tests
-      - scripts/update-libddwaf-checksums.py
       - tests/internal/*
       - tests/wait-for-services.py
       - tests/submod/*
