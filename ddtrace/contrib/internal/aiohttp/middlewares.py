@@ -4,7 +4,6 @@ from collections.abc import Callable
 from collections.abc import MutableMapping
 import sys
 from typing import Any
-from typing import Optional
 from typing import cast
 
 from aiohttp import web
@@ -28,7 +27,6 @@ CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
-REQUEST_COMPLETION_CALLBACK_KEY = "__datadog_completion_callback"
 REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
 DEFAULT_CLIENT_MAX_SIZE = 1024**2
 
@@ -105,24 +103,17 @@ async def trace_middleware(
                     core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
                 if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
                     if isinstance(response, web.StreamResponse):
-                        _schedule_request_completion(request, response)
+                        request.task.add_done_callback(lambda _: finish_request_span(request, response))
                 return response
-            except BaseException as e:
+            except Exception as e:
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
-                # when its status is an error status. Cancellation still completes the lifecycle
-                # but preserves the existing behavior of not marking a tracing error.
-                if isinstance(e, Exception) and not (
-                    isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)
-                ):
+                # when its status is an error status.
+                if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
                     core.dispatch_event(
                         WebFrameworkRequestExceptionEvent(
                             request_context=ctx, request_event=request_event, exc_info=sys.exc_info()
                         )
                     )
-                # A failed handler never reaches the normal response callback setup.
-                # aiohttp may still prepare an error response; otherwise task completion
-                # must release the context even when no response was ever prepared.
-                _schedule_request_completion(request)
                 raise
         raise RuntimeError("Request context suppressed an exception without a response")
 
@@ -185,45 +176,28 @@ def _blocked_response(
     )
 
 
-def _schedule_request_completion(request: web.Request, response: Optional[web.StreamResponse] = None) -> None:
-    ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if ctx is None or ctx._end_event_dispatched or REQUEST_COMPLETION_CALLBACK_KEY in request:
-        return
-
-    def complete(_task: asyncio.Future[Any]) -> None:
-        finish_request_span(request, request.get(REQUEST_STARTED_RESPONSE_KEY, response))
-
-    request[REQUEST_COMPLETION_CALLBACK_KEY] = complete
-    request.task.add_done_callback(complete)
-
-
-def finish_request_span(request: web.Request, response: Optional[web.StreamResponse]) -> None:
+def finish_request_span(request: web.Request, response: web.StreamResponse) -> None:
     # Response preparation and the task callback can both finalize a request; the first releases its event.
-    callback = request.pop(REQUEST_COMPLETION_CALLBACK_KEY, None)
-    # aiohttp can clear request.task before an already-scheduled callback runs.
-    if callback is not None and request.task is not None:
-        request.task.remove_done_callback(callback)
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
     if not ctx or ctx._end_event_dispatched:
         return
 
-    if response is not None:
-        # default resource name
-        resource = str(response.status)
+    # default resource name
+    resource = str(response.status)
 
-        if request.match_info.route.resource:
-            # collect the resource name based on http resource type
-            res_info = request.match_info.route.resource.get_info()
+    if request.match_info.route.resource:
+        # collect the resource name based on http resource type
+        res_info = request.match_info.route.resource.get_info()
 
-            resource = res_info.get("path") or res_info.get("formatter") or res_info.get("prefix") or resource
+        resource = res_info.get("path") or res_info.get("formatter") or res_info.get("prefix") or resource
 
-            # prefix the resource name by the http method
-            resource = f"{request.method} {resource}"
+        # prefix the resource name by the http method
+        resource = f"{request.method} {resource}"
 
-        event: WebFrameworkRequestEvent = ctx.event
-        event.resource = resource
-        event.response_status_code = response.status
-        event.response_headers = response.headers
+    event: WebFrameworkRequestEvent = ctx.event
+    event.resource = resource
+    event.response_status_code = response.status
+    event.response_headers = response.headers
     ctx.dispatch_ended_event()
 
 

@@ -175,10 +175,7 @@ exception details are available during the separate exception notification. Cons
 not retain that notification or its exception tuple. The original request event accompanies
 it so tracing can honor the entry decision even if response preparation released `ctx.event`.
 Late errors can update a finished span object, but cannot guarantee updating an already
-exported trace. Failed or cancelled requests schedule a task-completion fallback so missing
-response preparation does not leave their contexts open. Response completion removes any
-pending fallback callback so keep-alive tasks do not retain completed requests. Cancellation retains the existing
-behavior of not being tagged as a tracing error.
+exported trace.
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
