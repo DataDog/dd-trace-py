@@ -125,13 +125,16 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
     auto maybe_name_id = intern_string(name);
     auto maybe_filename_id = intern_string(filename);
 
-    // Skip frame if interning failed (e.g., dictionary not available)
+    // Skip the frame if interning failed (for example, the dictionary is gone).
+    // Count it once even when both strings failed to intern.
     if (!maybe_name_id || !maybe_filename_id) {
+        ProfilerStats::incr_intern_failed_count();
         return;
     }
 
     auto maybe_func_id = intern_function(*maybe_name_id, *maybe_filename_id);
     if (!maybe_func_id) {
+        ProfilerStats::incr_intern_failed_count();
         return;
     }
 

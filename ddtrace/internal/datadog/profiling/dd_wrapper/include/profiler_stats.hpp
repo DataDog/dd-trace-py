@@ -43,6 +43,11 @@ class ProfilerStats
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
     size_t copy_memory_error_count = 0;
 
+    // Frames left out of a sample because interning the name or function failed.
+    // Increments are counted off to the side until upload, because the skip can
+    // happen on a thread that does not hold the profile lock.
+    size_t intern_failed_count = 0;
+
     // Number of currently tracked allocations in the heap tracker
     std::optional<size_t> heap_tracker_size;
 
@@ -92,6 +97,10 @@ class ProfilerStats
 
     void add_copy_memory_error_count(size_t count);
     size_t get_copy_memory_error_count() const;
+
+    // One skipped frame. Safe to call from any thread.
+    static void incr_intern_failed_count();
+    size_t get_intern_failed_count() const;
 
     void set_heap_tracker_size(size_t count);
     std::optional<size_t> get_heap_tracker_size() const;
