@@ -40,8 +40,8 @@ class CurrentMessageContext:
     __slots__ = ("dsm_ctx", "pipelines_side")
 
     def __init__(self) -> None:
-        self.dsm_ctx: Optional["DataStreamsCtx"] = None
-        self.pipelines_side: Optional["SideKey"] = None
+        self.dsm_ctx: Optional[DataStreamsCtx] = None
+        self.pipelines_side: Optional[SideKey] = None
 
 
 _local = threading.local()
@@ -60,12 +60,12 @@ def _ensure_current_message() -> CurrentMessageContext:
     return message
 
 
-def set_dsm_pathway(ctx: "DataStreamsCtx") -> None:
+def set_dsm_pathway(ctx: DataStreamsCtx) -> None:
     """Set the current DSM pathway context (processor.decode_pathway / new_pathway)."""
     _ensure_current_message().dsm_ctx = ctx
 
 
-def set_pipelines_side(side: "SideKey") -> None:
+def set_pipelines_side(side: SideKey) -> None:
     """Set the current pipelines consume side (PipelinesReporter.set_current_consume)."""
     _ensure_current_message().pipelines_side = side
 
@@ -87,13 +87,13 @@ def clear_current_message() -> None:
     _local.value = None
 
 
-def current_dsm_pathway() -> Optional["DataStreamsCtx"]:
+def current_dsm_pathway() -> Optional[DataStreamsCtx]:
     """The current DSM pathway context, or ``None`` (processor.set_checkpoint reads this as its parent)."""
     message = get_current_message()
     return message.dsm_ctx if message is not None else None
 
 
-def current_pipelines_side() -> Optional["SideKey"]:
+def current_pipelines_side() -> Optional[SideKey]:
     """The current pipelines consume side, or ``None`` (PipelinesReporter.on_produce links to this)."""
     message = get_current_message()
     return message.pipelines_side if message is not None else None

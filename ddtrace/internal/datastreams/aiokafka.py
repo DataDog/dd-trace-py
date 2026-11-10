@@ -203,7 +203,6 @@ def pipelines_aiokafka_send_start(
     if reporter is None:
         return
     try:
-        event = getattr(span_ctx, "event", None)
         cluster_id = core.find_item("kafka_cluster_id")
         cluster = str(cluster_id) if cluster_id else ""
         reporter.on_produce("kafka", cluster, topic)
@@ -229,9 +228,7 @@ def pipelines_aiokafka_message_consume(
         # consume context is set as the thread's current one until the next
         # consume on this thread replaces it.
         cluster_id = core.find_item("kafka_cluster_id")
-        reporter.set_current_consume(
-            "kafka", str(cluster_id) if cluster_id else "", message.topic, group or ""
-        )
+        reporter.set_current_consume("kafka", str(cluster_id) if cluster_id else "", message.topic, group or "")
     except Exception:  # noqa: BLE001 - T-13: never raise into the application
         log.debug("aiokafka pipelines: failed to record consume side", exc_info=True)
 

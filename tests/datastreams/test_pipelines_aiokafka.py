@@ -12,11 +12,11 @@ import threading
 
 import pytest
 
-import ddtrace.internal.datastreams.pipelines as pipelines_module
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.aiokafka import pipelines_aiokafka_many_messages_consume
 from ddtrace.internal.datastreams.aiokafka import pipelines_aiokafka_message_consume
 from ddtrace.internal.datastreams.aiokafka import pipelines_aiokafka_send_start
+import ddtrace.internal.datastreams.pipelines as pipelines_module
 
 
 class FakeEvent:

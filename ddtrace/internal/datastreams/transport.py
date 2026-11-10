@@ -9,8 +9,6 @@ DSM retries with backoff) or swallow (the pipelines flusher never dies).
 
 from __future__ import annotations
 
-from typing import Dict
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import _human_size
 
@@ -28,7 +26,7 @@ def post(
     agent_url: str,
     endpoint: str,
     payload: bytes,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     timeout: float,
     what: str,
     unsupported_feature: str,

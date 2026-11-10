@@ -427,7 +427,8 @@ class _StandaloneFlusher:
     def _post(self, payload: bytes) -> None:
         """POST the payload via the shared transport; connection failures are
         logged and swallowed (the flush thread must never die; the next window
-        retries)."""
+        retries).
+        """
         try:
             transport.post(
                 self._agent_url,
@@ -443,6 +444,7 @@ class _StandaloneFlusher:
             log.debug(
                 "failed to submit pipelines report to the Datadog agent at %s", self._agent_endpoint, exc_info=True
             )
+
 
 # -- process-level lifecycle --------------------------------------------------
 

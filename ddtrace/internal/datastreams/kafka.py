@@ -200,8 +200,12 @@ def pipelines_kafka_message_consume(instance: Any, message: Any, span: Any) -> N
             # transport-error event, not a consumed message; mirrors the DSM handler
             return
         cluster_id = getattr(instance, "_dd_cluster_id", None) or core.find_item("kafka_cluster_id")
-        reporter.set_current_consume("kafka", str(cluster_id) if cluster_id else "", str(message.topic()),
-            getattr(instance, "_group_id", None) or "")
+        reporter.set_current_consume(
+            "kafka",
+            str(cluster_id) if cluster_id else "",
+            str(message.topic()),
+            getattr(instance, "_group_id", None) or "",
+        )
     except Exception:  # noqa: BLE001 - T-13: never raise into the application
         log.debug("pipelines: failed to record kafka consume side", exc_info=True)
 
