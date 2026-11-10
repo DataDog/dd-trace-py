@@ -19,6 +19,7 @@ compared with the same test on a single value, which is Student's t-test.
 from argparse import ArgumentParser
 import json
 import math
+from pathlib import PurePath
 import sys
 import typing as t
 
@@ -35,7 +36,7 @@ DEFAULT_K = 10
 
 
 def is_ddtrace(frame: t.Any) -> bool:
-    return "/ddtrace/" in frame.filename
+    return "ddtrace" in PurePath(frame.filename).parts
 
 
 class Run:

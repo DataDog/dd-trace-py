@@ -44,6 +44,11 @@ scripts/run-tests --list <changed-files>
 scripts/run-tests --venv <hash> -- -k __build_only__
 ```
 
+The environment is ready once the output shows "Test environment synchronized
+successfully" or "Reusing current test environment". pytest then exits with
+code 5 (no tests collected), which `scripts/run-tests` reports as a failure;
+that is expected here.
+
 Add `-r` after changing native sources. The environment is an editable install
 of the checkout, so Python changes are live without rebuilding.
 
@@ -62,6 +67,9 @@ like `/tmp`, are not visible in the container.
 
 - Exercise the code under study in a loop that runs for a few seconds, so it
   gets thousands of samples at `-i 1ms`. Keep unrelated work out of the loop.
+- Put the loop in a dedicated function (`workload()` below), so the analysis
+  can select it by frame. The module frame is not enough: `<module>` is also
+  on the stack while `import ddtrace.auto` bootstraps the tracer.
 - Start with `import ddtrace.auto` on line 1 when the scenario involves
   auto-instrumentation, the only supported setup.
 - Read knobs from environment variables (payload size, number of tags,
@@ -82,12 +90,17 @@ from ddtrace.trace import tracer
 
 EXTRA_TAGS = int(os.environ.get("EXTRA_TAGS", "0"))
 
-for _ in range(100_000):
-    with tracer.trace("root", service="svc") as root:
-        for i in range(EXTRA_TAGS):
-            root.set_tag(f"extra{i}", i)
-        with tracer.trace("child"):
-            pass
+
+def workload():
+    for _ in range(100_000):
+        with tracer.trace("root", service="svc") as root:
+            for i in range(EXTRA_TAGS):
+                root.set_tag(f"extra{i}", i)
+            with tracer.trace("child"):
+                pass
+
+
+workload()
 ```
 
 ## 3. Run Austin in the container
@@ -134,7 +147,7 @@ Before reading hot spots:
 1. Look at the summary (threads and their totals) and a coarse tree
    (`tree(min_pct=5, max_depth=6)`) to see the phases.
 2. Narrow the samples to the phase you care about with a frame that only
-   that phase has on the stack (`contains="workload.py:<module>"`), plus the
+   that phase has on the stack (`contains="workload.py:workload"`), plus the
    workload thread. Idle filtering (`idle=False`, `-c`) helps with background
    threads, but it does not catch every wait: the shutdown flush above is
    reported as non-idle, so do not rely on it to isolate a phase.
@@ -184,7 +197,7 @@ The `austin-query` CLI is fine for a quick single question:
 ```bash
 Q="/tmp/austin-query-venv/bin/austin-query profile-artifacts/<name>.mojo"
 $Q summary
-$Q top -n 20 --thread MainThread --no-idle --contains 'workload.py:<module>'
+$Q top -n 20 --thread MainThread --no-idle --contains 'workload.py:workload'
 $Q callers Span.set_tag
 ```
 
@@ -202,7 +215,7 @@ q = ProfileQuery.from_file("profile-artifacts/<name>.mojo")
 print(q.summary())
 print(q.tree(min_pct=5, max_depth=6))
 
-loop = q.filter(thread="MainThread", idle=False, contains="workload.py:<module>")
+loop = q.filter(thread="MainThread", idle=False, contains="workload.py:workload")
 print(loop.top(15))                       # own time
 print(loop.top(15, by="total"))           # paths
 print(loop.callees("Tracer.start_span"))  # where its time goes
@@ -255,7 +268,7 @@ Hotelling T^2 test from [pyrometry](https://github.com/P403n1x87/pyrometry):
 /tmp/austin-query-venv/bin/pip install -q 'pyrometry>=0.0.3'
 /tmp/austin-query-venv/bin/python -I .agents/skills/profile/compare.py \
   --baseline profile-artifacts/base-*.mojo --candidate profile-artifacts/cand-*.mojo \
-  --focus "workload.py:<module>" --thread MainThread
+  --focus "workload.py:workload" --thread MainThread
 ```
 
 It reports total time and the share with ddtrace on the stack (Student's
