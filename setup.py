@@ -176,15 +176,15 @@ CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "2.2.0"
+LIBDDWAF_VERSION = "2.2.1"
 LIBDDWAF_CHECKSUMS = {
-    "libddwaf-2.2.0-aarch64-linux-musl.tar.gz": "dbc1efcb9dd557cef1af0be2af1c493494760eaf37f75b5b6b606f96075837b6",
-    "libddwaf-2.2.0-x86_64-linux-musl.tar.gz": "6727084a9c9d4ee324c41f2b4c7a6ccee0caee64ada6f149cfa233258b5f4c31",
-    "libddwaf-2.2.0-darwin-arm64.tar.gz": "bc250a1d6e7082d47b84c81c7cad7e0edc154c088646f26b867673b887c56b4f",
-    "libddwaf-2.2.0-darwin-x86_64.tar.gz": "a62e22426739fc9aef3d907cff5f11fe936e4f9ea28db1620cb3daaab4254e87",
-    "libddwaf-2.2.0-windows-arm64.tar.gz": "bcea61c6a8c4aa9a14a7900f8cfb143ecf6eb42c2adfd898335e21473e56753f",
-    "libddwaf-2.2.0-windows-win32.tar.gz": "6d930e572baff924af707a7dca285b2d384e7c5c6d2b9542555c75c5a55a7854",
-    "libddwaf-2.2.0-windows-x64.tar.gz": "2c3cb65356c5f107680e2cf67b92e4f0de95419b38a62b51cc2dbe4f426d6e79",
+    "libddwaf-2.2.1-aarch64-linux-musl.tar.gz": "57bacbb8d8d7b8c6c71f33b79251f6ec7086c06bd9cce2b6b9fb533fb49a067e",
+    "libddwaf-2.2.1-x86_64-linux-musl.tar.gz": "d3de83f3f0f4e5d3b87af1902626325ae4e60b585e6783bd41812e8194121f79",
+    "libddwaf-2.2.1-darwin-arm64.tar.gz": "39cee2e4336bd0a527e985e480cb2951ead7a68ede492a99cfd5f14bd891a1dc",
+    "libddwaf-2.2.1-darwin-x86_64.tar.gz": "992bed71f2b4405f09eeb8d96b30d5e9a9b864857fb621ae0ed30d8c0c9201f4",
+    "libddwaf-2.2.1-windows-arm64.tar.gz": "ea50eca8a3370126b67030593d1f05bbe4fe0d9c3da26083a386b24682ed7ead",
+    "libddwaf-2.2.1-windows-win32.tar.gz": "b2042c3d5fd519eec20ff589827ca44c10632ad241025c6b7169ace7d02210de",
+    "libddwaf-2.2.1-windows-x64.tar.gz": "f7514387c2a3561a056bfd95c8ae40ff6633ee1f4b572adfc1748f298716fd18",
 }
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
