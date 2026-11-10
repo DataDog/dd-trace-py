@@ -152,31 +152,6 @@ the same bundle repeatedly and restore it after a listener reset. Integration se
 not restore a stopped or reset bundle. Other subscriber families still use their existing
 class-definition registration until their lifecycle migration.
 
-Span-dependent
-integrations retain their request span creation and completion listeners. Integrations
-cannot supply `TracingEvent.span_creation_enabled` to the constructor or factory. The web
-tracing subscriber sets this internal field for events declaring
-`supports_spanless_lifecycle=True` (currently aiohttp), using the
-APM enablement from the tracer separately from the span requirements of standalone
-products. A standalone product can require span creation while APM tracing remains
-disabled; the captured field describes span lifecycle, not APM enablement. The base subscriber's existing guards
-reuse the captured decision through completion, so runtime disable still finishes
-in-flight spans and runtime enable does not start tracing a previously skipped request.
-The decision must not be inferred from `_inner_span`: AppSec can populate that slot
-with a borrowed parent span. Aiohttp can emit metadata-only lifecycle events with
-`DD_TRACE_ENABLED=false`. Other web integrations retain the field's default tracing
-behavior until their request code can run without spans. Subscriber families not yet
-migrated to bundles continue to register automatically.
-
-Aiohttp reports request exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
-The tracing subscriber consumes the live exception immediately; deferred contexts never
-store the exception or its traceback. Completion dispatch carries response metadata, while
-exception details are available during the separate exception notification. Consumers must
-not retain that notification or its exception tuple. The original request event accompanies
-it so tracing can honor the entry decision even if response preparation released `ctx.event`.
-Late errors can update a finished span object, but cannot guarantee updating an already
-exported trace.
-
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
 stopping unregisters its bundles after shutdown as described above. Later integration

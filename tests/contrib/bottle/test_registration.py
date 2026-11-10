@@ -18,4 +18,3 @@ def test_plugin_setup_does_not_reactivate_stopped_tracing() -> None:
     TracePlugin()
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("web.request.exception")

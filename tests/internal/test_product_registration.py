@@ -46,7 +46,6 @@ def test_tracing_subscriber_initialization_supports_manual_instrumentation() -> 
     assert "ddtrace._trace.product" not in sys.modules
     assert core.has_listeners("context.started.web.request")
     assert core.has_listeners("context.ended.web.request")
-    assert core.has_listeners("web.request.exception")
 
 
 @pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
@@ -76,7 +75,6 @@ def test_subscriber_initialization_after_product_stop_stays_inactive() -> None:
 
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("web.request.exception")
 
 
 @pytest.mark.parametrize("tracing_enabled", [True, False])
@@ -137,7 +135,6 @@ def test_tracing_product_stop_discards_active_requests_and_unregisters() -> None
     event = WebFrameworkRequestEvent(
         http_operation="test.request",
         component="test",
-        supports_spanless_lifecycle=True,
         integration_config=IntegrationConfig(Config(), "test"),
         request_url="http://localhost/",
         request_method="GET",
@@ -154,7 +151,6 @@ def test_tracing_product_stop_discards_active_requests_and_unregisters() -> None
         assert tracer.context_provider.active() is None
         assert not core.has_listeners("context.started.web.request")
         assert not core.has_listeners("context.ended.web.request")
-        assert not core.has_listeners("web.request.exception")
 
     async def request():
         with core.context_with_event(event, dispatch_end_event=not deferred) as ctx:
