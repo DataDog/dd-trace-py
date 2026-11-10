@@ -2003,8 +2003,8 @@ class _Probe:
     """
 
     def __init__(self) -> None:
-        self.refs: list = []
-        self.copies: list = []
+        self.refs: list[weakref.ReferenceType[object]] = []
+        self.copies: list[contextvars.Context] = []
 
     def track(self, payload: object) -> None:
         self.refs.append(weakref.ref(payload))
@@ -2146,9 +2146,12 @@ def test_nested_calls_release_each_frame_and_restore_outer_storage():
     probe.assert_released()
 
 
+# PY_UNWIND monitoring (for example, coverage) disables CPython's fast generator-close path,
+# allowing the injected exit handler to run. Evaluate this when the test runs, after monitoring is configured.
 @pytest.mark.xfail(
-    sys.version_info >= (3, 13),
-    reason="Closing a suspended sync generator does not run the injected exit handler, so the call is never popped",
+    "sys.version_info >= (3, 13) and sys.gettrace() is None and sys.getprofile() is None and not any("
+    "sys.monitoring.get_events(tool_id) & sys.monitoring.events.PY_UNWIND for tool_id in range(6))",
+    reason="Closing a suspended sync generator without PY_UNWIND monitoring skips the injected exit handler",
     strict=True,
 )
 def test_copied_context_does_not_retain_frame_on_early_generator_close():
