@@ -3,8 +3,8 @@ fixes:
   - |
     LLM Observability: Fixes an issue where OpenAI Decisions API spans (``client.decisions.create``) dropped request
     options, JSON input parts, and custom tool call outputs, and recorded the questions in metadata instead of the span
-    input. The span input is now the request as sent, and the span output is the full response, including the model
-    and token usage.
+    input. The span input is now the request as sent, and the span output is the response with the model and
+    answers.
   - |
     LLM Observability: Fixes an issue where TypeSafe System One spans recorded every ``extra_body`` field in the span
     input. Only request fields are now recorded, since other fields can carry credentials.

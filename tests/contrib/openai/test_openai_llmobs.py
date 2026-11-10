@@ -110,13 +110,6 @@ DECISION_EXPECTED_OUTPUT = {
         {"type": "predicate", "name": "needs_refund", "probability": 0.29},
         {"type": "predicate", "name": "legal_threat", "probability": 0.0},
     ],
-    "usage": {
-        "input_tokens": 534,
-        "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
-        "output_tokens": 0,
-        "output_tokens_details": {"reasoning_tokens": 0},
-        "total_tokens": 534,
-    },
 }
 
 DECISION_EXPECTED_INPUT_JSON = json.dumps(DECISION_EXPECTED_INPUT, sort_keys=True)

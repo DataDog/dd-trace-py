@@ -1485,7 +1485,7 @@ OPENAI_DECISION_REQUEST_KEYS = (
 
 
 def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any], response: Optional[Any]) -> None:
-    """Record the decisions request body as the input and the response body as the output.
+    """Record the decisions request body as the input and the response body, without usage, as the output.
 
     The questions decide what the model answers, so they stay with the input instead of in metadata. Inline images are
     captured as image parts and replaced in the body by a marker. Only known request fields are taken from extra_body,
@@ -1511,6 +1511,8 @@ def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any]
         output = response.model_dump(mode="json", exclude_unset=True)
     else:
         output = load_data_value(response)
+    if isinstance(output, dict):
+        output.pop("usage", None)
     _annotate_llmobs_span_data(span, output_messages=[Message(role="assistant", content=safe_json(output) or "")])
 
 
