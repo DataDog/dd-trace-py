@@ -1,4 +1,4 @@
 fixes:
   - |
-    App and API Protection: Fixes missing insecure cookie findings in Runtime Code Analysis
+    Code Security (IAST): Fixes missing insecure cookie findings in Runtime Code Analysis
     when a cookie name is passed positionally and its value is passed by keyword.
