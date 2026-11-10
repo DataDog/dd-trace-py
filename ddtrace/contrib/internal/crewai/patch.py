@@ -128,7 +128,8 @@ async def traced_flow_kickoff(func, instance, args, kwargs):
         try:
             event.response = await func(*args, **kwargs)
             return event.response
-        except Exception:
+        # BaseException so that a cancelled flow is recorded as an error.
+        except BaseException:
             error = True
             raise
         finally:
@@ -139,17 +140,19 @@ async def traced_flow_method(func, instance, args, kwargs):
     span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
     event = _request_event("CrewAI Flow Method", span_name, "flow_method", args, kwargs)
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        flow_state = getattr(instance, "state", {})
         initial_flow_state = {}
-        if isinstance(flow_state, dict):
-            initial_flow_state = {**flow_state}
-        elif hasattr(flow_state, "model_dump"):
-            initial_flow_state = flow_state.model_dump()
         error = False
         try:
+            # Inside the try so that the span is finished if reading the state raises.
+            flow_state = getattr(instance, "state", {})
+            if isinstance(flow_state, dict):
+                initial_flow_state = {**flow_state}
+            elif hasattr(flow_state, "model_dump"):
+                initial_flow_state = flow_state.model_dump()
             event.response = await func(*args, **kwargs)
             return event.response
-        except Exception:
+        # BaseException so that a cancelled flow method is recorded as an error.
+        except BaseException:
             error = True
             raise
         finally:
