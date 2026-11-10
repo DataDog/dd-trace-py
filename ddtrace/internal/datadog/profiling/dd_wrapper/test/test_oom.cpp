@@ -77,7 +77,10 @@ intern_string_under_address_space_cap()
 
 TEST(OomDeathTest, InternStringReportsOutOfMemory)
 {
-#if defined(DD_TEST_UNDER_SANITIZER) || !defined(__linux__)
+#if defined(DD_VALGRIND)
+    // The address-space cap is too tight for valgrind.
+    GTEST_SKIP();
+#elif defined(DD_TEST_UNDER_SANITIZER) || !defined(__linux__)
     GTEST_SKIP() << "needs Linux /proc and an RLIMIT_AS cap, which sanitizers cannot run under";
 #else
     EXPECT_EXIT(intern_string_under_address_space_cap(), ::testing::ExitedWithCode(0), "");
