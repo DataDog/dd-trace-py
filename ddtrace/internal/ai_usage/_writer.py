@@ -231,6 +231,8 @@ class _OtlpSender:
         # Whether Datadog stores the export as it arrives (the Agent's receiver or the agentless intake). It then
         # follows the Datadog binding, cost in USD, so that metrics hold the same values as over DogStatsD; a
         # configured endpoint, such as a collector, gets the OpenTelemetry encoding, unless it is the intake itself.
+        # Datadog still stores these delta sums as count metrics, not as the rate metrics DogStatsD counters become,
+        # which is why OTLP is only an opt-in exporter.
         self.to_datadog = False
         headers = _parse_headers(
             _setting("OTEL_EXPORTER_OTLP_METRICS_HEADERS") or _setting("OTEL_EXPORTER_OTLP_HEADERS") or ""
@@ -322,7 +324,8 @@ class _OtlpSender:
             log.warning(
                 "AI usage metrics: OTLP export to the Datadog Agent at %s failed (%s), kept for the next flush. "
                 "Enable the Agent's OTLP receiver (DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT=0.0.0.0:4318) or "
-                "set DD_LITELLM_USAGE_METRICS_EXPORTER=dogstatsd",
+                "use the default DogStatsD exporter, which stores the counters as the same metric type as other "
+                "submitters",
                 self.endpoint,
                 failure,
             )
@@ -527,8 +530,10 @@ class UsageMetricsWriter(ForksafeAwakeablePeriodicService):
         self._pending: deque[bytes] = deque()
         if exporter == "dogstatsd":
             self._dogstatsd = _DogStatsdSender()
-        else:
+        elif exporter == "otlp":
             self._otlp = _OtlpSender()
+        else:
+            raise ValueError(f"Unknown usage metrics exporter {exporter!r}")
 
     def record(
         self, profile_ids: list[str], observation: dict[str, Any], deployment_attributes: Optional[dict[str, str]]

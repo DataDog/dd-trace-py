@@ -49,13 +49,19 @@ for the metrics, their tags, and how to join them to a provider's bill.
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_exporter"]
 
+   ``dogstatsd`` sends the metrics to the Datadog Agent's DogStatsD endpoint (``DD_DOGSTATSD_URL``), where the
+   counters are stored as rate metrics and the durations as distributions, as every other source of these metrics
+   sends them.
+
    ``otlp`` sends OTLP/HTTP metrics to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT``),
    or without one to the Datadog Agent's OTLP receiver, or to Datadog's OTLP intake when ``DD_AGENTLESS_ENABLED`` is
-   true. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD endpoint.
+   true. It is meant for backends other than Datadog: Datadog stores these OTLP counters as count metrics, which
+   conflict with the rate metrics other sources, such as AI gateways, send under the same names, and Datadog keeps
+   one type per metric.
 
    Alternatively, set this option with the ``DD_LITELLM_USAGE_METRICS_EXPORTER`` environment variable.
 
-   Default: ``otlp``
+   Default: ``dogstatsd``
 
 .. py:data:: ddtrace.config.litellm["usage_metrics_tags"]
 

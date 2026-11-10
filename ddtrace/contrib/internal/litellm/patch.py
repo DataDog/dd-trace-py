@@ -47,7 +47,7 @@ config._add(
     {
         "usage_metrics_enabled": _get_config("DD_LITELLM_USAGE_METRICS_ENABLED", default=False, modifier=asbool),
         "usage_metrics_tags": _get_config("DD_LITELLM_USAGE_METRICS_TAGS"),
-        "usage_metrics_exporter": _get_config("DD_LITELLM_USAGE_METRICS_EXPORTER", default="otlp"),
+        "usage_metrics_exporter": _get_config("DD_LITELLM_USAGE_METRICS_EXPORTER", default="dogstatsd"),
         "usage_metrics_client_source": _get_config("DD_LITELLM_USAGE_METRICS_CLIENT_SOURCE"),
     },
 )
@@ -499,10 +499,17 @@ def _enable_usage_metrics():
     if _usage_metrics_writer.ai_usage is None:
         log.warning("LiteLLM usage metrics are not available in this build of ddtrace")
         return
-    exporter = (config.litellm.usage_metrics_exporter or "otlp").strip().lower()
+    # DogStatsD by default: the Agent stores its counters as rate metrics, as every other submitter of these metric
+    # names does, while Datadog stores OTLP delta sums as count metrics. OTLP is for other backends, and only when
+    # asked for. An unknown value is never replaced by another exporter.
+    exporter = (config.litellm.usage_metrics_exporter or "dogstatsd").strip().lower()
     if exporter not in ("otlp", "dogstatsd"):
-        log.warning("Unknown DD_LITELLM_USAGE_METRICS_EXPORTER %r, using otlp", exporter)
-        exporter = "otlp"
+        log.warning(
+            "LiteLLM usage metrics are not enabled: unknown DD_LITELLM_USAGE_METRICS_EXPORTER %r (expected dogstatsd "
+            "or otlp)",
+            exporter,
+        )
+        return
     if exporter == "otlp" and _usage_metrics_writer.otlp_endpoint_is_grpc():
         log.warning(
             "LiteLLM usage metrics are not enabled: they are sent over OTLP/HTTP, and the OTLP metrics endpoint is "

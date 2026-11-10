@@ -1708,6 +1708,42 @@ def test_a_failure_after_the_request_was_recorded_is_not_recorded_again(logger, 
     assert "error_type" not in request
 
 
+@pytest.mark.subprocess()
+def test_usage_metrics_go_to_dogstatsd_by_default():
+    # The Agent stores DogStatsD counters as rate metrics, as every other source of these metric names sends them;
+    # Datadog would store OTLP delta sums as count metrics. OTLP is an opt-in only.
+    import os
+
+    os.environ["DD_LITELLM_USAGE_METRICS_ENABLED"] = "true"
+    os.environ.pop("DD_LITELLM_USAGE_METRICS_EXPORTER", None)
+
+    import litellm
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.litellm.patch import patch
+    from ddtrace.contrib.internal.litellm.patch import unpatch
+    from ddtrace.internal.ai_usage import ai_usage
+
+    assert config.litellm.usage_metrics_exporter == "dogstatsd"
+    if ai_usage is not None:
+        patch()
+        try:
+            writer = litellm._datadog_usage_metrics_writer
+            assert writer._dogstatsd is not None
+            assert writer._otlp is None
+        finally:
+            unpatch()
+
+
+@pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
+def test_an_unknown_exporter_leaves_the_metrics_off(enabled, monkeypatch):
+    # No exporter replaces one that was asked for.
+    monkeypatch.setitem(config.litellm, "usage_metrics_exporter", "otlp-http")
+    patch()
+    assert getattr(litellm, "_datadog_usage_metrics_logger", None) is None
+    assert getattr(litellm, "_datadog_usage_metrics_writer", None) is None
+
+
 @pytest.mark.skipif(ai_usage is None, reason="native ai_usage module not built")
 def test_a_grpc_otlp_endpoint_is_refused(enabled, monkeypatch):
     monkeypatch.setitem(config.litellm, "usage_metrics_exporter", "otlp")

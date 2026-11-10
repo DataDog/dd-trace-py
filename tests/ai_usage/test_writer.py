@@ -32,6 +32,12 @@ def UsageMetricsWriter(exporter, **kwargs):
     return _UsageMetricsWriter(exporter, scope_name=SCOPE_NAME, integration_name="test_integration", **kwargs)
 
 
+def test_an_unknown_exporter_is_refused():
+    # The writer never picks an exporter that was not asked for.
+    with pytest.raises(ValueError):
+        UsageMetricsWriter("statsd", interval=60)
+
+
 def observation(user="u1", input_tokens=12):
     return {
         "operation_name": "chat",

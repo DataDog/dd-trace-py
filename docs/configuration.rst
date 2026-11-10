@@ -637,14 +637,19 @@ computation to the OpenTelemetry Collector or Datadog intake by default.
 
    DD_LITELLM_USAGE_METRICS_EXPORTER:
      type: String
-     default: "otlp"
+     default: "dogstatsd"
 
      description: |
-         Where LiteLLM usage metrics are sent. ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality
-         to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`` (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``),
-         or else to Datadog's OTLP intake in agentless mode (``DD_AGENTLESS_ENABLED``) or to the Datadog Agent's OTLP
-         receiver, which has to be enabled in the Agent. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD
-         endpoint.
+         Where LiteLLM usage metrics are sent. ``dogstatsd`` sends them to the Datadog Agent's DogStatsD endpoint
+         (``DD_DOGSTATSD_URL``). The Agent stores the counters as rate metrics and the durations as distributions,
+         the same types every other source of these metrics uses.
+         ``otlp`` sends OTLP/HTTP protobuf metrics with delta temporality to ``OTEL_EXPORTER_OTLP_METRICS_ENDPOINT``
+         (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` followed by ``/v1/metrics``), or else to Datadog's OTLP intake in
+         agentless mode (``DD_AGENTLESS_ENABLED``) or to the Datadog Agent's OTLP receiver, which has to be enabled
+         in the Agent. Use ``otlp`` only for backends other than Datadog: Datadog stores these OTLP counters as
+         ``count`` metrics, while other sources of the same metric names, such as AI gateways, send ``rate``
+         metrics. Datadog keeps one type per metric, so mixing them changes the type of every point and can make
+         totals off by up to 10 times.
 
    DD_LITELLM_USAGE_METRICS_TAGS:
      type: String

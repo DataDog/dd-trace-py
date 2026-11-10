@@ -2449,7 +2449,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": "otlp"
+        "default": "dogstatsd"
       }
     ],
     "DD_LITELLM_USAGE_METRICS_TAGS": [
