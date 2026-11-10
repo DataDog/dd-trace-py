@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    opentelemetry: The ``DATADOG TRACER CONFIGURATION`` startup log now reports the effective OpenTelemetry
+    settings for traces, logs, and metrics, keyed by environment variable (for example ``OTEL_TRACES_EXPORTER``
+    and ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``), with OTLP header values redacted.
+upgrade:
+  - |
+    tracing: The ``DATADOG TRACER CONFIGURATION`` startup log is now a JSON object instead of a Python
+    dictionary, and it is emitted whenever ``DD_TRACE_STARTUP_LOGS`` is enabled, which is the default, even when
+    the ``ddtrace`` logger level is above ``INFO``. Set ``DD_TRACE_STARTUP_LOGS=false`` to disable it.
