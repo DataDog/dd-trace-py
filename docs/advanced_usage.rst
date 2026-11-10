@@ -659,3 +659,88 @@ for an application serving inference with an LLM through PyTorch:
 .. image:: pytorch_metric.png
   :width: 600
   :alt: Alternative text
+
+
+.. _feature_flag_exposure_hook:
+
+Feature Flag Exposures in Your Own Data Store
+---------------------------------------------
+
+The Datadog OpenFeature provider sends exposures to Datadog. To record exposures in your own
+data store, use ``ddtrace.openfeature.ExposureHook``. It receives every completed evaluation,
+with the same exposure decision that the provider uses for Datadog::
+
+    import queue
+
+    from openfeature import api
+
+    from ddtrace.openfeature import DataDogProvider
+    from ddtrace.openfeature import ExposureHook
+
+    exposures = queue.Queue(maxsize=10_000)
+
+    def record(evaluation):
+        if not evaluation.should_send:
+            return
+        features = evaluation.features
+        try:
+            exposures.put_nowait(
+                (
+                    evaluation.flag_key,
+                    evaluation.variant,
+                    evaluation.targeting_key,
+                    features.get("holdout.key"),
+                    features.get("holdout.assignment_group"),
+                )
+            )
+        except queue.Full:
+            pass
+
+    api.set_provider(DataDogProvider())
+    api.add_hooks([ExposureHook(record)])
+    # A background thread drains the queue and writes to the data store.
+
+- The callback runs on the evaluation thread. Do not do I/O in the callback: copy what you
+  need and hand it to a background queue.
+- ``should_send`` is ``True`` for a successful evaluation of an allocation that logs
+  exposures, for a subject not yet exposed to the same allocation, variant and serial id.
+  These are exactly the exposures that the provider sends to Datadog when Datadog logging is
+  on. Evaluate through an OpenFeature client so that the provider's hooks run.
+- ``is_exposure`` is ``True`` for every successful evaluation of an allocation that logs
+  exposures, including repeats. ``is_cache_hit`` tells repeats apart.
+- An evaluation that fails, including one that a later ``after`` hook fails, is not an
+  exposure and is not recorded.
+- An exception from the callback does not affect the evaluation. The first one is logged at
+  warning level, later ones at debug level.
+- The evaluation also exposes ``flag_key``, ``variant``, ``allocation_key``,
+  ``targeting_key``, ``evaluation_context`` and the OpenFeature ``details``.
+
+``features`` is a read-only mapping of the selected split's features whose destinations
+include ``HOOK``. Values are a ``str``, ``float`` or ``bool``. Holdout splits carry
+``holdout.key``, ``holdout.assignment_group`` (``status_quo`` or ``all_shipped``) and
+``holdout.should_include_in_holdout_analysis``. The mapping is empty when the split has no
+such features. The provider ignores a destination it does not know and logs a warning once
+for each one.
+
+The features are also in the evaluation's flag metadata, for hooks that use only the
+OpenFeature API. Read them in the hook's ``finally_after`` stage, and skip details that have an
+error code.
+
+=============================  ==================  ===============================================
+Key                            Type                Meaning
+=============================  ==================  ===============================================
+``allocation_key``             ``str``             The selected allocation
+``__dd_feature.<key>``         ``str``, ``float``  One entry for each feature of the selected
+                               or ``bool``         split that lists the ``HOOK`` destination
+=============================  ==================  ===============================================
+
+The ``__dd_feature.<key>`` entries are the public flag metadata. Other keys that start with
+``__dd_`` are internal. They can change or be missing in a later release. Do not read the
+exposure decision from flag metadata. Use ``ExposureHook``: ``is_exposure``, ``is_cache_hit``
+and ``should_send`` are the supported way to get it.
+
+To stop sending exposures to Datadog, set
+``DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED=false``. ``ExposureHook`` callbacks
+still receive every evaluation, and ``should_send`` gives the same results. This setting
+stops exposures only; flag evaluation counts have their own setting,
+``DD_FLAGGING_EVALUATION_COUNTS_ENABLED``.
