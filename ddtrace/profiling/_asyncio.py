@@ -234,7 +234,12 @@ def _(asyncio: ModuleType) -> None:
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
             loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", kwargs.get("loop"))
-            parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+            # current_task raises when no loop is running. Callers may iterate
+            # as_completed from synchronous code and drive each result with
+            # run_until_complete.
+            parent: typing.Optional[aio.Task[typing.Any]] = None
+            if globals()["get_running_loop"]() is not None:
+                parent = globals()["current_task"]()
 
             if parent is not None:
                 fs = typing.cast("typing.Iterable[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs"))
@@ -265,7 +270,10 @@ def _(asyncio: ModuleType) -> None:
             awaitable = typing.cast("aio.Future[typing.Any]", get_argument_value(args, kwargs, 0, "arg"))
             future: aio.Future[typing.Any] = asyncio.ensure_future(awaitable, loop=loop)
 
-            parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+            # Same guard as as_completed: shield is valid outside a running loop.
+            parent: typing.Optional[aio.Task[typing.Any]] = None
+            if globals()["get_running_loop"]() is not None:
+                parent = globals()["current_task"]()
             if parent is not None:
                 stack.link_tasks(parent, future)
 
