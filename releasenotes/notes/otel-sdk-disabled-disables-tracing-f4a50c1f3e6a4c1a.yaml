@@ -3,3 +3,7 @@ fixes:
   - |
     tracing: Fixes an issue where setting ``OTEL_SDK_DISABLED=true`` did not disable tracing, including OTLP trace
     export configured with ``OTEL_TRACES_EXPORTER=otlp``. ``DD_TRACE_ENABLED`` still takes precedence when set.
+  - |
+    opentelemetry: Fixes an issue where setting ``OTEL_SDK_DISABLED=true`` together with ``DD_METRICS_OTEL_ENABLED=true``
+    or ``DD_LOGS_OTEL_ENABLED=true`` still set up OpenTelemetry metrics or logs support and disabled log injection.
+    ``OTEL_SDK_DISABLED=true`` now keeps both features disabled.

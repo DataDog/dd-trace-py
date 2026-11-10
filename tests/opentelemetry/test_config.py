@@ -623,11 +623,47 @@ def test_otel_sdk_disabled_takes_precedence_over_otel_logs_exporter():
     assert config._otel_logs_enabled is False
 
 
-@pytest.mark.subprocess(env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_SDK_DISABLED": "true"}, err=b"")
-def test_dd_logs_otel_enabled_takes_precedence_over_otel_sdk_disabled():
+@pytest.mark.subprocess(
+    env={"DD_LOGS_OTEL_ENABLED": "true", "OTEL_SDK_DISABLED": "true"},
+    err=b"DD_LOGS_OTEL_ENABLED enabled, but OTEL_SDK_DISABLED is true. These features stay disabled.\n",
+)
+def test_otel_sdk_disabled_takes_precedence_over_dd_logs_otel_enabled():
     from ddtrace import config
 
-    assert config._otel_logs_enabled is True
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(
+    env={"DD_METRICS_OTEL_ENABLED": "true", "OTEL_SDK_DISABLED": "true"},
+    err=b"DD_METRICS_OTEL_ENABLED enabled, but OTEL_SDK_DISABLED is true. These features stay disabled.\n",
+)
+def test_otel_sdk_disabled_takes_precedence_over_dd_metrics_otel_enabled():
+    from ddtrace import config
+
+    assert config._otel_metrics_enabled is False, config._otel_metrics_enabled
+
+
+@pytest.mark.subprocess(
+    env={"DD_LOGS_OTEL_ENABLED": "true", "DD_METRICS_OTEL_ENABLED": "true", "OTEL_SDK_DISABLED": "true"},
+    err=b"DD_METRICS_OTEL_ENABLED and DD_LOGS_OTEL_ENABLED enabled, but OTEL_SDK_DISABLED is true. "
+    b"These features stay disabled.\n",
+)
+def test_otel_sdk_disabled_takes_precedence_over_dd_metrics_and_logs_otel_enabled():
+    from ddtrace import config
+
+    assert config._otel_metrics_enabled is False, config._otel_metrics_enabled
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+
+
+@pytest.mark.subprocess(
+    env={"DD_LOGS_OTEL_ENABLED": "false", "DD_METRICS_OTEL_ENABLED": "false", "OTEL_SDK_DISABLED": "true"},
+    err=b"",
+)
+def test_otel_sdk_disabled_with_dd_otel_signals_disabled_does_not_warn():
+    from ddtrace import config
+
+    assert config._otel_logs_enabled is False, config._otel_logs_enabled
+    assert config._otel_metrics_enabled is False, config._otel_metrics_enabled
 
 
 @pytest.mark.subprocess(

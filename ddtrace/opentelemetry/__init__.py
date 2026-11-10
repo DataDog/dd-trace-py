@@ -163,8 +163,9 @@ The following environment variables are supported:
   value, or a list without ``otlp`` or ``none``, behaves like an unset one.
 
 - ``OTEL_SDK_DISABLED``
-  Set this to ``true`` to disable tracing, including OTLP trace export, and the OpenTelemetry metrics and logs
-  providers (default: ``false``). ``DD_TRACE_ENABLED`` takes precedence over this setting for tracing.
+  Set this to ``true`` to disable tracing, including OTLP trace export, and OpenTelemetry metrics and logs support
+  (default: ``false``). ``DD_TRACE_ENABLED`` takes precedence over this setting for tracing, while this setting
+  takes precedence over ``DD_METRICS_OTEL_ENABLED`` and ``DD_LOGS_OTEL_ENABLED``.
 
 - ``OTEL_METRIC_EXPORT_INTERVAL``
   Interval (in milliseconds) between metric exports.

@@ -315,6 +315,15 @@ def get_error_ranges(error_range_str: str) -> list[tuple[int, int]]:
     return error_ranges  # type: ignore[return-value]
 
 
+def _report_otel_sdk_disabled_overrides(dd_envs: list[str]) -> None:
+    """Warn that OTEL_SDK_DISABLED=true disabled dd_envs, and report their effective values to telemetry."""
+    # A single warning, because ddtrace rate-limits repeated logs from the same call site.
+    log.warning("%s enabled, but OTEL_SDK_DISABLED is true. These features stay disabled.", " and ".join(dd_envs))
+    for dd_env in dd_envs:
+        # OpenTelemetry configurations always report the raw value
+        telemetry_writer.add_configuration(dd_env, env["OTEL_SDK_DISABLED"].strip().lower(), "otel_env_var")
+
+
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
 _JSONType = Union[None, int, float, str, bool, list["_JSONType"], dict[str, "_JSONType"]]
 
@@ -784,6 +793,19 @@ class Config:
             asbool,
             ["OTEL_LOGS_EXPORTER", "OTEL_SDK_DISABLED"],
         )
+        if env.get("OTEL_SDK_DISABLED", "").strip().lower() == "true":
+            # OTEL_SDK_DISABLED=true turns off the OpenTelemetry metrics and logs providers even when
+            # DD_METRICS_OTEL_ENABLED or DD_LOGS_OTEL_ENABLED is true. Otherwise ddtrace would still install
+            # providers that export nothing, and disable log injection for them.
+            overridden = []
+            if self._otel_metrics_enabled:
+                self._otel_metrics_enabled = False
+                overridden.append("DD_METRICS_OTEL_ENABLED")
+            if self._otel_logs_enabled:
+                self._otel_logs_enabled = False
+                overridden.append("DD_LOGS_OTEL_ENABLED")
+            if overridden:
+                _report_otel_sdk_disabled_overrides(overridden)
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53

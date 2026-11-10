@@ -824,6 +824,23 @@ def test_otel_blank_exporter_list_telemetry(test_agent_session, run_python_code_
     assert "OTEL_METRICS_EXPORTER" not in configurations
 
 
+def test_otel_sdk_disabled_overrides_dd_otel_signals_telemetry(test_agent_session, run_python_code_in_subprocess):
+    """OTEL_SDK_DISABLED=true disables DD_METRICS_OTEL_ENABLED and DD_LOGS_OTEL_ENABLED, and telemetry
+    reports OTEL_SDK_DISABLED as the source of their effective values.
+    """
+    env = os.environ.copy()
+    env["OTEL_SDK_DISABLED"] = "true"
+    env["DD_METRICS_OTEL_ENABLED"] = "true"
+    env["DD_LOGS_OTEL_ENABLED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
+    for name in ("DD_METRICS_OTEL_ENABLED", "DD_LOGS_OTEL_ENABLED"):
+        assert configurations[name] == {"name": name, "origin": "otel_env_var", "value": "true"}
+
+
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
     """The OTEL_EXPORTER_OTLP_*_HEADERS family is excluded from configuration telemetry, while
     non-sensitive OTLP exporter configurations are still reported.
