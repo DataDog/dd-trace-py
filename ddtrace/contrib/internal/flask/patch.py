@@ -542,14 +542,6 @@ def patched_flask_hook(wrapped, instance, args, kwargs):
     return wrapped(wrap_function(instance, func))
 
 
-def traced_render_template(wrapped, instance, args, kwargs):
-    return _build_render_template_wrapper("render_template")(wrapped, instance, args, kwargs)
-
-
-def traced_render_template_string(wrapped, instance, args, kwargs):
-    return _build_render_template_wrapper("render_template_string")(wrapped, instance, args, kwargs)
-
-
 def _build_render_template_wrapper(name):
     name = "flask.%s" % name
 

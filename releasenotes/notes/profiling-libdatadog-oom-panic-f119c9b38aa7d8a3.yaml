@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash with ``failed to intern string: OutOfMemory`` when the
+    process runs out of memory while the profiler exports a profile. The profile is
+    now dropped instead.

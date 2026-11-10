@@ -119,14 +119,8 @@ def patch():
 
 def _iast_response_cookies(wrapped, instance, args, kwargs):
     try:
-        cookie_key = ""
-        cookie_value = ""
-        if len(args) > 1:
-            cookie_key = args[0]
-            cookie_value = args[1]
-        elif len(kwargs.keys()) > 0:
-            cookie_key = kwargs.get("key")
-            cookie_value = kwargs.get("value")
+        cookie_key = args[0] if args else kwargs.get("key")
+        cookie_value = args[1] if len(args) > 1 else kwargs.get("value")
 
         if cookie_value and cookie_key:
             if is_iast_request_enabled() and CookiesVulnerability.has_quota():

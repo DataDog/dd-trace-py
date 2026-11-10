@@ -474,6 +474,18 @@ def _on_iast_fastapi_patch():
         iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
 
 
+def _on_aiohttp_request_start(ctx, request, max_body_size):
+    if not is_iast_request_enabled():
+        return
+    try:
+        # The event comes from aiohttp's middleware, so aiohttp and multidict are importable here.
+        from ddtrace.appsec._iast._aiohttp import taint_request_sources
+
+        taint_request_sources(ctx, request)
+    except Exception:
+        iast_propagation_listener_log_log("Unexpected exception while tainting aiohttp request", exc_info=True)
+
+
 def _on_pre_tracedrequest_iast(ctx):
     current_span = span_from_context(ctx)
     _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
