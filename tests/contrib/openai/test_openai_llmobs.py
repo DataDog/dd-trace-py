@@ -119,6 +119,9 @@ DECISION_EXPECTED_OUTPUT = {
     },
 }
 
+DECISION_EXPECTED_INPUT_JSON = json.dumps(DECISION_EXPECTED_INPUT, sort_keys=True)
+DECISION_EXPECTED_OUTPUT_JSON = json.dumps(DECISION_EXPECTED_OUTPUT, sort_keys=True)
+
 
 def _decision_io(span):
     """Return the decisions request and response bodies recorded on the span, parsed."""
@@ -2531,8 +2534,8 @@ MUL: "*"
             name="OpenAI.createDecision",
             model_name="gpt-6-luna",
             model_provider="openai",
-            input_messages=[{"content": mock.ANY, "role": "user"}],
-            output_messages=[{"content": mock.ANY, "role": "assistant"}],
+            input_messages=[{"content": DECISION_EXPECTED_INPUT_JSON, "role": "user"}],
+            output_messages=[{"content": DECISION_EXPECTED_OUTPUT_JSON, "role": "assistant"}],
             metrics={
                 "input_tokens": 534,
                 "output_tokens": 0,
@@ -2548,7 +2551,6 @@ MUL: "*"
                 "decision_provider": "openai",
             },
         )
-        assert _decision_io(spans[0]) == (DECISION_EXPECTED_INPUT, DECISION_EXPECTED_OUTPUT)
         metadata = get_llmobs_metadata(spans[0]) or {}
         assert "decisions" not in metadata
         assert "questions" not in metadata
@@ -2589,7 +2591,8 @@ MUL: "*"
             name="OpenAI.createDecision",
             model_name="gpt-6-luna",
             model_provider="openai",
-            input_messages=[{"content": mock.ANY, "role": "user"}],
+            input_messages=[{"content": DECISION_EXPECTED_INPUT_JSON, "role": "user"}],
+            output_messages=[{"content": DECISION_EXPECTED_OUTPUT_JSON, "role": "assistant"}],
             tags={
                 "ml_app": "<ml-app-name>",
                 "service": "tests.contrib.openai",
@@ -2597,7 +2600,6 @@ MUL: "*"
                 "decision_provider": "openai",
             },
         )
-        assert _decision_io(spans[0]) == (DECISION_EXPECTED_INPUT, DECISION_EXPECTED_OUTPUT)
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
@@ -2662,7 +2664,7 @@ MUL: "*"
             name="OpenAI.createDecision",
             model_name="gpt-6-luna",
             model_provider="openai",
-            input_messages=[{"content": mock.ANY, "role": "user"}],
+            input_messages=[{"content": DECISION_EXPECTED_INPUT_JSON, "role": "user"}],
             output_messages=[{"content": ""}],
             error=mock.ANY,
             tags={
@@ -2673,7 +2675,6 @@ MUL: "*"
             },
         )
         assert spans[0].error == 1
-        assert _decision_io(spans[0]) == (DECISION_EXPECTED_INPUT, None)
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
