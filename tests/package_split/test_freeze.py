@@ -238,6 +238,34 @@ def test_multiple_approved_rewrites_for_a_path(tmp_path):
     assert report.status == PASS, report.summary()
 
 
+def test_active_exception_exempts_drift(tmp_path):
+    # Active (unexpired) exceptions exempt their covered paths from the
+    # drift checks; the exemption is visible in the evidence.
+    exceptions = EXCEPTION.format(expiry="2999-01-01")
+    repo = FreezeRepo(tmp_path, exceptions=exceptions)
+    (repo.root / "sample" / "mod.py").write_text("value = 2\n", encoding="utf-8")
+    repo.commit_change("excepted edit")
+    report = repo.run()
+    assert report.status == PASS, report.summary()
+    source_freeze = [c for c in report.checks if c.name == "source-freeze"]
+    assert source_freeze and source_freeze[0].data.get("applied_exceptions") == ["sample/mod.py"]
+
+
+def test_inspected_head_recorded_in_evidence(tmp_path):
+    # The report records the head actually inspected (resolved to a sha),
+    # not just the checkout HEAD: a PR-head run must identify the content
+    # it validated.
+    repo = FreezeRepo(tmp_path)
+    git(repo.root, "checkout", "-b", "pr-head")
+    pr_head_sha = git(repo.root, "rev-parse", "HEAD")
+    git(repo.root, "checkout", "main")
+
+    report = repo.run(base="main", head="pr-head")
+    assert report.inspected_head == pr_head_sha
+    evidence = report.to_dict()
+    assert evidence["inspected_head"] == pr_head_sha
+
+
 def test_expired_exception_fails(tmp_path):
     repo = FreezeRepo(tmp_path, exceptions=EXCEPTION.format(expiry="2001-01-01"))
     report = repo.run()

@@ -23,6 +23,11 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
         report.record("base-revision", NOT_RUN, "--base <target-revision> is required")
         return
 
+    # The drift target is the head under test (a PR head in CI); record it
+    # in the evidence so the result identifies the content it validated.
+    head = getattr(args, "head", None) or "HEAD"
+    report.inspected_head = _resolve_revision(manifest.root, head)
+
     freeze_path = Path(getattr(args, "freeze", None) or "package-freeze.toml")
 
     # Prefer the freeze manifest from the base revision: a PR must not be
@@ -44,7 +49,7 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
     report.record("freeze-manifest", PASS, "validated (read from %s)" % source)
 
     try:
-        problems = _verify_freeze(manifest.root, data, report, head=getattr(args, "head", None) or "HEAD")
+        problems, exempted = _verify_freeze(manifest.root, data, report, head=getattr(args, "head", None) or "HEAD")
     except RuntimeError as exc:
         report.record("source-freeze", FAIL, str(exc))
         return
@@ -54,9 +59,27 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
             FAIL,
             "%d unauthorized change(s) to frozen paths" % len(problems),
             problems=problems,
+            applied_exceptions=exempted,
         )
     else:
-        report.record("source-freeze", PASS, "all frozen paths match the extraction baseline")
+        report.record(
+            "source-freeze",
+            PASS,
+            "all frozen paths match the extraction baseline",
+            applied_exceptions=exempted,
+        )
+
+
+def _resolve_revision(root: Path, revision: str) -> Optional[str]:
+    """Resolve a revision argument (HEAD, a ref, a sha) to its full sha."""
+    result = subprocess.run(  # nosec B603, B607 - fixed argv, PATH-resolved git
+        ["git", "rev-parse", "--verify", "%s^{commit}" % revision],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return result.stdout.strip() if result.returncode == 0 else revision
 
 
 def _content_at_revision(root: Path, revision: str, path: Path) -> Optional[str]:
@@ -100,17 +123,26 @@ def _path_content(root: Path, path: str, revision: Optional[str]) -> Optional[by
     return None
 
 
-def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "HEAD") -> list[str]:
+def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "HEAD") -> tuple[list[str], list[str]]:
     import hashlib
 
     problems: list[str] = []
+    exempted: list[str] = []
     today = datetime.date.today()
 
-    # Exceptions must be current (never expired) with complete records.
-    for i, exception in enumerate(data.get("freeze_exceptions", [])):
+    # Exceptions must be current (never expired) with complete records;
+    # active ones exempt their covered paths from the drift checks below
+    # until they expire.
+    active_exceptions: list[str] = []
+    for exception in data.get("freeze_exceptions", []):
         expiry = datetime.date.fromisoformat(exception["expiry"])
         if expiry < today:
             problems.append("freeze exception for %r expired on %s" % (exception["path"], exception["expiry"]))
+        else:
+            active_exceptions.append(exception["path"].rstrip("/"))
+
+    def _excepted(path: str) -> bool:
+        return any(path == exc or path.startswith(exc + "/") for exc in active_exceptions)
 
     for entry in data.get("frozen", []):
         extraction_revision = entry["extraction_revision"]
@@ -154,6 +186,11 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
             + entry.get("build_inputs", []),
         )
         for status, path in zip(name_status[::2], name_status[1::2]):
+            if _excepted(path):
+                # An active, unexpired exception covers this path: the
+                # drift is tolerated until the exception expires.
+                exempted.append(path)
+                continue
             if path in approved:
                 # A rewritten path stays protected (F19): the drift is
                 # tolerated only when the head content is exactly one of
@@ -171,7 +208,8 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
             problems.append("unauthorized %s to frozen path %r" % (change, path))
 
         # 3. Approved rewrites are recorded as evidence; the drift check
-        # above pins each one to its exact approved content.
+        # above pins each one to its exact approved content, and active
+        # exceptions exempted paths are visible in the report data.
         rewrite_evidence = [{"path": r["path"], "reason": r["reason"], "approver": r["approver"]} for r in rewrites]
         if rewrite_evidence:
             report.record(
@@ -180,4 +218,5 @@ def _verify_freeze(root: Path, data: dict[str, Any], report: Any, head: str = "H
                 "%d approved rewrite(s) tolerated" % len(rewrites),
                 rewrites=rewrites,
             )
-    return problems
+
+    return problems, exempted
