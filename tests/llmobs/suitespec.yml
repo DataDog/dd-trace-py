@@ -64,7 +64,7 @@ suites:
           dependencies: ['elevenlabs==2.70.0', pytest-asyncio]
         - name: elevenlabs
           python: ['3.12', '3.13', '3.14', '3.15']
-          dependencies: ['elevenlabs==2.75.0', pytest-asyncio]
+          dependencies: [elevenlabs, pytest-asyncio]
   aws_sdk_bedrock_runtime:
     paths:
       - "@bootstrap"
@@ -77,6 +77,9 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/aws_sdk_bedrock_runtime
       variants:
+        - name: aws_sdk_bedrock_runtime
+          python: ["3.12", "3.13", '3.14', '3.15']
+          dependencies: [pytest-asyncio, aws-sdk-bedrock-runtime]
         - name: aws_sdk_bedrock_runtime
           python: ["3.12", "3.13", '3.14', '3.15']
           dependencies: [pytest-asyncio, "aws-sdk-bedrock-runtime==0.11.0"]
@@ -260,11 +263,11 @@ suites:
           dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.65.4', 'openai==1.68.2']
         - name: litellm
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, litellm, "mcp; python_version >= '3.10'", 'openai>=2.8.0']
         # PR #20079: Python 3.14 is covered by the latest compatible dependency row only.
         - name: litellm
           python: ['3.14']
-          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, 'litellm==1.80.16', 'openai>=2.8.0']
+          dependencies: [vcrpy, pytest-asyncio, botocore, boto3, litellm, "mcp; python_version >= '3.10'", 'openai>=2.8.0']
   llmobs:
     # TODO(py-315): the suite fails on 3.15: one variant cannot import deepeval
     # (no 3.15 support) and another hits a pyo3 panic in native code surfaced as

@@ -403,7 +403,7 @@ suites:
           dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.0']
         - name: aiopg
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: [sqlalchemy, pytest-randomly, 'aiopg~=1.4.0']
+          dependencies: [sqlalchemy, pytest-randomly, aiopg]
   algoliasearch:
     paths:
       - '@bootstrap'
@@ -926,7 +926,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/ddtrace_api
       variants:
         - name: ddtrace_api
-          dependencies: ['ddtrace-api==0.0.1', requests]
+          dependencies: [ddtrace-api, requests]
   django:
     venvs_per_job: 4
     env:
@@ -2102,10 +2102,10 @@ suites:
           dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.2.3']
         - name: pynamodb
           python: ['3.9']
-          dependencies: ['pynamodb~=6.1', pytest-randomly, pytest-xdist, 'moto==5.1.22']
+          dependencies: [pynamodb, pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
           python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
-          dependencies: ['pynamodb~=6.1', pytest-randomly, pytest-xdist, 'moto==5.2.3']
+          dependencies: [pynamodb, pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
     venvs_per_job: 3
     paths:
@@ -2626,7 +2626,7 @@ suites:
           dependencies: [pytest-randomly, 'tornado==6.3.1']
         - name: tornado
           python: ['3.13', '3.14', '3.15']
-          dependencies: [pytest-randomly, 'tornado==6.4.1']
+          dependencies: [pytest-randomly, tornado]
   trio:
     paths:
       - '@bootstrap'

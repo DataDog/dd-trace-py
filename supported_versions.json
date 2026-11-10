@@ -286,8 +286,7 @@
                     "1.4.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "algoliasearch",
@@ -634,14 +633,14 @@
                 },
                 "supportedRange": ">=0.11.0",
                 "tested": [
-                    "0.11.0"
+                    "0.11.0",
+                    "0.12.0"
                 ]
             }
         ],
         "aliases": [
             "aws_sdk_bedrock_runtime"
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "azure-cosmos",
@@ -1610,11 +1609,10 @@
                 "supportedRange": ">=2.70.0",
                 "tested": [
                     "2.70.0",
-                    "2.75.0"
+                    "2.77.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "falcon",
@@ -2548,7 +2546,18 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
+                        "3.9"
+                    ]
+                },
+                "supportedRange": "*",
+                "tested": [
+                    "1.65.4",
+                    "1.83.9"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
                         "3.10",
                         "3.11",
                         "3.12",
@@ -2558,7 +2567,7 @@
                 "supportedRange": "*",
                 "tested": [
                     "1.65.4",
-                    "1.80.16"
+                    "1.108.2"
                 ]
             },
             {
@@ -2569,7 +2578,7 @@
                 },
                 "supportedRange": "*",
                 "tested": [
-                    "1.80.16"
+                    "1.108.2"
                 ]
             },
             {
@@ -2583,8 +2592,7 @@
                     "1.65.4"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "llama-index-core",
@@ -3508,8 +3516,7 @@
                     "6.1.0"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "pyodbc",
@@ -4366,11 +4373,10 @@
                 },
                 "supportedRange": ">=6.1",
                 "tested": [
-                    "6.4.1"
+                    "6.6"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "libraryName": "trio",
