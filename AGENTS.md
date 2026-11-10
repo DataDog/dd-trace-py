@@ -116,3 +116,7 @@ Status-aware polling and best-effort lookups may use justified alternatives with
 
 For `gh` calls in GitLab CI, use `gh_retry` from `.gitlab/scripts/gh-retry.sh` unless a polling
 loop already retries the call. Export `GH_TOKEN` instead of `gh auth login`, which calls the API.
+
+<!-- agent-notes:start -->
+- Confirm which service, package or environment the task means before editing; this repo has several with similar names.
+<!-- agent-notes:end -->
