@@ -19,7 +19,11 @@ log = get_logger(__name__)
 AGENT_CHECK_INTERVAL = 60.0
 
 
-def process_info_headers(resp):
+class AgentInfoNotFoundError(Exception):
+    """The Agent does not expose the /info endpoint."""
+
+
+def process_info_headers(resp: t.Any) -> None:
     try:
         container_tags_hash = resp.getheader(CONTAINER_TAGS_HASH)
         if container_tags_hash:
@@ -38,7 +42,7 @@ def _agent_base_path(agent_url: str) -> str:
     return parsed.path.rstrip("/")
 
 
-def _request_info(agent_url):
+def _request_info(agent_url: str) -> tuple[t.Any, bytes]:
     timeout = config.trace_agent_timeout_seconds
     _conn = get_connection(agent_url, timeout=timeout)
     try:
@@ -54,19 +58,23 @@ def _request_info(agent_url):
     return resp, data
 
 
-def info(url=None):
+def info(url: t.Optional[str] = None, *, raise_on_404: bool = False) -> t.Optional[dict[str, t.Any]]:
+    """Read Agent info, optionally distinguishing an unsupported endpoint from transient failures."""
     agent_url = config.trace_agent_url if url is None else url
     resp, data = _request_info(agent_url)
 
     if resp.status == 404:
         # Remote configuration is not enabled or unsupported by the agent
+        if raise_on_404:
+            raise AgentInfoNotFoundError("the Agent does not expose the /info endpoint")
         return None
 
     if resp.status < 200 or resp.status >= 300:
         log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
         return None
 
-    return json.loads(data)
+    result: dict[str, t.Any] = json.loads(data)
+    return result
 
 
 def is_reachable(url=None):

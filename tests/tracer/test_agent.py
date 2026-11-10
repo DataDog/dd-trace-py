@@ -522,6 +522,14 @@ def test_process_info_headers_handles_errors():
     mock_update_container_hash.assert_not_called()
 
 
+def test_info_can_report_an_unsupported_endpoint():
+    response = mock.Mock(status=404)
+    with mock.patch("ddtrace.internal.agent._request_info", return_value=(response, b"")):
+        assert agent.info() is None
+        with pytest.raises(agent.AgentInfoNotFoundError):
+            agent.info(raise_on_404=True)
+
+
 @pytest.mark.parametrize(
     "request_response,read_response, status_response, expected",
     [

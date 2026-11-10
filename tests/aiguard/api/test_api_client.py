@@ -1,11 +1,16 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 from itertools import product
+import json
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.aiguard import MCP
 from ddtrace.aiguard import AIGuardAbortError
+from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import ContentPart
 from ddtrace.aiguard import Function
@@ -15,12 +20,17 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
+from ddtrace.aiguard._api_client import _agent_route
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.aiguard import ENV_TIMEOUT
 from ddtrace.internal.settings.aiguard import AIGuardConfig
 from ddtrace.internal.settings.aiguard import aiguard_config
+from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import Thread
+from ddtrace.internal.utils.time import HourGlass
 from tests.aiguard.utils import assert_ai_guard_span
 from tests.aiguard.utils import assert_mock_execute_request_call
 from tests.aiguard.utils import find_ai_guard_span
@@ -863,3 +873,363 @@ def test_evaluate_sends_mcp_servers(mock_execute_request, ai_guard_client):
     attributes = mock_execute_request.call_args.args[1]["data"]["attributes"]
     assert attributes["mcp_servers"] == [server]
     assert attributes["messages"][-1]["tool_calls"][0]["mcp"] == {"server_id": "mcp_b77bc22583ac5006"}
+
+
+def _agent_requests_calls(telemetry_mock):
+    return [
+        call
+        for call in telemetry_mock.call_args_list
+        if call.args[0] == TELEMETRY_NAMESPACE.AI_GUARD and call.args[1] == AI_GUARD.AGENT_REQUESTS_METRIC
+    ]
+
+
+class RecordingConnection:
+    """Stands in for the native HTTP connection, recording what the client sent."""
+
+    instances: list = []
+
+    status = 200
+    body = b'{"data": {"attributes": {"action": "ALLOW", "tags": []}}}'
+    response_headers: dict = {}
+
+    def __init__(self, base_url, timeout=None):
+        self.base_url = base_url
+        self.requests: list = []
+        type(self).instances.append(self)
+
+    def request(self, method, path, body=None, headers=None):
+        self.requests.append({"method": method, "path": path, "body": body, "headers": headers})
+
+    def getresponse(self):
+        response = Mock(status=self.status, read=lambda: self.body)
+        response.getheader = lambda name: self.response_headers.get(name)
+        return response
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def recording_connection():
+    class Recorder(RecordingConnection):
+        instances: list = []
+        response_headers: dict = {}
+
+    with patch("ddtrace.aiguard._api_client.HTTPConnection", Recorder):
+        yield Recorder
+
+
+@pytest.mark.parametrize(
+    "agent_url, expected_base",
+    [
+        ("http://agent:8126", "http://agent:8126"),
+        ("http://agent:8126/", "http://agent:8126"),
+        ("http://gateway/datadog/", "http://gateway/datadog"),
+        ("https://gateway/datadog", "https://gateway/datadog"),
+        ("unix:///var/run/datadog/apm.socket", "unix:///var/run/datadog/apm.socket"),
+    ],
+)
+@pytest.mark.parametrize("advertised_route", ["/ai_guard/proxy/", "ai_guard/proxy/"])
+def test_agent_transport_reaches_the_proxy_route(agent_url, expected_base, advertised_route, recording_connection):
+    """Without credentials the evaluation goes to the Agent route, keys left to the Agent."""
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [advertised_route]}):
+            with patch.object(agent_config, "trace_agent_url", agent_url):
+                client = new_ai_guard_client()
+                client.evaluate([Message(role="user", content="hi")])
+
+    assert "DD-API-KEY" not in client._headers
+    assert "DD-APPLICATION-KEY" not in client._headers
+    assert len(recording_connection.instances) == 1
+    sent = recording_connection.instances[0].requests[0]
+    assert recording_connection.instances[0].base_url == expected_base
+    assert sent["method"] == "POST"
+    assert sent["path"] == "/ai_guard/proxy/api/v2/ai-guard/evaluate"
+    assert "DD-API-KEY" not in sent["headers"]
+    assert "DD-APPLICATION-KEY" not in sent["headers"]
+    assert sent["headers"]["DD-AI-GUARD-SOURCE"] == "SDK"
+    assert json.loads(sent["body"])["data"]["attributes"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+@pytest.mark.parametrize("prefix", ["", "/datadog", "/datadog/"])
+def test_agent_transport_uses_native_url_joining(prefix, tracer):
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            received.append((self.path, self.headers, json.loads(body)))
+            response = b'{"data": {"attributes": {"action": "ALLOW", "tags": []}}}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+
+        def log_message(self, *args):
+            pass
+
+    with HTTPServer(("127.0.0.1", 0), Handler) as server:
+        thread = Thread(target=server.serve_forever, name="test.aiguard.agent")
+        thread.start()
+        try:
+            base_url = f"http://127.0.0.1:{server.server_address[1]}{prefix}"
+            client = AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", base_url=base_url)
+            assert client.evaluate([Message(role="user", content="hi")])["action"] == "ALLOW"
+        finally:
+            server.shutdown()
+            thread.join(5)
+
+    assert len(received) == 1
+    path, headers, payload = received[0]
+    assert path == prefix.rstrip("/") + "/ai_guard/proxy/api/v2/ai-guard/evaluate"
+    assert headers.get("DD-API-KEY") is None
+    assert headers.get("DD-APPLICATION-KEY") is None
+    assert payload["data"]["attributes"]["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_setup_without_keys_or_agent_route_still_returns_a_client():
+    """AI Guard must still install when the Agent is not ready; only evaluations fail."""
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": []}):
+            client = new_ai_guard_client()
+
+            with pytest.raises(AIGuardClientError, match="does not advertise"):
+                client.evaluate([Message(role="user", content="hi")])
+
+
+def test_absent_route_is_rechecked_at_most_once_per_interval(recording_connection):
+    """A route that appears after startup is picked up, without polling /info per evaluation."""
+    messages = [Message(role="user", content="hi")]
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": []}) as absent:
+            with patch.object(agent_config, "trace_agent_url", "http://agent:8126"):
+                client = new_ai_guard_client()
+                for _ in range(3):
+                    with pytest.raises(AIGuardClientError):
+                        client.evaluate(messages)
+
+                assert absent.call_count == 1
+
+        # Once the interval elapses the Agent is checked again, and the route is found.
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}):
+            with patch.object(agent_config, "trace_agent_url", "http://agent:8126"):
+                with patch.object(_agent_route, "_throttle", HourGlass(duration=0)):
+                    client.evaluate(messages)
+
+    assert recording_connection.instances[0].base_url == "http://agent:8126"
+
+
+def test_unversioned_404_sends_the_client_back_to_discovery(recording_connection):
+    """A 404 without the Agent's version header means the route is gone."""
+    recording_connection.status = 404
+    recording_connection.body = b'{"errors": ["not found"]}'
+    messages = [Message(role="user", content="hi")]
+
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}):
+            with patch.object(agent_config, "trace_agent_url", "http://agent:8126"):
+                client = new_ai_guard_client()
+                with pytest.raises(AIGuardClientError, match="no longer serves"):
+                    client.evaluate(messages)
+
+                # The route was forgotten, so the next evaluation has to discover again.
+                with pytest.raises(AIGuardClientError, match="no longer advertises"):
+                    client.evaluate(messages)
+
+
+def test_explicit_agent_404_does_not_disable_discovered_clients(recording_connection, tracer):
+    messages = [Message(role="user", content="hi")]
+    with (
+        override_global_config(dict(_dd_api_key="", _dd_app_key="")),
+        patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}) as info,
+        patch.object(agent_config, "trace_agent_url", "http://discovered-agent:8126"),
+    ):
+        discovered_client = new_ai_guard_client()
+        assert _agent_route.resolve()[0] == "http://discovered-agent:8126"
+        pinned_client = AIGuardClient("/ai_guard/proxy/api/v2/ai-guard", base_url="http://pinned-agent:8126")
+        recording_connection.status = 404
+        recording_connection.body = b'{"errors": ["not found"]}'
+        with pytest.raises(AIGuardClientError, match="service call failed"):
+            pinned_client.evaluate(messages)
+
+        recording_connection.status = 200
+        recording_connection.body = b'{"data": {"attributes": {"action": "ALLOW", "tags": []}}}'
+        assert discovered_client.evaluate(messages)["action"] == "ALLOW"
+
+    info.assert_called_once_with(raise_on_404=True)
+
+
+def test_versioned_404_stays_an_ordinary_service_error(recording_connection):
+    """A 404 from the Agent route itself is the API's answer, not a vanished route."""
+    recording_connection.status = 404
+    recording_connection.body = b'{"errors": ["unknown resource"]}'
+    recording_connection.response_headers = {AI_GUARD.AGENT_VERSION_HEADER: "7.79.0"}
+
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}):
+            with patch.object(agent_config, "trace_agent_url", "http://agent:8126"):
+                client = new_ai_guard_client()
+                with pytest.raises(AIGuardClientError, match="service call failed"):
+                    client.evaluate([Message(role="user", content="hi")])
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_agent_mode_credential_errors_name_the_agent(status, recording_connection):
+    """401 and 403 in Agent mode are the Agent's credentials, not the service's."""
+    recording_connection.status = status
+    recording_connection.body = b'{"errors": ["forbidden"]}'
+    recording_connection.response_headers = {AI_GUARD.AGENT_VERSION_HEADER: "7.79.0"}
+
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": [AI_GUARD.AGENT_PROXY_ENDPOINT]}):
+            with patch.object(agent_config, "trace_agent_url", "http://agent:8126"):
+                client = new_ai_guard_client()
+                with pytest.raises(AIGuardClientError, match="Agent's credentials") as raised:
+                    client.evaluate([Message(role="user", content="hi")])
+
+    assert raised.value.status == status
+    assert raised.value.errors == ["forbidden"]
+
+
+def test_endpoint_override_is_not_evidence_of_agent_support(recording_connection):
+    """An endpoint override names a direct endpoint, which a keyless client cannot call."""
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="", _dd_app_key="")):
+        with patch("ddtrace.internal.agent.info", return_value={"endpoints": []}):
+            client = new_ai_guard_client(endpoint="https://api.example.com/ai-guard")
+
+            with pytest.raises(AIGuardClientError):
+                client.evaluate([Message(role="user", content="hi")])
+
+    assert recording_connection.instances == []
+
+
+@pytest.mark.parametrize("api_key, app_key", [("only-api", ""), ("", "only-app")])
+def test_one_key_still_sends_that_credential_header(api_key, app_key):
+    """Direct construction with a single key keeps sending the header it always sent."""
+    client = AIGuardClient("https://api.example.com/ai-guard", api_key, app_key)
+
+    assert client._headers.get("DD-API-KEY") == (api_key or None)
+    assert client._headers.get("DD-APPLICATION-KEY") == (app_key or None)
+
+
+def test_credentials_win_over_the_agent_route():
+    """A service with both keys keeps calling AI Guard directly, whatever the Agent advertises."""
+    with override_global_config(dict(_dd_site="datadoghq.com", _dd_api_key="test-api-key", _dd_app_key="test-app-key")):
+        with patch("ddtrace.internal.agent.info") as mock_info:
+            client = new_ai_guard_client()
+
+    mock_info.assert_not_called()
+    assert client._endpoint == "https://app.datadoghq.com/api/v2/ai-guard"
+    assert client._headers["DD-API-KEY"] == "test-api-key"
+    assert client._headers["DD-APPLICATION-KEY"] == "test-app-key"
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_gauge_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_transport_metric_reports_direct(mock_execute_request, gauge_mock, ai_guard_client):
+    """A client with credentials reports the direct transport."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    ai_guard_client.evaluate([Message(role="user", content="hi")])
+
+    gauge_mock.assert_any_call(
+        TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRANSPORT_METRIC, 1, ((AI_GUARD.TRANSPORT_TAG, "direct"),)
+    )
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_gauge_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_transport_metric_reports_agent(mock_execute_request, gauge_mock, agent_transport_client):
+    """A client using the Agent route reports the agent transport."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    agent_transport_client.evaluate([Message(role="user", content="hi")])
+
+    gauge_mock.assert_any_call(
+        TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRANSPORT_METRIC, 1, ((AI_GUARD.TRANSPORT_TAG, "agent"),)
+    )
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+def test_agent_requests_metric_counts_each_success_once(telemetry_mock, agent_transport_client, recording_connection):
+    """Every evaluation sent through the Agent is counted exactly once, with its status."""
+    agent_transport_client.evaluate([Message(role="user", content="hi")])
+
+    assert _agent_requests_calls(telemetry_mock) == [
+        call(
+            TELEMETRY_NAMESPACE.AI_GUARD,
+            AI_GUARD.AGENT_REQUESTS_METRIC,
+            1,
+            (
+                (AI_GUARD.STATUS_CODE_TAG, "200"),
+                (AI_GUARD.ERROR_TYPE_TAG, "none"),
+                (AI_GUARD.AGENT_ERROR_TAG, "none"),
+            ),
+        )
+    ]
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_agent_requests_metric_on_transport_failure(mock_execute_request, telemetry_mock, agent_transport_client):
+    """A transport failure is counted once, with its error type and no status."""
+    mock_execute_request.side_effect = ConnectionFailedError("Connection refused")
+
+    with pytest.raises(AIGuardClientError):
+        agent_transport_client.evaluate([Message(role="user", content="hi")])
+
+    assert _agent_requests_calls(telemetry_mock) == [
+        call(
+            TELEMETRY_NAMESPACE.AI_GUARD,
+            AI_GUARD.AGENT_REQUESTS_METRIC,
+            1,
+            (
+                (AI_GUARD.STATUS_CODE_TAG, AI_GUARD.STATUS_NONE),
+                (AI_GUARD.ERROR_TYPE_TAG, AI_GUARD.ERROR_CONNECTION),
+                (AI_GUARD.AGENT_ERROR_TAG, "none"),
+            ),
+        )
+    ]
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+def test_agent_requests_metric_reports_the_agent_error_code(
+    telemetry_mock, agent_transport_client, recording_connection
+):
+    """The Agent's own error code is read from its header and tagged."""
+    recording_connection.status = 413
+    recording_connection.body = b'{"errors":[{"code":"payload_too_large"}]}'
+    recording_connection.response_headers = {
+        AI_GUARD.AGENT_ERROR_HEADER: "payload_too_large",
+        AI_GUARD.AGENT_VERSION_HEADER: "7.79.0",
+    }
+
+    with pytest.raises(AIGuardClientError) as raised:
+        agent_transport_client.evaluate([Message(role="user", content="hi")])
+
+    assert raised.value.status == 413
+    assert _agent_requests_calls(telemetry_mock) == [
+        call(
+            TELEMETRY_NAMESPACE.AI_GUARD,
+            AI_GUARD.AGENT_REQUESTS_METRIC,
+            1,
+            (
+                (AI_GUARD.STATUS_CODE_TAG, "413"),
+                (AI_GUARD.ERROR_TYPE_TAG, "none"),
+                (AI_GUARD.AGENT_ERROR_TAG, "payload_too_large"),
+            ),
+        )
+    ]
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_agent_requests_metric_not_reported_in_direct_mode(mock_execute_request, telemetry_mock, ai_guard_client):
+    """The agent.requests metric describes the Agent route only."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    ai_guard_client.evaluate([Message(role="user", content="hi")])
+
+    assert telemetry_mock.call_args_list != []
+    assert _agent_requests_calls(telemetry_mock) == []
