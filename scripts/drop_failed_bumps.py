@@ -11,8 +11,9 @@
 
 usage: <failed CI job names, one per line> | scripts/drop_failed_bumps.py [--base origin/main]
 
-A job name like "dd-gitlab/contrib/fastapi 1/2" is the suite "contrib::fastapi". Every environment of a failed suite
-whose lock changed relative to --base is a failed bump; its locks are restored to --base. Prints the dropped names.
+A job name like "dd-gitlab/contrib/fastapi 1/2" is the suite "contrib::fastapi". Every integration with a bumped
+environment (lock changed relative to --base) in a failed suite is a failed bump; the locks of every environment of
+that integration, in any suite, are restored to --base. Prints the dropped integration names.
 Run scripts/integration_registry/update_and_format_registry.py afterwards to regenerate the registry files.
 """
 
@@ -55,12 +56,15 @@ def main() -> None:
 
     changed = set(git("diff", "--name-only", base, "--", str(LOCK_ROOT)).split())
     environments = [environment for matrix in suites.values() for environment in matrix]
-    bumped = {environment.name for environment in environments if str(environment.lockfile) in changed}
+    bumped = {environment.integration_name for environment in environments if str(environment.lockfile) in changed}
     dropped = {
-        environment.name for suite in failed_suites for environment in suites[suite] if environment.name in bumped
+        environment.integration_name
+        for suite in failed_suites
+        for environment in suites[suite]
+        if environment.integration_name in bumped
     }
 
-    for lockfile in sorted(str(e.lockfile) for e in environments if e.name in dropped):
+    for lockfile in sorted({str(e.lockfile) for e in environments if e.integration_name in dropped}):
         if git("ls-tree", base, "--", lockfile).strip():
             git("checkout", base, "--", lockfile)
         elif (PROJECT_ROOT / lockfile).exists():

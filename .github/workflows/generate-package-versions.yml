@@ -11,6 +11,10 @@ on:
     - cron: "0 0 * * *" # daily at midnight: lock every outdated package into the batch PR
   status: # the batch PR's GitLab pipeline finished: drop failed packages from it
 
+concurrency:
+  group: generate-package-versions
+  cancel-in-progress: false
+
 jobs:
   update-test-locks:
     name: Update test locks
@@ -21,6 +25,8 @@ jobs:
         github.event.state != 'pending' &&
         contains(github.event.branches.*.name, 'upgrade-latest-all-versions')))
     runs-on: ubuntu-22.04
+    env:
+      DROP_FAILED: ${{ inputs.drop_failed || github.event_name == 'status' }}
     outputs:
       changed: ${{ steps.patch.outputs.changed }}
       dropped: ${{ steps.lock.outputs.dropped }}
@@ -37,58 +43,71 @@ jobs:
           persist-credentials: false
 
       - name: Setup Python 3.9
+        if: env.DROP_FAILED != 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.9"
 
       - name: Setup Python 3.10
+        if: env.DROP_FAILED != 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.10"
 
       - name: Setup Python 3.11
+        if: env.DROP_FAILED != 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.11"
 
       - name: Setup Python 3.12
+        if: env.DROP_FAILED != 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
 
       - name: Setup Python 3.13
+        if: env.DROP_FAILED != 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.13"
 
       - name: Setup Python 3.14
+        if: env.DROP_FAILED != 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.14"
 
       - name: Set up QEMU
+        if: env.DROP_FAILED != 'true'
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Set up Docker Buildx
+        if: env.DROP_FAILED != 'true'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Install Docker Compose
+        if: env.DROP_FAILED != 'true'
         run: |
           sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
           sudo chmod +x /usr/local/bin/docker-compose
           docker compose --version
 
       - name: Start docker service
+        if: env.DROP_FAILED != 'true'
         run: docker compose up -d testagent
 
       - name: Install system dependencies
+        if: env.DROP_FAILED != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libmariadb-dev
 
       - uses: ./.github/actions/setup-ci-deps
+        if: env.DROP_FAILED != 'true'
 
       - name: Install ddtrace from pre-built wheel
+        if: env.DROP_FAILED != 'true'
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
@@ -98,7 +117,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           BATCH_BRANCH: upgrade-latest-all-versions
-          DROP_FAILED: ${{ inputs.drop_failed || github.event_name == 'status' }}
         run: |
           if [[ "$DROP_FAILED" == "true" ]]; then
             # Restore the batch PR's files, then revert the locks of packages whose CI suites failed.
@@ -106,13 +124,16 @@ jobs:
             [[ "$(jq -r .state <<<"$pr")" == "OPEN" ]] || exit 0
             # Wait until every GitLab check has finished (other checks, like the merge gate, can stay pending).
             jq -e '.statusCheckRollup | any(.[]; ((.name // .context) | startswith("dd-gitlab/")) and ((.status // "COMPLETED") != "COMPLETED" or ((.state // "") | IN("PENDING", "EXPECTED"))))' <<<"$pr" >/dev/null && exit 0
+            failed=$(jq -r '.statusCheckRollup[] | select((.conclusion // .state) | IN("FAILURE", "ERROR", "TIMED_OUT")) | (.name // .context)' <<<"$pr")
+            [[ -z "$failed" ]] && exit 0
+            # The batch PR must still be based on the current main, or restoring its files would revert main's changes.
+            [[ "$(gh api "repos/$GH_REPO/compare/main...$BATCH_BRANCH" --jq .merge_base_commit.sha)" == "$(git rev-parse HEAD)" ]] || exit 0
             git fetch --depth=1 origin "$BATCH_BRANCH"
             gh api --paginate "repos/$GH_REPO/pulls/$(jq .number <<<"$pr")/files" --jq '.[] | [.status, .filename] | @tsv' |
               while IFS=$'\t' read -r status path; do
                 if [[ "$status" == "removed" ]]; then git rm -q -- "$path"; else git restore --source=FETCH_HEAD --staged --worktree -- "$path"; fi
               done
-            dropped=$(jq -r '.statusCheckRollup[] | select((.conclusion // .state) | IN("FAILURE", "ERROR", "TIMED_OUT")) | (.name // .context)' <<<"$pr" |
-              scripts/drop_failed_bumps.py --base HEAD | tr '\n' ' ')
+            dropped=$(scripts/drop_failed_bumps.py --base HEAD <<<"$failed" | tr '\n' ' ')
             echo "dropped=$dropped" >> "$GITHUB_OUTPUT"
           else
             # Skip packages that already have their own open bump PR.
@@ -202,8 +223,10 @@ jobs:
 
   split-dropped-packages:
     name: Open per-package PRs for dropped packages
-    needs: update-test-locks
-    if: needs.update-test-locks.outputs.dropped != ''
+    needs: [update-test-locks, create-pull-request]
+    if: >-
+      !cancelled() && needs.update-test-locks.outputs.dropped != '' &&
+      needs.create-pull-request.result != 'failure'
     runs-on: ubuntu-22.04
     permissions:
       actions: write
