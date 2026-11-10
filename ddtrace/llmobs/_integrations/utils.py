@@ -1041,14 +1041,11 @@ def _openai_parse_input_response_messages(
 
                     content_part_type = _get_attr(content_part, "type", None)
                     if content_part_type == INPUT_TYPE_IMAGE:
-                        raw_url = _get_attr(content_part, "image_url", None)
-                        # Unwrap the chat-shaped nested object too: the SDK does not enforce
-                        # the Responses shape at runtime and a dict here would leak inline.
-                        image_part, marker = _capture_inline_image(_get_attr(raw_url, "url", None) or raw_url)
+                        image_part, image_text = _openai_image_part(content_part)
                         if image_part:
                             image_parts.append(image_part)
                         else:
-                            processed_item_content += marker or _extract_image_reference(content_part)
+                            processed_item_content += image_text
                     elif content_part_type == INPUT_TYPE_FILE:
                         processed_item_content += _extract_file_reference(content_part)
             else:
@@ -1290,6 +1287,19 @@ def _extract_image_reference(obj: Any) -> str:
     return reference
 
 
+def _openai_image_part(part: Any) -> tuple[Optional[ImagePart], str]:
+    """Image part for an OpenAI input_image part, and the text that stands for it: a marker, or the image URL.
+
+    The chat-shaped nested image_url.url is unwrapped too: the SDK does not enforce the string shape at runtime, and a
+    dict here would leak the payload inline.
+    """
+    url = _get_attr(part, "image_url", None)
+    image_part, marker = _capture_inline_image(_get_attr(url, "url", None) or url)
+    if image_part:
+        return image_part, IMAGE_DETECTED_MARKER
+    return None, marker or _extract_image_reference(part)
+
+
 def _extract_file_reference(obj: Any) -> str:
     """Extract file reference with fallback priority: file_url → file_id → filename → [file]."""
     return (
@@ -1499,7 +1509,9 @@ def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any]
             {k: v for k, v in source.items() if k in OPENAI_DECISION_REQUEST_KEYS and not _is_openai_sentinel(v)}
         )
     image_parts: list[ImagePart] = []
-    input_message = Message(role="user", content=safe_json(_openai_decision_body(body, image_parts)) or "")
+    input_message = Message(
+        role="user", content=safe_json(_openai_decision_body(load_data_value(body), image_parts)) or ""
+    )
     if image_parts:
         input_message["image_parts"] = image_parts
     _annotate_llmobs_span_data(span, input_messages=[input_message])
@@ -1518,38 +1530,15 @@ def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any]
 
 def _openai_decision_body(value: Any, image_parts: list[ImagePart]) -> Any:
     if isinstance(value, dict):
-        is_image = value.get("type") == "input_image"
-        return {
-            str(k): _openai_decision_image_url(v, image_parts)
-            if is_image and k == "image_url"
-            else _openai_decision_body(v, image_parts)
-            for k, v in value.items()
-            if not _is_openai_sentinel(v)
-        }
-    if isinstance(value, (list, tuple)):
+        if value.get("type") == "input_image":
+            image_part, image_text = _openai_image_part(value)
+            if image_part:
+                image_parts.append(image_part)
+            return {**value, "image_url": image_text}
+        return {k: _openai_decision_body(v, image_parts) for k, v in value.items()}
+    if isinstance(value, list):
         return [_openai_decision_body(v, image_parts) for v in value]
-    data = load_data_value(value)
-    return _openai_decision_body(data, image_parts) if isinstance(data, (dict, list)) else data
-
-
-def _openai_decision_image_url(url: Any, image_parts: list[ImagePart]) -> Any:
-    """Capture an inline image as an image part and return the marker that replaces it in the body.
-
-    The SDK does not enforce the string shape at runtime, so a chat-shaped {"url": ...} object is unwrapped too.
-    """
-    if not isinstance(url, (str, dict)):
-        url = load_data_value(url)
-    if isinstance(url, dict):
-        return {
-            str(k): _openai_decision_image_url(v, image_parts) if k == "url" else _openai_decision_body(v, image_parts)
-            for k, v in url.items()
-            if not _is_openai_sentinel(v)
-        }
-    image_part, marker = _capture_inline_image(url)
-    if image_part:
-        image_parts.append(image_part)
-        return IMAGE_DETECTED_MARKER
-    return marker or _openai_decision_body(url, image_parts)
+    return value
 
 
 # OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,

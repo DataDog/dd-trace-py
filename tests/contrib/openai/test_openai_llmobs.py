@@ -2678,7 +2678,7 @@ MUL: "*"
                         {"type": "input_text", "text": "data: customer reports a duplicate charge"},
                         {"type": "input_text", "text": DECISION_IMAGE_URL},
                         {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
-                        {"type": "input_image", "image_url": {"url": "([IMAGE DETECTED])"}},
+                        {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
                     ],
                 }
             ],
