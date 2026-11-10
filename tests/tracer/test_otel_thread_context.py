@@ -203,6 +203,26 @@ def test_thread_context_listeners_can_be_disabled():
         assert is_context_watcher_registered() is False
 
 
+@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
+def test_global_tracer_listener_is_registered_on_explicit_import():
+    """The global tracer publishes its context even when ddtrace does not create it on import."""
+    import sys
+
+    import ddtrace  # noqa: F401
+    from ddtrace.internal import core
+
+    assert "ddtrace.trace" not in sys.modules
+    assert core.has_listeners("ddtrace.context_provider.activate") is False
+
+    from ddtrace.trace import tracer
+    from tests.tracer.test_otel_thread_context import _published_span_id
+
+    assert core.has_listeners("ddtrace.context_provider.activate") is True
+    with tracer.trace("test") as span:
+        assert _published_span_id() == span.span_id
+    assert _published_span_id() is None
+
+
 def test_python_context_switch_syncs_active_span(tracer: Tracer):
     with tracer.trace("test") as span:
         sync_otel_thread_context(None)
