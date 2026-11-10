@@ -52,16 +52,13 @@ their lifecycle can run without spans. A capability declares span independence; 
 not encode the product's enablement decision. Report aiohttp exceptions synchronously
 through WebFrameworkRequestExceptionEvent rather than retaining exceptions or tracebacks
 on a deferred context. Deferred completion carries final response metadata separately.
-Declare the shared web
-framework bundle with `@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)` on
-synchronous instrumentation setup (middleware or plugin constructors, enabled tween
-creation, or patching), rather than registering subscriber classes directly. Keep
-conditional enablement outside the decorated helper and never decorate request
-handlers. The decorator activates bundles at setup invocation, not module import.
-This preserves manual instrumentation when tracing product startup is skipped. Active
-bundles skip repeated registration; core listener resets invalidate activation so the
-next setup restores listeners. Registration is idempotent; do not unregister the shared subscriber when unpatching one integration,
-since other integrations and active requests still need its listeners.
+Products own subscriber activation. Integrations emit events without importing product
+bundle declarations, registering subscriber classes, or decorating setup with subscriber
+dependencies. Tracing product startup registers its web bundle; tracing's existing
+subscriber initialization also activates it for manual instrumentation. Product startup
+can restore listeners after a reset. Integration setup must not reactivate listeners
+removed by product stop. Do not unregister the shared subscriber when unpatching one
+integration, since other integrations and active requests still need its listeners.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

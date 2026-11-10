@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from importlib import import_module
-import inspect
 import pickle
 import sys
 from threading import Barrier
@@ -20,7 +19,6 @@ from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.core.subscriber import SubscriberBundle
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.products import ProductManager
 
 
@@ -213,71 +211,6 @@ def test_product_manages_bundle_listeners_through_lifecycle(monkeypatch: pytest.
         RequestSubscriber.unregister()
 
 
-def test_setup_declaration_is_lazy_and_preserves_call_contract() -> None:
-    calls: list[object] = []
-    first = Mock(spec=SubscriberBundle)
-    second = Mock(spec=SubscriberBundle)
-    first.ensure_registered.side_effect = lambda: calls.append("first")
-    second.ensure_registered.side_effect = lambda: calls.append("second")
-
-    def setup(value: str, *, enabled: bool = True) -> str:
-        """Install instrumentation."""
-        calls.append((value, enabled))
-        return value
-
-    decorated = requires_subscribers(first, second)(setup)
-    assert calls == []
-    assert decorated.__name__ == setup.__name__
-    assert decorated.__doc__ == setup.__doc__
-    assert inspect.signature(decorated) == inspect.signature(setup)
-    assert decorated("service", enabled=False) == "service"
-    assert calls == ["first", "second", ("service", False)]
-
-
-def test_setup_declaration_supports_constructor_and_listener_reset() -> None:
-    calls = []
-
-    class RequestSubscriber(Subscriber):
-        auto_register = False
-        event_names = (RegistrationEvent.event_name,)
-
-        @classmethod
-        def on_event(cls, event: RegistrationEvent) -> None:
-            calls.append(event)
-
-    module = ModuleType("example.setup")
-    setattr(module, "RequestSubscriber", RequestSubscriber)
-    bundle = SubscriberBundle(module.__name__, ("RequestSubscriber",))
-
-    class Middleware:
-        @requires_subscribers(bundle)
-        def __init__(self, service: str) -> None:
-            self.service = service
-
-    try:
-        with patch("ddtrace.internal.core.subscriber.import_module", return_value=module):
-            assert Middleware("test").service == "test"
-            Middleware("test")
-            event = RegistrationEvent()
-            core.dispatch_event(event)
-            assert calls == [event]
-            RequestSubscriber.unregister()
-            Middleware("restored")
-            core.dispatch_event(event)
-            assert calls == [event, event]
-    finally:
-        RequestSubscriber.unregister()
-
-
-def test_setup_declaration_registration_error_prevents_setup() -> None:
-    setup = Mock()
-    decorated = requires_subscribers(SubscriberBundle("missing.subscribers", ("Subscriber",)))(setup)
-    with patch("ddtrace.internal.core.subscriber.import_module", side_effect=ImportError("unavailable")):
-        with pytest.raises(ImportError, match="unavailable"):
-            decorated()
-    setup.assert_not_called()
-
-
 @pytest.fixture
 def request_bundle(monkeypatch):
     calls = []
@@ -302,12 +235,10 @@ def request_bundle(monkeypatch):
 
 def test_active_bundle_skips_resolution_and_listener_lookup(request_bundle) -> None:
     bundle, subscriber, calls = request_bundle
-    setup = requires_subscribers(bundle)(Mock())
     with patch("ddtrace.internal.core.subscriber.import_module", wraps=import_module) as load:
         with patch.object(core, "on", wraps=core.on) as on:
-            bundle.register()  # Product startup and manual setup share activation state.
-            setup()
-            setup()
+            bundle.register()
+            bundle.register()
             bundle.register()
     load.assert_called_once_with(bundle.module)
     on.assert_called_once()

@@ -35,22 +35,21 @@ def test_tracing_bundle_registration_preserves_request_completion(tracer, test_s
 
 
 @pytest.mark.subprocess
-def test_direct_integration_import_does_not_register_web_subscribers() -> None:
+def test_tracing_subscriber_initialization_supports_manual_instrumentation() -> None:
     import sys
 
-    import ddtrace._trace.subscribers.web_framework  # noqa: F401
-    import ddtrace.contrib  # noqa: F401
+    import ddtrace._trace.subscribers  # noqa: F401
     from ddtrace.internal import core
     from ddtrace.internal.products import manager
 
     assert manager._products is None
     assert "ddtrace._trace.product" not in sys.modules
-    assert not core.has_listeners("context.started.web.request")
-    assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("web.request.exception")
+    assert core.has_listeners("context.started.web.request")
+    assert core.has_listeners("context.ended.web.request")
+    assert core.has_listeners("web.request.exception")
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
 def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     import sys
 
@@ -60,6 +59,24 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     assert subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
     assert subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
+
+
+@pytest.mark.subprocess(env=dict(_DD_GLOBAL_TRACER_INIT="false"))
+def test_subscriber_initialization_after_product_stop_stays_inactive() -> None:
+    import sys
+
+    from ddtrace._trace import product
+    from ddtrace.internal import core
+
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    product.stop()
+    assert "ddtrace._trace.subscribers" not in sys.modules
+
+    import ddtrace._trace.subscribers  # noqa: F401
+
+    assert not core.has_listeners("context.started.web.request")
+    assert not core.has_listeners("context.ended.web.request")
+    assert not core.has_listeners("web.request.exception")
 
 
 @pytest.mark.parametrize("tracing_enabled", [True, False])

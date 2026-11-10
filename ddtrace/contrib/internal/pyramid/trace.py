@@ -8,13 +8,11 @@ from pyramid.settings import asbool
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.span_bus import span_from_context
@@ -73,7 +71,6 @@ def trace_tween_factory(handler, registry):
     return handler
 
 
-@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
 def _make_trace_tween(handler: Callable[[Request], Response], service: str) -> Callable[[Request], Response]:
     # make a request tracing function
     def trace_tween(request: Request) -> Response:

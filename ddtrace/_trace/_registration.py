@@ -1,4 +1,4 @@
-"""Lazy subscriber declarations shared by tracing startup and integration setup."""
+"""Lazy subscriber declarations owned by tracing initialization and product startup."""
 
 from ddtrace.internal.core.subscriber import SubscriberBundle
 

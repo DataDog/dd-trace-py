@@ -14,11 +14,9 @@ Finally, subscribers can listen to multiple event names to allow integration spe
 the same subscriber.
 """
 
-from collections.abc import Callable
 from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
-from functools import wraps
 from importlib import import_module
 import logging
 import sys
@@ -29,7 +27,6 @@ from typing import ClassVar
 from typing import Generic
 from typing import Optional
 from typing import Protocol
-from typing import TypeVar
 from typing import cast
 
 from ddtrace.internal import core
@@ -116,28 +113,6 @@ class SubscriberBundle:
                 resolved = self._resolve(module)
             for subscriber in resolved:
                 subscriber.unregister()
-
-
-_Setup = TypeVar("_Setup", bound=Callable[..., Any])
-
-
-def requires_subscribers(*bundles: SubscriberBundle) -> Callable[[_Setup], _Setup]:
-    """Activate lazy subscriber bundles before calling a synchronous setup function.
-
-    Decoration does not import subscriber modules. Calls reuse active bundles and
-    restore listeners after a reset. Registration failures propagate before setup runs.
-    """
-
-    def decorate(setup: _Setup) -> _Setup:
-        @wraps(setup)
-        def wrapped(*args: Any, **kwargs: Any) -> Any:
-            for bundle in bundles:
-                bundle.ensure_registered()
-            return setup(*args, **kwargs)
-
-        return cast(_Setup, wrapped)
-
-    return decorate
 
 
 class Subscriber:

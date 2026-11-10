@@ -97,8 +97,8 @@ def stop(join=False):
 
 Declarations do not import subscriber modules. Calling `register()` loads the module
 and resolves every declared name before registering listeners. Bundle-managed
-subscribers must set `auto_register = False` so importing their module does not
-register them implicitly.
+subscribers must set `auto_register = False` so class definitions do not register
+them implicitly. Any compatibility activation during initialization belongs to the product.
 
 Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
@@ -143,28 +143,16 @@ reference to a discarded span in their own ContextVar; shutdown does not reset o
 tasks' contexts. This terminal cleanup is distinct from temporarily disabling tracing
 or unpatching one integration, which must retain shared completion listeners.
 
-Importing `ddtrace._trace.subscribers` or its web framework module does not register
-the web framework subscriber. Integrations declare setup dependencies with the
-shared `requires_subscribers` decorator:
+The existing tracing subscriber package initialization also registers the web bundle
+for manual instrumentation that does not start the product manager, unless the tracer
+has already shut down. This compatibility activation belongs to tracing; integrations
+do not import bundle declarations, decorate setup with subscriber dependencies, or
+register listeners. Product startup can register
+the same bundle repeatedly and restore it after a listener reset. Integration setup does
+not restore a stopped or reset bundle. Other subscriber families still use their existing
+class-definition registration until their lifecycle migration.
 
-```python
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
-from ddtrace.internal.core.subscriber import requires_subscribers
-
-@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
-def patch() -> None:
-    ...
-```
-
-Apply the decorator to synchronous setup functions, including middleware or plugin
-constructors. Decoration does not import or activate subscribers; invocation registers
-the bundles before setup runs. The wrapper preserves the callable's signature and
-metadata. Direct calls work without tracing product startup or the common patching
-machinery. Each invocation ensures activation, skipping registration while the bundle
-is still active and restoring listeners after a reset. Registration errors propagate
-before setup runs. Keep enablement checks outside decorated helpers when disabled
-setup must remain inactive, as in Pyramid's tween factory. Keep the decorator off
-request handlers so activation stays out of the request path. Registration is idempotent. Span-dependent
+Span-dependent
 integrations retain their request span creation and completion listeners. Integrations
 cannot supply `TracingEvent.span_creation_enabled` to the constructor or factory. The web
 tracing subscriber sets this internal field for events declaring
@@ -194,9 +182,9 @@ behavior of not being tagged as a tracing error.
 
 Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
 `stop()` is not called by the product manager at process exit. Explicit product
-stopping unregisters its bundles after shutdown as described above. Later explicit
-instrumentation setup can register bundles again; this is not a persistent activation
-policy and does not restart the shut-down tracer.
+stopping unregisters its bundles after shutdown as described above. Later integration
+setup does not reactivate them. Explicit product startup can register bundles again;
+that registration alone does not restart the shut-down tracer.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

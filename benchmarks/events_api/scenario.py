@@ -151,17 +151,12 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
             # Keep existing configurations usable with baselines predating bundles.
             from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
             from ddtrace.internal.core.subscriber import SubscriberBundle
-            from ddtrace.internal.core.subscriber import requires_subscribers
-
-            @requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
-            def setup() -> None:
-                pass
 
             def benchmark_subscriber_setup(loops: int) -> None:
                 # Product startup may already have activated the shared bundle.
                 WEB_FRAMEWORK_SUBSCRIBERS.register()
                 for _ in range(loops):
-                    setup()
+                    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
             def benchmark_subscriber_first_activation(loops: int) -> None:
                 for _ in range(loops):
@@ -170,10 +165,10 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                     SubscriberBundle(WEB_FRAMEWORK_SUBSCRIBERS.module, WEB_FRAMEWORK_SUBSCRIBERS.subscribers).register()
 
             def benchmark_subscriber_reset_recovery(loops: int) -> None:
-                setup()
+                WEB_FRAMEWORK_SUBSCRIBERS.register()
                 for _ in range(loops):
                     core.reset_listeners("context.started.web.request")
-                    setup()
+                    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
             if self.api == "subscriber_setup":
                 yield benchmark_subscriber_setup

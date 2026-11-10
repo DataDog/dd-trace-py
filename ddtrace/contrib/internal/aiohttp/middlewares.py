@@ -12,7 +12,6 @@ from aiohttp.streams import StreamReader
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
-from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
 from ddtrace._trace.http_tags import is_otel_non_error_status
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
@@ -20,7 +19,6 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
-from ddtrace.internal.core.subscriber import requires_subscribers
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.http import _format_template
@@ -246,7 +244,6 @@ async def on_prepare(request, response):
     finish_request_span(request, response)
 
 
-@requires_subscribers(WEB_FRAMEWORK_SUBSCRIBERS)
 def trace_app(app, tracer=None, service="aiohttp-web"):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
