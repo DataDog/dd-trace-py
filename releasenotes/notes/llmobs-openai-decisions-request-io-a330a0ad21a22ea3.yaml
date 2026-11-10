@@ -7,5 +7,4 @@ fixes:
     answers.
   - |
     LLM Observability: Fixes an issue where TypeSafe System One spans recorded every ``extra_body`` field in the span
-    input. Only request fields are now recorded, since other fields can carry credentials. The span output no
-    longer includes token usage, which is recorded as metrics.
+    input. Only request fields are now recorded, since other fields can carry credentials.

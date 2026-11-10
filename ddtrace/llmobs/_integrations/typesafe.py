@@ -148,27 +148,16 @@ def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _response_body(response: Any) -> str:
-    """Return the HTTP response body as received, or the parsed response when the raw one is unavailable.
-
-    Usage is left out, since token counts are recorded as metrics. A raw body that is not a JSON object is kept as is.
-    """
+    """Return the HTTP response body as received, or the parsed response when the raw one is unavailable."""
     try:
         raw_text = response.raw_http_response.text
     except Exception:
         raw_text = None
     if isinstance(raw_text, str) and raw_text:
-        try:
-            data = json.loads(raw_text)
-        except ValueError:
-            return raw_text
-        if not isinstance(data, dict):
-            return raw_text
-        data.pop("usage", None)
-        return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
-    data = response.model_dump(mode="json") if hasattr(response, "model_dump") else _to_data(response)
-    if isinstance(data, dict):
-        data.pop("usage", None)
-    return safe_json(data) or ""
+        return raw_text
+    if hasattr(response, "model_dump"):
+        return safe_json(response.model_dump(mode="json")) or ""
+    return safe_json(_to_data(response)) or ""
 
 
 def _to_data(value: Any, aliases: Optional[dict[int, str]] = None, found: Optional[dict[str, None]] = None) -> Any:
