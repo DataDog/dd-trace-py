@@ -16,7 +16,6 @@ the same subscriber.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from dataclasses import field
 from importlib import import_module
 import logging
 import sys
@@ -31,7 +30,6 @@ from typing import cast
 
 from ddtrace.internal import core
 
-from . import event_hub
 from .events import EventType
 
 
@@ -49,18 +47,12 @@ class SubscriberBundle:
     """Subscribers exported by one lazily imported product module.
 
     Subscriber classes must disable auto_register so importing the module does not
-    activate listeners before explicit registration. Resolved classes are cached;
-    activation is valid until any core listener reset invalidates it.
+    activate listeners before explicit registration. Named listener registration
+    supplies idempotency; bundles deliberately do not cache registration state.
     """
 
     module: str
     subscribers: tuple[str, ...]
-    _resolved: Optional[tuple[RegistrableSubscriber, ...]] = field(default=None, init=False, compare=False, repr=False)
-    _registered_generation: int = field(default=-1, init=False, compare=False, repr=False)
-
-    def __reduce__(self) -> tuple[type["SubscriberBundle"], tuple[str, tuple[str, ...]]]:
-        # Activation belongs to this interpreter, not to a serialized declaration.
-        return type(self), (self.module, self.subscribers)
 
     def _resolve(self, module: ModuleType) -> tuple[RegistrableSubscriber, ...]:
         # Resolve the whole declaration before changing listeners, so a misspelled
@@ -68,34 +60,9 @@ class SubscriberBundle:
         return tuple(cast(RegistrableSubscriber, getattr(module, name)) for name in self.subscribers)
 
     def register(self) -> None:
-        """Ensure the bundle is active, importing its module only when requested."""
-        self.ensure_registered()
-
-    def ensure_registered(self) -> None:
-        """Activate once between listener resets, retrying after registration failures."""
-        with event_hub._registration_lock:
-            if self._registered_generation == event_hub._listener_generation:
-                return
-            resolved = self._resolved
-
-        # Imports may wait for another thread that is itself registering listeners.
-        # Never hold the registration lock while acquiring a module import lock.
-        module = import_module(self.module) if resolved is None else None
-
-        with event_hub._registration_lock:
-            if self._registered_generation == event_hub._listener_generation:
-                return
-            resolved = self._resolved
-            if resolved is None:
-                resolved = self._resolve(cast(ModuleType, module))
-                object.__setattr__(self, "_resolved", resolved)
-            generation = event_hub._listener_generation
-            for subscriber in resolved:
-                subscriber.register()
-            # A registration callback can reset listeners reentrantly. Do not cache
-            # success in that case, or if a callback raises before we get here.
-            if generation == event_hub._listener_generation:
-                object.__setattr__(self, "_registered_generation", generation)
+        """Register the bundle, importing its module only when requested."""
+        for subscriber in self._resolve(import_module(self.module)):
+            subscriber.register()
 
     def unregister(self) -> None:
         """Remove the bundle's listeners after the owner has drained or discarded active work.
@@ -103,15 +70,9 @@ class SubscriberBundle:
         Teardown never imports a previously unused product module. Products needing
         completion listeners for active requests must defer this operation.
         """
-        with event_hub._registration_lock:
-            object.__setattr__(self, "_registered_generation", -1)
-            resolved = self._resolved
-            if resolved is None:
-                module = sys.modules.get(self.module)
-                if module is None:
-                    return
-                resolved = self._resolve(module)
-            for subscriber in resolved:
+        module = sys.modules.get(self.module)
+        if module is not None:
+            for subscriber in self._resolve(module):
                 subscriber.unregister()
 
 

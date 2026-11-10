@@ -104,16 +104,9 @@ Existing subscribers retain automatic registration until their activation paths
 are migrated. Once all consumers register explicitly, automatic registration and
 the `auto_register` flag can be removed.
 
-`register()` delegates to `ensure_registered()`: the first activation resolves the
-classes and installs their listeners; later calls reuse the active bundle without
-resolution or listener lookup. Core `reset()` / `reset_listeners()` calls invalidate
-all bundles, including when removing a single callback. The next activation restores
-listeners using the cached classes. Bundle activation and removal share a fork-safe
-lock, so concurrent setup calls activate a shared bundle once. Imports happen outside
-that lock. Import and callback failures propagate and can be retried; registration
-is not a transaction across callback failures. A reset within a registration callback
-leaves activation uncached so the next setup retries. Subscriber implementations must
-use the core event hub for listener removal.
+Repeated registration uses named-listener deduplication and can restore listeners
+after a reset. Import and callback failures propagate to the caller; registration
+is not a transaction across callback failures.
 
 Products call bundle `register()` and `unregister()` explicitly from their own
 `start()` and `stop()` functions. `ProductManager` only invokes the existing product

@@ -11,7 +11,7 @@ def test_tween_setup_does_not_register_subscribers(enabled):
 
     handler = Mock()
     registry = Mock(settings={SETTINGS_TRACE_ENABLED: enabled})
-    with patch("ddtrace.internal.core.subscriber.SubscriberBundle.ensure_registered") as register:
+    with patch("ddtrace.internal.core.subscriber.SubscriberBundle.register") as register:
         tween = trace_tween_factory(handler, registry)
     register.assert_not_called()
     assert (tween is handler) == (not enabled)
