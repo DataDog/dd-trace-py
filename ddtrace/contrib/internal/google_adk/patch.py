@@ -330,7 +330,8 @@ def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
     try:
         result = wrapped(*args, **kwargs)
         return result
-    except Exception:
+    # BaseException so that interrupted or cancelled code execution is recorded as an error.
+    except BaseException:
         exc_info = sys.exc_info()
         raise
     finally:
