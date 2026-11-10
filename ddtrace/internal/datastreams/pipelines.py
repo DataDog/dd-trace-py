@@ -1,44 +1,22 @@
 """Automatic DSM pipelines: per-process topic side and in-process link recording.
 
-DSM2-531 "Automatic DSM pipelines from APM services, without DSM enabled".
-The pinned public recording API (see the issue's PLAN doc):
+* ``get_pipelines_reporter()``: the process reporter, or ``None`` when
+  ``DD_DATA_STREAMS_PIPELINES_ENABLED`` is false or APM tracing is off.
+* ``set_current_consume(queue_type, cluster, topic, group)``: records a consume
+  side and makes it the thread's current message until the next consume.
+* ``on_produce(queue_type, cluster, topic)``: records a produce side linked to
+  the current consume side, or a source link (``in_side = -1``) without one.
+* ``take_report(service, env, due=False)``: builds and resets the
+  ``DdPipelinesReportV1`` window; with ``due=True`` only once the window elapsed.
 
-* ``get_pipelines_reporter()`` returns the process-level reporter, or ``None``
-  when ``DD_DATA_STREAMS_PIPELINES_ENABLED`` is false or APM tracing is off.
-* ``PipelinesReporter.set_current_consume(queue_type, cluster, topic, group)``
-  records a consume side and makes it the current consumed-message context for
-  the thread, until replaced by the next consume on that thread. This is the
-  only consume entry point: the in-process rule is classic DSM's exactly —
-  replace on next consume, never cleared otherwise (there is no scope-exit
-  path).
-* ``PipelinesReporter.on_produce(queue_type, cluster, topic)`` records a produce
-  side and links it to the thread's current consume scope, or records a source
-  link (``in_side = -1``) when there is none. The cluster is the Kafka cluster
-  id (the ``kafka_cluster_id`` context item the patch resolves via
-  ``list_topics``), or ``""`` when unknown — never raw bootstrap servers,
-  which vary per client config; the backend matches clusterless sides on
-  ``(queue_type, topic)``.
-* ``PipelinesReporter.take_report(service, env, due=False)`` builds the
-  ``DdPipelinesReportV1`` dict for the current window and resets it; with
-  ``due=True`` only when the flush window elapsed, so at most one report leaves
-  per window.
+The cluster is the Kafka cluster id, or ``""`` when unknown; never bootstrap
+servers. No message ids, propagation or stats. Errors never raise into the app.
 
-No message ids, no context propagation, no stats: only which topics the service
-reads and writes, and which produced message was made in the context of a
-consumed one on the same thread. Errors must never raise into application code.
+The current message lives in ``current_message``, shared with classic DSM's
+pathway context, so both features follow one in-process rule.
 
-The thread-local "current consumed message" is NOT private to this module:
-it lives in ``ddtrace.internal.datastreams.current_message``, the same slot
-classic DSM uses for its pathway context, so the DSM-on and pipelines-on
-cases share one mechanism and cannot diverge.
-
-Flush lifecycle: with DSM enabled the report rides the DSM processor's periodic
-payload as its last key (see ``processor._due_pipelines_report``); with DSM
-disabled, a lazily-started background thread POSTs its own gzip(msgpack)
-envelope to the agent's /v0.1/pipeline_stats. The flush thread and the atexit
-flush hook are created on the first recorded side, so a process that never
-touches messaging starts no thread and registers no atexit hook. This module
-never imports a messaging client library.
+With DSM on, the report rides the DSM payload; otherwise a lazily started
+thread POSTs to /v0.1/pipeline_stats. No thread or atexit hook until the first side.
 """
 
 from __future__ import annotations
@@ -68,7 +46,7 @@ from . import transport
 
 log = get_logger(__name__)
 
-# Caps per report window (see PLAN): the report is the sampling.
+# Caps per report window: the report is the sampling.
 MAX_SIDES = 256
 MAX_LINKS = 1024
 MAX_REPORT_BYTES = 60 * 1024
