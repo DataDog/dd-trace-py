@@ -235,6 +235,21 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                 itr_skipping_level, git_data=git_data, dd_service=dd_service, dd_env=dd_env
             )
 
+    @pytest.mark.parametrize("requests_mode", [_AGENTLESS, _EVP_PROXY])
+    @pytest.mark.parametrize("branch", [None, "", "selected-branch"])
+    def test_settings_branch_for_detached_checkout(self, requests_mode, branch):
+        git_data = GitData("https://example.com/repo.git", branch, "a" * 40, "selected commit")
+        client = self._get_test_client(requests_mode=requests_mode, git_data=git_data)
+
+        with mock.patch.object(client, "_do_request", return_value=_get_setting_api_response()) as request:
+            client.fetch_settings(read_from_cache=False)
+
+        attributes = json.loads(request.call_args[0][2])["data"]["attributes"]
+        assert attributes["branch"] == (branch or "auto:git-detached-head")
+        assert attributes["sha"] == git_data.commit_sha
+        assert attributes["repository_url"] == git_data.repository_url
+        assert git_data.branch == branch
+
     def test_civisibility_api_client_settings_retry_on_errors(self):
         """Tests that the API call to the settings endpoint is retried in case of server errors."""
         client = self._get_test_client(
