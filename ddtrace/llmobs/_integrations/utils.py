@@ -1517,17 +1517,28 @@ def openai_set_meta_tags_from_decision(span: _LLMObsSpan, kwargs: dict[str, Any]
 
 
 def _openai_decision_body(value: Any, image_parts: list[ImagePart]) -> Any:
-    if _is_data_url(value):
-        image_part, marker = _capture_inline_image(value)
-        if image_part:
-            image_parts.append(image_part)
-            return IMAGE_DETECTED_MARKER
-        return marker or IMAGE_FALLBACK_MARKER
     if isinstance(value, dict):
-        return {str(k): _openai_decision_body(v, image_parts) for k, v in value.items() if not _is_openai_sentinel(v)}
+        is_image = value.get("type") == "input_image"
+        return {
+            str(k): _openai_decision_image_url(v, image_parts)
+            if is_image and k == "image_url"
+            else _openai_decision_body(v, image_parts)
+            for k, v in value.items()
+            if not _is_openai_sentinel(v)
+        }
     if isinstance(value, (list, tuple)):
         return [_openai_decision_body(v, image_parts) for v in value]
-    return load_data_value(value)
+    data = load_data_value(value)
+    return _openai_decision_body(data, image_parts) if isinstance(data, (dict, list)) else data
+
+
+def _openai_decision_image_url(url: Any, image_parts: list[ImagePart]) -> Any:
+    """Capture an inline image as an image part and return the marker that replaces it in the body."""
+    image_part, marker = _capture_inline_image(url)
+    if image_part:
+        image_parts.append(image_part)
+        return IMAGE_DETECTED_MARKER
+    return marker or _openai_decision_body(url, image_parts)
 
 
 # OpenAI hosted MCP tool fields that carry no credential; headers, authorization and the URL path,

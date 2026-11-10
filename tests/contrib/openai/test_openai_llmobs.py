@@ -112,6 +112,10 @@ DECISION_EXPECTED_OUTPUT = {
     ],
 }
 
+DECISION_IMAGE_URL = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
+)
 DECISION_EXPECTED_INPUT_JSON = json.dumps(DECISION_EXPECTED_INPUT, sort_keys=True)
 DECISION_EXPECTED_OUTPUT_JSON = json.dumps(DECISION_EXPECTED_OUTPUT, sort_keys=True)
 
@@ -2599,10 +2603,6 @@ MUL: "*"
     )
     def test_decision_request_fields_and_parts(self, openai, openai_llmobs, test_spans):
         """Known request fields in extra_body and every input part are recorded; other extra_body fields are not."""
-        image_url = (
-            "data:image/png;base64,"
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
-        )
         decision_input = [
             {"role": "developer", "content": "Route support tickets."},
             {
@@ -2610,7 +2610,7 @@ MUL: "*"
                 "content": [
                     {"type": "input_text", "text": DECISION_INPUT},
                     {"type": "input_json", "data": {"plan": "pro", "seats": 50}},
-                    {"type": "input_image", "image_url": image_url},
+                    {"type": "input_image", "image_url": DECISION_IMAGE_URL},
                     {"type": "input_image", "image_url": "https://example.com/receipt.png"},
                 ],
             },
@@ -2639,6 +2639,50 @@ MUL: "*"
         assert response == DECISION_EXPECTED_OUTPUT
         image_parts = get_llmobs_input_messages(spans[0])[0]["image_parts"]
         assert len(image_parts) == 1
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
+    )
+    def test_decision_images_only_from_image_parts(self, openai, openai_llmobs, test_spans):
+        """Only input_image URLs are read as images, including in SDK model objects; text starting with data: stays."""
+        pydantic = pytest.importorskip("pydantic")
+
+        class InputImage(pydantic.BaseModel):
+            type: str
+            image_url: str
+
+        questions = [{"type": "predicate", "name": "log_line", "instructions": "data: is this a log line?"}]
+        decision_input = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "data: customer reports a duplicate charge"},
+                    {"type": "input_text", "text": DECISION_IMAGE_URL},
+                    InputImage(type="input_image", image_url=DECISION_IMAGE_URL),
+                ],
+            }
+        ]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("decision.yaml"):
+            client = openai.OpenAI()
+            client.decisions.create(model="gpt-6-luna", input=decision_input, questions=questions)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        request, _ = _decision_io(spans[0])
+        assert request == {
+            "model": "gpt-6-luna",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": "data: customer reports a duplicate charge"},
+                        {"type": "input_text", "text": DECISION_IMAGE_URL},
+                        {"type": "input_image", "image_url": "([IMAGE DETECTED])"},
+                    ],
+                }
+            ],
+            "questions": questions,
+        }
+        assert len(get_llmobs_input_messages(spans[0])[0]["image_parts"]) == 1
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (3, 26), reason="Decisions API only available openai >= 3.26"
