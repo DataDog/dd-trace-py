@@ -336,8 +336,10 @@ class LangGraphIntegration(BaseLLMIntegration):
 def _get_model_info(model) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
     """Get the model name, provider, and settings from a langchain llm"""
     if isinstance(model, str):
-        # something like "openai:gpt-4"
-        model_provider_str, model_name_str = model.split(":", maxsplit=1)
+        # something like "openai:gpt-4", or just "gpt-4" when langchain infers the provider
+        model_provider_str, sep, model_name_str = model.partition(":")
+        if not sep:
+            return model, None, {}
         return model_name_str, model_provider_str, {}
 
     model_name = _get_attr(model, "model_name", None)
