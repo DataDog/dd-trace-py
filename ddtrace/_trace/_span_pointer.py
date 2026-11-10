@@ -12,10 +12,6 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-_SPAN_POINTER_SPAN_LINK_TRACE_ID = 0
-_SPAN_POINTER_SPAN_LINK_SPAN_ID = 0
-
-
 class _SpanPointerDirection(Enum):
     UPSTREAM = "u"
     DOWNSTREAM = "d"

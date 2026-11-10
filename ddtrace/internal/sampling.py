@@ -3,7 +3,6 @@ import math
 from typing import Any
 from typing import Optional
 from typing import Protocol
-from typing import TypedDict
 from typing import Union
 
 from ddtrace._trace.sampling_rule import SamplingRule
@@ -50,15 +49,9 @@ class SpanTraceSourceProtocol(Protocol):
 
     def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
 
-    def _override_sampling_decision(self, decision: Optional[NumericType]) -> None: ...
-
-
-class PriorityCategory:
-    DEFAULT = "default"
-    AUTO = "auto"
-    RULE_DEFAULT = "rule_default"
-    RULE_CUSTOMER = "rule_customer"
-    RULE_DYNAMIC = "rule_dynamic"
+    def _override_sampling_decision(
+        self, decision: Optional[NumericType], sampling_mechanism: int = SamplingMechanism.MANUAL
+    ) -> None: ...
 
 
 # sampling mechanism is an opaque integer; validate syntax/range only, not enum
@@ -80,13 +73,6 @@ def format_rate(rate: float) -> str:
     """
     rounded = math.floor(rate * 1e6 + 0.5) / 1e6
     return f"{rounded:.6f}".rstrip("0").rstrip(".")
-
-
-class SpanSamplingRules(TypedDict, total=False):
-    name: str
-    service: str
-    sample_rate: float
-    max_per_second: int
 
 
 def validate_sampling_decision(

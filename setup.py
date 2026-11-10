@@ -176,20 +176,20 @@ CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "2.1.0"
+LIBDDWAF_VERSION = "2.2.1"
 LIBDDWAF_CHECKSUMS = {
-    "libddwaf-2.1.0-aarch64-linux-musl.tar.gz": "ba4a51e3c96ab3421d0c83c4b711cf2ade47aa5c986653c4c66527feffd80bec",
-    "libddwaf-2.1.0-x86_64-linux-musl.tar.gz": "b1a4a57098ec86d8e07036ecd9a43f4fc3b3d4497924c9ceffd91089647ab2ac",
-    "libddwaf-2.1.0-darwin-arm64.tar.gz": "bba0f952f3bd119b10008d3a2e9f263bed892bccd5eee3e5ea576336b6978651",
-    "libddwaf-2.1.0-darwin-x86_64.tar.gz": "3ca7bd84c2d4220379a1f0ca4b42fc93677beeec99675c951f301e80885a1281",
-    "libddwaf-2.1.0-windows-arm64.tar.gz": "124247affb836e0f042514b29bf8258ee77967207c4504c3c6c1ffecc212264f",
-    "libddwaf-2.1.0-windows-win32.tar.gz": "e4cbd6f26656f4d98a5e4ccb276b15009a076486b1d36cead897d4c66cf3fb82",
-    "libddwaf-2.1.0-windows-x64.tar.gz": "b7cd03f964e5bf0de1a1191b26a33c04adaea714ef94952f7a8b44a70060b8d3",
+    "libddwaf-2.2.1-aarch64-linux-musl.tar.gz": "57bacbb8d8d7b8c6c71f33b79251f6ec7086c06bd9cce2b6b9fb533fb49a067e",
+    "libddwaf-2.2.1-x86_64-linux-musl.tar.gz": "d3de83f3f0f4e5d3b87af1902626325ae4e60b585e6783bd41812e8194121f79",
+    "libddwaf-2.2.1-darwin-arm64.tar.gz": "39cee2e4336bd0a527e985e480cb2951ead7a68ede492a99cfd5f14bd891a1dc",
+    "libddwaf-2.2.1-darwin-x86_64.tar.gz": "992bed71f2b4405f09eeb8d96b30d5e9a9b864857fb621ae0ed30d8c0c9201f4",
+    "libddwaf-2.2.1-windows-arm64.tar.gz": "ea50eca8a3370126b67030593d1f05bbe4fe0d9c3da26083a386b24682ed7ead",
+    "libddwaf-2.2.1-windows-win32.tar.gz": "b2042c3d5fd519eec20ff589827ca44c10632ad241025c6b7169ace7d02210de",
+    "libddwaf-2.2.1-windows-x64.tar.gz": "f7514387c2a3561a056bfd95c8ae40ff6633ee1f4b572adfc1748f298716fd18",
 }
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v46.1.0 requires rust 1.87.0.
-RUST_MINIMUM_VERSION = "1.87.0"
+# libdatadog v48.0.0 requires rust 1.91.1.
+RUST_MINIMUM_VERSION = "1.91.1"
 
 
 SCCACHE_START_MAX_ATTEMPTS = 3
@@ -1990,6 +1990,7 @@ setup(
         "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.appsec._iast._taint_tracking": ["_native/*.pyi"],
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (

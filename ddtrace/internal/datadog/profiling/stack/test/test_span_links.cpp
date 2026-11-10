@@ -9,6 +9,8 @@
 #include <thread>
 #include <unordered_set>
 
+using Datadog::SpanLinkKey;
+
 static void
 get()
 {
@@ -17,7 +19,7 @@ get()
         for (int j = 0; j < i; j++) {
             span_type.append("a");
         }
-        Datadog::SpanLinks::get_instance().link_span(42, 1, 2, span_type);
+        Datadog::SpanLinks::get_instance().link_span(SpanLinkKey::thread(42), 1, 2, span_type);
     }
 }
 
@@ -26,7 +28,7 @@ set()
 {
     std::string s;
     for (int i = 0; i < 100; i++) {
-        auto thing = Datadog::SpanLinks::get_instance().get_active_span_from_thread_id(42);
+        auto thing = Datadog::SpanLinks::get_instance().get_active_span(SpanLinkKey::thread(42));
         if (!thing) {
             continue;
         }
@@ -49,13 +51,13 @@ TEST(SpanLinks, UnlinkOnlyMatchingSpan)
     constexpr uint64_t thread_id = 43;
     constexpr uint64_t span_id = 100;
 
-    links.link_span(thread_id, span_id, 200, "web");
-    links.unlink_span(thread_id, span_id + 1);
+    links.link_span(SpanLinkKey::thread(thread_id), span_id, 200, "web");
+    links.unlink_span(SpanLinkKey::thread(thread_id), span_id + 1);
 
-    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), Datadog::Span(span_id, 200, "web"));
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(thread_id)), Datadog::Span(span_id, 200, "web"));
 
-    links.unlink_span(thread_id, span_id);
-    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+    links.unlink_span(SpanLinkKey::thread(thread_id), span_id);
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(thread_id)), std::nullopt);
 }
 
 TEST(SpanLinks, ClearFinished)
@@ -74,7 +76,7 @@ TEST(SpanLinks, ClearFinished)
 
     // Call link_span with the thread ids
     for (auto thread_id : thread_ids) {
-        Datadog::SpanLinks::get_instance().link_span(thread_id, thread_id, thread_id, "test");
+        Datadog::SpanLinks::get_instance().link_span(SpanLinkKey::thread(thread_id), thread_id, thread_id, "test");
     }
 
     std::unordered_set<uint64_t> finished_threads;
@@ -83,14 +85,14 @@ TEST(SpanLinks, ClearFinished)
     for (auto thread_id : thread_ids) {
         if (real_dis(gen) < 0.5) {
             finished_threads.insert(thread_id);
-            Datadog::SpanLinks::get_instance().unlink_span(thread_id);
+            Datadog::SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(thread_id));
         }
     }
 
     // Check that the unseen ids are removed
     for (auto thread_id : thread_ids) {
         std::optional<Datadog::Span> span_opt =
-          Datadog::SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+          Datadog::SpanLinks::get_instance().get_active_span(SpanLinkKey::thread(thread_id));
         if (finished_threads.find(thread_id) == finished_threads.end()) {
             EXPECT_EQ(span_opt, Datadog::Span(thread_id, thread_id, "test"));
 
@@ -105,21 +107,21 @@ TEST(SpanLinks, UnlinkFinishedSpanAcrossThreads)
     auto& links = Datadog::SpanLinks::get_instance();
     links.reset();
 
-    links.link_span(100, 1000, 1000, "web");
-    links.link_span(101, 1001, 1000, "web");
-    links.link_span(102, 1001, 1000, "web");
-    links.link_span(103, 2001, 2000, "worker");
+    links.link_span(SpanLinkKey::thread(100), 1000, 1000, "web");
+    links.link_span(SpanLinkKey::thread(101), 1001, 1000, "web");
+    links.link_span(SpanLinkKey::thread(102), 1001, 1000, "web");
+    links.link_span(SpanLinkKey::thread(103), 2001, 2000, "worker");
 
     links.unlink_finished_span(1000);
-    EXPECT_EQ(links.get_active_span_from_thread_id(100), std::nullopt);
-    EXPECT_EQ(links.get_active_span_from_thread_id(101), Datadog::Span(1001, 1000, "web"));
-    EXPECT_EQ(links.get_active_span_from_thread_id(102), Datadog::Span(1001, 1000, "web"));
-    EXPECT_EQ(links.get_active_span_from_thread_id(103), Datadog::Span(2001, 2000, "worker"));
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(100)), std::nullopt);
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(101)), Datadog::Span(1001, 1000, "web"));
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(102)), Datadog::Span(1001, 1000, "web"));
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(103)), Datadog::Span(2001, 2000, "worker"));
 
     links.unlink_finished_span(1001);
-    EXPECT_EQ(links.get_active_span_from_thread_id(101), std::nullopt);
-    EXPECT_EQ(links.get_active_span_from_thread_id(102), std::nullopt);
-    EXPECT_EQ(links.get_active_span_from_thread_id(103), Datadog::Span(2001, 2000, "worker"));
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(101)), std::nullopt);
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(102)), std::nullopt);
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(103)), Datadog::Span(2001, 2000, "worker"));
 }
 
 TEST(SpanLinks, RelinkUpdatesFinishedSpanIndex)
@@ -127,13 +129,34 @@ TEST(SpanLinks, RelinkUpdatesFinishedSpanIndex)
     auto& links = Datadog::SpanLinks::get_instance();
     links.reset();
 
-    links.link_span(201, 3001, 3000, "old");
-    links.link_span(201, 4001, 4000, "new");
+    links.link_span(SpanLinkKey::thread(201), 3001, 3000, "old");
+    links.link_span(SpanLinkKey::thread(201), 4001, 4000, "new");
 
     links.unlink_finished_span(3000);
-    EXPECT_EQ(links.get_active_span_from_thread_id(201), Datadog::Span(4001, 4000, "new"));
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(201)), Datadog::Span(4001, 4000, "new"));
     links.unlink_finished_span(4001);
-    EXPECT_EQ(links.get_active_span_from_thread_id(201), std::nullopt);
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(201)), std::nullopt);
+}
+
+TEST(SpanLinks, KeysWithEqualIdentifiersInDifferentDomainsAreSeparate)
+{
+    auto& links = Datadog::SpanLinks::get_instance();
+    constexpr uint64_t identifier = 401;
+    const SpanLinkKey thread = SpanLinkKey::thread(identifier);
+    const SpanLinkKey task{ Datadog::SpanLinkDomain::AsyncioTask, identifier };
+    links.reset();
+
+    links.link_span(thread, 4001, 4000, "web");
+    links.link_span(task, 4002, 4000, "web");
+    EXPECT_EQ(links.get_active_span(thread), Datadog::Span(4001, 4000, "web"));
+    EXPECT_EQ(links.get_active_span(task), Datadog::Span(4002, 4000, "web"));
+
+    links.unlink_span(thread);
+    EXPECT_EQ(links.get_active_span(thread), std::nullopt);
+    EXPECT_EQ(links.get_active_span(task), Datadog::Span(4002, 4000, "web"));
+
+    links.unlink_finished_span(4002);
+    EXPECT_EQ(links.get_active_span(task), std::nullopt);
 }
 
 TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
@@ -146,11 +169,11 @@ TEST(SpanLinks, FinishingWhileLinkingDefersCleanup)
     links.on_link_start(span_id);
     EXPECT_FALSE(links.on_span_finish(span_id));
 
-    links.link_span(thread_id, span_id, span_id, "web");
+    links.link_span(SpanLinkKey::thread(thread_id), span_id, span_id, "web");
     EXPECT_TRUE(links.on_link_end(span_id));
 
     links.unlink_finished_span(span_id);
-    EXPECT_EQ(links.get_active_span_from_thread_id(thread_id), std::nullopt);
+    EXPECT_EQ(links.get_active_span(SpanLinkKey::thread(thread_id)), std::nullopt);
 }
 
 int

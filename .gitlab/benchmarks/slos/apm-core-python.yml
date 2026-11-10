@@ -276,6 +276,9 @@ experiments:
           - name: startup-ddtrace_run_appsec
             thresholds:
               - execution_time < 10000 ms
+          - name: startup-ddtrace_run_llmobs
+            thresholds:
+              - execution_time < 10000 ms
           - name: startup-ddtrace_run_profiling
             thresholds:
               - execution_time < 10000 ms

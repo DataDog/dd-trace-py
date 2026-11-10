@@ -26,6 +26,11 @@ SKIPPABLE_ITR_CODE_COVERAGE_HEADER = {"X-Datadog-ITR-Code-Coverage": "false"}
 # Git metadata environment variables
 DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA = "DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"
 
+# CI Visibility git metadata upload / unshallow kill switches. These match the
+# dd-trace-js and dd-trace-go configuration names.
+DD_CIVISIBILITY_GIT_UPLOAD_ENABLED = "DD_CIVISIBILITY_GIT_UPLOAD_ENABLED"
+DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED = "DD_CIVISIBILITY_GIT_UNSHALLOW_ENABLED"
+
 # Bazel / offline mode environment variables
 DD_TEST_OPTIMIZATION_MANIFEST_FILE = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
 DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"
@@ -39,6 +44,15 @@ DD_TEST_OPTIMIZATION_DISCOVERY_FILE = "DD_TEST_OPTIMIZATION_DISCOVERY_FILE"
 # The only supported .testoptimization manifest version
 SUPPORTED_MANIFEST_VERSION = 1
 TEST_OPTIMIZATION_MANIFEST_FILENAME = "manifest.txt"
+
+# Root directory for Test Optimization state at the workspace root. Shared
+# with the manifest/HTTP cache layout produced by Bazel/ddtest tooling and
+# with the equivalent layout used by other CI Visibility tracers (e.g. the
+# Ruby TestOptimizationCache).
+TEST_OPTIMIZATION_DIR = ".testoptimization"
+# Subdirectory for tracer-generated git state, parallel to cache/http.
+TEST_OPTIMIZATION_GIT_DIR = "git"
+
 TEST_OPTIMIZATION_CACHE_DIR = "cache"
 TEST_OPTIMIZATION_HTTP_CACHE_DIR = TEST_OPTIMIZATION_CACHE_DIR + "/http"
 TEST_OPTIMIZATION_SETTINGS_FILE = "settings.json"

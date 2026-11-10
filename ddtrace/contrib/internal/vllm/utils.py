@@ -11,7 +11,6 @@ from ._constants import METRIC_LATENCY_INFERENCE
 from ._constants import METRIC_LATENCY_PREFILL
 from ._constants import METRIC_LATENCY_QUEUE
 from ._constants import METRIC_LATENCY_TTFT
-from ._constants import OPERATION_ID
 from .extractors import LatencyMetrics
 
 
@@ -23,30 +22,6 @@ _APM_LATENCY_METRIC_MAP = {
     "time_in_model_decode": METRIC_LATENCY_DECODE,
     "time_in_model_inference": METRIC_LATENCY_INFERENCE,
 }
-
-
-def create_span(
-    integration,
-    model_name: Optional[str],
-    trace_headers: Optional[dict[str, str]],
-    arrival_time: Optional[float] = None,
-):
-    """Create a vLLM span with parent context from trace headers."""
-    parent_ctx = None
-    if trace_headers:
-        parent_ctx = HTTPPropagator.extract(trace_headers)
-
-    span = integration.trace(
-        operation_id=OPERATION_ID,
-        submit_to_llmobs=True,
-        parent_context=parent_ctx,
-        model_name=model_name,
-    )
-
-    if arrival_time:
-        span.start_ns = int(arrival_time * 1e9)
-
-    return span
 
 
 def set_latency_metrics(span: Span, latency_metrics: Optional[LatencyMetrics]) -> None:
