@@ -9,6 +9,7 @@ from typing import Any
 import temporalio.activity
 import temporalio.client
 import temporalio.converter
+import temporalio.exceptions
 import temporalio.worker
 import temporalio.workflow
 
@@ -147,7 +148,12 @@ class DatadogTracingInterceptor(temporalio.client.Interceptor, temporalio.worker
                     )
 
             if exc:
-                span.set_exc_info(type(exc), exc, exc.__traceback__)
+                is_benign = (
+                    isinstance(exc, temporalio.exceptions.ApplicationError)
+                    and exc.category == temporalio.exceptions.ApplicationErrorCategory.BENIGN
+                )
+                if not is_benign:
+                    span.set_exc_info(type(exc), exc, exc.__traceback__)
 
             if result is not None and result.extra_tags:
                 for key, value in result.extra_tags.items():
