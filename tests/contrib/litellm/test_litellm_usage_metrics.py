@@ -1329,12 +1329,19 @@ def test_unpatch_restores_the_callback_setup_the_proxy_server_imported_after_pat
         original = callback_utils.initialize_callbacks_on_proxy
         patch()
         assert callback_utils.initialize_callbacks_on_proxy is not original
-        from litellm.proxy import proxy_server
-
-        assert proxy_server.initialize_callbacks_on_proxy is callback_utils.initialize_callbacks_on_proxy
+        try:
+            from litellm.proxy import proxy_server
+        except ImportError:
+            # Without the LiteLLM proxy extras, callback_utils imports but the proxy server does not.
+            proxy_server = None
+        imported_wrapped = proxy_server is None or (
+            proxy_server.initialize_callbacks_on_proxy is callback_utils.initialize_callbacks_on_proxy
+        )
         unpatch()
+        assert imported_wrapped
         assert callback_utils.initialize_callbacks_on_proxy is original
-        assert proxy_server.initialize_callbacks_on_proxy is original
+        if proxy_server is not None:
+            assert proxy_server.initialize_callbacks_on_proxy is original
 
 
 @pytest.mark.parametrize(
