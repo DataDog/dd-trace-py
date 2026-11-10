@@ -32,7 +32,7 @@ runtime = [
     "opentelemetry-api",
     "wrapt",
 ]
-build = ["cython", "cmake", "setuptools-rust", "patchelf"]
+build = ["cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2", "patchelf>=0.17.0.0; sys_platform == 'linux'"]
 
 # Native policy for the current monolithic distribution: the tracer itself
 # is native. Extracted pure-Python packages must declare "native-free".

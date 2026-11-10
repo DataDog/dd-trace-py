@@ -132,11 +132,21 @@ jobs:
           # No `|| true`: a failed enumeration (API, auth, rate limit) must
           # fail the job instead of silently skipping revalidation.
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" \
-            --jq '.[] | "\(.number) \(.head.ref) \(.head.sha)"' >> "$GITHUB_OUTPUT"
+            --jq '.[] | select(.base.ref == "${BASE_REF}") | "\(.number) \(.head.ref) \(.head.sha)"' >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      - name: Check whether a freeze is active on the base
+        id: freeze
+        run: |
+          if git rev-parse --verify --quiet "origin/${BASE_REF}:package-freeze.toml" >/dev/null 2>&1; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No package-freeze.toml on ${BASE_REF}; skipping revalidation"
+          fi
+
       - name: Revalidate each open PR head
-        if: steps.prs.outputs.prs != ''
+        if: steps.prs.outputs.prs != '' && steps.freeze.outputs.active == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           # The PR list (branch names are fork-controlled data) is passed
@@ -155,6 +165,14 @@ jobs:
               --base "$GITHUB_SHA" \
               --head "refs/remotes/pr/$number/head"; then
               echo "PR #$number: PASS"
+              # Clear any earlier failing revalidation status: a base
+              # advance (e.g. an approved rewrite) can make a previously
+              # failing PR pass, and the stale failure would block the merge.
+              gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$head_sha" \
+                -f state=success \
+                -f context="Package split freeze guard" \
+                -f description="passes revalidation against the advanced base" \
+                > /dev/null
             else
               echo "::warning::PR #$number fails the freeze guard against the new rules"
               # The PR's earlier green result was produced under the old,
