@@ -76,7 +76,7 @@ def get_tainted_ranges(pyobject: Any) -> tuple:
     return tuple()
 
 
-def is_pyobject_tainted(pyobject: Any) -> bool:
+def is_pyobject_tainted(pyobject: object) -> bool:
     context_id = _get_iast_context_id()
     if context_id is None:
         return False
@@ -85,7 +85,8 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
         return False
 
     try:
-        return is_in_taint_map(pyobject, context_id)
+        is_tainted: bool = is_in_taint_map(pyobject, context_id)
+        return is_tainted
     except ValueError as e:
         iast_propagation_error_log("Checking tainted object error", exc=e)
     return False
