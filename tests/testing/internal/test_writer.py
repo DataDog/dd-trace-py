@@ -1,6 +1,5 @@
 """Tests for ddtrace.testing.internal.writer module."""
 
-import http.client
 import threading
 import typing as t
 from unittest.mock import Mock
@@ -73,56 +72,49 @@ class _ConcreteWriter(BaseWriter):
 
 class TestBaseWriterStartup:
     @pytest.mark.parametrize("scheme", ["http", "https"])
-    def test_first_upload_uses_connection_initialized_before_http_client_patching(self, scheme: str) -> None:
-        initialized_connections: list[http.client.HTTPConnection] = []
+    def test_first_upload_goes_through_the_native_client_when_http_client_is_patched(self, scheme: str) -> None:
+        response = Mock(status_code=200)
+        response.header.side_effect = lambda name: {"content-length": "2"}.get(name.lower())
+        response.body.return_value = b"ok"
+        with patch("ddtrace.testing.internal.http.HTTPClient") as http_client:
+            http_client.return_value.post.return_value = response
+            connector = BackendConnector(f"{scheme}://api.example.com")
+            results: list[BackendResult] = []
 
-        class _RecordingConnector(BackendConnector):
-            def __init__(self, url: str) -> None:
-                super().__init__(url)
-                initialized_connections.append(self.conn)
+            class _SendingWriter(_ConcreteWriter):
+                def _send_events(self, events: list[Event]) -> bool:
+                    results.append(connector.request("POST", "/upload", data=b"payload", max_attempts=1))
+                    return super()._send_events(events)
 
-        connector = _RecordingConnector(f"{scheme}://api.example.com")
-        results: list[BackendResult] = []
-
-        class _SendingWriter(_ConcreteWriter):
-            def _send_events(self, events: list[Event]) -> bool:
-                results.append(connector.request("POST", "/upload", data=b"payload", max_attempts=1))
-                return super()._send_events(events)
-
-        writer = _SendingWriter(async_flush_events=1)
-        writer._connectors = [connector]
-        with patch("socket.create_connection", side_effect=AssertionError("startup must not open a socket")):
-            writer.start()
-        assert len(initialized_connections) == 2
-        writer_connection = initialized_connections[-1]
-        response = Mock(status=200, headers={"Content-Length": "2"})
-        response.read.return_value = b"ok"
-        try:
-            # Simulate a cassette replacing both connection classes during the first background upload.
-            with (
-                patch.object(writer_connection, "request") as request,
-                patch.object(writer_connection, "getresponse", return_value=response),
-                patch(
-                    "http.client.HTTPConnection", side_effect=AssertionError("patched HTTP constructor")
-                ) as http_constructor,
-                patch(
-                    "http.client.HTTPSConnection", side_effect=AssertionError("patched HTTPS constructor")
-                ) as https_constructor,
-            ):
-                writer.put_event(Event(n=1))
-                assert writer.sent_event.wait(timeout=5), "first upload did not complete"
-                assert len(results) == 1
-                assert results[0].error_type is None
-                assert results[0].response_body == b"ok"
-                upload_calls = [
-                    request_call for request_call in request.call_args_list if request_call.args[1] == "/upload"
-                ]
-                assert upload_calls == [call("POST", "/upload", body=b"payload", headers={})]
-                http_constructor.assert_not_called()
-                https_constructor.assert_not_called()
-        finally:
-            writer.signal_finish()
-            writer.wait_finish(timeout=5)
+            writer = _SendingWriter(async_flush_events=1)
+            writer._connectors = [connector]
+            with patch("socket.create_connection", side_effect=AssertionError("startup must not open a socket")):
+                writer.start()
+            # The connector is thread-local: the writer's thread builds its own client at startup.
+            assert http_client.call_count == 2
+            try:
+                # Simulate a cassette replacing both connection classes during the first background upload.
+                with (
+                    patch(
+                        "http.client.HTTPConnection", side_effect=AssertionError("patched HTTP constructor")
+                    ) as http_constructor,
+                    patch(
+                        "http.client.HTTPSConnection", side_effect=AssertionError("patched HTTPS constructor")
+                    ) as https_constructor,
+                ):
+                    writer.put_event(Event(n=1))
+                    assert writer.sent_event.wait(timeout=5), "first upload did not complete"
+                    assert len(results) == 1
+                    assert results[0].error_type is None
+                    assert results[0].response_body == b"ok"
+                    assert http_client.return_value.post.call_args_list == [
+                        call("/upload", headers=[], timeout_ms=int(connector.timeout_seconds * 1000), body=b"payload")
+                    ]
+                    http_constructor.assert_not_called()
+                    https_constructor.assert_not_called()
+            finally:
+                writer.signal_finish()
+                writer.wait_finish(timeout=5)
 
     def test_start_waits_for_all_connectors(self) -> None:
         initializing = threading.Event()

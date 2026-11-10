@@ -1597,18 +1597,6 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     return tool_definitions
 
 
-def openai_construct_completion_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, str]:
-    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
-    if not streamed_chunks:
-        return {"text": ""}
-    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if getattr(streamed_chunks[-1], "finish_reason", None):
-        completion["finish_reason"] = streamed_chunks[-1].finish_reason
-    if hasattr(streamed_chunks[0], "usage"):
-        completion["usage"] = streamed_chunks[0].usage
-    return completion
-
-
 class OaiSpanAdapter:
     """Adapter for Oai Agents SDK Span objects that the llmobs integration code will use.
     This is to consolidate the code where we access oai library types which provides a clear starting point for
