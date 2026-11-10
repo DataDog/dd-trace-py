@@ -10,7 +10,6 @@ from ddtrace import config
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.bedrock_inference_profiles import record_inference_profile
 from ddtrace.contrib.internal.langchain.utils import shared_stream
-from ddtrace.contrib.internal.llm_utils import safe_json
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -20,6 +19,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import safe_json
 
 
 log = get_logger(__name__)

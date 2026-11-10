@@ -15,7 +15,6 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
-from ddtrace.contrib.internal.llm_utils import safe_json as safe_json
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
