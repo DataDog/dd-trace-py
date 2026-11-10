@@ -305,7 +305,7 @@ class TelemetryWorker:
         :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
             schedules heartbeats/flushes but emits neither ``app-started`` nor
             ``app-closing`` — only the root process emits them. Defaults to ``True``.
-            This is the initial value; ``set_app_lifecycle()`` changes it later.
+            A worker kept across a fork stops emitting both in the child on its own.
         :param endpoints_message_limit: most endpoints serialized into one
             ``app-endpoints`` payload; the rest stay queued for the following payloads,
             which are flagged ``is_first: false``. Defaults to unlimited.
@@ -318,8 +318,8 @@ class TelemetryWorker:
     def stop(self, send_app_closing: bool) -> None:
         """Flush and shut the worker down, waiting briefly for it to drain.
 
-        Emits app-closing (unless disabled with ``set_app_lifecycle()``) and
-        flushes remaining batches during teardown.
+        Emits app-closing (origin process only) and flushes remaining batches
+        during teardown.
 
         WARNING: send_app_closing is currently ineffective and ignored. Since
         the migration to libdatadog's telemetry worker, stop() always emits
@@ -340,14 +340,6 @@ class TelemetryWorker:
         Does not restart the runtime, so a forked child can call it before the
         worker restarts. A missing or empty parent/root session id drops the
         matching header.
-        """
-        ...
-    def set_app_lifecycle(self, *, app_started: bool, app_closing: bool) -> None:
-        """Enable or disable the app-started and app-closing events.
-
-        Applies to the next start and stop the worker processes and survives a
-        fork reset. Does not restart the runtime, so a forked child can call it
-        before the worker restarts.
         """
         ...
     def stage_fork_replay(

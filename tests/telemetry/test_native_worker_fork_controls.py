@@ -54,7 +54,6 @@ worker = TelemetryWorker(
 
 def child_controls():
     worker.set_identity("child-rid", "child-rid", "parent-rid", "parent-rid")
-    worker.set_app_lifecycle(app_started=False, app_closing=False)
     worker.stage_fork_replay(
         [("fork.replayed", "1", ConfigurationOrigin.env_var, None, 1)],
         [("flask", "3.0", True, None, None, None)],

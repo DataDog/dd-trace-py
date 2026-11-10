@@ -280,8 +280,8 @@ impl TelemetryWorkerPy {
         config.session_id = Some(session_id);
         config.parent_session_id = parent_session_id;
         config.root_session_id = root_session_id;
-        // Initial value only: forked children pass false so they heartbeat without
-        // re-emitting app-started/closing. `set_app_lifecycle` changes it on a built worker.
+        // Forked children pass false so they heartbeat without re-emitting app-started/closing.
+        // A worker kept across fork turns it off on its own when reset in the child.
         config.emit_app_lifecycle = emit_app_lifecycle;
         config.endpoints_message_limit = endpoints_message_limit;
 
@@ -358,16 +358,6 @@ impl TelemetryWorkerPy {
         );
     }
 
-    /// Enable or disable the app-started and app-closing events on this worker.
-    ///
-    /// Applies to the next start and stop the worker processes and survives a fork reset. Does
-    /// not restart the runtime, so a forked child can call it before the worker restarts.
-    #[pyo3(signature = (*, app_started, app_closing))]
-    fn set_app_lifecycle(&self, app_started: bool, app_closing: bool) {
-        self.handle.set_app_started_enabled(app_started);
-        self.handle.set_app_closing_enabled(app_closing);
-    }
-
     /// Stage telemetry a forked child sends again under its own identity.
     ///
     /// The worker reset clears inherited configurations, integrations, products and
@@ -434,12 +424,12 @@ impl TelemetryWorkerPy {
         *self.staged.lock().unwrap_or_else(|e| e.into_inner()) = Some(actions);
     }
 
-    /// Flush + tear the worker down, emitting app-closing unless disabled with
-    /// `set_app_lifecycle`.
+    /// Flush + tear the worker down, emitting app-closing in the origin process (a worker
+    /// reset in a forked child no longer emits it).
     ///
     /// WARNING: `send_app_closing` is currently ineffective and ignored: since the
     /// migration to libdatadog's telemetry worker, teardown always drains the worker
-    /// and emits app-closing when enabled on the worker. If stopping without an
+    /// and emits app-closing in the origin process. If stopping without an
     /// app-closing event is needed again, the behavior must be fixed in libdatadog
     /// (TODO).
     fn stop(&self, py: Python<'_>, send_app_closing: bool) -> PyResult<()> {
