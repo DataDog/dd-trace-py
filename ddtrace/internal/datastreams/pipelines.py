@@ -73,7 +73,7 @@ MAX_SIDES = 256
 MAX_LINKS = 1024
 MAX_REPORT_BYTES = 60 * 1024
 DEFAULT_WINDOW_SECONDS = 300.0
-# Top-level payload key carrying the report bytes (golden value, see CONTRACT).
+# Top-level payload key carrying the report bytes (golden value).
 REPORT_PAYLOAD_KEY = "DdPipelinesReportV1"
 PIPELINES_STATS_ENDPOINT = "/v0.1/pipeline_stats"
 

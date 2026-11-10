@@ -1,10 +1,10 @@
 """Automatic DSM pipelines recording for aiokafka (DSM2-531, T-5).
 
 The handlers in ``ddtrace.internal.datastreams.aiokafka`` record topic sides
-and in-process links through the pinned ``PipelinesReporter`` API
-(CONTRACT.md §1). These tests drive the handlers directly and via
-``core.dispatch`` with fake objects mirroring the shapes the aiokafka contrib
-patch emits, then inspect ``reporter.take_report("svc", "env")``.
+and in-process links through the pinned ``PipelinesReporter`` API. These
+tests drive the handlers directly and via ``core.dispatch`` with fake objects
+mirroring the shapes the aiokafka contrib patch emits, then inspect
+``reporter.take_report("svc", "env")``.
 """
 
 import asyncio
