@@ -3,6 +3,7 @@
 from ddtrace.contrib.internal.temporal.interceptor import DatadogTracingInterceptor
 from ddtrace.contrib.internal.temporal.interceptor import FinishContext
 from ddtrace.contrib.internal.temporal.interceptor import FinishResult
+from ddtrace.contrib.internal.temporal.workflow_interceptor import WorkflowTracingConfig
 from ddtrace.contrib.internal.temporal.workflow_interceptor import disconnect_trace_span_from_workflow_context
 from ddtrace.contrib.internal.temporal.workflow_interceptor import span_from_workflow_context
 
@@ -11,6 +12,7 @@ __all__ = [
     "DatadogTracingInterceptor",
     "FinishContext",
     "FinishResult",
+    "WorkflowTracingConfig",
     "disconnect_trace_span_from_workflow_context",
     "span_from_workflow_context",
 ]
