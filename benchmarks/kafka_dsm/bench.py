@@ -4,17 +4,21 @@ The script has no tracer-specific code: run it with plain `python` for the basel
 `ddtrace-run python` for the tracer scenarios (see run.sh). DSM is toggled only through
 DD_DATA_STREAMS_ENABLED.
 
-Each iteration creates a fresh single-partition topic, then times produce (1000 messages with
-5 headers + flush) and consume (1000 messages, sync commit every COMMIT_EVERY messages and after
-the last one). Topic creation, client construction, group join and consumer.close() are untimed.
+Each iteration creates a fresh single-partition topic and consumer group, then times produce
+(1000 unkeyed 1024-byte messages with 5 headers + flush) and consume (1000 messages, sync commit
+every COMMIT_EVERY messages and after the last one). Topic creation, client construction, group
+join and consumer.close() are untimed. Process RSS is sampled after each timed iteration.
 With PROFILE=1 cProfile runs only during the timed phases of the timed (non-warmup) iterations.
 """
 
 import cProfile
 import json
+import math
 import os
 import pstats
-import resource
+import re
+import statistics
+import subprocess
 import sys
 import time
 import uuid
@@ -25,13 +29,23 @@ from confluent_kafka.admin import AdminClient
 from confluent_kafka.admin import NewTopic
 
 
-COMMIT_EVERY = int(os.environ.get("COMMIT_EVERY", "100"))
+def positive_int_env(name, default):
+    value = os.environ.get(name, default)
+    if not re.fullmatch(r"[0-9]+", value) or int(value) < 1:
+        print(f"{name} must be an integer >= 1, got {value!r}", file=sys.stderr)
+        sys.exit(2)
+    return int(value)
+
+
+COMMIT_EVERY = positive_int_env("COMMIT_EVERY", "100")
 NUM_THREADS = int(os.environ.get("NUM_THREADS", "1"))
 WARMUP = int(os.environ.get("WARMUP", "5"))
-COUNT = int(os.environ.get("COUNT", "25"))
+COUNT = positive_int_env("COUNT", "25")
 BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 TOPIC_BASE = os.environ.get("KAFKA_TOPIC", "benchmark-topic-python-default")
 OUTPUT = os.environ.get("TIMEIT_OUTPUT", "results.json")
+# Per-iteration data goes next to OUTPUT so OUTPUT keeps the canonical schema.
+RUNS_OUTPUT = (OUTPUT[: -len(".json")] if OUTPUT.endswith(".json") else OUTPUT) + ".runs.json"
 PROFILE = os.environ.get("PROFILE", "0") == "1"
 # PROFILE=1 writes <PROFILE_OUTPUT>.prof and <PROFILE_OUTPUT>.top.txt
 PROFILE_OUTPUT = os.environ.get("PROFILE_OUTPUT", "profile")
@@ -45,10 +59,17 @@ RUN_ID = uuid.uuid4().hex[:8]
 CLIENT_CONFIG = {"bootstrap.servers": BOOTSTRAP_SERVERS, "broker.address.family": "v4"}
 
 
-def max_rss_mb():
-    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    # ru_maxrss is bytes on macOS and kilobytes on Linux.
-    return rss / (1024 * 1024 if sys.platform == "darwin" else 1024)
+def rss_bytes():
+    """Current (not peak) resident set size of this process."""
+    try:
+        with open("/proc/self/status") as status:
+            for line in status:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) * 1024
+    except FileNotFoundError:
+        pass
+    # No /proc (macOS): ps reports RSS in KiB.
+    return int(subprocess.check_output(["ps", "-o", "rss=", "-p", str(os.getpid())])) * 1024
 
 
 def run_iteration(index, profiler):
@@ -73,8 +94,8 @@ def run_iteration(index, profiler):
     while not consumer.assignment():
         consumer.poll(0.1)
     # Must be a dict: ddtrace's DSM hook skips list/tuple headers.
-    headers = {f"h{k}": f"v{k}".encode() for k in range(5)}
-    payload = b"x" * 100
+    headers = {f"key{k}": f"value{k}".encode() for k in range(5)}
+    payload = b"x" * 1024
 
     if profiler is not None:
         profiler.enable()
@@ -119,14 +140,30 @@ def main():
     runs = []
     for i in range(COUNT):
         produce_ms, consume_ms = run_iteration(WARMUP + i, profiler)
-        runs.append({"produce_ms": produce_ms, "consume_ms": consume_ms})
-        print(f"iter {i}: produce={produce_ms:.1f}ms consume={consume_ms:.1f}ms", flush=True)
+        rss = rss_bytes()
+        runs.append({"produce_ms": produce_ms, "consume_ms": consume_ms, "rss_bytes": rss})
+        print(f"iter {i}: produce={produce_ms:.1f}ms consume={consume_ms:.1f}ms rss={rss}", flush=True)
 
+    durations = [r["produce_ms"] + r["consume_ms"] for r in runs]
+    std_err = statistics.stdev(durations) / math.sqrt(len(durations)) if len(durations) > 1 else 0.0
+    median_ms = statistics.median(durations)
+    result = {
+        "median": median_ms,
+        "metrics": {
+            "process.internal_duration_ms.median": median_ms,
+            "process.internal_duration_ms.std_err": std_err,
+            "process.rss_bytes.median": statistics.median(r["rss_bytes"] for r in runs),
+            "phase.produce_ms.median": statistics.median(r["produce_ms"] for r in runs),
+            "phase.consume_ms.median": statistics.median(r["consume_ms"] for r in runs),
+            "config.commit_every": COMMIT_EVERY,
+        },
+    }
     with open(OUTPUT, "w") as out:
+        json.dump([result], out, indent=1)
+    with open(RUNS_OUTPUT, "w") as out:
         json.dump(
             {
                 "runs": runs,
-                "max_rss_mb": max_rss_mb(),
                 "commit_every": COMMIT_EVERY,
                 "profile": PROFILE,
                 "env": {k: v for k, v in os.environ.items() if k.startswith("DD_")},

@@ -3,10 +3,12 @@
 Kafka produce/consume workload used to measure how much Data Streams Monitoring (DSM) adds on top
 of APM. `bench.py` has no tracer-specific code; `run.sh` selects the scenario.
 
-Each iteration: create a fresh single-partition topic; (untimed) build a `confluent_kafka`
-Producer/Consumer and join the group; (timed) produce 1000 messages with 5 headers + `flush()`;
-(timed) consume them with a synchronous `commit(msg)` every `COMMIT_EVERY` messages and after the
-last one; (untimed) `consumer.close()`. Headers are a dict (ddtrace's DSM hook skips list/tuple).
+Each iteration: create a fresh single-partition topic and consumer group; (untimed) build a
+`confluent_kafka` Producer/Consumer, fetch metadata and join the group; (timed) produce 1000
+unkeyed messages (`b"x" * 1024`, headers `key0..key4` -> `value0..value4`) + `flush()`; (timed)
+consume them with a synchronous `commit(msg)` every `COMMIT_EVERY` messages and after the last
+one; (untimed) `consumer.close()`, then sample process RSS. Headers are a dict (ddtrace's DSM hook
+skips list/tuple). Duration per iteration = produce + consume.
 
 ## Run
 
@@ -16,7 +18,7 @@ last one; (untimed) `consumer.close()`. Headers are a dict (ddtrace's DSM hook s
 
 - `baseline`: plain `python`, tracer not loaded.
 - `apm-only`: `ddtrace-run`, `DD_DATA_STREAMS_ENABLED=false`.
-- `apm+dsm`: `ddtrace-run`, `DD_DATA_STREAMS_ENABLED=true`.
+- `apm+dsm`: `ddtrace-run`, `DD_DATA_STREAMS_ENABLED=true`. File/topic slug: `apm-plus-dsm`.
 
 The ddtrace used is always the editable install of the checkout containing this folder
 (`[tool.uv.sources]` in `pyproject.toml`), so the script works from any worktree. The first run
@@ -31,15 +33,30 @@ port adds connection-error overhead to the tracer scenarios.
 
 | Variable | Default | |
 |---|---|---|
-| `COMMIT_EVERY` | 100 | sync commit every N messages |
+| `COMMIT_EVERY` | 100 | sync commit every N messages; integer >= 1 |
 | `NUM_THREADS` | 1 | only 1 is implemented |
-| `WARMUP` / `COUNT` | 5 / 25 | discarded / timed iterations |
+| `WARMUP` / `COUNT` | 5 / 25 | discarded / timed iterations (`COUNT` >= 1) |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | |
-| `KAFKA_TOPIC` | `benchmark-topic-python-<scenario>-<slug>` (`+` -> `plus`) | base name; run id and iteration are appended |
-| `TIMEIT_OUTPUT` | `out/python-<slug>.<scenario>.json` | result JSON (`runs[]` with `produce_ms`/`consume_ms`, `max_rss_mb`) |
+| `KAFKA_TOPIC` | `benchmark-topic-python-<scenario-slug>-<slug>` | base name; run id and iteration are appended |
+| `OUT_DIR` | `out` | default directory for the outputs below |
+| `TIMEIT_OUTPUT` | `$OUT_DIR/python-<slug>.<scenario-slug>.json` | result JSON (see below) |
 | `PROFILE` | 0 | 1: cProfile only the timed produce+consume phases of the timed iterations |
-| `PROFILE_OUTPUT` | `out/python-<slug>.<scenario>` | writes `<PROFILE_OUTPUT>.prof` and `.top.txt` |
+| `PROFILE_OUTPUT` | `$OUT_DIR/python-<slug>.<scenario-slug>` | writes `<PROFILE_OUTPUT>.prof` and `.top.txt` |
 | `PROFILE_TOP_N` | 40 | rows in the top lists |
 
 Measure timings with `PROFILE=0`; profiling inflates them. cProfile sees only the main thread, so
 ddtrace background threads (DSM flush, trace writer) are not in the profile.
+
+## Output
+
+`TIMEIT_OUTPUT` holds one result per scenario, over the timed iterations:
+
+```
+[{"median": <duration ms>, "metrics": {
+  "process.internal_duration_ms.median": <ms>, "process.internal_duration_ms.std_err": <ms>,
+  "process.rss_bytes.median": <bytes>, "phase.produce_ms.median": <ms>,
+  "phase.consume_ms.median": <ms>, "config.commit_every": <int>}}]
+```
+
+Per-iteration `produce_ms` / `consume_ms` / `rss_bytes` go to the sibling `<name>.runs.json`.
+RSS is the current RSS (`/proc/self/status` `VmRSS`; `ps` where `/proc` is missing, e.g. macOS).

@@ -8,7 +8,12 @@ cd "$(dirname "$0")"
 
 SCENARIO=${1:?usage: run.sh <baseline|apm-only|apm+dsm> [slug]}
 SLUG=${2:-base}
-NAME=${SCENARIO//+/plus}
+case $SCENARIO in
+  baseline|apm-only|apm+dsm) ;;
+  *) echo "unknown scenario: $SCENARIO" >&2; exit 2 ;;
+esac
+# File/topic-safe scenario slug: apm+dsm -> apm-plus-dsm.
+NAME=${SCENARIO//+/-plus-}
 OUT_DIR=${OUT_DIR:-$PWD/out}
 mkdir -p "$OUT_DIR"
 
@@ -28,5 +33,4 @@ case $SCENARIO in
   baseline) unset DD_DATA_STREAMS_ENABLED; exec uv run --no-sync python bench.py ;;
   apm-only) DD_DATA_STREAMS_ENABLED=false exec uv run --no-sync ddtrace-run python bench.py ;;
   apm+dsm)  DD_DATA_STREAMS_ENABLED=true exec uv run --no-sync ddtrace-run python bench.py ;;
-  *) echo "unknown scenario: $SCENARIO" >&2; exit 2 ;;
 esac
