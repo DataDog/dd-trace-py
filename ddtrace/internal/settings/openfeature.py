@@ -2,12 +2,18 @@
 OpenFeature configuration settings.
 """
 
+from typing import Any
 from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _core
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource
+from ddtrace.internal.settings.env import _get_env_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 log = get_logger(__name__)
@@ -18,6 +24,8 @@ DISABLED = "disabled"
 
 _SOURCE_ENV = "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE"
 _LEGACY_ENV = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
+_EXPOSURES_SWITCH = "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED"
+_DEPRECATED_EXPOSURES_SWITCH = "DD_FFE_INTAKE_ENABLED"
 
 
 # numeric settings here parse leniently on purpose. This class is instantiated at
@@ -77,10 +85,10 @@ class OpenFeatureConfig(DDConfig):
         default=True,
     )
 
-    # Feature flag exposure intake configuration
-    ffe_intake_enabled = DDConfig.var(
+    # Sends exposure events to Datadog. DD_FFE_INTAKE_ENABLED is a deprecated alias.
+    exposures_datadog_logging_enabled = DDConfig.var(
         bool,
-        "DD_FFE_INTAKE_ENABLED",
+        _EXPOSURES_SWITCH,
         default=True,
     )
 
@@ -149,11 +157,42 @@ class OpenFeatureConfig(DDConfig):
         parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS", 5),
     )
 
+    def __init__(
+        self,
+        source: Optional[dict[str, str]] = None,
+        parent: Optional[Any] = None,
+        dynamic: Optional[dict[str, str]] = None,
+    ) -> None:
+        super().__init__(source=source, parent=parent, dynamic=dynamic)
+        self._apply_deprecated_exposures_switch(source or {})
+
+    def _apply_deprecated_exposures_switch(self, code_source: dict[str, str]) -> None:
+        # DDConfig resolves registered aliases for environment variables only, so stable
+        # configuration that still sets DD_FFE_INTAKE_ENABLED would be ignored. The new name
+        # wins in any source; otherwise the old name is read with the usual source precedence.
+        sources = (
+            (ValueSource.FLEET_STABLE_CONFIG, self.fleet_source.get),
+            (ValueSource.ENV_VAR, _get_env_value),
+            (ValueSource.LOCAL_STABLE_CONFIG, self.local_source.get),
+            (ValueSource.CODE, code_source.get),
+        )
+        for name in (_EXPOSURES_SWITCH, _DEPRECATED_EXPOSURES_SWITCH):
+            for value_source, lookup in sources:
+                raw = lookup(name)
+                if raw is not None:
+                    enabled = str(raw).lower() in self.__truthy__
+                    self.exposures_datadog_logging_enabled = enabled
+                    self.parsed.exposures_datadog_logging_enabled = enabled
+                    self._value_source[_EXPOSURES_SWITCH] = value_source
+                    if value_source == ValueSource.FLEET_STABLE_CONFIG:
+                        self._config_ids[_EXPOSURES_SWITCH] = _core.FLEET_CONFIG_IDS.get(name)
+                    return
+
     _openfeature_config_keys = [
         "experimental_flagging_provider_enabled",
         "experimental_flagging_provider_span_enrichment_enabled",
         "flagging_evaluation_counts_enabled",
-        "ffe_intake_enabled",
+        "exposures_datadog_logging_enabled",
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
         "feature_flags_enabled",
@@ -202,3 +241,12 @@ def resolve_configuration_source(ffe_config: OpenFeatureConfig) -> str:
 
 # Global config instance
 config = OpenFeatureConfig()
+
+if any(_DEPRECATED_EXPOSURES_SWITCH in source for source in (config.fleet_source, env, config.local_source)):
+    deprecate(
+        "DD_FFE_INTAKE_ENABLED is deprecated",
+        message="Use DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED instead. When both are set, "
+        "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED takes precedence.",
+        removal_version="5.0.0",
+        category=DDTraceDeprecationWarning,
+    )
