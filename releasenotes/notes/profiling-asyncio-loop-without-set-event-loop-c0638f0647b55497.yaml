@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the stack profiler did not show asyncio tasks for event loops that run without
+    being set as the current event loop, for example with ``asyncio.Runner(loop_factory=...)`` or a plain
+    ``loop.run_until_complete()``.

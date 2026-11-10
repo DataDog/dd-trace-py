@@ -17,6 +17,7 @@ import pytest
 import ddtrace
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.internal.datadog.profiling import stack as profiling_stack
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 
@@ -377,3 +378,133 @@ def test_otel_start_as_current_span_decorator_generator(oteltracer):
 
     values = list(generator_function())
     assert values == [1, 2, 3]
+
+
+@pytest.mark.skipif(not profiling_stack.is_available, reason="stack profiler not available")
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_invalid_span_context_gives_no_profiler_span_label():
+    import threading
+
+    import opentelemetry
+    from opentelemetry.trace import INVALID_SPAN_CONTEXT
+    from opentelemetry.trace import NonRecordingSpan
+
+    import ddtrace
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling.collector.stack import StackCollector
+
+    def thread_entry():
+        found = _stack._span_link_entry(_stack.SPAN_LINK_DOMAIN_THREAD, threading.get_ident())
+        return None if found is None else found[0]
+
+    # The sampler hands its samples to the exporter, which must be started first.
+    ddup.config(env="test", service="test_invalid_span_context", version="1", output_filename="/tmp/test_otel_profile")
+    ddup.start()
+    collector = StackCollector(tracer=ddtrace.tracer)
+    collector.start()
+    try:
+        oteltracer = opentelemetry.trace.get_tracer(__name__)
+        with oteltracer.start_as_current_span("otel-span") as otel_span:
+            assert thread_entry()[0] == otel_span.get_span_context().span_id
+            # A new NonRecordingSpan, unlike the INVALID_SPAN singleton, is activated as a Context with span id 0.
+            opentelemetry.context.attach(
+                opentelemetry.trace.set_span_in_context(NonRecordingSpan(INVALID_SPAN_CONTEXT))
+            )
+            assert thread_entry() is None
+    finally:
+        collector.stop()
+
+
+@pytest.mark.skipif(not profiling_stack.is_available, reason="stack profiler not available")
+@pytest.mark.skipif((3, 11, 9) <= sys.version_info < (3, 12, 5), reason="gevent is not compatible with this Python")
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_otel_span_in_a_greenlet_is_its_profiler_greenlet_span():
+    import gevent
+    import gevent.thread
+    import opentelemetry
+
+    import ddtrace
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling.collector.stack import StackCollector
+
+    def greenlet_entry():
+        # The profiler keys a greenlet by gevent.thread.get_ident(greenlet).
+        found = _stack._span_link_entry(_stack.SPAN_LINK_DOMAIN_GREENLET, gevent.thread.get_ident())
+        return None if found is None else found[0]
+
+    # The sampler hands its samples to the exporter, which must be started first.
+    ddup.config(env="test", service="test_otel_greenlet_span", version="1", output_filename="/tmp/test_otel_profile")
+    ddup.start()
+    collector = StackCollector(tracer=ddtrace.tracer)
+    collector.start()
+    try:
+        oteltracer = opentelemetry.trace.get_tracer(__name__)
+
+        def in_otel_span():
+            with oteltracer.start_as_current_span("otel-span") as otel_span:
+                return otel_span.get_span_context().span_id, greenlet_entry()
+
+        def without_span():
+            return greenlet_entry()
+
+        span_id, entry = gevent.spawn(in_otel_span).get(timeout=5)
+        assert entry[0] == span_id
+        assert gevent.spawn(without_span).get(timeout=5) is None
+    finally:
+        collector.stop()
+
+
+@pytest.mark.skipif(not profiling_stack.is_available, reason="stack profiler not available")
+@pytest.mark.skipif((3, 11, 9) <= sys.version_info < (3, 12, 5), reason="gevent is not compatible with this Python")
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_greenlet_spawned_in_an_otel_span_gets_that_span_as_its_profiler_greenlet_span():
+    import gevent
+    import gevent.event
+    import gevent.thread
+    import opentelemetry
+
+    import ddtrace
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling.collector.stack import StackCollector
+
+    def greenlet_entry():
+        # The profiler keys a greenlet by gevent.thread.get_ident(greenlet).
+        found = _stack._span_link_entry(_stack.SPAN_LINK_DOMAIN_GREENLET, gevent.thread.get_ident())
+        return None if found is None else found[0]
+
+    # The sampler hands its samples to the exporter, which must be started first.
+    ddup.config(env="test", service="test_otel_greenlet_span", version="1", output_filename="/tmp/test_otel_profile")
+    ddup.start()
+    collector = StackCollector(tracer=ddtrace.tracer)
+    collector.start()
+    try:
+        oteltracer = opentelemetry.trace.get_tracer(__name__)
+        child_running = gevent.event.Event()
+        other_span_active = gevent.event.Event()
+
+        def child():
+            # The gevent integration activated the span this greenlet was spawned in before this runs. The child
+            # activates nothing itself.
+            child_running.set()
+            other_span_active.wait(5)
+            return greenlet_entry()
+
+        def spawner():
+            with oteltracer.start_as_current_span("parent") as parent:
+                spawned = gevent.spawn(child)
+                child_running.wait(5)
+                # The last span activated on the thread before the child reads its key.
+                with oteltracer.start_as_current_span("other") as other:
+                    other_span_active.set()
+                    entry = spawned.get(timeout=5)
+                    return parent.get_span_context().span_id, other.get_span_context().span_id, entry
+
+        parent_span_id, other_span_id, entry = gevent.spawn(spawner).get(timeout=5)
+        assert parent_span_id != other_span_id
+        assert entry is not None
+        assert entry[0] == parent_span_id
+    finally:
+        collector.stop()

@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where CPU and wall time samples of concurrent asyncio tasks on the same thread were
+    attributed to the span and endpoint of whichever task last activated a span on that thread. Each task's samples
+    now carry its own span and endpoint: the span the task activated, or the span it inherited from the code that
+    created it. An untraced task now gets no span instead of another task's span. Tasks whose inherited span the
+    profiler cannot determine also show no span until they activate one. This includes tasks created directly with
+    ``asyncio.Task(...)``, tasks created by a custom task factory on Python 3.11 and earlier, tasks on event loops
+    that are neither ``asyncio.BaseEventLoop`` subclasses nor uvloop loops, tasks running under a custom tracer
+    context provider that overrides ``active()``, and tasks that already existed when profiling started or that were
+    created while it was stopped.

@@ -59,17 +59,25 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     sample->push_walltime(thread_state.wall_time_ns, 1);
 
-    const std::optional<Span> active_span = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
-    if (active_span) {
-        sample->push_span_id(active_span->span_id);
-        sample->push_local_root_span_id(active_span->local_root_span_id);
-        sample->push_trace_type(std::string_view(active_span->span_type));
+    // The span and origin-task labels come later, see span_labels_pending.
+    span_labels_pending = true;
+}
+
+void
+StackRenderer::push_span_labels(const std::optional<Span>& span)
+{
+    span_labels_pending = false;
+
+    if (span) {
+        sample->push_span_id(span->span_id);
+        sample->push_local_root_span_id(span->local_root_span_id);
+        sample->push_trace_type(std::string_view(span->span_type));
     }
 
     // If this thread is a ThreadPoolExecutor worker running work offloaded by an
     // asyncio task, record the originating task so the sample can be correlated
     // back to it
-    const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_id);
+    const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
     if (origin_task) {
         sample->push_origin_task_id(origin_task->task_id);
         sample->push_origin_task_name(std::string_view(origin_task->task_name));
@@ -80,7 +88,8 @@ void
 StackRenderer::render_task_begin(std::string_view task_name,
                                  bool on_cpu,
                                  uint64_t task_id,
-                                 std::optional<int64_t> walltime_ns_override)
+                                 std::optional<int64_t> walltime_ns_override,
+                                 const LogicalSpan& logical_span)
 {
     static bool failed = false;
     if (failed) {
@@ -110,21 +119,14 @@ StackRenderer::render_task_begin(std::string_view task_name,
         }
 
         sample->push_monotonic_ns(thread_state.now_time_ns);
+    }
 
-        // We also want to make sure the tid -> span_id mapping is present in the sample for the task
-        const std::optional<Span> active_span =
-          SpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
-        if (active_span) {
-            sample->push_span_id(active_span->span_id);
-            sample->push_local_root_span_id(active_span->local_root_span_id);
-            sample->push_trace_type(std::string_view(active_span->span_type));
-        }
-
-        const std::optional<OriginTask> origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
-        if (origin_task) {
-            sample->push_origin_task_id(origin_task->task_id);
-            sample->push_origin_task_name(std::string_view(origin_task->task_name));
-        }
+    // An attributed sample gets only its own span, even when that is no span. Falling back to the thread's span would
+    // label it with whichever task or greenlet activated a span on the thread last.
+    if (logical_span.attributed) {
+        push_span_labels(logical_span.span);
+    } else {
+        push_span_labels(SpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id));
     }
 
     sample->push_task_name(task_name);
@@ -289,6 +291,11 @@ StackRenderer::render_stack_end()
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;
         return;
+    }
+
+    // A plain thread sample, with no task or greenlet, gets the thread's span.
+    if (span_labels_pending) {
+        push_span_labels(SpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id));
     }
 
     sample->flush_sample();

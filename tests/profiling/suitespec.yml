@@ -23,6 +23,7 @@ suites:
       command: >-
         pytest -v --capture=no
         --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py'
+        --ignore='tests/profiling/collector/test_stack_anyio_to_thread_span_links.py'
         {cmdargs} tests/profiling
       env:
         CPUCOUNT: '12'
@@ -56,6 +57,33 @@ suites:
         - name: profile
           python: ['3.11', '3.12', '3.13']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
+  profile-anyio:
+    env:
+      DD_TRACE_AGENT_URL: ''
+    venvs_per_job: 2
+    paths:
+      - '@bootstrap'
+      - '@profiling'
+      - '@vendor'
+      - tests/profiling/suitespec.yml
+      - tests/profiling/collector/conftest.py
+      - tests/profiling/collector/lock_utils.py
+      - tests/profiling/collector/pprof_utils.py
+      - tests/profiling/collector/test_stack_anyio_to_thread_span_links.py
+    pattern: profile-anyio
+    retry: 2
+    matrix:
+      command: >-
+        pytest -v --capture=no {cmdargs} tests/profiling/collector/test_stack_anyio_to_thread_span_links.py
+      env:
+        CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
+      variants:
+        - name: profile-anyio
+          dependencies: [zstandard, protobuf, pytest-randomly, anyio, trio]
   profile-uwsgi:
     # TODO(py-315): uwsgi 2.0.29 does not build on 3.15 (PyThreadState has no
     # c_recursion_remaining member). Re-add 3.15 once uwsgi supports it or the

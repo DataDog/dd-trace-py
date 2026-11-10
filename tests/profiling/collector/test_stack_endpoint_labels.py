@@ -258,3 +258,103 @@ def test_stack_preserves_active_child_when_local_root_finishes_first() -> None:
     assert all(
         pprof_utils.get_num_label(profile, sample, "local root span id") == root_span_id for sample in child_samples
     )
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_moves_cross_thread_label_to_parent",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_moves_label_to_the_parent_when_a_span_finishes_on_another_thread() -> None:
+    import os
+    import threading
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import Span
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    endpoint = "cross-thread-parent-endpoint"
+    worker_ready = threading.Event()
+    child_finished = threading.Event()
+
+    def worker_after_child_finish() -> None:
+        time.sleep(0.3)
+
+    def worker(child: Span) -> None:
+        tracer.context_provider.activate(child)
+        worker_ready.set()
+        assert child_finished.wait(5)
+        worker_after_child_finish()
+        tracer.context_provider.activate(None)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    root = tracer.trace("cross-thread.request", resource=endpoint, span_type=ext.SpanTypes.WEB)
+    child = tracer.start_span("cross-thread.child", child_of=root, activate=False)
+    root_span_id = pprof_utils.reinterpret_int_as_int64(root.span_id)
+
+    thread = threading.Thread(target=worker, args=(child,))
+    thread.start()
+    assert worker_ready.wait(5)
+    child.finish()
+    child_finished.set()
+    thread.join(5)
+    assert not thread.is_alive()
+    root.finish()
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    after_samples = pprof_utils.get_samples_with_function(profile, wall_samples, "worker_after_child_finish")
+
+    # The worker runs inside the root span once the child finishes, as a span it created would.
+    assert after_samples
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in after_samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") == root_span_id for sample in after_samples)
+    assert all(
+        pprof_utils.get_num_label(profile, sample, "local root span id") == root_span_id for sample in after_samples
+    )
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_labels_span_active_at_start",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_labels_the_span_active_when_the_profiler_starts() -> None:
+    import os
+    import time
+
+    from ddtrace import ext
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    endpoint = "active-at-start-endpoint"
+
+    def work_after_start() -> None:
+        time.sleep(0.3)
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    p = profiler.Profiler(tracer=tracer)
+    with tracer.trace("active-at-start.request", resource=endpoint, span_type=ext.SpanTypes.WEB) as span:
+        p.start()
+        work_after_start()
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "work_after_start")
+    span_id = pprof_utils.reinterpret_int_as_int64(span.span_id)
+
+    assert samples
+    assert all(pprof_utils.get_str_label(profile, sample, "trace endpoint") == endpoint for sample in samples)
+    assert all(pprof_utils.get_num_label(profile, sample, "span id") == span_id for sample in samples)

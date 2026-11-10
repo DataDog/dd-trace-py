@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    profiling: Improves which span CPU and wall time samples are attributed to. With the default context provider,
+    when a span that a thread is running finishes on another thread, the thread's samples are now attributed to the
+    span's unfinished parent instead of to no span. The span that is active when the profiler starts is now attributed
+    from the start, instead of only after the next span activation. A trace context propagated to another thread, for
+    example to a thread pool worker, now keeps its attribution after the original span finishes. Invalid OpenTelemetry
+    span contexts are no longer attributed as span id 0.

@@ -7,6 +7,7 @@ from __future__ import annotations
 import concurrent.futures
 import os
 from pathlib import Path
+import threading
 import time
 from typing import TYPE_CHECKING
 from typing import Generator
@@ -39,35 +40,38 @@ def patch_futures() -> Generator[None, None, None]:
         futures_unpatch()
 
 
-def test_link_span_plain_context_uses_span_id_as_local_root(monkeypatch: pytest.MonkeyPatch, tracer: Tracer) -> None:
+def _thread_entry_after_link_span(tracer: Tracer, ctx: Context) -> stack_module.SpanLinkEntry:
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    collector = stack.StackCollector(tracer=tracer)
+    stack_module.links_open()
+    try:
+        collector._link_span(tracer.context_provider, ctx)
+        found = _stack._span_link_entry(_stack.SPAN_LINK_DOMAIN_THREAD, threading.get_ident())
+    finally:
+        stack_module.links_close()
+    return None if found is None else found[0]
+
+
+def test_link_span_plain_context_uses_span_id_as_local_root(tracer: Tracer) -> None:
     """A propagated Context without profiler metadata uses its span ID as the local root."""
     if not stack_module.is_available:
         pytest.skip("stack profiler not available")
 
-    calls = []
-    monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
-    collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
-
-    assert calls == [(456, 456, None)]
+    assert _thread_entry_after_link_span(tracer, ctx) == (456, 456, "", stack_module.SPAN_LINK_KIND_CONTEXT)
 
 
-def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, tracer: Tracer) -> None:
+def test_link_span_context_reads_profiler_meta(tracer: Tracer) -> None:
     """A propagated Context preserves its copied local-root metadata."""
     from ddtrace.internal.datadog.profiling import context_meta
 
     if not stack_module.is_available:
         pytest.skip("stack profiler not available")
 
-    calls = []
-    monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
     context_meta.attach_profiler_link(ctx, local_root_span_id=789, span_type="web")
-    collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
-
-    assert calls == [(456, 789, "web")]
+    assert _thread_entry_after_link_span(tracer, ctx) == (456, 789, "web", stack_module.SPAN_LINK_KIND_CONTEXT)
 
 
 def _get_threadpool_samples(profile: pprof_pb2.Profile) -> list[Sample]:

@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -33,6 +34,16 @@ struct SamplingThreadError
 {
     std::string type_name;
     std::string message;
+};
+
+// A copy of one thread's asyncio loop fields, for tests. effective_loop and effective_uvloop are what the sampler uses.
+struct AsyncioLoopSlots
+{
+    uintptr_t configured_loop = 0;
+    bool using_uvloop = false;
+    uintptr_t running_loop = 0;
+    uintptr_t effective_loop = 0;
+    bool effective_uvloop = false;
 };
 
 enum class PauseResult : std::uint8_t
@@ -161,6 +172,21 @@ class Sampler
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
+
+    // The contention hook of the running-loop operations below. They take thread_info_map_lock with run_locked (see
+    // span_links.hpp), the same rule SpanLinks uses: when the lock is free they never call the hook, and when the
+    // sampling thread or another caller holds it, the hook gets a function that blocks on the lock, does the update
+    // and releases the lock. Python bindings pass ReleaseGilOnContention, so other Python threads keep running while
+    // this one waits. The hook is a std::function because these members are not templates.
+    using OnLockContention = std::function<void(const std::function<void()>&)>;
+
+    // Sets the running loop of a registered thread (see ThreadInfo::enter_running_loop). Returns false, and changes
+    // nothing, when the thread is not registered or when an unowned call finds the slot taken.
+    bool enter_running_loop(uintptr_t thread_id, uintptr_t loop, bool unowned, const OnLockContention& on_contention);
+    // Clears the running loop of a registered thread if it still holds loop.
+    void exit_running_loop(uintptr_t thread_id, uintptr_t loop, const OnLockContention& on_contention);
+    // Test-only: the loop fields of a registered thread, or nothing for an unregistered thread.
+    std::optional<AsyncioLoopSlots> asyncio_loop_slots(uintptr_t thread_id);
     void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);

@@ -137,6 +137,9 @@ class Sample
     bool push_monotonic_ns(int64_t monotonic_ns);
     bool push_absolute_ns(int64_t timestamp_ns);
 
+    // The labels pushed since the last flush or clear.
+    const std::vector<ddog_prof_Label2>& get_labels() const { return labels; }
+
     // Interacts with static Sample state
     static bool is_timeline_enabled();
 
