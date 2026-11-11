@@ -56,3 +56,40 @@ def test_tracing_product_declaration_does_not_import_subscribers() -> None:
     assert product.subscriber_bundles[0].module == "ddtrace._trace.subscribers.web_framework"
     assert "ddtrace._trace.subscribers.web_framework" not in sys.modules
     assert product.subscriber_bundles == (WEB_FRAMEWORK_SUBSCRIBERS,)
+
+
+@pytest.mark.subprocess
+def test_tracing_product_start_defers_unloaded_subscribers() -> None:
+    import sys
+
+    from ddtrace._trace import product
+    from ddtrace.internal import core
+
+    assert "ddtrace.contrib" not in sys.modules
+    product.start()
+    product.start()
+    assert "ddtrace.contrib" not in sys.modules
+    assert "ddtrace._trace.subscribers" not in sys.modules
+    assert not core.has_listeners("context.started.web.request")
+
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from ddtrace.trace import tracer
+
+    event = WebFrameworkRequestEvent(
+        http_operation="test.request",
+        component="test",
+        integration_config=IntegrationConfig(config, "test"),
+        request_url="http://localhost/",
+        request_method="GET",
+        request_headers={},
+        headers_case_sensitive=True,
+    )
+    with core.context_with_event(event) as ctx:
+        span = ctx.get_item("_inner_span")
+        assert span is not None
+        assert span.name == "test.request"
+        assert tracer.current_span() is span
+    assert span.finished
+    assert tracer.current_span() is None

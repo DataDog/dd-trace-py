@@ -1,4 +1,5 @@
 import json
+import sys
 import typing as t
 
 from envier import En
@@ -52,8 +53,11 @@ def start():
 
         _install_trace_methods(config._trace_methods)
 
+    # Unused bundles activate through their existing package initialization on first import.
+    # Restoring loaded bundles here must not eagerly import other subscribers or integrations.
     for bundle in subscriber_bundles:
-        bundle.register()
+        if bundle.module in sys.modules:
+            bundle.register()
 
 
 def restart(join=False):
