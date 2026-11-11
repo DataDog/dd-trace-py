@@ -105,7 +105,10 @@ def _api_usage_command(args: argparse.Namespace) -> int:
 
     root, source_paths, _, raw_source_paths = _inventory_inputs(args)
     report = analyze_api_usage(root, source_paths, args.module, require_target=not args.allow_absent_target)
-    output_dir = Path(args.output) / "api-usage" / _scope_dir(raw_source_paths)
+    # The target module is part of the evidence path: two different
+    # --module values with the same source-path scope would otherwise
+    # write the same file, silently overwriting each other's results.
+    output_dir = Path(args.output) / "api-usage" / _scope_dir(raw_source_paths) / args.module
     output_dir.mkdir(parents=True, exist_ok=True)
     evidence = output_dir / "api-usage.json"
     evidence.write_text(
@@ -144,7 +147,17 @@ def _api_surface_command(args: argparse.Namespace) -> int:
     zones = None
     # An explicit --zones path must exist; only the default is optional.
     zones_path = Path(args.zones) if args.zones else root / "scripts" / "import-analysis" / "layers.json"
-    if args.zones or zones_path.is_file():
+    if args.zones:
+        # A user-supplied path is an input, not an optional default: a
+        # misspelled or missing file is an error, not a silently empty
+        # clustering pass.
+        if not zones_path.is_file():
+            raise ValueError("zones file not found: %s" % zones_path)
+        data = json.loads(zones_path.read_text(encoding="utf-8"))
+        zones = data.get("zones")
+        if not isinstance(zones, dict):
+            raise ValueError("%s has no 'zones' mapping" % zones_path)
+    elif zones_path.is_file():
         zones = json.loads(zones_path.read_text(encoding="utf-8")).get("zones")
         if not isinstance(zones, dict):
             raise ValueError("%s has no 'zones' mapping" % zones_path)

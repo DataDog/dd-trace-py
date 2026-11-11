@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 import tokenize
+from typing import Optional
 
 
 _EXCLUDED_DIRS = ("vendor", "node_modules")
@@ -288,7 +289,11 @@ class _UsageCollector(ast.NodeVisitor):
                     for origin in self.origins.get(owner, {}).get(name, ()):
                         if origin not in expanded:
                             frontier.append(origin)
-            paths = expanded[:8]
+            # No [:8] cap: a facade binding many names to many origins
+            # drops target-relevant alternatives, making the inventory
+            # silently under-approximate. Every possible origin is kept;
+            # the loop bound above is on iterations, not on results.
+            paths = expanded
             if not paths:
                 break
         return paths
@@ -311,30 +316,50 @@ class _UsageCollector(ast.NodeVisitor):
 
 
 def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path]:
-    """Map each .py file under the source paths to its dotted module name.
+    """Map each Python source file under the source paths to its dotted name.
 
     Names are relative to root: ddtrace/internal/x.py is ddtrace.internal.x.
     Module trees may also live under a ``src`` directory -- at the scan root
     (src/pkg/x.py) or in a workspace layout (packages/<dist>/src/pkg/x.py) --
     so naming starts after the *last* ``src`` path segment. Vendored code
     (vendor/) is skipped because we do not control its structure.
+
+    Native extensions (.pyx) and type stubs (.pyi) are importable modules:
+    a Cython-backed target exists only as .pyx/.pyi and would otherwise
+    be invisible to the inventory ("no scanned module matches") even
+    though Python modules import it. .py files win when both exist;
+    .pyi is parseable Python (consumers can scan it); .pyx is indexed
+    for target matching only (not parseable with ast.parse).
     """
+
+    def _module_name(file: Path) -> Optional[str]:
+        rel = file.relative_to(root)
+        if "src" in rel.parts:
+            rel = Path(*rel.parts[len(rel.parts) - rel.parts[::-1].index("src") :])
+        if any(part in _EXCLUDED_DIRS for part in rel.parts):
+            return None
+        parts = list(rel.with_suffix("").parts)
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        return ".".join(parts) if parts else None
+
     modules: dict[str, Path] = {}
     for source_path in source_paths:
         if not source_path.exists():
             raise ValueError("source path does not exist: %s" % source_path)
-        files = sorted(source_path.rglob("*.py")) if source_path.is_dir() else [source_path]
-        for py_file in files:
-            rel = py_file.relative_to(root)
-            if "src" in rel.parts:
-                rel = Path(*rel.parts[len(rel.parts) - rel.parts[::-1].index("src") :])
-            if any(part in _EXCLUDED_DIRS for part in rel.parts):
-                continue
-            parts = list(rel.with_suffix("").parts)
-            if parts and parts[-1] == "__init__":
-                parts = parts[:-1]
-            if parts:
-                modules.setdefault(".".join(parts), py_file)
+        if not source_path.is_dir():
+            if source_path.suffix == ".py":
+                name = _module_name(source_path)
+                if name:
+                    modules.setdefault(name, source_path)
+            continue
+        # .py files first (source of truth); .pyi stubs next (parseable);
+        # .pyx extensions last (name-only, not parseable).
+        for pattern in ("*.py", "*.pyi", "*.pyx"):
+            for file in sorted(source_path.rglob(pattern)):
+                name = _module_name(file)
+                if name and name not in modules:
+                    modules[name] = file
     return modules
 
 
@@ -368,6 +393,14 @@ def analyze_api_usage(
     # One parse per module, shared by both passes below.
     trees: dict[str, ast.Module | None] = {}
     for module, path in sorted(modules.items()):
+        if path.suffix == ".pyx":
+            # Cython sources are indexed for target matching but cannot be
+            # parsed as Python: skip the consumer scan, record as unparsed.
+            trees[module] = None
+            report.unparsed.append(
+                "%s: Cython source (not parsed; indexed for target matching)" % path.relative_to(root)
+            )
+            continue
         try:
             trees[module] = parse_source(path)
         except (SyntaxError, UnicodeDecodeError) as exc:

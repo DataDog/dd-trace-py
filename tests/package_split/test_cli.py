@@ -26,7 +26,7 @@ def test_api_usage_writes_evidence(tmp_path, monkeypatch, capsys):
 
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
 
-    data = json.loads((tmp_path / "out" / "api-usage" / "pkg" / "api-usage.json").read_text())
+    data = json.loads((tmp_path / "out" / "api-usage" / "pkg" / "pkg.lib" / "api-usage.json").read_text())
     assert data["target"] == "pkg.lib"
     assert data["source_paths"] == ["pkg"]
     assert data["consumer_files"] == 1
@@ -43,8 +43,8 @@ def test_evidence_is_scoped_and_never_clobbers(tmp_path, monkeypatch, capsys):
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "."]) == 0
 
-    scoped = tmp_path / "out" / "api-usage" / "pkg" / "api-usage.json"
-    whole = tmp_path / "out" / "api-usage" / "root" / "api-usage.json"
+    scoped = tmp_path / "out" / "api-usage" / "pkg" / "pkg.lib" / "api-usage.json"
+    whole = tmp_path / "out" / "api-usage" / "root" / "pkg.lib" / "api-usage.json"
     assert scoped.is_file() and whole.is_file()
     assert json.loads(scoped.read_text())["source_paths"] == ["pkg"]
     assert json.loads(whole.read_text())["source_paths"] == ["."]
@@ -105,7 +105,7 @@ def test_allow_absent_target_scans_consumer_only_scope(tmp_path, monkeypatch, ca
         main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "tests", "--allow-absent-target"])
         == 0
     )
-    data = json.loads((tmp_path / "out" / "api-usage" / "tests" / "api-usage.json").read_text())
+    data = json.loads((tmp_path / "out" / "api-usage" / "tests" / "pkg.lib" / "api-usage.json").read_text())
     assert data["consumer_files"] == 1
     assert set(data["symbols"]) == {"f"}
 
@@ -125,6 +125,6 @@ def test_unparsable_files_are_skipped_and_reported(tmp_path, monkeypatch, capsys
 
     assert main(["--output", "out", "api-usage", "--module", "pkg.lib", "--source-path", "pkg"]) == 0
     assert "pkg/broken.py" in capsys.readouterr().err
-    data = json.loads((tmp_path / "out" / "api-usage" / "pkg" / "api-usage.json").read_text())
+    data = json.loads((tmp_path / "out" / "api-usage" / "pkg" / "pkg.lib" / "api-usage.json").read_text())
     assert data["consumer_files"] == 1
     assert data["unparsed"][0].startswith("pkg/broken.py")
