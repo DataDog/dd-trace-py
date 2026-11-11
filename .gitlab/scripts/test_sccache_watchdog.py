@@ -81,8 +81,8 @@ class WatchdogTests(unittest.TestCase):
                 '"$1" "$2" --delay 60 &\n'
                 "sccache_watchdog_pid=$!\n"
                 'echo "$sccache_watchdog_pid" > "$3"\n'
-                "trap 'kill \"$sccache_watchdog_pid\" 2>/dev/null || true; "
-                "wait \"$sccache_watchdog_pid\" 2>/dev/null || true' EXIT\n"
+                'trap \'kill "$sccache_watchdog_pid" 2>/dev/null || true; '
+                'wait "$sccache_watchdog_pid" 2>/dev/null || true\' EXIT\n'
                 "exit 37\n",
                 "watchdog-test",
                 sys.executable,
@@ -102,9 +102,7 @@ class WatchdogTests(unittest.TestCase):
             [
                 "bash",
                 "-c",
-                '"$1" "$2" --delay 60 &\n'
-                'echo "$!" > "$3"\n'
-                "sleep 0.2\n",
+                '"$1" "$2" --delay 60 &\necho "$!" > "$3"\nsleep 0.2\n',
                 "watchdog-test",
                 sys.executable,
                 str(self.script),
