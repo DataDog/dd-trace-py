@@ -29,6 +29,7 @@
     "ddtrace.llmobs": "product:llmobs",
 
     "ddtrace.profiling": "product:profiling",
+    "ddtrace.internal.profiling": "product:profiling",
 
     "ddtrace.debugging": "product:debugging",
 

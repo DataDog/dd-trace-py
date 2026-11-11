@@ -28,6 +28,7 @@ is_ignored() {
     [[ "$f" == ".gitlab-ci.yml" ]] && return 0
     [[ "$f" == .gitlab/* ]] && return 0
     [[ "$f" == .cursor/* ]] && return 0
+    [[ "$f" == .agents/* ]] && return 0
     [[ "$f" == .claude/* ]] && return 0
     [[ "$f" == docs/* ]] && return 0
     [[ "$f" == releasenotes/* ]] && return 0

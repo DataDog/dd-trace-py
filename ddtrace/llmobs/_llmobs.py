@@ -27,6 +27,8 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git
+from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
@@ -34,6 +36,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.otel_semantics import http as otel_http
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
@@ -160,6 +163,7 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._registration import LLM_SUBSCRIBERS
 from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
 from ddtrace.llmobs._routing import RoutingContextType
 from ddtrace.llmobs._routing import build_routing_context
@@ -725,15 +729,16 @@ class LLMObs(Service):
         if not local_root:
             return
         # Read IP tags set by AppSec or DD_TRACE_CLIENT_IP_ENABLED on the APM root span.
-        client_ip = local_root.get_tag("http.client_ip")
-        network_client_ip = local_root.get_tag("network.client.ip")
+        # Under OTel HTTP semantics the same values are stored as client.address and network.peer.address.
+        client_ip = local_root.get_tag(http.CLIENT_IP) or local_root.get_tag(otel_http.CLIENT_ADDRESS)
+        network_client_ip = local_root.get_tag(net.CLIENT_IP) or local_root.get_tag(otel_http.NETWORK_PEER_ADDRESS)
         if not client_ip and not network_client_ip:
             return
         ip_tags = {}
         if client_ip:
-            ip_tags["http.client_ip"] = client_ip
+            ip_tags[http.CLIENT_IP] = client_ip
         if network_client_ip:
-            ip_tags["network.client.ip"] = network_client_ip
+            ip_tags[net.CLIENT_IP] = network_client_ip
         _annotate_llmobs_span_data(span, tags=ip_tags)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
@@ -1175,6 +1180,7 @@ class LLMObs(Service):
                 sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
+            LLM_SUBSCRIBERS.register()
 
             core.on("aws_sdk_bedrock_runtime.bidirectional_stream", cls._instance._on_bidirectional_stream)
 

@@ -24,6 +24,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils.endpoint import SimplifiedEndpointComputer
+from ddtrace.internal.utils.endpoint import path_source_tag_value
 
 
 log = ddlogger.get_logger(__name__)
@@ -126,7 +127,7 @@ class APIManager(Service):
         if route is None and env.blocked is None and not is_404:
             endpoint = env.entry_span._get_str_attribute(http.ENDPOINT)
             if endpoint is None:
-                url = env.entry_span._get_str_attribute(http.URL)
+                url = path_source_tag_value(env.entry_span)
                 endpoint = self.simplified_endpoint_computer.from_url(url)
             route = endpoint
 

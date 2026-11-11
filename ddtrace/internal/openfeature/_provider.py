@@ -7,9 +7,9 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
-import threading
 import time
 import typing
+import weakref
 
 
 if typing.TYPE_CHECKING:
@@ -19,19 +19,35 @@ from openfeature.evaluation_context import EvaluationContext
 from openfeature.event import ProviderEventDetails
 from openfeature.exception import ErrorCode
 from openfeature.exception import ProviderNotReadyError
+from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.flag_evaluation import FlagResolutionDetails
 from openfeature.flag_evaluation import FlagValueType
 from openfeature.flag_evaluation import Reason
+from openfeature.hook import Hook
+from openfeature.hook import HookContext
+from openfeature.hook import HookHints
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
+from ddtrace.internal.openfeature._config import _FfeSnapshot
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._config import _register_provider
 from ddtrace.internal.openfeature._config import _unregister_provider
+from ddtrace.internal.openfeature._debug_logging_hook import DebugLoggingHook
+from ddtrace.internal.openfeature._debug_logging_hook import debug_logging_enabled
+from ddtrace.internal.openfeature._debug_logging_hook import log_provider_resolution
+from ddtrace.internal.openfeature._debug_logging_hook import warn_raw_evaluation_data_logged
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
+from ddtrace.internal.openfeature._exposure_decision import METADATA_EXPOSURE_CACHE_HIT
+from ddtrace.internal.openfeature._exposure_decision import ExposureCacheKey
+from ddtrace.internal.openfeature._exposure_decision import ExposureCacheValue
+from ddtrace.internal.openfeature._exposure_decision import ExposureDecision
+from ddtrace.internal.openfeature._exposure_decision import FlagMetadata
+from ddtrace.internal.openfeature._exposure_decision import complete_exposure_decision
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
@@ -45,12 +61,17 @@ from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
 from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
+from ddtrace.internal.openfeature._split_features import METADATA_EXPOSURE_FEATURE_PREFIX
+from ddtrace.internal.openfeature._split_features import add_split_features
+from ddtrace.internal.openfeature._split_features import features_with_prefix
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.internal.threads import Event
+from ddtrace.internal.threads import Lock
 
 
 # Handle different import paths between openfeature-sdk versions.
@@ -104,6 +125,10 @@ class LRUCache(MutableMapping, typing.Generic[K, V]):
         """Return number of items in cache."""
         return len(self._cache)
 
+    def clear(self) -> None:
+        # MutableMapping.clear() iterates, which fails while an unlocked reader reorders entries.
+        self._cache.clear()
+
 
 class DataDogProvider(AbstractProvider):
     """
@@ -125,7 +150,7 @@ class DataDogProvider(AbstractProvider):
 
         # Event set when the first config arrives; used by on_configuration_received()
         # to guard the first-config path and by _emit_ready_event() timing.
-        self._config_received = threading.Event()
+        self._config_received = Event()
         self._initialization_timed_out = False
 
         # Read through a fresh config instance so values reflect the environment at
@@ -145,9 +170,10 @@ class DataDogProvider(AbstractProvider):
         # The serial id is part of the value because a configuration refresh can add or
         # change it while the allocation and variant stay the same, and that must be sent.
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
-        self._exposure_cache: LRUCache[
-            tuple[str, str], tuple[typing.Optional[str], typing.Optional[str], typing.Optional[int]]
-        ] = LRUCache(maxsize=65536)
+        self._exposure_cache: LRUCache[ExposureCacheKey, ExposureCacheValue] = LRUCache(maxsize=65536)
+        self._exposure_cache_lock = Lock()
+        _providers_with_exposure_cache.add(self)
+        self._exposure_logging_hook = ExposureLoggingHook()
 
         # Master gate: the resolved configuration source (stable kill switch +
         # source selection, with legacy grandfathering). Mirrors dd-trace-js,
@@ -203,6 +229,15 @@ class DataDogProvider(AbstractProvider):
         if self._active and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
             self._span_enrichment_hook = SpanEnrichmentHook()
 
+        # Evaluation-detail logging for self-diagnosis. Registered only when debug
+        # logs would actually be emitted, so it costs nothing otherwise. The
+        # provider-resolution line is gated on this hook too, so enabling debug after
+        # creation never starts the evaluation-detail lines; warning here covers them.
+        self._debug_logging_hook: typing.Optional[DebugLoggingHook] = None
+        if self._active and debug_logging_enabled():
+            self._debug_logging_hook = DebugLoggingHook()
+            warn_raw_evaluation_data_logged()
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -229,6 +264,11 @@ class DataDogProvider(AbstractProvider):
         3. SpanEnrichmentHook (_span_enrichment.py) — registered only when
            DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED is enabled (default off);
            accumulates feature-flag metadata onto the local-root APM span.
+        4. DebugLoggingHook (_debug_logging_hook.py) — registered only when debug logging is
+           enabled (DD_TRACE_DEBUG=true); logs the details of every evaluation.
+        5. ExposureLoggingHook — records the exposure decision and sends new exposures to
+           Datadog. Last in this list so its finally_after runs before every other hook's,
+           which then see the final __dd_exposure_cache_hit.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
@@ -237,6 +277,10 @@ class DataDogProvider(AbstractProvider):
             hooks.append(self._flag_eval_evp_hook)
         if self._span_enrichment_hook is not None:
             hooks.append(self._span_enrichment_hook)
+        if self._debug_logging_hook is not None:
+            hooks.append(self._debug_logging_hook)
+        if self._active:
+            hooks.append(self._exposure_logging_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -261,6 +305,9 @@ class DataDogProvider(AbstractProvider):
         if not self._active:
             return
 
+        logger.debug(
+            "Feature Flags: waiting for provider initialization (timeout %.1fs)...", self._initialization_timeout
+        )
         self._initialization_timed_out = False
 
         # Register for RC config callbacks (in initialize, not __init__, so
@@ -289,15 +336,20 @@ class DataDogProvider(AbstractProvider):
         # Fast path: config already available (RC delivered before set_provider —
         # common in pre-fork servers where master receives RC before workers fork).
         if _get_ffe_snapshot() is not None:
-            logger.debug("FFE configuration already available, provider is READY")
             self._config_received.set()
             self._status = ProviderStatus.READY
+            logger.debug("Feature Flags: provider initialized successfully (configuration was already available)")
             return  # SDK will dispatch PROVIDER_READY
 
         # Config not yet available — wait for the source to deliver it, so a caller
         # that observes PROVIDER_READY can trust the first evaluation.
+        wait_started = time.monotonic()
         if self._config_received.wait(timeout=self._initialization_timeout):
             self._status = ProviderStatus.READY
+            logger.debug(
+                "Feature Flags: provider initialized successfully (configuration received after %.2fs)",
+                time.monotonic() - wait_started,
+            )
             return  # SDK will dispatch PROVIDER_READY
 
         # the wait above must stay bounded. A blocked initialize() blocks
@@ -305,9 +357,11 @@ class DataDogProvider(AbstractProvider):
         # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
         # non-blocking registration and propagates it for blocking registration.
+        # Warning rather than error: errors are forwarded to telemetry, and a routine
+        # initialization timeout should not inflate its volume.
         logger.warning(
-            "openfeature: no Feature Flagging configuration received after %.1fs; evaluations will return "
-            "default values until configuration arrives",
+            "Feature Flags: provider failed to initialize: no configuration received after %.1fs; "
+            "evaluations will return default values until configuration arrives",
             self._initialization_timeout,
         )
         self._initialization_timed_out = True
@@ -321,6 +375,8 @@ class DataDogProvider(AbstractProvider):
         """
         if not self._active:
             return
+
+        logger.debug("Feature Flags: shutting down provider")
 
         # Stop the agentless poller if it was started.
         self._stop_configuration_source()
@@ -365,9 +421,14 @@ class DataDogProvider(AbstractProvider):
 
         # Unregister provider
         _unregister_provider(self)
+        logger.debug(
+            "Feature Flags: provider configuration callbacks detached; shared Remote Config delivery, if enabled, "
+            "stops with the tracer"
+        )
         self._status = ProviderStatus.NOT_READY
         self._config_received.clear()
         self._initialization_timed_out = False
+        logger.debug("Feature Flags: provider shut down; see writer shutdown outcomes for delivery or unfinished work")
 
     def _start_configuration_source(self) -> None:
         """Start the agentless poller when agentless is the resolved source."""
@@ -394,6 +455,7 @@ class DataDogProvider(AbstractProvider):
         try:
             self._configuration_source.stop()
             self._configuration_source.join()
+            logger.debug("Feature Flags: agentless configuration source stopped")
         except ServiceStatusError:
             logger.debug("Agentless configuration source is already stopped", exc_info=True)
         self._configuration_source = None
@@ -445,6 +507,27 @@ class DataDogProvider(AbstractProvider):
         evaluation_context: typing.Optional[EvaluationContext] = None,
         variation_type: VariationType = VariationType.Boolean,
     ) -> FlagResolutionDetails[ResolvedValue]:
+        snapshot = _get_ffe_snapshot()
+        details = self._resolve(flag_key, default_value, evaluation_context, variation_type, snapshot)
+        if self._debug_logging_hook is not None:
+            log_provider_resolution(
+                flag_key,
+                variation_type,
+                default_value,
+                evaluation_context,
+                details,
+                snapshot.identity if snapshot is not None else None,
+            )
+        return details
+
+    def _resolve(
+        self,
+        flag_key: str,
+        default_value: ResolvedValue,
+        evaluation_context: typing.Optional[EvaluationContext],
+        variation_type: VariationType,
+        snapshot: typing.Optional[_FfeSnapshot],
+    ) -> FlagResolutionDetails[ResolvedValue]:
         """
         Core resolution logic for all flag types.
 
@@ -458,12 +541,11 @@ class DataDogProvider(AbstractProvider):
         # Capture one snapshot at provider entry. Every exit path
         # carries consent from the exact configuration used for resolution;
         # downstream code must never reread live configuration.
-        snapshot = _get_ffe_snapshot()
         observe_full_evaluation_data = snapshot.observe_full_evaluation_data if snapshot is not None else False
-        flag_metadata: dict[str, typing.Any] = {
-            EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000),
-            METADATA_OBSERVE_FULL_EVALUATION_DATA: observe_full_evaluation_data,
-        }
+        flag_metadata = FlagMetadata()
+        flag_metadata[EVAL_TIMESTAMP_METADATA_KEY] = int(time.time() * 1000)
+        flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] = observe_full_evaluation_data
+        flag_metadata._dd_evaluation_context = evaluation_context
 
         # If provider is not active, return default value
         if not self._active:
@@ -504,15 +586,6 @@ class DataDogProvider(AbstractProvider):
 
                 # Flag not found - return default with ERROR reason and error_code
                 if details.error_code == ffe.ErrorCode.FlagNotFound:
-                    # Only report exposure if do_log is explicitly True
-                    if details.do_log:
-                        self._report_exposure(
-                            flag_key=flag_key,
-                            variant_key=None,
-                            allocation_key=None,
-                            evaluation_context=evaluation_context,
-                            serial_id=None,
-                        )
                     return FlagResolutionDetails(
                         value=default_value,
                         reason=Reason.ERROR,
@@ -533,14 +606,26 @@ class DataDogProvider(AbstractProvider):
             # Map native ffe.Reason to OpenFeature Reason
             reason = self._map_reason_to_openfeature(details.reason)
 
-            # Report exposure event only if do_log flag is True
+            # The native getter builds new tuples on every read.
+            split_features = details.features
+            add_split_features(flag_metadata, split_features)
+
             if details.do_log:
-                self._report_exposure(
+                self._prepare_exposure_decision(
+                    flag_metadata,
                     flag_key=flag_key,
                     variant_key=details.variant,
                     allocation_key=details.allocation_key,
                     evaluation_context=evaluation_context,
                     serial_id=details.serial_id,
+                    has_split_features=split_features is not None,
+                )
+            else:
+                logger.debug(
+                    "Feature Flags: exposure not recorded for %s: exposure logging is disabled for this "
+                    "evaluation (allocation=%r)",
+                    flag_key,
+                    details.allocation_key,
                 )
 
             # Add allocation_key to the provider-entry timestamp metadata when present.
@@ -582,30 +667,22 @@ class DataDogProvider(AbstractProvider):
                 flag_metadata=flag_metadata,
             )
 
-    def _report_exposure(
+    def _prepare_exposure_decision(
         self,
+        flag_metadata: FlagMetadata,
         flag_key: str,
         variant_key: typing.Optional[str],
         allocation_key: typing.Optional[str],
         evaluation_context: typing.Optional[EvaluationContext],
         serial_id: typing.Optional[int] = None,
+        has_split_features: bool = False,
     ) -> None:
         """
-        Report a feature flag exposure event to the EVP proxy intake.
+        Stamp a provisional exposure-cache verdict and attach the pending decision.
 
-        Uses caching to prevent duplicate exposure events for the same
-        (flag_key, subject_id, variant_key, allocation_key) combination.
-
-        Note: This method should only be called when exposure logging is enabled.
-        Callers must check the do_log flag before invoking this method.
-
-        Args:
-            flag_key: The feature flag key
-            variant_key: The variant key returned by evaluation
-            allocation_key: The allocation key
-            evaluation_context: The evaluation context with subject information
-            serial_id: Serial id of the split the subject landed in, used by the intake
-                to resolve the holdout behind the allocation
+        Nothing is recorded or sent here: ExposureLoggingHook (or ExposureHook) completes
+        the decision once the evaluation has succeeded, after every after hook ran.
+        The cache maps (flag_key, subject_id) to (allocation_key, variant_key, serial_id).
         """
         try:
             exposure_event = build_exposure_event(
@@ -617,23 +694,22 @@ class DataDogProvider(AbstractProvider):
             )
             if not exposure_event:
                 return
-
-            # Check cache to prevent duplicate exposure events
-            key = (flag_key, exposure_event["subject"]["id"])
-            value = (allocation_key, variant_key, serial_id)
-
-            cached_value = self._exposure_cache.get(key, None)
-            if cached_value and cached_value == value:
-                logger.debug("Skipping duplicate exposure event for %s->%s", key, value)
-                return
-
-            writer = get_exposure_writer()
-            writer.enqueue(exposure_event)
-
-            # Add to cache only after successful enqueue
-            self._exposure_cache[key] = value
+            # Features stay off the cache value: a features change alone is not a new exposure.
+            if has_split_features:
+                features = features_with_prefix(flag_metadata, METADATA_EXPOSURE_FEATURE_PREFIX)
+                if features:
+                    exposure_event["features"] = features
+            decision = ExposureDecision(
+                self._exposure_cache,
+                self._exposure_cache_lock,
+                (flag_key, exposure_event["subject"]["id"]),
+                (allocation_key, variant_key, serial_id),
+                exposure_event,
+            )
+            flag_metadata[METADATA_EXPOSURE_CACHE_HIT] = decision.is_cache_hit()
+            flag_metadata._dd_exposure_decision = decision
         except Exception as e:
-            logger.debug("Failed to report exposure event: %s", e, exc_info=True)
+            logger.debug("Failed to prepare exposure decision: %s", e, exc_info=True)
 
     def _map_reason_to_openfeature(self, native_reason) -> Reason:
         """Map native ffe.Reason to OpenFeature Reason."""
@@ -694,11 +770,13 @@ class DataDogProvider(AbstractProvider):
         """
         if not self._config_received.is_set():
             self._status = ProviderStatus.READY
-            logger.debug("First FFE configuration received, provider is now READY")
             # The SDK emits READY after successful initialization. The provider only
             # owns the recovery event after initialization reported an error.
             if self._initialization_timed_out:
+                logger.debug("Feature Flags: provider recovered: configuration received after initialization timed out")
                 self._emit_ready_event()
+            else:
+                logger.debug("First FFE configuration received, provider is now READY")
 
         # Signal the event last after status is updated.
         self._config_received.set()
@@ -721,8 +799,56 @@ class DataDogProvider(AbstractProvider):
 
         This method is useful for testing to ensure fresh exposure events are sent.
         """
-        self._exposure_cache.clear()
+        with self._exposure_cache_lock:
+            self._exposure_cache.clear()
         logger.debug("Exposure cache cleared")
+
+
+# A plain lock is much cheaper than forksafe.Lock() on every evaluation, so the provider
+# resets its own lock in a forked child instead. The reset is in place because pending
+# exposure decisions keep a reference to the lock.
+_providers_with_exposure_cache: "weakref.WeakSet[DataDogProvider]" = weakref.WeakSet()
+
+
+@forksafe.register
+def _reset_exposure_cache_locks() -> None:
+    for provider in list(_providers_with_exposure_cache):
+        provider._exposure_cache_lock._at_fork_reinit()  # type: ignore[attr-defined]
+
+
+class ExposureLoggingHook(Hook):
+    """
+    Records the exposure decision once the evaluation has succeeded and sends new
+    exposures to Datadog.
+
+    It runs at the finally_after stage because the SDK runs after hooks first: an after
+    hook that raises turns the result into an error, so a failed evaluation sends nothing
+    and records nothing. The cache records even when Datadog logging is off, so
+    ExposureHook sees the same verdicts either way. Delivery to Datadog is best-effort:
+    the exposure is recorded before the send, so a failed enqueue is not retried.
+    """
+
+    def __init__(self) -> None:
+        self._warned = False
+
+    def finally_after(
+        self,
+        hook_context: HookContext,
+        details: FlagEvaluationDetails[typing.Any],
+        hints: HookHints,
+    ) -> None:
+        try:
+            decision = complete_exposure_decision(details)
+            if decision is None:
+                return
+            if details.flag_metadata.get(METADATA_EXPOSURE_CACHE_HIT) is not False:
+                logger.debug("Skipping duplicate exposure event for %s", details.flag_key)
+                return
+            get_exposure_writer().enqueue(decision.event)
+        except Exception:
+            if not self._warned:
+                self._warned = True
+                logger.warning("Could not record a feature flag exposure; later failures are not logged", exc_info=True)
 
 
 def _apply_agentless_configuration(configuration: "dict[str, typing.Any]") -> None:

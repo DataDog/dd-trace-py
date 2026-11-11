@@ -40,11 +40,18 @@ def _select_named_environments(
     if not requested:
         return tuple(environments)
 
+    # A name selects environments by variant name or by integration, so a package like pytest
+    # (tested by the testing and pytest:flaky variants) locks all of them.
     names = set(requested)
-    unknown = sorted(names - {environment.name for environment in environments})
+    known = {environment.name for environment in environments} | {
+        environment.integration_name for environment in environments
+    }
+    unknown = sorted(names - known)
     if unknown:
-        raise LockError(f"unknown test environment name(s): {', '.join(unknown)}")
-    return tuple(environment for environment in environments if environment.name in names)
+        raise LockError(f"unknown test environment or integration name(s): {', '.join(unknown)}")
+    return tuple(
+        environment for environment in environments if {environment.name, environment.integration_name} & names
+    )
 
 
 def _require_lock_platform(command: str) -> None:
@@ -209,7 +216,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
-    lock_parser.add_argument("names", nargs="*", help="Exact test environment names; defaults to all.")
+    lock_parser.add_argument(
+        "names",
+        nargs="*",
+        help="Test environment or integration names (an integration selects all its variants); defaults to all.",
+    )
     lock_parser.add_argument("--upgrade", action="store_true", help="Upgrade dependencies in selected locks.")
     args = parser.parse_args(argv)
 
