@@ -765,13 +765,17 @@ prof-correctness:
       echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
       # A dispatch that fails can still start a run, so a retry can start a second
       # run. The lookup below picks the newest run for this commit.
-      gh_retry workflow run downstream-python.yml \
+      DISPATCH_OUTPUT="$(gh_retry workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
-        -f "test_scenarios=${TEST_SCENARIOS}"
+        -f "test_scenarios=${TEST_SCENARIOS}")"
 
-      RUN_ID=""
+      # Queued runs may not have their dynamic title yet; prefer the dispatch URL.
+      RUN_ID="$(printf '%s\n' "${DISPATCH_OUTPUT}" | sed -nE 's#^https://github.com/DataDog/prof-correctness/actions/runs/([0-9]+)$#\1#p' | tail -1)"
       for _ in $(seq 1 30); do
+        if [ -n "${RUN_ID}" ]; then
+          break
+        fi
         # If the lookup fails, RUN_ID is empty and the loop polls again.
         RUN_ID="$(gh run list \
           --repo DataDog/prof-correctness \

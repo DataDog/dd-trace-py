@@ -143,14 +143,18 @@ jobs:
           # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
           TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
           echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA} via ${INSTALL_URL}"
-          gh workflow run downstream-python.yml \
+          DISPATCH_OUTPUT="$(gh workflow run downstream-python.yml \
             --repo DataDog/prof-correctness \
             -f "dd_trace_py_commit_sha=${DD_TRACE_PY_SHA}" \
             -f "test_scenarios=${TEST_SCENARIOS}" \
-            -f "ddtrace_install_url=${INSTALL_URL}"
+            -f "ddtrace_install_url=${INSTALL_URL}")"
 
-          RUN_ID=""
+          # Queued runs may not have their dynamic title yet; prefer the dispatch URL.
+          RUN_ID="$(printf '%s\n' "${DISPATCH_OUTPUT}" | sed -nE 's#^https://github.com/DataDog/prof-correctness/actions/runs/([0-9]+)$#\1#p' | tail -1)"
           for _ in $(seq 1 30); do
+            if [ -n "${RUN_ID}" ]; then
+              break
+            fi
             RUN_ID="$(gh run list \
               --repo DataDog/prof-correctness \
               --workflow=downstream-python.yml \

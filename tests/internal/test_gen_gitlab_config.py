@@ -366,3 +366,54 @@ def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
     assert proc.returncode == 0
     assert "First: PASS" in proc.stdout
     assert "Second: PASS" in proc.stdout
+
+
+@pytest.mark.parametrize("provider", ["gitlab", "github"])
+@pytest.mark.parametrize("has_dispatch_url", [True, False])
+def test_profiling_dispatch_tracks_queued_run(provider, has_dispatch_url, tmp_path):
+    root = _SCRIPT_PATH.parents[1]
+    if provider == "gitlab":
+
+        class Loader(yaml.SafeLoader):
+            pass
+
+        Loader.add_constructor("!reference", lambda loader, node: loader.construct_sequence(node))
+        config = yaml.load((root / ".gitlab-ci.yml").read_text(), Loader=Loader)
+        script = config["prof-correctness"]["script"][0]
+    else:
+        config = yaml.safe_load((root / ".github/workflows/prof-correctness.yml").read_text())
+        script = next(
+            step["run"]
+            for job in config["jobs"].values()
+            for step in job.get("steps", [])
+            if step.get("name") == "Trigger prof-correctness downstream-python"
+        )
+    script = script[script.index('echo "Triggering prof-correctness') : script.index('echo "Watching prof-correctness')]
+    response = "https://github.com/DataDog/prof-correctness/actions/runs/123" if has_dispatch_url else ""
+    lookup = tmp_path / "lookup"
+    prelude = f"""
+set -eu
+CI_COMMIT_SHA=abc
+DD_TRACE_PY_SHA=abc
+TEST_SCENARIOS=python
+INSTALL_URL=https://example.com/install.sh
+TRIGGERED_AT=2026-11-11T00:00:00Z
+gh() {{
+  case "$1 $2" in
+    "workflow run") printf '%s\n' {shlex.quote(response)} ;;
+    "run list") touch {shlex.quote(str(lookup))}; printf '456\n' ;;
+    *) return 1 ;;
+  esac
+}}
+gh_retry() {{ gh "$@"; }}
+sleep() {{ :; }}
+"""
+    result = subprocess.run(
+        ["bash", "-c", prelude + script + '\nprintf "RESULT=%s\n" "$RUN_ID"'],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    expected = "123" if has_dispatch_url else "456"
+    assert f"RESULT={expected}" in result.stdout
+    assert lookup.exists() is not has_dispatch_url
