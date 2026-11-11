@@ -238,3 +238,6 @@ ddtrace/profiling/collector/build-test/
 # file created when running scripts/lint
 uv.lock
 benchmark-artifacts/
+
+# Dependency direction report written by scripts/import-analysis/layers.py analyze
+/layers.json
