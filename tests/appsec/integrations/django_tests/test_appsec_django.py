@@ -262,7 +262,10 @@ def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
 @pytest.mark.parametrize("use_login", (False, True))
 @pytest.mark.parametrize("use_email", (False, True))
 @pytest.mark.parametrize("use_realname", (False, True))
-def test_django_login_sucess_identification(client, test_spans, tracer, use_login, use_email, use_realname):
+@pytest.mark.parametrize("email_field", ("", "last_name"))
+def test_django_login_sucess_identification(
+    client, test_spans, tracer, use_login, use_email, use_realname, email_field
+):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -274,12 +277,15 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
                 _django_include_user_email=use_email,
                 _django_include_user_login=use_login,
                 _django_include_user_realname=use_realname,
+                _user_model_email_field=email_field,
             )
         ),
         update_django_config(),
     ):
         # update django config for tests
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
+        if email_field:
+            test_user.last_name = "custom@test.com"
         test_user.set_password("secret")
         test_user.save()
         assert not get_user(client).is_authenticated
@@ -295,14 +301,16 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
         else:
             assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") is None
         if use_email:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
-            assert login_span.get_tag("usr.email") == "fred@test.com"
+            expected_email = "custom@test.com" if email_field else "fred@test.com"
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == expected_email
+            assert login_span.get_tag("usr.email") == expected_email
         else:
             assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
             assert login_span.get_tag("usr.email") is None
         if use_realname:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
-            assert login_span.get_tag("usr.name") == "Fred"
+            expected_name = "Fred custom@test.com" if email_field else "Fred"
+            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == expected_name
+            assert login_span.get_tag("usr.name") == expected_name
         else:
             assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
             assert login_span.get_tag("usr.name") is None
