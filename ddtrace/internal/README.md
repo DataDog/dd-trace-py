@@ -399,6 +399,30 @@ forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
 ```
 
+When something must happen before and/or after all the `after_in_child` hooks
+in the child (for example, deferring work until every hook has run), register a
+generator function with `forksafe.register`. It becomes a wrapper around the
+hooks: the code before its `yield` runs before them, in registration order, and
+the code after it runs once they have all completed, in reverse order. Either
+part can be empty. A wrapper must yield exactly once; one that raises before
+its `yield` is skipped. Wrappers are always resumed normally: hook exceptions
+are logged and are not propagated to them.
+
+> **Careful:** wrappers are detected with `inspect.isgeneratorfunction`, which
+> recognizes generator functions and bound methods or `functools.partial`
+> objects of them. A callable that only *returns* a generator (a decorator
+> around a generator function, an object whose `__call__` yields, a lambda) is
+> registered as a plain hook instead, and none of its code runs, silently.
+> Register the generator function itself.
+
+```python
+@forksafe.register
+def my_child_wrapper():
+    pause_something()
+    yield  # the after_in_child hooks run here
+    resume_something()
+```
+
 **Keep hooks non-blocking.** By the time a hook registered *after*
 `ddtrace.internal.threads._before_fork` runs, all periodic threads have already
 been stopped, so there are no locks held by those threads to worry about. (Hooks
