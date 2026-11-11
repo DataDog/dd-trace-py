@@ -4,12 +4,14 @@ import json
 from pathlib import Path
 
 import jsonschema
+import pytest
 
 from ddtrace.appsec.sca._cve_loader import _CVE_DATA_PATH
 from ddtrace.appsec.sca._cve_loader import _any_version_matches
 from ddtrace.appsec.sca._cve_loader import _compound_constraint_matches
 from ddtrace.appsec.sca._cve_loader import _version_matches
 from ddtrace.appsec.sca._cve_loader import load_cve_targets
+from ddtrace.internal.settings.appsec_telemetry import AppSecTelemetryConfig
 
 
 def test_bundled_cve_data_conforms_to_schema():
@@ -107,6 +109,46 @@ class TestAnyVersionMatches:
 
 
 class TestLoadCveTargets:
+    def test_cve_file_override(self, monkeypatch, tmp_path):
+        entry = {
+            "id": "GHSA-test-test-test",
+            "targets": ["testpkg.module:func"],
+            "lang": "python",
+            "dependency_name": "testpkg",
+            "package_versions": ["<2.0.0"],
+            "vulnerability": {
+                "id": "CVE-TEST",
+                "severity": "HIGH",
+                "description": "Synthetic advisory",
+            },
+        }
+        json_path = tmp_path / "custom_cves.json"
+        json_path.write_text(json.dumps({"targets": [entry]}))
+        monkeypatch.setenv("_DD_APPSEC_SCA_CVE_FILE", str(json_path))
+        monkeypatch.setattr("ddtrace.appsec.sca._cve_loader.appsec_telemetry_config", AppSecTelemetryConfig())
+
+        # The installed requests version matches the bundle, which must not be merged.
+        assert load_cve_targets({"testpkg": "1.0.0", "requests": "2.28.0"}) == [entry]
+        assert load_cve_targets({"testpkg": "2.0.0", "requests": "2.28.0"}) == []
+
+    def test_empty_cve_file_override(self, monkeypatch, tmp_path):
+        json_path = tmp_path / "empty_cves.json"
+        json_path.write_text(json.dumps({"targets": []}))
+        monkeypatch.setenv("_DD_APPSEC_SCA_CVE_FILE", str(json_path))
+        monkeypatch.setattr("ddtrace.appsec.sca._cve_loader.appsec_telemetry_config", AppSecTelemetryConfig())
+
+        assert load_cve_targets({"requests": "2.28.0"}) == []
+
+    @pytest.mark.parametrize("contents", [None, "{invalid json"])
+    def test_invalid_cve_file_override(self, monkeypatch, tmp_path, contents):
+        json_path = tmp_path / "invalid_cves.json"
+        if contents is not None:
+            json_path.write_text(contents)
+        monkeypatch.setenv("_DD_APPSEC_SCA_CVE_FILE", str(json_path))
+        monkeypatch.setattr("ddtrace.appsec.sca._cve_loader.appsec_telemetry_config", AppSecTelemetryConfig())
+
+        assert load_cve_targets({"requests": "2.28.0"}) == []
+
     def test_loads_applicable_targets(self):
         """GHSA-652x-xj99-gmcc applies to requests < 2.32.0."""
         installed = {"requests": "2.28.0"}

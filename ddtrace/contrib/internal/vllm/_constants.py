@@ -15,7 +15,6 @@ MIN_VERSION = "0.10.2"
 
 ATTR_MODEL_NAME = "_dd_model_name"
 ATTR_DATADOG_PATCH = "_datadog_patch"
-ATTR_DATADOG_INTEGRATION = "_datadog_integration"
 
 ARG_POSITION_LOG_STATS = 2
 ARG_POSITION_TRACE_HEADERS = 6

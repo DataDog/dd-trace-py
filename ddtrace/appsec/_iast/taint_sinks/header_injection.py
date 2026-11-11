@@ -185,8 +185,9 @@ class HeaderInjection(VulnerabilityBase):
 
 
 def _iast_django_response(wrapped, instance, args, kwargs):
+    # Let Django's validation errors propagate to the caller.
+    wrapped.__func__(instance, *args, **kwargs)
     try:
-        wrapped.__func__(instance, *args, **kwargs)
         if hasattr(instance, "_headers"):
             instance._headers = HeaderInjectionDict(instance._headers)
         elif hasattr(instance, "_store"):
