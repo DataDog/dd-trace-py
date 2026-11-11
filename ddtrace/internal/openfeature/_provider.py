@@ -63,6 +63,7 @@ from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
 from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
+from ddtrace.internal.openfeature._split_features import FEATURE_DESTINATION_EVALUATION
 from ddtrace.internal.openfeature._split_features import METADATA_EXPOSURE_FEATURE_PREFIX
 from ddtrace.internal.openfeature._split_features import add_split_features
 from ddtrace.internal.openfeature._split_features import features_with_prefix
@@ -680,6 +681,7 @@ class DataDogProvider(AbstractProvider):
         flag_metadata: FlagMetadata,
     ) -> None:
         for dependency in getattr(details, "dependency_evaluations", ()):
+            split_features = getattr(dependency, "features", None)
             error_code = (
                 self._map_error_code_to_openfeature(dependency.error_code)
                 if dependency.error_code is not None
@@ -704,6 +706,11 @@ class DataDogProvider(AbstractProvider):
                             eval_time_ms=flag_metadata[EVAL_TIMESTAMP_METADATA_KEY],
                             observe_full_evaluation_data=consent,
                             error_code=code,
+                            features={
+                                key: value
+                                for key, value, destinations in (split_features or ())
+                                if FEATURE_DESTINATION_EVALUATION in destinations
+                            },
                         )
                     )
                 except Exception:
@@ -722,7 +729,6 @@ class DataDogProvider(AbstractProvider):
                     logger.debug("Feature Flags: failed to record prerequisite evaluation metric")
             if dependency.exposure_eligible and dependency.do_log and error_code is None:
                 dependency_metadata = FlagMetadata()
-                split_features = getattr(dependency, "features", None)
                 add_split_features(dependency_metadata, split_features)
                 self._prepare_exposure_decision(
                     dependency_metadata,

@@ -520,3 +520,38 @@ def test_prerequisite_split_features_and_public_exposure_hook(evaluated, reject)
         assert dict(received[-1].features) == {"layer": "root-layer"}
     finally:
         api.clear_hooks()
+
+
+@pytest.mark.parametrize("consent", [False, True])
+@pytest.mark.parametrize("do_log", [False, True])
+@pytest.mark.parametrize("accepted", [False, True])
+def test_prerequisite_evaluation_features_preserve_count_buckets(evaluated, consent, do_log, accepted):
+    provider, client, evaluations, exposures, _ = evaluated
+    parent = create_boolean_flag("parent")
+    parent["allocations"][0]["doLog"] = do_log
+    root = dependent_flag(rules=[[prerequisite(), attribute()]] if not accepted else None)
+    context = EvaluationContext(targeting_key="subject", attributes={"plan": "free"})
+    for layer in ("first", "second", "first"):
+        parent["allocations"][0]["splits"][0]["features"] = [
+            {"key": "layer", "value": layer, "destinations": ["EVALUATION", "EXPOSURE"]},
+            {"key": "weight", "value": 2.5, "destinations": ["EVALUATION"]},
+            {"key": "enabled", "value": True, "destinations": ["EVALUATION"]},
+            {"key": "hook_only", "value": "private", "destinations": ["HOOK"]},
+        ]
+        config = create_config(parent, root)
+        config["observeFullEvaluationData"] = consent
+        assert process_ffe_configuration(config)
+        result = client.get_boolean_details("root", False, context)
+        assert result.value is accepted
+        assert result.error_code is None
+
+    parent_events = [call.args[0] for call in evaluations.call_args_list if call.args[0].flag_key == "parent"]
+    assert [event.features for event in parent_events] == [
+        {"layer": layer, "weight": 2.5, "enabled": True} for layer in ("first", "second", "first")
+    ]
+    for event in parent_events:
+        assert event.attrs == ({"plan": "free"} if consent else {})
+        provider._flag_eval_evp_writer._aggregate(event)
+    buckets = provider._flag_eval_evp_writer._full.values()
+    assert sorted((entry.features["layer"], entry.count) for entry in buckets) == [("first", 2), ("second", 1)]
+    assert ("parent" in exposure_keys(exposures)) is (accepted and do_log)
