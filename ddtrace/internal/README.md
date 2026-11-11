@@ -114,22 +114,53 @@ lifecycle; it does not discover or manage bundles. Products choose registration
 ordering, enablement, and failure handling. A registration error propagating out of
 `start()` is handled as a product startup failure by the manager.
 
-Keep completion listeners registered while draining active contexts. Call
-`unregister()` only after draining succeeds; if draining raises, retain the listeners.
-Products that cannot guarantee all active contexts have drained must retain their
-completion listeners after `stop()` returns.
+Products that require active contexts to finish must keep completion listeners
+registered until draining succeeds; if draining raises, retain the listeners.
+A terminal stop may instead discard active work and unregister after its shutdown
+cleanup succeeds. Unregistering removes both start and completion listeners.
 `unregister()` never imports an unused module. Products registering listeners outside
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
 Tracing declares `WEB_FRAMEWORK_SUBSCRIBERS` in `ddtrace._trace._registration`
-and registers it during product startup. Tracing's existing subscriber package
-initialization also registers the bundle for manual instrumentation that does not
-start the product manager. Integrations emit events without registering tracing
-listeners themselves. Repeated product startup can restore listeners after a reset.
-Tracing retains its existing shutdown behavior and keeps these listeners registered.
-Other subscriber families continue using class-definition registration until their
-activation paths are migrated.
+and includes it in `ddtrace._trace.product.subscriber_bundles`, an ordinary
+product-local tuple. Its
+`start()` registers the bundles. Its terminal `stop()` shuts down the tracer and then
+unregisters the bundles. Shutdown flushes finished traces, discards pending traces
+from the aggregator, stops processors, and clears the calling context's active span.
+It runs even if tracing was already disabled, since pending traces can still exist.
+Completed processor cleanup is not repeated; pending writer retirement can be retried.
+If shutdown raises or another call is still performing cleanup, listeners remain
+registered. A tracer-scoped `tracer.shutdown` completion listener removes the bundles
+when cleanup succeeds, including after a concurrent, reentrant, or retried public
+shutdown. ProductManager does not need to call `stop()` again. Completion notifications
+run after releasing the shutdown lock; failed cleanup does not notify completion.
+Successful later calls can notify again; the teardown callback removes itself after
+success and bundle unregistration is idempotent.
+Shutdown prevents new span processing, including standalone modes, and detaches the
+aggregator buffer so already-running starts cannot repopulate it. Requests completing after a
+successful stop still release their execution events, but their tracing subscribers
+no longer finish spans or attach response metadata. New requests continue emitting
+lifecycle events without spans; integrations guard their remaining span-only operations.
+Existing tasks can retain a
+reference to a discarded span in their own ContextVar; shutdown does not reset other
+tasks' contexts. This terminal cleanup is distinct from temporarily disabling tracing
+or unpatching one integration, which must retain shared completion listeners.
+
+The existing tracing subscriber package initialization also registers the web bundle
+for manual instrumentation that does not start the product manager, unless the tracer
+has already shut down. This compatibility activation belongs to tracing; integrations
+do not import bundle declarations, decorate setup with subscriber dependencies, or
+register listeners. Product startup can register
+the same bundle repeatedly and restore it after a listener reset. Integration setup does
+not restore a stopped or reset bundle. Other subscriber families still use their existing
+class-definition registration until their lifecycle migration.
+
+Tracing's `skip_exit()` preserves its existing tracer-owned exit handling; its
+`stop()` is not called by the product manager at process exit. Explicit product
+stopping unregisters its bundles after shutdown as described above. Later integration
+setup does not reactivate them. Explicit product startup can register bundles again;
+that registration alone does not restart the shut-down tracer.
 
 LLMObs owns its `LLM_SUBSCRIBERS` bundle in `llmobs/_registration.py`. Enabling
 LLMObs registers the shared lifecycle listener, including when product startup calls

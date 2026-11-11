@@ -66,8 +66,8 @@ def test_process_response_route_includes_root_path(root_path, uri_template, want
     resp.status = "200 OK"
     resp._headers = {}
 
-    with mock.patch("ddtrace.contrib.internal.falcon.middleware.span_from_context", return_value=span):
-        middleware.process_response(req, resp, mock.MagicMock(), req_succeeded=True)
+    ctx.get_item.return_value = span
+    middleware.process_response(req, resp, mock.MagicMock(), req_succeeded=True)
 
     assert ctx.event.request_route == want_route
     assert ctx.event.response_status_code == 200
@@ -108,3 +108,24 @@ assert len(spans) == 2
     env["DD_APPSEC_ENABLED"] = "false"
     out, err, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
+
+
+@pytest.mark.parametrize("req_succeeded", [None, False])
+@pytest.mark.parametrize("not_found", [False, True])
+def test_spanless_response_preserves_exception_status(req_succeeded, not_found):
+    from falcon import HTTPNotFound
+
+    middleware = TraceMiddleware()
+    ctx = mock.MagicMock()
+    ctx.get_item.return_value = None
+    req = mock.MagicMock()
+    req.env = {middleware._request_context_key: ctx}
+    resp = mock.MagicMock(status="200 OK", _headers={})
+    try:
+        if not_found:
+            raise HTTPNotFound()
+        raise RuntimeError("handler failed")
+    except Exception:
+        middleware.process_response(req, resp, mock.MagicMock(), req_succeeded=req_succeeded)
+    assert ctx.event.response_status_code == (404 if not_found else 500)
+    ctx.dispatch_ended_event.assert_called_once_with()

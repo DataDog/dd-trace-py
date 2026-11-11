@@ -747,8 +747,8 @@ class Tracer:
         if activate:
             self.context_provider.activate(span)
 
-        # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled:
+        # Terminal shutdown stops new processing even when standalone products remain enabled.
+        if not self._shutting_down and (self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled):
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
@@ -811,8 +811,8 @@ class Tracer:
             ):
                 span._set_attribute(_SERVICE_SOURCE, integration_name)
 
-        # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled:
+        # Terminal shutdown stops processor callbacks, including standalone modes.
+        if not self._shutting_down and (self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled):
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)
@@ -1129,7 +1129,9 @@ class Tracer:
         self._tags.update(tags)
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
-        """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
+        """Shutdown the tracer and flush finished traces.
+
+        Completed processor cleanup is not repeated. Pending writer retirement may be retried.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
@@ -1138,7 +1140,14 @@ class Tracer:
         if not self._shutdown_lock.acquire(blocking=False):
             # Already shutting down from this or another thread — skip re-entrant call
             return
+        shutdown_completed = False
         try:
+            # Check under the lock: another shutdown may have completed before this call acquired it.
+            if self.start_span == self._start_span_after_shutdown:
+                if self._span_aggregator._retired_writers:
+                    self._span_aggregator.shutdown(timeout)
+                shutdown_completed = True
+                return
             # In a MicroVM, bound the wait by timeout: a refresh on another thread can hold this lock while
             # waiting for an aggregator or writer lock held by the thread an exit-signal handler interrupted
             # to run this. A refresh still in flight after the wait stops the writer it installs once it sees
@@ -1170,5 +1179,8 @@ class Tracer:
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+            shutdown_completed = True
         finally:
             self._shutdown_lock.release()
+            if shutdown_completed:
+                core.dispatch("tracer.shutdown", (self,), allow_raise=True)

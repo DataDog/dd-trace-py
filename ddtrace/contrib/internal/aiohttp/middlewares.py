@@ -11,7 +11,6 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.http import _format_template
@@ -75,12 +74,13 @@ async def trace_middleware(app, handler):
             ),
             dispatch_end_event=False,
         ) as ctx:
-            req_span = span_from_context(ctx)
+            req_span = ctx.get_item("_inner_span")
 
             # attach the execution context to the request
             request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
             # legacy request key kept for backwards compatibility with documentation
-            request[REQUEST_CONTEXT_KEY] = req_span.context
+            if req_span is not None:
+                request[REQUEST_CONTEXT_KEY] = req_span.context
 
             try:
                 try:
@@ -98,7 +98,9 @@ async def trace_middleware(app, handler):
             except Exception as e:
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
                 # when its status is an error status.
-                if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
+                if req_span is not None and not (
+                    isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)
+                ):
                     req_span.set_traceback()
                 raise
 
@@ -158,7 +160,7 @@ def _blocked_response(ctx, request, block_config):
 def finish_request_span(request, response):
     # Response preparation and the task callback can both finalize a request; the first releases its event.
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if not ctx or ctx._end_event_dispatched or not span_from_context(ctx):
+    if not ctx or ctx._end_event_dispatched:
         return
 
     # default resource name
