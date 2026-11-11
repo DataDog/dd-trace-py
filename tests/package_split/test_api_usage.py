@@ -334,6 +334,20 @@ def test_attribute_chain_through_reexported_module(tmp_path):
     assert "call" in symbols["A"]
 
 
+def test_wildcard_facade_reexports_consumed_symbol(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES | {"facade.py": "from pkg.lib import *\n"})
+    (tmp_path / "pkg" / "consumer.py").write_text("from pkg.facade import f\nf()\n", encoding="utf-8")
+    report = analyze(tmp_path, "pkg", {})
+    assert any(u.importer == "pkg.consumer" and u.symbol == "f" and u.kind == "call" for u in report.usages)
+
+
+def test_real_src_subpackage_keeps_qualified_name(tmp_path):
+    make_tree(tmp_path, "pkg", {"__init__.py": "", "src/__init__.py": "", "src/lib.py": "def f(): pass\n"})
+    (tmp_path / "pkg" / "consumer.py").write_text("from pkg.src.lib import f\nf()\n", encoding="utf-8")
+    report = analyze(tmp_path, "pkg", {}, target="pkg.src.lib")
+    assert "call" in symbols_of(report)["f"]
+
+
 def test_assignment_aliases_track_calls(tmp_path):
     make_tree(tmp_path, "pkg", TARGET_FILES)
     (tmp_path / "pkg" / "consumer.py").write_text(

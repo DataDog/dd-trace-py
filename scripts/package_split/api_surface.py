@@ -118,10 +118,7 @@ def _package_root(module: str, modules: dict[str, Path]) -> str:
         return module
     if path.name in ("__init__.py", "__init__.pyi", "__init__.pyx"):
         return module
-    parent = module.rsplit(".", 1)[0]
-    if parent in modules and modules[parent].name in ("__init__.py", "__init__.pyi", "__init__.pyx"):
-        return parent
-    return module
+    return module.rsplit(".", 1)[0] if "." in module else module
 
 
 def analyze_api_surfaces(
@@ -201,7 +198,10 @@ def _attributions(
             prefix = ".".join(parts[:depth])
             name = parts[depth]
             tail = ".".join(parts[depth + 1 :])
-            for target in reexports.get(prefix, {}).get(name, ()):
+            bindings = reexports.get(prefix, {})
+            targets = set(bindings.get(name, ()))
+            targets.update("%s.%s" % (origin, name) for origin in bindings.get("*", ()))
+            for target in targets:
                 edge = (prefix, name, target)
                 next_path = target + "." + tail if tail else target
                 if edge not in visited_edges and next_path != path:

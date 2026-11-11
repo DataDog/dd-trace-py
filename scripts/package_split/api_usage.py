@@ -174,6 +174,7 @@ class _UsageCollector(ast.NodeVisitor):
                 if self._matches(target_module):
                     star_symbol = "%s.*" % target_module if self.target is None else "*"
                     self.report.usages.append(Usage(self.importer, star_symbol, "import", self._location(node)))
+                self._bind("*", target_module)
                 continue
             binding = "%s.%s" % (target_module, alias.name) if target_module else alias.name
             self._bind(alias.asname or alias.name, binding)
@@ -287,9 +288,14 @@ class _UsageCollector(ast.NodeVisitor):
                 expanded.append(current)
                 owner, _, name = current.rpartition(".")
                 if owner:
-                    for origin in self.origins.get(owner, {}).get(name, ()):
+                    bindings = self.origins.get(owner, {})
+                    for origin in bindings.get(name, ()):
                         if origin not in expanded:
                             frontier.append(origin)
+                    for origin in bindings.get("*", ()):
+                        wildcard = "%s.%s" % (origin, name)
+                        if wildcard not in expanded:
+                            frontier.append(wildcard)
             # No [:8] cap: a facade binding many names to many origins
             # drops target-relevant alternatives, making the inventory
             # silently under-approximate. Every possible origin is kept;
@@ -349,9 +355,10 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
 
     Names are relative to root: ddtrace/internal/x.py is ddtrace.internal.x.
     Module trees may also live under a ``src`` directory -- at the scan root
-    (src/pkg/x.py) or in a workspace layout (packages/<dist>/src/pkg/x.py) --
-    so naming starts after the *last* ``src`` path segment. Vendored code
-    (vendor/) is skipped because we do not control its structure.
+    (src/pkg/x.py) or in a workspace layout (packages/<dist>/src/pkg/x.py).
+    Treat ``src`` as a layout boundary when it contains the selected source
+    path or is at the scan root, unless a package initializer identifies it or
+    an ancestor as a package. Vendored code (vendor/) is skipped.
 
     Native extensions (.pyx) and type stubs (.pyi) are importable modules:
     a Cython-backed target exists only as .pyx/.pyi and would otherwise
@@ -361,10 +368,24 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
     for target matching only (not parseable with ast.parse).
     """
 
-    def _module_name(file: Path) -> Optional[str]:
+    def _module_name(file: Path, source_path: Path) -> Optional[str]:
         rel = file.relative_to(root)
-        if "src" in rel.parts:
-            rel = Path(*rel.parts[len(rel.parts) - rel.parts[::-1].index("src") :])
+        source_rel = source_path.relative_to(root)
+        for index in reversed(range(len(rel.parts) - 1)):
+            if rel.parts[index] != "src":
+                continue
+            src = root.joinpath(*rel.parts[: index + 1])
+            if source_rel.parts and not (source_path == src or src in source_path.parents):
+                continue
+            package_dirs = [root.joinpath(*rel.parts[:depth]) for depth in range(1, index + 2)]
+            if any(
+                (parent / init).is_file()
+                for parent in package_dirs
+                for init in ("__init__.py", "__init__.pyi", "__init__.pyx")
+            ):
+                continue
+            rel = Path(*rel.parts[index + 1 :])
+            break
         if any(part in _EXCLUDED_DIRS for part in rel.parts):
             return None
         parts = list(rel.with_suffix("").parts)
@@ -378,7 +399,7 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
             raise ValueError("source path does not exist: %s" % source_path)
         if not source_path.is_dir():
             if source_path.suffix in (".py", ".pyi", ".pyx"):
-                name = _module_name(source_path)
+                name = _module_name(source_path, source_path)
                 if name:
                     modules.setdefault(name, source_path)
             continue
@@ -386,7 +407,7 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
         # .pyx extensions last (name-only, not parseable).
         for pattern in ("*.py", "*.pyi", "*.pyx"):
             for file in sorted(source_path.rglob(pattern)):
-                name = _module_name(file)
+                name = _module_name(file, source_path)
                 if name and name not in modules:
                     modules[name] = file
     return modules

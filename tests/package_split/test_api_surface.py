@@ -218,6 +218,34 @@ def test_reexport_with_same_named_module_keeps_both_owners(tmp_path):
     assert "app.consumer" in report.owners["shared.exposed"].consumers_of("<module>")
 
 
+def test_wildcard_facade_attributes_external_consumers(tmp_path):
+    build_repo(
+        tmp_path,
+        {
+            "shared/impl.py": "def exposed(): pass\n",
+            "shared/api.py": "from shared.impl import *\n",
+            "app/consumer.py": "from shared.api import exposed\nexposed()\n",
+        },
+    )
+    report = analyze(tmp_path)
+    assert "app.consumer" in report.owners["shared.impl"].consumers_of("exposed")
+
+
+def test_namespace_sibling_moves_with_owner(tmp_path):
+    build_repo(
+        tmp_path,
+        {
+            "shared/base.py": "def helper(): pass\n",
+            "shared/sibling.py": "from shared.base import helper\n",
+            "app/consumer.py": "from shared.base import helper\n",
+        },
+    )
+    report = analyze(tmp_path)
+    suggestions = {s.owner: s for s in bundling_suggestions(report)}
+    assert suggestions["shared.base"].consumer_zone == "product:app"
+    assert suggestions["shared.base"].symbols == ["helper"]
+
+
 def test_nested_identity_reexports_do_not_duplicate_attribution():
     parts = ["shared", "a", "b", "c", "d", "e", "f", "g"]
     reexports = {".".join(parts[:i]): {parts[i]: {".".join(parts[: i + 1])}} for i in range(1, len(parts))}
