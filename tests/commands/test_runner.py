@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 
 import pytest
 
@@ -288,6 +289,78 @@ def test_command_flags():
     assert out.strip() == b"test!"
 
 
+@pytest.mark.parametrize("flags", [[], ["--debug"], ["--profiling"]])
+def test_launcher_does_not_initialize_ddtrace(flags):
+    code = textwrap.dedent(
+        """
+        import importlib.metadata
+        import os
+        import sys
+
+        entrypoint = next(
+            ep for ep in importlib.metadata.distribution("ddtrace").entry_points
+            if ep.group == "console_scripts" and ep.name == "ddtrace-run"
+        )
+        main = entrypoint.load()
+        flags = sys.argv[1:]
+        os.environ["PYTHONPATH"] = "existing-path"
+        os.environ["DD_TRACE_DEBUG"] = "false"
+        original_env = os.environ.copy()
+        sys.argv = ["ddtrace-run"] + flags + [sys.executable, "-c", "pass", "--version"]
+
+        def exec_application(executable, *args):
+            assert {name for name in sys.modules if name == "ddtrace" or name.startswith("ddtrace.")} == {
+                "ddtrace", "ddtrace._logger", "ddtrace.commands", "ddtrace.commands.ddtrace_run",
+                "ddtrace.internal", "ddtrace.internal._unpatched",
+            }
+            assert executable == sys.executable
+            assert args == (sys.executable, "-c", "pass", "--version")
+            bootstrap, previous = os.environ["PYTHONPATH"].split(os.pathsep, 1)
+            assert os.path.isfile(os.path.join(bootstrap, "sitecustomize.py"))
+            assert previous == "existing-path"
+            expected_env = dict(original_env, PYTHONPATH=os.environ["PYTHONPATH"])
+            if "--debug" in flags:
+                expected_env["DD_TRACE_DEBUG"] = "true"
+                assert os.environ["DD_TRACE_DEBUG"] == "true"
+            if "--profiling" in flags:
+                expected_env["DD_PROFILING_ENABLED"] = "true"
+                assert os.environ["DD_PROFILING_ENABLED"] == "true"
+            assert dict(os.environ) == expected_env
+            raise SystemExit(0)
+
+        os.execl = exec_application
+        main()
+        """
+    )
+    subprocess.run([sys.executable, "-c", code, *flags], check=True, capture_output=True)
+
+
+def test_launcher_bootstrap_is_inherited_by_child_processes():
+    code = "import sys; assert sys.modules['ddtrace.bootstrap.sitecustomize'].loaded"
+    result = subprocess.run(
+        [
+            "ddtrace-run",
+            sys.executable,
+            "-c",
+            f"import subprocess, sys; {code}; subprocess.run([sys.executable, '-c', {code!r}], check=True)",
+        ],
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_launcher_runs_application_after_import_failure(exit_code):
+    result = subprocess.run(
+        ["ddtrace-run", sys.executable, "-c", f"import sys; print('application ran'); sys.exit({exit_code})"],
+        env=dict(os.environ, DD_TRACE_LOG_FILE_LEVEL="UNKNOWN"),
+        capture_output=True,
+    )
+    assert result.returncode == exit_code, result.stderr
+    assert b"ValueError" in result.stderr
+    assert result.stdout.strip() == b"application ran"
+
+
 def test_return_code():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -528,11 +601,16 @@ def test_ddtrace_auto_atexit():
 
     registered_funcs = set()
     unregistered_funcs = set()
+    signal_registered_funcs = set()
 
     def mock_register(func):
         if func in registered_funcs:
             raise AssertionError("Duplicate registered function: %s" % func)
         registered_funcs.add(func)
+
+    def mock_signal_register(func):
+        assert func not in signal_registered_funcs
+        signal_registered_funcs.add(func)
 
     def mock_unregister(func):
         if func in unregistered_funcs:
@@ -542,7 +620,7 @@ def test_ddtrace_auto_atexit():
     with (
         patch("ddtrace.internal.atexit.register", side_effect=mock_register),
         patch("ddtrace.internal.atexit.unregister", side_effect=mock_unregister),
-        patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_register),
+        patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_signal_register),
         patch("atexit.register", side_effect=mock_register),
         patch("atexit.unregister", side_effect=mock_unregister),
     ):
@@ -592,3 +670,117 @@ def test_ddtrace_run_sync_sigint():
 
     threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
     time.sleep(10)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "from ddtrace import tracer; from ddtrace.trace import tracer as other; assert tracer is other",
+        "from ddtrace import trace; import ddtrace; assert trace.tracer is ddtrace.tracer",
+        "from ddtrace import version; import ddtrace; assert version.__version__ == ddtrace.__version__",
+        "from ddtrace import constants; import ddtrace.constants; assert constants is ddtrace.constants",
+        "import ddtrace.trace; from ddtrace.trace import tracer; assert ddtrace.trace.tracer is tracer",
+        "import ddtrace; from ddtrace.internal.compat import is_at_least_py; "
+        "assert ddtrace.is_at_least_py is is_at_least_py",
+        "from ddtrace.trace import tracer; import ddtrace; assert ddtrace.tracer is tracer",
+        "from ddtrace import config; from ddtrace.internal.settings._config import config as other; "
+        "assert config is other",
+        "from ddtrace import patch; from ddtrace._monkey import patch as other; assert patch is other",
+        "from ddtrace import *; assert callable(patch); assert callable(patch_all)",
+        "import ddtrace.auto; import ddtrace.bootstrap.sitecustomize as sc; assert sc.loaded",
+    ],
+)
+def test_lazy_public_exports(statement):
+    result = subprocess.run(
+        [sys.executable, "-c", "import faulthandler; faulthandler.dump_traceback_later(10, exit=True); " + statement],
+        capture_output=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_lazy_package_has_no_product_side_effects():
+    code = """
+import builtins
+import os
+import sys
+before = sys.excepthook
+original_open = builtins.open
+os.environ["DD_SERVICE"] = "before-import"
+import ddtrace
+assert sys.excepthook is before
+assert {name for name in sys.modules if name.startswith("ddtrace.")} == {
+    "ddtrace._logger", "ddtrace.internal", "ddtrace.internal._unpatched",
+}
+assert "tracer" in dir(ddtrace)
+assert "config" in dir(ddtrace)
+for name in ("trace", "version", "constants"):
+    assert name not in ddtrace._EXPORTS
+    assert not hasattr(ddtrace, name)
+os.environ["DD_SERVICE"] = "before-config"
+from ddtrace import config
+assert config.service == "before-config"
+os.environ["DD_SERVICE"] = "after-config"
+assert config.service == "before-config"
+def replaced(*args, **kwargs):
+    return original_open(*args, **kwargs)
+builtins.open = replaced
+from ddtrace.trace import tracer
+from ddtrace.internal._unpatched import unpatched_open
+assert unpatched_open is original_open
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("flag", ["false", "0", "", "invalid"])
+def test_lazy_root_exports_disabled(flag):
+    code = """
+import sys
+import ddtrace
+for name in ddtrace._EXPORTS:
+    try:
+        getattr(ddtrace, name)
+    except AttributeError:
+        pass
+    else:
+        raise AssertionError(name)
+    try:
+        exec(f"from ddtrace import {name}")
+    except ImportError:
+        pass
+    else:
+        raise AssertionError(name)
+assert "ddtrace.internal.telemetry" not in sys.modules
+assert "ddtrace.trace" not in sys.modules
+from ddtrace import version, constants
+import ddtrace.version
+import ddtrace.constants
+assert version is ddtrace.version
+assert constants is ddtrace.constants
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env=dict(os.environ, _DD_GLOBAL_TRACER_INIT=flag),
+        capture_output=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_lazy_concurrent_tracer_access():
+    code = """
+import concurrent.futures
+import threading
+import ddtrace
+barrier = threading.Barrier(8)
+def get_tracer(_):
+    barrier.wait()
+    return ddtrace.tracer
+with concurrent.futures.ThreadPoolExecutor(8) as pool:
+    tracers = list(pool.map(get_tracer, range(8)))
+assert all(t is tracers[0] for t in tracers)
+assert tracers[0] is ddtrace.trace.tracer
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stderr

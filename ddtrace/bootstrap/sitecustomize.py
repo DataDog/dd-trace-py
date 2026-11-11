@@ -15,20 +15,25 @@ Add all monkey-patching that needs to run by default here
 # perform the correct initialisation for the library. All the actual
 # initialisation logic should be placed in preload.py.
 import ddtrace  # isort:skip
+import logging
 import os  # noqa:F401
 import sys
 
-import ddtrace.bootstrap.cloning as cloning
-from ddtrace.internal.logger import get_logger  # noqa:F401
-from ddtrace.internal.settings import env
-from ddtrace.internal.telemetry import telemetry_writer
 
-
-log = get_logger(__name__)
+log = logging.getLogger(__name__)
 
 
 try:
+    from ddtrace.internal.logger import get_logger
+    from ddtrace.internal.utils.deprecations import check_supported_python_version
+
+    log = get_logger(__name__)
+    check_supported_python_version()
+
+    import ddtrace.bootstrap.cloning as cloning
     import ddtrace.bootstrap.preload as preload  # Perform the actual initialisation
+    from ddtrace.internal.settings import env
+    from ddtrace.internal.telemetry import telemetry_writer
 
     cloning.cleanup_loaded_modules()
 

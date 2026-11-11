@@ -14,9 +14,9 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import uwsgi
+from ddtrace.internal._exceptions import is_panic_exception
 from ddtrace.internal.module import origin
 from ddtrace.internal.native import scan_distributions
-from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.threads import Thread
 from ddtrace.internal.threads import local

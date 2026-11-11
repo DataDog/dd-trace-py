@@ -386,6 +386,9 @@ def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) ->
 
         >>> patch(psycopg=True, elasticsearch=True)
     """
+    if config._data_streams_enabled:
+        import ddtrace.internal.datastreams  # noqa: F401
+
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.

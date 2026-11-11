@@ -1407,6 +1407,9 @@ Logs
      description: |
          Enables debug logging in the tracer.
 
+         Logging uses environment variables initially and applies fleet and local stable configuration
+         once tracer configuration is initialized.
+
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
 
          Takes precedence over ``DD_TRACE_LOG_LEVEL``.

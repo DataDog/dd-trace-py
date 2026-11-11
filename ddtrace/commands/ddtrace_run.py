@@ -1,31 +1,33 @@
 #!/usr/bin/env python
 import argparse
+import importlib.util
 import logging
 import os
 import shutil
 import sys
 import typing  # noqa:F401
 
-import ddtrace
-from ddtrace.internal.settings import env
-from ddtrace.version import __version__
+
+env = os.environ  # ast-grep-ignore: os-environ-fix-access
 
 
 def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Optional[str]:
     if args is None:
         return None
-    command = args.command[0]
+    command = typing.cast(str, args.command[0])
     if os.path.isfile(command):
         return command
     return shutil.which(command)
 
 
+# The launcher must not initialize ddtrace before replacing itself with the application.
 # Do not use `ddtrace.internal.logger.get_logger` here
 # DEV: It isn't really necessary to use `DDLogger` here so we want to
 #        defer importing `ddtrace` until we actually need it.
 #      As well, no actual rate limiting would apply here since we only
 #        have a few logged lines
 log = logging.getLogger(__name__)
+# The launcher must not initialize ddtrace before replacing itself with the application.
 
 USAGE = """
 Execute the given Python command after configuring it to emit Datadog traces
@@ -38,7 +40,7 @@ ddtrace-run gunicorn myproject.wsgi
 """
 
 
-def _add_bootstrap_to_pythonpath(bootstrap_dir):
+def _add_bootstrap_to_pythonpath(bootstrap_dir: str) -> None:
     """
     Add our bootstrap directory to the head of $PYTHONPATH to ensure
     it is loaded before program code
@@ -50,6 +52,20 @@ def _add_bootstrap_to_pythonpath(bootstrap_dir):
         env["PYTHONPATH"] = new_path
     else:
         env["PYTHONPATH"] = bootstrap_dir
+
+
+class _VersionAction(argparse.Action):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: typing.Any,
+        option_string: typing.Optional[str] = None,
+    ) -> None:
+        from ddtrace.version import __version__
+
+        parser._print_message("%s %s\n" % (parser.prog, __version__), sys.stdout)
+        parser.exit()
 
 
 def _get_arg_parser() -> argparse.ArgumentParser:
@@ -71,17 +87,17 @@ def _get_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
     )
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
-    parser.add_argument("-v", "--version", action="version", version="%(prog)s " + __version__)
+    parser.add_argument("-v", "--version", action=_VersionAction, nargs=0, help="show program version and exit")
     parser.add_argument("-nc", "--colorless", help="print output of command without color", action="store_true")
     return parser
 
 
-def _prepare_env(parser: argparse.ArgumentParser):
+def _prepare_env(parser: argparse.ArgumentParser) -> argparse.Namespace:
     args = parser.parse_args()
     if args.profiling:
         env["DD_PROFILING_ENABLED"] = "true"
 
-    if args.debug or ddtrace.config._debug_mode:
+    if args.debug or env.get("DD_TRACE_DEBUG", "").lower() in ("true", "1"):
         logging.basicConfig(level=logging.DEBUG)
         env["DD_TRACE_DEBUG"] = "true"
 
@@ -93,7 +109,10 @@ def _prepare_env(parser: argparse.ArgumentParser):
         print(pretty_collect(tracer, color=not args.colorless))
         sys.exit(0)
 
-    root_dir = os.path.dirname(ddtrace.__file__)
+    spec = importlib.util.find_spec("ddtrace")
+    if spec is None or spec.origin is None:
+        raise ImportError("Cannot find the ddtrace package")
+    root_dir = os.path.dirname(spec.origin)
     log.debug("ddtrace root: %s", root_dir)
 
     bootstrap_dir = os.path.join(root_dir, "bootstrap")
@@ -110,7 +129,7 @@ def _prepare_env(parser: argparse.ArgumentParser):
     return args
 
 
-def main():
+def main() -> None:
     parser = None
     args = None
     executable = None

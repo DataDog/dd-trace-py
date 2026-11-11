@@ -6,6 +6,8 @@ These modules are not intended to be used outside of `ddtrace`.
 The APIs found within `ddtrace.internal` are subject to breaking changes at any time
 and do not follow the semver versioning scheme of the `ddtrace` package.
 
+Use `ddtrace.internal._exceptions.is_panic_exception` to detect Rust panics without loading native code.
+
 ## Span attribute limits
 
 `ddtrace.internal._limits` defines the span attribute size limits used by span

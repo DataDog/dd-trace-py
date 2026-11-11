@@ -21,6 +21,12 @@ class BlockingException(DDBlockException):
 E = TypeVar("E", bound=BaseException)
 
 
+def is_panic_exception(exc: BaseException) -> bool:
+    """Check whether exc is a pyo3_runtime.PanicException raised by a Rust panic."""
+    cls = type(exc)
+    return cls.__module__ == "pyo3_runtime" and cls.__name__ == "PanicException"
+
+
 def find_exception(
     exc: BaseException,
     exception_type: type[E],

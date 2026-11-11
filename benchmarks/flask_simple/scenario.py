@@ -1,5 +1,4 @@
 import bm
-from bm import utils
 from bm.flask_utils import FlaskScenarioMixin
 
 
@@ -18,6 +17,8 @@ class FlaskSimple(bm.Scenario, FlaskScenarioMixin):
 
     def run(self):
         app = self.create_app()
+
+        from bm import utils
 
         # Setup the request function
         if self.post_request:

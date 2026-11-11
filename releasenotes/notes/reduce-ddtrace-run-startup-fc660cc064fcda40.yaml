@@ -1,0 +1,9 @@
+other:
+  - |
+    perf: Reduces the overhead of importing ``ddtrace`` and starting applications with ``ddtrace-run``.
+  - |
+    perf: Limits Python-version support checks to ``ddtrace-run`` and ``import ddtrace.auto``.
+fixes:
+  - |
+    tracing: Fixes an issue where ddtrace import errors prevent applications launched with
+    ``ddtrace-run`` from starting. Errors are reported and application startup continues.
