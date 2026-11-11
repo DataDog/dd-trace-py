@@ -26,6 +26,7 @@ from urllib.parse import unquote_plus
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
+from ddtrace import config as ddconfig
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
@@ -71,6 +72,13 @@ _WAIT_EPSILON_S = 1e-6
 # otherwise each position inside a long run rescans the rest of it (quadratic).
 # It is inside the optional group so a bare "//" is still redacted anywhere.
 _URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
+
+# The CDN attributes a request's usage to DD-Service only when the whole value
+# matches this, and drops any other value.
+_USAGE_SERVICE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}")
+_USAGE_SERVICE_REJECTED_MESSAGE = (
+    "Feature Flags: service %s does not match the format the CDN attributes usage to; DD-Service header not sent"
+)
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
@@ -163,6 +171,7 @@ class AgentlessConfigurationSource(PeriodicService):
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
 
         self._etag: Optional[str] = None
+        self._rejected_service: Optional[str] = None
         self._failure_warnings: set[str] = set()
         self._malformed_payload_logged = False
         self._application_failure_logged = False
@@ -330,9 +339,31 @@ class AgentlessConfigurationSource(PeriodicService):
         }
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
+        service = self._usage_service()
+        if service:
+            # Lets the CDN attribute this request's usage to the service.
+            headers["DD-Service"] = service
         if self._etag:
             headers["If-None-Match"] = self._etag
         return headers
+
+    def _usage_service(self) -> Optional[str]:
+        """Return the tracer service to send as DD-Service, or None to omit it.
+
+        Read on every request, since the service can be set in code after the
+        source starts. A value the CDN would drop is not sent: the HTTP client
+        also refuses a header value with a line break, which would fail every poll.
+        """
+        service = ddconfig.service
+        if not service or not isinstance(service, str):
+            return None
+        if _USAGE_SERVICE_RE.fullmatch(service):
+            return service
+        # Log once per rejected value rather than on every poll.
+        if service != self._rejected_service:
+            self._rejected_service = service
+            log.debug(_USAGE_SERVICE_REJECTED_MESSAGE, service)
+        return None
 
     def _request(self) -> _PollResponse:
         conn = None

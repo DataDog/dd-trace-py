@@ -14,6 +14,7 @@ import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._agentless_source import MAX_POLL_INTERVAL_SECONDS
 from ddtrace.internal.openfeature._agentless_source import AgentlessConfigurationSource
 import ddtrace.internal.openfeature._native as native_mod
+from tests.utils import override_global_config
 
 
 ENDPOINT = "https://ufc-server.ff-cdn.datadoghq.com/api/v2/feature-flagging/config/rules-based/server?dd_env=prod"
@@ -305,6 +306,84 @@ def test_client_library_headers_and_gzip_accept(harness):
     assert headers["Accept-Encoding"] == "gzip"
     assert headers["DD-Client-Library-Language"] == "python"
     assert headers["DD-Client-Library-Version"]
+
+
+def _has_service_header(request):
+    return any(name.lower() == "dd-service" for name in request["headers"])
+
+
+def test_dd_service_header_sent_on_every_poll(harness):
+    src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304)])
+    with override_global_config({"service": "checkout"}):
+        src.periodic()
+        src.periodic()
+
+    assert len(src._requests) == 2
+    assert src._requests[0]["headers"]["DD-Service"] == "checkout"
+    assert src._requests[1]["headers"]["If-None-Match"] == '"v1"'
+    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
+
+
+@pytest.mark.parametrize("service", [None, ""])
+def test_dd_service_header_omitted_without_service(harness, caplog, service):
+    src = harness([_FakeResponse(304)])
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert not any("DD-Service header not sent" in m for m in caplog.messages)
+
+
+def test_dd_service_header_follows_service_changes_after_start(harness):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    for service in (None, "checkout", "billing"):
+        with override_global_config({"service": service}):
+            src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
+    assert src._requests[2]["headers"]["DD-Service"] == "billing"
+
+
+@pytest.mark.parametrize("service", ["a", "svc_name.v2:api/edge-1", "a" + "b" * 99])
+def test_dd_service_header_sends_values_at_format_limits(harness, service):
+    src = harness([_FakeResponse(304)])
+    with override_global_config({"service": service}):
+        src.periodic()
+
+    assert src._requests[0]["headers"]["DD-Service"] == service
+
+
+# The CDN drops any other value, and a line break in a header value would fail the request.
+@pytest.mark.parametrize(
+    "service", ["a" + "b" * 100, "_svc", "my service", "支付", "bad\nvalue", "svc\n", "   "], ids=repr
+)
+def test_dd_service_header_skips_values_the_cdn_would_drop(harness, caplog, service):
+    src = harness([_FakeResponse(200, _ufc_body())])
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert len(src._applied) == 1  # polling is unaffected
+    assert (
+        "Feature Flags: service %s does not match the format the CDN attributes usage to; DD-Service header not sent"
+        % service
+    ) in _debug_messages(caplog)
+
+
+def test_dd_service_rejection_logged_once_per_value(harness, caplog):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        for service in ("my service", "my service", "_svc"):
+            with override_global_config({"service": service}):
+                src.periodic()
+
+    rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
+    assert rejected == [
+        "Feature Flags: service my service does not match the format the CDN attributes usage to; "
+        "DD-Service header not sent",
+        "Feature Flags: service _svc does not match the format the CDN attributes usage to; DD-Service header not sent",
+    ]
 
 
 def test_self_tracing_suppressed(harness):

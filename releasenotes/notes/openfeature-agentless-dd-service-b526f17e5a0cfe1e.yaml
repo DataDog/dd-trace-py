@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    openfeature: Agentless Feature Flagging configuration requests now include the application's
+    service name, so Feature Flags usage can be broken down by service. The service is the one the
+    tracer reports for its spans, from ``DD_SERVICE`` or the name inferred when it is not set.

@@ -15,6 +15,7 @@ from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.openfeature._provider import _apply_agentless_configuration
 from ddtrace.internal.openfeature._source_selection import create_agentless_source
+from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
@@ -43,11 +44,12 @@ class _FakeResponse:
 
 
 class _FakeConn:
-    def __init__(self, response):
+    def __init__(self, response, requests=None):
         self._response = response
+        self._requests = [] if requests is None else requests
 
-    def request(self, *args, **kwargs):
-        pass
+    def request(self, method, target, body=None, headers=None):
+        self._requests.append({"target": target, "headers": headers})
 
     def getresponse(self):
         return self._response
@@ -65,12 +67,16 @@ def clear_config():
 
 @pytest.fixture
 def mock_cdn(monkeypatch):
+    """Serve body for every poll; returns the list the requests are recorded in."""
+
     def install(body):
+        requests: list = []
         monkeypatch.setattr(
             source_mod,
             "get_connection",
-            lambda url, timeout=None: _FakeConn(_FakeResponse(200, body, {"ETag": '"v1"'})),
+            lambda url, timeout=None: _FakeConn(_FakeResponse(200, body, {"ETag": '"v1"'}), requests),
         )
+        return requests
 
     return install
 
@@ -93,6 +99,80 @@ def test_agentless_delivery_evaluates_flag(mock_cdn):
 
     assert result.value is True
     assert result.variant == "true"
+
+
+def test_agentless_request_sends_tracer_service(mock_cdn):
+    requests = mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+
+    with override_global_config({"_dd_api_key": "secret", "_dd_site": "datadoghq.com", "service": "checkout"}):
+        source = create_agentless_source(ffe_config, process_ffe_configuration)
+        assert source is not None
+        source.periodic()
+
+    (request,) = requests
+    assert request["target"].partition("?")[0] == "/api/v2/feature-flagging/config/rules-based/server"
+    assert request["headers"]["DD-Service"] == "checkout"
+    assert request["headers"]["DD-API-KEY"] == "secret"
+
+
+def test_custom_endpoint_receives_service_but_not_api_key(mock_cdn):
+    """Unlike the API key, a service name is not a secret, so a custom endpoint receives it too."""
+    requests = mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
+    custom = OpenFeatureConfig(
+        source={"DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": "https://flags.example.test/custom"}
+    )
+
+    with override_global_config({"_dd_api_key": "secret", "service": "checkout"}):
+        source = create_agentless_source(custom, process_ffe_configuration)
+        assert source is not None
+        source.periodic()
+
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == "checkout"
+    assert "DD-API-KEY" not in request["headers"]
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": "checkout"})
+def test_agentless_request_sends_dd_service_from_environment():
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    (request,) = requests
+    assert request["target"].partition("?")[0] == "/api/v2/feature-flagging/config/rules-based/server"
+    assert request["headers"]["DD-Service"] == "checkout"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": None})
+def test_agentless_request_sends_inferred_service():
+    """Without DD_SERVICE the header carries the service the tracer infers, the same one its spans use."""
+    import ddtrace
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    assert ddtrace.config.service == DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 
 def test_provider_lifecycle_starts_and_stops_source(mock_cdn):
