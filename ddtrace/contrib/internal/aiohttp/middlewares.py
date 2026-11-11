@@ -68,7 +68,6 @@ async def trace_middleware(
             WebFrameworkRequestEvent(
                 http_operation="aiohttp.request",
                 component=config.aiohttp.integration_name,
-                supports_spanless_lifecycle=True,
                 integration_config=config.aiohttp,
                 request_headers=cast(MutableMapping[str, str], request.headers),
                 request_method=request.method,
@@ -84,7 +83,6 @@ async def trace_middleware(
             ),
             dispatch_end_event=False,
         ) as ctx:
-            request_event = ctx.event
             req_span = ctx.get_item("_inner_span")
 
             # attach the execution context to the request
@@ -109,11 +107,7 @@ async def trace_middleware(
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
                 # when its status is an error status.
                 if not (isinstance(e, web.HTTPException) and is_otel_non_error_status(e.status)):
-                    core.dispatch_event(
-                        WebFrameworkRequestExceptionEvent(
-                            request_context=ctx, request_event=request_event, exc_info=sys.exc_info()
-                        )
-                    )
+                    core.dispatch_event(WebFrameworkRequestExceptionEvent(request_context=ctx, exc_info=sys.exc_info()))
                 raise
         raise RuntimeError("Request context suppressed an exception without a response")
 

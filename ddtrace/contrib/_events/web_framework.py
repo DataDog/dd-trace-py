@@ -27,9 +27,6 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     span_type = SpanTypes.WEB
     span_kind = SpanKind.SERVER
 
-    # Whether the integration can emit its complete lifecycle without a tracing span.
-    supports_spanless_lifecycle: bool = event_field(default=False)
-
     # Whether header keys should preserve their original casing during extraction.
     headers_case_sensitive: bool = event_field()
 
@@ -65,5 +62,4 @@ class WebFrameworkRequestExceptionEvent(Event):
     event_name = "web.request.exception"
 
     request_context: core.ExecutionContext[WebFrameworkRequestEvent]
-    request_event: WebFrameworkRequestEvent
     exc_info: ExcInfoType

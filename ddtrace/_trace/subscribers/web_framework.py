@@ -8,6 +8,7 @@ from ddtrace._trace.otel.http.resource import record_initial_instrumentation_res
 from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
+from ddtrace._trace.subscribers._base import _SPAN_CREATION_ENABLED
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
@@ -31,13 +32,13 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
-        # Other frameworks still require a span in their request lifecycle.
-        if ctx.event.supports_spanless_lifecycle:
+        # Aiohttp can complete requests without spans; other frameworks still require them.
+        if ctx.event.component == "aiohttp":
             tracer = core.root.get_item("tracer")
             apm_enabled = tracer is not None and tracer.enabled
             standalone_spans_required = tracer is not None and standalone_config.apm_opt_out
             # Standalone products need span lifecycle without enabling APM tracing.
-            ctx.event.span_creation_enabled = apm_enabled or standalone_spans_required
+            ctx.set_item(_SPAN_CREATION_ENABLED, apm_enabled or standalone_spans_required)
         super()._on_context_started(ctx)
 
     @classmethod
@@ -110,9 +111,9 @@ class WebFrameworkRequestExceptionSubscriber(Subscriber):
 
     @classmethod
     def on_event(cls, event: WebFrameworkRequestExceptionEvent) -> None:
-        # The context may have released its event at response preparation. Retain
-        # the original tracing decision, including when AppSec borrowed a parent span.
-        if not event.request_event.span_creation_enabled:
+        # The context retains the entry decision after response preparation releases
+        # its event, including when AppSec borrowed a parent span.
+        if not event.request_context.get_item(_SPAN_CREATION_ENABLED, False):
             return
         span = event.request_context.get_item("_inner_span")
         exc_type, exc_value, traceback = event.exc_info
