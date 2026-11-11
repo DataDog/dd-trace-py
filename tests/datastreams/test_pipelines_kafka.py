@@ -14,9 +14,13 @@ import threading
 import pytest
 
 from ddtrace.internal import core
-from ddtrace.internal.datastreams.kafka import pipelines_kafka_message_produce
-import ddtrace.internal.datastreams.pipelines as pipelines_module
-from ddtrace.internal.datastreams.pipelines import get_pipelines_reporter
+
+
+pytest.importorskip("confluent_kafka")
+
+from ddtrace.internal.datastreams.kafka import pipelines_kafka_message_produce  # noqa: E402
+import ddtrace.internal.datastreams.pipelines as pipelines_module  # noqa: E402
+from ddtrace.internal.datastreams.pipelines import get_pipelines_reporter  # noqa: E402
 
 
 class FakeMessage:
@@ -234,3 +238,16 @@ def test_handlers_never_raise(fresh_reporter):
 
     report = fresh_reporter.take_report("svc", "env")
     assert ["produce", "kafka", "cluster-1", "orders", ""] in report["sides"]
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "false", "DD_DATA_STREAMS_PIPELINES_ENABLED": "true"})
+def test_pipelines_only_registers_kafka_handlers_when_client_library_is_imported():
+    import sys
+
+    import ddtrace  # noqa: F401
+
+    assert "ddtrace.internal.datastreams.kafka" not in sys.modules
+
+    import confluent_kafka  # noqa: F401
+
+    assert "ddtrace.internal.datastreams.kafka" in sys.modules
