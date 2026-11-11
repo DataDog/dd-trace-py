@@ -73,16 +73,15 @@ _WAIT_EPSILON_S = 1e-6
 # It is inside the optional group so a bare "//" is still redacted anywhere.
 _URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^\s'\"(),.;]")
 
-# The CDN attributes a request's usage to DD-Service only when the whole value
-# matches this, and drops any other value.
+# The CDN attributes usage to a DD-Service value only if the full value matches this.
+# The CDN ignores all other values.
 _USAGE_SERVICE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}")
 _USAGE_SERVICE_REJECTED_MESSAGE = (
-    "Feature Flags: service %s has nothing left the CDN can attribute usage to once cleaned up; "
-    "DD-Service header not sent"
+    "Feature Flags: the CDN does not accept the APM name of service %r; DD-Service header not sent"
 )
-# Every character a cleaned-up service name may not contain, non-ASCII included.
-_SERVICE_DISALLOWED_RE = re.compile(r"[^a-z0-9_:./-]")
-_SERVICE_MAX_LENGTH = 100
+# The ASCII characters that the Agent keeps in a service name, after it lowercases ASCII letters.
+_SERVICE_KEPT_ASCII = frozenset("abcdefghijklmnopqrstuvwxyz0123456789:./-")
+_SERVICE_MAX_BYTES = 100
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
@@ -104,29 +103,50 @@ def _describe_error(error: BaseException) -> str:
 
 
 def _normalize_service(service: str) -> str:
-    """Clean a service name up the way the Agent cleans up span service names.
+    """Return the service name that APM shows. This is a port of the Agent's ``NormalizeService``.
 
-    Lowercase it, replace every character outside ``[a-z0-9_:./-]`` (non-ASCII
-    included) with ``_``, strip the leading characters that are not a letter or a
-    digit, and cut it to 100 characters, as ``normalizeService`` in dd-trace-js does.
+    - Cut the name to 100 bytes of UTF-8. Do not split a character.
+    - Lowercase ASCII letters. Do not change other characters.
+    - Keep letters, digits and ``:./-``.
+    - Replace each run of other characters (``_``, spaces, punctuation, emoji) with one ``_``.
+    - Drop a run at the end. Keep a run at the start: ``" svc"`` becomes ``"_svc"``.
+
+    For an empty result, the Agent uses a placeholder name. This function returns ``""``.
+
+    Raises UnicodeEncodeError if the name has a lone surrogate.
     """
-    cleaned = _SERVICE_DISALLOWED_RE.sub("_", service.lower()).lstrip("_:./-")
-    return cleaned[:_SERVICE_MAX_LENGTH]
+    truncated = service.encode("utf-8")[:_SERVICE_MAX_BYTES].decode("utf-8", "ignore")
+    normalized = []
+    pending_separator = False
+    for c in truncated:
+        if "A" <= c <= "Z":
+            c = chr(ord(c) + 32)
+        if c in _SERVICE_KEPT_ASCII or (not c.isascii() and (c.isalpha() or c.isdecimal())):
+            if pending_separator:
+                normalized.append("_")
+                pending_separator = False
+            normalized.append(c)
+        else:
+            pending_separator = True
+    return "".join(normalized)
 
 
 def _usage_service_header(service: Any) -> Optional[str]:
     """Return the DD-Service header value for a tracer service, or None to omit the header.
 
-    A name the CDN would drop, such as ``My Service``, is cleaned up to the name APM
-    shows for it (``my_service``), so the usage is still attributed. Cleaning up also
-    removes line breaks and non-ASCII characters, which the HTTP client could refuse
-    or the CDN would drop. A name with nothing left once cleaned up is not sent.
+    The value is the exact name that APM shows. For example, ``My Service`` becomes ``my_service``.
+    If the CDN does not accept that name, for example ``_svc`` or ``café-api``, omit the header.
+    Never send a different name: usage must go to a service that APM shows.
     """
     if not service or not isinstance(service, str):
         return None
-    cleaned = _normalize_service(service)
-    if _USAGE_SERVICE_RE.fullmatch(cleaned):
-        return cleaned
+    try:
+        normalized = _normalize_service(service)
+    except UnicodeEncodeError:
+        # A lone surrogate has no UTF-8 form, so the APM name is not known.
+        normalized = ""
+    if _USAGE_SERVICE_RE.fullmatch(normalized):
+        return normalized
     log.debug(_USAGE_SERVICE_REJECTED_MESSAGE, service)
     return None
 
@@ -203,8 +223,8 @@ class AgentlessConfigurationSource(PeriodicService):
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
 
         self._etag: Optional[str] = None
-        # The DD-Service value is cleaned up here, once, rather than on every poll.
-        # Only the header value is cleaned up; ddtrace.config.service is unchanged.
+        # Compute the DD-Service value once here, not on each poll.
+        # This changes only the header value. ddtrace.config.service does not change.
         self._service = ddconfig.service
         self._service_header = _usage_service_header(self._service)
         self._failure_warnings: set[str] = set()
@@ -376,7 +396,7 @@ class AgentlessConfigurationSource(PeriodicService):
             headers["DD-API-KEY"] = self._api_key
         service = self._dd_service_header()
         if service:
-            # Lets the CDN attribute this request's usage to the service.
+            # The CDN uses this header to attribute the usage of this request to the service.
             headers["DD-Service"] = service
         if self._etag:
             headers["If-None-Match"] = self._etag
@@ -385,9 +405,9 @@ class AgentlessConfigurationSource(PeriodicService):
     def _dd_service_header(self) -> Optional[str]:
         """Return the DD-Service header value, or None to omit the header.
 
-        The value is cleaned up when the source is built. A service set in code
-        after that (``ddtrace.config.service = "checkout"``) is cleaned up once, on
-        the next poll, so the header follows it without repeating the work per poll.
+        The value is computed when the source is built. Code can change the service later
+        (``ddtrace.config.service = "checkout"``). Then the next poll computes the new value
+        once, and later polls use it again.
         """
         service = ddconfig.service
         if service != self._service:

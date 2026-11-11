@@ -71,7 +71,7 @@ def clear_config():
 
 @pytest.fixture
 def mock_cdn(monkeypatch):
-    """Serve body for every poll; returns the list the requests are recorded in."""
+    """Serve body for each poll. Return the list that records the requests."""
 
     def install(body):
         requests: list = []
@@ -87,10 +87,10 @@ def mock_cdn(monkeypatch):
 
 @pytest.fixture
 def local_cdn():
-    """Serve the flag configuration from a local HTTP server; yields its URL and the headers of each request.
+    """Serve the flag configuration from a local HTTP server. Yield its URL and the headers of each request.
 
-    The requests go through the tracer's real HTTP client, which refuses some header
-    values, so these tests see what actually reaches the endpoint.
+    The requests use the real HTTP client of the tracer. That client refuses some header values.
+    Thus these tests see the headers that really get to the endpoint.
     """
     received: list = []
     body = _jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True))
@@ -118,13 +118,13 @@ def local_cdn():
 
 
 def _poll_local_cdn(url, service):
-    """Set the service in code as a user would, then run one agentless poll against url."""
+    """Set the service in code, as a user does. Then run one agentless poll against url."""
     custom = OpenFeatureConfig(source={"DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": url})
     with override_global_config({"service": service}):
         source = create_agentless_source(custom, process_ffe_configuration)
         assert source is not None
         source.periodic()
-        # Only the header value is cleaned up; the tracer service stays as configured.
+        # Only the header value changes. The tracer service does not change.
         assert ddtrace.config.service == service
 
 
@@ -163,7 +163,7 @@ def test_agentless_request_sends_tracer_service(mock_cdn):
 
 
 def test_custom_endpoint_receives_service_but_not_api_key(mock_cdn):
-    """Unlike the API key, a service name is not a secret, so a custom endpoint receives it too."""
+    """A service name is not a secret, unlike the API key. Thus a custom endpoint also gets it."""
     requests = mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
     custom = OpenFeatureConfig(
         source={"DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": "https://flags.example.test/custom"}
@@ -200,29 +200,30 @@ def test_agentless_request_sends_dd_service_from_environment():
 
 
 @pytest.mark.parametrize("service, expected", [("My Service", "my_service"), ("bad\nvalue", "bad_value")], ids=repr)
-def test_request_carries_cleaned_up_service(local_cdn, service, expected):
+def test_request_carries_the_service_name_apm_shows(local_cdn, service, expected):
     url, received = local_cdn
 
     _poll_local_cdn(url, service)
 
     (headers,) = received
     assert headers["DD-Service"] == expected
-    assert _get_ffe_config() is not None  # the configuration was applied
+    assert _get_ffe_config() is not None  # The configuration is applied.
 
 
-@pytest.mark.parametrize("service", ["支付", "___"], ids=repr)
-def test_request_sent_without_service_when_nothing_usable_left(local_cdn, service):
+# APM shows these as "_svc", "café-api", "支付" and no name. The CDN accepts none of them.
+@pytest.mark.parametrize("service", ["_svc", "café-api", "支付", "___"], ids=repr)
+def test_request_sent_without_service_when_the_cdn_rejects_the_apm_name(local_cdn, service):
     url, received = local_cdn
 
     _poll_local_cdn(url, service)
 
-    (headers,) = received  # the poll still went out
+    (headers,) = received  # The poll still occurs.
     assert "DD-Service" not in headers
-    assert _get_ffe_config() is not None  # the configuration was applied
+    assert _get_ffe_config() is not None  # The configuration is applied.
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": "My Service"})
-def test_agentless_request_sends_cleaned_up_dd_service_from_environment():
+def test_agentless_request_sends_normalized_dd_service_from_environment():
     import ddtrace
     import ddtrace.internal.openfeature._agentless_source as source_mod
     from ddtrace.internal.openfeature._source_selection import create_agentless_source
@@ -244,7 +245,7 @@ def test_agentless_request_sends_cleaned_up_dd_service_from_environment():
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": None})
 def test_agentless_request_sends_inferred_service():
-    """Without DD_SERVICE the header carries the service the tracer infers, the same one its spans use."""
+    """Without DD_SERVICE, the header has the inferred service. The spans use the same service."""
     import ddtrace
     import ddtrace.internal.openfeature._agentless_source as source_mod
     from ddtrace.internal.openfeature._source_selection import create_agentless_source

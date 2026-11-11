@@ -1,6 +1,7 @@
 ---
 features:
   - |
-    openfeature: Agentless Feature Flagging configuration requests now include the application's
-    service name, so Feature Flags usage can be broken down by service. The service is the one the
-    tracer reports for its spans, from ``DD_SERVICE`` or the name inferred when it is not set.
+    openfeature: Agentless Feature Flagging configuration requests now send the service name. This
+    lets you break down Feature Flags usage by service. The name is the service name that APM shows,
+    from ``DD_SERVICE`` or the inferred name. If the Feature Flags CDN does not accept that name, the
+    requests do not send it.

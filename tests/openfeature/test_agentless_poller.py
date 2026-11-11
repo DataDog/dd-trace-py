@@ -332,8 +332,8 @@ def test_dd_service_header_omitted_without_service(harness, caplog, service):
         src.periodic()
 
     assert not _has_service_header(src._requests[0])
-    assert len(src._applied) == 1  # polling is unaffected
-    # No service is not a rejected one, so there is nothing to log.
+    assert len(src._applied) == 1  # Polling continues.
+    # No service is not a rejected service, so there is no log.
     assert not any("DD-Service header not sent" in m for m in caplog.messages)
 
 
@@ -348,55 +348,91 @@ def test_dd_service_header_follows_service_changes_after_start(harness):
     assert src._requests[2]["headers"]["DD-Service"] == "my_billing"
 
 
-@pytest.mark.parametrize("service", ["a", "svc_name.v2:api/edge-1", "a" + "b" * 99])
-def test_dd_service_header_sends_valid_names_unchanged(harness, service):
-    with override_global_config({"service": service}):
-        src = harness([_FakeResponse(304)])
-        src.periodic()
-
-    assert src._requests[0]["headers"]["DD-Service"] == service
-
-
-# The CDN drops a name outside its format, so the usage would bill without a service.
-# Cleaning the name up the way the Agent does for spans sends the name APM shows.
-@pytest.mark.parametrize(
-    "service, expected",
-    [
-        ("My Service", "my_service"),
-        ("My-API", "my-api"),
-        ("_svc", "svc"),
-        ("bad\nvalue", "bad_value"),
-        ("café", "caf_"),
-        ("a" + "b" * 100, "a" + "b" * 99),
-    ],
-    ids=repr,
+_USAGE_SERVICE_REJECTED = (
+    "Feature Flags: the CDN does not accept the APM name of service %r; DD-Service header not sent"
 )
-def test_dd_service_header_cleans_up_names_the_cdn_would_drop(harness, service, expected):
-    with override_global_config({"service": service}):
+
+
+# Each row: the service, the name that APM shows, and the DD-Service header (None: no header).
+# The APM names are the output of the Agent's NormalizeService
+# (datadog-agent pkg/trace/traceutil/normalize v0.82.3) plus the CDN pattern check.
+# "" is an empty result. The Agent replaces it with a placeholder name.
+# The header is the APM name if it matches ^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}$.
+# Otherwise there is no header. Usage never goes to a name that APM does not show.
+_AGENT_SERVICE_NAMES = [
+    ("checkout", "checkout", "checkout"),
+    ("My Service", "my_service", "my_service"),
+    ("My-API", "my-api", "my-api"),
+    ("UPPER", "upper", "upper"),
+    ("bad\nvalue", "bad_value", "bad_value"),
+    ("a\tb", "a_b", "a_b"),
+    ("a  b!", "a_b", "a_b"),
+    ("svc ", "svc", "svc"),
+    (" svc", "_svc", None),
+    ("a_", "a", "a"),
+    ("svc-", "svc-", "svc-"),
+    ("a..b", "a..b", "a..b"),
+    ("2fa-service", "2fa-service", "2fa-service"),
+    ("9lives", "9lives", "9lives"),
+    ("unnamed-service", "unnamed-service", "unnamed-service"),
+    ("svc_name.v2:api/edge-1", "svc_name.v2:api/edge-1", "svc_name.v2:api/edge-1"),
+    ("my__service", "my_service", "my_service"),
+    ("Default Web Site/Shop", "default_web_site/shop", "default_web_site/shop"),
+    ("a" + "b" * 99, "a" + "b" * 99, "a" + "b" * 99),
+    ("a" + "b" * 100, "a" + "b" * 99, "a" + "b" * 99),
+    ("a" * 100 + " b", "a" * 100, "a" * 100),
+    ("a" * 99 + "é", "a" * 99, "a" * 99),  # 101 bytes. The cut splits the "é", so it is dropped.
+    ("_svc", "_svc", None),
+    ("-svc", "-svc", None),
+    (".svc", ".svc", None),
+    (":svc", ":svc", None),
+    ("café-api", "café-api", None),
+    ("Café", "café", None),
+    ("支付", "支付", None),
+    ("a🐶b", "a_b", "a_b"),
+    ("İstanbul", "İstanbul", None),
+    ("é" * 60, "é" * 50, None),
+    ("___", "", None),
+    ("-", "-", None),
+    ("", "", None),
+    ("   ", "", None),
+]
+
+
+@pytest.mark.parametrize(
+    "service, apm_name, header", _AGENT_SERVICE_NAMES, ids=[repr(case[0]) for case in _AGENT_SERVICE_NAMES]
+)
+def test_dd_service_header_is_the_name_apm_shows_or_nothing(harness, caplog, service, apm_name, header):
+    assert source_mod._normalize_service(service) == apm_name
+
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
         src = harness([_FakeResponse(200, _ufc_body())])
         src.periodic()
-        # Only the header value is cleaned up; the tracer service stays as configured.
+        # Only the header value changes. The tracer service does not change.
         assert ddconfig.service == service
 
-    assert src._requests[0]["headers"]["DD-Service"] == expected
-    assert len(src._applied) == 1
+    if header is None:
+        assert not _has_service_header(src._requests[0])
+    else:
+        assert src._requests[0]["headers"]["DD-Service"] == header
+    assert len(src._applied) == 1  # Polling continues.
+    rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
+    # No service is not a rejected service, so there is no log.
+    assert rejected == ([_USAGE_SERVICE_REJECTED % (service,)] if service and header is None else [])
 
 
-@pytest.mark.parametrize("service", ["支付", "___", "   "], ids=repr)
-def test_dd_service_header_omitted_when_nothing_usable_left(harness, caplog, service):
-    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+def test_dd_service_header_omitted_for_a_name_that_is_not_valid_text(harness):
+    # os.environ gives a lone surrogate for bytes that are not UTF-8.
+    # It has no UTF-8 form, so the APM name is not known. The poll must not fail.
+    with override_global_config({"service": "svc\udcff"}):
         src = harness([_FakeResponse(200, _ufc_body())])
         src.periodic()
 
     assert not _has_service_header(src._requests[0])
-    assert len(src._applied) == 1  # polling is unaffected
-    assert (
-        "Feature Flags: service %s has nothing left the CDN can attribute usage to once cleaned up; "
-        "DD-Service header not sent" % service
-    ) in _debug_messages(caplog)
+    assert len(src._applied) == 1
 
 
-def test_dd_service_cleaned_up_once_when_source_is_built(harness, monkeypatch):
+def test_dd_service_normalized_once_when_source_is_built(harness, monkeypatch):
     calls = []
     normalize = source_mod._normalize_service
     monkeypatch.setattr(source_mod, "_normalize_service", lambda name: calls.append(name) or normalize(name))
@@ -407,23 +443,19 @@ def test_dd_service_cleaned_up_once_when_source_is_built(harness, monkeypatch):
         for _ in range(3):
             src.periodic()
 
-    assert calls == ["My Service"]  # not again on each poll
+    assert calls == ["My Service"]  # Not again on each poll.
     assert [r["headers"]["DD-Service"] for r in src._requests] == ["my_service"] * 3
 
 
 def test_dd_service_rejection_logged_once_per_value(harness, caplog):
     src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
     with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
-        for service in ("支付", "支付", "___"):
+        for service in ("_svc", "_svc", "café-api"):
             with override_global_config({"service": service}):
                 src.periodic()
 
     rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
-    assert rejected == [
-        "Feature Flags: service %s has nothing left the CDN can attribute usage to once cleaned up; "
-        "DD-Service header not sent" % service
-        for service in ("支付", "___")
-    ]
+    assert rejected == [_USAGE_SERVICE_REJECTED % (service,) for service in ("_svc", "café-api")]
 
 
 def test_self_tracing_suppressed(harness):
