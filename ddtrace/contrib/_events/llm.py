@@ -44,13 +44,15 @@ class LlmRequestEvent(TracingEvent):
     instance: Optional[Any] = event_field(default=None)
     response: Optional[Any] = event_field(default=None)
     operation: str = event_field(default="")
+    # Overrides the default "<component>.request" span name.
+    span_name: Optional[str] = event_field(default=None)
 
     # Override ClassVar from TracingEvent with an instance field so span_type
     # can be determined dynamically per-request based on LLMObs state.
     span_type: Optional[str] = field(init=False)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        self.operation_name = f"{self.component}.request"
+        self.operation_name = self.span_name or f"{self.component}.request"
         self.span_type = (
             SpanTypes.LLM
             if (
