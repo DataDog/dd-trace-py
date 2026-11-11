@@ -53,6 +53,7 @@ AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
 GOOGLE_GENAI_PROVIDER_NAME = "google-generative-ai"
 GOOGLE_GENAI_LLM_PROVIDER_NAME = "google_gemini"
+LITELLM_PROVIDER_NAME = "litellm"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -206,6 +207,11 @@ class LangChainIntegration(BaseLLMIntegration):
                 and _is_google_genai_backed(instance)
             ):
                 llmobs_integration = "google_genai"
+            # ChatLiteLLM calls litellm.completion/acompletion, which the litellm integration traces as its
+            # own llm-kind span, so without demoting this one a single call produces two llm spans and its
+            # tokens and estimated cost are counted twice.
+            elif operation == "chat" and model_provider == LITELLM_PROVIDER_NAME:
+                llmobs_integration = "litellm"
 
             is_workflow = (
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
