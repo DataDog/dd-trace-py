@@ -43,6 +43,14 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  statuses: write
+
+# Prevents superseded base-advancement runs from overwriting newer results:
+# a slower run using older rules cannot publish success after newer rules
+# produced failure on the same PR head.
+concurrency:
+  group: package-split-freeze-guard-${{ github.event_name == 'push' && github.ref || format('pr-{0}', github.event.pull_request.number) }}
+  cancel-in-progress: true
 
 jobs:
   freeze-guard:
@@ -124,6 +132,10 @@ jobs:
         id: prs
         env:
           GH_TOKEN: ${{ github.token }}
+          # The pushed branch name, not a placeholder: github.ref_name is the
+          # branch that just advanced (e.g. "main") and is the base whose PRs
+          # need revalidation.
+          BASE_BRANCH: ${{ github.ref_name }}
         run: |
           echo "prs<<EOF" >> "$GITHUB_OUTPUT"
           # --paginate enumerates every page of open PRs: stopping after the
@@ -132,17 +144,17 @@ jobs:
           # No `|| true`: a failed enumeration (API, auth, rate limit) must
           # fail the job instead of silently skipping revalidation.
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" \
-            --jq '.[] | select(.base.ref == "${BASE_REF}") | "\(.number) \(.head.ref) \(.head.sha)"' >> "$GITHUB_OUTPUT"
+            --jq '.[] | select(.base.ref == env.BASE_BRANCH) | "\(.number) \(.head.sha)"' >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Check whether a freeze is active on the base
         id: freeze
         run: |
-          if git rev-parse --verify --quiet "origin/${BASE_REF}:package-freeze.toml" >/dev/null 2>&1; then
+          if git show "${GITHUB_SHA}:package-freeze.toml" > /dev/null 2>&1; then
             echo "active=true" >> "$GITHUB_OUTPUT"
           else
             echo "active=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No package-freeze.toml on ${BASE_REF}; skipping revalidation"
+            echo "::notice::No package-freeze.toml on ${GITHUB_REF_NAME}; skipping revalidation"
           fi
 
       - name: Revalidate each open PR head
@@ -155,10 +167,13 @@ jobs:
           # execute arbitrary commands with this job's token.
           PRS: ${{ steps.prs.outputs.prs }}
         run: |
-          printf '%s\n' "$PRS" | while read -r number head_ref head_sha; do
+          printf '%s\n' "$PRS" | while read -r number head_sha; do
             [ -z "$number" ] && continue
-            echo "Revalidating PR #$number ($head_ref)"
-            git fetch --no-tags origin "refs/pull/$number/head:refs/remotes/pr/$number/head"
+            echo "Revalidating PR #$number"
+            # Fetch the immutable head SHA captured at enumeration: the
+            # mutable branch ref may have advanced since, and the verdict
+            # must be bound to the exact commit it inspected.
+            git fetch --no-tags origin "$head_sha:refs/remotes/pr/$number/head"
             if scripts/package-split freeze \
               --manifest package-contract.toml \
               --output ".package-split/pr-$number" \

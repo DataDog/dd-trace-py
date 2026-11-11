@@ -61,13 +61,41 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
     candidate_freeze = _content_at_revision(manifest.root, head, freeze_path)
     if candidate_freeze is not None and candidate_freeze != content:
         try:
+            candidate_data = tomllib.loads(candidate_freeze)
             candidate_problems = [
-                "candidate package-freeze.toml: %s" % issue
-                for issue in validate_freeze(tomllib.loads(candidate_freeze))
+                "candidate package-freeze.toml: %s" % issue for issue in validate_freeze(candidate_data)
             ]
+            # Verify provenance against git: a syntactically valid manifest
+            # with a nonexistent extraction revision or an incorrect hash
+            # would land green and then fail the base integrity check for
+            # every subsequent PR, including a repair.
+            if not candidate_problems:
+                import hashlib
+
+                for entry in candidate_data.get("frozen", []):
+                    rev = entry["extraction_revision"]
+                    for path, expected_hash in sorted(entry.get("hashes", {}).items()):
+                        baseline = _path_content(manifest.root, path, rev)
+                        if baseline is None:
+                            candidate_problems.append(
+                                "candidate package-freeze.toml: %r is missing at extraction revision %r" % (path, rev)
+                            )
+                        elif hashlib.sha256(baseline).hexdigest() != expected_hash:
+                            candidate_problems.append(
+                                "candidate package-freeze.toml: hash mismatch for %r at extraction revision %r"
+                                % (path, rev)
+                            )
         except tomllib.TOMLDecodeError as exc:
             candidate_problems = ["candidate package-freeze.toml is not valid TOML: %s" % exc]
     candidate_contract = _content_at_revision(manifest.root, head, manifest.path.relative_to(manifest.root))
+    if candidate_contract is None and candidate_freeze is not None:
+        # A PR deleting the contract while keeping the freeze would leave
+        # the base-owned CLI unable to load its required manifest, turning
+        # the required freeze check into a repository-wide blocker. Only
+        # deleting both together (unfreezing) is allowed.
+        candidate_problems.append(
+            "candidate package-contract.toml is required while package-freeze.toml remains active"
+        )
     if candidate_contract is not None:
         try:
             candidate_data = tomllib.loads(candidate_contract)
