@@ -201,7 +201,9 @@ the locks and commit both changes:
 
   $ scripts/test-requirements lock <environment-name>
 
-Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+The name is a variant name or an integration name; an integration name selects every variant that tests it
+(``pytest`` locks ``testing``, ``pytest:flaky`` and the other pytest variants).
+Omit the name to generate all missing locks and prune locks that no longer have a corresponding
 environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
 On Apple Silicon, select that image architecture explicitly:
 
@@ -371,6 +373,43 @@ environment variables. For example, to enable debug logs just for
 ``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
 will set the ``DEBUG`` log level for any logger whose name is prefixed with
 ``ddtrace.debugging``.
+
+Isolated Python tests
+---------------------
+
+Use ``@pytest.mark.subprocess`` for isolated test logic and ``python_process``
+for applications with parent-side assertions:
+
+.. code-block:: python
+
+    @pytest.mark.subprocess(env={"DD_SERVICE": "example"})
+    def test_startup():
+        from ddtrace import config
+
+        assert config.service == "example"
+
+    def test_application(python_process):
+        out, err, status, pid = python_process("print('ready')", ddtrace_run=True)
+        assert status == 0, err
+        assert out == b"ready\n"
+
+Module-level scenarios need their imports inside the body. Class methods run
+through a minimal pytest session in the child, including setup and cleanup.
+Project ``conftest.py`` files, third-party plugins, and unrelated fixtures are
+not loaded. Pytest handles the ``unittest.TestCase`` lifecycle, including
+class/module setup and cleanups.
+Async unittest classes must inherit from ``unittest.IsolatedAsyncioTestCase``
+(or ``tests.contrib.asyncio.utils.AsyncioTestCase`` for tracer assertions), using
+``asyncSetUp`` and ``asyncTearDown`` for async fixtures. No event-loop wrapper is needed.
+Parent fixtures run only when explicitly requested with ``usefixtures``.
+
+The marker's ``env`` overrides inherited variables; a value of ``None`` removes
+that variable. ``python_process`` follows the standard subprocess ``env`` behavior:
+omit it to inherit the environment, or supply the complete child environment.
+
+Marked tests expect exit status zero and empty stdout/stderr unless ``status``,
+``out``, or ``err`` says otherwise. Processes time out after 60 seconds by default.
+
 
 Snapshot tests
 --------------

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
@@ -32,6 +33,35 @@ struct Span
     }
 };
 
+// The kind of execution unit a link belongs to. Many asyncio tasks or gevent greenlets can run on one thread, so each
+// needs its own key. The domain keeps a task's or greenlet's address from colliding with an equal thread id.
+enum class SpanLinkDomain : uint8_t
+{
+    Thread = 0,
+    AsyncioTask = 1,
+    Greenlet = 2,
+};
+
+// Names one execution unit. For a thread, identifier is its PyThreadState thread id. For an asyncio task or a greenlet,
+// it is id() of the object.
+struct SpanLinkKey
+{
+    SpanLinkDomain domain;
+    uint64_t identifier;
+
+    static SpanLinkKey thread(uint64_t thread_id) { return SpanLinkKey{ SpanLinkDomain::Thread, thread_id }; }
+
+    bool operator==(const SpanLinkKey& other) const { return domain == other.domain && identifier == other.identifier; }
+};
+
+struct SpanLinkKeyHash
+{
+    std::size_t operator()(const SpanLinkKey& key) const
+    {
+        return std::hash<uint64_t>{}(key.identifier) ^ (static_cast<std::size_t>(key.domain) << 1U);
+    }
+};
+
 class SpanLinks
 {
   public:
@@ -47,10 +77,10 @@ class SpanLinks
     SpanLinks(SpanLinks const&) = delete;
     SpanLinks& operator=(SpanLinks const&) = delete;
 
-    void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
-    const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
-    void unlink_span(uint64_t thread_id);
-    void unlink_span(uint64_t thread_id, uint64_t expected_span_id);
+    void link_span(SpanLinkKey key, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
+    const std::optional<Span> get_active_span(SpanLinkKey key);
+    void unlink_span(SpanLinkKey key);
+    void unlink_span(SpanLinkKey key, uint64_t expected_span_id);
     void unlink_finished_span(uint64_t span_id);
     void reset();
 
@@ -62,9 +92,9 @@ class SpanLinks
     static void postfork_child();
 
   private:
-    using ThreadIdSet = std::unordered_set<uint64_t>;
-    using ThreadIdToSpanMap = std::unordered_map<uint64_t, Span>;
-    using SpanToThreadMap = std::unordered_map<uint64_t, ThreadIdSet>;
+    using KeySet = std::unordered_set<SpanLinkKey, SpanLinkKeyHash>;
+    using KeyToSpanMap = std::unordered_map<SpanLinkKey, Span, SpanLinkKeyHash>;
+    using SpanToKeysMap = std::unordered_map<uint64_t, KeySet>;
 
     struct PendingSpanLink
     {
@@ -72,11 +102,11 @@ class SpanLinks
         bool finished = false;
     };
 
-    void remove_thread_locked(uint64_t thread_id);
+    void remove_key_locked(SpanLinkKey key);
 
     std::mutex mtx;
-    ThreadIdToSpanMap thread_id_to_span;
-    SpanToThreadMap span_to_threads;
+    KeyToSpanMap key_to_span;
+    SpanToKeysMap span_to_keys;
 
     // Protected by the GIL. This bridges lifecycle callback order to mutations that release it above.
     std::unordered_map<uint64_t, PendingSpanLink> pending_span_links;

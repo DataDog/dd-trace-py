@@ -1384,7 +1384,7 @@ suites:
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, 'flask-caching~=1.10.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, flask-caching]
   gevent:
@@ -1417,6 +1417,11 @@ suites:
     env:
       TEST_PUBSUB_HOST: pubsub
       TEST_PUBSUB_PORT: '8085'
+      PYTHONWARNINGS: >-
+        ignore:pkg_resources is deprecated as an API:UserWarning,
+        ignore:You are using a:FutureWarning:google.api_core._python_version_support,
+        ignore:You are using a Python version:FutureWarning:google.auth,
+        ignore:You are using a Python version:FutureWarning:google.oauth2
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -2174,6 +2179,8 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pyodbc]
   pyramid:
+    env:
+      PYTHONWARNINGS: ignore:pkg_resources is deprecated as an API:UserWarning
     paths:
       - '@bootstrap'
       - '@contrib'

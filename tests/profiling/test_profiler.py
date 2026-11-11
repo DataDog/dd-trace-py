@@ -202,13 +202,21 @@ def test_failed_start_collector(caplog: pytest.LogCaptureFixture, monkeypatch: p
         return [t for t in tuples if t[0].startswith("ddtrace.profiling")]
 
     assert profiling_tuples(caplog.record_tuples) == [
-        ("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector)
+        (
+            "ddtrace.profiling.profiler",
+            logging.ERROR,
+            "[profiling] Failed to start collector %r, disabling." % err_collector,
+        )
     ]
     time.sleep(2)
     p.stop()
     assert err_collector.snapshot.call_count == 0
     assert profiling_tuples(caplog.record_tuples) == [
-        ("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector)
+        (
+            "ddtrace.profiling.profiler",
+            logging.ERROR,
+            "[profiling] Failed to start collector %r, disabling." % err_collector,
+        )
     ]
 
 
