@@ -3,7 +3,6 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.http_tags import set_instrumentation_resource
-from ddtrace._trace.http_tags import set_query_string_tag
 from ddtrace._trace.otel.http.resource import record_initial_instrumentation_resource
 from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
@@ -18,8 +17,6 @@ from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
-from ddtrace.internal.settings.standalone import standalone_config
-from ddtrace.internal.span_bus import span_from_context
 
 
 log = get_logger(__name__)
@@ -31,15 +28,8 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
-    def _on_context_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
-        # Aiohttp can complete requests without spans; other frameworks still require them.
-        if ctx.event.component == "aiohttp":
-            tracer = core.root.get_item("tracer")
-            apm_enabled = tracer is not None and tracer.enabled
-            standalone_spans_required = tracer is not None and standalone_config.apm_opt_out
-            # Standalone products need span lifecycle without enabling APM tracing.
-            ctx.set_item(_SPAN_CREATION_ENABLED, apm_enabled or standalone_spans_required)
-        super()._on_context_started(ctx)
+    def _should_create_span(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> bool:
+        return trace_utils.is_tracing_enabled()
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
@@ -49,7 +39,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             event.set_resource = True
 
         if config._otel_trace_semantics_enabled and event.request_method:
-            span: Span = span_from_context(ctx)
+            span: Span = ctx.get_item("_inner_span")
             set_method_tag(span, event.request_method)
             # Set the currently known resource before sampling; preserve span-start callback replacements.
             record_initial_instrumentation_resource(span, event.resource)
@@ -68,7 +58,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         method = event.request_method
         res_headers = event.response_headers
 
-        span: Span = span_from_context(ctx)
+        span: Span = ctx.get_item("_inner_span")
 
         # event.resource can be updated at span finish time
         if event.resource:
@@ -82,11 +72,8 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
                 integration_config=event.integration_config,
                 method=method,
                 url=event.request_url,
-                # set_http_meta checks only integration_config when deciding
-                # whether to trace the query string. aiohttp supports a
-                # per-application override instead.
-                query=event.query if event.trace_query_string is None else None,
-                query_tagged_separately=event.trace_query_string is not None,
+                query=event.query,
+                trace_query_string=event.trace_query_string,
                 status_code=status_code,
                 request_headers=event.request_headers,
                 response_headers=dict(res_headers) if res_headers is not None else None,
@@ -95,11 +82,6 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             )
         except Exception:
             log.debug("%s: error adding response tags", event.integration_config.integration_name, exc_info=True)
-
-        # aiohttp supports per-app trace_query_string overrides that may differ from
-        # integration_config.trace_query_string.
-        if event.trace_query_string and event.query is not None:
-            set_query_string_tag(span, event.query)
 
         _set_inferred_proxy_tags(span, status_code)
         for tk, tv in event.additional_tags.items():

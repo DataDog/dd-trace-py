@@ -1064,6 +1064,58 @@ def test_activate_distributed_headers_existing_context_different_trace_id(int_co
     assert new_ctx.span_id == 12345
 
 
+@pytest.mark.parametrize("otel_semantics", [False, True])
+@pytest.mark.parametrize("client", [False, True])
+@pytest.mark.parametrize("configured", [False, True])
+@pytest.mark.parametrize("capture_url_query", [False, True])
+@pytest.mark.parametrize("override", [None, False, True])
+def test_http_query_string_override(otel_semantics, client, configured, capture_url_query, override):
+    cfg = Config()
+    cfg._http.trace_query_string = not configured
+    integration_config = IntegrationConfig(cfg, "query_override")
+    integration_config.http.trace_query_string = configured
+    integration_config.http_tag_query_string = capture_url_query
+    span = Span("http.request", span_type="http" if client else "web")
+    span._set_attribute("span.kind", "client" if client else "server")
+    query = "page=2"
+    url = "http://example.com/search?" + query
+    enabled = configured if override is None else override
+
+    with override_global_config({"_otel_trace_semantics_enabled": otel_semantics}):
+        trace_utils.set_http_meta(span, integration_config, url=url, query=query, trace_query_string=override)
+
+    if not otel_semantics:
+        assert span.get_tag(http.QUERY_STRING) == (query if enabled else None)
+        assert span.get_tag(http.URL) == (url if capture_url_query else "http://example.com/search")
+    elif client:
+        assert span.get_tag("url.full") == (url if capture_url_query or enabled else "http://example.com/search")
+        assert span.get_tag("url.query") is None
+    else:
+        expected_capture = capture_url_query or configured if override is None else override
+        assert span.get_tag("url.query") == (query if expected_capture else None)
+    assert integration_config.trace_query_string is configured
+    assert cfg._http.trace_query_string is not configured
+
+
+@pytest.mark.parametrize("query", [None, "", "page=3"])
+@pytest.mark.parametrize("tagged_separately", [False, True])
+def test_http_query_string_separate_tagging_preserves_url_fallback(query, tagged_separately):
+    cfg = Config()
+    integration_config = IntegrationConfig(cfg, "query_fallback")
+    integration_config.http_tag_query_string = True
+    span = Span("http.request", span_type="web")
+    with override_global_config({"_otel_trace_semantics_enabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            url="http://example.com/search?page=2",
+            query=query,
+            query_tagged_separately=tagged_separately,
+        )
+    expected = None if query == "" or (query is None and tagged_separately) else query or "page=2"
+    assert span.get_tag("url.query") == expected
+
+
 def test_sanitized_url_in_http_meta(span, int_config):
     FULL_URL = "http://example.com/search?q=test+query#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"

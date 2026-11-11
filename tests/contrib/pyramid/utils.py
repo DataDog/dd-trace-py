@@ -11,7 +11,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
-from .app import create_app
+from .app.web import create_app
 
 
 class PyramidBase(TracerTestCase):

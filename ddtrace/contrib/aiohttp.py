@@ -58,8 +58,13 @@ Automatic instrumentation is not available for the server. Use the provided
     web.run_app(app, port=8000)
 
 With ``DD_TRACE_ENABLED=false``, the middleware still emits request lifecycle
-events and completes requests without creating request spans. In this case,
-``request['datadog_context']`` is ``None``.
+events. It creates no request spans unless a standalone product requires them with
+``DD_APM_TRACING_ENABLED=false``. When a request span is created,
+``request['datadog_context']`` contains that span's context; otherwise it is ``None``.
+
+Request spans complete when request execution finishes for both ordinary and streaming
+responses. The existing ``disable_stream_timing_for_mem_leak`` integration option still
+completes spans when response headers are prepared.
 
 Integration settings are attached to your application under the ``datadog_trace``
 namespace. You can read or update them as follows::

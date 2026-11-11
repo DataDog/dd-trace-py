@@ -1,9 +1,11 @@
 import asyncio
+from asyncio import current_task
 from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import MutableMapping
 import sys
 from typing import Any
+from typing import Optional
 from typing import cast
 
 from aiohttp import web
@@ -76,7 +78,6 @@ async def trace_middleware(
                 headers_case_sensitive=True,
                 activate_distributed_headers=True,
                 distributed_headers_config_override=app_config["distributed_tracing_enabled"],
-                # DEV: aiohttp is special case maintains separate configuration from config api
                 trace_query_string=trace_query_string,
                 query=request.rel_url.raw_query_string,
                 service=service,
@@ -90,6 +91,13 @@ async def trace_middleware(
             # legacy request key kept for backwards compatibility with documentation
             request[REQUEST_CONTEXT_KEY] = req_span.context if req_span is not None else None
 
+            # Capture the owner before response preparation can run in a child task.
+            task = current_task()
+            finish_on_prepare = config.aiohttp["disable_stream_timing_for_mem_leak"] or task is None
+            ctx.set_item("aiohttp.finish_on_prepare", finish_on_prepare)
+            if not finish_on_prepare and task is not None:
+                task.add_done_callback(lambda _: finish_request_span(request))
+
             try:
                 try:
                     response = await _handle_request(ctx, request, handler)
@@ -99,9 +107,6 @@ async def trace_middleware(
                     response = _blocked_response(ctx, request, blocking.args[0])
                 finally:
                     core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
-                if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
-                    if isinstance(response, web.StreamResponse):
-                        request.task.add_done_callback(lambda _: finish_request_span(request, response))
                 return response
             except Exception as e:
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
@@ -170,10 +175,17 @@ def _blocked_response(
     )
 
 
-def finish_request_span(request: web.Request, response: web.StreamResponse) -> None:
+def finish_request_span(request: web.Request, response: Optional[web.StreamResponse] = None) -> None:
     # Response preparation and the task callback can both finalize a request; the first releases its event.
     ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
     if not ctx or ctx._end_event_dispatched:
+        return
+
+    if response is None:
+        response = request.get(REQUEST_STARTED_RESPONSE_KEY)
+    if response is None:
+        # A disconnected or cancelled request can end without preparing a response.
+        ctx.dispatch_ended_event()
         return
 
     # default resource name
@@ -195,21 +207,14 @@ def finish_request_span(request: web.Request, response: web.StreamResponse) -> N
     ctx.dispatch_ended_event()
 
 
-async def on_prepare(request, response):
-    """
-    The on_prepare signal is used to close the request span that is created during
-    the trace middleware execution.
-    """
+async def on_prepare(request: web.Request, response: web.StreamResponse) -> None:
+    """Attach response metadata; completion follows the captured request owner."""
     request[REQUEST_STARTED_RESPONSE_KEY] = response
-    # NB isinstance is not appropriate here because StreamResponse is a parent of the other
-    # aiohttp response types. However in some cases this can also lead to missing the closing of
-    # spans, leading to a memory leak, which is why we have this flag.
-    # todo: this is a temporary fix for a memory leak in aiohttp. We should find a way to
-    # consistently close spans with the correct timing.
-    if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
-        if type(response) is web.StreamResponse and not response.task.done():
-            return
-    finish_request_span(request, response)
+    # The compatibility option releases request state at header preparation.
+    # todo: replace task callbacks with a response-completion signal when available.
+    ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
+    if ctx is not None and ctx.get_item("aiohttp.finish_on_prepare", True):
+        finish_request_span(request, response)
 
 
 def trace_app(app, tracer=None, service="aiohttp-web"):

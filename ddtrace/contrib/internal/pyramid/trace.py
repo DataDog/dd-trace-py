@@ -5,13 +5,13 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.span_bus import span_from_context
 
 # project
 from ddtrace.trace import tracer
@@ -44,6 +44,8 @@ def trace_render(func, instance, args, kwargs):
     if not request:
         log.debug("No request passed to render, will not be traced")
         return func(*args, **kwargs)
+    if not is_tracing_enabled():
+        return func(*args, **kwargs)
 
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
         span._set_attribute(COMPONENT, config.pyramid.integration_name)
@@ -55,7 +57,7 @@ def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
     service = settings.get(SETTINGS_SERVICE) or schematize_service_name("pyramid")
-    enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
+    enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, True))
 
     # ensure distributed tracing within pyramid settings matches config
     config.pyramid.distributed_tracing_enabled = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
@@ -100,7 +102,7 @@ def trace_tween_factory(handler, registry):
                     if request.matched_route:
                         event.resource = f"{request.method} {request.matched_route.name}"
                         event.request_route = request.matched_route.pattern
-                        span_from_context(ctx)._set_attribute("pyramid.route.name", request.matched_route.name)
+                        event.additional_tags["pyramid.route.name"] = request.matched_route.name
                     # set response tags
                     if response:
                         status = response.status_code

@@ -3,7 +3,6 @@ from ddtrace.contrib._events.molten import MoltenRouteEvent
 from ddtrace.ext import http
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.span_bus import span_from_context
 
 
 MOLTEN_ROUTE = "molten.route"
@@ -24,7 +23,7 @@ class MoltenRouteSubscriber(Subscriber):
 
         if config._otel_trace_semantics_enabled and request_event.request_method:
             # Name the span from the resolved route so sampling during the handler sees the final name.
-            span = span_from_context(event.request_context)
+            span = event.request_context.get_item("_inner_span")
             if span is not None:
                 span._set_attribute(http.ROUTE, event.request_route)
                 set_otel_resource_for_method(span, request_event.request_method, event.request_route)

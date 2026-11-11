@@ -42,14 +42,14 @@ disabled, other products can still consume the same events. Do not call
 `span_from_context()` simply to check whether a request can be finalized, since it
 creates a fallback span when no tracing subscriber is registered.
 Events carry request data, not tracing capabilities or enablement decisions. The web
-tracing subscriber owns the policy for which integrations can run without spans
-(currently aiohttp, identified by component). It captures its span creation decision in
+tracing subscriber applies the same span policy to every web request event, without
+checking the emitting framework. It captures its span creation decision in
 the local execution context from two separate inputs: tracer APM enablement and
 standalone products' span requirements. The decision describes span lifecycle, not APM
 enablement; the base guards reuse it through completion. Do not infer ownership from
-`_inner_span`, since AppSec can populate it with a borrowed parent span. Existing
-span-dependent integrations retain the default tracing behavior until their lifecycle
-can run without spans. Report aiohttp exceptions synchronously
+`_inner_span`, since AppSec can populate it with a borrowed parent span. Emitters and
+metadata subscribers must complete their lifecycle even when no span was created;
+read existing local spans without calling fallback-producing helpers. Report deferred request exceptions synchronously
 through WebFrameworkRequestExceptionEvent rather than retaining exceptions or tracebacks
 on a deferred context. Deferred completion carries final response metadata separately.
 
