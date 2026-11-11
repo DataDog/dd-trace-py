@@ -393,9 +393,9 @@ machinery in a well-defined order.
 - Never call `flush_queue()` or perform I/O in an after-child hook; flush only
   in after-parent hooks or at clean shutdown.
 
-The full list of fork-safety and threading rules that changes must follow, and
-the review procedure that checks them, is in the `architecture-review` skill
-(`.agents/skills/architecture-review/references/fork-safety.md`).
+The full list of fork-safety and threading rules that changes must follow is in
+`docs/contributing-architecture.rst`; the `architecture-review` skill checks a
+change against them.
 
 
 ## The `sys.monitoring` Multiplexer

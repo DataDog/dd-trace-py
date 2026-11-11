@@ -15,13 +15,10 @@ allowed-tools:
 
 # Architecture review
 
-The constraints are in two checklists, each with trigger symbols, stop conditions and rules
-identified by ID:
-
-- [references/fork-safety.md](references/fork-safety.md): fork hooks, threads, locks, startup
-  of background work (`FS-*`).
-- [references/layering.md](references/layering.md): dependency direction, cycles, shared
-  infrastructure (`LA-*`).
+The rules are in [docs/contributing-architecture.rst](../../../docs/contributing-architecture.rst),
+in two groups identified by ID: fork safety and background threads (`FS-*`) and layering and
+imports (`LA-*`). This skill adds what a review needs on top of them: which group a change
+triggers, which violations block it, and how to report.
 
 ## 1. Get the diff
 
@@ -37,16 +34,62 @@ identified by ID:
 Review only what the change adds or modifies. Existing code that breaks a rule is out of scope
 unless the change copies the pattern, extends it, or makes it worse.
 
-## 2. Select the checklists
+## 2. Select the rule groups
 
-Search the added lines and the touched files for each checklist's trigger symbols. Read every
-checklist that matches. If neither matches, say so and stop.
+Search the added lines and the touched files for each group's trigger symbols, and read the
+matching sections of `docs/contributing-architecture.rst`. If neither group matches, say so and
+stop.
+
+### Fork safety (`FS-*`) triggers
+
+- `os.fork`, `os.register_at_fork`, `multiprocessing`, `forksafe.`, `_before_fork`, `_after_fork`,
+  `__autorestart__`, `autorestart=`
+- `threading.Thread`, `threading.Timer`, `ThreadPoolExecutor`, `PeriodicService`,
+  `AwakeablePeriodicService`, `PeriodicThread`, `threads.Thread`, `periodic.Timer`
+- `.start()` / `.stop()` / `.join()` / `.awake()` on a ddtrace service or thread
+- `Lock(`, `RLock(`, `Event(`, `Condition(`, `Queue(`, `weakref.finalize`, `__del__`
+- `periodic()`, `on_shutdown()`, `reset()`, `flush`, writers, uploaders, remote config callbacks
+- Imports inside functions that run on ddtrace threads, fork hooks or remote config callbacks
+
+Stop conditions:
+
+1. `os.register_at_fork` called outside `ddtrace/internal/forksafe.py` (FS-1).
+2. I/O, queue flushing or network calls in an after-in-child hook (FS-2).
+3. A raw `threading.Thread`, `threading.Timer` or executor started by ddtrace code (FS-3).
+4. Two ddtrace threads synchronizing with each other, through a shared lock or by one waiting
+   on the other (FS-6).
+5. A blocking call without a timeout in `periodic()` or another thread target (FS-7).
+6. Application code that waits on a ddtrace thread: a blocking `awake()`, `join()` or queue
+   handoff on a request path (FS-10).
+7. Operating on an inherited lock in the child instead of recreating it (FS-4).
+
+### Layering (`LA-*`) triggers
+
+- adds, moves or renames a module or package under `ddtrace/`
+- adds an import that crosses a top-level package boundary (for example
+  `ddtrace/internal/** -> ddtrace/appsec/**`, `ddtrace/contrib/** -> ddtrace/llmobs/**`, or
+  `ddtrace/debugging/** -> ddtrace/profiling/**`), including tracing importing contrib
+  (`ddtrace/_trace/**` or `ddtrace/trace/** -> ddtrace/contrib/**`)
+- adds a function-local import or an `if TYPE_CHECKING:` import
+- changes `scripts/import-analysis/layers.json`
+- adds a product name, product attribute or product setting inside `ddtrace/internal/`,
+  `ddtrace/_trace/` or `ddtrace/contrib/`
+
+Stop conditions:
+
+1. A new violation or a new uncovered module reported by `layers.py compare` (LA-1, LA-7).
+2. A new cycle reported by `cycles.py compare` (LA-2).
+3. A function-local or `TYPE_CHECKING` import added to avoid a cycle or a layering violation
+   (LA-3).
+4. A new exception in `layers.json` without an architectural justification for human review
+   (LA-7).
+5. Tracing code importing contrib (LA-1). The detector does not report this edge.
 
 ## 3. Run the tools
 
 - `scripts/lint sg <changed files under ddtrace/ and tests/>`: the ast-grep rules cover part of
   FS-4, FS-13 and FS-14.
-- If the layering checklist applies: run the base and candidate comparisons described in the
+- If the layering rules apply: run the base and candidate comparisons described in the
   `dependency-direction-analysis` and `circular-import-analysis` skills.
 
 Tool output is evidence, not the review. Most rules (for example FS-2, FS-6, FS-7, FS-10,
@@ -59,7 +102,7 @@ the rule's question. Look at the thread the code runs on (application thread, dd
 fork hook, GC callback), the locks it takes, and whether it waits on anything. Follow calls
 into other modules when the answer depends on them.
 
-The checklists are not exhaustive. If a change conflicts with the intent described in the
+The rules are not exhaustive. If a change conflicts with the intent described in the
 "Fork Safety" section of `ddtrace/internal/README.md`, in `docs/native-code-review.md`, or in
 `.cursor/rules/isolated-responsibility.mdc`, report it as a question.
 
@@ -75,12 +118,12 @@ List the findings most severe first. For each finding give:
 
 Use three severities:
 
-- **Blocker**: one of a checklist's stop conditions.
+- **Blocker**: one of the stop conditions in step 2.
 - **Violation**: breaks a rule, without being a stop condition.
 - **Question**: depends on intent the diff does not show, or extends an existing exception to a
   **target** rule.
 
-End with the checklists applied, the tools run and their results. If nothing was found, say so
+End with the rule groups applied, the tools run and their results. If nothing was found, say so
 explicitly.
 
 When reviewing your own change, fix blockers and violations before committing. When reviewing

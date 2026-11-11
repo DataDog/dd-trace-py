@@ -25,8 +25,9 @@ Paths below are relative to the repository root.
 
 ## Architectural constraints
 
-These hold for all new code. The `architecture-review` skill has the full rules (`FS-*`,
-`LA-*`) with the reasons behind them; design against them from the start.
+These hold for all new code. `docs/contributing-architecture.rst` has the full rules (`FS-*`,
+`LA-*`) with the reasons behind them; design against them from the start. The
+`architecture-review` skill checks a diff against them.
 
 Fork safety and background threads:
 
@@ -117,7 +118,7 @@ current signatures and defaults.
 | LLMObs integration changes | `llmobs-integrations`; also `apm-integrations` when changing contrib plumbing |
 | Added/moved modules or new import cycles | `circular-import-analysis` |
 | Architectural dependency direction | `dependency-direction-analysis` |
-| Architectural review of a change or PR (fork safety, threads, layering) | `architecture-review` |
+| Architectural review of a change or PR (fork safety, threads, layering) | `architecture-review`; `docs/contributing-architecture.rst` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Build-cache performance | `debug-build-times` |
@@ -126,7 +127,7 @@ current signatures and defaults.
 | AppSec / IAST | `.cursor/rules/appsec.mdc`; `.cursor/rules/iast.mdc` for IAST |
 | AI Guard | `.cursor/rules/ai-guard.mdc` |
 | C/C++/Rust/Cython changes | `.cursor/rules/native-code.mdc` |
-| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md`; `architecture-review` |
+| Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md`; `docs/contributing-architecture.rst` |
 | Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
 | Build or installation failures | `docs/troubleshooting.rst` |
 
