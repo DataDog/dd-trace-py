@@ -53,7 +53,7 @@ def test_ddup_start():
 
 
 @pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=lambda err: len(err.splitlines()) == 1 and "Failed to create uploader" in err)
 def test_upload_does_not_block_sample_flush():
     """
     Regression test: an upload that waits for the agent must not keep the profile lock.
@@ -145,6 +145,8 @@ def test_upload_does_not_block_sample_flush():
         ddup.start()
         add_sample(11)
 
+        # Exporter construction fails before serialization. Keep the sample for the valid Agent, with its own counts.
+        ddup.upload(tracer=Tracer("[", port, "rejected"))
         upload_thread = threading.Thread(target=ddup.upload, kwargs=dict(tracer=tracer), daemon=True)
         upload_thread.start()
         assert request_received.wait(timeout=10), "the agent did not receive the profile"
@@ -182,7 +184,7 @@ def test_upload_does_not_block_sample_flush():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(out=b"upload returned\n", err=None)
 def test_upload_during_exit_does_not_abort():
     """
     Regression test: an upload that runs in an atexit handler of the C library must not abort the process.
@@ -190,6 +192,7 @@ def test_upload_during_exit_does_not_abort():
     exit() has already destroyed the thread-local data that libdatadog needs to send the request.
     """
     import ctypes
+    import os
 
     from ddtrace.internal.datadog.profiling import ddup
 
@@ -201,6 +204,7 @@ def test_upload_during_exit_does_not_abort():
     @ctypes.CFUNCTYPE(None, ctypes.c_void_p)
     def upload_at_exit(_arg):
         ddup.upload()
+        os.write(1, b"upload returned\n")
 
     # atexit() is not a dynamic symbol of glibc, so use the function that atexit() calls
     libc.__cxa_atexit(upload_at_exit, None, None)

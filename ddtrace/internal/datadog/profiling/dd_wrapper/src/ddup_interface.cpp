@@ -448,13 +448,6 @@ ddup_upload_with_metadata(std::string_view runtime_id,
         watch_thread_locals();
     }
 
-    // Apply this caller's metadata only after earlier uploads have finished.
-    if (!span_ids_to_endpoints.empty()) {
-        ddup_profile_set_endpoints(std::move(span_ids_to_endpoints));
-    }
-    if (!endpoint_counts.empty()) {
-        ddup_profile_add_endpoint_counts(std::move(endpoint_counts));
-    }
     auto uploader_or_err = Datadog::UploaderBuilder::build(runtime_id, url);
     settings_lock.unlock();
 
@@ -465,6 +458,14 @@ ddup_upload_with_metadata(std::string_view runtime_id,
             std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
         }
         return false;
+    }
+
+    // A rejected exporter must not leave its caller's metadata in the next Agent's profile.
+    if (!span_ids_to_endpoints.empty()) {
+        ddup_profile_set_endpoints(std::move(span_ids_to_endpoints));
+    }
+    if (!endpoint_counts.empty()) {
+        ddup_profile_add_endpoint_counts(std::move(endpoint_counts));
     }
 
     // Serialization resets the profile. Samples can enter the next profile while this one is sent.
