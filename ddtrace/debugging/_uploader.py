@@ -9,10 +9,12 @@ from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._metrics import metrics
+from ddtrace.debugging._otel import OTLPDebuggerSender
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
 from ddtrace.internal import logger
+from ddtrace.internal.debugger_transport import get_debugger_transport
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import DebuggerSender
 from ddtrace.internal.native import DebuggerTrackType
@@ -29,9 +31,12 @@ logger.set_tag_rate_limit(UNSUPPORTED_AGENT, logger.HOUR)
 meter = metrics.get_meter("uploader")
 
 
-def build_debugger_sender() -> DebuggerSender:
+def build_debugger_sender() -> DebuggerSender | OTLPDebuggerSender:
     """Build a sender for the logs, snapshots and diagnostics tracks."""
     timeout_ms = int(di_config.upload_timeout * 1000)
+
+    if (transport := get_debugger_transport()) is not None:
+        return OTLPDebuggerSender(transport, di_config.tags)
 
     if ddconfig._agentless_enabled:
         return DebuggerSender(
@@ -111,9 +116,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         }
         self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
 
-        if self._sender.agentless:
-            # There is no agent to negotiate endpoints with, so skip the agent
-            # check state and start uploading straight away.
+        if isinstance(self._sender, OTLPDebuggerSender) or self._sender.agentless:
+            # OTLP and agentless senders do not negotiate legacy Agent endpoints.
             self._state = self._online
 
         # Make it retry-able
@@ -127,9 +131,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         self._flush_full = False
 
     def info_check(self, agent_info: Optional[dict[str, Any]]) -> bool:
-        if self._sender.agentless:
-            # Payloads go straight to the intake, on paths that are fixed at
-            # construction: there is nothing to negotiate with the agent.
+        if isinstance(self._sender, OTLPDebuggerSender) or self._sender.agentless:
+            # The destination is configured independently of Agent discovery.
             return True
 
         if agent_info is None:
@@ -226,7 +229,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                     # Retry once against the diagnostics endpoint
                     self._write_with_backoff(payload, track.debugger_type)
                     meter.distribution("batch.cardinality", count)
-                elif self._sender.agentless:
+                elif isinstance(self._sender, OTLPDebuggerSender) or self._sender.agentless:
                     log.debug("Cannot upload payload to the intake", exc_info=True)
                 else:
                     raise  # Propagate error to transition to agent check state

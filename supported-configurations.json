@@ -1334,6 +1334,14 @@
         "default": null
       }
     ],
+    "DD_DI_OTEL_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS": [
       {
         "implementation": "A",
