@@ -1802,11 +1802,14 @@
         "default": "true"
       }
     ],
-    "DD_FFE_INTAKE_ENABLED": [
+    "DD_FEATURE_FLAGS_EXPOSURES_DATADOG_LOGGING_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "aliases": [
+          "DD_FFE_INTAKE_ENABLED"
+        ]
       }
     ],
     "DD_FFE_INTAKE_HEARTBEAT_INTERVAL": [
@@ -5919,6 +5922,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_APPSEC_SCA_CVE_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
         "internal": true
       }
     ],

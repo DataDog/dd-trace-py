@@ -70,7 +70,6 @@ repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
 static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
-.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
 .github/                            @DataDog/python-guild  @DataDog/apm-core-python
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
@@ -348,7 +347,6 @@ ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry/thread_context.py   @DataDog/apm-sdk-capabilities @DataDog/asm-python @DataDog/profiling-python
-ddtrace/opentracer/                                @DataDog/apm-sdk-capabilities
 ddtrace/propagation/                               @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_opentelemetry.py        @DataDog/apm-sdk-capabilities
 

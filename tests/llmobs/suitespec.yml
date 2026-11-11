@@ -171,9 +171,6 @@ suites:
           python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'google-genai~=1.21.1']
   vertexai:
-    # TODO(py-315): the resolved google-genai tool definitions serialize
-    # differently on 3.15 and the span data assertions fail. Re-add 3.15
-    # after updating the expectations.
     paths:
       - '@bootstrap'
       - '@vertexai'
@@ -183,10 +180,15 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
-      python: ['3.9', '3.10', '3.11', '3.12']
       variants:
         - name: vertexai
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
+        # The standalone vertexai distribution stops at 1.71.1, which pins google-cloud-aiplatform
+        # 1.71.1; newer google-cloud-aiplatform releases ship the vertexai module themselves.
+        - name: vertexai
+          python: ['3.14', '3.15']
+          dependencies: [pytest-asyncio, google-ai-generativelanguage, google-cloud-aiplatform]
   llama_index:
     venvs_per_job: 5
     paths:
@@ -196,6 +198,12 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
+    env:
+      # The llama-index-core~=0.11.0 venv on Python 3.13 builds numpy 1.26.4 from source
+      # (no cp313 wheel) on a uv cache miss, which can exceed the default 6Gi.
+      DD_DISABLE_VPA: 'true'
+      KUBERNETES_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_MEMORY_LIMIT: '8Gi'
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       variants:
@@ -291,9 +299,6 @@ suites:
           dependencies: ['pydantic~=1.10', pytest-xdist]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
-    # TODO(py-315): the unpinned row resolves mcp 2.x, which renames FastMCP to
-    # MCPServer and the tests cannot import mcp.server.fastmcp. Re-add 3.15
-    # once the suite supports mcp 2.x (or pin mcp<2 here).
     paths:
       - '@bootstrap'
       - '@mcp'
@@ -308,10 +313,10 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-asyncio, 'mcp~=1.10.0']
         - name: mcp
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'mcp<2']
         - name: mcp
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, mcp]
   mistralai:
     paths:
@@ -512,7 +517,9 @@ suites:
     # (1.31.0, cp311–cp314t only) without 3.15 support, so this suite cannot
     # run on Python 3.15 yet. Add 3.15 to the python lists once those
     # dependencies publish 3.15 wheels.
-    venvs_per_job: 1
+    venvs_per_job: 2
+    # Allow time for GPU placement in addition to the 15-minute test target.
+    timeout: 50m
     paths:
       - '@bootstrap'
       - '@llmobs'

@@ -1384,7 +1384,7 @@ suites:
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, 'flask-caching~=1.10.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, flask-caching]
   gevent:
@@ -1979,13 +1979,13 @@ suites:
           python: ['3.9']
           dependencies: [pytest-randomly, 'psycopg~=3.0.0', 'pytest-asyncio==0.21.1']
         - name: psycopg
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.21.1']
         - name: psycopg
           python: ['3.12']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.23.7']
         - name: psycopg
-          python: ['3.13', '3.14', '3.15']
+          python: ['3.10', '3.11', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio>=1.0']
   pylibmc:
     paths:
