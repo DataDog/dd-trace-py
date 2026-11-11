@@ -20,4 +20,22 @@ and phase-based colors remain available. VAD timing is estimated and does not en
 latency measurements.
 
 Standalone speech-to-text, text-to-speech, and browser transports are not instrumented.
+
+Conversation costs (unreleased)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``LLMObs.submit_conversation_cost(details)`` to submit USD billing from a
+completed conversation-details response your application already obtained. For
+application-verified post-call transcription webhook data, set
+``source="post_call_transcription"``. This API requires Datadog backend support
+and a released tracer version exposing the method; it performs no polling or
+additional ElevenLabs requests.
+
+The reported conversation total includes the provider's LLM and platform prices.
+One dedicated workflow owns the charge. Missing provider amounts remain unknown;
+``total_cost`` can supply a finite, nonnegative user override, including zero,
+on the first submission. Retries and late missing values are supported; changes
+to accepted amounts are rejected. ``context_usage`` and audio duration do not
+establish billable usage, and conversation charges are not allocated to turns.
+
 """

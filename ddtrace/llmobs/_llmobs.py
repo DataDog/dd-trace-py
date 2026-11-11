@@ -163,6 +163,7 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._provider_cost import build_conversation_cost_event
 from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
 from ddtrace.llmobs._routing import RoutingContextType
 from ddtrace.llmobs._routing import build_routing_context
@@ -3509,6 +3510,50 @@ class LLMObs(Service):
             _annotate_llmobs_span_data(span, experiment_input=input_value)
         if output_value is not None:
             _annotate_llmobs_span_data(span, experiment_output=output_value)
+
+    @classmethod
+    def submit_conversation_cost(
+        cls,
+        conversation: Any,
+        *,
+        provider: str = "elevenlabs",
+        source: str = "conversation_details",
+        total_cost: Optional[float] = None,
+        agent_service: Optional[str] = None,
+    ) -> bool:
+        """Submit provider-reported USD costs for a completed conversation.
+
+        :param conversation: ElevenLabs conversation-details response or the data object
+            from an application-verified post-call transcription webhook.
+        :param provider: Hosted provider. Only ``elevenlabs`` is supported.
+        :param source: ``conversation_details`` or ``post_call_transcription``.
+        :param total_cost: Optional user override in USD, including an explicit zero.
+        :param agent_service: Agent service to associate with the conversation.
+        :returns: Whether a valid observation was submitted to the enabled writer.
+
+        This method makes no provider requests. Unfinished or invalid billing, and
+        absent billing without an override, return ``False``. Delivery and conflict rejection occur asynchronously.
+        """
+        if not cls.enabled:
+            return False
+        try:
+            event = build_conversation_cost_event(
+                conversation,
+                agent_service or config._llmobs_ml_app or "",
+                provider=provider,
+                source=source,
+                total_cost=total_cost,
+                service=config.service,
+                env=config.env,
+                version=config.version,
+            )
+            if event is None:
+                return False
+            cls._instance._llmobs_span_writer.enqueue(event, targets=routing_targets(get_routing_context()))
+            return True
+        except Exception:
+            log.debug("Could not submit provider conversation billing", exc_info=True)
+            return False
 
     @classmethod
     def submit_evaluation(

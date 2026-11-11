@@ -1,0 +1,6 @@
+features:
+  - |
+    elevenlabs: Adds opt-in conversation cost reporting with
+    ``LLMObs.submit_conversation_cost`` using completed conversation details or
+    application-verified post-call webhook data, without extra provider requests. The API
+    preserves USD billing, explicit user overrides, and missing-versus-zero costs.
