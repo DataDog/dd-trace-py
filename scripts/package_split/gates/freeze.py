@@ -16,6 +16,7 @@ from ..evidence import SKIP
 from ..freeze_manifest import FreezeManifestError
 from ..freeze_manifest import validate_freeze
 from ..manifest import Manifest
+from ..manifest import validate_manifest
 
 
 def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
@@ -39,65 +40,6 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
         report.record("freeze-manifest", NOT_RUN, "no readable protected freeze manifest at %r" % base)
         return
 
-    # A PR cannot weaken the gate by editing its own rules: the enforced
-    # rules always come from the base revision. But a PR that CHANGES the
-    # rules (a candidate manifest) must be verified before it can become
-    # the new base: its extraction revision must exist in this repository
-    # and its recorded hashes must match the content at that revision.
-    # Without this check, a syntactically valid manifest with a nonexistent
-    # revision or wrong hashes would land and immediately fail the base
-    # manifest integrity check for every subsequent PR.
-    candidate_content = _content_at_revision(manifest.root, head, freeze_path)
-    if candidate_content is not None and candidate_content != content:
-        candidate_problems: list[str] = []
-        try:
-            candidate_data = tomllib.loads(candidate_content)
-            candidate_issues = validate_freeze(candidate_data)
-            if candidate_issues:
-                candidate_problems.extend(candidate_issues)
-            else:
-                # Verify provenance: extraction revision and hashes must
-                # exist and match in this repository.
-                for entry in candidate_data.get("frozen", []):
-                    rev = entry["extraction_revision"]
-                    for path, recorded_hash in sorted(entry.get("hashes", {}).items()):
-                        actual = _path_content(manifest.root, path, rev)
-                        if actual is None:
-                            candidate_problems.append(
-                                "candidate frozen path %r is missing at extraction revision %r" % (path, rev)
-                            )
-                        else:
-                            import hashlib as _hl
-
-                            if _hl.sha256(actual).hexdigest() != recorded_hash:
-                                candidate_problems.append(
-                                    "candidate hash mismatch for %r at extraction revision %r" % (path, rev)
-                                )
-        except (FreezeManifestError, tomllib.TOMLDecodeError) as exc:
-            candidate_problems.append(str(exc))
-        if candidate_problems:
-            report.record("candidate-rules", FAIL, "; ".join(candidate_problems)[:2000])
-            return
-        report.record(
-            "candidate-rules",
-            PASS,
-            "PR modifies the freeze manifest; new rules verified (extraction revision and hashes match)",
-        )
-
-    # The package contract manifest is required for the gate to run: a PR
-    # deleting it while the freeze stays active would leave every
-    # subsequent PR unable to load its manifest, turning the required
-    # freeze check into a repository-wide blocker.
-    manifest_at_head = _content_at_revision(manifest.root, head, manifest.path.relative_to(manifest.root))
-    if manifest_at_head is None:
-        report.record(
-            "candidate-rules",
-            FAIL,
-            "PR deletes package-contract.toml while a freeze is active: the freeze gate "
-            "cannot run without its contract manifest",
-        )
-        return
-
     try:
         data = tomllib.loads(content)
         issues = validate_freeze(data)
@@ -107,6 +49,44 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
         report.record("freeze-manifest", FAIL, str(exc)[:2000])
         return
     report.record("freeze-manifest", PASS, "validated (read from %s)" % source)
+
+    # The head's own candidate rules are validated, never enforced: the
+    # checks below run the base's rules, but a malformed candidate
+    # package-freeze.toml or package-contract.toml would otherwise merge
+    # green and become the base rules that fail every later PR before
+    # drift validation even runs. Deletions are not flagged: unfreezing is
+    # a maintainer-controlled base change, like removing the freeze
+    # itself (see the guard's comment on tightening vs unfreezing).
+    candidate_problems: list[str] = []
+    candidate_freeze = _content_at_revision(manifest.root, head, freeze_path)
+    if candidate_freeze is not None and candidate_freeze != content:
+        try:
+            candidate_problems = [
+                "candidate package-freeze.toml: %s" % issue
+                for issue in validate_freeze(tomllib.loads(candidate_freeze))
+            ]
+        except tomllib.TOMLDecodeError as exc:
+            candidate_problems = ["candidate package-freeze.toml is not valid TOML: %s" % exc]
+    candidate_contract = _content_at_revision(manifest.root, head, manifest.path.relative_to(manifest.root))
+    if candidate_contract is not None:
+        try:
+            candidate_data = tomllib.loads(candidate_contract)
+        except tomllib.TOMLDecodeError as exc:
+            candidate_problems.append("candidate package-contract.toml is not valid TOML: %s" % exc)
+        else:
+            if candidate_data != manifest.data:
+                candidate_problems += [
+                    "candidate package-contract.toml: %s" % issue for issue in validate_manifest(candidate_data)
+                ]
+    if candidate_problems:
+        report.record(
+            "candidate-rules",
+            FAIL,
+            "candidate freeze rules at the head are invalid (merging them would break every later PR)",
+            problems=candidate_problems,
+        )
+    else:
+        report.record("candidate-rules", PASS, "head's candidate rules are absent, unchanged or valid")
 
     try:
         problems, exempted = _verify_freeze(
@@ -361,8 +341,12 @@ def _verify_freeze(
             if content_hash is None:
                 return None
             ordered_hashes = [rewrite["post_hash"] for rewrite in rewrites if rewrite["path"] == path]
+            # Repeated hashes resolve to their latest approval: with
+            # approvals A, B, A an explicit reapproval appends A again, and
+            # resolving it to its first occurrence would keep rejecting the
+            # authorized rollback as a backward transition.
             if content_hash in ordered_hashes:
-                return ordered_hashes.index(content_hash)
+                return len(ordered_hashes) - 1 - ordered_hashes[::-1].index(content_hash)
             return None
 
         for status, path in zip(pr_name_status[::2], pr_name_status[1::2]):

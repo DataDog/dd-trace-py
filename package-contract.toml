@@ -32,7 +32,7 @@ runtime = [
     "opentelemetry-api",
     "wrapt",
 ]
-build = ["cython", "cmake", "setuptools-rust", "patchelf"]
+build = ["cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2", "patchelf>=0.17.0.0; sys_platform == 'linux'"]
 
 # Native policy for the current monolithic distribution: the tracer itself
 # is native. Extracted pure-Python packages must declare "native-free".
@@ -55,15 +55,29 @@ external = ["*"]
 [compatibility]
 python = [">=3.9,<3.16"]
 platforms = ["linux", "macos", "windows"]
-# Per-Python bytecode minimums come from pyproject's environment markers
-# (0.19 for 3.15, 0.17 for 3.14, etc.); the range below records the
-# strictest lower bound (3.15's), which is what a freeze/compatibility gate
-# must never regress. pyproject.toml remains the source of truth for the
-# per-Python markers.
-dependency_ranges = { bytecode = ">=0.19.0,<1", ddtrace-internal = "==0.2.0", envier = "~=0.6.1", openfeature-sdk = ">=0.8,<1", opentelemetry-api = ">=1,<2", opentelemetry-exporter-otlp = ">=1,<2", wrapt = ">=1,!=2.2.0,<3" }
 # The deprecation policy is defined by the plan's compatibility window;
 # this field records where the policy is maintained, not its contents.
 deprecation_policy = "docs/package-split/plan.md"
+
+[compatibility.dependency_ranges]
+# Per-Python bytecode floors carry their environment markers verbatim
+# from pyproject.toml (0.19 for 3.15, 0.17 for 3.14, ...): collapsing them
+# to one global range would either narrow support on older Pythons or
+# lose the stricter floors on newer ones. A value is either one range
+# applying to every supported Python, or a list of marker-annotated
+# ranges; pyproject.toml remains the source of truth for the markers.
+bytecode = [
+  ">=0.19.0,<1; python_version>='3.15.0'",
+  ">=0.17.0,<1; python_version>='3.14.0'",
+  ">=0.16.0,<1; python_version>='3.13.0'",
+  ">=0.15.1,<1; python_version~='3.12.0'",
+  ">=0.14.0,<1; python_version~='3.11.0'",
+  ">=0.13.0,<1; python_version<'3.11'",
+]
+"ddtrace-internal" = "==0.2.0"
+envier = "~=0.6.1"
+"opentelemetry-api" = ">=1,<2"
+wrapt = ">=1,!=2.2.0,<3"
 
 [contracts]
 # Supported exports are pinned per extracted package; today only the

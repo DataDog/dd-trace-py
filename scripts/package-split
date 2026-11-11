@@ -3,7 +3,6 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "packaging",
 #     "tomli; python_version < '3.11'",
 # ]
 # ///
