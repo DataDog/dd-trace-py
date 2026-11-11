@@ -914,9 +914,11 @@ def test_resource_with_nested_empty_mounts(tracer, test_spans):
         assert span.resource == "GET /users/{user_id}"
 
 
-def test_resource_with_route_endpoint_router_over_empty_mount(tracer, test_spans):
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_resource_with_route_endpoint_router_over_empty_mount(tracer, test_spans, wrapped):
     """A Mount("") reached through a route whose endpoint is a Router is nested in that route,
-    so the route keeps its path although it is in a Mount("") too.
+    so the route keeps its path although it is in a Mount("") too, also when both mounts are
+    wrapped in another Mount("").
     """
     from starlette.routing import Mount
     from starlette.routing import Router
@@ -924,7 +926,45 @@ def test_resource_with_route_endpoint_router_over_empty_mount(tracer, test_spans
     async def hello(scope, receive, send):
         await PlainTextResponse("hello")(scope, receive, send)
 
-    endpoint = Router(routes=[Mount("", app=hello)])
+    def wrap(route):
+        return Mount("", routes=[route]) if wrapped else route
+
+    endpoint = Router(routes=[wrap(Mount("", app=hello))])
+    app = Starlette(routes=[wrap(Mount("", routes=[Route("/hello/{name}", endpoint=endpoint)]))])
+
+    with TestClient(app) as client:
+        r = client.get("/hello/x")
+
+    assert r.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "GET /hello/{name}"
+    assert request_span.get_tag("http.route") == "/hello/{name}"
+
+
+def test_resource_with_route_endpoint_router_over_short_circuited_mount(tracer, test_spans):
+    """A nested Mount("") with the same routes as the one around the route is still nested in
+    it when its middleware responds before reaching those routes.
+    """
+    from starlette.middleware import Middleware
+    from starlette.routing import Mount
+    from starlette.routing import Router
+
+    async def hello(request):
+        return PlainTextResponse("hello")
+
+    class Respond:
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            if scope["type"] == "http":
+                await PlainTextResponse("responded")(scope, receive, send)
+            else:
+                await self.app(scope, receive, send)
+
+    endpoint = Router(
+        routes=[Mount("", routes=[Route("/hello/{name}", endpoint=hello)], middleware=[Middleware(Respond)])]
+    )
     app = Starlette(routes=[Mount("", routes=[Route("/hello/{name}", endpoint=endpoint)])])
 
     with TestClient(app) as client:
