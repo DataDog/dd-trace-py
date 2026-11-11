@@ -1,6 +1,5 @@
-fixes:
+other:
   - |
-    tracing: Fixes missing global tags on OTLP trace resources, including updates
-    made at runtime or through remote configuration. Matching string attributes
-    are omitted from spans where safe; differing values and numeric attributes
-    remain on spans.
+    tracing: Reduces OTLP trace payload size by placing tracer tags in resource
+    attributes and omitting redundant span attributes, without changing how spans
+    appear in Datadog.

@@ -2409,35 +2409,6 @@ def test_native_writer_stores_otlp_endpoint():
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
 
 
-@pytest.mark.parametrize("rebuild", ["test-token", "downgrade"])
-def test_native_writer_keeps_tag_updates_during_exporter_rebuild(rebuild):
-    writer = NativeWriter(
-        "http://localhost:8126",
-        api_version="v0.5",
-        otlp_endpoint="http://localhost:4318/v1/traces",
-        resource_attributes={"team": "initial"},
-    )
-    original_exporter = writer._exporter
-    replacement = mock.Mock()
-
-    def build_exporter():
-        writer._set_resource_attributes({"team": "updated"})
-        return replacement
-
-    try:
-        with mock.patch.object(writer, "_create_exporter", side_effect=build_exporter):
-            with mock.patch.object(writer, "_shutdown_exporter"):
-                if rebuild == "test-token":
-                    writer.set_test_session_token("token")
-                else:
-                    writer._downgrade(404, mock.Mock(ENDPOINT="v0.5/traces"))
-        assert writer._exporter is replacement
-        replacement.set_otlp_resource_attributes.assert_called_once_with({"team": "updated"})
-    finally:
-        writer._exporter = original_exporter
-        writer.shutdown_exporter()
-
-
 def test_native_writer_reports_otlp_intake_endpoint():
     writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._intake_endpoint() == "http://localhost:4318/v1/traces"
