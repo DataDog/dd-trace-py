@@ -7,6 +7,7 @@ from ddtrace.internal.native._native import dispatch_with_results
 from ddtrace.internal.native._native import has_listeners
 from ddtrace.internal.native._native import on
 from ddtrace.internal.native._native import reset
+from ddtrace.internal.native._native import reset as reset_listeners
 
 
 def dispatch_event(event: Event, allow_raise: bool = False) -> None:
@@ -28,4 +29,5 @@ __all__ = [
     "has_listeners",
     "on",
     "reset",
+    "reset_listeners",
 ]

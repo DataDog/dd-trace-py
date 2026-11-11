@@ -23,6 +23,7 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesB
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_import_hooks
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
+from ddtrace.internal.coverage.util import is_file_level_coverage_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
@@ -56,7 +57,7 @@ _IMPORT_NAME_ARG_SHIFT: int = 2 if is_at_least_py(3, 15) else 0
 EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
-_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
+_USE_FILE_LEVEL_COVERAGE = is_file_level_coverage_enabled()
 _ACCURATE_IMPORTS_REQUESTED = asbool(env.get("_DD_COVERAGE_ACCURATE_IMPORTS", "false"))
 _USE_ACCURATE_IMPORTS: bool = not is_at_least_py(3, 15) and _ACCURATE_IMPORTS_REQUESTED
 if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
@@ -435,6 +436,19 @@ def _extract_lines_and_imports(
     current_import_package: t.Optional[str] = None
 
     linestarts = dict(dis.findlinestarts(code))
+
+    # Most code objects, functions in particular, import nothing: without an IMPORT_NAME there is no import
+    # metadata (IMPORT_FROM follows an IMPORT_NAME, and only <module> records its package), so their lines come
+    # from the line table alone, with the same RESUME and CACHE exclusions as the scan below. Opcodes sit at the
+    # even offsets of the wordcode.
+    co_code = code.co_code
+    if not collect_imports or (code.co_name != "<module>" and IMPORT_NAME not in co_code[::2]):
+        if track_lines:
+            for offset, start_line in linestarts.items():
+                if start_line is not None and co_code[offset] != RESUME and co_code[offset] != CACHE:
+                    lines.add(start_line)
+        return lines, import_names
+
     line: t.Optional[int] = None
     package_dependency_recorded = False
 

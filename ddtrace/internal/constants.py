@@ -8,6 +8,13 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 
 
+WEB_REQUEST_STARTING_EVENT = "web.request.starting"
+_WEB_REQUEST_STARTING_DISPATCHED = "_ddtrace_web_request_starting_dispatched"
+# core.root item kept current by RuntimeWorker, so shared code can tell whether runtime metrics
+# are running without importing the runtime metrics package.
+RUNTIME_METRICS_ENABLED_KEY = "runtime_metrics_enabled"
+
+
 class Constant_Class(type):
     """
     metaclass for Constant Classes
@@ -90,7 +97,6 @@ SPAN_LINKS_KEY = "_dd.span_links"
 SPAN_EVENTS_KEY = "events"
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
-SPAN_API_OPENTRACING = "opentracing"
 DEFAULT_BUFFER_SIZE = 20 << 20  # 20 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 20 << 20  # 20 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
@@ -130,6 +136,15 @@ MESSAGING_OPERATION = "messaging.operation"
 MESSAGING_SYSTEM = "messaging.system"
 
 USER_AGENT_HEADER = "user-agent"
+OTLP_HTTP_EXPORT_HEADER = "dd-otlp-export"
+OTLP_HTTP_EXPORT_HEADER_VALUE = "true"
+OTLP_GRPC_EXPORT_METHODS = frozenset(
+    {
+        "/opentelemetry.proto.collector.logs.v1.LogsService/Export",
+        "/opentelemetry.proto.collector.metrics.v1.MetricsService/Export",
+        "/opentelemetry.proto.collector.trace.v1.TraceService/Export",
+    }
+)
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
@@ -149,6 +164,8 @@ DD_TRACE_TRACESTATE_MAX_ITEMS = 32
 DD_TRACE_TRACESTATE_MAX_BYTES = 512
 # Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
 DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
+# W3C limits each list-member value to 256 characters.
+W3C_DD_LIST_MEMBER_MAX_CHARS = 256
 
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
@@ -225,3 +242,8 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
+
+
+# server.port is required whenever server.address is set, so a URL that omits the port falls
+# back to the port its scheme implies.
+DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}

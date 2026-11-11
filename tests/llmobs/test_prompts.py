@@ -690,9 +690,13 @@ class TestPrompts:
         ff_mock.assert_not_called()
         assert prompt.source == "registry"
 
-    def test_route_env_agent_to_ff(self):
-        manager = _make_manager(agentless=False)
-        with _ffe_enabled():
+    @pytest.mark.parametrize("api_key", ["test-key", ""])
+    def test_route_env_agent_to_ff(self, api_key):
+        with (
+            override_global_config(dict(_dd_api_key=api_key, _llmobs_agentless_enabled=False)),
+            patch.object(LLMObs, "_app_key", ""),
+            _ffe_enabled(),
+        ):
             _deliver_prompt_flag(
                 "greeting",
                 {
@@ -702,8 +706,8 @@ class TestPrompts:
                     "config": {"model": "ff-model"},
                 },
             )
-            with patch.object(manager, "_get_prompt_http") as http_mock:
-                prompt = manager.get_prompt("greeting")
+            with patch.object(PromptManager, "_get_prompt_http") as http_mock:
+                prompt = LLMObs.get_prompt("greeting", targeting_key="user-1")
         http_mock.assert_not_called()
         assert prompt.source == "ff"
         assert prompt.version == "ff-v1"
@@ -895,9 +899,10 @@ class TestPrompts:
                 manager.get_prompt("greeting", targeting_key="u1", tier="free")  # new attrs -> new fetch
         assert len(conns) == 2
 
-    def test_no_app_key_env_uses_fallback_without_calling_resolve(self):
+    @pytest.mark.parametrize("api_key", ["test-key", ""])
+    def test_no_app_key_env_uses_fallback_without_calling_resolve(self, api_key):
         """Without an app key/SAT, /resolve can't be authorized; use the fallback and skip the doomed call."""
-        manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
+        manager = PromptManager(api_key=api_key, base_url="https://api.datadoghq.com", file_cache_enabled=False)
         with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                 cfg.env = "production"
@@ -1070,20 +1075,18 @@ class TestPromptManagement:
 
         assert len(manager._hot_cache) == 0
 
-    def test_enable_with_app_key_refreshes_manager_cached_by_read_path(self, tracer):
-        """Regression: a read path that builds the prompt manager before enable(app_key=...)
-        must not strand write APIs with the then-empty app key.
-        """
+    @pytest.mark.parametrize("key", ["api_key", "app_key"])
+    def test_enable_with_key_refreshes_manager_cached_by_read_path(self, tracer, key):
         LLMObs._app_key = ""
-        with mock_api(200, TEXT_PROMPT_RESPONSE):
-            LLMObs.get_prompt("greeting")
-        assert LLMObs._prompt_manager is not None
-        assert LLMObs._prompt_manager._app_key == ""
+        with override_global_config(dict(_dd_api_key="")):
+            LLMObs.get_prompt("greeting", fallback="Hello")
+            assert LLMObs._prompt_manager is not None
+            assert getattr(LLMObs._prompt_manager, "_" + key) == ""
 
-        LLMObs.enable(_tracer=tracer, app_key="new-app-key", agentless_enabled=False)
+            LLMObs.enable(_tracer=tracer, agentless_enabled=False, **{key: "new-key"})
 
-        assert LLMObs._prompt_manager is None
-        assert LLMObs._ensure_prompt_manager()._app_key == "new-app-key"
+            assert LLMObs._prompt_manager is None
+            assert getattr(LLMObs._ensure_prompt_manager(), "_" + key) == "new-key"
 
     def test_refresh_prompt_requires_api_key(self):
         manager = _make_manager()

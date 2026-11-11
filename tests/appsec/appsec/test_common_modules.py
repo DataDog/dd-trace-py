@@ -20,13 +20,14 @@ from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.security._patch_utils import try_unwrap
+from ddtrace.internal.security._patch_utils import try_wrap_function_wrapper
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
@@ -40,7 +41,7 @@ def test_patch_read():
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
-    assert type(open) == types.BuiltinFunctionType
+    assert type(open) is types.BuiltinFunctionType
     assert not isinstance(open, FunctionWrapper)
     assert not isinstance(copy_open, FunctionWrapper)
     assert isinstance(open, types.BuiltinFunctionType)
@@ -53,7 +54,7 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == FunctionWrapper
+        assert type(open) is FunctionWrapper
         assert isinstance(copy_open, FunctionWrapper)
         assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
@@ -274,6 +275,59 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     finally:
         httplib_unpatch()
         unpatch_common_modules()
+
+
+@pytest.mark.skipif(not is_at_least_py(3, 11), reason="Pre-3.11 wrapping uses different failed-entry cleanup semantics")
+def test_blocked_recursive_call_restores_the_outer_call_storage():
+    """A block during a recursive call's entry must only unwind that call.
+
+    The contexts it already entered exit, and the outer call keeps its own storage.
+    """
+    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
+
+    exited = []
+
+    class _Entered(WrappingContext):
+        __priority__ = -1
+
+        def __enter__(self):
+            super().__enter__()
+            self.set("value", self.get_local("value"))
+            return self
+
+        def __exit__(self, *exc):
+            exited.append(self.get("value"))
+            super().__exit__(*exc)
+
+    class _Blocker(WrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            if self.get_local("value") == "inner":
+                raise BlockingException("blocked")
+            return self
+
+    def target(value):
+        if value == "outer":
+            outer_storage = [context._storage.get() for context in (entered, blocker, universal)]
+            with pytest.raises(BlockingException):
+                target("inner")
+            for context, storage in zip((entered, blocker, universal), outer_storage):
+                assert context._storage.get() is storage
+            assert entered.get("value") == "outer"
+        return value
+
+    entered = _Entered(target)
+    blocker = _Blocker(target)
+    entered.wrap()
+    blocker.wrap()
+    universal = _UniversalWrappingContext.extract(target)
+    try:
+        assert target("outer") == "outer"
+        assert exited == ["inner"]
+        assert all(context._storage.get() is None for context in (entered, blocker, universal))
+    finally:
+        blocker.unwrap()
+        entered.unwrap()
 
 
 def test_a_concurrent_request_does_not_consume_the_pending_block():
@@ -550,12 +604,14 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         # Being registered is not enough: the hook must actually run under both orders, or
         # RASP silently stops inspecting downstream requests.
         entered = []
+        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
 
         class _Probe(_SsrfHttpConnectionRequest):
             def __enter__(self):
                 result = super().__enter__()
                 frame_locals = self._locals()
-                entered.append((frame_locals.get("method"), frame_locals.get("url")))
+                if frame_locals.get("self") is conn:
+                    entered.append((frame_locals.get("method"), frame_locals.get("url")))
                 return result
 
         request_fn = request_ctx.__wrapped__
@@ -565,7 +621,6 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
 
         # Both layers still deliver a working client: a refused connection must surface as
         # OSError, not as an instrumentation error.
-        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
         with pytest.raises(OSError):
             conn.request("GET", "/")
 
@@ -704,7 +759,7 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == FunctionWrapper
+        assert type(original_func) is FunctionWrapper
         assert isinstance(copy_func, FunctionWrapper)
         assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")

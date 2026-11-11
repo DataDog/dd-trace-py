@@ -9,6 +9,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils import time
+from ddtrace.internal.utils.cache import IdentityWeakKeyDictionary
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
@@ -16,6 +17,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.http import url_origin
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.trace import Context
@@ -411,6 +413,126 @@ def test_callonce_signature():
             yield 42
 
 
+def test_identity_weak_key_dictionary_never_hashes_keys():
+    class Meta(type):
+        def __hash__(cls):
+            raise AssertionError("key hashed")
+
+        def __eq__(cls, other):
+            raise AssertionError("key compared")
+
+    class Unhashable(metaclass=Meta):
+        pass
+
+    d = IdentityWeakKeyDictionary()
+    d[Unhashable] = 42
+
+    assert Unhashable in d
+    assert d[Unhashable] == 42
+    assert d.get(Unhashable) == 42
+    assert list(d) == [Unhashable]
+    assert len(d) == 1
+
+
+def test_identity_weak_key_dictionary_distinguishes_equal_keys():
+    code = compile("x = 1", "<test>", "exec")
+    clone = code.replace()
+    assert code == clone and code is not clone
+
+    d = IdentityWeakKeyDictionary()
+    d[code] = "original"
+    d[clone] = "clone"
+
+    assert d[code] == "original"
+    assert d[clone] == "clone"
+    assert len(d) == 2
+
+
+def test_identity_weak_key_dictionary_missing_keys():
+    class Key:
+        pass
+
+    key = Key()
+    d = IdentityWeakKeyDictionary()
+
+    assert key not in d
+    assert d.get(key) is None
+    assert d.get(key, 1) == 1
+    assert d.pop(key, 2) == 2
+    with pytest.raises(KeyError):
+        d[key]
+    with pytest.raises(KeyError):
+        del d[key]
+    with pytest.raises(KeyError):
+        d.pop(key)
+
+    d[key] = 3
+    assert d.pop(key) == 3
+    assert key not in d
+
+
+def test_identity_weak_key_dictionary_drops_collected_keys():
+    import gc
+
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+
+    key = Key()
+    d[key] = "value"
+    del key
+    gc.collect()
+
+    assert len(d) == 0
+    assert removed == [True]
+
+
+def test_identity_weak_key_dictionary_stale_callback_keeps_new_entry():
+    import gc
+
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+
+    key = Key()
+    d[key] = "old"
+    stale_ref = d._data[id(key)][0]
+    # Overwrite the slot, then fire the callback of the replaced weakref by hand,
+    # as would happen if the old key died after its id was reused.
+    d[key] = "new"
+    d._make_remove(id(key))(stale_ref)
+
+    assert d[key] == "new"
+    assert removed == []
+
+    del key, stale_ref
+    gc.collect()
+    assert len(d) == 0
+    assert removed == [True]
+
+
+def test_identity_weak_key_dictionary_clear():
+    class Key:
+        pass
+
+    removed = []
+    d = IdentityWeakKeyDictionary(on_remove=lambda: removed.append(True))
+    keys = [Key() for _ in range(3)]
+    for k in keys:
+        d[k] = None
+
+    d.clear()
+    del keys
+
+    assert len(d) == 0
+    assert list(d) == []
+    assert removed == []
+
+
 @pytest.mark.parametrize(
     "context, expected_strs",
     [
@@ -552,3 +674,25 @@ def test_hourglass_turn():
 def test_hourglass_sorting():
     """Test that we can sort hourglasses."""
     sorted(time.HourGlass(1) for _ in range(100))
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://mcp.example.com/mcp", "https://mcp.example.com"),
+        ("HTTPS://MCP.Example.COM:443/Mcp/", "https://mcp.example.com"),
+        ("http://mcp.example.com:80/sse", "http://mcp.example.com"),
+        ("http://mcp.example.com:8080/sse", "http://mcp.example.com:8080"),
+        ("https://user:secret@mcp.example.com/mcp?token=abc#frag", "https://mcp.example.com"),
+        ("https://mcp.example.com/api/mcp/s/s3cr3t-t0ken/mcp", "https://mcp.example.com"),
+        ("https://mcp.example.com/mcp;params?q=1", "https://mcp.example.com"),
+        ("http://[::1]:9000/mcp", "http://[::1]:9000"),
+        ("https://mcp.example.com", "https://mcp.example.com"),
+        ("https://mcp.example.com:notaport/mcp", None),
+        ("/relative/path", None),
+        ("not a url", None),
+        ("", None),
+    ],
+)
+def test_url_origin(url, expected):
+    assert url_origin(url) == expected

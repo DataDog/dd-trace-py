@@ -1,0 +1,4 @@
+other:
+  - |
+    openfeature: Improves reliability of exposure-writer tests. This test-only
+    change does not affect application behavior.

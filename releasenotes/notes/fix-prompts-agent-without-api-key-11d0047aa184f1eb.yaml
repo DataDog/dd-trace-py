@@ -1,0 +1,3 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where retrieving Agent-delivered or cached prompts requires ``DD_API_KEY`` in the application. Fetching other prompts still requires the appropriate API credentials.

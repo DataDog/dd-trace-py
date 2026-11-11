@@ -1,6 +1,6 @@
 from typing import Any
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -76,7 +76,7 @@ def get_tainted_ranges(pyobject: Any) -> tuple:
     return tuple()
 
 
-def is_pyobject_tainted(pyobject: Any) -> bool:
+def is_pyobject_tainted(pyobject: object) -> bool:
     context_id = _get_iast_context_id()
     if context_id is None:
         return False

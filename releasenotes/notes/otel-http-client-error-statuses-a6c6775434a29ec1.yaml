@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Adds ``DD_TRACE_HTTP_CLIENT_ERROR_STATUSES`` to configure which HTTP client response
+    status codes mark a span as an error when ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``. When it is
+    not set, client status codes of 400 and above are errors.

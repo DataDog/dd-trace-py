@@ -5,6 +5,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -12,7 +13,7 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -28,9 +29,17 @@ _CONTEXT_EXCLUDED_SECTIONS = {"Free space", "Autocompact buffer"}
 
 class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     _integration_name = "claude_agent_sdk"
-    # span_link emission lives in ddtrace/contrib/internal/claude_agent_sdk/_streaming.py
-    # because links are driven by SDK stream events (AssistantMessage / UserMessage / etc.)
-    # processed in the per-invocation ClaudeAgentSdkAsyncStreamHandler.
+    # The span links are chosen in ddtrace/contrib/internal/claude_agent_sdk/_streaming.py,
+    # because they are driven by SDK stream events (AssistantMessage / UserMessage / etc.)
+    # processed in the per-invocation ClaudeAgentSdkAsyncStreamHandler, which passes them
+    # as (span_id, trace_id) pairs in kwargs["span_links"].
+
+    def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
+        """claude_agent_sdk spans carry no provider or model tags at start."""
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # Known at start for agent attribution.
+        return "agent" if kwargs.get("operation") in ("query", "request") else None
 
     def _llmobs_set_tags(
         self,
@@ -40,6 +49,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
+        for span_id, trace_id in kwargs.get("span_links") or ():
+            add_span_link(span, span_id, trace_id, "output", "input")
         if operation == "tool":
             self._llmobs_set_tool_tags(span, kwargs)
         elif operation in ("llm", "step"):
@@ -68,11 +79,15 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             model_provider=model_provider,
         )
 
-    def extract_llm_input_messages(self, args: list, kwargs: dict, span: Span) -> list[Message]:
-        """Return the user prompt as input messages for the first LLM span."""
-        if not self.llmobs_enabled:
-            return []
-        return self._extract_input_messages(get_argument_value(args, kwargs, 0, "prompt", optional=True) or "", span)
+    def _extract_llm_input_messages(self, kwargs: dict[str, Any]) -> list[Message]:
+        """Return the input of an llm or step span: the prompt followed by the conversation so far.
+
+        kwargs["history"] holds the (role, SDK content) turns that followed the prompt.
+        """
+        messages = self._extract_input_messages(kwargs.get("prompt") or "", kwargs.get("prompt_values"))
+        for role, content in kwargs.get("history") or ():
+            messages.extend(self.parse_content_blocks(role, content))
+        return messages
 
     def _llmobs_set_llm_tags(
         self, span: Span, response: Optional[Any], kwargs: Optional[dict[str, Any]] = None, kind: str = "llm"
@@ -90,7 +105,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 span.error = 1
                 span.set_tag(ERROR_TYPE, error_type)
                 span.set_tag(ERROR_MSG, error_message)
-        input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
+        input_messages = self._extract_llm_input_messages(kwargs or {})
         _annotate_llmobs_span_data(
             span,
             kind=kind,
@@ -122,7 +137,10 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         metadata = self._extract_metadata(kwargs)
 
-        input_messages = self._extract_input_messages(prompt, span)
+        prompt_wrapper = kwargs.get("prompt_wrapper")
+        input_messages = self._extract_input_messages(
+            prompt, list(prompt_wrapper.captured_values) if prompt_wrapper is not None else None
+        )
 
         output_messages: list[Message] = [Message(content="")]
         metrics: dict[str, int] = {}
@@ -169,12 +187,15 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             manifest["max_iterations"] = metadata["max_turns"]
         return manifest
 
-    def _extract_input_messages(self, prompt: Any, span: Span) -> list[Message]:
-        prompt_wrapper = span._get_ctx_item("_dd_prompt_wrapper") if span else None
+    def _extract_input_messages(self, prompt: Any, prompt_values: Optional[list[Any]]) -> list[Message]:
+        """Return the prompt as messages.
 
-        if prompt_wrapper and hasattr(prompt_wrapper, "captured_values"):
+        prompt_values holds the messages captured from an AsyncIterable prompt, or None for a
+        string prompt.
+        """
+        if prompt_values is not None:
             messages = []
-            for captured_msg in prompt_wrapper.captured_values:
+            for captured_msg in prompt_values:
                 if isinstance(captured_msg, dict) and "message" in captured_msg:
                     message = captured_msg.get("message", {}) or {}
                     content = message.get("content", "") or ""

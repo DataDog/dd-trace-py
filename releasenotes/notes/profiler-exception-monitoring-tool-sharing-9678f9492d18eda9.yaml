@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where exception profiling failed to start when
+    another tool had already claimed the ``sys.monitoring`` slot used by the
+    profiler, by sharing a single monitoring tool with error tracking and
+    falling back to another free slot when one is taken.

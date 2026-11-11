@@ -1,6 +1,8 @@
 import base64
 import json
 
+import pytest
+
 from ddtrace.internal.datastreams.botocore import get_datastreams_context
 
 
@@ -138,3 +140,35 @@ class TestGetDatastreamsContext:
 
     def test_no_message_attributes_returns_none(self):
         assert get_datastreams_context({"Body": json.dumps({"job_type": "TAX"})}) is None
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=None)
+def test_sqs_receive_sets_consume_checkpoint_for_non_object_json_body_without_context():
+    from ddtrace.internal.datastreams import data_streams_processor
+    from ddtrace.internal.datastreams.botocore import handle_sqs_receive
+    from tests.datastreams.utils import all_pathway_stat_keys
+
+    processor = data_streams_processor()
+    assert processor is not None
+
+    bodies = {
+        "queue-object": '{"a": 1}',
+        "queue-array": "[1, 2, 3]",
+        "queue-string": '"hello"',
+        "queue-number": "42",
+        "queue-null": "null",
+    }
+    for queue_name, body in bodies.items():
+        handle_sqs_receive(
+            None,
+            {"QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/" + queue_name},
+            {"Messages": [{"MessageId": "1", "Body": body}]},
+        )
+
+    edge_tags = {key[0] for key in all_pathway_stat_keys(processor)}
+    missing = [
+        queue_name
+        for queue_name in bodies
+        if ",".join(sorted(["direction:in", "topic:" + queue_name, "type:sqs"])) not in edge_tags
+    ]
+    assert not missing, "no consume checkpoint for queues: %s (got %s)" % (missing, sorted(edge_tags))

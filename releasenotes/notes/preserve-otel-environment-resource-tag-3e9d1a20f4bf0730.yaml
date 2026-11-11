@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where service, environment, and version values configured through
+    ``OTEL_RESOURCE_ATTRIBUTES`` can differ between traces, logs, and metrics. These unified
+    service tags are now applied consistently across all three signals.

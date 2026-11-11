@@ -84,6 +84,37 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == HOST
 
+    def test_resource_with_otel_semantics(self):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)):
+            resp = self.http.request("GET", URL_200)
+
+        assert resp.status == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.resource == "GET"
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("url.full") == URL_200
+        assert span.get_tag("http.method") is None
+        assert span.get_tag("http.url") is None
+
+    def _otel_pool_tags(self, pool):
+        with self.override_global_config(dict(_otel_trace_semantics_enabled=True)), pytest.raises(Exception):
+            pool.urlopen("GET", "/x", retries=False)
+        span = self.pop_spans()[0]
+        return {**span.get_tags(), **span.get_metrics()}
+
+    def test_otel_semantics_keeps_non_default_scheme_port(self):
+        tags = self._otel_pool_tags(urllib3.HTTPConnectionPool("localhost", port=443, timeout=0.1))
+        assert tags["url.full"] == "http://localhost:443/x"
+        assert tags["server.port"] == 443
+
+    def test_otel_semantics_ipv6_host(self):
+        tags = self._otel_pool_tags(urllib3.HTTPConnectionPool("::1", port=1, timeout=0.1))
+        assert tags["url.full"] == "http://[::1]:1/x"
+        assert tags["server.address"] == "::1"
+        assert tags["server.port"] == 1
+
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
         self.tracer.enabled = False

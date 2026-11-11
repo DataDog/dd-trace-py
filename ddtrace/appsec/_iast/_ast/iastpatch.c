@@ -31,6 +31,7 @@ static const char* static_allowlist[] = { "jinja2.",
                                           "werkzeug.utils.",
                                           "langchain.",
                                           "langchain_core.",
+                                          "langchain_classic.",
                                           "django.http.response.",
                                           "langchain_experimental." };
 static const size_t static_allowlist_count = sizeof(static_allowlist) / sizeof(static_allowlist[0]);

@@ -184,22 +184,14 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context_from_span(span: SpanData, trace_flags: int) -> None:
-        """
-        Update the OTel thread context from the active span.
-        :param span: The active span.
-        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
-        """
-        ...
-    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
-        """Update the OTel thread context from an active trace Context.
+    def sync_otel_thread_context(ctx: Optional[Union[Context, SpanData]]) -> None:
+        """Publish IDs and sampling flags from the active span or Context.
 
-        Invalid Context identifiers detach the current thread context. The local root span ID is
-        published as zero because a Context does not retain local root span identity.
+        Spans use their local root's sampling priority and span ID. A bare Context
+        publishes zero for the local root span ID. None, unsupported values, invalid
+        Context IDs, and sampling lookup failures detach the current thread context.
+        Lookup failures also propagate to the caller.
         """
-        ...
-    def detach_otel_thread_context() -> None:
-        """Detach the OTel thread context from the current thread."""
         ...
 
 class SharedRuntime:
@@ -786,13 +778,11 @@ class TraceExporterBuilder:
     def enable_telemetry(
         self,
         heartbeat_ms: int,
-        runtime_id: str,
         debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
-        :param runtime_id: The runtime id to use for telemetry.
         :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
@@ -833,24 +823,24 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
+        Set the OTLP endpoint for trace export.
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
-        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        :param url: The full URL of the OTLP endpoint.
         """
         ...
     def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
         """
-        Select the OTLP export protocol: "http/json" or "http/protobuf".
-        Any other value raises ValueError.
-        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
+        Select the OTLP export protocol: "grpc", "http/json", or "http/protobuf".
+        Any other value raises ValueError. gRPC supports plaintext endpoints only.
+        :param protocol: The OTLP protocol.
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
-        Set additional HTTP headers for OTLP trace export requests.
-        :param headers: A list of (key, value) header pairs.
+        Set additional metadata for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs. gRPC metadata keys must be lowercase.
         """
         ...
     def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
@@ -1018,9 +1008,10 @@ class SerializationError(Exception):
     ...
 
 class ffe:
-    """
-    Native Feature Flags and Experimentation module.
-    """
+    """Native Feature Flags and Experimentation module."""
+
+    @staticmethod
+    def get_evaluator_capabilities() -> list[str]: ...
 
     class FlagType(Enum):
         String = ...
@@ -1068,6 +1059,8 @@ class ffe:
         def do_log(self) -> bool: ...
         @property
         def serial_id(self) -> Optional[int]: ...
+        @property
+        def features(self) -> Optional[tuple[tuple[str, Union[str, float, bool], tuple[str, ...]], ...]]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
@@ -1165,6 +1158,7 @@ class SpanData:
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
     _parent_context: Optional[Any]  # parent Context, or None
+    context: Context  # this span's trace context, built lazily on first read
 
     def __new__(
         cls: type[_SpanDataT],
@@ -1176,11 +1170,16 @@ class SpanData:
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[float] = None,
-        context: Optional[Any] = None,  # placeholder for Span.__init__
+        context: Optional[Context] = None,  # parent Context, or None for a root span
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
         links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
+    def _context_for_child(self) -> Context: ...
+    def _set_sampling_decision_maker(self, sampling_mechanism: int) -> str: ...
+    def _override_sampling_decision(
+        self, decision: Optional[Union[int, float]], sampling_mechanism: int = 4
+    ) -> None: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
@@ -1313,6 +1312,7 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def uuid4() -> str: ...
 def process_metrics() -> tuple[int, int, int, int, int, int]:
     """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
 
@@ -1384,6 +1384,8 @@ class MetricNamespace:
     civisibility: MetricNamespace
     mlobs: MetricNamespace
     ddtraceapi: MetricNamespace
+    ai_guard: MetricNamespace
+    debugger: MetricNamespace
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1454,6 +1456,9 @@ class RemoteConfigProduct:
     FfeFlags: RemoteConfigProduct
     LiveDebugging: RemoteConfigProduct
     LiveDebuggingSymbolDb: RemoteConfigProduct
+    Debug: RemoteConfigProduct
+    ApmProfiling: RemoteConfigProduct
+
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
@@ -1554,8 +1559,11 @@ class RemoteConfigReader:
         polls.
         """
         ...
-    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+    def read(self, enabled_products: list[str]) -> Optional[list[RemoteConfigChange]]:
         """Return the changes since the last read (removals first).
+
+        None means no consistent snapshot could be read (e.g. the origin was
+        compacting the shared memory); the next read retries from the same state.
 
         ``enabled_products`` are the wire names the caller currently subscribes
         to; configs for other products are withheld so they are re-emitted once
@@ -1610,8 +1618,20 @@ class RemoteConfigClient:
     ) -> None:
         """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
         ...
+    def fetch(
+        self, products: list[RemoteConfigProduct], extra_services: list[str]
+    ) -> Optional[list[RemoteConfigChange]]:
+        """Perform a single fetch against the agent and return the per-poll changes.
+
+        None means the agent replied that nothing changed.
+        """
+        ...
     def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
-        """Perform a single fetch against the agent and return the per-poll changes."""
+        """Like fetch, but returns no changes rather than None when nothing changed.
+
+        Kept for the callers that expect a list, such as test harnesses outside
+        this repository.
+        """
         ...
     def set_config_state(self, path: str, error: Optional[str] = None) -> None:
         """Acknowledge (``error=None``) or report an error for an applied config."""

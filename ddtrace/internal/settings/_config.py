@@ -11,7 +11,6 @@ from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -33,11 +32,13 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -109,6 +110,7 @@ INTEGRATION_CONFIGS = frozenset(
         "pyodbc",
         "dramatiq",
         "flask",
+        "aws_sdk_bedrock_runtime",
         "google_genai",
         "google_adk",
         "urllib3",
@@ -185,6 +187,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "elevenlabs",
         "crewai",
         "pydantic_ai",
         "vllm",
@@ -216,6 +219,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aiokafka",
         "google_cloud_pubsub",
         "mistralai",
+        "typesafe",
     }
 )
 
@@ -461,6 +465,11 @@ class Config:
                     return True
             return False
 
+    class _HTTPClientConfig(_HTTPServerConfig):
+        # Same behavior as the server configuration, with its own environment variable and default.
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_CLIENT_ERROR_STATUSES", "400-499")
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
+
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -540,11 +549,15 @@ class Config:
 
         self._inferred_base_service = detect_service(sys.argv)
 
+        self._otel_trace_semantics_enabled = agent_config._trace_otel_semantics_enabled
+
         # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
-        if _span_service_name_schema_version not in ("v0", "v1"):
+        if self._otel_trace_semantics_enabled:
+            _span_service_name_schema_version = "v0"
+        elif _span_service_name_schema_version not in ("v0", "v1"):
             _span_service_name_schema_version = "v0"
         if _span_service_name_schema_version == "v0" and not asbool(
             env.get("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False)
@@ -568,6 +581,7 @@ class Config:
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+        self._http_client = self._HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
@@ -677,12 +691,7 @@ class Config:
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        trace_compute_stats_default = (
-            in_gcp_function() or in_azure_function() or is_at_least_py(3, 14) or agentless.enabled
-        )
-        self._trace_compute_stats = _get_config(
-            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool)
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
         self._trace_stats_additional_tags = _get_config(
             "DD_TRACE_STATS_ADDITIONAL_TAGS",
@@ -736,12 +745,43 @@ class Config:
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-        self._otel_trace_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
+        if self._otel_trace_semantics_enabled:
+            _peer_service_defaults_enabled = _get_config(
+                "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, asbool, report_telemetry=False
+            )
+            if _peer_service_defaults_enabled:
+                log.warning(
+                    "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED is set to true, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Peer service defaults stay disabled."
+                )
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_peer_service_defaults_enabled"),),
+                )
+            _span_attribute_schema = _get_config("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", report_telemetry=False)
+            if _span_attribute_schema != "v0":
+                log.warning(
+                    "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA is set to a version other than v0, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Schema v0 is used instead."
+                )
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "otel.semantics.config_override",
+                    1,
+                    (("config_datadog", "dd_trace_span_attribute_schema"),),
+                )
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()
         )
-        self._otel_logs_enabled = _get_config("DD_LOGS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_logs_enabled = _get_config(
+            "DD_LOGS_OTEL_ENABLED",
+            False,
+            asbool,
+            ["OTEL_LOGS_EXPORTER", "OTEL_SDK_DISABLED"],
+        )
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
@@ -887,7 +927,8 @@ class Config:
             since it contains integration defaults.
         :param bool merge: Whether to merge any existing settings with those provided,
             or if we should overwrite the settings with those provided;
-            Note: when merging existing settings take precedence.
+            Note: when merging existing settings take precedence, and the existing HTTP settings
+            (config.<integration>.http) are kept; overwriting resets them.
         """
         if integration not in INTEGRATION_CONFIGS:
             log.error(
@@ -908,9 +949,9 @@ class Config:
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._integration_configs[integration] = IntegrationConfig(
-                self, integration, _deepmerge(existing, settings)
-            )
+            merged = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            object.__setattr__(merged, "http", getattr(existing, "http", merged.http))
+            self._integration_configs[integration] = merged
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 

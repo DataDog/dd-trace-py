@@ -46,14 +46,17 @@ else:
 def wait_for_es(host: str, port: int):
     # Wait for up to 160 seconds for ES to start.
     # DEV: Elasticsearch is pretty quick, but OpenSearch can take a long time to start.
-    for _ in range(80):
+    deadline = time.monotonic() + 160
+    while time.monotonic() < deadline:
+        conn = HTTPConnection(host, port, timeout=2)
         try:
-            conn = HTTPConnection(f"{host}:{port}")
             conn.request("GET", "/")
             conn.getresponse()
             return
         except Exception:
-            time.sleep(2)
+            time.sleep(max(0, min(2, deadline - time.monotonic())))
+        finally:
+            conn.close()
     raise Exception(f"Could not connect to ES at {host}:{port}")
 
 
@@ -87,8 +90,16 @@ class ElasticsearchPatchTest(TracerTestCase):
 
         es = self._get_es()
         config = self._get_es_config()
-        wait_for_es(config["host"], config["port"])
-        self.create_index(es)
+        # A probe can pass before index creation times out. Retry setup before patching the client.
+        # Index creation permits an existing index, so a request can be repeated after a timeout.
+        for attempt in range(3):
+            wait_for_es(config["host"], config["port"])
+            try:
+                self.create_index(es)
+                break
+            except (elasticsearch.ConnectionError, elasticsearch.ConnectionTimeout):
+                if attempt == 2:
+                    raise
 
         patch()
 
@@ -205,7 +216,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("span.kind") == "client"
 
-        self.assertTrue(span.get_metric("elasticsearch.took") > 0)
+        assert span.get_metric("elasticsearch.took") == result["took"]
 
         # Search by type not supported by default json encoder
         query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}

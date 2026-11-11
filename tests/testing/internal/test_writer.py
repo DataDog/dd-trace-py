@@ -1,6 +1,5 @@
 """Tests for ddtrace.testing.internal.writer module."""
 
-import http.client
 import threading
 import typing as t
 from unittest.mock import Mock
@@ -73,44 +72,49 @@ class _ConcreteWriter(BaseWriter):
 
 class TestBaseWriterStartup:
     @pytest.mark.parametrize("scheme", ["http", "https"])
-    def test_first_upload_uses_connection_initialized_before_http_client_patching(self, scheme: str) -> None:
-        connector = BackendConnector(f"{scheme}://api.example.com")
-        results: list[BackendResult] = []
+    def test_first_upload_goes_through_the_native_client_when_http_client_is_patched(self, scheme: str) -> None:
+        response = Mock(status_code=200)
+        response.header.side_effect = lambda name: {"content-length": "2"}.get(name.lower())
+        response.body.return_value = b"ok"
+        with patch("ddtrace.testing.internal.http.HTTPClient") as http_client:
+            http_client.return_value.post.return_value = response
+            connector = BackendConnector(f"{scheme}://api.example.com")
+            results: list[BackendResult] = []
 
-        class _SendingWriter(_ConcreteWriter):
-            def _send_events(self, events: list[Event]) -> bool:
-                results.append(connector.request("POST", "/upload", data=b"payload", max_attempts=1))
-                return super()._send_events(events)
+            class _SendingWriter(_ConcreteWriter):
+                def _send_events(self, events: list[Event]) -> bool:
+                    results.append(connector.request("POST", "/upload", data=b"payload", max_attempts=1))
+                    return super()._send_events(events)
 
-        writer = _SendingWriter(async_flush_events=1)
-        writer._connectors = [connector]
-        with patch("socket.create_connection", side_effect=AssertionError("startup must not open a socket")):
-            writer.start()
-        response = Mock(status=200, headers={"Content-Length": "2"})
-        response.read.return_value = b"ok"
-        try:
-            # Simulate a cassette replacing both connection classes during the first background upload.
-            with (
-                patch.object(http.client.HTTPConnection, "request") as request,
-                patch.object(http.client.HTTPConnection, "getresponse", return_value=response),
-                patch(
-                    "http.client.HTTPConnection", side_effect=AssertionError("patched HTTP constructor")
-                ) as http_constructor,
-                patch(
-                    "http.client.HTTPSConnection", side_effect=AssertionError("patched HTTPS constructor")
-                ) as https_constructor,
-            ):
-                writer.put_event(Event(n=1))
-                assert writer.sent_event.wait(timeout=5), "first upload did not complete"
-                assert len(results) == 1
-                assert results[0].error_type is None
-                assert results[0].response_body == b"ok"
-                request.assert_called_once_with("POST", "/upload", body=b"payload", headers={})
-                http_constructor.assert_not_called()
-                https_constructor.assert_not_called()
-        finally:
-            writer.signal_finish()
-            writer.wait_finish(timeout=5)
+            writer = _SendingWriter(async_flush_events=1)
+            writer._connectors = [connector]
+            with patch("socket.create_connection", side_effect=AssertionError("startup must not open a socket")):
+                writer.start()
+            # The connector is thread-local: the writer's thread builds its own client at startup.
+            assert http_client.call_count == 2
+            try:
+                # Simulate a cassette replacing both connection classes during the first background upload.
+                with (
+                    patch(
+                        "http.client.HTTPConnection", side_effect=AssertionError("patched HTTP constructor")
+                    ) as http_constructor,
+                    patch(
+                        "http.client.HTTPSConnection", side_effect=AssertionError("patched HTTPS constructor")
+                    ) as https_constructor,
+                ):
+                    writer.put_event(Event(n=1))
+                    assert writer.sent_event.wait(timeout=5), "first upload did not complete"
+                    assert len(results) == 1
+                    assert results[0].error_type is None
+                    assert results[0].response_body == b"ok"
+                    assert http_client.return_value.post.call_args_list == [
+                        call("/upload", headers=[], timeout_ms=int(connector.timeout_seconds * 1000), body=b"payload")
+                    ]
+                    http_constructor.assert_not_called()
+                    https_constructor.assert_not_called()
+            finally:
+                writer.signal_finish()
+                writer.wait_finish(timeout=5)
 
     def test_start_waits_for_all_connectors(self) -> None:
         initializing = threading.Event()
@@ -462,6 +466,23 @@ class TestMetadataTruncation:
         assert truncated["*"]["short"] == "value"
         assert truncated["*"]["long"] == "m" * MAX_META_TAG_VALUE_LENGTH
         assert metadata["*"]["long"] == long_value
+
+    def test_events_meta_keeps_tail_of_error_stack_and_message(self) -> None:
+        long_stack = "s" * MAX_META_TAG_VALUE_LENGTH + "STACK_TAIL"
+        long_message = "m" * MAX_META_TAG_VALUE_LENGTH + "MESSAGE_TAIL"
+        long_other = "OTHER_HEAD" + "o" * MAX_META_TAG_VALUE_LENGTH
+        event = Event(
+            type="test",
+            content={"meta": {"error.stack": long_stack, "error.message": long_message, "other": long_other}},
+        )
+
+        truncated = _truncate_events_meta([event])
+
+        assert truncated[0]["content"]["meta"] == {
+            "error.stack": long_stack[-MAX_META_TAG_VALUE_LENGTH:],
+            "error.message": long_message[-MAX_META_TAG_VALUE_LENGTH:],
+            "other": long_other[:MAX_META_TAG_VALUE_LENGTH],
+        }
 
     def test_events_meta_returns_original_when_no_values_truncated(self) -> None:
         event = Event(type="test", content={"meta": {"short": "value"}})
@@ -879,6 +900,7 @@ class TestSerializationFunctions:
         suite.name = "TestSuite"
         suite.session.item_id = 666
         suite.module.item_id = 777
+        suite.module.module_path = "/path/to/test_module"
         suite.item_id = 888
         suite.tags = {"suite.custom": "suite_value"}
         suite.metrics = {"suite.metric": 100}
@@ -903,6 +925,8 @@ class TestSerializationFunctions:
         # Check metadata
         meta = event["content"]["meta"]
         assert meta["span.kind"] == "test"
+        assert meta["test.module"] == "test_module"
+        assert meta["test.module_path"] == "/path/to/test_module"
         assert meta["test.suite"] == "TestSuite"
         assert meta["test.status"] == "pass"
         assert meta["type"] == "test_suite_end"

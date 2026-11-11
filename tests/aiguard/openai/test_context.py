@@ -26,7 +26,6 @@ import pytest
 from ddtrace.aiguard._context import aiguard_context
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._context import reset_aiguard_context_active
-from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
 
 
@@ -148,34 +147,6 @@ class TestNesting:
         reset_aiguard_context_active(None)
         assert is_aiguard_context_active() is False
 
-    def test_reset_current_with_no_active_set_is_safe(self):
-        """Tokenless reset MUST be a no-op when nothing is active.
-
-        Pinned because the ``.after`` listener may fire without a matching
-        ``.before`` if dispatch is reconfigured at runtime, and an underflow
-        would surface as a negative depth that ``is_active`` would still
-        report as False but that subsequent ``reset_current`` calls would
-        compound.
-        """
-        assert is_aiguard_context_active() is False
-        reset_aiguard_context_active_current()
-        reset_aiguard_context_active_current()
-        assert is_aiguard_context_active() is False
-
-    def test_reset_current_decrements_one_level(self):
-        """``.after`` listener pattern: ``.before`` set, ``.after`` calls
-        tokenless reset — depth returns to 0.
-        """
-        token = set_aiguard_context_active()
-        assert is_aiguard_context_active() is True
-        try:
-            reset_aiguard_context_active_current()
-            assert is_aiguard_context_active() is False
-            token = None
-        finally:
-            if token is not None:
-                reset_aiguard_context_active(token)
-
 
 # ---------------------------------------------------------------------------
 # aiguard_context() context manager
@@ -220,3 +191,60 @@ class TestAIGuardContextManager:
             await asyncio.sleep(0)
             assert is_aiguard_context_active() is True
         assert is_aiguard_context_active() is False
+
+
+# ---------------------------------------------------------------------------
+# Release from another context
+# ---------------------------------------------------------------------------
+
+
+class TestCrossContextRelease:
+    @pytest.mark.asyncio
+    async def test_release_from_an_earlier_task_clears_the_claiming_task(self):
+        """A task whose Context was copied before the claim releases it without raising."""
+        release = asyncio.Event()
+        box = {}
+
+        async def releaser():
+            await release.wait()
+            reset_aiguard_context_active(box["claim"])
+
+        task = asyncio.create_task(releaser())
+        box["claim"] = set_aiguard_context_active()
+        assert is_aiguard_context_active() is True
+
+        release.set()
+        await task
+        assert is_aiguard_context_active() is False
+
+    @pytest.mark.asyncio
+    async def test_foreign_release_keeps_an_unrelated_claim(self):
+        own = set_aiguard_context_active()
+
+        async def claim_in_child():
+            return set_aiguard_context_active()
+
+        foreign = await asyncio.create_task(claim_in_child())
+        try:
+            reset_aiguard_context_active(foreign)
+            assert is_aiguard_context_active() is True
+        finally:
+            reset_aiguard_context_active(own)
+        assert is_aiguard_context_active() is False
+
+    def test_claims_released_from_another_context_do_not_accumulate(self):
+        """A release from another context cannot prune this context's copy; the next claim here does."""
+        import contextvars
+
+        from ddtrace.aiguard import _context
+
+        for _ in range(100):
+            claim = set_aiguard_context_active()
+            contextvars.copy_context().run(reset_aiguard_context_active, claim)
+        assert is_aiguard_context_active() is False
+
+        last = set_aiguard_context_active()
+        try:
+            assert _context._CLAIMS.get() == (last,)
+        finally:
+            reset_aiguard_context_active(last)

@@ -1,7 +1,7 @@
 from types import TracebackType
 from typing import Optional
 
-from ddtrace._trace.subscribers._base import TracingSubscriber
+from ddtrace._trace.subscribers._base import SpanLifecycleSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
@@ -13,17 +13,19 @@ from ddtrace.internal.span_bus import span_from_context
 # Duplicated from ddtrace.llmobs._constants to avoid importing
 # ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
 _PROXY_REQUEST = "llmobs.proxy_request"
+_LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
 
 log = get_logger(__name__)
 
 
-class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
+class LlmTracingSubscriber(SpanLifecycleSubscriber["LlmRequestEvent"]):
     """Shared tracing logic for all LLM integrations.
 
     Handles span creation, base tag setting, proxy detection,
     and LLMObs tag extraction. Provider-specific logic is delegated
-    to the integration object carried by the event.
+    to the integration object carried by the event, or, for events that
+    carry none, to subscribers of the SpanLifecycleEvents dispatched for llm.request.
     """
 
     event_names = (LlmRequestEvent.event_name,)
@@ -39,6 +41,14 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         # TODO: keep these tags once snapshots are updated
         span._remove_attribute(COMPONENT)
         span._remove_attribute(SPAN_KIND)
+
+        if event.llmobs_integration is None:
+            return
+
+        if event.submit_to_llmobs:
+            span._set_attribute(
+                _LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if event.llmobs_integration.llmobs_enabled else 0
+            )
 
         event.llmobs_integration._set_base_span_tags(
             span,
@@ -67,6 +77,8 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         dispatch_ended_event().
         """
         event: LlmRequestEvent = ctx.event
+        if event.llmobs_integration is None:
+            return
         event.llmobs_integration.llmobs_set_tags(
             span_from_context(ctx),
             args=[],

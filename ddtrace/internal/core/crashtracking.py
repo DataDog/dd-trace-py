@@ -15,6 +15,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal._runtime_id import get_runtime_id
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -280,14 +281,17 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 stack_mod.uninstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
-        crashtracker_init(config, receiver_config, metadata)
+        try:
+            crashtracker_init(config, receiver_config, metadata)
+        finally:
+            # Reinstall even if crashtracker_init failed, so that a failed start
+            # does not leave the profiler without its recovery handler.
+            if stack_mod is not None:
+                try:
+                    stack_mod.reinstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
         excepthook.register(_unhandled_exception_reporter)
-
-        if stack_mod is not None:
-            try:
-                stack_mod.reinstall_segv_handler()
-            except Exception:  # nosec: B110
-                pass
 
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after
@@ -299,7 +303,12 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             crashtracker_on_fork(config, receiver_config, metadata)
 
         forksafe.register(crashtracker_fork_handler)
-    except Exception:
+    except BaseException as e:
+        # A Rust panic in the native bindings raises PanicException, which is not an Exception.
+        if not (isinstance(e, Exception) or is_panic_exception(e)):
+            raise
+
         log.exception("Failed to start crashtracker")
         return False
+
     return True

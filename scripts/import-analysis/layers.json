@@ -14,16 +14,22 @@
     "ddtrace._trace": "product:tracing",
     "ddtrace.trace": "product:tracing",
 
-    "ddtrace.appsec": "product:appsec",
-    "ddtrace.internal.appsec": "product:appsec",
-    "ddtrace.internal.iast": "product:appsec",
+    "ddtrace.appsec": "product:aap",
+    "ddtrace.internal.appsec": "product:aap",
+
+    "ddtrace.appsec._iast": "product:iast",
+    "ddtrace.appsec.iast": "product:iast",
+    "ddtrace.appsec._iast_context": "product:iast",
+    "ddtrace.internal.iast": "product:iast",
 
     "ddtrace.aiguard": "product:aiguard",
+    "ddtrace.appsec.ai_guard": "product:aiguard",
     "ddtrace.internal.aiguard": "product:aiguard",
 
     "ddtrace.llmobs": "product:llmobs",
 
     "ddtrace.profiling": "product:profiling",
+    "ddtrace.internal.profiling": "product:profiling",
 
     "ddtrace.debugging": "product:debugging",
 
@@ -74,11 +80,16 @@
       "Same-zone edges, and edges into/out of unclassified (foundation) modules, are never flagged.",
       "'exceptions' lists zone-pairs that are exempt from the above -- e.g. if we later decide a",
       "product may import a security product directly, add {\"from_zone\": \"product:x\", \"to_zone\":",
-      "\"product:appsec\"} here rather than changing the detection logic."
+      "\"product:aap\"} here rather than changing the detection logic."
     ],
     "forbid_from_zones_into_products": ["internal-core", "contrib"],
     "exceptions": [
-      {"from_zone": "contrib", "to_zone": "product:tracing", "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"}
+      {"from_zone": "product:ci_visibility", "to_zone": "product:tracing", "//": "CI Visibility is built on the tracer; it subclasses Tracer, TraceFilter and DefaultContextProvider and exposes Span/Tracer through its API"},
+      {
+        "from_zone": "contrib",
+        "to_zone": "product:tracing",
+        "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"
+      }
     ]
   }
 }

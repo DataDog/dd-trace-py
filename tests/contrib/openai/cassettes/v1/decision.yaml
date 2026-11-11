@@ -1,0 +1,110 @@
+interactions:
+- request:
+    body: '{"model":"gpt-6-luna","input":"I was charged twice for my subscription
+      this month.","questions":[{"type":"choice","name":"department","instructions":"Which
+      team should handle this request?","choices":[{"value":"billing"},{"value":"technical"},{"value":"sales"}]},{"type":"score","name":"severity","instructions":"How
+      severe is the issue?","levels":[{"label":"Minor"},{"label":"Workaround available"},{"label":"Blocking"}]},{"type":"predicate","name":"needs_refund","instructions":"Is
+      the customer asking for a refund?"},{"type":"predicate","name":"legal_threat","instructions":"Is
+      the customer threatening legal action?"}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '623'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 3.26.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 3.26.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.8
+    method: POST
+    uri: https://api.openai.com/v1/decisions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/4VRy07DMBD8FeRzWqWhFJEjd84cEIq29jax6q4je9OqqvLvbEpE3Adw9OzMZGZy
+        Ujtv0KlS1S3PVjPXEahMAcUDhqjKj5PiY4ty1423GuVGsBveBlsIvENiwcZjqdbWOUu1QG3wa5Cn
+        ZYvfRntw3W+coyoX87zPJhajbshqcNe8/JIXwYn/Hc6nxPK0sQZpiDbaj22i9iEpE3GPYVBm40Uc
+        nv/okGfKwfq825slH26/vyySkIuJ/u7DFoLvyDzAHqzADu+oV4m6mNSvzuvtne3y+aK4LizYS9K4
+        DWhkTk5aE6KJVcCNpLl1LP5RO6zBVdwEBP5l/y5CLdSTstR2XLHfIsmOT4/L7AKqDLJsEQeqBt2g
+        +eHK0mekOsj/wQnuM+U7Tl3zKyQ1lYzRkwx3YcCehwZTqr7/AhGpxicQAwAA
+    headers:
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - x-request-id,retry-after,server-timing-total
+      - CF-Ray
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a47eda07cf0a94f4-BOS
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json
+      date:
+      - Fri, 09 Oct 2026 16:44:44 GMT
+      openai-processing-ms:
+      - '53'
+      server:
+      - cloudflare
+      server-timing-total:
+      - '52.804'
+      set-cookie:
+      - __cf_bm=j.LoekbJe3rILkTxjd39tgyTqzcBo4nZP2ctxgVxDUY-1791564284.1312497-1.0.1.1-0gxzgiihtbQ9irwxbIjOXbor2bl0BxlhQqNeIupmJcery7cWrBhnoDNowoDAp4N9GpL03rRhXDYO.b.i_fh9_8L_dfEBaFaanc5u_fWPE7mhozQ7.qVZ2S_5P6nkSmU2;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.openai.com; Expires=Fri,
+        09 Oct 2026 17:14:44 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      transfer-encoding:
+      - chunked
+      vary:
+      - origin, access-control-request-method, access-control-request-headers
+      x-content-type-options:
+      - nosniff
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '180000000'
+      x-ratelimit-remaining-requests:
+      - '29958'
+      x-ratelimit-remaining-tokens:
+      - '179919492'
+      x-ratelimit-reset-requests:
+      - 84ms
+      x-ratelimit-reset-tokens:
+      - 26ms
+      x-request-id:
+      - req_01a27daa2e07428fb0416898265b57af
+    status:
+      code: 200
+      message: OK
+version: 1

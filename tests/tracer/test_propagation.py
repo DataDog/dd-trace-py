@@ -98,6 +98,38 @@ def test_inject_deep_child_propagates_trace_level_tags(tracer):  # noqa: F811
                 assert "_dd.p.other=value" in tags
 
 
+def test_inject_tracestate_dd_member_within_256_chars(tracer):  # noqa: F811
+    """The injected dd= list-member, including the "dd=" prefix, ";" separators and the
+    "p:" field added at injection, must not exceed 256 characters.
+    """
+    meta = {
+        "_dd.p.llmobs_parent_id": "10707708093473052057",
+        "_dd.p.llmobs_trace_id": "141883241939442010658227520463581072062",
+        "_dd.p.llmobs_ml_app": "datasciencetiger",
+        "_dd.p.llmobs_sid": "11a0eec0-ad0a-4f4d-8ae8-7f358ed1b153",
+        "_dd.p.llmobs_sr": "1",
+        "_dd.p.llmobs_sd": "1",
+        "_dd.p.llmobs_pagent_span_id": "14260131734498464268",
+        "_dd.p.llmobs_pagent_name": "datasciencetiger-orchestrator",
+    }
+    ctx = Context(trace_id=1234, sampling_priority=1, dd_origin="rum", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        dd_members = [m for m in headers[_HTTP_HEADER_TRACESTATE].split(",") if m.startswith("dd=")]
+        assert len(dd_members) == 1
+        dd_member = dd_members[0]
+        assert len(dd_member) <= 256, dd_member
+        assert dd_member.startswith(f"dd=p:{span.span_id:016x};s:1;o:rum;")
+        # Only whole tags are dropped, never truncated
+        for tag in dd_member[len("dd=") :].split(";"):
+            if tag.startswith("t.llmobs_"):
+                key, _, value = tag.partition(":")
+                assert meta[key.replace("t.", "_dd.p.", 1)] == value
+
+
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(_propagation_http_baggage_enabled=True)):
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
@@ -674,7 +706,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 assert span.context.dd_origin == "synthetics"
                 assert span.context._meta == {
                     "_dd.origin": "synthetics",
-                    "_dd.p.dm": "-4",
+                    "_dd.p.dm": "-5",
                     "_dd.p.ts": "02",
                 }
                 with tracer.trace("child_span") as child_span:
@@ -684,7 +716,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                     assert child_span.context.dd_origin == "synthetics"
                     assert child_span.context._meta == {
                         "_dd.origin": "synthetics",
-                        "_dd.p.dm": "-4",
+                        "_dd.p.dm": "-5",
                         "_dd.p.ts": "02",
                     }
 
@@ -3714,6 +3746,63 @@ def test_baggageheader_maxbytes_extract():
     assert "key3" not in context._baggage
 
 
+@pytest.mark.parametrize("extra_bytes", [0, 1])
+def test_baggageheader_multibyte_boundary_extract(extra_bytes):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    prefix = "first=value,key="
+    available = DD_TRACE_BAGGAGE_MAX_BYTES - len(prefix) + extra_bytes
+    count, padding = divmod(available, len("😀".encode()))
+    value = "😀" * count + "x" * padding
+    context = _BaggageHeader._extract({"baggage": prefix + value})
+    expected = {"first": "value"}
+    if not extra_bytes:
+        expected["key"] = value
+    assert context._baggage == expected
+
+
+@pytest.mark.parametrize("suffix", ["=value", ""])
+def test_baggageheader_partial_member_extract(suffix):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    header = "first=value," + "x" * DD_TRACE_BAGGAGE_MAX_BYTES + suffix
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_TRUNCATED_BYTE_COUNT") as truncated:
+        context = _BaggageHeader._extract({"baggage": header})
+    assert context._baggage == {"first": "value"}
+    truncated.add.assert_called_once_with()
+
+
+@pytest.mark.parametrize("extra_member", ["", ",invalid"])
+def test_baggageheader_duplicate_item_boundary_extract(extra_member):
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    header = ",".join(["key=value"] * DD_TRACE_BAGGAGE_MAX_ITEMS) + extra_member
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_TRUNCATED_ITEM_COUNT") as truncated:
+        context = _BaggageHeader._extract({"baggage": header})
+    assert context._baggage == {"key": "value"}
+    assert truncated.add.call_count == bool(extra_member)
+
+
+@pytest.mark.subprocess(err=None)
+def test_baggageheader_extract_working_memory():
+    import tracemalloc
+
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.propagation.http import HTTPPropagator
+
+    HTTPPropagator.extract({"baggage": "key=value"})
+    for suffix in ("key=value,", "x", "😀"):
+        header = {"baggage": "first=value," + suffix * (DD_TRACE_BAGGAGE_MAX_BYTES * 8)}
+        tracemalloc.start()
+        try:
+            context = HTTPPropagator.extract(header)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert context.get_baggage_item("first") == "value"
+        assert peak < 32 * DD_TRACE_BAGGAGE_MAX_BYTES
+
+
 @pytest.mark.parametrize(
     "headers,expected_baggage",
     [
@@ -3761,6 +3850,24 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
     assert context._baggage == expected_baggage
 
 
+def test_baggageheader_invalid_unicode_preserves_trace_context():
+    headers = {
+        HTTP_HEADER_TRACE_ID: "123",
+        HTTP_HEADER_PARENT_ID: "456",
+        HTTP_HEADER_SAMPLING_PRIORITY: "2",
+        HTTP_HEADER_ORIGIN: "synthetics",
+        "baggage": "ok=v,\udcff",
+    }
+    with mock.patch("ddtrace.propagation.http._BAGGAGE_MALFORMED") as malformed:
+        context = HTTPPropagator.extract(headers)
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context.sampling_priority == 2
+    assert context.dd_origin == "synthetics"
+    assert context.get_all_baggage_items() == {}
+    malformed.add.assert_called_once_with()
+
+
 @pytest.mark.parametrize(
     "headers",
     [
@@ -3770,6 +3877,17 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
 def test_http_propagator_baggage_extract(headers):
     context = HTTPPropagator.extract(headers)
     assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
+
+
+def test_baggageheader_partial_member_fastapi(fastapi_client, fastapi_test_spans):  # noqa: F811
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    response = fastapi_client.get(
+        "/", headers={"sleep": "False", "baggage": "first=value," + "x" * DD_TRACE_BAGGAGE_MAX_BYTES + "=other"}
+    )
+    assert response.status_code == 200
+    spans = fastapi_test_spans.pop_traces()
+    assert spans[0][0].context.get_all_baggage_items() == {"first": "value"}
 
 
 def test_baggage_span_tags_default():

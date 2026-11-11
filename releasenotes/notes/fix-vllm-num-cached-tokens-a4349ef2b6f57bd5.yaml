@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    vllm: Fixes an issue with vLLM >= 0.20.0 where the integration raised
+    ``AttributeError: 'EngineCoreOutput' object has no attribute 'num_cached_tokens'``.
+    This error stopped the vLLM output loop and caused all requests to fail.
+    The integration now also handles tracing errors without interrupting vLLM.

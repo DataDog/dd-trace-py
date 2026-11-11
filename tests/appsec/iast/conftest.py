@@ -1,3 +1,4 @@
+import builtins
 import logging
 import os
 import subprocess
@@ -7,7 +8,8 @@ import pytest
 
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
@@ -30,6 +32,7 @@ from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.internal import core
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.trace import Span
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
@@ -40,11 +43,16 @@ from tests.utils import override_global_config
 CONFIG_SERVER_PORT = "9596"
 
 
+@pytest.fixture(params=[dict] + ([builtins.frozendict] if hasattr(builtins, "frozendict") else []))
+def mapping_factory(request):
+    return request.param
+
+
 @pytest.fixture
 def no_request_sampling(tracer):
     with override_env(
         {
-            IAST.ENV_REQUEST_SAMPLING: "100",
+            "DD_IAST_REQUEST_SAMPLING": "100",
             "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
         }
     ):
@@ -65,9 +73,6 @@ def _run_cleanups(steps):
 
 
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False, vulnerabilities_per_requests=100):
-    class MockSpan:
-        _trace_id_64bits = 17577308072598193742
-
     env.update({"DD_IAST_DEDUPLICATION_ENABLED": str(deduplication)})
     # env.update({"DD_IAST_MAX_CONCURRENT_REQUESTS": "100"})
     with (
@@ -86,7 +91,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         initialize_native_state()
         assert debug_context_array_size() == 2
         assert debug_context_array_free_slots_number() > 0
-        span = MockSpan()
+        span = Span("iast-test", trace_id=17577308072598193742)
         # Clear any stale IAST context leaked from a previous test. If IAST_CONTEXT holds a
         # non-None slot ID from a prior test, _iast_start_request() sees is_iast_request_enabled()
         # as True and skips slot allocation. The stale slot ID then points to a freed C++ taint
@@ -242,4 +247,6 @@ def clear_iast_env_vars():
     os.environ[IAST.PATCH_MODULES] = "benchmarks.,tests.appsec."
     if IAST.DENY_MODULES in os.environ:
         os.environ.pop("_DD_IAST_DENY_MODULES")
+    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+    iastpatch.build_list_from_env(IAST.DENY_MODULES)
     yield

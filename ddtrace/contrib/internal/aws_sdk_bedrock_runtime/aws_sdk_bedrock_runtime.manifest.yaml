@@ -1,0 +1,13 @@
+_v: 1
+name: aws_sdk_bedrock_runtime
+display_name: AWS SDK for Amazon Bedrock Runtime
+description: Instruments Nova 2 Sonic bidirectional conversations through the AWS Bedrock Runtime SDK, capturing per-turn
+  transcripts, audio, tools, and token usage.
+packages:
+- name: aws-sdk-bedrock-runtime
+- name: aws_sdk_bedrock_runtime
+category:
+- gen_ai
+systems:
+- aws.bedrock
+creation_date: '2026-09-23'

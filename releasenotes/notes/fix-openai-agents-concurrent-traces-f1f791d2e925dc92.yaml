@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where concurrently running OpenAI Agent workflows within the same
+    traced operation can be missing from LLM Observability or report incorrect input/output.

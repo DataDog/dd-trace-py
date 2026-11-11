@@ -2,20 +2,26 @@
 set -eo pipefail
 
 source .gitlab/gha-utils.sh
+source .gitlab/scripts/gh-retry.sh
 
 RUN_ID=$(wait_for_run_id)
 
 mkdir pywheels
 cd pywheels
 
-if [[ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "completed" ]]; then
+if [[ $(gh run view $RUN_ID --repo "$GH_REPO" --json status --jq .status) != "completed" ]]; then
   echo "Waiting for workflow to finish"
 
   # Give time to the job to finish
   sleep 300 # 5 minutes
+fi
 
-  # wait for run to finish
-  gh run watch $RUN_ID --interval 60 --exit-status 1 --repo DataDog/dd-trace-py
+# gh run watch returns at once for a completed run. The conclusion check is the
+# only check that fails this job when the workflow run failed.
+gh_retry run watch $RUN_ID --interval 60 --repo "$GH_REPO"
+if [[ $(gh_retry run view $RUN_ID --repo "$GH_REPO" --json conclusion --jq .conclusion) != "success" ]]; then
+  echo "GitHub workflow run $RUN_ID did not succeed"
+  exit 1
 fi
 
 echo "Github workflow finished. Downloading wheels"
@@ -26,7 +32,7 @@ RETRY_DELAY=5
 for attempt in $(seq 1 $MAX_RETRIES); do
   # Clean any partial results so gh run download can re-extract with O_EXCL
   rm -rf ./*
-  if gh run download $RUN_ID --repo DataDog/dd-trace-py --pattern "wheels-*-win_arm64"; then
+  if gh run download $RUN_ID --repo "$GH_REPO" --pattern "wheels-*-win_arm64"; then
     break
   fi
   if [[ $attempt -eq $MAX_RETRIES ]]; then

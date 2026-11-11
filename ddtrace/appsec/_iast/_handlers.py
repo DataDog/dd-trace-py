@@ -3,7 +3,7 @@ import functools
 from types import ModuleType
 from typing import Any
 
-from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_endpoint
@@ -388,6 +388,8 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
 
 
 def _on_iast_fastapi_patch():
+    if not asm_config._iast_enabled:
+        return
     try:
         iast_funcs = WrapFunctonsForIAST()
         # Cookies sources
@@ -470,6 +472,18 @@ def _on_iast_fastapi_patch():
         _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
     except Exception:
         iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
+
+
+def _on_aiohttp_request_start(ctx, request, max_body_size):
+    if not is_iast_request_enabled():
+        return
+    try:
+        # The event comes from aiohttp's middleware, so aiohttp and multidict are importable here.
+        from ddtrace.appsec._iast._aiohttp import taint_request_sources
+
+        taint_request_sources(ctx, request)
+    except Exception:
+        iast_propagation_listener_log_log("Unexpected exception while tainting aiohttp request", exc_info=True)
 
 
 def _on_pre_tracedrequest_iast(ctx):

@@ -125,9 +125,8 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
-  # TODO(py-315): Linux cp315 builds are required (allow_failure removed). macOS/
-  # Windows 3.15 wheels and PyPI prune (`prune-unsupported-wheels.sh`) still lag —
-  # parent #17809.
+  # TODO(py-315): Linux cp315 builds are required (allow_failure removed). Windows
+  # 3.15 wheels still lag — parent #17809.
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -168,7 +167,7 @@ variables:
     matrix:
       - PYTHON_VERSIONS:
           - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
+          - "3.12 3.13 3.14 3.15"
   script: |
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
@@ -189,6 +188,11 @@ variables:
   tags: [ "macos:sonoma-amd64", "specific:true" ]
   variables:
     ARCH_TAG: "amd64"
+  # Diagnostics for "sccache: error: Connection to server timed out" on this runner
+  before_script:
+    - .gitlab/scripts/sccache-diagnostics.sh start
+  after_script:
+    - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
 "build macos arm64":
   extends: .build_macos_base
@@ -205,8 +209,8 @@ variables:
     set -euo pipefail
     # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
     # so resolve creds from the tart iam-proxy beforehand
-    role=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
-    creds=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+    role=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
+    creds=$(curl -fsS --retry 5 --retry-delay 2 --retry-connrefused "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
     export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
     export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
     export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
@@ -236,8 +240,8 @@ variables:
 # sdist are deliberately left out: the prerelease index exists to hand a custom build to a
 # customer or an internal service, and those all run manylinux or macOS.
 .patch_wheel_versions_base:
-  # DEV: the testrunner image is used for the adms binary it ships.
-  image: ${TESTRUNNER_IMAGE}
+  # DEV: the ci-utils image is used for the adms binary it ships.
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
   script:
@@ -362,15 +366,18 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
+    # Enable sccache for Rust/C/C++ compilation caching
+    DD_USE_SCCACHE: "1"
+    # S3-backed sccache, same settings as "build linux"
+    SCCACHE_BUCKET: "dd-trace-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
+    SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
   needs:
     - job: "build sdist"
       artifacts: true
   script:
-    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
-    - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
-    - twine check ${SDIST_FILE}
-    - pip install ${SDIST_FILE}
-    - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+    - .gitlab/scripts/test-sdist.sh
 
 "build windows":
   stage: package
@@ -387,6 +394,15 @@ variables:
     GIT_CLEAN_FLAGS: "-ffdx -e src/native/target*/"
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
+  # Best-effort cleanup that also runs when the job is canceled: the runner can fail
+  # to stop the script, and never stops the containers it started. The start-of-job
+  # cleanup in build-wheel-windows.sh remains the main guard. The label must match
+  # JOB_LABEL there. Runs in PowerShell, the shell of the windows-v2 runners.
+  after_script:
+    - |
+      $containers = @(docker ps -aq --filter "label=dd-trace-py.job-id=$env:CI_JOB_ID")
+      Write-Host "Job status: $env:CI_JOB_STATUS. Build containers left by this job: $($containers.Count)"
+      if ($containers) { docker rm -f $containers }
   artifacts:
     when: always
     paths:
@@ -403,12 +419,10 @@ variables:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script: |
-    if [ -z ${GH_TOKEN} ]
-    then
-      # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-      gh auth login --with-token < token
-      rm token
+    if [ -z "${GH_TOKEN:-}" ]; then
+      # gh reads GH_TOKEN. Unlike gh auth login, this does not call the GitHub API.
+      GH_TOKEN="$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)"
+      export GH_TOKEN
     fi
     # Prevent git operation errors:
     #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
@@ -419,49 +433,6 @@ variables:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
-
-download_dependency_wheels:
-  image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
-  tags: [ "arch:amd64" ]
-  stage: package
-  needs:
-    - job: "build linux"
-      artifacts: true
-  variables:
-    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
-  rules:
-    # TODO(py-315): 3.15 cell skipped — registry.ddbuild.io/images/mirror/python has
-    # no 3.15 tag. When DataDog/images dest-tags rc2 or GA, bump PYTHON_IMAGE_TAG
-    # off 3.15.0rc1 and remove this never-rule.
-    - if: '$PYTHON_VERSION == "3.15"'
-      when: never
-    - when: on_success
-  parallel:
-    matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
-      - PYTHON_IMAGE_TAG: "3.9.13"
-        PYTHON_VERSION: "3.9"
-      - PYTHON_IMAGE_TAG: "3.10.13"
-        PYTHON_VERSION: "3.10"
-      - PYTHON_IMAGE_TAG: "3.11.6"
-        PYTHON_VERSION: "3.11"
-      - PYTHON_IMAGE_TAG: "3.12.0"
-        PYTHON_VERSION: "3.12"
-      - PYTHON_IMAGE_TAG: "3.13.0"
-        PYTHON_VERSION: "3.13"
-      - PYTHON_IMAGE_TAG: "3.14.0"
-        PYTHON_VERSION: "3.14"
-      - PYTHON_IMAGE_TAG: "3.15.0rc1"
-        PYTHON_VERSION: "3.15"
-  script:
-    - .gitlab/download-dependency-wheels.sh
-  cache:
-    - key: v0-download-dep-wheels-cache
-      paths:
-        - ${CI_PROJECT_DIR}/.cache/
-  artifacts:
-    when: always
-    paths:
-      - "pywheels-dep/"
 
 "upload all":
   extends: .upload_wheels_base
@@ -481,6 +452,8 @@ download_dependency_wheels:
 # Runs automatically on releases/RCs, available as manual trigger for other pipelines.
 "upload debug symbols to backend":
   stage: release
+  # TODO: move to .ci_utils once CI_UTILS_IMAGE ships binutils. datadog-ci elf-symbols upload
+  # runs objcopy, which the ci-utils image does not have yet.
   extends: .testrunner
   needs:
     - job: "build linux"

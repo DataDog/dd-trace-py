@@ -1,14 +1,29 @@
+from collections.abc import Iterator
 import os
+from unittest import mock
 
 import pytest
+from pytest_mock import MockerFixture
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace._trace.trace_handlers import _TracedIterable
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib.internal.wsgi import wsgi as wsgi_module
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
+from ddtrace.internal import core
+from ddtrace.trace import Span
+from ddtrace.trace import tracer as global_tracer
+from tests.contrib.otel_http_server import OTEL_SERVER_ENV
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -85,6 +100,150 @@ class WsgiCustomMiddleware(_DDWSGIMiddlewareBase):
         resp_span.resource = "response resource was modified"
 
 
+@pytest.mark.parametrize(
+    "method,path,script_name",
+    [
+        ("post", "/run", "/aws/lambda-microvms/runtime/v1"),
+        ("post", "/aws/lambda-microvms/runtime/v1/run", ""),
+        ("get", "/run", "/aws/lambda-microvms/runtime/v1"),
+        ("post", "/other", "/aws/lambda-microvms/runtime/v1"),
+    ],
+)
+def test_wsgi_dispatches_web_request_starting(tracer, method, path, script_name):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    request_starting_calls = []
+
+    def record_request_starting(request_method, request_path):
+        request_starting_calls.append((request_method, request_path))
+
+    core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+    try:
+        resp = getattr(app, method)(path, extra_environ={"SCRIPT_NAME": script_name})
+    finally:
+        core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+    assert resp.status == "200 OK"
+    assert request_starting_calls == [(method.upper(), script_name.rstrip("/") + path)]
+
+
+def test_wsgi_dispatches_web_request_starting_once_for_nested_middleware(tracer):
+    app = TestApp(
+        DDWSGIMiddleware(
+            DDWSGIMiddleware(application, tracer=tracer),
+            tracer=tracer,
+        )
+    )
+
+    request_starting_calls = []
+
+    def record_request_starting(request_method, request_path):
+        request_starting_calls.append((request_method, request_path))
+
+    core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+    try:
+        resp = app.post("/run", extra_environ={"SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1"})
+    finally:
+        core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+    assert resp.status == "200 OK"
+    assert request_starting_calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+
+def test_web_request_starting_does_not_dispatch_without_a_listener():
+    with (
+        mock.patch.object(trace_utils.core, "has_listeners", return_value=False) as has_listeners,
+        mock.patch.object(trace_utils.core, "dispatch") as dispatch,
+    ):
+        environ = {"REQUEST_METHOD": "GET", "PATH_INFO": "/non-microvm-request"}
+        trace_utils.dispatch_wsgi_web_request_starting(environ)
+
+    assert environ == {"REQUEST_METHOD": "GET", "PATH_INFO": "/non-microvm-request"}
+    has_listeners.assert_called_once_with(WebFrameworkEvents.WEB_REQUEST_STARTING.value)
+    dispatch.assert_not_called()
+
+
+def test_web_request_starting_isolates_listener_errors():
+    event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+
+    calls = []
+
+    def fail_request_starting(request_method, request_path):
+        calls.append((request_method, request_path))
+        raise RuntimeError("boom")
+
+    original_raise = config._raise
+    config._raise = False
+    core.on(event_name, fail_request_starting)
+    try:
+        trace_utils.dispatch_wsgi_web_request_starting(
+            {
+                "REQUEST_METHOD": "POST",
+                "SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1",
+                "PATH_INFO": "/run",
+            }
+        )
+    finally:
+        core.reset_listeners(event_name, fail_request_starting)
+        config._raise = original_raise
+
+    assert calls == [("POST", "/aws/lambda-microvms/runtime/v1/run")]
+
+
+def test_web_request_starting_dispatch_precedes_span_creation(tracer):
+    events = []
+    original_context_with_data = wsgi_module.core.context_with_data
+
+    def record_request_starting(*args, **kwargs):
+        events.append("request_starting")
+
+    def record_context_with_data(*args, **kwargs):
+        events.append("span")
+        return original_context_with_data(*args, **kwargs)
+
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    core.on(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+    try:
+        with mock.patch.object(
+            wsgi_module.core,
+            "context_with_data",
+            side_effect=record_context_with_data,
+        ):
+            app.post("/aws/lambda-microvms/runtime/v1/run")
+    finally:
+        core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value, record_request_starting)
+
+    assert events.index("request_starting") < events.index("span")
+
+
+def test_microvm_run_hook_refreshes_identity(tracer):
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+    core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+
+    try:
+        with mock.patch.object(_runtime_id, "in_aws_lambda_microvm", return_value=True):
+            core.on(event_name, runtime.maybe_refresh_identity)
+            runtime_id = runtime.get_runtime_id()
+
+            resp = app.post("/run", extra_environ={"SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1"})
+
+            assert resp.status == "200 OK"
+            refreshed_runtime_id = runtime.get_runtime_id()
+            assert refreshed_runtime_id != runtime_id
+
+            resp = app.post("/run", extra_environ={"SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1"})
+
+            assert resp.status == "200 OK"
+            assert runtime.get_runtime_id() == refreshed_runtime_id
+    finally:
+        core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+        _runtime_id._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+
+
 def test_middleware(tracer, test_spans):
     app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/")
@@ -99,6 +258,27 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
+
+
+def test_otel_semantics_keeps_method_resource_before_response_on_exception(tracer, test_spans):
+    observed_resources = []
+
+    def failing_application(environ, start_response):
+        root_span = global_tracer.current_root_span()
+        assert root_span is not None
+        observed_resources.append(root_span.resource)
+        global_tracer.sample(root_span)
+        raise RuntimeError("before start_response")
+
+    with override_global_config(dict(_otel_trace_semantics_enabled=True)):
+        app = TestApp(DDWSGIMiddleware(failing_application, tracer=tracer))
+        with pytest.raises(RuntimeError, match="before start_response"):
+            app.get("/users/12345")
+
+    spans = test_spans.pop()
+    request_span = next(span for span in spans if span.name == "wsgi.request")
+    assert observed_resources == ["GET"]
+    assert request_span.resource == "GET"
 
 
 def test_distributed_tracing(tracer, test_spans):
@@ -338,28 +518,81 @@ def test_distributed_tracing_nested():
     assert resp.status_int == 200
 
 
-# FIXME: this test breaks other tests in this file in an unpredictable pattern
-"""
-def test_wsgi_traced_iterable(tracer, test_spans):
-    # Regression test to ensure wsgi iterable does not define an __len__ attribute
-    middleware = DDWSGIMiddleware(application)
-    environ = {
-        "PATH_INFO": "/chunked",
-        "wsgi.url_scheme": "http",
-        "SERVER_NAME": "localhost",
-        "SERVER_PORT": "80",
-        "REQUEST_METHOD": "GET",
-    }
+class _ClosableIterable:
+    def __init__(self, values: list[bytes]) -> None:
+        self.values = values
+        self.closed = False
+        self.custom_attribute = "forwarded"
 
-    def start_response(status, headers, exc_info=None):
-        pass
+    def __iter__(self) -> Iterator[bytes]:
+        return iter(self.values)
 
-    resp = middleware(environ, start_response)
-    assert hasattr(resp, "__iter__")
-    assert hasattr(resp, "close")
-    assert hasattr(resp, "next") or hasattr(resp, "__next__")
-    assert not hasattr(resp, "__len__"), "Iterables should not define __len__ attribute"
-"""
+    def __len__(self) -> int:
+        return len(self.values)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_wsgi_traced_iterable_finishes_spans_and_forwards_attributes(mocker: MockerFixture) -> None:
+    wrapped = _ClosableIterable([b"one", b"two"])
+    parent_span = Span("wsgi.request")
+    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
+    finish = mocker.spy(Span, "finish")
+    iterable = _TracedIterable(wrapped, span, parent_span, wrapped_is_iterator=True)
+
+    assert not span.finished
+    assert not parent_span.finished
+
+    assert iterable.__wrapped__ is wrapped
+    assert iterable.__class__ is _ClosableIterable
+    assert isinstance(iterable, _ClosableIterable)
+    assert iterable.custom_attribute == "forwarded"
+    iterable.custom_attribute = "updated"
+    assert wrapped.custom_attribute == "updated"
+    del iterable.custom_attribute
+    assert not hasattr(wrapped, "custom_attribute")
+    assert not hasattr(iterable, "__len__"), "WSGI iterables should not expose __len__"
+    assert list(iterable) == [b"one", b"two"]
+    assert span.finished
+    assert parent_span.finished
+    assert span.error == 0
+    assert parent_span.error == 0
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+
+    iterable.close()
+    assert wrapped.closed
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
+
+
+def test_wsgi_traced_iterable_finishes_spans_on_error(mocker: MockerFixture) -> None:
+    error = RuntimeError("test error")
+
+    def raising_iterable() -> Iterator[bytes]:
+        yield b"one"
+        raise error
+
+    parent_span = Span("wsgi.request")
+    span = Span("wsgi.response", trace_id=parent_span.trace_id, parent_id=parent_span.span_id)
+    finish = mocker.spy(Span, "finish")
+    iterable = _TracedIterable(raising_iterable(), span, parent_span)
+
+    assert next(iterable) == b"one"
+    assert not span.finished
+    assert not parent_span.finished
+    with pytest.raises(RuntimeError, match="test error") as exc_info:
+        next(iterable)
+
+    assert exc_info.value is error
+    assert span.error == 1
+    assert span.get_tag(ERROR_TYPE) == "builtins.RuntimeError"
+    assert span.get_tag(ERROR_MSG) == "test error"
+    assert "raising_iterable" in span.get_tag(ERROR_STACK)
+    assert "RuntimeError: test error" in span.get_tag(ERROR_STACK)
+    assert parent_span.error == 0
+    assert span.finished
+    assert parent_span.finished
+    assert finish.call_args_list == [mocker.call(span), mocker.call(parent_span)]
 
 
 @pytest.mark.parametrize(
@@ -672,3 +905,30 @@ def test_construct_url_query_string_backfilled_when_raw_uri_lacks_it():
         "QUERY_STRING": "a=1&b=2",
     }
     assert construct_url(environ) == "http://localhost:8000/users?a=1&b=2"
+
+
+@pytest.mark.subprocess(env=OTEL_SERVER_ENV)
+def test_otel_semantics_server_span_attributes():
+    from webtest import TestApp
+
+    from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+    from tests.contrib.otel_http_server import TEST_HEADERS
+    from tests.contrib.otel_http_server import assert_otel_server_span
+    from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
+
+    def application(environ, start_response):
+        start_response("200 OK", [("Content-Type", "text/plain")])
+        return [b"*"]
+
+    with scoped_tracer() as tracer:
+        spans = TracerSpanContainer(tracer)
+        client = TestApp(DDWSGIMiddleware(application))
+
+        client.get("/ok?q=1", headers=TEST_HEADERS)
+        span = next(span for span in spans.get_spans() if span.name == "wsgi.request")
+        # A generic WSGI app has no route, so the resource is the method alone. WSGI does not report client
+        # attributes: its header names are title-cased, which set_http_meta does not look up.
+        assert_otel_server_span(
+            span, method="GET", status=200, path="/ok", query="q=1", resource="GET", client_attributes=False
+        )

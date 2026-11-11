@@ -9,12 +9,10 @@ suites:
     paths:
       - '@debugging'
       - '@bootstrap'
-      - '@core'
-      - '@remoteconfig'
-      - '@tracing'
       - tests/debugging/*
     matrix:
       command: pytest {cmdargs} tests/debugging/
       variants:
         - name: debugger
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [msgpack, httpretty, typing-extensions, pytest-asyncio, pytest-benchmark, pytest-memray, numpy]

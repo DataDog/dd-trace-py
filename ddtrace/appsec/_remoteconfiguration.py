@@ -16,8 +16,6 @@ from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 
 
 log = get_logger(__name__)
@@ -77,8 +75,6 @@ def enable_appsec_rc(callback: "AppSecCallback") -> None:
         remoteconfig_poller.register_callback(RemoteConfigProduct.AsmDd, callback)  # DD Rules
         remoteconfig_poller.enable_product(RemoteConfigProduct.AsmDd)
 
-    if asm_config._asm_enabled:
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
     asm_config._rc_client_id = remoteconfig_poller._client.id
 
 

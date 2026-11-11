@@ -1,5 +1,5 @@
+import importlib
 import inspect
-from operator import attrgetter
 import sys
 from typing import Any
 from typing import Union
@@ -15,6 +15,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.time import Time
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.utils.wrappers import iswrapped
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -38,13 +39,67 @@ GOOGLE_ADK_VERSION = parse_version(get_version())
 def _tool_dispatch_target(version):
     """Return the module path under google.adk and the attribute name of the central tool dispatcher.
 
-    google-adk 2.9.0 moved it from functions.__call_tool_async to _tool_caller._call_tool_async.
-    functions only re-exports the new name and every 2.9 caller reads it from _tool_caller, so the
-    wrap has to land on _tool_caller or it intercepts nothing.
+    google-adk 2.9.0 moved it from functions.__call_tool_async to _tool_caller._call_tool_async,
+    and 2.10.0 moved it again to tools._caller._call_tool_async. functions only re-exports the
+    name and every caller reads it from the defining module's globals, so the wrap has to land on
+    that module or it intercepts nothing.
     """
+    if version >= (2, 10, 0):
+        return "flows.llm_flows.tools._caller", "_call_tool_async"
     if version >= (2, 9, 0):
         return "flows.llm_flows._tool_caller", "_call_tool_async"
     return "flows.llm_flows.functions", "__call_tool_async"
+
+
+def _live_tool_dispatch_target(version):
+    """Return the module path and attribute name of the live-mode copy of the tool dispatcher, if any.
+
+    google-adk 2.12.0 split live tool execution into tools._live_caller, which binds its own copy
+    with `from ._caller import _call_tool_async`. That copy is bound before patch() runs, so wrapping
+    tools._caller alone leaves run_live tool calls untraced.
+    """
+    if version >= (2, 12, 0):
+        return "flows.llm_flows.tools._live_caller", "_call_tool_async"
+    return None
+
+
+def _wrap_tool_dispatcher(module_path, name, traced_fn):
+    """Wrap a tool dispatcher, skipping it with a warning if the installed google-adk does not define it.
+
+    google-adk loads flows.llm_flows lazily as of 2.12.0, so the module is imported explicitly rather
+    than relying on another import having loaded it. If google-adk moves the dispatcher again, tool
+    spans are lost but the rest of the integration still patches.
+    """
+    try:
+        module = importlib.import_module(f"google.adk.{module_path}")
+    except ImportError:
+        module = None
+    if module is None or not hasattr(module, name):
+        logger.warning(
+            "google_adk: %s.%s not found in google-adk %s; tool calls will not be traced",
+            module_path,
+            name,
+            get_version(),
+        )
+        return
+    # A module that copies the dispatcher with `from ... import` after another copy was wrapped
+    # already holds our wrapper; wrapping it again would trace each tool call twice.
+    if _is_wrapped_by(getattr(module, name), traced_fn):
+        return
+    wrap(module, name, traced_fn)
+
+
+def _unwrap_tool_dispatcher(module_path, name, traced_fn):
+    module = sys.modules.get(f"google.adk.{module_path}")
+    if module is not None and _is_wrapped_by(getattr(module, name, None), traced_fn):
+        unwrap(module, name)
+
+
+def _is_wrapped_by(obj, traced_fn):
+    """Whether obj is a wrapper installed with traced_fn, so wrappers added by other instrumentation
+    are neither mistaken for ours nor removed by unpatch().
+    """
+    return iswrapped(obj) and getattr(obj, "_self_wrapper", None) is traced_fn
 
 
 def _traced_agent_run_async(wrapped, instance, args, kwargs):
@@ -298,10 +353,12 @@ def patch():
     wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async)
 
     # Tool execution (central dispatch)
-    dispatch_module, dispatch_name = _tool_dispatch_target(GOOGLE_ADK_VERSION)
-    wrap("google.adk", f"{dispatch_module}.{dispatch_name}", _traced_functions_call_tool_async)
+    _wrap_tool_dispatcher(*_tool_dispatch_target(GOOGLE_ADK_VERSION), _traced_functions_call_tool_async)
+    live_target = _live_tool_dispatch_target(GOOGLE_ADK_VERSION)
+    if live_target is not None:
+        _wrap_tool_dispatcher(*live_target, _traced_functions_call_tool_async)
     if GOOGLE_ADK_VERSION < (2, 7, 0):
-        wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
+        _wrap_tool_dispatcher("flows.llm_flows.functions", "__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
@@ -322,10 +379,12 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
 
-    dispatch_module, dispatch_name = _tool_dispatch_target(GOOGLE_ADK_VERSION)
-    unwrap(attrgetter(dispatch_module)(adk), dispatch_name)
+    _unwrap_tool_dispatcher(*_tool_dispatch_target(GOOGLE_ADK_VERSION), _traced_functions_call_tool_async)
+    live_target = _live_tool_dispatch_target(GOOGLE_ADK_VERSION)
+    if live_target is not None:
+        _unwrap_tool_dispatcher(*live_target, _traced_functions_call_tool_async)
     if GOOGLE_ADK_VERSION < (2, 7, 0):
-        unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
+        _unwrap_tool_dispatcher("flows.llm_flows.functions", "__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:

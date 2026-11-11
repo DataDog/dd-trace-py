@@ -412,6 +412,10 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
         }
 
+        mock_telemetry.record_known_tests_pages_fetched.assert_called_once_with(1)
+        assert mock_telemetry.record_known_tests_total_fetch_ms.call_count == 1
+        assert mock_telemetry.record_known_tests_total_request_ms.call_count == 1
+
     def test_get_known_tests_pagination_sends_page_info_correctly(self, mock_telemetry: Mock) -> None:
         """First page sends empty page_info; second page sends only page_state."""
         page1_response = {
@@ -468,6 +472,54 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
             TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
         }
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_called_once_with(2)
+        assert mock_telemetry.record_known_tests_total_fetch_ms.call_count == 1
+        assert mock_telemetry.record_known_tests_total_request_ms.call_count == 1
+        # Total fetch time should be >= sum of request times
+        total_fetch_ms = mock_telemetry.record_known_tests_total_fetch_ms.call_args_list[0][0][0]
+        total_request_ms = mock_telemetry.record_known_tests_total_request_ms.call_args_list[0][0][0]
+        assert total_fetch_ms >= total_request_ms
+
+    @pytest.mark.parametrize("fail_second_page", [False, True])
+    def test_pagination_metrics_measure_page_calls_and_discard_partial_fetches(
+        self, mock_telemetry: Mock, fail_second_page: bool
+    ) -> None:
+        first_page = BackendResult(
+            parsed_response={
+                "data": {
+                    "attributes": {
+                        "tests": {"mod": {"suite": ["test"]}},
+                        "page_info": {"has_next": True, "cursor": "next"},
+                    }
+                }
+            }
+        )
+        second_page = BackendResult(parsed_response={"data": {"attributes": {"tests": {"mod": {"suite": ["test"]}}}}})
+        connector = Mock()
+        connector.post_json.side_effect = [first_page, TimeoutError() if fail_second_page else second_page]
+        setup = Mock()
+        setup.get_connector_for_subdomain.return_value = connector
+        client = APIClient(
+            "svc", "env", {GitTag.REPOSITORY_URL: "repo"}, ITRSkippingLevel.TEST, {}, setup, mock_telemetry
+        )
+        watches = [Mock(elapsed=Mock(return_value=seconds)) for seconds in [10.0, 1.25, 2.5]]
+
+        with patch("ddtrace.testing.internal.api_client.StopWatch", side_effect=watches):
+            result = client.get_known_tests()
+
+        assert connector.post_json.call_count == 2
+        if fail_second_page:
+            assert result == set()
+            mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+            mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+            mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
+        else:
+            assert result == {TestRef(SuiteRef(ModuleRef("mod"), "suite"), "test")}
+            mock_telemetry.record_known_tests_pages_fetched.assert_called_once_with(2)
+            mock_telemetry.record_known_tests_total_fetch_ms.assert_called_once_with(10000.0)
+            mock_telemetry.record_known_tests_total_request_ms.assert_called_once_with(3750.0)
+            mock_telemetry.record_known_tests_count.assert_called_once_with(1)
 
     def test_get_known_tests_max_pages_limit_bails_and_disables_known_tests(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -539,6 +591,10 @@ class TestAPIClientGetKnownTests:
         assert "Known tests pagination exceeded max pages: 2" in caplog.text
         assert known_tests == set()
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
 
     def test_get_known_tests_max_pages_zero_uses_default(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -624,6 +680,10 @@ class TestAPIClientGetKnownTests:
             call(ErrorType.BAD_JSON)
         ]
 
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
+
     def test_get_known_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
@@ -654,6 +714,10 @@ class TestAPIClientGetKnownTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
         ]
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
 
     def test_get_known_tests_fail_http_request(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = Mock()
@@ -689,6 +753,10 @@ class TestAPIClientGetKnownTests:
         assert known_tests == set()
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
 
     def test_get_known_tests_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = (
@@ -728,6 +796,10 @@ class TestAPIClientGetKnownTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
+
+        mock_telemetry.record_known_tests_pages_fetched.assert_not_called()
+        mock_telemetry.record_known_tests_total_fetch_ms.assert_not_called()
+        mock_telemetry.record_known_tests_total_request_ms.assert_not_called()
 
 
 class TestAPIClientGetTestManagementTests:
@@ -1239,7 +1311,24 @@ class TestAPIClientGetKnownCommits:
 
 
 class TestAPIClientGetSkippableTests:
-    def test_get_skippable_tests(self, mock_telemetry: Mock) -> None:
+    @pytest.mark.parametrize(
+        "file_level_coverage,expected_headers",
+        [
+            (False, None),
+            (True, {"X-Datadog-ITR-Code-Coverage": "false"}),
+        ],
+    )
+    def test_get_skippable_tests(
+        self,
+        mock_telemetry: Mock,
+        monkeypatch: pytest.MonkeyPatch,
+        file_level_coverage: bool,
+        expected_headers: t.Optional[dict[str, str]],
+    ) -> None:
+        monkeypatch.setattr(
+            "ddtrace.testing.internal.api_client.is_file_level_coverage_enabled", lambda: file_level_coverage
+        )
+
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/ci/tests/skippable",
@@ -1314,6 +1403,7 @@ class TestAPIClientGetSkippableTests:
                         },
                     }
                 },
+                headers=expected_headers,
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
             )
         ]

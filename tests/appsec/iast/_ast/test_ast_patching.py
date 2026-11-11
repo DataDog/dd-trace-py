@@ -5,10 +5,10 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import visit_ast
+from ddtrace.appsec._iast._constants import IAST
 from ddtrace.internal.utils.formats import asbool
 from tests.utils import override_env
 

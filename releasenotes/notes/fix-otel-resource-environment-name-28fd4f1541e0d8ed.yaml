@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where OTLP log and metric resources use the deprecated
+    ``deployment.environment`` attribute instead of ``deployment.environment.name`` for ``DD_ENV``.

@@ -6,12 +6,12 @@ import vertexai
 from vertexai.generative_models import GenerativeModel  # noqa:F401
 
 from ddtrace import config
+from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
 from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations import VertexAIIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
 

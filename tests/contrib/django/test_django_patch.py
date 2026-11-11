@@ -56,6 +56,29 @@ class TestDjangoPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(django.views.generic.base.View.as_view)
 
 
+@pytest.mark.subprocess()
+def test_database_import_does_not_import_optional_drivers():
+    from importlib import import_module
+    from importlib.abc import MetaPathFinder
+    import sys
+
+    drivers = {"psycopg", "psycopg2", "MySQLdb", "pymysql", "mysql"}
+    assert not any(name.split(".", 1)[0] in drivers for name in sys.modules)
+    attempted_imports = []
+
+    class BlockDrivers(MetaPathFinder):
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname.split(".", 1)[0] in drivers:
+                attempted_imports.append(fullname)
+                raise AssertionError(f"Django instrumentation imported {fullname}")
+
+    sys.meta_path.insert(0, BlockDrivers())
+    import_module("ddtrace.contrib.internal.django.database")
+
+    assert not attempted_imports
+    assert not any(name.split(".", 1)[0] in drivers for name in sys.modules)
+
+
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "true"})
 def test_instrument_templates_patching():
     import django.template.base

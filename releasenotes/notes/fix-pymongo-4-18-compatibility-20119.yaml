@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    pymongo: Adds support for PyMongo v4.18

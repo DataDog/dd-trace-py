@@ -1,7 +1,7 @@
 from typing import Any
 from typing import Callable
 
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast.constants import BLOWFISH_DEF
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_CIPHER_ALGORITHMS

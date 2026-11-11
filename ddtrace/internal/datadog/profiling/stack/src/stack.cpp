@@ -13,6 +13,7 @@
 #include "sampler.hpp"
 #include "span_links.hpp"
 
+#include "echion/cpython/asyncio_discovery.h"
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
@@ -71,6 +72,13 @@ stack_is_origin_task_linking_enabled(PyObject* Py_UNUSED(self), PyObject* Py_UNU
 }
 
 static PyObject*
+stack_register_fork_cleanup(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    Sampler::get().register_fork_cleanup();
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     Py_BEGIN_ALLOW_THREADS; // Release GIL
@@ -81,10 +89,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear SpanLinks. The memory should be cleared up
-    // when the program exits as SpanLinks is a static singleton instance.
-    // However, this was necessary to make sure that the state is not shared
-    // across tests, as the tests are run in the same process.
+    // Clear SpanLinks so thread-to-span links from this run don't carry over to the next start().
     SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
@@ -123,16 +128,26 @@ stack_thread_register(PyObject* self, PyObject* args)
 
     uintptr_t id;
     uint64_t native_id;
-    const char* name;
+    PyObject* name_obj;
 
-    if (!PyArg_ParseTuple(args, "KKs", &id, &native_id, &name)) {
+    if (!PyArg_ParseTuple(args, "KKU", &id, &native_id, &name_obj)) {
         return nullptr;
     }
+
+    // Thread names may hold lone surrogates, which strict UTF-8 encoding rejects. Raising here would
+    // propagate out of Thread._set_native_id and hang Thread.start forever.
+    PyObject* name_bytes = PyUnicode_AsEncodedString(name_obj, "utf-8", "replace");
+    if (name_bytes == nullptr) {
+        return nullptr;
+    }
+    // An embedded NUL truncates the name, which is acceptable.
+    const char* name = PyBytes_AS_STRING(name_bytes);
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().register_thread(id, native_id, name);
     Py_END_ALLOW_THREADS;
 
+    Py_DECREF(name_bytes);
     Py_RETURN_NONE;
 }
 
@@ -148,7 +163,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
-    SpanLinks::get_instance().unlink_span(id);
+    SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(id));
     OriginTaskLinks::get_instance().unlink_origin_task(id);
     Py_END_ALLOW_THREADS;
 
@@ -189,7 +204,7 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     links.on_link_start(span_id);
 
     Py_BEGIN_ALLOW_THREADS;
-    links.link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
+    links.link_span(SpanLinkKey::thread(thread_id), span_id, local_root_span_id, std::string(span_type));
     Py_END_ALLOW_THREADS;
 
     if (links.on_link_end(span_id)) {
@@ -222,7 +237,7 @@ stack_unlink_span(PyObject* self, PyObject* args)
     uint64_t thread_id = state->thread_id;
 
     Py_BEGIN_ALLOW_THREADS;
-    SpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(thread_id), expected_span_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -240,7 +255,7 @@ stack_clear_span(PyObject* self, PyObject* args)
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    SpanLinks::get_instance().unlink_span(state->thread_id);
+    SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(state->thread_id));
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -341,20 +356,53 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+// Returns whether the native asyncio task lists can be walked. Always true before Python 3.14, which has no such
+// lists. On 3.14+, the head offsets come from CPython's AsyncioDebug table, found through the state of the _asyncio
+// module passed as the optional third argument, and stay published for the process lifetime once found.
 static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
     (void)self;
     PyObject* asyncio_scheduled_tasks;
     PyObject* asyncio_eager_tasks;
+    PyObject* asyncio_c = Py_None;
 
-    if (!PyArg_ParseTuple(args, "OO", &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
+    if (!PyArg_ParseTuple(args, "OO|O", &asyncio_scheduled_tasks, &asyncio_eager_tasks, &asyncio_c)) {
         return nullptr;
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    auto& echion = Sampler::get().get_echion();
+    bool native_task_lists =
+      echion.asyncio_thread_tasks_head_offset() != 0 && echion.asyncio_interpreter_tasks_head_offset() != 0;
+    // Discovery keeps the thread attached, so finalization cannot start before it returns.
+    if (!native_task_lists && asyncio_c != Py_None && !Py_IsFinalizing()) {
+        if (auto offsets = discover_asyncio_offsets(asyncio_c)) {
+            echion.set_asyncio_offsets(*offsets);
+            native_task_lists = true;
+        }
+    }
+#else
+    (void)asyncio_c;
+    const bool native_task_lists = true;
+#endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
-    Py_RETURN_NONE;
+    return PyBool_FromLong(native_task_lists);
+}
+
+// Test hook: (interpreter list-head offset, thread list-head offset, source) as published to the sampler. Only
+// discovery publishes offsets in the extension, so non-zero offsets came from the runtime table.
+static PyObject*
+stack_asyncio_task_lists(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    auto& echion = Sampler::get().get_echion();
+    const size_t interpreter_head = echion.asyncio_interpreter_tasks_head_offset();
+    const size_t thread_head = echion.asyncio_thread_tasks_head_offset();
+    return Py_BuildValue("(nns)",
+                         static_cast<Py_ssize_t>(interpreter_head),
+                         static_cast<Py_ssize_t>(thread_head),
+                         interpreter_head != 0 && thread_head != 0 ? "runtime-table" : "none");
 }
 
 static PyObject*
@@ -1120,6 +1168,10 @@ static PyMethodDef stack_methods[] = {
       stack_is_origin_task_linking_enabled,
       METH_NOARGS,
       "Return whether OriginTaskLinks is enabled (stack sampler has been started)" },
+    { "register_fork_cleanup",
+      stack_register_fork_cleanup,
+      METH_NOARGS,
+      "Reset the sampler state in fork children, even if the sampler was never started" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },
@@ -1147,6 +1199,10 @@ static PyMethodDef stack_methods[] = {
     // asyncio task support
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
+    { "_asyncio_task_lists",
+      stack_asyncio_task_lists,
+      METH_NOARGS,
+      "Return the published asyncio task-list head offsets and their source (test hook)" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support

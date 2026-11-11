@@ -1,10 +1,27 @@
+import asyncio
+import json
 from typing import Optional
 from unittest import mock
 
 import openai
 import pytest
 
+
+try:
+    from openai.types.responses.tool import Mcp
+except ImportError:  # openai versions without hosted MCP tools
+    Mcp = None
+try:
+    from openai.types.responses.function_shell_tool import FunctionShellTool
+    from openai.types.responses.tool import CodeInterpreter
+except ImportError:  # openai versions without container network policies
+    CodeInterpreter = FunctionShellTool = None
+
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
+from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
+from ddtrace.llmobs._integrations.utils import safe_mcp_tool_config
+from ddtrace.llmobs._integrations.utils import safe_tool_config
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
@@ -206,6 +223,32 @@ def _assert_expected_agent_run(
             _assert_span_link(spans[i], span, "output", "input")
             previous_tool_spans.append(span)
     return previous_tool_spans
+
+
+@pytest.mark.asyncio
+async def test_llmobs_concurrent_agents_in_same_apm_trace(
+    agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent, tracer
+):
+    with request_vcr.use_cassette("test_simple_agent.yaml", allow_playback_repeats=True):
+        with tracer.trace("experiment"):
+            results = await asyncio.gather(
+                agents.Runner.run(simple_agent, "What is the capital of France?"),
+                agents.Runner.run(simple_agent, "What is the capital of France?"),
+            )
+
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    workflow_spans = [span for span in spans if span.name == "Agent workflow"]
+
+    assert len(workflow_spans) == 2
+    for workflow_span, result in zip(sorted(workflow_spans, key=lambda span: span.start_ns), results):
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(workflow_span),
+            span_kind="workflow",
+            input_value="What is the capital of France?",
+            output_value=result.final_output,
+            metadata={},
+            tags=COMMON_TAGS,
+        )
 
 
 @pytest.mark.asyncio
@@ -781,3 +824,160 @@ async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
             args=(simple_agent,),
             kwargs={"input": "What is the capital of France?"},
         )
+
+
+# Fake values shaped like real credentials. Prefixes are split so secret scanners do not flag them.
+_MCP_PASSWORD = "Tr0ub4dor-3xample!"
+_MCP_PATH_TOKEN = "NGQ3ZTk1YjItOGM0MS00ZTFhLWI2ZDMtOWYyYTdjMWU1ZDQ4"
+_MCP_QUERY_KEY = "sk" + "-proj-" + "Zt8yQm3vLk2pW9xRn5bC7dF1gHj4sA6eUo0iTqYwErT"
+_MCP_HEADER_TOKEN = "xo" + "xb-" + "1234567890123-4567890123456-Hq7Lm2Xw9Rt4Yb8Nc3Vd6Js1"
+_MCP_OAUTH_TOKEN = "ya" + "29." + "a0AfB_byC7kq2ZxW9mLpT4vNbY8cHdF3sJ6aQe1uXo0iR"
+_MCP_CREDENTIALS = (_MCP_PASSWORD, _MCP_PATH_TOKEN, _MCP_QUERY_KEY, _MCP_HEADER_TOKEN, _MCP_OAUTH_TOKEN, "/api/mcp/s/")
+_LEAKY_MCP_TOOL_CONFIG = {
+    "type": "mcp",
+    "server_label": "zapier",
+    "server_description": "Zapier actions",
+    "server_url": f"https://svc:{_MCP_PASSWORD}@MCP.Zapier.com:443/api/mcp/s/{_MCP_PATH_TOKEN}/mcp?api_key={_MCP_QUERY_KEY}#x",
+    "headers": {"Authorization": f"Bearer {_MCP_HEADER_TOKEN}", "Cookie": "sessionid=8f2b"},
+    "authorization": _MCP_OAUTH_TOKEN,
+    "require_approval": "never",
+    "allowed_tools": ["send_email"],
+}
+_SAFE_MCP_TOOL_CONFIG = {
+    "type": "mcp",
+    "server_label": "zapier",
+    "server_description": "Zapier actions",
+    "server_url": "https://mcp.zapier.com",
+    "require_approval": "never",
+    "allowed_tools": ["send_email"],
+}
+
+
+def _assert_no_mcp_credentials(recorded):
+    serialized = json.dumps(recorded, default=str)
+    for credential in _MCP_CREDENTIALS + ("sessionid",):
+        assert credential not in serialized
+
+
+def test_agent_manifest_keeps_only_the_safe_view_of_hosted_mcp_tools(agents):
+    """A HostedMCPTool config is the application's own, so nothing redacts its credentials upstream."""
+    agent = agents.Agent(
+        name="mcp agent",
+        tools=[agents.HostedMCPTool(tool_config=dict(_LEAKY_MCP_TOOL_CONFIG))],
+    )
+
+    (tool,) = OpenAIAgentsIntegration._extract_tools_from_agent(None, agent)
+
+    assert tool["name"] == "hosted_mcp"
+    assert tool["tool_config"] == _SAFE_MCP_TOOL_CONFIG
+    _assert_no_mcp_credentials(tool)
+
+
+@pytest.mark.skipif(Mcp is None, reason="openai has no hosted MCP tool type")
+def test_response_metadata_keeps_only_the_safe_view_of_hosted_mcp_tools():
+    """OpenAI echoes response.tools with header values redacted but server_url verbatim."""
+    echoed = dict(_LEAKY_MCP_TOOL_CONFIG, headers={"Authorization": "<redacted>"}, authorization=None)
+    function_tool = {"type": "function", "name": "lookup", "parameters": {"type": "object"}, "strict": True}
+    response = mock.Mock(spec=["tools"], tools=[Mcp.model_validate(echoed), function_tool])
+    span = mock.Mock(span_data=mock.Mock(type="response", response=response))
+
+    metadata = OaiSpanAdapter(span).llmobs_metadata
+
+    assert metadata["tools"] == [_SAFE_MCP_TOOL_CONFIG, function_tool]
+    _assert_no_mcp_credentials(metadata)
+
+
+@pytest.mark.parametrize(
+    "server_url,expected",
+    [
+        (None, None),
+        ("not a url", None),
+        ("https://mcp.example.com:notaport/mcp", None),
+    ],
+)
+def test_safe_mcp_tool_config_omits_unusable_urls(server_url, expected):
+    safe = safe_mcp_tool_config({"type": "mcp", "server_label": "x", "server_url": server_url})
+
+    assert safe.get("server_url") == expected
+    assert safe["server_label"] == "x"
+
+
+_DOMAIN_SECRET = "fake-domain-secret-" + "Zt8yQm3vLk2pW9xRn5bC"
+_NETWORK_POLICY = {
+    "type": "allowlist",
+    "allowed_domains": ["api.example.com"],
+    "domain_secrets": [{"domain": "api.example.com", "name": "API_KEY", "value": _DOMAIN_SECRET}],
+}
+_SAFE_NETWORK_POLICY = {
+    "type": "allowlist",
+    "allowed_domains": ["api.example.com"],
+    "domain_secrets": [{"domain": "api.example.com", "name": "API_KEY"}],
+}
+
+
+def test_agent_manifest_drops_code_interpreter_domain_secret_values(agents):
+    tool_config = {"type": "code_interpreter", "container": {"type": "auto", "network_policy": _NETWORK_POLICY}}
+    agent = agents.Agent(name="code agent", tools=[agents.CodeInterpreterTool(tool_config=tool_config)])
+
+    (tool,) = OpenAIAgentsIntegration._extract_tools_from_agent(None, agent)
+
+    assert tool["tool_config"] == {
+        "type": "code_interpreter",
+        "container": {"type": "auto", "network_policy": _SAFE_NETWORK_POLICY},
+    }
+    assert _DOMAIN_SECRET not in json.dumps(tool, default=str)
+
+
+def test_agent_manifest_model_settings_keep_only_inference_params(agents):
+    """extra_headers, extra_query, extra_body and extra_args can carry proxy or provider credentials."""
+    settings = {
+        "temperature": 0.2,
+        "max_tokens": 512,
+        "extra_headers": {"Authorization": f"Bearer {_MCP_HEADER_TOKEN}", "api-key": _MCP_QUERY_KEY},
+        "extra_query": {"api-version": "2024-10-21", "sig": _MCP_PATH_TOKEN},
+        "extra_body": {"metadata": {"secret": _MCP_OAUTH_TOKEN}},
+    }
+    if "extra_args" in agents.ModelSettings.__dataclass_fields__:
+        settings["extra_args"] = {"api_key": _MCP_PASSWORD}
+    agent = agents.Agent(name="settings agent", model_settings=agents.ModelSettings(**settings))
+
+    recorded = OpenAIAgentsIntegration._extract_model_settings_from_agent(None, agent)
+
+    assert recorded["temperature"] == 0.2
+    assert recorded["max_tokens"] == 512
+    assert not {"extra_headers", "extra_query", "extra_body", "extra_args"} & set(recorded)
+    _assert_no_mcp_credentials(recorded)
+
+
+@pytest.mark.skipif(CodeInterpreter is None, reason="openai has no container network policies")
+def test_response_metadata_drops_domain_secret_values():
+    """Applied to every response tool, in case OpenAI echoes container policies like it echoes server_url."""
+    code_interpreter = CodeInterpreter.model_validate(
+        {"type": "code_interpreter", "container": {"type": "auto", "network_policy": _NETWORK_POLICY}}
+    )
+    shell = FunctionShellTool.model_validate(
+        {"type": "shell", "environment": {"type": "container_auto", "network_policy": _NETWORK_POLICY}}
+    )
+    response = mock.Mock(spec=["tools"], tools=[code_interpreter, shell])
+    span = mock.Mock(span_data=mock.Mock(type="response", response=response))
+
+    metadata = OaiSpanAdapter(span).llmobs_metadata
+
+    code_interpreter_tool, shell_tool = metadata["tools"]
+    assert code_interpreter_tool["container"]["network_policy"] == _SAFE_NETWORK_POLICY
+    assert shell_tool["environment"]["network_policy"] == _SAFE_NETWORK_POLICY
+    assert _DOMAIN_SECRET not in json.dumps(metadata, default=str)
+
+
+def test_safe_tool_config_takes_a_custom_mcp_allowlist():
+    """Other integrations can record a different MCP field set without losing the URL origin rule."""
+    config = dict(_LEAKY_MCP_TOOL_CONFIG)
+
+    safe = safe_tool_config(config, allowlist=("type", "server_label"))
+
+    assert safe == {"type": "mcp", "server_label": "zapier", "server_url": "https://mcp.zapier.com"}
+    assert safe_mcp_tool_config(config, allowlist=("server_label",)) == {
+        "server_label": "zapier",
+        "server_url": "https://mcp.zapier.com",
+    }
+    _assert_no_mcp_credentials(safe)

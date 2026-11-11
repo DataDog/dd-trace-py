@@ -1,0 +1,11 @@
+_v: 1
+name: pydantic_ai
+display_name: PydanticAI
+description: Instruments PydanticAI agent runs and user-defined tool executions, including streamed agent outputs, for tracing
+  and LLM observability.
+packages:
+- name: pydantic-ai-slim
+category:
+- gen_ai
+systems: []
+creation_date: '2025-07-01'

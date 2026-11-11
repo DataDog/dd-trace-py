@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AAP: Fixes an issue where services were reported to Datadog as having App and API Protection
+    enabled when it was not active, either because ``DD_APPSEC_ENABLED`` was unset and AAP had not
+    been activated through Remote Configuration, or because AAP failed to load at startup.

@@ -214,20 +214,66 @@ class BudgetRateLimiterWithJitter:
             self.budget = self.max_budget = 1.0
         self._on_exceed_called = False
 
+    def _accrue(self) -> None:
+        """Add the budget that has become available since the last look.
+
+        The caller is expected to hold the lock.
+        """
+        now = time.monotonic()
+        # An infinite budget never needs replenishing, and inf * 0 would turn it
+        # into NaN when no time has elapsed (e.g. with a coarse clock).
+        if self.limit_rate != float("inf"):
+            self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+        self.last_time = now
+
+    def _cap(self) -> None:
+        """Discard any budget beyond the maximum."""
+        if self.budget > self.max_budget:
+            self.budget = self.max_budget
+
+    def has_budget(self) -> bool:
+        """Whether a call would be allowed, without consuming any budget.
+
+        For a caller that wants a cheap early answer and commits separately
+        later, once it knows the call is worth it. The budget is brought up to
+        date first, as :meth:`limit` does, so the jitter for the time elapsed
+        is drawn once: a :meth:`limit` right after agrees with the answer, and
+        a caller can act on it (e.g. remember a negative one).
+
+        Neither caps nor consumes the budget, so that, as with :meth:`limit`,
+        a maximum budget below one token (a rate below one per ``tau``, or a
+        rate whose ``limit_rate * tau`` rounds just under one) does not reject
+        forever.
+        """
+        with self._lock:
+            self._accrue()
+            return self.budget >= 1.0
+
+    def consume(self, amount: float = 1.0) -> None:
+        """Spend budget whether or not there is any left.
+
+        For callers that have already incurred the cost by the time they get
+        here, so refusing is not an option. The budget is allowed to go into
+        deficit, and the overspend is repaid before anything is let through
+        again.
+        """
+        with self._lock:
+            self._accrue()
+            self._cap()
+            self.budget -= amount
+
     def limit(self, f: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any) -> Any:
         """Make rate-limited calls to a function with the given arguments."""
         should_call = False
         with self._lock:
-            now = time.monotonic()
-            self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+            self._accrue()
             should_call = self.budget >= 1.0
-            if self.budget > self.max_budget:
-                self.budget = self.max_budget
-            self.last_time = now
+            self._cap()
+            if should_call:
+                self.budget -= 1.0
 
         if should_call:
             self._on_exceed_called = False
-            self.budget -= 1.0
             return f(*args, **kwargs) if f is not None else None
 
         if self.on_exceed is not None:

@@ -7,14 +7,14 @@ from ddtrace.internal.settings import env
 SCP_REGEXP = re.compile("^[a-z0-9_]+@([a-z0-9._-]+):(.*)$", re.IGNORECASE)
 
 
-def _remove_suffix(s, suffix):
+def _remove_suffix(s: str, suffix: str) -> str:
     if s.endswith(suffix):
         return s[: -len(suffix)]
     else:
         return s
 
 
-def normalize_repository_url(url):
+def normalize_repository_url(url: str) -> str:
     scheme = ""
     hostname = ""
     port = None
@@ -35,7 +35,7 @@ def normalize_repository_url(url):
                 return ""
 
         scheme = u.scheme
-        hostname = u.hostname
+        hostname = u.hostname or ""
         port = u.port
         path = u.path
 
@@ -56,26 +56,26 @@ def normalize_repository_url(url):
     return parse.urlunsplit((scheme, netloc, path, "", ""))
 
 
-def _query_git(args):
+def _query_git(args: list[str]) -> str:
     import subprocess  # don't import subprocess (and maybe activate the integration) if not needed
 
     ver = subprocess.Popen(["git"] + args, stdout=subprocess.PIPE).communicate()[0]
     return ver.strip().decode("utf-8")
 
 
-def get_commit_sha():
+def get_commit_sha() -> str:
     commit_sha = env.get("DD_GIT_COMMIT_SHA")
     if commit_sha:
         return commit_sha
     return _query_git(["rev-parse", "HEAD"])
 
 
-def get_repository_url():
+def get_repository_url() -> str:
     repository_url = env.get("DD_GIT_REPOSITORY_URL")
     if repository_url:
         return repository_url
     return _query_git(["config", "--get", "remote.origin.url"])
 
 
-def get_source_code_link():
+def get_source_code_link() -> str:
     return normalize_repository_url(get_repository_url()) + "#" + get_commit_sha()

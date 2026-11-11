@@ -91,6 +91,38 @@ ddup_upload() // cppcheck-suppress unusedFunction
     return result;
 }
 
+bool
+ddup_reset() // cppcheck-suppress unusedFunction
+{
+    if (!ddup_is_initialized()) {
+        return false;
+    }
+
+    // Same lock as ddup_upload, so a reset cannot interleave with an upload or a fork.
+    Datadog::Uploader::lock();
+    defer
+    {
+        Datadog::Uploader::unlock();
+    };
+
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
+    borrowed.stats().reset_state();
+
+    // Drops all samples and sets the profile start time to now.
+    auto res = ddog_prof_Profile_reset(&borrowed.profile());
+    if (res.tag != DDOG_PROF_PROFILE_RESULT_OK) {
+        static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+        auto err = res.err;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << Datadog::err_to_msg(&err, "Error resetting profile") << std::endl;
+        }
+        ddog_Error_drop(&err);
+        return false;
+    }
+    return true;
+}
+
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
 void

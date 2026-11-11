@@ -2,6 +2,7 @@
 components:
   profiling:
     - ddtrace/profiling/*
+    - ddtrace/internal/profiling/*
     - ddtrace/internal/datadog/profiling/*
     - ddtrace/_trace/processor/endpoint_call_counter.py
     - ddtrace/internal/settings/profiling.py
@@ -12,7 +13,6 @@ suites:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
@@ -21,7 +21,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        pytest -v --capture=no
         --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py'
         {cmdargs} tests/profiling
       env:
@@ -30,6 +30,9 @@ suites:
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # The suite has more environments than jobs, so some jobs build two.
+        UV_NO_CACHE: '1'
         _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
@@ -45,16 +48,23 @@ suites:
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, uvloop, protobuf]
           env:
             USE_UVLOOP: '1'
+        # TODO(py-315): protobuf 4.22.0 has no cp315 wheels and its sdist does not
+        # build for the test jobs, so the environment fails at setup on 3.15.
+        # Only the unpinned protobuf row (7.x) covers 3.15; the 3.19.0 row stays
+        # on 3.9 and 3.10. Re-add 3.15 here only with a protobuf 4.x pin that
+        # supports it.
         - name: profile
           python: ['3.11', '3.12', '3.13']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
   profile-uwsgi:
+    # TODO(py-315): uwsgi 2.0.29 does not build on 3.15 (PyThreadState has no
+    # c_recursion_remaining member). Re-add 3.15 once uwsgi supports it or the
+    # <2.0.30 pin is lifted.
     venvs_per_job: 1
     env:
       DD_TRACE_AGENT_URL: ''
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
@@ -63,8 +73,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
-        {cmdargs} tests/profiling/test_uwsgi.py
+        pytest -v --capture=no {cmdargs} tests/profiling/test_uwsgi.py
       env:
         CPUCOUNT: '12'
         DD_CIVISIBILITY_ITR_ENABLED: 'false'
@@ -77,12 +86,11 @@ suites:
         - name: profile-uwsgi
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, 'uwsgi<2.0.30', protobuf]
   profile-memalloc:
-    venvs_per_job: 1
+    venvs_per_job: 3
     env:
       DD_TRACE_AGENT_URL: ''
     paths:
       - '@bootstrap'
-      - '@core'
       - '@profiling'
       - '@vendor'
       - tests/profiling/suitespec.yml
@@ -91,7 +99,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        pytest -v --capture=no --benchmark-disable
         {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
       env:
         CPUCOUNT: '12'

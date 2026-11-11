@@ -23,7 +23,9 @@ class COVERAGE_LIBRARY(str, Enum):
     DD_COVERAGE = "ddcoverage"
 
 
-def record_code_coverage_started(coverage_library: COVERAGE_LIBRARY, test_framework: Optional[TEST_FRAMEWORKS] = None):
+def record_code_coverage_started(
+    coverage_library: COVERAGE_LIBRARY, test_framework: Optional[TEST_FRAMEWORKS] = None
+) -> None:
     log.debug("Recording code coverage started telemetry: %s, %s", test_framework, coverage_library)
     _tags: list[tuple[str, str]] = [("library", coverage_library)]
     if test_framework is not None:
@@ -31,7 +33,9 @@ def record_code_coverage_started(coverage_library: COVERAGE_LIBRARY, test_framew
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, COVERAGE_TELEMETRY.STARTED, 1, tuple(_tags))
 
 
-def record_code_coverage_finished(coverage_library: COVERAGE_LIBRARY, test_framework: Optional[TEST_FRAMEWORKS] = None):
+def record_code_coverage_finished(
+    coverage_library: COVERAGE_LIBRARY, test_framework: Optional[TEST_FRAMEWORKS] = None
+) -> None:
     log.debug("Recording code coverage finished telemetry: %s, %s", test_framework, coverage_library)
     _tags: list[tuple[str, str]] = [("library", coverage_library)]
     if test_framework is not None:
@@ -39,16 +43,16 @@ def record_code_coverage_finished(coverage_library: COVERAGE_LIBRARY, test_frame
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, COVERAGE_TELEMETRY.FINISHED, 1, tuple(_tags))
 
 
-def record_code_coverage_empty():
+def record_code_coverage_empty() -> None:
     log.debug("Recording code coverage empty telemetry")
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, COVERAGE_TELEMETRY.IS_EMPTY, 1)
 
 
-def record_code_coverage_files(count_files: int):
+def record_code_coverage_files(count_files: int) -> None:
     log.debug("Recording code coverage files telemetry: %s", count_files)
     telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, COVERAGE_TELEMETRY.FILES, count_files)
 
 
-def record_code_coverage_error():
+def record_code_coverage_error() -> None:
     log.debug("Recording code coverage error telemetry")
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, COVERAGE_TELEMETRY.ERRORS, 1)
