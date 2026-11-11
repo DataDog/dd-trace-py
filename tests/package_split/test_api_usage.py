@@ -334,6 +334,31 @@ def test_attribute_chain_through_reexported_module(tmp_path):
     assert "call" in symbols["A"]
 
 
+def test_reexport_of_target_parent_resolves_attributes(tmp_path):
+    make_tree(tmp_path, "pkg", {"__init__.py": "", "lib/__init__.py": "", "lib/sub.py": "def f(): pass\n"})
+    (tmp_path / "pkg" / "facade.py").write_text("from pkg import lib as api\n", encoding="utf-8")
+    (tmp_path / "pkg" / "consumer.py").write_text("from pkg.facade import api\napi.sub.f()\n", encoding="utf-8")
+    report = analyze(tmp_path, "pkg", {}, target="pkg.lib.sub")
+    assert any(u.importer == "pkg.consumer" and u.symbol == "f" and u.kind == "call" for u in report.usages)
+
+
+def test_stub_initializer_relative_reexport(tmp_path):
+    make_tree(tmp_path, "pkg", {"__init__.pyi": "from .impl import f\n", "impl.py": "def f(): pass\n"})
+    (tmp_path / "consumer.py").write_text("from pkg import f\nf()\n", encoding="utf-8")
+    report = analyze_api_usage(tmp_path, [tmp_path], "pkg.impl")
+    assert any(u.importer == "consumer" and u.symbol == "f" and u.kind == "call" for u in report.usages)
+
+
+@pytest.mark.parametrize("suffix", [".pyi", ".pyx"])
+def test_explicit_native_file_scope(tmp_path, suffix):
+    target = tmp_path / ("native" + suffix)
+    target.write_text("", encoding="utf-8")
+    consumer = tmp_path / "consumer.py"
+    consumer.write_text("from native import f\nf()\n", encoding="utf-8")
+    report = analyze_api_usage(tmp_path, [target, consumer], "native")
+    assert "call" in symbols_of(report)["f"]
+
+
 def test_module_names_follow_workspace_src_layout(tmp_path):
     # uv-workspace destination layout: packages/<dist>/src/<module>/x.py
     # must name as <module>.x, not packages.<dist>.src.<module>.x (which

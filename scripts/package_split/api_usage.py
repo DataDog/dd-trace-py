@@ -121,7 +121,7 @@ class _UsageCollector(ast.NodeVisitor):
 
     # -- pass 1: bindings --------------------------------------------------
     def _is_package_init(self) -> bool:
-        return self.file.replace("\\", "/").endswith("__init__.py")
+        return Path(self.file).name in ("__init__.py", "__init__.pyi", "__init__.pyx")
 
     def _resolve_relative(self, level: int, module: str | None) -> str:
         importer_parts = self.importer.split(".")
@@ -188,11 +188,12 @@ class _UsageCollector(ast.NodeVisitor):
                 # the local name to it so later use sites classify against
                 # the real owner rather than the facade.
                 for origin in self._resolve_chain(target_module, [alias.name]):
-                    if origin != binding and self._matches(origin):
+                    if origin != binding:
                         self._bind(alias.asname or alias.name, origin)
-                        self.report.usages.append(
-                            Usage(self.importer, self._symbol(origin), "import", self._location(node))
-                        )
+                        if self._matches(origin):
+                            self.report.usages.append(
+                                Usage(self.importer, self._symbol(origin), "import", self._location(node))
+                            )
 
     # -- pass 2: usages ----------------------------------------------------
     def _location(self, node: ast.AST) -> str:
@@ -348,7 +349,7 @@ def module_names_for(root: Path, source_paths: Iterable[Path]) -> dict[str, Path
         if not source_path.exists():
             raise ValueError("source path does not exist: %s" % source_path)
         if not source_path.is_dir():
-            if source_path.suffix == ".py":
+            if source_path.suffix in (".py", ".pyi", ".pyx"):
                 name = _module_name(source_path)
                 if name:
                     modules.setdefault(name, source_path)

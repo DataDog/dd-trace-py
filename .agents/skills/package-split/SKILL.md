@@ -14,10 +14,11 @@ scripts/package-split api-surface [--source-path ddtrace ...] [--zones <layers.j
 ```
 
 - `api-usage` lists every symbol of the target consumed outside it, with call/subclass/raise/except/read context.
-  Run it over production code first, then add `--source-path tests` to see test-only usage.
+  Run it over production code first, then use `--source-path ddtrace --source-path tests` for a combined inventory.
+  For a test-only scan, use `--source-path tests --allow-absent-target`; re-export attribution then depends on facades present in that scope.
 - `api-surface` groups consumed symbols by owning module and zone (default:
   `scripts/import-analysis/layers.json`), and suggests modules whose consumers all live in one zone.
-- JSON evidence is written to `.package-split/<command>/<command>.json` (`--output` to change).
+- JSON evidence is written under `.package-split/<command>/<scope>/`; `api-usage` also nests it under the target module. The command prints the exact path (`--output` changes the root).
 
 Use the results to propose a narrow supported API for the extraction and get scope and naming
 approved before moving code. Report the commands run, the proposed surface, and usages you chose

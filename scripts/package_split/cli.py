@@ -6,6 +6,7 @@ Invoked by the thin ``scripts/package-split`` wrapper.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -86,7 +87,9 @@ def _scope_dir(raw_source_paths: list[str]) -> str:
         value = value.strip("./")
         return "_".join(value.split("/")) if value else "root"
 
-    return "__".join(clean(path) for path in raw_source_paths)
+    label = "__".join(clean(path) for path in raw_source_paths)[:100]
+    digest = hashlib.sha256(json.dumps(raw_source_paths, ensure_ascii=True).encode("utf-8")).hexdigest()
+    return "%s-%s" % (label, digest)
 
 
 def _warn_unparsed(unparsed: list[str]) -> None:

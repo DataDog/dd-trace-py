@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from package_split.api_surface import _attributions
 from package_split.api_surface import analyze_api_surfaces
 from package_split.api_surface import bundling_suggestions
 from package_split.api_surface import zone_of
@@ -186,6 +187,28 @@ def test_reexported_symbol_is_attributed_to_defining_module(tmp_path):
     assert "app.consumer" in report.owners["shared"].consumers_of("exposed")
     suggestions = {s.owner: s for s in bundling_suggestions(report)}
     assert suggestions["shared.impl"].symbols == ["exposed"]
+
+
+def test_ordinary_facade_reexport_is_attributed(tmp_path):
+    build_repo(
+        tmp_path,
+        {
+            "shared/__init__.py": "",
+            "shared/impl.py": "def exposed(): pass\n",
+            "shared/api.py": "from shared.impl import exposed\n",
+            "app/consumer.py": "from shared.api import exposed\nexposed()\n",
+        },
+    )
+    report = analyze(tmp_path)
+    assert "app.consumer" in report.owners["shared.impl"].consumers_of("exposed")
+
+
+def test_growing_reexport_cycle_terminates():
+    reexports = {"a": {"x": {"b.y.x"}}, "b": {"y": {"a.x"}}}
+    result = _attributions("a.x", {"a", "b"}, ["a", "b"], reexports)
+    assert ("a", "x") in result
+    assert ("b", "y.x") in result
+    assert len(result) < 10
 
 
 def test_zone_of_longest_prefix_wins():
