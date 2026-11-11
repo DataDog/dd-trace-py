@@ -907,6 +907,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Native exporter methods require exclusive access because PyO3 rejects
         # overlapping mutable borrows.
         self._exporter_lock = forksafe.RLock()
+        # MicroVM stop must close publication without waiting on an exporter send or build.
+        self._exporter_lifecycle_lock = forksafe.RLock() if self._writer_lock is not None else self._exporter_lock
+        self._exporter_stopping = False
         self._exporter = self._create_exporter()
 
     def __del__(self) -> None:
@@ -1020,7 +1023,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except Exception:
             log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
-    def _shutdown_exporter(self, exporter: native.TraceExporter) -> None:
+    def _shutdown_exporter(self, exporter: native.TraceExporter, timeout: float = 3.0) -> None:
         """Shut down a native exporter, swallowing a Rust panic from its tokio I/O driver.
 
         The exporter can panic here after a fork; since the exporter is always
@@ -1029,7 +1032,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         """
         with self._exporter_lock:
             try:
-                exporter.shutdown(3_000_000_000)
+                exporter.shutdown(int(max(timeout, 0) * 1_000_000_000))
             except Exception:
                 _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
             except BaseException as e:
@@ -1046,9 +1049,29 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._exporter = self._create_exporter()
         self._shutdown_exporter(old_exporter)
 
-    def shutdown_exporter(self) -> None:
+    def _begin_shutdown(self) -> None:
+        if self._writer_lock is not None:
+            with self._exporter_lifecycle_lock:
+                self._exporter_stopping = True
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        # Close publication even when the periodic service never started, or its join times out.
+        self._begin_shutdown()
+        super().stop(timeout)
+
+    def shutdown_exporter(self, timeout: float = 3.0) -> None:
         """Tear down the native exporter without going through ``stop()``."""
-        self._shutdown_exporter(self._exporter)
+        self._begin_shutdown()
+        if self._writer_lock is None:
+            self._shutdown_exporter(self._exporter, timeout)
+            return
+        with self._exporter_lock:
+            if self._discarded_by_refresh:
+                self._drop_exporter()
+            else:
+                # Refresh can close the gate after this check. Current libdatadog cannot
+                # cancel native shutdown, so a racing shutdown may still flush old stats.
+                self._shutdown_exporter(self._exporter, timeout)
 
     def _drop_exporter(self) -> None:
         with self._exporter_lock:
@@ -1084,6 +1107,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if not exporter_dropped and not self._discarded_by_refresh:
                 self.shutdown_exporter()
 
+        return self._recreate(appsec_enabled, llmobs_enabled, compute_stats_enabled, stats_opt_out)
+
+    def _recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        stats_opt_out: Optional[bool] = None,
+    ) -> "NativeWriter":
+        """Build a replacement without stopping this writer."""
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         agentless_stats_endpoint = self._agentless_stats_endpoint
         otlp_metrics_endpoint = self._otlp_metrics_endpoint
@@ -1124,17 +1157,25 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
+            if self._exporter_stopping:
+                return  # No exporter is needed for a writer that is stopping.
             # Built outside the exporter lock: _create_exporter() can take the telemetry enable lock,
             # whose holder notifies _on_telemetry_worker_changed(), which takes the exporter lock.
             new_exporter = self._create_exporter()
-            with self._exporter_lock:
-                # A refresh may have dropped the exporter since the check above; a replacement
-                # installed now would be skipped by on_shutdown() and leak.
+            with self._exporter_lock, self._exporter_lifecycle_lock:
+                # Stop closes publication under the lifecycle lock before joining the worker.
+                # A build that finishes later must not install an exporter on the stopped writer.
                 discarded = self._discarded_by_refresh
-                if not discarded:
+                stopping = self._exporter_stopping
+                if not discarded and not stopping:
                     old_exporter, self._exporter = self._exporter, new_exporter
             if discarded:
                 new_exporter.drop()
+                return
+            if stopping:
+                # This unused exporter has no trace data to flush. Stop its native workers
+                # instead of leaking them through drop() during ordinary shutdown.
+                self._shutdown_exporter(new_exporter)
                 return
             with self._exporter_lock:
                 # MicroVM refresh closes the gate without this lock, so even a final recheck can
@@ -1426,7 +1467,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             self.periodic()
         finally:
-            self._shutdown_exporter(self._exporter)
+            self.shutdown_exporter()
 
 
 def _use_log_writer() -> bool:

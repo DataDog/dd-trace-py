@@ -164,6 +164,7 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._provider_cost import build_conversation_cost_event
+from ddtrace.llmobs._registration import LLM_SUBSCRIBERS
 from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
 from ddtrace.llmobs._routing import RoutingContextType
 from ddtrace.llmobs._routing import build_routing_context
@@ -1180,6 +1181,7 @@ class LLMObs(Service):
                 sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
+            LLM_SUBSCRIBERS.register()
 
             core.on("aws_sdk_bedrock_runtime.bidirectional_stream", cls._instance._on_bidirectional_stream)
 

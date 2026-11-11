@@ -57,8 +57,14 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $wheels = @(Get-ChildItem "$distDir\*.whl")
+# Diagnostics: other jobs' wheels sometimes appear here during the build.
+Write-Host "=== Wheels in $distDir ==="
+$wheels | ForEach-Object {
+    Write-Host ("{0}  {1:o}  {2} bytes" -f $_.Name, $_.LastWriteTimeUtc, $_.Length)
+}
 if ($wheels.Count -ne 1) {
-    Write-Error "Expected exactly one wheel in $distDir, found $($wheels.Count)"
+    $names = ($wheels | ForEach-Object { $_.Name }) -join ', '
+    Write-Error "Expected exactly one wheel in $distDir, found $($wheels.Count): $names"
     exit 1
 }
 
