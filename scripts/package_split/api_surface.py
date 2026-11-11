@@ -158,6 +158,8 @@ def analyze_api_surfaces(
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
         collector._scan_usages(tree)
+        # Every module's bindings can be re-exports, including ordinary facades.
+        # Attribution follows only bindings that match the resolved usage path.
         reexports[module] = collector.bindings
 
     # Attribute each usage to its owning module: the longest module prefix
