@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import json
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -130,6 +131,24 @@ def retrieved(item_id="a1", audio=b"\0\0" * 24, transcript="hello"):
     }
 
 
+def truncate_event(item_id, milliseconds):
+    cls = getattr(sdk, "OpenAIConversationItemTruncateEvent", None)
+    if cls:
+        return cls(type="conversation.item.truncate", item_id=item_id, content_index=0, audio_end_ms=milliseconds)
+    return sdk.RealtimeModelSendRawMessage(
+        message={
+            "type": "conversation.item.truncate",
+            "other_data": {"item_id": item_id, "content_index": 0, "audio_end_ms": milliseconds},
+        }
+    )
+
+
+async def bounded_output(socket, item_id="a1", milliseconds=100):
+    await socket.feed(
+        {"type": "conversation.item.truncated", "item_id": item_id, "content_index": 0, "audio_end_ms": milliseconds}
+    )
+
+
 def llm_span(test_spans):
     spans = [span for trace in test_spans.pop_traces() for span in trace]
     matches = [s for s in spans if s.resource == "createRealtimeResponse"]
@@ -201,7 +220,10 @@ async def test_realtime_sideband_playback_and_retrieval(agents, openai_agents_ll
     await socket.feed(created())
     await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
     await socket.feed(done(output=[output_item()]))
-    await asyncio.sleep(0)
+    assert not [e for e in socket.sent if e["type"] == "conversation.item.retrieve"]
+    await model._send_raw_message(
+        sdk.OpenAIConversationItemRetrieveEvent(type="conversation.item.retrieve", item_id="a1", event_id="app-audio")
+    )
     requests = [e for e in socket.sent if e["type"] == "conversation.item.retrieve"]
     assert len(requests) == 1
     assert "r1" in state.entries
@@ -246,6 +268,7 @@ async def test_realtime_success_visible_and_owned_error_filtered(agents, openai_
     model.add_listener(Listener())
     await socket.feed(created())
     await socket.feed(done(output=[output_item()]))
+    await bounded_output(socket)
     await asyncio.sleep(0)
     request = next(e for e in socket.sent if e["type"] == "conversation.item.retrieve")
     error = {
@@ -271,7 +294,7 @@ async def test_realtime_success_visible_and_owned_error_filtered(agents, openai_
 
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
 @pytest.mark.asyncio
-async def test_realtime_sdk_claims_before_fallback(agents, openai_agents_llmobs, socket):
+async def test_realtime_application_listener_claims_before_fallback(agents, openai_agents_llmobs, socket):
     model = await connect(socket, {"call_id": "call-test"})
     # The SDK awaits raw listeners before parsing/transcription retrieval. The
     # listener's send is allowed to suspend for arbitrarily many loop turns.
@@ -283,8 +306,15 @@ async def test_realtime_sdk_claims_before_fallback(agents, openai_agents_llmobs,
             if getattr(event, "data", {}).get("type") == "conversation.item.input_audio_transcription.completed":
                 started.set()
                 await gate.wait()
+                await model._send_raw_message(
+                    sdk.OpenAIConversationItemRetrieveEvent(
+                        type="conversation.item.retrieve", item_id="u1", event_id="app-user"
+                    )
+                )
 
     model.add_listener(Listener())
+    await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": "u1", "audio_start_ms": 0})
+    await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "u1", "audio_end_ms": 100})
     await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
     transcript = {
         "type": "conversation.item.input_audio_transcription.completed",
@@ -511,6 +541,7 @@ async def test_realtime_failed_retrieval_not_resurrected(agents, openai_agents_l
     model = await connect(socket, {"call_id": "failure"})
     await socket.feed(created())
     await socket.feed(done(output=[output_item("a1"), output_item("a2")]))
+    await bounded_output(socket)
     await asyncio.sleep(0)
     request = next(e for e in socket.sent if e.get("item_id") == "a1")
     await socket.feed({"type": "error", "error": {"event_id": request["event_id"], "message": "gone"}})
@@ -726,6 +757,7 @@ async def test_realtime_cancels_owned_retrieval(agents, openai_agents_llmobs, so
     socket.send_gate = asyncio.Event()
     await socket.feed(created())
     await socket.feed(done(output=[output_item()]))
+    await bounded_output(socket)
     await asyncio.sleep(0)
     tasks = tuple(model._dd_realtime_state.tasks)
     assert tasks
@@ -789,3 +821,466 @@ async def test_realtime_response_order_overrides_event_arrival(agents, openai_ag
     message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
     assert message["content"] == "firstsecond"
     assert base64.b64decode(message["audio_parts"][0]["content"])[44:] == b"\1\0\2\0"
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+async def test_realtime_provisional_snapshot_omits_audio(agents, openai_agents_llmobs, test_spans, socket):
+    model = await connect(socket, {"call_id": "review-partial"})
+    await socket.feed(created())
+    await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
+    item = output_item()
+    item["status"] = "in_progress"
+    await socket.feed({"type": "response.output_item.added", "response_id": "r1", "output_index": 0, "item": item})
+    reply = retrieved(audio=b"\1\0" * 24, transcript="partial")
+    reply["item"]["status"] = "in_progress"
+    await socket.feed(reply)
+    await socket.feed(done(output=[output_item(transcript="full transcript")]))
+    await socket.feed({"type": "output_audio_buffer.stopped", "response_id": "r1"})
+    await model.close()
+    span, _ = llm_span(test_spans)
+    message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
+    assert not message.get("audio_parts"), "an in-progress snapshot was exported as the complete final clip"
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+async def test_realtime_bounds_backpressured_retrieval_tasks(agents, openai_agents_llmobs, socket, monkeypatch):
+    monkeypatch.setattr(_realtime, "_MAX_TURNS", 2)
+    model = await connect(socket, {"call_id": "review-tasks"})
+    socket.send_gate = asyncio.Event()
+    try:
+        for index in range(7):
+            await socket.feed(created(str(index)))
+            await socket.feed(done(str(index), [output_item(str(index))]))
+            await bounded_output(socket, str(index))
+            await asyncio.sleep(0)
+        assert len(model._dd_realtime_state.tasks) == 2, "evicted items leave backpressured retrieval tasks running"
+    finally:
+        tasks = tuple(model._dd_realtime_state.tasks)
+        await model.close()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_realtime_websocket_holds_for_late_truncation(agents, openai_agents_llmobs, test_spans, socket):
+    model = await connect(socket)
+    settings = model._get_session_config({})
+    config = settings.model_dump(exclude_none=True)
+    config.update(id="session-test", object="realtime.session")
+    await socket.feed({"type": "session.created", "session": config})
+    raw = b"\0\0" * 96000
+    for response_id in ("warmup", "actual"):
+        await socket.feed(created(response_id))
+        await socket.feed(
+            {
+                "type": "response.output_audio.delta"
+                if hasattr(sdk, "OpenAIRealtimeSIPModel")
+                else "response.audio.delta",
+                "response_id": response_id,
+                "item_id": response_id,
+                "output_index": 0,
+                "content_index": 0,
+                "delta": base64.b64encode(raw).decode(),
+            }
+        )
+        if response_id == "warmup":
+            await model._send_raw_message(truncate_event(response_id, 0))
+        await socket.feed(done(response_id))
+    try:
+        assert "actual" in model._dd_realtime_state.entries
+        await model._send_raw_message(truncate_event("actual", 100))
+        await socket.feed(
+            {"type": "conversation.item.truncated", "item_id": "actual", "content_index": 0, "audio_end_ms": 100}
+        )
+    finally:
+        await model.close()
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    llms = [span for span in spans if span.resource == "createRealtimeResponse"]
+    assert len(llms) == 2
+    message = _get_llmobs_data_metastruct(llms[-1])["meta"]["output"]["messages"][0]
+    assert len(base64.b64decode(message["audio_parts"][0]["content"])) == 44 + 4800
+    speech = [span for span in spans if span.resource == "createRealtimeAgentSpeech"]
+    assert speech[-1].duration == pytest.approx(0.1, abs=1e-6)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+async def test_realtime_manual_sideband_speech_precedes_commit(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch
+):
+    now = [10_000_000_000]
+    monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
+    model = await connect(socket, {"call_id": "review-manual"})
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
+    await socket.feed(created())
+    now[0] = 12_000_000_000
+    reply = retrieved("u1", b"\0\0" * 24000, "hello")
+    reply["item"]["role"] = "user"
+    reply["item"]["content"][0]["type"] = "input_audio"
+    await socket.feed(reply)
+    now[0] = 13_000_000_000
+    await socket.feed(done())
+    await model.close()
+    _, spans = llm_span(test_spans)
+    speech = next(s for s in spans if s.resource == "createRealtimeUserSpeech")
+    assert speech.start_ns == 9_000_000_000, (
+        "manual caller speech used retrieval arrival instead of commit minus duration"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+async def test_realtime_late_owned_error_is_filtered_after_eviction(agents, openai_agents_llmobs, socket):
+    model = await connect(socket, {"call_id": "review-late-error"})
+    seen = []
+
+    class Listener:
+        async def on_event(self, event):
+            if hasattr(event, "data"):
+                seen.append(event.data)
+
+    model.add_listener(Listener())
+    await socket.feed(created())
+    await socket.feed(done(output=[output_item()]))
+    await bounded_output(socket)
+    await asyncio.sleep(0)
+    request = next(e for e in socket.sent if e["type"] == "conversation.item.retrieve")
+    model._dd_realtime_state._release(model._dd_realtime_state.entries["r1"], True)
+    error = {
+        "type": "error",
+        "event_id": "late-server-error",
+        "error": {
+            "event_id": request["event_id"],
+            "type": "invalid_request_error",
+            "code": "missing",
+            "message": "gone",
+        },
+    }
+    await socket.feed(error)
+    await model.close()
+    assert error not in seen, "a late tracer-owned request error escaped after its item was evicted"
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+async def test_realtime_item_admission_after_owner_eviction(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch
+):
+    monkeypatch.setattr(_realtime, "_MAX_ITEMS", 2)
+    model = await connect(socket, {"call_id": "review-item-limit"})
+    await socket.feed(created())
+    # Three items establishes the orphan; further admission would make the
+    # current eviction loop spin. Stop before that unbounded loop in this probe.
+    await socket.feed(done(output=[output_item(str(i), str(i)) for i in range(3)]))
+    try:
+        state = model._dd_realtime_state
+        assert all(i.entry is None or i.entry.id in state.entries for i in state.items.values()), (
+            "an item was admitted after its owner was evicted"
+        )
+    finally:
+        await model.close()
+    span, _ = llm_span(test_spans)
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span), span_kind="llm", output_messages=[{"role": "assistant", "content": "012"}]
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.skipif(not hasattr(sdk, "TransportConfig"), reason="SDK predates transport configuration")
+async def test_realtime_unsafe_retrieval_keeps_transport_open(agents, openai_agents_llmobs):
+    import json
+
+    from websockets.asyncio.server import serve
+    from websockets.exceptions import ConnectionClosed
+
+    requested = asyncio.Event()
+    closed = asyncio.Event()
+    codes = []
+
+    async def handler(ws):
+        produced = False
+        try:
+            async for payload in ws:
+                event = json.loads(payload)
+                if event.get("type") == "session.update" and not produced:
+                    produced = True
+                    start = created()
+                    start["event_id"] = "created"
+                    finish = done(output=[output_item()])
+                    finish["event_id"] = "done"
+                    await ws.send(json.dumps(start))
+                    await ws.send(json.dumps(finish))
+                elif event.get("type") == "conversation.item.retrieve":
+                    requested.set()
+                    await ws.send(json.dumps(retrieved(audio=b"\0" * 3000)))
+        except ConnectionClosed as exc:
+            codes.append(exc.rcvd.code if exc.rcvd else exc.sent.code if exc.sent else None)
+        finally:
+            closed.set()
+
+    async with serve(handler, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        model = sdk.OpenAIRealtimeWebSocketModel(transport_config={"max_size": 2048})
+        await model.connect(
+            {
+                "api_key": "fake",
+                "call_id": "bounded",
+                "url": f"ws://127.0.0.1:{port}?call_id=bounded",
+                "initial_model_settings": {"tracing": None},
+            }
+        )
+        try:
+            try:
+                await asyncio.wait_for(requested.wait(), 0.2)
+            except asyncio.TimeoutError:
+                pass
+            if requested.is_set():
+                await asyncio.wait_for(closed.wait(), 2)
+            assert not closed.is_set(), f"tracer retrieval closed the application transport with code(s) {codes}"
+        finally:
+            await model.close()
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("bounded", [True, False])
+@pytest.mark.parametrize("enabled", [True, False])
+@pytest.mark.asyncio
+async def test_realtime_application_retrieval_error_releases_pending(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, bounded, enabled
+):
+    monkeypatch.setenv("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", str(enabled).lower())
+    model = await connect(socket, {"call_id": "app-error"})
+    seen = []
+
+    class Listener:
+        async def on_event(self, event):
+            data = getattr(event, "data", {})
+            seen.append(data)
+            if data.get("type") == "conversation.item.input_audio_transcription.completed":
+                await model._send_raw_message(
+                    sdk.OpenAIConversationItemRetrieveEvent(
+                        type="conversation.item.retrieve", item_id="u1", event_id="app-user"
+                    )
+                )
+
+    model.add_listener(Listener())
+    if bounded:
+        await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": "u1", "audio_start_ms": 0})
+        await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "u1", "audio_end_ms": 100})
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
+    await socket.feed(created())
+    await socket.feed(
+        {
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "u1",
+            "content_index": 0,
+            "transcript": "hi",
+            "usage": {"type": "duration", "seconds": 0.1},
+        }
+    )
+    await socket.feed(done())
+    requests = [e for e in socket.sent if e["type"] == "conversation.item.retrieve"]
+    assert len(requests) == 1 and requests[0]["event_id"] == "app-user"
+    error = {
+        "type": "error",
+        "error": {"type": "invalid_request_error", "code": "missing", "event_id": "app-user", "message": "gone"},
+    }
+    await socket.feed(error)
+    assert error in seen
+    await asyncio.sleep(0)
+    requests = [e for e in socket.sent if e["type"] == "conversation.item.retrieve"]
+    assert len(requests) == (2 if bounded and enabled else 1)
+    if bounded and enabled:
+        reply = retrieved("u1", b"\0\0" * 24, "hi")
+        reply["item"]["role"] = "user"
+        reply["item"]["content"][0]["type"] = "input_audio"
+        await socket.feed(reply)
+    assert not model._dd_realtime_state.entries
+    await model.close()
+    span, _ = llm_span(test_spans)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="llm")
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.asyncio
+async def test_realtime_reply_before_send_completion_does_not_rearm_pending(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch
+):
+    model = await connect(socket, {"call_id": "reply-race"})
+    await socket.feed(created())
+    await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
+    await socket.feed(done(output=[output_item()]))
+    replied = asyncio.Event()
+    gate = asyncio.Event()
+
+    async def send_then_drain(value):
+        socket.sent.append(json.loads(value))
+        await socket.feed(retrieved())
+        replied.set()
+        await gate.wait()
+
+    monkeypatch.setattr(socket, "send", send_then_drain)
+    task = asyncio.create_task(
+        model._send_raw_message(
+            sdk.OpenAIConversationItemRetrieveEvent(
+                type="conversation.item.retrieve", item_id="a1", event_id="app-audio"
+            )
+        )
+    )
+    await asyncio.wait_for(replied.wait(), 2)
+    await socket.feed({"type": "output_audio_buffer.stopped", "response_id": "r1"})
+    assert model._dd_realtime_state.entries
+    gate.set()
+    await task
+    assert not model._dd_realtime_state.entries
+    await model.close()
+    llm_span(test_spans)
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("field", ["max_size", "max_message_size"])
+@pytest.mark.parametrize("limit,expected", [(1000, 0), (20000, 1)])
+@pytest.mark.asyncio
+async def test_realtime_retrieval_respects_protocol_limit_properties(
+    agents, openai_agents_llmobs, socket, field, limit, expected
+):
+    model = await connect(socket, {"call_id": "protocol-limit"})
+    socket.protocol = SimpleNamespace(**{field: limit})
+    await socket.feed(created())
+    await socket.feed(done(output=[output_item()]))
+    await bounded_output(socket, milliseconds=1)
+    await asyncio.sleep(0)
+    assert len([e for e in socket.sent if e["type"] == "conversation.item.retrieve"]) == expected
+    await model.close()
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("mime,wave_bytes", [("audio/pcm", 44 + 48), ("audio/pcmu", 44 + 16)])
+@pytest.mark.parametrize("over", [False, True])
+@pytest.mark.asyncio
+async def test_realtime_retrieval_admits_final_encoded_wav_budget(
+    agents, openai_agents_llmobs, socket, monkeypatch, mime, wave_bytes, over
+):
+    budget = 4 * ((wave_bytes + 2) // 3)
+    monkeypatch.setattr(_realtime, "_AUDIO_ACCUM_MAX_BYTES", budget - int(over))
+    model = await connect(socket, {"call_id": "media-limit"})
+    event = created()
+    event["response"]["audio"] = {"output": {"format": {"type": mime}}}
+    await socket.feed(event)
+    await socket.feed(done(output=[output_item()]))
+    await bounded_output(socket, milliseconds=1)
+    await asyncio.sleep(0)
+    assert len([e for e in socket.sent if e["type"] == "conversation.item.retrieve"]) == int(not over)
+    await model.close()
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("transcript", ["final", ""])
+@pytest.mark.asyncio
+async def test_realtime_provisional_snapshot_refreshes_after_bounded_completion(
+    agents, openai_agents_llmobs, test_spans, socket, transcript
+):
+    model = await connect(socket, {"call_id": "refresh"})
+    await socket.feed(created())
+    await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
+    item = output_item()
+    item["status"] = "in_progress"
+    await socket.feed({"type": "response.output_item.added", "response_id": "r1", "output_index": 0, "item": item})
+    partial = retrieved(audio=b"\1\0" * 1200, transcript="partial")
+    partial["item"]["status"] = "in_progress"
+    await socket.feed(partial)
+    assert not [e for e in socket.sent if e["type"] == "conversation.item.retrieve"]
+    await socket.feed(done(output=[output_item(transcript="generated full text")]))
+    await bounded_output(socket, milliseconds=100)
+    await asyncio.sleep(0)
+    assert len([e for e in socket.sent if e["type"] == "conversation.item.retrieve"]) == 1
+    await socket.feed(retrieved(audio=b"\2\0" * 2400, transcript=transcript))
+    await socket.feed({"type": "output_audio_buffer.cleared", "response_id": "r1"})
+    await model.close()
+    span, _ = llm_span(test_spans)
+    message = _get_llmobs_data_metastruct(span)["meta"]["output"]["messages"][0]
+    assert message["content"] == transcript
+    assert base64.b64decode(message["audio_parts"][0]["content"])[44:] == b"\2\0" * 2400
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.asyncio
+async def test_realtime_manual_inflight_close_root_contains_generation(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch
+):
+    now = [10_000_000_000]
+    monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
+    model = await connect(socket, {"call_id": "manual-inflight"})
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
+    await socket.feed(created())
+    now[0] = 12_000_000_000
+    reply = retrieved("u1", b"\0\0" * 24000, "hi")
+    reply["item"]["role"] = "user"
+    reply["item"]["content"][0]["type"] = "input_audio"
+    await socket.feed(reply)
+    await model.close()
+    span, spans = llm_span(test_spans)
+    root = next(s for s in spans if s.resource == "createRealtimeTurn")
+    assert root.start_ns == 9_000_000_000
+    assert root.start_ns + root.duration_ns >= span.start_ns + span.duration_ns - 1000
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        input_messages=[{"role": "user", "content": "hi", "audio_parts": mock.ANY}],
+    )
+
+
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("older_snapshot", [True, False])
+@pytest.mark.asyncio
+async def test_realtime_final_input_transcript_survives_inflight_close(
+    agents, openai_agents_llmobs, test_spans, socket, older_snapshot
+):
+    model = await connect(socket, {"call_id": "final-input"})
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
+    await socket.feed(created())
+    await socket.feed(
+        {
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "u1",
+            "content_index": 0,
+            "transcript": "known final",
+            "usage": {"type": "duration", "seconds": 0.1},
+        }
+    )
+    if older_snapshot:
+        reply = retrieved("u1", b"\0\0" * 24, "")
+        reply["item"]["role"] = "user"
+        reply["item"]["content"][0]["type"] = "input_audio"
+        await socket.feed(reply)
+    await model.close()
+    span, spans = llm_span(test_spans)
+    expected = {"role": "user", "content": "known final"}
+    if older_snapshot:
+        expected["audio_parts"] = mock.ANY
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="llm", input_messages=[expected])
+    root = next(s for s in spans if s.resource == "createRealtimeTurn")
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(root), span_kind="workflow", input_value="known final")
+
+
+@pytest.mark.asyncio
+async def test_realtime_websocket_inflight_close_preserves_transcript(agents, openai_agents_llmobs, test_spans, socket):
+    model = await connect(socket)
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
+    await socket.feed(created())
+    await socket.feed(
+        {
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "u1",
+            "content_index": 0,
+            "transcript": "known final",
+            "usage": {"type": "duration", "seconds": 0.1},
+        }
+    )
+    await model.close()
+    span, _ = llm_span(test_spans)
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span), span_kind="llm", input_messages=[{"role": "user", "content": "known final"}]
+    )

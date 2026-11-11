@@ -49,3 +49,11 @@ scripts/run-benchmarks --scenario openai_agents_realtime --baseline DataDog/dd-t
 It is not registered as a CI performance gate until stable baseline measurements
 can establish team-owned SLO thresholds. It does not measure audio conversion,
 retrieval latency, or exporter memory.
+
+Extra audio requests require a trustworthy byte bound, such as provider VAD offsets
+for committed input or an acknowledged truncation for stored output. Unknown or
+oversize clips keep their transcript/timing without an additional request. The
+observer leaves SDK/application requests and every successful reply unchanged;
+those replies can add audio to the SDK's session history. Its own backpressured
+sends use a fixed number of slots rather than cancelling frames already handed
+to the transport when an item is evicted.

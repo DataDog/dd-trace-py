@@ -105,8 +105,10 @@ Traces
 
       description: |
          Allows the OpenAI Agents integration to request stored audio for SIP and WebRTC call
-         attachments when the SDK or application has not already requested it. Set to ``False``
-         to prevent these additional requests. Existing retrieval replies remain observable.
+         attachments when the SDK or application has not already requested it and a known byte
+         bound fits the connection and inline audio limits. Otherwise, transcripts and timing
+         are retained without the additional request. Set to ``False`` to prevent additional
+         requests. Existing retrieval replies remain observable and can retain audio in SDK history.
 
    DD_BOTOCORE_EMPTY_POLL_ENABLED:
       type: Boolean

@@ -33,12 +33,18 @@ Successful retrieval events remain visible to application listeners. Set
 passive observation of existing retrieval replies continues. Set ``DD_OPENAI_REALTIME_ENABLED=false``
 to disable Realtime instrumentation while retaining ordinary Agents instrumentation.
 
-Retained turns and retrieved audio are bounded. An incomplete, oversized, malformed, or
-codec-inconsistent recording is omitted while available transcripts are retained. The integration
+Additional requests require a known byte bound that fits the connection's message limit and
+inline audio budget. Otherwise, transcripts and timing are kept without requesting the clip.
+Provider audio offsets and acknowledged truncation can supply bounds; network arrival spacing
+cannot. Successful replies remain unchanged and can add audio to ``RealtimeSession`` history
+for the session's lifetime. Disable additional retrieval to avoid that extra history retention.
+
+Retained turns and retrieved audio are bounded. Recordings that are incomplete, malformed, too
+large, or have inconsistent audio formats are omitted while available transcripts are retained. The integration
 tracks at most 16 turns and 256 stored items, with a 12 MiB budget for retained encoded retrieved
-audio and rebuilt clips. This budget excludes SDK history, parsed messages, codec scratch space,
+audio and rebuilt clips. This budget excludes SDK history, parsed messages, temporary audio conversion buffers,
 exported span payloads, and total process memory. Audio and transcription waits expire, and
-connection termination cancels the integration's outstanding work.
+at most two additional retrieval sends are in flight, and connection termination cancels outstanding work.
 
 Configuration
 ~~~~~~~~~~~~~

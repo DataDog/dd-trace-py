@@ -1179,6 +1179,17 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     return metrics or None
 
 
+def _encoded_realtime_audio_size(decoded_bytes: int, mime: str) -> Optional[int]:
+    """Bound the eventual inline WAV, including its header and base64 encoding."""
+    if is_pcm16_audio_mime(mime):
+        pcm_bytes = decoded_bytes
+    elif g711_variant(mime) is not None:
+        pcm_bytes = decoded_bytes * 2
+    else:
+        return None
+    return 4 * ((pcm_bytes + 44 + 2) // 3)
+
+
 def _decoded_b64_len(b64: str) -> int:
     """Decoded byte count of a base64 string, without decoding it.
 

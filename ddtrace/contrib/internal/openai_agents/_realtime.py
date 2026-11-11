@@ -11,6 +11,7 @@ import contextvars
 from dataclasses import dataclass
 from dataclasses import field
 import json
+import math
 import sys
 import time
 from types import ModuleType
@@ -28,6 +29,7 @@ import openai
 from ddtrace.contrib.internal.openai._realtime import _AUDIO_ACCUM_MAX_BYTES
 from ddtrace.contrib.internal.openai._realtime import _bytes_per_second
 from ddtrace.contrib.internal.openai._realtime import _decoded_b64_len
+from ddtrace.contrib.internal.openai._realtime import _encoded_realtime_audio_size
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
 from ddtrace.contrib.internal.openai._realtime import _ResponseTurn
 from ddtrace.contrib.internal.openai._realtime import _segment_duration_ns
@@ -50,6 +52,9 @@ _AUDIO_WAIT = 5.0
 _TRANSCRIPT_WAIT = 2.5
 _PLAYBACK_WAIT = 120.0
 _MAX_ATTEMPTS = 2
+_MAX_RETRIEVAL_TASKS = 2
+_RETRIEVAL_EVENT_OVERHEAD = 16 * 1024
+_MISSING = object()
 
 
 @dataclass
@@ -69,6 +74,20 @@ class _Item:
     pending: int = 0
     failed: bool = False
     wanted: bool = False
+    generation_done: bool = False
+    input_audio: bool = False
+    raw_byte_bound: Optional[int] = None
+    audio_start_ms: Optional[float] = None
+    audio_end_ms: Optional[float] = None
+    reply_revision: int = 0
+    final_input_transcript: Optional[str] = None
+
+
+@dataclass
+class _ApplicationRetrieval:
+    item: _Item
+    sent: bool = False
+    failed: bool = False
 
 
 @dataclass
@@ -104,9 +123,13 @@ class _AgentsRealtimeState(_RealtimeState):
         self.context = contextvars.copy_context()
         self.loop = asyncio.get_running_loop()
         self._emitting: Optional[_Playback] = None
+        self._preparing_response: Optional[_Playback] = None
         self.entries: OrderedDict[str, _Playback] = OrderedDict()
         self.items: OrderedDict[str, _Item] = OrderedDict()
         self.requests: dict[str, _Item] = {}
+        self.application_requests: OrderedDict[str, _ApplicationRetrieval] = OrderedDict()
+        self._request_prefix = "ddtrace_realtime_audio_" + uuid4() + "_"
+        self._request_sequence = 0
         self.transcript_timers: dict[int, asyncio.TimerHandle] = {}
         self.tasks: set[asyncio.Task[None]] = set()
         self.retrieve_enabled = asbool(env.get("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "true"))
@@ -142,37 +165,65 @@ class _AgentsRealtimeState(_RealtimeState):
 
     def _finish_response(self, response_id: Optional[str], response: Any) -> None:
         entry = self.entries.get(response_id or "")
-        if entry:
-            entry.done = True
-            if isinstance(response, dict):
-                if self.sideband:
-                    output = response.get("output") or []
-                    for item in output:
-                        self._bind_output(entry, item)
-                    ordered = [
-                        item["id"]
-                        for item in output
-                        if isinstance(item, dict) and item.get("type") == "message" and item.get("id") in self.items
-                    ]
-                    if ordered:
-                        for item_id in set(entry.items) - set(ordered):
-                            self._forget_item(item_id)
-                        entry.items = ordered
-                        self._rebuild(self.items[ordered[0]])
-                # Usage is historical evidence; the SDK/application may mutate the
-                # source dictionary after this synchronous observation returns.
-                response = dict(response)
-                usage = response.get("usage")
-                if isinstance(usage, dict):
-                    response["usage"] = _usage_snapshot(usage)
-        super()._finish_response(response_id, response)
-        if entry and entry.id in self.entries:
-            if entry.turn in self._awaiting:
-                key = id(entry.turn)
-                self.transcript_timers[key] = self.loop.call_later(
-                    _TRANSCRIPT_WAIT, self._transcript_timeout, entry, context=self.context.copy()
-                )
-            self._check(entry)
+        if entry is None:
+            super()._finish_response(response_id, response)
+            return
+        if isinstance(response, dict):
+            response = dict(response)
+            usage = response.get("usage")
+            if isinstance(usage, dict):
+                response["usage"] = _usage_snapshot(usage)
+        # Populate generation fields before cache pressure can evict this turn.
+        # Extraction remains with the shared lifecycle; emission waits for our
+        # item admission and playback/transcription decisions below.
+        self._preparing_response = entry
+        try:
+            super()._finish_response(response_id, response)
+        finally:
+            self._preparing_response = None
+        entry.done = True
+        if self.sideband and isinstance(response, dict):
+            output = response.get("output") or []
+            transcripts, texts = [], []
+            for data in output:
+                if not isinstance(data, dict) or data.get("type") != "message":
+                    continue
+                for part in data.get("content") or []:
+                    if isinstance(part, dict):
+                        if isinstance(part.get("transcript"), str):
+                            transcripts.append(part["transcript"])
+                        if isinstance(part.get("text"), str):
+                            texts.append(part["text"])
+            if transcripts:
+                entry.turn.transcript = "".join(transcripts)
+            if texts:
+                entry.turn.text = "".join(texts)
+            self._preparing_response = entry
+            try:
+                for data in output:
+                    self._bind_output(entry, data)
+                    if self.entries.get(entry.id) is not entry:
+                        return
+            finally:
+                self._preparing_response = None
+            ordered = [
+                data["id"]
+                for data in output
+                if isinstance(data, dict) and data.get("type") == "message" and data.get("id") in self.items
+            ]
+            if ordered:
+                for item_id in set(entry.items) - set(ordered):
+                    self._forget_item(item_id)
+                entry.items = ordered
+                self._rebuild(self.items[ordered[0]])
+        if self.entries.get(entry.id) is not entry:
+            return
+        if entry.turn in self._awaiting:
+            self.transcript_timers[id(entry.turn)] = self.loop.call_later(
+                _TRANSCRIPT_WAIT, self._transcript_timeout, entry, context=self.context.copy()
+            )
+        else:
+            self._finalize_turn(entry.turn)
 
     def _transcript_timeout(self, entry: _Playback) -> None:
         self.transcript_timers.pop(id(entry.turn), None)
@@ -182,23 +233,34 @@ class _AgentsRealtimeState(_RealtimeState):
 
     def _finalize_turn(self, turn: _ResponseTurn, force: bool = False) -> None:
         entry = next((e for e in self.entries.values() if e.turn is turn), None)
-        if entry is None:
+        if entry is None or self._preparing_response is entry:
             return
         if not force and self.sideband:
             self._check(entry)
             return
+        if not force and self._park_for_playback(turn):
+            return
         self._release(entry, force=force)
 
     def _park_for_playback(self, turn: _ResponseTurn) -> bool:
-        # Agents receives server playback evidence on sidebands. Plain WebSocket
-        # mode retains the existing client's duration-based playback convention.
-        return False if self.sideband else super()._park_for_playback(turn)
+        if self.sideband:
+            return False
+        if turn in self._playing:
+            return True
+        if not super()._park_for_playback(turn):
+            return False
+        entry = next(e for e in self.entries.values() if e.turn is turn)
+        if entry.timer:
+            entry.timer.cancel()
+        delay = max(0.0, ((turn.playback_end_ns or time.time_ns()) - time.time_ns()) / 1e9)
+        entry.timer = self.loop.call_later(delay, self._release, entry, True, context=self.context.copy())
+        return True
 
     def _check(self, entry: Optional[_Playback]) -> None:
         if entry is None or entry.id not in self.entries or not entry.done:
             return
         if not self.sideband:
-            if entry.turn not in self._awaiting:
+            if entry.turn not in self._awaiting and entry.turn not in self._playing:
                 self._release(entry)
             return
         self._derive_window(entry)
@@ -250,8 +312,13 @@ class _AgentsRealtimeState(_RealtimeState):
             entry.turn.audio.present = entry.has_audio
             if not entry.stopped:
                 entry.start_ns = entry.end_ns = None
+        if not entry.turn.input.transcript and entry.turn.input.item_id is not None:
+            entry.turn.input.transcript = self._input_transcripts.get(entry.turn.input.item_id, "")
         # Leave the record available only while tagging its exact server timing.
         self._emitting = entry
+        onset = entry.turn.input.speech_start_ns or entry.turn.input.audio.start_ns
+        if onset is not None and entry.turn.root_span is not None:
+            entry.turn.root_span.start_ns = min(entry.turn.root_span.start_ns, onset)
         try:
             super()._finalize_turn(entry.turn, force=True)
         finally:
@@ -300,13 +367,20 @@ class _AgentsRealtimeState(_RealtimeState):
 
     def _turn_end_ns(self, turn: _ResponseTurn) -> Optional[int]:
         if not self.sideband:
-            return super()._turn_end_ns(turn)
-        entry = getattr(self, "_emitting", None)
-        ends = [
-            v
-            for v in (turn.response_done_ns, turn.input.speech_end_ns, entry.end_ns if entry else None)
-            if v is not None
-        ]
+            end = super()._turn_end_ns(turn)
+            ends = [end] if end is not None else []
+        else:
+            entry = getattr(self, "_emitting", None)
+            ends = [
+                v
+                for v in (turn.response_done_ns, turn.input.speech_end_ns, entry.end_ns if entry else None)
+                if v is not None
+            ]
+        # The shared finalizer finishes generation first. A connection ending
+        # mid-response must include that observed work after caller speech ends.
+        duration = getattr(turn.span, "duration_ns", None)
+        if isinstance(duration, int):
+            ends.append(turn.span.start_ns + duration)
         return max(ends) if ends else None
 
     def _forget_item(self, item_id: str) -> None:
@@ -314,22 +388,148 @@ class _AgentsRealtimeState(_RealtimeState):
         if item:
             item.parts.clear()
             for request_id in [k for k, v in self.requests.items() if v is item]:
-                self.requests.pop(request_id or "", None)
+                self.requests.pop(request_id, None)
+            for request_id in [k for k, v in self.application_requests.items() if v.item is item]:
+                self.application_requests.pop(request_id, None)
         self.intents.pop(item_id, None)
 
-    def _bind(self, item_id: str, side: Any, entry: Optional[_Playback], mime: str, rate: int) -> _Item:
+    def _bind(self, item_id: str, side: Any, entry: Optional[_Playback], mime: str, rate: int) -> Optional[_Item]:
+        if entry is not None and self.entries.get(entry.id) is not entry:
+            return None
         item = self.items.get(item_id)
         if item is None:
             while len(self.items) >= _MAX_ITEMS:
                 old_id, old = next(iter(self.items.items()))
-                if old.entry:
+                if old.entry is not None and self.entries.get(old.entry.id) is old.entry:
                     self._release(old.entry, force=True)
                 else:
                     old.side.audio.clear()
-                    self._forget_item(old_id)
+                # Even an already-retired owner must make admission advance.
+                self._forget_item(old_id)
+                if entry is not None and self.entries.get(entry.id) is not entry:
+                    return None
             item = _Item(item_id, side, entry, mime, rate)
+            item.input_audio = entry is None or side is entry.turn.input
             self.items[item_id] = item
         return item
+
+    def _remember_input(self, event: dict[str, Any]) -> None:
+        item_id = event.get("item_id")
+        if not isinstance(item_id, str):
+            return
+        item = self._bind(
+            item_id,
+            self._pending_input,
+            None,
+            self._pending_input.audio.mime or self._input_audio_mime,
+            self._pending_input.audio.rate or self._input_audio_rate,
+        )
+        if item is None:
+            return
+        item.expected.add(0)
+        item.side.audio.present = True
+        event_type = event.get("type")
+        start, end = event.get("audio_start_ms"), event.get("audio_end_ms")
+        if (
+            isinstance(start, (int, float))
+            and not isinstance(start, bool)
+            and 0 <= start < 1e12
+            and item.audio_start_ms is None
+        ):
+            item.audio_start_ms = start
+        if isinstance(end, (int, float)) and not isinstance(end, bool) and 0 <= end < 1e12:
+            item.audio_end_ms = end
+        if event_type == "input_audio_buffer.committed":
+            item.generation_done = True
+        rate = _bytes_per_second(item.mime, item.rate)
+        if (
+            rate
+            and item.audio_start_ms is not None
+            and item.audio_end_ms is not None
+            and item.audio_end_ms >= item.audio_start_ms
+        ):
+            item.raw_byte_bound = math.ceil((item.audio_end_ms - item.audio_start_ms) * rate / 1000)
+        elif item.generation_done and item.side.audio.total_decoded_bytes:
+            item.raw_byte_bound = item.side.audio.total_decoded_bytes
+
+    def _known_audio_bytes(self, item: _Item) -> Optional[int]:
+        if item.raw_byte_bound is not None:
+            return item.raw_byte_bound
+        rate = _bytes_per_second(item.mime, item.rate)
+        total = 0
+        for index in item.expected:
+            if not 0 <= index <= item.last_index:
+                continue
+            if index in item.caps and rate:
+                total += math.ceil(item.caps[index] * rate / 1000)
+            elif item.complete and index in item.parts:
+                total += _decoded_b64_len(item.parts[index])
+            else:
+                return None
+        return total if item.expected else None
+
+    def _request_allowed(self, item: _Item) -> bool:
+        bound = self._known_audio_bytes(item)
+        if bound is None or bound <= 0:
+            return False
+        owned = (
+            [self.items[k] for k in item.entry.items if k in self.items]
+            if not item.input_audio and item.entry
+            else [item]
+        )
+        logical_bytes = 0
+        for other in owned:
+            if not other.expected or other.last_index < 0:
+                continue
+            other_bound = self._known_audio_bytes(other)
+            if other_bound is None or (other.mime, other.rate) != (item.mime, item.rate):
+                return False
+            logical_bytes += other_bound
+        encoded = _encoded_realtime_audio_size(logical_bytes, item.mime)
+        if encoded is None or encoded > _AUDIO_ACCUM_MAX_BYTES or bound > _AUDIO_ACCUM_MAX_BYTES:
+            return False
+        owner = self.owner()
+        socket = getattr(owner, "_websocket", None)
+        protocol = getattr(socket, "protocol", None)
+        limit = getattr(protocol, "max_message_size", _MISSING)
+        if limit is _MISSING:
+            limit = getattr(protocol, "max_size", _MISSING)
+        if limit is _MISSING:
+            settings = getattr(owner, "_transport_config", None) or {}
+            limit = settings.get("max_size", 8 * 1024 * 1024)
+        if limit is None:
+            return True
+        if type(limit) is not int or limit <= 0:
+            return False
+        metadata = _RETRIEVAL_EVENT_OVERHEAD + len(json.dumps(item.id))
+        metadata += sum(len(json.dumps(t)) for t in item.transcripts.values())
+        # Include possible JSON slash escaping as well as base64 expansion.
+        wire_bytes = 2 * (4 * ((bound + 2) // 3)) + metadata
+        return wire_bytes <= limit
+
+    def _want_item(self, item: _Item) -> None:
+        item.wanted = bool(
+            self.retrieve_enabled
+            and item.generation_done
+            and item.expected
+            and item.last_index >= 0
+            and not item.complete
+            and not item.failed
+            and self._request_allowed(item)
+        )
+
+    def _is_own_request(self, request_id: Any) -> bool:
+        if not isinstance(request_id, str) or not request_id.startswith(self._request_prefix):
+            return False
+        suffix = request_id[len(self._request_prefix) :]
+        return bool(
+            suffix
+            and len(suffix) <= len(str(self._request_sequence))
+            and suffix.isascii()
+            and suffix.isdecimal()
+            and not suffix.startswith("0")
+            and 0 < int(suffix) <= self._request_sequence
+        )
 
     def _bind_output(self, entry: _Playback, data: Any) -> None:
         if not isinstance(data, dict) or data.get("type") != "message":
@@ -338,6 +538,10 @@ class _AgentsRealtimeState(_RealtimeState):
         if not isinstance(item_id, str) or not item_id:
             return
         item = self._bind(item_id, entry.turn, entry, entry.mime, entry.rate)
+        if item is None:
+            return
+        if data.get("status") in ("completed", "incomplete"):
+            item.generation_done = True
         if item_id not in entry.items:
             entry.items.append(item_id)
         for index, part in enumerate(data.get("content") or []):
@@ -347,12 +551,14 @@ class _AgentsRealtimeState(_RealtimeState):
                 item.expected.add(index)
                 entry.has_audio = True
                 entry.turn.audio.present = True
-            text = part.get("transcript") or part.get("text")
+            text = part.get("transcript")
+            if not isinstance(text, str):
+                text = part.get("text")
             if isinstance(text, str):
                 item.transcripts[index] = text
-        if self.sideband and item.expected and not item.complete and not item.failed:
-            item.wanted = self.retrieve_enabled
-        self._rebuild(item)
+        self._want_item(item)
+        if self._preparing_response is not entry:
+            self._rebuild(item)
 
     def _cache_bytes(self) -> int:
         retained = {id(part): part for item in self.items.values() for part in item.parts.values()}
@@ -368,24 +574,38 @@ class _AgentsRealtimeState(_RealtimeState):
         item = self.items.get(data.get("id", ""))
         if item is None:
             return
+        item.reply_revision += 1
         item.pending = 0
         item.wanted = False
+        for request_id in [k for k, v in self.application_requests.items() if v.item is item]:
+            self.application_requests.pop(request_id, None)
         for request_id in [k for k, v in self.requests.items() if v is item]:
             self.requests.pop(request_id or "", None)
         parts: dict[int, str] = {}
         expected: set[int] = set()
+        transcripts: dict[int, str] = {}
         for index, part in enumerate(data.get("content") or []):
             if not isinstance(part, dict):
                 continue
-            transcript = part.get("transcript") or part.get("text")
+            transcript = part.get("transcript")
+            if not isinstance(transcript, str):
+                transcript = part.get("text")
             if isinstance(transcript, str):
-                item.transcripts[index] = transcript
+                transcripts[index] = transcript
             if part.get("type") in ("audio", "output_audio", "input_audio"):
                 expected.add(index)
                 audio = part.get("audio")
                 if isinstance(audio, str) and audio:
                     parts[index] = audio
         item.expected.update(expected)
+        status = data.get("status")
+        stable = status == "completed" or (status == "incomplete" and item.generation_done)
+        if stable and (transcripts or (item.entry and item.entry.truncated)):
+            item.transcripts = transcripts
+            if item.entry and not item.input_audio and item.entry.truncated:
+                item.entry.turn.transcript = ""
+        else:
+            item.transcripts.update(transcripts)
         # Release the accumulator and old snapshot before accounting a replacement.
         item.side.audio.clear()
         item.parts.clear()
@@ -400,14 +620,17 @@ class _AgentsRealtimeState(_RealtimeState):
             except (ValueError, TypeError):
                 valid = False
         relevant = {index for index in item.expected if 0 <= index <= item.last_index}
-        item.complete = bool(relevant) and relevant.issubset(parts) and valid
+        item.complete = stable and bool(relevant) and relevant.issubset(parts) and valid
         if item.complete:
             item.parts = parts
-        elif valid and not item.failed and item.attempts < _MAX_ATTEMPTS:
-            item.wanted = self.retrieve_enabled
+        self._want_item(item)
         self._rebuild(item)
-        if item.entry is None or item.side is item.entry.turn.input:
-            transcript = "".join(item.transcripts[k] for k in sorted(item.transcripts))
+        if item.input_audio:
+            transcript = item.final_input_transcript
+            if transcript is None:
+                transcript = "".join(item.transcripts[k] for k in sorted(item.transcripts))
+            if item.side.item_id in (None, item.id):
+                item.side.transcript = transcript
             if transcript:
                 super().on_server_event(
                     {
@@ -472,6 +695,10 @@ class _AgentsRealtimeState(_RealtimeState):
                 audio.present = True
                 return
             audio.append(part, current.mime, current.rate)
+        if item.input_audio and item.side.speech_start_ns is None:
+            end = item.side.speech_end_ns
+            duration = _segment_duration_ns(audio.total_decoded_bytes, audio.mime, audio.rate)
+            audio.start_ns = end - duration if end is not None and duration is not None else None
 
     def _derive_window(self, entry: _Playback) -> None:
         window = entry.window
@@ -513,13 +740,21 @@ class _AgentsRealtimeState(_RealtimeState):
         event_type = event.get("type")
         if event_type == "error":
             request_id = (event.get("error") or {}).get("event_id")
-            item = self.requests.pop(request_id or "", None)
-            if item:
-                item.pending = max(0, item.pending - 1)
-                item.failed = True
-                item.wanted = False
-                self._check(item.entry)
+            if self._is_own_request(request_id):
+                item = self.requests.pop(str(request_id), None)
+                if item:
+                    item.pending = max(0, item.pending - 1)
+                    item.failed = True
+                    item.wanted = False
+                    self._check(item.entry)
                 return True
+            application = self.application_requests.pop(request_id, None) if isinstance(request_id, str) else None
+            if application:
+                application.failed = True
+                if application.sent:
+                    application.item.pending = max(0, application.item.pending - 1)
+                self._want_item(application.item)
+                self._check(application.item.entry)
         if event_type in ("response.output_item.added", "response.output_item.done"):
             tool = event.get("item")
             if isinstance(tool, dict) and tool.get("type") == "function_call":
@@ -527,10 +762,20 @@ class _AgentsRealtimeState(_RealtimeState):
                 if isinstance(call_id, str) and isinstance(name, str):
                     self._tool_call_names[call_id] = name
         if self.sideband:
+            if event_type in (
+                "input_audio_buffer.speech_started",
+                "input_audio_buffer.speech_stopped",
+                "input_audio_buffer.committed",
+            ):
+                self._remember_input(event)
             if event_type in ("response.output_item.added", "response.output_item.done"):
                 entry = self.entries.get(event.get("response_id") or "")
                 if entry:
                     self._bind_output(entry, event.get("item"))
+                    item = self.items.get((event.get("item") or {}).get("id", ""))
+                    if item and event_type == "response.output_item.done":
+                        item.generation_done = True
+                        self._want_item(item)
             elif event_type == "conversation.item.retrieved":
                 self._retrieved(event.get("item"))
             elif event_type == "conversation.item.truncated":
@@ -557,6 +802,7 @@ class _AgentsRealtimeState(_RealtimeState):
                                 other.wanted = False
                             after |= item_id == item.id
                     self._rebuild(item)
+                    self._want_item(item)
                     self._check(item.entry)
                 # The shared truncation path uses arrival-order byte offsets; the
                 # sideband path above uses stored item/content order instead.
@@ -601,21 +847,20 @@ class _AgentsRealtimeState(_RealtimeState):
                 rate = audio_format.get("rate") if isinstance(audio_format, dict) else None
                 if type(rate) is int and rate > 0:
                     entry.rate = rate
-        if self.sideband and event_type == "input_audio_buffer.committed":
-            input_item_id = event.get("item_id")
-            if isinstance(input_item_id, str):
-                item = self._bind(
-                    input_item_id, self._pending_input, None, self._input_audio_mime, self._input_audio_rate
-                )
-                item.expected.add(0)
-                item.side.audio.present = True
         if self.sideband and event_type in (
             "conversation.item.input_audio_transcription.completed",
             "conversation.item.input_audio_transcription.failed",
         ):
             item = self.items.get(event.get("item_id") or "")
-            if item and not item.complete and not item.failed:
-                item.wanted = self.retrieve_enabled
+            if item:
+                transcript = event.get("transcript")
+                if isinstance(transcript, str):
+                    item.transcripts[event.get("content_index", 0)] = transcript
+                    if item.input_audio:
+                        item.final_input_transcript = transcript
+                        if item.side.item_id in (None, item.id):
+                            item.side.transcript = transcript
+                self._want_item(item)
         # Bound orphan transcription and tool-name maps too; entries own the data
         # they still need. No connection-wide history grows with the conversation.
         for mapping in (self._input_transcripts, self._tool_call_names):
@@ -633,9 +878,16 @@ class _AgentsRealtimeState(_RealtimeState):
                 self._check(entry)
             return
         for item in list(self.items.values()):
+            if len(self.tasks) >= _MAX_RETRIEVAL_TASKS:
+                break
             if not item.wanted or item.pending or self.intents.get(item.id, 0):
                 continue
-            if not self.retrieve_enabled or item.failed or item.attempts >= _MAX_ATTEMPTS:
+            if (
+                not self.retrieve_enabled
+                or item.failed
+                or item.attempts >= _MAX_ATTEMPTS
+                or not self._request_allowed(item)
+            ):
                 item.wanted = False
                 self._check(item.entry)
                 continue
@@ -644,13 +896,20 @@ class _AgentsRealtimeState(_RealtimeState):
             item.attempts += 1
             task = self.context.copy().run(self.loop.create_task, self._retrieve(item))
             self.tasks.add(task)
-            task.add_done_callback(self.tasks.discard)
+            task.add_done_callback(self._retrieval_done)
         for entry in list(self.entries.values()):
             self._check(entry)
 
+    def _retrieval_done(self, task: asyncio.Task[None]) -> None:
+        self.tasks.discard(task)
+        # Sends already inside websockets flow control are not cancelled on
+        # eviction: cancellation cannot retract their frames. The fixed number
+        # of task slots bounds those retired sends until they drain or close.
+        _after_handler(self)
+
     async def _retrieve(self, item: _Item) -> None:
         owner = self.owner()
-        request_id = "ddtrace_realtime_audio_" + uuid4()
+        request_id = ""
         try:
             if owner is None or self._closed or self.items.get(item.id) is not item:
                 return
@@ -658,6 +917,8 @@ class _AgentsRealtimeState(_RealtimeState):
             # scheduled, so automatic retrievals have already claimed their item.
             if self.intents.get(item.id, 0) or item.pending > 1 or item.complete or item.failed:
                 return
+            self._request_sequence += 1
+            request_id = self._request_prefix + str(self._request_sequence)
             self.requests[request_id] = item
             await owner._send_raw_message(_RawRetrieve(item.id, request_id))
             return
@@ -689,6 +950,7 @@ class _AgentsRealtimeState(_RealtimeState):
         for item_id in list(self.items):
             self._forget_item(item_id)
         self.requests.clear()
+        self.application_requests.clear()
         self.intents.clear()
         self._pending_input.audio.clear()
         self._responses.clear()
@@ -834,26 +1096,46 @@ async def _send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], 
         except Exception:
             log.debug("failed to snapshot Agents realtime send", exc_info=True)
     item_id = observed.get("item_id") if observed and observed.get("type") == "conversation.item.retrieve" else None
-    if state and item_id:
+    item = state.items.get(item_id) if state and isinstance(item_id, str) else None
+    revision = item.reply_revision if item else None
+    application = None
+    request_id = observed.get("event_id") if observed else None
+    if state and item and not state._is_own_request(request_id) and isinstance(request_id, str):
+        application = _ApplicationRetrieval(item)
+        while len(state.application_requests) >= _MAX_ITEMS:
+            state.application_requests.popitem(last=False)
+        state.application_requests[request_id] = application
+    if state and isinstance(item_id, str):
         state.intents[item_id] = state.intents.get(item_id, 0) + 1
+    successful = False
     try:
         result = await func(*args, **kwargs)
-        if state and not state._closed and result is not False:
+        successful = result is not False
+        if state and not state._closed and successful:
             if observed is not None:
-                state.on_client_event(observed)
-            if item_id and observed is not None and observed.get("event_id") not in state.requests:
-                item = state.items.get(item_id)
-                if item:
-                    item.wanted = False
-                    item.pending += 1
+                state.context.copy().run(state.on_client_event, observed)
+            if (
+                item is not None
+                and state.items.get(item.id) is item
+                and item.reply_revision == revision
+                and not state._is_own_request(request_id)
+                and (application is None or not application.failed)
+            ):
+                item.wanted = False
+                item.pending += 1
+                if application:
+                    application.sent = True
         return result
     finally:
-        if state and item_id:
+        if state and application and not successful and state.application_requests.get(request_id) is application:
+            state.application_requests.pop(request_id, None)
+        if state and isinstance(item_id, str):
             remaining = state.intents.get(item_id, 1) - 1
             if remaining:
                 state.intents[item_id] = remaining
             else:
                 state.intents.pop(item_id, None)
+            _after_handler(state)
 
 
 async def _listen(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:

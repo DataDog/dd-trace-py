@@ -3,7 +3,6 @@ import json
 from typing import Optional
 from unittest import mock
 
-from agents import _debug as agents_debug
 import openai
 import pytest
 
@@ -203,13 +202,9 @@ def _assert_expected_agent_run(
             tool_call = tool_calls[i // 2]
             error = None
             if tool_call["error"]:
-                # Newer SDKs redact the provider's error payload when tool-data
-                # logging is disabled. Assert the SDK's contract in both modes.
-                redacted = getattr(agents_debug, "DONT_LOG_TOOL_DATA", False)
-                message = "Tool execution failed. Error details are redacted." if redacted else "This is a test error"
                 error = {
                     "type": "Error running tool (non-fatal)",
-                    "message": json.dumps({"tool_name": tool_call["tool_name"], "error": message}),
+                    "message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
                     "stack": mock.ANY,
                 }
             io_args = (
@@ -668,8 +663,23 @@ async def test_llmobs_multiple_agent_handoffs(agents, openai_agents_llmobs, test
 async def test_llmobs_single_agent_with_tool_errors(
     agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent_with_tool_errors
 ):
+    # A custom formatter explicitly approves these fake details for model output
+    # and tracing. SDK logging defaults do not define the provider error payload.
+    def format_test_error(context, error):
+        return f"An error occurred while running the tool. Please try again. Error: {error}"
+
+    @agents.function_tool(name_override="add", failure_error_function=format_test_error)
+    async def add_with_test_error(a: int, b: int) -> int:
+        """Add two numbers together"""
+        raise ValueError("This is a test error")
+
+    addition_agent_with_tool_errors.tools = [add_with_test_error]
     with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
-        result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
+        result = await agents.Runner.run(
+            addition_agent_with_tool_errors,
+            "What is the sum of 1 and 2?",
+            run_config=agents.RunConfig(trace_include_sensitive_data=True),
+        )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
 
@@ -734,11 +744,7 @@ async def test_llmobs_single_agent_with_tool_errors(
                                 "tool_id": mock.ANY,
                                 "name": "",
                                 "result": "An error occurred while running the tool. Please try again."
-                                + (
-                                    ""
-                                    if getattr(agents_debug, "DONT_LOG_TOOL_DATA", False)
-                                    else " Error: This is a test error"
-                                ),
+                                " Error: This is a test error",
                                 "type": "function_call_output",
                             }
                         ],
