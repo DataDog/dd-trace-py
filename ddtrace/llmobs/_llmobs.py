@@ -3531,17 +3531,23 @@ class LLMObs(Service):
         :param source: ``conversation_details`` or ``post_call_transcription``.
         :param total_cost: Optional user override in USD, including an explicit zero.
         :param agent_service: Agent service to associate with the conversation.
-        :returns: Whether a valid observation was submitted to the enabled writer.
+        :returns: ``True`` if a valid observation was queued for every requested destination.
 
-        This method makes no provider requests. Unfinished or invalid billing, and
-        absent billing without an override, return ``False``. Delivery and conflict rejection occur asynchronously.
+        This method makes no provider requests. Unfinished or invalid billing,
+        absent billing without an override, and full queues return ``False``.
+        With multiple routing destinations, ``False`` can mean some destinations
+        accepted the observation; retrying the same conversation does not add charges.
+        Queue acceptance does not acknowledge delivery. Delivery, conflicting amounts,
+        and expiration are handled asynchronously. Delivery and missing-value updates
+        are supported for 24 hours after the first known total is accepted, including
+        when the initial billing arrives after the conversation ends.
         """
         if not cls.enabled:
             return False
         try:
             event = build_conversation_cost_event(
                 conversation,
-                agent_service or config._llmobs_ml_app or "",
+                resolve_ml_app(agent_service),
                 provider=provider,
                 source=source,
                 total_cost=total_cost,
@@ -3551,8 +3557,7 @@ class LLMObs(Service):
             )
             if event is None:
                 return False
-            cls._instance._llmobs_span_writer.enqueue(event, targets=routing_targets(get_routing_context()))
-            return True
+            return cls._instance._llmobs_span_writer.enqueue(event, targets=routing_targets(get_routing_context()))
         except Exception:
             log.debug("Could not submit provider conversation billing", exc_info=True)
             return False

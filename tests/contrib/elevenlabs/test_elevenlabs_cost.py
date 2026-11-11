@@ -1,7 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
 import math
 from pathlib import Path
+import threading
+from unittest import mock
 
 from elevenlabs.types import GetConversationResponseModel
 import pytest
@@ -9,6 +12,8 @@ import pytest
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._provider_cost import build_conversation_cost_event
 from ddtrace.llmobs._routing import RoutingTarget
+from ddtrace.llmobs._writer import LLMObsSpanWriter
+from tests.utils import override_global_config
 
 
 _FIXTURES = Path(__file__).with_name("fixtures")
@@ -101,3 +106,90 @@ def test_billing_uses_the_callers_tenant_routing(elevenlabs_llmobs):
         assert LLMObs.submit_conversation_cost(_CASES[0]["response"], agent_service="test")
     call = elevenlabs_llmobs._instance._llmobs_span_writer.enqueue.call_args
     assert call.kwargs["targets"] == [RoutingTarget(api_key="test-routed-key", site="datad0g.com")]
+
+
+@pytest.fixture(autouse=True)
+def accepting_billing_writer(elevenlabs_llmobs):
+    elevenlabs_llmobs._instance._llmobs_span_writer.enqueue.return_value = True
+
+
+@pytest.fixture
+def actual_billing_writer(elevenlabs_llmobs, monkeypatch):
+    writer = LLMObsSpanWriter(1, 1, is_agentless=True, _api_key="test-key")
+    flush = mock.Mock()
+    monkeypatch.setattr(writer, "BUFFER_LIMIT", 1)
+    monkeypatch.setattr(writer, "_flush_batch", flush)
+    monkeypatch.setattr(elevenlabs_llmobs._instance, "_llmobs_span_writer", writer)
+    return writer, flush
+
+
+@pytest.mark.parametrize("service, expected", [("voice-app", "voice-app"), (None, "unnamed-ml-app")])
+def test_billing_resolves_service_and_default_application(elevenlabs_llmobs, service, expected):
+    with override_global_config({"_llmobs_ml_app": None, "service": service}):
+        assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is True
+    event = elevenlabs_llmobs._instance._llmobs_span_writer.enqueue.call_args.args[0]
+    assert "ml_app:" + expected in event["tags"]
+
+
+def test_billing_reports_full_default_queue(actual_billing_writer):
+    writer, flush = actual_billing_writer
+    assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is True
+    assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is False
+    writer.periodic()
+    flush.assert_called_once()
+    assert len(flush.call_args.args[0]) == 1
+    assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is True
+
+
+def test_billing_reports_full_routed_queue(actual_billing_writer):
+    writer, flush = actual_billing_writer
+    with LLMObs.routing_context(dd_api_key="routed-key", dd_site="datad0g.com"):
+        assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is True
+        assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is False
+    writer.periodic()
+    flush.assert_called_once()
+    assert len(flush.call_args.args[0]) == 1
+    assert flush.call_args.args[1] == RoutingTarget(api_key="routed-key", site="datad0g.com")
+
+
+@pytest.mark.parametrize("full_target", [0, 1])
+def test_billing_reports_partial_target_queueing(actual_billing_writer, full_target):
+    writer, flush = actual_billing_writer
+    targets = [
+        {"dd_api_key": "first-routed-key", "dd_site": "datad0g.com"},
+        {"dd_api_key": "second-routed-key", "dd_site": "datad0g.com"},
+    ]
+    with LLMObs.routing_context(**targets[full_target]):
+        assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is True
+    with LLMObs.routing_context(targets=targets):
+        assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is False
+    writer.periodic()
+    assert flush.call_count == 2
+    assert {call.args[1].api_key for call in flush.call_args_list} == {target["dd_api_key"] for target in targets}
+    assert all(len(call.args[0]) == 1 for call in flush.call_args_list)
+
+
+def test_billing_reports_all_target_queues_full(actual_billing_writer):
+    writer, flush = actual_billing_writer
+    with LLMObs.routing_context(targets=[{"dd_api_key": "first-key"}, {"dd_api_key": "second-key"}]):
+        assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is True
+        assert LLMObs.submit_conversation_cost(_CASES[0]["response"]) is False
+    writer.periodic()
+    assert flush.call_count == 2
+    assert all(len(call.args[0]) == 1 for call in flush.call_args_list)
+
+
+def test_billing_queue_acknowledgement_is_atomic(actual_billing_writer):
+    writer, flush = actual_billing_writer
+    barrier = threading.Barrier(2)
+
+    def submit():
+        barrier.wait(timeout=5)
+        return LLMObs.submit_conversation_cost(_CASES[0]["response"])
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = [future.result() for future in [pool.submit(submit), pool.submit(submit)]]
+    assert sorted(results) == [False, True]
+    writer.periodic()
+    flush.assert_called_once()
+    assert len(flush.call_args.args[0]) == 1

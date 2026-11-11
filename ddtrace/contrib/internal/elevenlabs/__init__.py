@@ -22,7 +22,7 @@ latency measurements.
 Standalone speech-to-text, text-to-speech, and browser transports are not instrumented.
 
 Conversation costs (unreleased)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``LLMObs.submit_conversation_cost(details)`` to submit USD billing from a
 completed conversation-details response your application already obtained. For
@@ -34,8 +34,15 @@ additional ElevenLabs requests.
 The reported conversation total includes the provider's LLM and platform prices.
 One dedicated workflow owns the charge. Missing provider amounts remain unknown;
 ``total_cost`` can supply a finite, nonnegative user override, including zero,
-on the first submission. Retries and late missing values are supported; changes
-to accepted amounts are rejected. ``context_usage`` and audio duration do not
-establish billable usage, and conversation charges are not allocated to turns.
+on the first submission. Late initial billing is supported. Delivery and updates
+to missing values are supported for 24 hours after the first known total is
+accepted; conflicting amounts and expired updates are rejected asynchronously.
+
+``True`` means the observation was queued locally for every requested destination,
+not that it was delivered or accepted for billing. With multiple routing
+destinations, ``False`` can mean some queues accepted it while others were full.
+Retrying the same conversation does not add charges. ``context_usage`` and audio
+duration do not establish billable usage, and conversation charges are not allocated
+to turns.
 
 """
