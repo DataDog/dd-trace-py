@@ -730,6 +730,63 @@ class TestLLMObsAnthropic:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
 
+    def test_stream_helper_does_not_retain_snapshot_events(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
+        """The stream helper also yields events carrying the cumulative snapshot so far. Keeping them until
+        the stream ends grows memory quadratically with the output length, so only raw events are retained.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+            with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                temperature=0.8,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                            }
+                        ],
+                    },
+                ],
+            ) as stream:
+                event_types = {event.type for event in stream}
+                retained_types = {chunk.type for chunk in stream.handler.chunks}
+
+        assert "text" in event_types
+        assert "text" not in retained_types
+        assert "content_block_delta" in retained_types
+        assert not any(hasattr(chunk, "snapshot") for chunk in stream.handler.chunks)
+        _assert_stream_helper_span(test_spans)
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    def test_stream_helper_with_thinking_does_not_retain_snapshot_events(
+        self, anthropic, anthropic_llmobs, test_spans, request_vcr
+    ):
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_thinking.yaml"):
+            with llm.messages.stream(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
+            ) as stream:
+                event_types = {event.type for event in stream}
+                retained_types = {chunk.type for chunk in stream.handler.chunks}
+
+        assert {"thinking", "signature", "text"} <= event_types
+        assert not {"thinking", "signature", "text"} & retained_types
+        assert "content_block_delta" in retained_types
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["output"]["messages"] == [
+            {"content": "Let me think about the best selling book.", "role": "reasoning"},
+            {"content": "The best-selling book of all time is Don Quixote.", "role": "assistant"},
+        ]
+
     @pytest.mark.parametrize("final_method", ["get_final_message", "get_final_text"])
     def test_stream_helper_final_method_without_proxy_iteration(
         self, anthropic, anthropic_llmobs, test_spans, request_vcr, final_method
@@ -1348,6 +1405,33 @@ class TestLLMObsAnthropic:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             tool_definitions=EXPECTED_TOOL_DEFINITIONS,
         )
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+    async def test_tools_async_stream_helper_does_not_retain_snapshot_events(
+        self, anthropic, anthropic_llmobs, test_spans, request_vcr
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_stream_helper.yaml"):
+            async with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=tools,
+            ) as stream:
+                event_types = {event.type async for event in stream}
+                retained_types = {chunk.type for chunk in stream.handler.chunks}
+                message = await stream.get_final_message()
+
+        assert {"text", "input_json"} <= event_types
+        assert not {"text", "input_json"} & retained_types
+        assert "content_block_delta" in retained_types
+        assert not any(hasattr(chunk, "snapshot") for chunk in stream.handler.chunks)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        output_messages = _get_llmobs_data_metastruct(spans[0])["meta"]["output"]["messages"]
+        assert output_messages[0]["content"] == message.content[0].text
+        assert output_messages[1]["tool_calls"][0]["arguments"] == {"location": "San Francisco, CA"}
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
