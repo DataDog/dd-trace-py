@@ -112,6 +112,8 @@ def _normalize_service(service: str) -> str:
     - Drop a run at the end. Keep a run at the start: ``" svc"`` becomes ``"_svc"``.
 
     For an empty result, the Agent uses a placeholder name. This function returns ``""``.
+    The Agent also lowercases some non-ASCII letters. The header stays the same, because the
+    CDN rejects all names that have non-ASCII characters.
 
     Raises UnicodeEncodeError if the name has a lone surrogate.
     """
