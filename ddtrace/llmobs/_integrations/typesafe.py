@@ -114,19 +114,23 @@ class TypeSafeIntegration(BaseLLMIntegration):
         return metrics
 
 
+REQUEST_BODY_KEYS = ("state", "model", "questions", "assets")
+
+
 def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Rebuild the JSON body that system_one sends.
 
     Images (typesafe-sdk 0.7.5+) appear as their alias from assets= or their <image:...> reference, as on the wire,
     and are listed under "assets" in the order the SDK uploads them, including images attached to the client and
-    referenced from text; their bytes go in separate parts and are not recorded.
+    referenced from text; their bytes go in separate parts and are not recorded. Fields of extra_body other than
+    request fields are dropped, since they can carry credentials.
     """
     assets = kwargs.get("assets") or {}
     # Like the SDK, an image passed under several names is written as its last name but uploaded once per name
     aliases = {id(asset): name for name, asset in assets.items()}
     found: dict[str, None] = {}
     body = {"state": kwargs.get("state"), "model": kwargs.get("model"), "questions": kwargs.get("questions")}
-    body.update(kwargs.get("extra_body") or {})
+    body.update({k: v for k, v in (kwargs.get("extra_body") or {}).items() if k in REQUEST_BODY_KEYS})
     data: dict[str, Any] = _to_data(body, aliases, found)
     if "assets" not in body:
         # Like the SDK: the passed names, then every known reference in order of appearance in the encoded body
