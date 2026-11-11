@@ -12,6 +12,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.datastreams import pipelines
+from tests.utils import override_global_config
 
 
 class FakeClock:
@@ -211,8 +212,7 @@ def test_get_pipelines_reporter_disabled_returns_none():
 
 
 def test_get_pipelines_reporter_none_when_apm_tracing_off():
-    with mock.patch("ddtrace.tracer") as fake_tracer:
-        fake_tracer.enabled = False
+    with override_global_config(dict(_tracing_enabled=False)):
         assert pipelines.get_pipelines_reporter() is None
 
 

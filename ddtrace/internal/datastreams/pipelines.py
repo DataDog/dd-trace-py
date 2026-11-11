@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import gzip
 import os
-import threading
 import time
 from typing import Any
 from typing import Callable
@@ -36,12 +35,15 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import PeriodicThread
 from ddtrace.version import __version__
 
 from .._encoding import packb
 from ..hostname import get_hostname
 from . import current_message
 from . import transport
+from .current_message import SideKey
 
 
 log = get_logger(__name__)
@@ -58,14 +60,13 @@ PIPELINES_STATS_ENDPOINT = "/v0.1/pipeline_stats"
 _PRODUCE = "produce"
 _CONSUME = "consume"
 
-SideKey = tuple[str, str, str, str, str]  # (direction, queue_type, cluster, topic, group)
 LinkKey = tuple[Optional[SideKey], SideKey]  # (in_side key or None for source, out_side key)
 
 
 # -- module drop counters (window caps and report size cap) ------------------
 # Surface drops in logs; also readable by tests via drop_counts().
 
-_drop_counters_lock = threading.Lock()
+_drop_counters_lock = Lock()
 _dropped_sides = 0
 _dropped_links = 0
 
@@ -130,7 +131,7 @@ class PipelinesReporter:
     """
 
     def __init__(self, interval: Optional[float] = None, clock: Callable[[], float] = time.monotonic) -> None:
-        self._lock = threading.Lock()
+        self._lock = Lock()
         # Interning tables: hot-path lookups are dict hits, no accumulation.
         self._sides: dict[SideKey, int] = {}  # side key -> index in the current window
         self._links: dict[LinkKey, bool] = {}  # link key -> recorded (dict as ordered set)
@@ -319,7 +320,7 @@ class PipelinesReporter:
         resetting without taking self._lock (which may have been held by another
         thread at fork time) is safe; the lock is replaced outright.
         """
-        self._lock = threading.Lock()
+        self._lock = Lock()
         # Fresh window and fresh pipelines context in the child; the DSM part of
         # the shared current-message slot is untouched (classic DSM fork
         # behavior is unchanged).
@@ -329,6 +330,12 @@ class PipelinesReporter:
         self._saw_traffic = False
         self._cap_logged = False
         self._window_start = self._clock()
+
+
+class _FlushThread(PeriodicThread):
+    """Not restarted after fork: the child gets a fresh flusher (see _after_fork_in_child)."""
+
+    __autorestart__ = False
 
 
 class _StandaloneFlusher:
@@ -351,28 +358,26 @@ class _StandaloneFlusher:
             "Content-Type": "application/msgpack",
             "Content-Encoding": "gzip",
         }
-        self._stop_event = threading.Event()
-        self._thread = threading.Thread(
-            target=self._run,
+        self._thread = _FlushThread(
+            self._reporter._interval,
+            self._flush_in_background,
             name="ddtrace.internal.datastreams.pipelines.flusher",
-            daemon=True,
         )
 
     def start(self) -> None:
         self._thread.start()
 
     def stop(self, timeout: Optional[float] = None) -> None:
-        self._stop_event.set()
-        if self._thread.is_alive():
+        if self._thread.is_started():
+            self._thread.stop()
             self._thread.join(timeout)
 
-    def _run(self) -> None:
-        # Wait out the window; the reporter decides whether a report is due.
-        while not self._stop_event.wait(self._reporter._interval):
-            try:
-                self.flush_once()
-            except Exception:  # noqa: BLE001 - the flush thread must never die
-                log.debug("pipelines: background flush failed", exc_info=True)
+    def _flush_in_background(self) -> None:
+        # Woken once per window; the reporter decides whether a report is due.
+        try:
+            self.flush_once()
+        except Exception:  # noqa: BLE001 - the flush thread must never die
+            log.debug("pipelines: background flush failed", exc_info=True)
 
     def flush_once(self, force: bool = False) -> None:
         """Flush the current window as its own /v0.1/pipeline_stats payload.
@@ -427,12 +432,12 @@ class _StandaloneFlusher:
 # -- process-level lifecycle --------------------------------------------------
 
 _reporter: Optional[PipelinesReporter] = None
-_reporter_lock = threading.Lock()
+_reporter_lock = Lock()
 
 _flusher: Optional[_StandaloneFlusher] = None
 _lifecycle_started = False
 _atexit_registered = False
-_lifecycle_lock = threading.Lock()
+_lifecycle_lock = Lock()
 
 
 def _pipelines_enabled() -> bool:
@@ -447,11 +452,9 @@ def _pipelines_enabled() -> bool:
 def _apm_tracing_off() -> bool:
     """Whether APM tracing is disabled for this process (contract: reporter is None then)."""
     try:
-        # Deliberately lazy, like ddtrace._trace.product: the root package imports
-        # this module's package tree at startup, so it cannot be a module import.
-        from ddtrace import tracer
-
-        return not tracer.enabled
+        # Mirrors tracer.enabled, which tracer.configure keeps in sync with this
+        # setting; reading the tracer would make this package import ddtrace.
+        return not config._tracing_enabled
     except Exception:  # noqa: BLE001
         return False
 
@@ -497,8 +500,8 @@ def _after_fork_in_child() -> None:
         # have been inherited held are replaced outright (never taken here).
         _flusher = None
         _lifecycle_started = False
-        _lifecycle_lock = threading.Lock()
-        _reporter_lock = threading.Lock()
+        _lifecycle_lock = Lock()
+        _reporter_lock = Lock()
         if _reporter is not None:
             _reporter._reset_after_fork()
     except Exception:  # noqa: BLE001 - never raise into the app from a fork hook

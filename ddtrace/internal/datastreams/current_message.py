@@ -16,17 +16,16 @@ scope-exit clear path.
 
 from __future__ import annotations
 
-import threading
-from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
 
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import local
 
 
-if TYPE_CHECKING:
-    from ddtrace.internal.datastreams.pipelines import SideKey
-    from ddtrace.internal.datastreams.processor import DataStreamsCtx
+# A DataStreamsCtx; typed Any because importing processor here would be circular.
+DsmCtx = Any
+SideKey = tuple[str, str, str, str, str]  # (direction, queue_type, cluster, topic, group)
 
 
 class CurrentMessageContext:
@@ -43,17 +42,17 @@ class CurrentMessageContext:
     __slots__ = ("dsm_ctx", "pipelines_side")
 
     def __init__(self) -> None:
-        self.dsm_ctx: Optional[DataStreamsCtx] = None
+        self.dsm_ctx: Optional[DsmCtx] = None
         self.pipelines_side: Optional[SideKey] = None
 
 
 # Created lazily from the application's threading so it is greenlet-local
 # under gevent; ddtrace's own threading copy is never monkey-patched.
-_local: Optional[threading.local] = None
+_local: Optional[Any] = None
 _local_lock = Lock()
 
 
-def _get_local() -> threading.local:
+def _get_local() -> Any:
     global _local
     if _local is None:
         with _local_lock:
@@ -76,7 +75,7 @@ def _ensure_current_message() -> CurrentMessageContext:
     return message
 
 
-def set_dsm_pathway(ctx: DataStreamsCtx) -> None:
+def set_dsm_pathway(ctx: DsmCtx) -> None:
     """Set the current DSM pathway context (processor.decode_pathway / new_pathway)."""
     _ensure_current_message().dsm_ctx = ctx
 
@@ -105,7 +104,7 @@ def clear_current_message() -> None:
         _local = local()
 
 
-def current_dsm_pathway() -> Optional[DataStreamsCtx]:
+def current_dsm_pathway() -> Optional[DsmCtx]:
     """The current DSM pathway context, or ``None`` (processor.set_checkpoint reads this as its parent)."""
     message = get_current_message()
     return message.dsm_ctx if message is not None else None
