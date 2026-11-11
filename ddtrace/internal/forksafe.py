@@ -12,6 +12,7 @@ import weakref
 import wrapt
 
 from ddtrace.internal import _unpatched
+from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.locks import RLock as _RLock
 from ddtrace.internal.native.exceptions import is_panic_exception
 
@@ -173,21 +174,45 @@ def run_child_hooks() -> None:
     _in_child_hook = True
     # A wrapper that fails before its yield is skipped, and one that fails
     # after it does not prevent the remaining ones from resuming, so that a
-    # faulty wrapper cannot stop the hooks from running. The wrappers that have
-    # started are resumed even if starting a later one raises.
+    # faulty wrapper cannot stop the hooks from running. _call_hook re-raises a
+    # BaseException that is not a panic (e.g. KeyboardInterrupt); such errors
+    # are collected and raised only once every started wrapper has resumed, so
+    # that none of them misses its cleanup.
     started = []
+    errors: list[BaseException] = []
     try:
         for wrapper in list(_registry_child_wrappers):
             gen = _call_hook(wrapper, _start_wrapper, wrapper)
             if gen is not None:
                 started.append((wrapper, gen))
         run_hooks(_registry)
-    finally:
+    except BaseException as e:
+        errors.append(e)
+
+    for wrapper, gen in reversed(started):
         try:
-            for wrapper, gen in reversed(started):
-                _call_hook(wrapper, _resume_wrapper, wrapper, gen)
-        finally:
-            _in_child_hook = False
+            _call_hook(wrapper, _resume_wrapper, wrapper, gen)
+        except BaseException as e:
+            errors.append(e)
+
+    _in_child_hook = False
+
+    if errors:
+        _raise_errors(errors)
+
+
+def _raise_errors(errors: list[BaseException]) -> typing.NoReturn:
+    if len(errors) == 1:
+        raise errors[0]
+
+    if is_at_least_py(3, 11):
+        raise BaseExceptionGroup("Exceptions raised by after-in-child fork hooks", errors)  # type: ignore[name-defined]  # noqa: F821
+
+    # Without exception groups only one exception can propagate, so log the
+    # others to keep them visible.
+    for error in errors[1:]:
+        log.error("Exception raised by after-in-child fork hook", exc_info=error)
+    raise errors[0]
 
 
 ddtrace_after_in_child = run_child_hooks

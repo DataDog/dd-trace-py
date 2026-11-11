@@ -8,6 +8,7 @@ import cloudpickle
 import pytest
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import is_at_least_py
 
 
 @pytest.mark.subprocess
@@ -277,7 +278,7 @@ def test_child_wrappers_exceptions() -> None:
 
 
 @pytest.mark.usefixtures("isolated_child_hooks")
-def test_child_wrappers_resumed_on_base_exception() -> None:
+def test_child_wrappers_resumed_on_base_exception_before_yield() -> None:
     calls = []
 
     @forksafe.register
@@ -299,6 +300,46 @@ def test_child_wrappers_resumed_on_base_exception() -> None:
         forksafe.run_child_hooks()
 
     assert calls == ["enter outer", "exit outer"]
+    assert not forksafe.in_child_hook()
+
+
+@pytest.mark.usefixtures("isolated_child_hooks")
+def test_child_wrappers_resumed_on_base_exception_after_yield() -> None:
+    calls = []
+
+    @forksafe.register
+    def outer():
+        calls.append("enter outer")
+        yield
+        calls.append("exit outer")
+
+    @forksafe.register
+    def exiting():
+        yield
+        calls.append("exit exiting")
+        raise SystemExit(1)
+
+    @forksafe.register
+    def interrupted():
+        yield
+        calls.append("exit interrupted")
+        raise KeyboardInterrupt
+
+    @forksafe.register
+    def hook():
+        calls.append("hook")
+
+    # Every wrapper resumes before the exceptions propagate. Python 3.11+
+    # raises all of them as a group, older versions only the first one.
+    if is_at_least_py(3, 11):
+        with pytest.raises(BaseExceptionGroup) as exc_info:  # type: ignore[name-defined]  # noqa: F821
+            forksafe.run_child_hooks()
+        assert [type(e) for e in exc_info.value.exceptions] == [KeyboardInterrupt, SystemExit]
+    else:
+        with pytest.raises(KeyboardInterrupt):
+            forksafe.run_child_hooks()
+
+    assert calls == ["enter outer", "hook", "exit interrupted", "exit exiting", "exit outer"]
     assert not forksafe.in_child_hook()
 
 
