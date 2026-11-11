@@ -5,6 +5,7 @@ on:
       - juanjo/macos-watchdog-format-diagnostics
 permissions:
   contents: read
+  checks: write
 jobs:
   formatter:
     runs-on: ubuntu-latest
@@ -18,13 +19,19 @@ jobs:
           python-version: "3.10"
       - name: Report pinned formatter and lint output
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
+          import json
+          import os
           import subprocess
           import sys
+          import urllib.request
 
           files = [".gitlab/scripts/sccache-watchdog.py", ".gitlab/scripts/test_sccache_watchdog.py"]
           failed = False
+          reports = []
           for args in (["format", "--diff"], ["check"]):
               result = subprocess.run(
                   ["scripts/lint", "ruff", *args, *files],
@@ -36,5 +43,17 @@ jobs:
               message = result.stdout.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
               print(f"::notice title=Ruff {args[0]}::{message}", flush=True)
               failed |= result.returncode != 0
+              reports.append(f"Ruff {args[0]} (exit {result.returncode})\n{result.stdout}")
+          api = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
+          headers = {"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json"}
+          request = urllib.request.Request(api + "/commits/" + os.environ["GITHUB_SHA"] + "/check-runs", headers=headers)
+          with urllib.request.urlopen(request, timeout=20) as response:
+              checks = json.load(response)["check_runs"]
+          check = next(check for check in checks if check["name"] == "formatter")
+          output = "\n\n".join(reports)
+          body = json.dumps({"output": {"title": "Pinned formatter diagnostics", "summary": "```text\n" + output[:60000] + "\n```"}}).encode()
+          request = urllib.request.Request(api + "/check-runs/" + str(check["id"]), data=body, headers=headers, method="PATCH")
+          with urllib.request.urlopen(request, timeout=20) as response:
+              print("Diagnostic output attached to check", response.status)
           sys.exit(failed)
           PY
