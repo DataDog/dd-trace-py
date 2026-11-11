@@ -11,7 +11,6 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.span_bus import span_from_context
 
 # project
 from ddtrace.trace import tracer
@@ -100,7 +99,9 @@ def trace_tween_factory(handler, registry):
                     if request.matched_route:
                         event.resource = f"{request.method} {request.matched_route.name}"
                         event.request_route = request.matched_route.pattern
-                        span_from_context(ctx)._set_attribute("pyramid.route.name", request.matched_route.name)
+                        span = ctx.get_item("_inner_span")
+                        if span is not None:
+                            span._set_attribute("pyramid.route.name", request.matched_route.name)
                     # set response tags
                     if response:
                         status = response.status_code

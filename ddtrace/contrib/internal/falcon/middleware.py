@@ -9,7 +9,6 @@ from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 
@@ -64,7 +63,7 @@ class TraceMiddleware:
         if ctx is None:
             return
 
-        span = span_from_context(ctx)
+        span = ctx.get_item("_inner_span")
         if span is None:
             return
 
@@ -91,10 +90,7 @@ class TraceMiddleware:
             return
 
         try:
-            span = span_from_context(ctx)
-            if span is None:
-                return
-
+            span = ctx.get_item("_inner_span")
             event: WebFrameworkRequestEvent = ctx.event
             try:
                 status = http_status_to_code(resp.status)
@@ -105,7 +101,8 @@ class TraceMiddleware:
             # proper status code, so retain the existing inference.
             if resource is None:
                 status = 404
-                set_instrumentation_resource(span, "%s 404" % req.method)
+                if span is not None:
+                    set_instrumentation_resource(span, "%s 404" % req.method)
             else:
                 err_type = sys.exc_info()[0]
                 if err_type is not None:
@@ -127,7 +124,8 @@ def _is_404(err_type):
 def _detect_and_set_status_error(err_type, span):
     """Detect the HTTP status code and set the traceback on the span."""
     if not _is_404(err_type):
-        span.set_traceback()
+        if span is not None:
+            span.set_traceback()
         return 500
 
     return 404

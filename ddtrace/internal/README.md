@@ -140,7 +140,9 @@ success and bundle unregistration is idempotent.
 Shutdown prevents new span processing, including standalone modes, and detaches the
 aggregator buffer so already-running starts cannot repopulate it. Requests completing after a
 successful stop still release their execution events, but their tracing subscribers
-no longer finish spans or attach response metadata. Existing tasks can retain a
+no longer finish spans or attach response metadata. New requests continue emitting
+lifecycle events without spans; integrations guard their remaining span-only operations.
+Existing tasks can retain a
 reference to a discarded span in their own ContextVar; shutdown does not reset other
 tasks' contexts. This terminal cleanup is distinct from temporarily disabling tracing
 or unpatching one integration, which must retain shared completion listeners.
