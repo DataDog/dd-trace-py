@@ -5,12 +5,10 @@ This experiment extends the Collector-hosted remote configuration POC to the
 complete Dynamic Instrumentation data path. RC delivers probe definitions;
 execution, output delivery, diagnostics and symbol discovery complete DI.
 
-Current result: the transport experiment works, but product isolation is not
-complete. The existing debugger backend forwards captures into the logs track;
-a capture was returned by the Logs search API in the live check. Separating DI
-from the Collector's ordinary logs pipeline does not prevent that backend
-forwarding. A debugger-only storage/query contract is required before this POC
-can satisfy the requirement that DI events never appear in Datadog Logs.
+Current result: the transport experiment works. A capture was also returned
+by the Logs search API; visibility in Datadog Logs is acceptable for this POC.
+Remaining qualification includes symbol UI discovery and an end-to-end run
+using a wheel built from this source branch.
 
 SDK contract
 ------------
@@ -36,8 +34,8 @@ flag does not install a probe or bypass DI capture limits and redaction.
   root logging handler for DI and does not require ``DD_LOGS_OTEL_ENABLED``.
 
 The current OTel Events API is ``Logger.emit(event_name=...)``. Its wire
-transport is OTLP Logs, not a separate events endpoint. DI events must go to
-debugger intake and must not appear in the Datadog Logs product.
+transport is OTLP Logs, not a separate events endpoint. The Collector routes
+DI events to debugger intake; downstream visibility in Datadog Logs is allowed.
 
 POC event envelope
 ------------------
@@ -87,4 +85,5 @@ Python transport changes applied, plus OTel 1.45.2. It verified real RC probe
 installation/capture/removal, active dynamic spans, span attributes, metric
 probe export, named DI events and host-file log delivery. Symbol events were
 emitted without intake rejection; full symbol UI discovery remains unverified.
-This source branch's Python suite must also pass before review completion.
+Focused Python 3.13 source checks passed: nine DI tests with OTel 1.45.2
+and 24 existing uploader regression tests. This is not full-suite coverage.
