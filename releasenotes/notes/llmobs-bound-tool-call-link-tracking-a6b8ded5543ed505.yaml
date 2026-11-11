@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a memory leak that causes memory usage to grow with every LLM tool call that is
+    never passed back to an LLM, such as forced tool use or structured output extraction.
