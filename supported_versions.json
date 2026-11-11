@@ -4604,10 +4604,7 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.9",
-                        "3.10",
-                        "3.11",
-                        "3.12"
+                        "3.9"
                     ]
                 },
                 "supportedRange": ">=1.71.1",
@@ -4618,6 +4615,21 @@
             {
                 "testedRuntimes": {
                     "python": [
+                        "3.10",
+                        "3.11",
+                        "3.12"
+                    ]
+                },
+                "supportedRange": ">=1.71.1",
+                "tested": [
+                    "1.71.1",
+                    "2.7.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.13",
                         "3.14",
                         "3.15"
                     ]
