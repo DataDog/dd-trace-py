@@ -79,7 +79,7 @@ class WatchdogTests(unittest.TestCase):
                 "bash",
                 "-c",
                 '"$1" "$2" --delay 60 &\n'
-                'sccache_watchdog_pid=$!\n'
+                "sccache_watchdog_pid=$!\n"
                 'echo "$sccache_watchdog_pid" > "$3"\n'
                 "trap 'kill \"$sccache_watchdog_pid\" 2>/dev/null || true; "
                 "wait \"$sccache_watchdog_pid\" 2>/dev/null || true' EXIT\n"
