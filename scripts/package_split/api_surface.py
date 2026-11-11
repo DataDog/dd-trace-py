@@ -158,8 +158,13 @@ def analyze_api_surfaces(
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
         collector._scan_usages(tree)
-        if path.name == "__init__.py":
-            reexports[module] = collector.bindings
+        # Every module's bindings are a potential re-export source, not
+        # just package initializers: a facade module like shared/api.py
+        # re-exporting shared.impl.exposed is just as much an attribution
+        # surface as shared/__init__.py. The _attributions() function only
+        # follows re-exports that match the resolved usage path, so a
+        # false entry from a private module adds no spurious attribution.
+        reexports[module] = collector.bindings
 
     # Attribute each usage to its owning module: the longest module prefix
     # of the resolved path that exists in the module index. A use through a
