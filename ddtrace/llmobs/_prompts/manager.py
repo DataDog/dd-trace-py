@@ -371,17 +371,11 @@ class PromptManager:
             if self._ffe_provider_set:
                 return
             try:
-                from openfeature import api
-
-                from ddtrace.internal.openfeature._config import _get_ffe_snapshot
                 from ddtrace.internal.openfeature._provider import DataDogProvider
+                from ddtrace.internal.openfeature._provider import set_domain_provider
 
-                register = api.set_provider
-                if _get_ffe_snapshot() is not None:
-                    # Config is already local. Finish initialization before the first evaluation.
-                    # Older openfeature-sdk versions initialize inline in set_provider().
-                    register = getattr(api, "set_provider_and_wait", register)
-                register(DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
+                # Scoped to our own domain so we don't replace the app's default provider.
+                set_domain_provider(DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
                 self._ffe_provider_set = True
             except Exception:
                 log.debug("Failed to register OpenFeature provider", exc_info=True)
