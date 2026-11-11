@@ -3674,6 +3674,9 @@ def test_add_api_param_span_tags_resource_identifiers(endpoint_name, params, exp
 def test_stepfunctions_client_state_machine_arn(test_spans):
     # In-process moto, so this does not depend on localstack
     patch()
+    # patch() is a no-op when an earlier test left botocore patched, so also reset any
+    # submodule filter it left behind; otherwise Step Functions calls are not traced.
+    patch_submodules(True)
     try:
         session = botocore.session.get_session()
         session.set_credentials(access_key="access-key", secret_key="secret-key")
@@ -3688,6 +3691,7 @@ def test_stepfunctions_client_state_machine_arn(test_spans):
         unpatch()
 
     spans = {span.get_tag("aws.operation"): span for span in test_spans.pop()}
+    assert {"CreateStateMachine", "DescribeStateMachine"} <= spans.keys(), sorted(spans, key=str)
     describe_span = spans["DescribeStateMachine"]
     assert describe_span.get_tag("aws.step_functions.state_machine.arn") == state_machine_arn
     assert describe_span.get_tag("statemachinearn") == state_machine_arn
