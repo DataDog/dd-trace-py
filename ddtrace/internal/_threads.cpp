@@ -625,9 +625,10 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 // If reset_next_call_time is true (normal start), _next_call_time is initialised
 // to now + interval before starting; otherwise it is left untouched (important
 // for cases where the thread is being restarted after a fork to preserve the
-// existing next trigger time).
+// existing next trigger time). If even_if_stopping is true, a stopping thread
+// is started too, and then only runs on_shutdown.
 static PyObject*
-_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
+_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false, bool even_if_stopping = false)
 {
     // PyRef is constructed before the lock — it only requires the
     // GIL (held here), not _thread_mutex. This keeps self alive across the
@@ -651,7 +652,7 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
             return NULL;
         }
 
-        if (self->_stopping)
+        if (self->_stopping && !even_if_stopping)
             Py_RETURN_NONE;
 
         if (reset_next_call_time)
@@ -981,7 +982,13 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
     }
 
     // Always reset fork-specific state regardless of restart decision.
-    self->_stopping = false;
+    {
+        // A pending STOP request means stop() was called while the thread was
+        // paused for the fork, e.g. by an atexit hook before ThreadRestartTimer
+        // fired. Keep such a thread stopping so it does not resume periodic().
+        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+        self->_stopping = self->_request->consume(REQUEST_REASON_STOP) != 0;
+    }
     self->_skip_shutdown = false;
     // During prefork, _before_fork() sets REQUEST_REASON_FORK_STOP to wake
     // the thread promptly. Clear it so it does not trigger a spurious
@@ -1007,8 +1014,10 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // Use _PeriodicThread_do_start instead of PeriodicThread_start to
         // preserve _next_call_time from before the fork. This ensures that
         // a restarted thread fires at the same time it would have without
-        // the fork, rather than being pushed back by a full interval.
-        PyObject* started = _PeriodicThread_do_start(self);
+        // the fork, rather than being pushed back by a full interval. A
+        // stopping thread is started too, so that it runs on_shutdown as
+        // stop() would have, and join() returns once it has.
+        PyObject* started = _PeriodicThread_do_start(self, false, true);
         if (started == NULL)
             return NULL;
         Py_DECREF(started);

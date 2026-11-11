@@ -864,6 +864,62 @@ def test_periodic_service_no_immediate_run_after_fork():
         service.join()
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_service_stopped_before_restart_after_fork_stays_stopped():
+    """A service stopped before its thread restarts after a fork must not resume periodic().
+
+    An exit handler can stop a service right after a fork, before ThreadRestartTimer restarts its thread. The
+    restarted thread used to run periodic() at once and keep running, so the profiler scheduler could flush
+    alongside the final flush at exit and hang under gevent.
+    """
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal import threads
+    from ddtrace.internal._threads import periodic_threads
+
+    # Widen the window between the fork and the restart so that stop() always lands in it.
+    threads.ThreadRestartTimer.__timeout__ = int(1e9)
+
+    periodic_ran = Event()
+    shutdown_ran = Event()
+
+    class Service(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+        def on_shutdown(self):
+            shutdown_ran.set()
+
+    # A long interval, so that periodic() only runs if the thread resumes after stop().
+    svc = Service(60)
+    svc.start()
+    worker = svc._worker
+
+    def stop_and_check():
+        svc.stop()
+        svc.join()
+        # The restart only runs on_shutdown(), as a regular stop() would, and the thread exits.
+        assert shutdown_ran.wait(timeout=5), "on_shutdown() did not run"
+        assert not periodic_ran.wait(timeout=0.5), "periodic() ran after stop()"
+        assert worker not in periodic_threads.values(), "the thread is still running"
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            stop_and_check()
+        except AssertionError as e:
+            print(e)
+            os._exit(1)
+        os._exit(0)
+
+    stop_and_check()
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0, "check failed in the child"
+
+
 def test_periodic_thread_preserves_awake_during_restart_window():
     """Ensure awake() isn't lost while a periodic thread is paused for fork.
 
