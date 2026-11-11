@@ -44,6 +44,7 @@ COUNT = int_env("COUNT", "25", 1)
 BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 TOPIC_BASE = os.environ.get("KAFKA_TOPIC", "benchmark-topic-python-default")
 OUTPUT = os.environ.get("TIMEIT_OUTPUT", "results.json")
+EXPERIMENT_NAME = os.environ.get("EXPERIMENT_NAME", "kafka")
 # Per-iteration data goes next to OUTPUT so OUTPUT keeps the canonical schema.
 RUNS_OUTPUT = (OUTPUT[: -len(".json")] if OUTPUT.endswith(".json") else OUTPUT) + ".runs.json"
 PROFILE = os.environ.get("PROFILE", "0") == "1"
@@ -138,8 +139,11 @@ def main():
 
     profiler = cProfile.Profile() if PROFILE else None
     runs = []
+    iteration_wall_ms = []
     for i in range(COUNT):
+        start = time.perf_counter()
         produce_ms, consume_ms = run_iteration(WARMUP + i, profiler)
+        iteration_wall_ms.append((time.perf_counter() - start) * 1000)
         rss = rss_bytes()
         runs.append({"produce_ms": produce_ms, "consume_ms": consume_ms, "rss_bytes": rss})
         print(f"iter {i}: produce={produce_ms:.1f}ms consume={consume_ms:.1f}ms rss={rss}", flush=True)
@@ -158,6 +162,22 @@ def main():
             "phase.consume_ms.median": statistics.median(r["consume_ms"] for r in runs),
             "config.commit_every": COMMIT_EVERY,
         },
+        # For bp-analyzer's TimeItSharp converter: it reads only `data`, under TimeItSharp metric names
+        # (runtime.dotnet.mem.committed is mapped to RSS whatever the runtime).
+        "name": EXPERIMENT_NAME,
+        "warmUpCount": WARMUP,
+        "count": COUNT,
+        "data": [
+            {
+                "status": "Passed",
+                "metrics": {
+                    "process.internal_duration_ms": duration_ms,
+                    "process.corrected_duration_ms": wall_ms,
+                    "runtime.dotnet.mem.committed": r["rss_bytes"],
+                },
+            }
+            for duration_ms, wall_ms, r in zip(durations, iteration_wall_ms, runs)
+        ],
     }
     with open(OUTPUT, "w") as out:
         json.dump([result], out, indent=1)

@@ -39,6 +39,7 @@ port adds connection-error overhead to the tracer scenarios.
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | |
 | `KAFKA_TOPIC` | `benchmark-topic-python-<scenario-slug>-<slug>` | base name; run id and iteration are appended |
 | `OUT_DIR` | `out/` in this folder | default directory for the outputs below |
+| `EXPERIMENT_NAME` | scenario slug | `name` in the result JSON |
 | `TIMEIT_OUTPUT` | `$OUT_DIR/python-<slug>.<scenario-slug>.json` | result JSON (see below) |
 | `PROFILE` | 0 | 1: cProfile only the timed produce+consume phases of the timed iterations |
 | `PROFILE_OUTPUT` | `$OUT_DIR/python-<slug>.<scenario-slug>` | writes `<PROFILE_OUTPUT>.prof` and `.top.txt` |
@@ -59,8 +60,16 @@ ddtrace background threads (DSM flush, trace writer) are not in the profile.
 [{"median": <duration ms>, "metrics": {
   "process.internal_duration_ms.median": <ms>, "process.internal_duration_ms.std_err": <ms>,
   "process.rss_bytes.median": <bytes>, "phase.produce_ms.median": <ms>,
-  "phase.consume_ms.median": <ms>, "config.commit_every": <int>}}]
+  "phase.consume_ms.median": <ms>, "config.commit_every": <int>},
+  "name": <EXPERIMENT_NAME>, "warmUpCount": <WARMUP>, "count": <COUNT>,
+  "data": [{"status": "Passed", "metrics": {
+    "process.internal_duration_ms": <produce + consume ms>,
+    "process.corrected_duration_ms": <whole iteration wall ms, setup/teardown included>,
+    "runtime.dotnet.mem.committed": <RSS bytes>}}, ...one per timed iteration]}]
 ```
+
+`data` feeds bp-analyzer's TimeItSharp converter (`steps/convert-to-common-format.sh`), which reads
+only per-iteration values under TimeItSharp metric names and maps `runtime.dotnet.mem.committed` to RSS.
 
 Per-iteration `produce_ms` / `consume_ms` / `rss_bytes` go to a sibling file: `TIMEIT_OUTPUT=<name>.json`
 also writes `<name>.runs.json` in the same directory (not the canonical schema; consumers globbing
