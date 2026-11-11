@@ -65,7 +65,7 @@ class SubscriberBundle:
             subscriber.register()
 
     def unregister(self) -> None:
-        """Remove the bundle's listeners after the owner has drained active contexts.
+        """Remove the bundle's listeners after the owner has drained or discarded active work.
 
         Teardown never imports a previously unused product module. Products needing
         completion listeners for active requests must defer this operation.

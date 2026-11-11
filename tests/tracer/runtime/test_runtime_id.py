@@ -1524,6 +1524,7 @@ def test_microvm_shutdown_retries_failed_retired_writer_teardown():
     from ddtrace.internal import runtime
     from ddtrace.internal._threads import periodic_threads
     from ddtrace.internal.service import ServiceStatus
+    from ddtrace.internal.span_processor import SpanProcessor
     from ddtrace.internal.writer import NativeWriter
 
     for refresh in (False, True):
@@ -1545,11 +1546,17 @@ def test_microvm_shutdown_retries_failed_retired_writer_teardown():
                     tracer._refresh_runtime_identity(runtime.get_runtime_id())
                     assert old_writer._discarded_by_refresh
                     assert old_writer in aggregator._retired_writers
-                with mock.patch.object(old_writer, "stop", wraps=old_writer.stop) as old_stop:
+                processor = mock.Mock(spec=SpanProcessor)
+                processor.shutdown.side_effect = [None, RuntimeError("cleanup repeated")]
+                with (
+                    mock.patch.object(old_writer, "stop", wraps=old_writer.stop) as old_stop,
+                    mock.patch.object(SpanProcessor, "__processors__", [processor]),
+                ):
                     tracer.shutdown(timeout=None)
                     old_stop.assert_called_once_with(None)
-                old_writer.join(timeout=5)
-                tracer.shutdown(timeout=0)
+                    old_writer.join(timeout=5)
+                    tracer.shutdown(timeout=0)
+                    processor.shutdown.assert_called_once_with(None)
                 assert not aggregator._retired_writers
                 assert old_writer.status is ServiceStatus.STOPPED
                 assert old_writer._worker.ident not in periodic_threads
