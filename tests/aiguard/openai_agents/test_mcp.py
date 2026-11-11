@@ -27,9 +27,14 @@ from ddtrace.aiguard import AIGuardAbortError
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard.integrations._mcp import _model_tool_calls
+from ddtrace.aiguard.integrations._mcp import mcp_reference
+from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import mcp_server_id
+from ddtrace.aiguard.integrations._mcp import record_model_tool_calls
+from ddtrace.aiguard.integrations._mcp import tool_call_conversation
 from ddtrace.aiguard.integrations._openai_agents import _openai_agents_mcp_call_tool_before
 from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
+from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 
@@ -324,7 +329,7 @@ def test_history_keeps_the_hosted_servers_it_references(mock_execute_request):
 
 
 @patch(EXECUTE_REQUEST)
-def test_history_server_sharing_the_id_keeps_its_tools(mock_execute_request):
+def test_history_server_sharing_the_id_never_describes_the_evaluated_call(mock_execute_request):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
     kwargs = {
         "input": "Find APPSEC issues",
@@ -352,11 +357,102 @@ def test_history_server_sharing_the_id_keeps_its_tools(mock_execute_request):
 
     _invoke(_atlassian_server())
 
-    # Same endpoint, same ID: one entry, described by the first server, listing both servers' tools.
-    (server_entry,) = _mcp_servers(mock_execute_request)
-    assert server_entry["id"] == ATLASSIAN_ID
-    assert server_entry["managed_by"] == "provider"
-    assert server_entry["tools"] == {"get_issue": "get_issue", "atlassian_search_issues": "search_issues"}
+    # Same endpoint, same ID: the evaluated client call keeps its own entry, and the hosted call it
+    # cannot share an entry with is sent as an ordinary tool call.
+    assert _mcp_servers(mock_execute_request) == [ATLASSIAN_SERVER]
+    hosted_call = _messages(mock_execute_request)[1]["tool_calls"][0]
+    assert hosted_call == {"id": "mcp_1", "function": {"name": "get_issue", "arguments": "{}"}}
+
+
+def _history_call(call_id, name, server, original_name):
+    return {
+        "id": call_id,
+        "function": {"name": name, "arguments": "{}"},
+        "mcp": mcp_reference(server, name, original_name),
+    }
+
+
+def _current_call(server, name="search", original_name="search"):
+    tool_call = {"id": "call_2", "function": {"name": name, "arguments": "{}"}}
+    tool_call["mcp"] = mcp_reference(server, name, original_name)
+    return tool_call
+
+
+def _record(history_call, history_server):
+    messages = [
+        {"role": "user", "content": "Find issues"},
+        {"role": "assistant", "tool_calls": [history_call]},
+        {"role": "tool", "tool_call_id": history_call["id"], "content": "done"},
+        {"role": "assistant", "tool_calls": [{"id": "call_2", "function": {"name": "search", "arguments": "{}"}}]},
+    ]
+    record_model_tool_calls(messages, 3, [history_server])
+    return messages
+
+
+def test_conflicting_tool_mapping_on_a_shared_id_is_not_sent():
+    """Same description, but the history maps the evaluated call's name to another original tool."""
+    history_server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
+    server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
+    messages = _record(_history_call("call_1", "search", history_server, "search_v1"), history_server)
+
+    conversation, servers = tool_call_conversation(_current_call(server), server)
+
+    assert servers == [dict(server, tools={"search": "search"})]
+    assert "mcp" not in conversation[1]["tool_calls"][0]
+    assert "mcp" in messages[1]["tool_calls"][0], "the recorded history is never mutated"
+
+
+def test_matching_history_on_a_shared_id_keeps_its_reference():
+    history_server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
+    server = mcp_server("client", "streamable_http", name="atlassian", url="https://mcp.example.com")
+    _record(_history_call("call_1", "get_issue", history_server, "get_issue"), history_server)
+
+    conversation, servers = tool_call_conversation(_current_call(server), server)
+
+    assert conversation[1]["tool_calls"][0]["mcp"] == {"server_id": server["id"]}
+    assert servers == [dict(server, tools={"get_issue": "get_issue", "search": "search"})]
+
+
+def _record_atlassian_response(name="atlassian_search_issues", arguments='{"query": "APPSEC"}'):
+    response = {"output": [{"type": "function_call", "call_id": "call_1", "name": name, "arguments": arguments}]}
+    _openai_response_create_after(new_ai_guard_client(), {"input": "Earlier operation"}, response)
+
+
+@pytest.mark.parametrize(
+    "name,arguments",
+    [("other_tool", '{"query": "APPSEC"}'), ("atlassian_search_issues", '{"query": "OTHER"}')],
+    ids=["other_tool", "other_arguments"],
+)
+@patch(EXECUTE_REQUEST)
+def test_reused_call_id_of_another_call_sends_only_the_tool_call(mock_execute_request, name, arguments):
+    """A call ID alone does not tie an MCP call to a recorded conversation: an earlier operation may reuse it."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    _record_atlassian_response(name, arguments)
+
+    _invoke(_atlassian_server())
+
+    assert _single_tool_call(_messages(mock_execute_request))["id"] == "call_1"
+
+
+@patch(EXECUTE_REQUEST)
+def test_equivalent_json_arguments_still_match(mock_execute_request):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    _record_atlassian_response(arguments='{ "query" : "APPSEC" }')
+
+    _invoke(_atlassian_server())
+
+    assert _messages(mock_execute_request)[0] == {"role": "user", "content": "Earlier operation"}
+
+
+@patch(EXECUTE_REQUEST)
+def test_new_model_request_forgets_the_previous_operation(mock_execute_request):
+    """A request whose response is never recorded (e.g. an unevaluated stream) leaves no stale calls behind."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    _record_atlassian_response()
+
+    _openai_response_create_before(new_ai_guard_client(), {"input": "Next operation", "stream": True})
+
+    assert _model_tool_calls.get() is None
 
 
 @patch(EXECUTE_REQUEST)

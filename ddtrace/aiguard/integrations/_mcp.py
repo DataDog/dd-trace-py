@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from contextvars import Context
 from contextvars import ContextVar
 import hashlib
+import json
 import os.path
 import re
 from types import ModuleType
@@ -191,6 +192,30 @@ def record_model_tool_calls(messages: list[Message], start: int, mcp_servers: Se
     _model_tool_calls.set(calls or None)
 
 
+def clear_model_tool_calls() -> None:
+    """Forget the recorded tool calls when a model request starts, so an unrecorded response leaves none."""
+    if _model_tool_calls.get() is not None:
+        _model_tool_calls.set(None)
+
+
+def _same_arguments(recorded: str, arguments: str) -> bool:
+    if recorded == arguments:
+        return True
+    try:
+        return bool(json.loads(recorded) == json.loads(arguments))
+    except (TypeError, ValueError):
+        return False
+
+
+def _is_recorded_call(recorded: ToolCall, tool_call: ToolCall) -> bool:
+    """Whether tool_call is the recorded model call: a reused call ID alone does not tie it to that conversation."""
+    return (
+        recorded.get("id") == tool_call["id"]
+        and recorded["function"]["name"] == tool_call["function"]["name"]
+        and _same_arguments(recorded["function"]["arguments"], tool_call["function"]["arguments"])
+    )
+
+
 def adopt_model_tool_calls(context: Context) -> None:
     """Keep the tool calls recorded in context, a copy of the current context run in a worker thread."""
     calls = context.get(_model_tool_calls)
@@ -209,13 +234,67 @@ def tool_call_conversation(
     """
     calls = _model_tool_calls.get()
     model_call = calls.get(tool_call["id"]) if calls else None
+    if model_call is not None and not any(
+        _is_recorded_call(recorded, tool_call)
+        for recorded in model_call.messages[model_call.message_index].get("tool_calls") or []
+    ):
+        model_call = None
     if model_call is None:
         return [Message(role="assistant", tool_calls=[tool_call])], [server] if server else None
     messages, message_index, history_servers = model_call
     assistant = messages[message_index].copy()
     assistant["tool_calls"] = [tool_call]
     messages = messages[:message_index] + [assistant]
-    return messages, referenced_mcp_servers(messages, [*history_servers, *([server] if server else [])])
+    if server is None:
+        return messages, referenced_mcp_servers(messages, history_servers)
+    # The evaluated call's server goes first so its description and tool mapping are the ones sent.
+    messages = _drop_conflicting_references(messages, tool_call, server, history_servers)
+    return messages, referenced_mcp_servers(messages, [server, *history_servers])
+
+
+def _describe(server: MCPServer) -> dict[str, Any]:
+    return {key: value for key, value in server.items() if key != "tools"}
+
+
+def _conflicts(tool_call: ToolCall, server: MCPServer, history_servers: Sequence[MCPServer]) -> bool:
+    """Whether the history server of tool_call shares server's ID but not its description or tool mapping."""
+    name = tool_call["function"]["name"]
+    for history_server in history_servers:
+        if history_server["id"] == server["id"] and name in history_server["tools"]:
+            original_name = history_server["tools"][name]
+            return (
+                _describe(history_server) != _describe(server)
+                or server["tools"].get(name, original_name) != original_name
+            )
+    return False
+
+
+def _drop_conflicting_references(
+    messages: list[Message], current: ToolCall, server: MCPServer, history_servers: Sequence[MCPServer]
+) -> list[Message]:
+    """Send history MCP calls that conflict with server, whose entry wins their shared ID, as ordinary tool calls.
+
+    One mcp_servers entry per ID cannot describe both servers; a wrong description or mapping is never sent.
+    """
+    result = []
+    for message in messages:
+        tool_calls = message.get("tool_calls")
+        if not tool_calls:
+            result.append(message)
+            continue
+        kept = [
+            ToolCall(id=tc["id"], function=tc["function"])
+            if tc is not current
+            and tc.get("mcp", {}).get("server_id") == server["id"]
+            and _conflicts(tc, server, history_servers)
+            else tc
+            for tc in tool_calls
+        ]
+        if any(new is not old for new, old in zip(kept, tool_calls)):
+            message = message.copy()
+            message["tool_calls"] = kept
+        result.append(message)
+    return result
 
 
 class ApprovalDecision(NamedTuple):

@@ -38,6 +38,7 @@ from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard._types import Action
 from ddtrace.aiguard.integrations._mcp import ApprovalDecision
 from ddtrace.aiguard.integrations._mcp import approval_decisions
+from ddtrace.aiguard.integrations._mcp import clear_model_tool_calls
 from ddtrace.aiguard.integrations._mcp import mcp_reference
 from ddtrace.aiguard.integrations._mcp import mcp_server
 from ddtrace.aiguard.integrations._mcp import record_model_tool_calls
@@ -587,6 +588,8 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
     Streamed response evaluation is gated separately by _install_openai_wrappers.
     MCP approvals are checked whenever DD_AI_GUARD_MCP_ENABLED is on, because they authorize a tool call.
     """
+    # A new operation: the previous response's tool calls must not outlive it if this one is not recorded.
+    clear_model_tool_calls()
     if is_aiguard_context_active():
         logger.debug("AI Guard openai responses before-hook skipped: framework context active")
         return None
