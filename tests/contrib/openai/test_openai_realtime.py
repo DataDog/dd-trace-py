@@ -1856,7 +1856,7 @@ def test_realtime_barge_in_truncation_does_not_make_inactive_onset_count(barge_s
     assert root["metadata"]["voice_barge_in"]["events"] == []
 
 
-def test_realtime_barge_in_episode_deduplication(barge_state):
+def test_realtime_barge_in_counts_first_episode_only(barge_state):
     integration, state, clock = barge_state
     _barge_response(state, clock)
     _barge_speech(state)
@@ -1867,8 +1867,31 @@ def test_realtime_barge_in_episode_deduplication(barge_state):
     _truncate(state, "r1", 100)
     _barge_ack(state, cutoff_ms=100)
     root = _barge_roots(integration)[0]
-    assert root["metrics"] == {"barge_in_count": 2}
-    assert len(root["metadata"]["voice_barge_in"]["events"]) == 2
+    assert root["metrics"] == {"barge_in_count": 1}
+    events = root["metadata"]["voice_barge_in"]["events"]
+    assert len(events) == 1
+    assert events[0]["id"] == "speech-1"
+    assert events[0]["reported_cutoff_ms"] == 100
+    assert events[0]["truncation_acknowledged"] is True
+
+
+def test_realtime_barge_in_new_response_has_its_own_interruption(barge_state):
+    integration, state, clock = barge_state
+    _barge_response(state, clock, "r1", audio_ms=6000)
+    _barge_speech(state, "first-turn")
+    state.on_server_event(_ns(type="input_audio_buffer.speech_stopped"))
+    _barge_response(state, clock, "r2", audio_ms=1000)
+    _barge_speech(state, "second-turn")
+    # The interrupted first response is still held for late audio truncation,
+    # but must not compete with the next response for a new interruption.
+    _truncate(state, "r2", 100)
+    _barge_ack(state, "r2", cutoff_ms=100)
+    _truncate(state, "r1", 100)
+    _barge_ack(state, "r1", cutoff_ms=100)
+    roots = _barge_roots(integration)
+    assert len(roots) == 2
+    assert [root["metrics"] for root in roots] == [{"barge_in_count": 1}, {"barge_in_count": 1}]
+    assert all(len(root["metadata"]["voice_barge_in"]["events"]) == 1 for root in roots)
 
 
 def test_realtime_barge_in_next_response_does_not_finalize_prior_output(barge_state):
@@ -1915,7 +1938,7 @@ def test_realtime_barge_in_turn_capacity_marks_eviction_incomplete(barge_state, 
 
 def test_realtime_barge_in_marker_cap_preserves_count(barge_state, monkeypatch):
     integration, state, clock = barge_state
-    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_MARKERS", 1)
+    monkeypatch.setattr(_realtime, "_BARGE_IN_MAX_MARKERS", 0)
     _barge_response(state, clock)
     for event_id in ("one", "two"):
         _barge_speech(state, event_id)
@@ -1923,7 +1946,8 @@ def test_realtime_barge_in_marker_cap_preserves_count(barge_state, monkeypatch):
     clock.advance_ms(1300)
     state.finish_session()
     root = _barge_roots(integration)[0]
-    assert root["metrics"] == {"barge_in_count": 2}
+    assert root["metrics"] == {"barge_in_count": 1}
+    assert root["metadata"]["voice_barge_in"]["events"] == []
     assert root["metadata"]["voice_barge_in"]["events_truncated"] is True
 
 

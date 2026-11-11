@@ -867,6 +867,7 @@ class _RealtimeState:
             if (
                 turn.barge_in_supported
                 and not turn.finalized
+                and turn.barge_in_count == 0
                 and not turn.output_stopped
                 and turn.audio.present
                 and turn.output_end_mono_ns is not None
@@ -888,6 +889,7 @@ class _RealtimeState:
             or not self._speech_active
             or episode is None
             or episode["counted"]
+            or turn.barge_in_count > 0
             or turn.response_id not in episode.get("candidate_response_ids", ())
             or turn.finalized
             or turn.output_stopped
@@ -897,7 +899,9 @@ class _RealtimeState:
             return
         episode["counted"] = True
         episode["turn"] = turn
-        turn.barge_in_count += 1
+        # A response can be interrupted only once. Later detector episodes in
+        # its retained playback window do not create additional interruptions.
+        turn.barge_in_count = 1
         marker = {"id": episode["id"], "detected_at_ms": episode["detected_at_ms"], "response_id": turn.response_id}
         if item_id is None and len(turn.audio_part_starts) == 1:
             item_id, content_index = next(iter(turn.audio_part_starts))
@@ -988,18 +992,10 @@ class _RealtimeState:
                     turn.barge_in_complete = False
                     return
                 self._count_speech(turn, item, content_index)
-                marker = None
-                if acknowledged:
-                    marker = next(
-                        (
-                            entry
-                            for entry in reversed(turn.barge_in_events)
-                            if entry.get("item_id") == item and entry.get("content_index") == content_index
-                        ),
-                        None,
-                    )
-                if marker is None and self._speech_active and self._speech and self._speech.get("turn") is turn:
-                    marker = self._speech.get("marker")
+                # There is at most one interruption marker per response. A
+                # later truncate still enriches that first interruption even
+                # after another speech episode has started.
+                marker = turn.barge_in_events[0] if turn.barge_in_events else None
                 if marker is not None:
                     marker.update(item_id=item, content_index=content_index, reported_cutoff_ms=end_ms)
                     if acknowledged:

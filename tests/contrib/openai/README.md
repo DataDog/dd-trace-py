@@ -10,12 +10,15 @@ turn after connection. Generation end remains the model-work end. State is bound
 and flushed by subsequent observations or connection cleanup; there is no timer
 thread that promises submission at an idle connection's deadline.
 
-Completed eligible turn roots carry `metrics.barge_in_count` and versioned
+Completed eligible turn roots carry binary `metrics.barge_in_count` and versioned
 `meta.metadata.voice_barge_in` marker metadata. Incomplete observation omits the
 numeric count; known zero is distinct. A response cancelled before producing audio
-is outside this population. Counts describe detector episodes during attributable
-estimated playback, not user intent or hardware audibility. Client truncation and
-server acknowledgement enrich the episode without counting it again.
+is outside this population. A turn is one assistant response. Its first qualifying
+speech interruption contributes 1 and one marker; an uninterrupted eligible turn
+contributes 0. Further speech episodes during that response's retained playback
+window do not count again. A new response has its own observation. Client truncation
+and server acknowledgement enrich the first marker without counting it again.
+Detection describes estimated playback, not user intent or hardware audibility.
 
 An explicit nonempty `model_provider` tag on the turn root takes precedence over
 endpoint detection. Use `LLMObs.annotation_context(tags={"model_provider": "openai"})`
