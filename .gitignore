@@ -239,5 +239,8 @@ ddtrace/profiling/collector/build-test/
 uv.lock
 benchmark-artifacts/
 
+# package-split inventory output (including per-scope --output dirs)
+.package-split*/
+
 # Dependency direction report written by scripts/import-analysis/layers.py analyze
 /layers.json
