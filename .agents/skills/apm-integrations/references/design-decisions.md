@@ -42,8 +42,12 @@ bundle declarations, registering subscriber classes, or decorating setup with su
 dependencies. Tracing product startup registers its web bundle; tracing's existing
 subscriber initialization also activates it for manual instrumentation. Product startup
 can restore listeners after a reset. Integration setup must not reactivate listeners
-removed by product stop. Do not unregister the shared subscriber when unpatching one
-integration, since other integrations and active requests still need its listeners.
+removed by product stop. Emitters must still handle requests and complete their events
+when no tracing subscriber is registered. For remaining span-specific compatibility code,
+read the local context with `ctx.get_item("_inner_span")` and guard span-only operations;
+`span_from_context()` can create a fallback span and is unsuitable for an optional lookup.
+Do not unregister the shared subscriber when unpatching one integration, since other
+integrations and active requests still need its listeners.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`

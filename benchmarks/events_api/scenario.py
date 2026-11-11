@@ -56,20 +56,6 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
         integration_config = IntegrationConfig(config, "benchmarking")  # type: ignore[no-untyped-call]
 
         def benchmark_core_api(loops: int) -> None:
-            # Register benchmark specific handlers
-            def _context_started_handler(ctx: core.ExecutionContext[Event]) -> None:
-                _start_span(ctx, call_trace=True)
-                span = span_bus.span_from_context(ctx)
-                span._set_attribute("http.url", ctx.get_item("url"))
-                span._set_attribute("http.method", ctx.get_item("method"))
-                span._set_attribute("http.status_code", ctx.get_item("status_code"))
-
-            def _context_ended_handler(ctx: core.ExecutionContext[Event], exc_info: ExcInfoType) -> None:
-                _finish_span(ctx, exc_info)
-
-            core.on("context.started.core.api.event", _context_started_handler)
-            core.on("context.ended.core.api.event", _context_ended_handler)
-
             for _ in range(loops):
                 with core.context_with_data(
                     "core.api.event",
@@ -85,18 +71,6 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                     pass
 
         def benchmark_events_api(loops: int) -> None:
-            # Register benchmark specific subscriber
-            class SpanContextSubscriber(TracingSubscriber[BenchmarkTracingEvent]):
-                event_names = (BenchmarkTracingEvent.event_name,)
-
-                @classmethod
-                def on_started(cls, ctx: core.ExecutionContext[BenchmarkTracingEvent]) -> None:
-                    span = span_bus.span_from_context(ctx)
-                    event: BenchmarkTracingEvent = ctx.event
-                    span._set_attribute("http.url", event.url)
-                    span._set_attribute("http.method", event.method)
-                    span._set_attribute("http.status_code", event.status_code)
-
             for _ in range(loops):
                 with core.context_with_event(
                     BenchmarkTracingEvent(
@@ -112,23 +86,10 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                     pass
 
         def benchmark_dispatch(loops: int) -> None:
-            # Register benchmark specific listener
-            def _dispatch_listener(*_args: object) -> None:
-                pass
-
-            core.on("core.api.dispatch.event", _dispatch_listener)
-
             for _ in range(loops):
                 core.dispatch("core.api.dispatch.event", ("myurl.com", "GET", 200))
 
         def benchmark_dispatch_event(loops: int) -> None:
-            class DispatchEventSubscriber(Subscriber):
-                event_names = (BenchmarkDispatchEvent.event_name,)
-
-                @classmethod
-                def on_event(cls, event_instance: BenchmarkDispatchEvent) -> None:
-                    pass
-
             for _ in range(loops):
                 core.dispatch_event(BenchmarkDispatchEvent(url="myurl.com", method="GET", status_code=200))
 
@@ -195,14 +156,68 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 yield benchmark_subscriber_reset_recovery
             return
 
+        # Setup and teardown run outside the timed callable for each sample.
         if self.api == "core":
-            yield benchmark_core_api
+            # Register benchmark specific handlers
+            def _context_started_handler(ctx: core.ExecutionContext[Event]) -> None:
+                _start_span(ctx, call_trace=True)
+                span = span_bus.span_from_context(ctx)
+                span._set_attribute("http.url", ctx.get_item("url"))
+                span._set_attribute("http.method", ctx.get_item("method"))
+                span._set_attribute("http.status_code", ctx.get_item("status_code"))
+
+            def _context_ended_handler(ctx: core.ExecutionContext[Event], exc_info: ExcInfoType) -> None:
+                _finish_span(ctx, exc_info)
+
+            core.on("context.started.core.api.event", _context_started_handler)
+            core.on("context.ended.core.api.event", _context_ended_handler)
+
+            try:
+                yield benchmark_core_api
+            finally:
+                core.reset_listeners("context.started.core.api.event", _context_started_handler)
+                core.reset_listeners("context.ended.core.api.event", _context_ended_handler)
         elif self.api == "events":
-            yield benchmark_events_api
+            # Register benchmark specific subscriber
+            class SpanContextSubscriber(TracingSubscriber[BenchmarkTracingEvent]):
+                event_names = (BenchmarkTracingEvent.event_name,)
+
+                @classmethod
+                def on_started(cls, ctx: core.ExecutionContext[BenchmarkTracingEvent]) -> None:
+                    span = span_bus.span_from_context(ctx)
+                    event: BenchmarkTracingEvent = ctx.event
+                    span._set_attribute("http.url", event.url)
+                    span._set_attribute("http.method", event.method)
+                    span._set_attribute("http.status_code", event.status_code)
+
+            try:
+                yield benchmark_events_api
+            finally:
+                SpanContextSubscriber.unregister()
         elif self.api == "dispatch":
-            yield benchmark_dispatch
+            # Register benchmark specific listener
+            def _dispatch_listener(*_args: object) -> None:
+                pass
+
+            core.on("core.api.dispatch.event", _dispatch_listener)
+
+            try:
+                yield benchmark_dispatch
+            finally:
+                core.reset_listeners("core.api.dispatch.event", _dispatch_listener)
         elif self.api == "dispatch_event":
-            yield benchmark_dispatch_event
+
+            class DispatchEventSubscriber(Subscriber):
+                event_names = (BenchmarkDispatchEvent.event_name,)
+
+                @classmethod
+                def on_event(cls, event_instance: BenchmarkDispatchEvent) -> None:
+                    pass
+
+            try:
+                yield benchmark_dispatch_event
+            finally:
+                DispatchEventSubscriber.unregister()
         elif self.api == "trace_api":
             yield benchmark_trace_api
         else:

@@ -129,7 +129,9 @@ product-local tuple. Its
 unregisters the bundles. Shutdown flushes finished traces, discards pending traces
 from the aggregator, stops processors, and clears the calling context's active span.
 It runs even if tracing was already disabled, since pending traces can still exist.
-Completed processor cleanup is not repeated; pending writer retirement can be retried.
+Each successfully completed processor cleanup is remembered across failed shutdown
+attempts; a retry resumes the remaining cleanup without calling completed processors
+again. Pending writer retirement can also be retried.
 If shutdown raises or another call is still performing cleanup, listeners remain
 registered. A tracer-scoped `tracer.shutdown` completion listener removes the bundles
 when cleanup succeeds, including after a concurrent, reentrant, or retried public
@@ -140,7 +142,9 @@ success and bundle unregistration is idempotent.
 Shutdown prevents new span processing, including standalone modes, and detaches the
 aggregator buffer so already-running starts cannot repopulate it. Requests completing after a
 successful stop still release their execution events, but their tracing subscribers
-no longer finish spans or attach response metadata. Existing tasks can retain a
+no longer finish spans or attach response metadata. New requests continue emitting
+lifecycle events without spans; integrations guard their remaining span-only operations.
+Existing tasks can retain a
 reference to a discarded span in their own ContextVar; shutdown does not reset other
 tasks' contexts. This terminal cleanup is distinct from temporarily disabling tracing
 or unpatching one integration, which must retain shared completion listeners.

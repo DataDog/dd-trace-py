@@ -90,3 +90,89 @@ def test_shutdown_rejects_inflight_trace_publication() -> None:
         except ServiceStatusError:
             pass
         writer.shutdown_exporter()
+
+
+@pytest.mark.subprocess(
+    parametrize={
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": ["", "arn:aws:lambda:us-east-1::runtime:python3.12"],
+        "PAUSE_AT": ["encoding", "flush", "send"],
+    },
+)
+def test_shutdown_rejects_synchronous_write_after_admission() -> None:
+    import os
+    import threading
+    from unittest import mock
+
+    import pytest
+
+    from ddtrace.internal.service import ServiceStatusError
+    from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import Span
+
+    exporter = mock.Mock(send=mock.Mock(return_value="{}"))
+    with mock.patch.object(NativeWriter, "_create_exporter", return_value=exporter):
+        writer = NativeWriter("http://localhost:8126", sync_mode=True)
+    entered = threading.Event()
+    release = threading.Event()
+    errors = []
+    method_name = {"encoding": "_write_unlocked", "flush": "flush_queue", "send": "_send_payload"}[
+        os.environ["PAUSE_AT"]
+    ]
+    original = getattr(writer, method_name)
+
+    def paused(*args, **kwargs):
+        entered.set()
+        assert release.wait(10)
+        return original(*args, **kwargs)
+
+    def write():
+        try:
+            writer.write([Span("shutdown.inflight.sync")])
+        except BaseException as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=write)
+    try:
+        writer.write([Span("before.shutdown")])
+        exporter.send.assert_called_once()
+        exporter.send.reset_mock()
+        with mock.patch.object(writer, method_name, side_effect=paused):
+            thread.start()
+            try:
+                assert entered.wait(10)
+                # Sync mode has no periodic worker; stop must close publication even when it raises.
+                with pytest.raises(ServiceStatusError):
+                    writer.stop(0)
+            finally:
+                release.set()
+                thread.join(10)
+        assert not thread.is_alive()
+        assert not errors, errors
+        exporter.send.assert_not_called()
+        assert len(writer._encoder) == 0
+        assert writer._worker is None
+    finally:
+        release.set()
+        if thread.ident is not None:
+            thread.join(10)
+        writer.shutdown_exporter()
+
+
+@pytest.mark.subprocess
+def test_shutdown_keeps_asynchronous_final_flush() -> None:
+    from unittest import mock
+
+    from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import Span
+
+    exporter = mock.Mock(send=mock.Mock(return_value="{}"))
+    with mock.patch.object(NativeWriter, "_create_exporter", return_value=exporter):
+        writer = NativeWriter("http://localhost:8126", processing_interval=60, sync_mode=False)
+    try:
+        writer.write([Span("before.shutdown")])
+        writer.stop(5)
+        exporter.send.assert_called_once()
+        exporter.shutdown.assert_called_once()
+        assert len(writer._encoder) == 0
+    finally:
+        writer.shutdown_exporter()

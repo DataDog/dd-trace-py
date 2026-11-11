@@ -196,6 +196,7 @@ class Tracer:
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = Lock()
+        self._shutdown_completed_processors: list[object] = []
         # Reentrant because the exit-signal handler can run shutdown() on a thread that holds it.
         self._post_fork_lock = forksafe.RLock()
         self._post_fork_writer_pending = False
@@ -1168,8 +1169,10 @@ class Tracer:
                     self._post_fork_lock.release()
             self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
-                if processor:
+                if processor and not any(processor is completed for completed in self._shutdown_completed_processors):
                     processor.shutdown(timeout)
+                    # A later processor can fail; retries must not repeat this completed cleanup.
+                    self._shutdown_completed_processors.append(processor)
             self.enabled = False
             self._wrap_executor = None
             self.context_provider.activate(None)
@@ -1179,6 +1182,7 @@ class Tracer:
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+            self._shutdown_completed_processors.clear()
             shutdown_completed = True
         finally:
             self._shutdown_lock.release()

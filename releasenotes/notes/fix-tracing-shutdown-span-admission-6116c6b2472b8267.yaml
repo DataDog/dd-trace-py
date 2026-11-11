@@ -1,5 +1,5 @@
 fixes:
   - |
-    tracing: Fixes repeated cleanup and retained unfinished traces when requests
-    overlap tracer shutdown. Prevents tracing callbacks and background writer
-    threads from remaining active after concurrent shutdown.
+    tracing: Fixes repeated cleanup after a failed shutdown and unintended span
+    creation for web requests after tracing stops. Prevents unfinished traces,
+    background writers, and synchronous trace writes from remaining active after shutdown.

@@ -1254,9 +1254,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
             with self._exporter_lock:
-                # drop_buffered_traces() closes the gate before taking this lock, so no send
-                # starts after a refresh and none reaches a dropped exporter.
-                if self._discarded_by_refresh:
+                # Sync writes can finish encoding after stop; drain those payloads without sending.
+                # Async writers must still flush their buffered traces from on_shutdown.
+                if self._discarded_by_refresh or (self._sync_mode and self._exporter_stopping):
                     return
                 response_body = self._exporter.send(payload)
         except native.RequestError as e:
