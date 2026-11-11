@@ -214,12 +214,14 @@ class ProfilingConfig(DDConfig):
 
         # An explicit DD_PROFILING_ENABLED=false also opts out of the remote config experiment, so that Remote Config
         # cannot start the profiler.
-        if "DD_PROFILING_ENABLED" in self.source and not self.enabled and not _should_arm(self.source):
+        if self.value_source("DD_PROFILING_ENABLED") != ValueSource.DEFAULT and not (
+            self.enabled or _should_arm(self.source)
+        ):
             self.remote_config_experiment = False
 
         # The remote config experiment can start the profiler at runtime, so like the armed mode it needs the stack
         # profiler hooks installed at startup, to see the threads, event loops and greenlets created before that.
-        self.install: bool = _should_arm(self.source) or self.remote_config_experiment
+        self.install: bool = self.remote_config_experiment or _should_arm(self.source)
 
     agentless = DDConfig.v(
         bool,

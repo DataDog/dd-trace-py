@@ -49,7 +49,7 @@ def test_install_disabled_profiling_enabled_installs_at_startup() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="false", DD_PROFILING_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -74,7 +74,7 @@ def test_install_disabled_profiling_disabled_installs_nothing() -> None:
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="false", DD_PROFILING_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -288,7 +288,7 @@ def test_install_enabled_profiling_disabled_stack_disabled_installs_at_startup()
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="false", DD_PROFILING_ENABLED="0", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
@@ -354,7 +354,7 @@ def test_install_disabled_profiling_enabled_stack_disabled_installs_nothing_on_p
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(_DD_PROFILING_REMOTE_CONFIG_EXPERIMENT="false", DD_PROFILING_ENABLED="0", DD_PROFILING_STACK_ENABLED="0"),
+    env=dict(DD_PROFILING_ENABLED="0", DD_PROFILING_STACK_ENABLED="0"),
     out="OK\n",
     err=None,
 )
