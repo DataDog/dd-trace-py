@@ -14,12 +14,15 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.utils import DummyWriter
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -184,6 +187,57 @@ class TestExportModeKeepsMetaStruct:
             mock_writer.enqueue.assert_called_once()
             assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
             assert not _get_llmobs_data_metastruct(span)
+            llmobs_service.disable()
+
+
+def _finish_experiment_trace(tracer, priority=USER_KEEP):
+    """An experiment root span with one LLM child, as Experiment._run_task builds them."""
+    with tracer.trace("experiment-row", span_type=SpanTypes.LLM) as root:
+        root.context.set_baggage_item(EXPERIMENT_ID_KEY, "exp-123")
+        _annotate_llmobs_span_data(root, kind="experiment")
+        root.context.sampling_priority = priority
+        with tracer.trace("llm-call", span_type=SpanTypes.LLM) as child:
+            _annotate_llm_span(child)
+    return root, child
+
+
+class TestExperimentSpansSkipAPMTrace:
+    def test_experiment_spans_go_to_llmobs_writer_even_when_trace_is_kept(self, llmobs_agent_proxy, tracer):
+        """A kept APM trace no longer carries experiment rows: they ship directly so APM-pipeline
+        limits and drops cannot lose them.
+        """
+        _llmobs, mock_writer = llmobs_agent_proxy
+        root, child = _finish_experiment_trace(tracer)
+        assert mock_writer.enqueue.call_count == 2
+        for span in (root, child):
+            assert span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY) == LLMObsExportMode.LLMOBS_AGENT_PROXY
+            assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+            assert not _get_llmobs_data_metastruct(span)
+
+    def test_non_experiment_spans_still_ride_kept_trace(self, llmobs_agent_proxy, tracer):
+        _llmobs, mock_writer = llmobs_agent_proxy
+        span = _finish_with_priority(tracer, USER_KEEP)
+        assert span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY) == LLMObsExportMode.APM_AGENT
+        mock_writer.enqueue.assert_not_called()
+        assert _get_llmobs_data_metastruct(span)
+
+    def test_opt_out_keeps_experiment_spans_on_apm_trace(self, tracer):
+        llmobs_service.disable()
+        with (
+            override_env({"_DD_LLMOBS_EXPERIMENTS_RIDE_APM_TRACE": "true"}),
+            override_global_config(
+                {"_llmobs_ml_app": "test-ml-app", "_dd_api_key": "<not-a-real-key>", "service": "tests.llmobs"}
+            ),
+        ):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            llmobs_service._instance._llmobs_span_writer.stop()
+            mock_writer = mock.MagicMock()
+            llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
+            root, child = _finish_experiment_trace(tracer)
+            mock_writer.enqueue.assert_not_called()
+            assert root._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY) == LLMObsExportMode.APM_AGENT
+            assert _get_llmobs_data_metastruct(child)
             llmobs_service.disable()
 
 

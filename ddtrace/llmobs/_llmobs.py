@@ -616,6 +616,15 @@ class LLMObs(Service):
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT
+        # Experiment rows go straight to the LLMObs intake, so APM-pipeline limits and drops
+        # (chunk size, intake 413s, payload rejections) cannot lose a row.
+        self._experiment_export_mode = self._export_mode
+        if self._export_mode in (LLMObsExportMode.APM_AGENT, LLMObsExportMode.APM_AGENTLESS) and not asbool(
+            _env.get("_DD_LLMOBS_EXPERIMENTS_RIDE_APM_TRACE", "false")
+        ):
+            self._experiment_export_mode = (
+                LLMObsExportMode.LLMOBS_AGENTLESS if agentless_enabled else LLMObsExportMode.LLMOBS_AGENT_PROXY
+            )
 
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -675,7 +684,12 @@ class LLMObs(Service):
         targets = routing_targets(span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY))
         # Routed spans go straight to the LLMObs intake whatever the process export mode is, so
         # they must be built for it: APM_AGENTLESS would drop the error fields and rewrite tag keys.
-        export_mode = LLMObsExportMode.LLMOBS_AGENTLESS if targets else self._export_mode
+        if targets:
+            export_mode = LLMObsExportMode.LLMOBS_AGENTLESS
+        elif span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+            export_mode = self._experiment_export_mode
+        else:
+            export_mode = self._export_mode
 
         span_event = None
         try:
@@ -718,7 +732,7 @@ class LLMObs(Service):
             self._llmobs_span_writer.enqueue(span_event, targets)
             return
 
-        span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
+        span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
 
     def _enrich_with_http_client_ip(self, span: Span) -> None:
