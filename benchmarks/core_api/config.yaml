@@ -106,3 +106,20 @@ get_item_exists:
   set_item_count: 0
   get_item_exists: true
   listener_raises: false
+
+# Warm subscriber lifecycle; cold activation is covered by startup benchmarks.
+subscriber_setup:
+  listeners: 0
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+subscriber_registration:
+  listeners: 0
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false
+subscriber_reset_recovery:
+  listeners: 0
+  set_item_count: 0
+  get_item_exists: false
+  listener_raises: false

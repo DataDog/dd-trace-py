@@ -235,13 +235,52 @@ def test_events_api_benchmark_scenarios_smoke() -> None:
         "dispatch",
         "dispatch_event",
         "trace_api",
-        "subscriber_setup",
-        "subscriber_registration",
-        "subscriber_reset_recovery",
     ):
         scenario = EventsAPIScenario(name=api, api=api)
         workload = scenario.run()
         next(workload)(2)
+        assert next(workload, None) is None
+
+
+@pytest.mark.subprocess(
+    parametrize={
+        "BUNDLE_SUPPORT": ["present", "absent"],
+        "WORKLOAD": ["subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"],
+    },
+)
+def test_subscriber_benchmarks_support_release_baselines() -> None:
+    import os
+    from pathlib import Path
+    import sys
+    from unittest.mock import patch
+
+    import yaml
+
+    from ddtrace.internal import core
+    from ddtrace.internal.core import subscriber
+
+    sys.path.insert(0, "benchmarks")
+    with patch("bm._scenario._register"):
+        from benchmarks.core_api.scenario import CoreAPIScenario
+
+    if os.environ["BUNDLE_SUPPORT"] == "absent":
+        # Load today's package initializer before simulating the pre-bundle subscriber API.
+        import ddtrace._trace.subscribers.web_framework  # noqa: F401
+
+        del subscriber.SubscriberBundle
+
+    name = os.environ["WORKLOAD"]
+    configurations = yaml.safe_load(Path("benchmarks/core_api/config.yaml").read_text())
+    scenario = CoreAPIScenario(name=name, **configurations[name])
+    for _ in range(2):
+        core.reset_listeners("context.started.web.request")
+        core.reset_listeners("context.ended.web.request")
+        workload = scenario.run()
+        measured = next(workload)
+        for loops in (2, 3):
+            measured(loops)
+            assert core.has_listeners("context.started.web.request")
+            assert core.has_listeners("context.ended.web.request")
         assert next(workload, None) is None
 
 

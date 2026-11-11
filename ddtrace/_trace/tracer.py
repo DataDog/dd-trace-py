@@ -1140,11 +1140,13 @@ class Tracer:
         if not self._shutdown_lock.acquire(blocking=False):
             # Already shutting down from this or another thread — skip re-entrant call
             return
+        shutdown_completed = False
         try:
             # Check under the lock: another shutdown may have completed before this call acquired it.
             if self.start_span == self._start_span_after_shutdown:
                 if self._span_aggregator._retired_writers:
                     self._span_aggregator.shutdown(timeout)
+                shutdown_completed = True
                 return
             # In a MicroVM, bound the wait by timeout: a refresh on another thread can hold this lock while
             # waiting for an aggregator or writer lock held by the thread an exit-signal handler interrupted
@@ -1177,5 +1179,8 @@ class Tracer:
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+            shutdown_completed = True
         finally:
             self._shutdown_lock.release()
+            if shutdown_completed:
+                core.dispatch("tracer.shutdown", (self,), allow_raise=True)

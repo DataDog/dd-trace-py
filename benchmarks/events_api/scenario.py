@@ -147,38 +147,6 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 span._set_attribute("http.status_code", 200)
                 span.finish()
 
-        if self.api in ("subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"):
-            # Keep existing configurations usable with baselines predating bundles.
-            from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
-            from ddtrace.internal.core.subscriber import SubscriberBundle
-
-            def benchmark_subscriber_setup(loops: int) -> None:
-                # Product startup may already have activated the shared bundle.
-                WEB_FRAMEWORK_SUBSCRIBERS.register()
-                for _ in range(loops):
-                    WEB_FRAMEWORK_SUBSCRIBERS.register()
-
-            def benchmark_subscriber_registration(loops: int) -> None:
-                # Modules are already loaded. Use startup's fresh-process scenarios for cold imports.
-                for _ in range(loops):
-                    core.reset_listeners("context.started.web.request")
-                    core.reset_listeners("context.ended.web.request")
-                    SubscriberBundle(WEB_FRAMEWORK_SUBSCRIBERS.module, WEB_FRAMEWORK_SUBSCRIBERS.subscribers).register()
-
-            def benchmark_subscriber_reset_recovery(loops: int) -> None:
-                WEB_FRAMEWORK_SUBSCRIBERS.register()
-                for _ in range(loops):
-                    core.reset_listeners("context.started.web.request")
-                    WEB_FRAMEWORK_SUBSCRIBERS.register()
-
-            if self.api == "subscriber_setup":
-                yield benchmark_subscriber_setup
-            elif self.api == "subscriber_registration":
-                yield benchmark_subscriber_registration
-            else:
-                yield benchmark_subscriber_reset_recovery
-            return
-
         if self.api == "core":
             yield benchmark_core_api
         elif self.api == "events":

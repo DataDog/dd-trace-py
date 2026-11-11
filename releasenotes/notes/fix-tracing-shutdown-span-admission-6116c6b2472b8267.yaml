@@ -2,3 +2,4 @@ fixes:
   - |
     tracing: Prevents repeated processor cleanup after successful tracer shutdown
     and unfinished traces being retained when new spans begin during shutdown.
+    Also completes tracing cleanup when shutdown overlaps another shutdown call.

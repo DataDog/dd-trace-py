@@ -130,8 +130,13 @@ unregisters the bundles. Shutdown flushes finished traces, discards pending trac
 from the aggregator, stops processors, and clears the calling context's active span.
 It runs even if tracing was already disabled, since pending traces can still exist.
 Completed processor cleanup is not repeated; pending writer retirement can be retried.
-If shutdown raises or another call is still
-performing cleanup, listeners remain registered; a later `stop()` retries teardown.
+If shutdown raises or another call is still performing cleanup, listeners remain
+registered. A tracer-scoped `tracer.shutdown` completion listener removes the bundles
+when cleanup succeeds, including after a concurrent, reentrant, or retried public
+shutdown. ProductManager does not need to call `stop()` again. Completion notifications
+run after releasing the shutdown lock; failed cleanup does not notify completion.
+Successful later calls can notify again; the teardown callback removes itself after
+success and bundle unregistration is idempotent.
 Shutdown prevents new span processing, including standalone modes, and detaches the
 aggregator buffer so already-running starts cannot repopulate it. Requests completing after a
 successful stop still release their execution events, but their tracing subscribers
