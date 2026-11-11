@@ -1234,6 +1234,8 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
         assert span.name == "states.command"  # This confirms our patch is working
+        start_span = next(s for s in spans if s.get_tag("aws.operation") == "StartExecution")
+        assert start_span.get_tag("aws.step_functions.state_machine.arn") == start_execution_dict["stateMachineArn"]
         sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
 
     @mock_stepfunctions
@@ -3666,3 +3668,28 @@ def test_add_api_param_span_tags_resource_identifiers(endpoint_name, params, exp
     aws._add_api_param_span_tags(span, endpoint_name, params)
     for tag, value in expected.items():
         assert span.get_tag(tag) == value, tag
+
+
+@mock_stepfunctions
+def test_stepfunctions_client_state_machine_arn(test_spans):
+    # In-process moto, so this does not depend on localstack
+    patch()
+    try:
+        session = botocore.session.get_session()
+        session.set_credentials(access_key="access-key", secret_key="secret-key")
+        sf = session.create_client("stepfunctions", region_name="us-west-2")
+        state_machine_arn = sf.create_state_machine(
+            name="tagging",
+            definition='{"StartAt": "HelloWorld","States": {"HelloWorld": {"Type": "Pass","End": true}}}',
+            roleArn="arn:aws:iam::123456789012:role/DummyRole",
+        )["stateMachineArn"]
+        sf.describe_state_machine(stateMachineArn=state_machine_arn)
+    finally:
+        unpatch()
+
+    spans = {span.get_tag("aws.operation"): span for span in test_spans.pop()}
+    describe_span = spans["DescribeStateMachine"]
+    assert describe_span.get_tag("aws.step_functions.state_machine.arn") == state_machine_arn
+    assert describe_span.get_tag("statemachinearn") == state_machine_arn
+    # CreateStateMachine only carries the name, not the ARN
+    assert spans["CreateStateMachine"].get_tag("aws.step_functions.state_machine.arn") is None
