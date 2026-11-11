@@ -22,15 +22,16 @@ destination_repository = "https://github.com/DataDog/datadog-apm-python"
 # scripts/package_split/README.md.
 extraction_revision = "2146fefcd1f7db25239b80c382f959dff9b6e3f9"
 owner = "@DataDog/apm-core-python"
-source_paths = ["ddtrace/internal/codeowners.py"]
+source_paths = [
+    "ddtrace/internal/codeowners.py",
+    "tests/internal/test_codeowners.py",
+    "tests/testing/internal/test_codeowners.py",
+]
 
 [frozen.hashes]
 "ddtrace/internal/codeowners.py" = "1273ae7d1e11edcf8692bb56f95c6aedd115668b9a20fc825cf5472f67d7fbaa"
 "tests/internal/test_codeowners.py" = "8dc93607aaf4535266cba75d3566ca266317fdd7264673756b416f5246726788"
 "tests/testing/internal/test_codeowners.py" = "4211e0c941787aedb7ec38f6469d00142e9ca06ba066fca9ef363f73f6cdb6a6"
-
-[frozen.hashes]
-"ddtrace/internal/codeowners.py" = "1273ae7d1e11edcf8692bb56f95c6aedd115668b9a20fc825cf5472f67d7fbaa"
 
 [[frozen.approved_rewrites]]
 path = "ddtrace/internal/codeowners.py"
