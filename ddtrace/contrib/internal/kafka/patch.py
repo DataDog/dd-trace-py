@@ -38,6 +38,14 @@ log = get_logger(__name__)
 # (which cannot call list_topics without risking a librdkafka crash).
 # Keys come from _normalize_bootstrap_servers so that clients listing the same
 # brokers in a different order or format share an entry.
+#
+# Known gaps for consumers: a process that only consumes never gets a cluster ID,
+# and consumer spans created before a producer's first successful lookup have
+# none. Only identical normalized broker sets match, so different addresses for
+# the same cluster (IP vs DNS name, a subset of brokers, letter case, a
+# PLAINTEXT:// prefix) stay unresolved. Empty polls never look up a cluster ID.
+# Consumers cannot call list_topics (see _get_cluster_id), and the remaining
+# options (e.g. an AdminClient) would open a new connection to the cluster.
 _cluster_id_by_bootstrap: dict[str, str] = {}
 
 config._add(
