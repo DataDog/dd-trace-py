@@ -240,7 +240,8 @@ def test_metrics_partial_flush_disabled():
     )
 
 
-@parametrize_with_all_encodings(check_logs=False)
+# Creating over two million spans can exceed the default timeout on shared runners.
+@parametrize_with_all_encodings(check_logs=False, timeout=300)
 def test_single_trace_too_large():
     from unittest import mock
 
