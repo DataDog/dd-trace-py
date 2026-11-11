@@ -1376,3 +1376,101 @@ async def test_realtime_uncommitted_vad_offsets_bounded_and_cleared(agents, open
     await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": "pending", "audio_start_ms": 10})
     await model.close()
     assert not state.input_offsets
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_realtime_sideband_vad_preserves_barge_in_overlap(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, legacy
+):
+    now = [10_000_000_000]
+    monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
+    model = await connect(socket, {"call_id": "vad-overlap"})
+    session = {"id": "session-test", "object": "realtime.session", "model": "gpt-realtime"}
+    detection = {"type": "server_vad", "silence_duration_ms": 200}
+    if legacy:
+        session["turn_detection"] = detection
+    else:
+        session["audio"] = {"input": {"turn_detection": detection}}
+    await socket.feed({"type": "session.updated", "session": session})
+    await socket.feed(created("r1"))
+    await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
+    now[0] = 11_000_000_000
+    await socket.feed(done("r1", [output_item()]))
+    now[0] = 12_000_000_000
+    await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": "u2", "audio_start_ms": 9000})
+    await socket.feed({"type": "output_audio_buffer.cleared", "response_id": "r1"})
+    await bounded_output(socket, milliseconds=2000)
+    await socket.feed(retrieved(audio=b"\0\0" * 48000))
+    now[0] = 13_000_000_000
+    await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "u2", "audio_end_ms": 10300})
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u2", "previous_item_id": "a1"})
+    now[0] = 13_100_000_000
+    await socket.feed(created("r2"))
+    second_model = model._dd_realtime_state.entries["r2"].turn.span
+    reply = retrieved("u2", b"\0\0" * 31200, "change the time")
+    reply["item"]["role"] = "user"
+    reply["item"]["content"][0]["type"] = "input_audio"
+    await socket.feed(reply)
+    now[0] = 14_000_000_000
+    await socket.feed(done("r2"))
+    await model.close()
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    caller = next(s for s in spans if s.resource == "createRealtimeUserSpeech")
+    assistant = next(s for s in spans if s.resource == "createRealtimeAgentSpeech")
+    assert caller.start_ns == 11_700_000_000
+    assert caller.start_ns + caller.duration_ns == 12_800_000_000
+    assert assistant.start_ns + assistant.duration_ns - caller.start_ns == 300_000_000
+    assert second_model.start_ns == 12_800_000_000
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(second_model), span_kind="llm")
+    audio = _get_llmobs_data_metastruct(second_model)["meta"]["input"]["messages"][0]["audio_parts"][0]
+    assert len(base64.b64decode(audio["content"])) == 44 + 62400
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+async def test_realtime_sideband_vad_stop_updates_preserve_first_onset(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch
+):
+    now = [10_000_000_000]
+    monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
+    model = await connect(socket, {"call_id": "vad-updates"})
+    await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": "u1", "audio_start_ms": 0})
+    now[0] = 11_000_000_000
+    await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "u1", "audio_end_ms": 1300})
+    now[0] = 12_000_000_000
+    await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "u1", "audio_end_ms": 2300})
+    now[0] = 13_000_000_000
+    for end in [2300, 2000, -1, True, float("inf")]:
+        await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "u1", "audio_end_ms": end})
+    await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "stale", "audio_end_ms": 9000})
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
+    await socket.feed(created())
+    turn = model._dd_realtime_state.entries["r1"].turn
+    assert turn.input.speech_start_ns == 9_700_000_000
+    assert turn.input.speech_end_ns == 12_000_000_000
+    assert turn.span.start_ns == 12_000_000_000
+    assert model._dd_realtime_state.items["u1"].raw_byte_bound == 110400
+    await model.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("invalid", [-1, True, float("inf"), "unknown"])
+async def test_realtime_sideband_invalid_vad_duration_keeps_observed_onset(
+    agents, openai_agents_llmobs, socket, monkeypatch, invalid
+):
+    now = [10_000_000_000]
+    monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
+    model = await connect(socket, {"call_id": "invalid-vad"})
+    await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": "u1", "audio_start_ms": invalid})
+    now[0] = 11_000_000_000
+    await socket.feed({"type": "input_audio_buffer.speech_stopped", "item_id": "u1", "audio_end_ms": 1300})
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u1", "previous_item_id": ""})
+    await socket.feed(created())
+    turn = model._dd_realtime_state.entries["r1"].turn
+    assert turn.input.speech_start_ns == 10_000_000_000
+    assert turn.input.speech_end_ns == 11_000_000_000
+    assert model._dd_realtime_state.items["u1"].raw_byte_bound is None
+    await model.close()

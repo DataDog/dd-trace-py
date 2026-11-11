@@ -30,6 +30,7 @@ from ddtrace.contrib.internal.openai._realtime import _AUDIO_ACCUM_MAX_BYTES
 from ddtrace.contrib.internal.openai._realtime import _bytes_per_second
 from ddtrace.contrib.internal.openai._realtime import _decoded_b64_len
 from ddtrace.contrib.internal.openai._realtime import _encoded_realtime_audio_size
+from ddtrace.contrib.internal.openai._realtime import _get_attr
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
 from ddtrace.contrib.internal.openai._realtime import _ResponseTurn
 from ddtrace.contrib.internal.openai._realtime import _segment_duration_ns
@@ -84,6 +85,14 @@ class _Item:
 
 
 @dataclass
+class _InputTiming:
+    start_ms: Optional[float] = None
+    end_ms: Optional[float] = None
+    start_ns: Optional[int] = None
+    end_ns: Optional[int] = None
+
+
+@dataclass
 class _ApplicationRetrieval:
     item: _Item
     sent: bool = False
@@ -126,7 +135,7 @@ class _AgentsRealtimeState(_RealtimeState):
         self._preparing_response: Optional[_Playback] = None
         self.entries: OrderedDict[str, _Playback] = OrderedDict()
         self.items: OrderedDict[str, _Item] = OrderedDict()
-        self.input_offsets: OrderedDict[str, dict[str, float]] = OrderedDict()
+        self.input_offsets: OrderedDict[str, _InputTiming] = OrderedDict()
         self.requests: dict[str, _Item] = {}
         self.application_requests: OrderedDict[str, _ApplicationRetrieval] = OrderedDict()
         self._request_prefix = "ddtrace_realtime_audio_" + uuid4() + "_"
@@ -135,6 +144,7 @@ class _AgentsRealtimeState(_RealtimeState):
         self.tasks: set[asyncio.Task[None]] = set()
         self.retrieve_enabled = asbool(env.get("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "true"))
         self.active: Optional[_Playback] = None
+        self._vad_silence_ns = 0
         self.handling = 0
         self.intents: dict[str, int] = {}
         self._input_audio_mime = self._output_audio_mime = "audio/pcm"
@@ -414,23 +424,65 @@ class _AgentsRealtimeState(_RealtimeState):
             self.items[item_id] = item
         return item
 
+    def _update_session_config(self, session: Any) -> None:
+        super()._update_session_config(session)
+        audio = _get_attr(session, "audio", None)
+        detection = _get_attr(_get_attr(audio, "input", None), "turn_detection", _MISSING)
+        if detection is _MISSING:
+            detection = _get_attr(session, "turn_detection", _MISSING)
+        if detection is _MISSING:
+            return
+        silence = _get_attr(detection, "silence_duration_ms", 0)
+        self._vad_silence_ns = (
+            int(silence * 1_000_000)
+            if _get_attr(detection, "type", None) == "server_vad"
+            and isinstance(silence, (int, float))
+            and not isinstance(silence, bool)
+            and 0 <= silence < 1e12
+            else 0
+        )
+
     def _remember_input(self, event: dict[str, Any]) -> None:
         item_id = event.get("item_id")
         if not isinstance(item_id, str):
             return
-        offsets = self.input_offsets.setdefault(item_id, {})
-        for key in ("audio_start_ms", "audio_end_ms"):
+        event_type = event.get("type")
+        if event_type != "input_audio_buffer.committed":
+            timing = self.input_offsets.setdefault(item_id, _InputTiming())
+            while len(self.input_offsets) > _MAX_ITEMS:
+                self.input_offsets.popitem(last=False)
+            now = time.time_ns()
+            key = "audio_start_ms" if event_type == "input_audio_buffer.speech_started" else "audio_end_ms"
             value = event.get(key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value < 1e12:
-                if key != "audio_start_ms" or key not in offsets:
-                    offsets[key] = value
-        while len(self.input_offsets) > _MAX_ITEMS:
-            self.input_offsets.popitem(last=False)
-        if event.get("type") != "input_audio_buffer.committed":
+            offset = (
+                value if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value < 1e12 else None
+            )
+            if event_type == "input_audio_buffer.speech_started":
+                if timing.start_ns is None:
+                    timing.start_ns, timing.start_ms = now, offset
+            else:
+                if timing.end_ns is not None and (
+                    offset is None or (timing.end_ms is not None and offset <= timing.end_ms)
+                ):
+                    return
+                if (
+                    timing.end_ms is None
+                    and timing.start_ns is not None
+                    and timing.start_ms is not None
+                    and offset is not None
+                    and offset >= timing.start_ms
+                ):
+                    # A sideband observes no microphone frames. Backdate from the
+                    # full VAD interval, including its pre-detection audio, so an
+                    # interrupted reply and the caller can overlap on the timeline.
+                    timing.start_ns = min(timing.start_ns, max(0, now - int((offset - timing.start_ms) * 1e6)))
+                if offset is not None:
+                    timing.end_ms = offset
+                timing.end_ns = max(timing.end_ns or 0, timing.start_ns or 0, now - self._vad_silence_ns)
             return
-        self.input_offsets.pop(item_id, None)
+        committed_timing = self.input_offsets.pop(item_id) if item_id in self.input_offsets else None
         # VAD offsets precede commit and may straddle an unrelated response.
-        # Bind media only once commit identifies the input that will own it.
+        # Bind media and its timing only once commit identifies their owner.
         item = self._bind(
             item_id,
             self._pending_input,
@@ -442,10 +494,15 @@ class _AgentsRealtimeState(_RealtimeState):
             return
         item.expected.add(0)
         item.side.audio.present = True
-        if item.audio_start_ms is None:
-            item.audio_start_ms = offsets.get("audio_start_ms")
-        if "audio_end_ms" in offsets:
-            item.audio_end_ms = offsets["audio_end_ms"]
+        if committed_timing is not None:
+            if item.audio_start_ms is None:
+                item.audio_start_ms = committed_timing.start_ms
+            if committed_timing.end_ms is not None:
+                item.audio_end_ms = committed_timing.end_ms
+            if committed_timing.start_ns is not None:
+                item.side.speech_start_ns = committed_timing.start_ns
+            if committed_timing.end_ns is not None:
+                item.side.speech_end_ns = max(committed_timing.end_ns, committed_timing.start_ns or 0)
         item.generation_done = True
         rate = _bytes_per_second(item.mime, item.rate)
         if (
@@ -769,12 +826,9 @@ class _AgentsRealtimeState(_RealtimeState):
                 if isinstance(call_id, str) and isinstance(name, str):
                     self._tool_call_names[call_id] = name
         if self.sideband:
-            if event_type in (
-                "input_audio_buffer.speech_started",
-                "input_audio_buffer.speech_stopped",
-                "input_audio_buffer.committed",
-            ):
+            if event_type in ("input_audio_buffer.speech_started", "input_audio_buffer.speech_stopped"):
                 self._remember_input(event)
+                return False
             if event_type in ("response.output_item.added", "response.output_item.done"):
                 entry = self.entries.get(event.get("response_id") or "")
                 if entry:
@@ -845,6 +899,8 @@ class _AgentsRealtimeState(_RealtimeState):
         if event_type == "input_audio_buffer.cleared":
             self.input_offsets.clear()
         super().on_server_event(event)
+        if self.sideband and event_type == "input_audio_buffer.committed":
+            self._remember_input(event)
         if event_type == "response.created":
             response = event.get("response") or {}
             entry = self.entries.get(response.get("id", ""))
