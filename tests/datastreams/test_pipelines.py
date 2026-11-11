@@ -9,8 +9,6 @@ get_pipelines_reporter gating contract.
 import threading
 from unittest import mock
 
-import pytest
-
 from ddtrace.internal.datastreams import pipelines
 from tests.utils import override_global_config
 
@@ -26,25 +24,6 @@ class FakeClock:
 
     def advance(self, seconds: float) -> None:
         self.now += seconds
-
-
-@pytest.fixture(autouse=True)
-def _reset_pipelines_process_state():
-    """Keep the process-level pipelines state hermetic across tests."""
-    saved = (
-        pipelines._reporter,
-        pipelines._flusher,
-        pipelines._lifecycle_started,
-        pipelines._atexit_registered,
-    )
-    yield
-    flusher = pipelines._flusher
-    if flusher is not None and flusher is not saved[1]:
-        try:
-            flusher.stop(timeout=2)
-        except Exception:  # noqa: BLE001 - cleanup only
-            pass
-    pipelines._reporter, pipelines._flusher, pipelines._lifecycle_started, pipelines._atexit_registered = saved
 
 
 def _side_index(report, side):
