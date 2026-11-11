@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    google_cloud_pubsub: Adds the ``gcp.pubsub.topic.name`` tag to publish spans and the
+    ``gcp.pubsub.subscription.name`` tag to pull and push receive spans. Each tag holds the full
+    resource path (``projects/<project>/topics/<topic>`` or
+    ``projects/<project>/subscriptions/<subscription>``) and is only set when that full path is
+    known. Existing tags are unchanged.

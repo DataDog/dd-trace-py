@@ -35,8 +35,12 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.azure_cosmos.utils import normalize_resource_uri as _normalize_cosmos_resource_uri
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import PUBSUB_SUBSCRIPTION_NAME
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import PUBSUB_TOPIC_NAME
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import subscription_path as _pubsub_subscription_path
+from ddtrace.contrib.internal.google_cloud_pubsub.utils import topic_path as _pubsub_topic_path
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
@@ -314,7 +318,11 @@ def _set_inferred_proxy_tags(span: Span, status_code):
 
 
 def _set_pubsub_receive_attributes(
-    span: Span, project_id: str, subscription_id: str, message_id: Optional[str] = None
+    span: Span,
+    project_id: str,
+    subscription_id: str,
+    message_id: Optional[str] = None,
+    subscription_path: Optional[str] = None,
 ) -> None:
     """Set common span attributes for Pub/Sub receive operations (pull and push)."""
     span._set_attribute(COMPONENT, config.google_cloud_pubsub.integration_name)
@@ -326,6 +334,10 @@ def _set_pubsub_receive_attributes(
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     if message_id:
         span._set_attribute(MESSAGING_MESSAGE_ID, message_id)
+    # The topic of a received message is not known here (neither the subscriber client nor the
+    # push request carries it), so only the subscription identity is tagged.
+    if subscription := _pubsub_subscription_path(subscription_path):
+        span._set_attribute(PUBSUB_SUBSCRIPTION_NAME, subscription)
 
 
 def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContext, headers: Mapping[str, str]) -> None:
@@ -358,7 +370,7 @@ def _create_inferred_pubsub_push_span_if_headers_exist(ctx: core.ExecutionContex
         child_of=propagated_context if not config.google_cloud_pubsub.propagation_as_span_links else None,
     )
 
-    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id)
+    _set_pubsub_receive_attributes(span, project_id, subscription_id, message_id, subscription_name)
     span._set_attribute(_INFERRED_SPAN_KEY, 1)
 
     if propagated_context and config.google_cloud_pubsub.propagation_as_span_links:
@@ -1483,6 +1495,8 @@ def _on_pubsub_send_start(ctx: core.ExecutionContext) -> None:
     span._set_attribute(MESSAGING_DESTINATION_NAME, ctx.get_item("topic_id"))
     span._set_attribute(MESSAGING_OPERATION, "send")
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    if topic := _pubsub_topic_path(ctx.get_item("topic_path")):
+        span._set_attribute(PUBSUB_TOPIC_NAME, topic)
 
     if config.google_cloud_pubsub.distributed_tracing_enabled:
         # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
@@ -1509,6 +1523,7 @@ def _on_pubsub_receive_start(ctx: core.ExecutionContext) -> None:
         ctx.get_item("project_id"),
         ctx.get_item("subscription_id"),
         message.message_id,
+        ctx.get_item("subscription_path"),
     )
 
     propagated_context = ctx.get_item("propagated_context")
