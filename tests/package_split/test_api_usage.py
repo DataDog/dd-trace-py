@@ -343,6 +343,16 @@ def test_assignment_aliases_track_calls(tmp_path):
     assert sum(u.symbol == "f" and u.kind == "call" for u in report.usages) == 2
 
 
+def test_assignment_aliases_in_nested_blocks_track_calls(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "consumer.py").write_text(
+        "import pkg.lib as original\nif True:\n    intermediate = original\nalias = intermediate\nalias.f()\n",
+        encoding="utf-8",
+    )
+    report = analyze(tmp_path, "pkg", {})
+    assert any(u.importer == "pkg.consumer" and u.symbol == "f" and u.kind == "call" for u in report.usages)
+
+
 def test_reexport_of_target_parent_resolves_attributes(tmp_path):
     make_tree(tmp_path, "pkg", {"__init__.py": "", "lib/__init__.py": "", "lib/sub.py": "def f(): pass\n"})
     (tmp_path / "pkg" / "facade.py").write_text("from pkg import lib as api\n", encoding="utf-8")

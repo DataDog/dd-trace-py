@@ -218,6 +218,28 @@ def test_reexport_with_same_named_module_keeps_both_owners(tmp_path):
     assert "app.consumer" in report.owners["shared.exposed"].consumers_of("<module>")
 
 
+def test_nested_identity_reexports_do_not_duplicate_attribution():
+    parts = ["shared", "a", "b", "c", "d", "e", "f", "g"]
+    reexports = {".".join(parts[:i]): {parts[i]: {".".join(parts[: i + 1])}} for i in range(1, len(parts))}
+    owner = ".".join(parts)
+    assert _attributions(owner + ".f", {owner}, ["shared"], reexports) == [(owner, "f")]
+
+
+def test_nested_assignment_alias_is_attributed(tmp_path):
+    build_repo(
+        tmp_path,
+        {
+            "shared/lib.py": "def f(): pass\n",
+            "app/consumer.py": (
+                "import shared.lib as original\nif True:\n    intermediate = original\n"
+                "alias = intermediate\nalias.f()\n"
+            ),
+        },
+    )
+    report = analyze(tmp_path)
+    assert "app.consumer" in report.owners["shared.lib"].consumers_of("f")
+
+
 def test_growing_reexport_cycle_terminates():
     reexports = {"a": {"x": {"b.y.x"}}, "b": {"y": {"a.x"}}}
     result = _attributions("a.x", {"a", "b"}, ["a", "b"], reexports)

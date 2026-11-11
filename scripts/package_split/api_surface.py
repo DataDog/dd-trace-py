@@ -203,8 +203,9 @@ def _attributions(
             tail = ".".join(parts[depth + 1 :])
             for target in reexports.get(prefix, {}).get(name, ()):
                 edge = (prefix, name, target)
-                if edge not in visited_edges:
-                    pending.append((target + "." + tail if tail else target, visited_edges | {edge}))
+                next_path = target + "." + tail if tail else target
+                if edge not in visited_edges and next_path != path:
+                    pending.append((next_path, visited_edges | {edge}))
     return attributions
 
 

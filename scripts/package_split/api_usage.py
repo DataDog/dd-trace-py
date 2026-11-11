@@ -301,7 +301,9 @@ class _UsageCollector(ast.NodeVisitor):
 
     def _bind_assignments(self, tree: ast.AST) -> None:
         """Track straightforward aliases without following cyclic assignments indefinitely."""
-        for node in ast.walk(tree):
+        for node in sorted(
+            ast.walk(tree), key=lambda node: (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
+        ):
             value: ast.expr | None
             if isinstance(node, ast.Assign):
                 targets, value = node.targets, node.value
