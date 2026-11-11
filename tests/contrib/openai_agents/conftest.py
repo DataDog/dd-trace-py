@@ -1,3 +1,4 @@
+import asyncio
 import os
 from unittest import mock
 
@@ -15,6 +16,18 @@ from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.utils import override_global_config
+
+
+@pytest.fixture
+def sync_runner_loop():
+    # Older SDK sync runners require a caller-owned current event loop.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        yield loop
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
 
 
 @pytest.fixture
