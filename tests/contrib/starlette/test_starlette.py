@@ -945,9 +945,14 @@ def test_resource_with_route_endpoint_router_over_short_circuited_mount(tracer, 
     """A nested Mount("") with the same routes as the one around the route is still nested in
     it when its middleware responds before reaching those routes.
     """
+    import inspect
+
     from starlette.middleware import Middleware
     from starlette.routing import Mount
     from starlette.routing import Router
+
+    if "middleware" not in inspect.signature(Mount).parameters:
+        pytest.skip("this Starlette version doesn't support middleware on a Mount")
 
     async def hello(request):
         return PlainTextResponse("hello")
