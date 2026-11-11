@@ -169,6 +169,23 @@ def test_consume_span_records_group_id(kafka_tracer, test_spans, producer, consu
     assert consume_span.get_tag("kafka.group_id") == group_id
 
 
+def test_consume_span_records_bootstrap_servers(kafka_tracer, test_spans, producer, consumer, kafka_topic):
+    """Verify bootstrap servers are tagged on consume spans (ignored in snapshots, so asserted explicitly)."""
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        message = consumer.poll()
+
+    assert message is not None
+    traces = test_spans.pop_traces()
+    consume_span = next(
+        (span for trace in traces for span in trace if span.get_tag("kafka.received_message") == "True"),
+        None,
+    )
+    assert consume_span is not None
+    assert consume_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
+
+
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
@@ -758,6 +775,14 @@ def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_
                 pass
 
     assert empty_poll_span_created is True
+
+    empty_poll_spans = [
+        span
+        for trace in traces
+        for span in trace
+        if span.name == "kafka.consume" and span.get_tag("kafka.received_message") == "False"
+    ]
+    assert all(span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS for span in empty_poll_spans)
 
 
 # Poll should not be traced when disabled
