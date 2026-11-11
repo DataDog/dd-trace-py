@@ -157,6 +157,24 @@ jobs:
             echo "::notice::No package-freeze.toml on ${GITHUB_REF_NAME}; skipping revalidation"
           fi
 
+      - name: Post pending status for every enumerated PR head
+        # Close the stale-green window: without this, a PR that violates
+        # a newly landed freeze can merge while earlier heads are still
+        # being fetched and checked in the sequential loop below.
+        if: steps.prs.outputs.prs != '' && steps.freeze.outputs.active == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRS: ${{ steps.prs.outputs.prs }}
+        run: |
+          printf '%s\n' "$PRS" | while read -r number head_sha; do
+            [ -z "$number" ] && continue
+            gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$head_sha" \
+              -f state=pending \
+              -f context="Package split freeze guard" \
+              -f description="revalidating against the advanced base" \
+              > /dev/null
+          done
+
       - name: Revalidate each open PR head
         if: steps.prs.outputs.prs != '' && steps.freeze.outputs.active == 'true'
         env:

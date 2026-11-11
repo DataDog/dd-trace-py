@@ -105,6 +105,8 @@ resources = [
   "ddtrace.appsec:rules.json",
   "ddtrace.appsec._ddwaf:libddwaf/*/lib/libddwaf.*",
   "ddtrace.appsec._iast._taint_tracking:_native/*.pyi",
+  "ddtrace:*/*.pyi",
+  "ddtrace.internal.datadog.profiling:libdd_heap_gotter*.*",
   "ddtrace.appsec.sca:_cve_data.json",
   "ddtrace.internal:third-party.tar.gz",
   "ddtrace.internal.datadog.profiling:libdd_wrapper*.*",

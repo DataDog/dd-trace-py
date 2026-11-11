@@ -12,4 +12,4 @@ Working graph: `ddtrace_internal` → `ddtrace_internal_base` (stdlib-only) + `d
 - Freeze pins source/build/test provenance; base-owned rules only, never execute PR code. Rewrites/exceptions need approval/sync records; exceptions expire. Approved rewrites pin their exact post-rewrite content (post_hash): a path-scoped approval alone pre-authorizes every future edit and the head must match a pinned content, so further changes need a new approved rewrite absorbed by the extracted copy in the same window.
 - Missing prerequisites fail. Stop on unproven contracts, dependency closure, native policy, shared identity or parity; never auto-accept baselines or publish/cut over without approval.
 
-[Workflow](../../.agents/skills/package-split/SKILL.md) · [Commands/schemas](../../scripts/package_split/README.md)
+[Workflow](../../scripts/package_split/README.md) · [Commands/schemas](../../scripts/package_split/README.md)
