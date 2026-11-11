@@ -581,7 +581,7 @@ integrations:
   tested_versions_by_dependency:
     kombu:
       min: 4.6.11
-      max: 5.6.2
+      max: 5.7.0
 
 - integration_name: langchain
   is_external_package: true
@@ -603,10 +603,10 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.2.17
+      max: 1.2.19
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.3.0
+      max: 4.3.1
     langgraph-prebuilt:
       min: 0.1.8
       max: 1.1.1
@@ -713,13 +713,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.5
-      max: 3.17.2
+      max: 3.18.0
     mlflow-skinny:
-      min: 3.17.2
-      max: 3.17.2
+      min: 3.18.0
+      max: 3.18.0
     mlflow-tracing:
-      min: 3.17.2
-      max: 3.17.2
+      min: 3.18.0
+      max: 3.18.0
 
 - integration_name: molten
   is_external_package: true
@@ -1053,7 +1053,7 @@ integrations:
   tested_versions_by_dependency:
     trio:
       min: 0.21.0
-      max: 0.34.0
+      max: 0.35.0
 
 - integration_name: typesafe
   is_external_package: true
