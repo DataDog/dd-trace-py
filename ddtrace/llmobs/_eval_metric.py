@@ -200,7 +200,7 @@ def _build_evaluation_metric_event(
             telemetry_context.error = "invalid_metadata"
             raise submission_error_cls("metadata must be json serializable dictionary.")
         else:
-            serialized_metadata = safe_json(metadata)  # type: ignore[no-untyped-call]
+            serialized_metadata = safe_json(metadata)
             if serialized_metadata and isinstance(serialized_metadata, str):
                 evaluation_metric["metadata"] = json.loads(serialized_metadata)
 
