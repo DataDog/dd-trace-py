@@ -10,7 +10,6 @@ from ddtrace.contrib.internal.vllm._constants import TAG_MODEL
 from ddtrace.contrib.internal.vllm._constants import TAG_PROVIDER
 from ddtrace.contrib.internal.vllm.extractors import LatencyMetrics
 from ddtrace.contrib.internal.vllm.extractors import RequestData
-from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_DECODE_METRIC_KEY
@@ -20,6 +19,7 @@ from ddtrace.llmobs._constants import TIME_IN_QUEUE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_TO_FIRST_TOKEN_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.vllm_utils import parse_prompt_to_messages
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.utils import Document
@@ -52,8 +52,12 @@ class VLLMIntegration(BaseLLMIntegration):
     }
 
     def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
-        """Set base tags on vLLM spans."""
-        model_name = kwargs.get("model_name")
+        """Set base tags on vLLM spans.
+
+        The contrib already sets these from the LlmRequestEvent tags; setting them again keeps
+        the integration usable on its own.
+        """
+        model_name = kwargs.get("model")
         if model_name:
             span._set_attribute(TAG_MODEL, model_name)
             span._set_attribute(TAG_PROVIDER, PROVIDER_NAME)

@@ -60,6 +60,7 @@ class ExposureEvent(_RequiredExposureEvent, total=False):
     """
 
     serial_id: int
+    features: dict[str, Union[str, float, bool]]
 
 
 class GeoContext(TypedDict, total=False):
@@ -112,7 +113,7 @@ class ExposureWriter(PeriodicService):
     ) -> None:
         # Read configuration from settings
         if enabled is None:
-            enabled = ffe_config.ffe_intake_enabled
+            enabled = ffe_config.exposures_datadog_logging_enabled
 
         if interval is None:
             interval = ffe_config.ffe_intake_heartbeat_interval
