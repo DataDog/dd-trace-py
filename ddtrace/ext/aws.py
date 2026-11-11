@@ -34,6 +34,9 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
         if stream_name:
             span._set_attribute("aws.kinesis.stream_name", stream_name)
             span._set_attribute("streamname", stream_name)
+        stream_arn = params.get("StreamARN")
+        if stream_arn:
+            span._set_attribute(STREAM_ARN, stream_arn)
     elif endpoint_name == "redshift":
         cluster_identifier = params.get("ClusterIdentifier")
         if cluster_identifier:
@@ -63,6 +66,7 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
             queue_name = queue_url.split("/")[-1]
             aws_account = queue_url.split("/")[-2]
             span._set_attribute("aws_account", aws_account)
+            span._set_attribute(SQS_QUEUE_URL, queue_url)
         span._set_attribute("aws.sqs.queue_name", queue_name)
         span._set_attribute("queuename", queue_name)
 
@@ -77,6 +81,8 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
     elif endpoint_name == "states":
         state_machine_arn = params.get("stateMachineArn", "")
         span._set_attribute("statemachinearn", state_machine_arn)
+        if state_machine_arn:
+            span._set_attribute(STEP_FUNCTIONS_STATE_MACHINE_ARN, state_machine_arn)
 
 
 def get_aws_partition(region_name: str) -> str:
@@ -94,3 +100,6 @@ REGION = "region"
 PARTITION = "aws.partition"
 AGENT = "aws.agent"
 OPERATION = "aws.operation"
+SQS_QUEUE_URL = "aws.sqs.queue.url"
+STREAM_ARN = "aws.stream.arn"
+STEP_FUNCTIONS_STATE_MACHINE_ARN = "aws.step_functions.state_machine.arn"

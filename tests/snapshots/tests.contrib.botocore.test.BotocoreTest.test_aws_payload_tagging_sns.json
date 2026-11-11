@@ -134,6 +134,7 @@
       "aws.response.body.HTTPStatusCode": "200",
       "aws.response.body.RequestId": "F891R2HU0X7MWR86SINPWB35LG55JILW9QNCYTWIQ1PND02VYNWM",
       "aws.response.body.RetryAttempts": "0",
+      "aws.sqs.queue.url": "http://localhost:4566/000000000000/Test",
       "aws.sqs.queue_name": "Test",
       "aws_account": "000000000000",
       "aws_service": "sqs",

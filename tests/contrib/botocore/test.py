@@ -42,11 +42,13 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.ext import aws
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.trace import Span
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -733,6 +735,27 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws_service") == "sqs"
         assert span.get_tag("queuename") == "Test"
         assert span.get_tag("component") == "botocore"
+        # CreateQueue only carries QueueName, so there is no queue URL to tag
+        assert span.get_tag("aws.sqs.queue.url") is None
+
+    @mock_sqs
+    def test_sqs_client_queue_url(self):
+        queue_url = self.sqs_test_queue["QueueUrl"]
+        self.sqs_client.send_message(QueueUrl=queue_url, MessageBody="world")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.get_tag("aws.operation") == "SendMessage"
+        assert span.get_tag("aws.sqs.queue.url") == queue_url
+        assert span.get_tag("aws.sqs.queue_name") == "Test"
+
+    @mock_sqs
+    def test_sqs_client_queue_url_no_params(self):
+        with self.override_config("botocore", dict(tag_no_params=True)):
+            self.sqs_client.send_message(QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world")
+            spans = self.get_spans()
+            assert len(spans) == 1
+            assert spans[0].get_tag("aws.sqs.queue.url") is None
 
     @mock_sqs
     def test_sqs_client_no_params(self):
@@ -751,6 +774,7 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1
         assert span.get_tag("aws.operation") == "SendMessage"
         assert span.resource == "sqs.sendmessage"
+        assert span.get_tag("aws.sqs.queue.url") is None
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_off(self):
@@ -1294,6 +1318,47 @@ class BotocoreTest(TracerTestCase):
         span = self._test_kinesis_client()
         assert span.get_tag("aws.kinesis.stream_name") == "test"
         assert span.get_tag("streamname") == "test"
+        # PutRecords was called without StreamARN
+        assert span.get_tag("aws.stream.arn") is None
+
+    @mock_kinesis
+    def test_kinesis_client_stream_arn(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "kinesis_stream_arn"
+        _, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()
+
+        client.put_records(
+            StreamName=stream_name,
+            Records=[{"Data": json.dumps({"Hello": "World"}), "PartitionKey": "1234"}],
+            StreamARN=stream_arn,
+        )
+
+        span = self._kinesis_assert_spans()
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.get_tag("aws.stream.arn") == stream_arn
+        assert span.get_tag("aws.kinesis.stream_name") == stream_name
+
+        client.delete_stream(StreamName=stream_name)
+
+    @mock_kinesis
+    def test_kinesis_client_stream_arn_no_params(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        stream_name = "kinesis_stream_arn_no_params"
+        _, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()
+
+        with self.override_config("botocore", dict(tag_no_params=True)):
+            client.put_records(
+                StreamName=stream_name,
+                Records=[{"Data": json.dumps({"Hello": "World"}), "PartitionKey": "1234"}],
+                StreamARN=stream_arn,
+            )
+
+        span = self._kinesis_assert_spans()
+        assert span.get_tag("aws.stream.arn") is None
+
+        client.delete_stream(StreamName=stream_name)
 
     @mock_kinesis
     def test_kinesis_client_no_params(self):
@@ -1978,6 +2043,15 @@ class BotocoreTest(TracerTestCase):
     def test_sns(self):
         span = self._test_sns()
         assert span.get_tag("aws.sns.topic_arn") == "arn:aws:sns:us-east-1:000000000000:testTopic"
+
+    @mock_sns
+    @mock_sqs
+    def test_sns_no_resource_identifier_tags(self):
+        # SNS only reports the topic ARN; the SQS and Kinesis identifiers must not leak onto SNS spans
+        span = self._test_sns()
+        assert span.get_tag("aws.sqs.queue.url") is None
+        assert span.get_tag("aws.stream.arn") is None
+        assert span.get_tag("aws.step_functions.state_machine.arn") is None
 
     @mock_sns
     @mock_sqs
@@ -3546,3 +3620,49 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
         # Should have peer.service set to events hostname
         assert span.get_tag("peer.service") == "events.us-east-1.amazonaws.com"
+
+
+_STATE_MACHINE_ARN = "arn:aws:states:us-west-2:000000000000:stateMachine:lincoln"
+
+
+@pytest.mark.parametrize(
+    "endpoint_name,params,expected",
+    [
+        (
+            "states",
+            {"stateMachineArn": _STATE_MACHINE_ARN},
+            {"statemachinearn": _STATE_MACHINE_ARN, "aws.step_functions.state_machine.arn": _STATE_MACHINE_ARN},
+        ),
+        # The legacy tag is always set, the new one only when the ARN is present and non-empty
+        ("states", {"stateMachineArn": ""}, {"statemachinearn": "", "aws.step_functions.state_machine.arn": None}),
+        ("states", {"executionArn": "arn"}, {"statemachinearn": "", "aws.step_functions.state_machine.arn": None}),
+        (
+            "kinesis",
+            {"StreamName": "test", "StreamARN": "arn:aws:kinesis:us-east-1:000000000000:stream/test"},
+            {"aws.kinesis.stream_name": "test", "aws.stream.arn": "arn:aws:kinesis:us-east-1:000000000000:stream/test"},
+        ),
+        ("kinesis", {"StreamName": "test", "StreamARN": ""}, {"aws.stream.arn": None}),
+        ("kinesis", {"StreamName": "test"}, {"aws.stream.arn": None}),
+        (
+            "sqs",
+            {"QueueUrl": "https://sqs.us-east-1.amazonaws.com/000000000000/Test"},
+            {
+                "aws.sqs.queue_name": "Test",
+                "aws.sqs.queue.url": "https://sqs.us-east-1.amazonaws.com/000000000000/Test",
+            },
+        ),
+        # Same condition as the queue name/account parsing: non-URL values are not tagged
+        ("sqs", {"QueueUrl": "Test"}, {"aws.sqs.queue.url": None}),
+        ("sqs", {"QueueName": "Test"}, {"aws.sqs.queue_name": "Test", "aws.sqs.queue.url": None}),
+        (
+            "sns",
+            {"StreamARN": "arn", "QueueUrl": "https://sqs/0/q"},
+            {"aws.stream.arn": None, "aws.sqs.queue.url": None},
+        ),
+    ],
+)
+def test_add_api_param_span_tags_resource_identifiers(endpoint_name, params, expected):
+    span = Span("test")
+    aws._add_api_param_span_tags(span, endpoint_name, params)
+    for tag, value in expected.items():
+        assert span.get_tag(tag) == value, tag
