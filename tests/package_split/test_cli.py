@@ -119,6 +119,23 @@ def test_allow_absent_target_scans_consumer_only_scope(tmp_path, monkeypatch, ca
     assert set(data["symbols"]) == {"f"}
 
 
+def test_invalid_target_cannot_escape_output(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    monkeypatch.chdir(tmp_path)
+    outside = tmp_path / "outside"
+    assert main(["--output", "out", "api-usage", "--module", str(outside), "--allow-absent-target"]) == 2
+    assert not outside.exists()
+    assert "dotted module name" in capsys.readouterr().err
+
+
+def test_zones_values_must_be_strings(tmp_path, monkeypatch, capsys):
+    make_tree(tmp_path, "pkg", FILES)
+    (tmp_path / "layers.json").write_text('{"zones": {"pkg": []}}', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert main(["api-surface", "--source-path", "pkg", "--zones", "layers.json"]) == 2
+    assert "map strings to strings" in capsys.readouterr().err
+
+
 def test_zones_file_without_mapping_exits_two(tmp_path, monkeypatch, capsys):
     make_tree(tmp_path, "pkg", FILES)
     (tmp_path / "layers.json").write_text('{"zone": {}}', encoding="utf-8")

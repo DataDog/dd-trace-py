@@ -299,6 +299,32 @@ class _UsageCollector(ast.NodeVisitor):
                 break
         return paths
 
+    def _bind_assignments(self, tree: ast.AST) -> None:
+        """Track straightforward aliases without following cyclic assignments indefinitely."""
+        for node in ast.walk(tree):
+            value: ast.expr | None
+            if isinstance(node, ast.Assign):
+                targets, value = node.targets, node.value
+            elif isinstance(node, ast.AnnAssign):
+                targets, value = [node.target], node.value
+            else:
+                continue
+            if isinstance(value, ast.Name):
+                resolved = self.bindings.get(value.id, set()).copy()
+            elif isinstance(value, ast.Attribute):
+                root = self._chain_root(value)
+                resolved = set()
+                if root is not None:
+                    bindings, attrs = root
+                    for binding in bindings:
+                        resolved.update(self._resolve_chain(binding, list(reversed(attrs))))
+            else:
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    for origin in resolved:
+                        self._bind(target.id, origin)
+
     def _scan_usages(self, tree: ast.AST) -> None:
         for node in ast.walk(tree):
             for child in ast.iter_child_nodes(node):
@@ -420,6 +446,7 @@ def analyze_api_usage(
                 collector.visit_Import(node)
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
+        collector._bind_assignments(tree)
         origins[module] = collector.bindings
 
     consumers = 0
@@ -441,6 +468,7 @@ def analyze_api_usage(
                 collector.visit_Import(node)
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
+        collector._bind_assignments(tree)
         collector._scan_usages(tree)
         if len(report.usages) > before:
             consumers += 1

@@ -334,6 +334,15 @@ def test_attribute_chain_through_reexported_module(tmp_path):
     assert "call" in symbols["A"]
 
 
+def test_assignment_aliases_track_calls(tmp_path):
+    make_tree(tmp_path, "pkg", TARGET_FILES)
+    (tmp_path / "pkg" / "consumer.py").write_text(
+        "import pkg.lib as original\nalias = original\nfunc = alias.f\nfunc()\nalias.f()\n", encoding="utf-8"
+    )
+    report = analyze(tmp_path, "pkg", {})
+    assert sum(u.symbol == "f" and u.kind == "call" for u in report.usages) == 2
+
+
 def test_reexport_of_target_parent_resolves_attributes(tmp_path):
     make_tree(tmp_path, "pkg", {"__init__.py": "", "lib/__init__.py": "", "lib/sub.py": "def f(): pass\n"})
     (tmp_path / "pkg" / "facade.py").write_text("from pkg import lib as api\n", encoding="utf-8")

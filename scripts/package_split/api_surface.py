@@ -157,6 +157,7 @@ def analyze_api_surfaces(
                 collector.visit_Import(node)
             elif isinstance(node, ast.ImportFrom):
                 collector.visit_ImportFrom(node)
+        collector._bind_assignments(tree)
         collector._scan_usages(tree)
         # Every module's bindings can be re-exports, including ordinary facades.
         # Attribution follows only bindings that match the resolved usage path.
@@ -191,16 +192,19 @@ def _attributions(
         owner = _owning_module(path, modules, import_roots)
         if owner is None:
             continue
-        if path == owner:
-            attributions.append((owner, "<module>"))
-            continue
-        rest = path[len(owner) + 1 :]
+        rest = path[len(owner) + 1 :] if path != owner else "<module>"
         attributions.append((owner, rest))
-        name, _, tail = rest.partition(".")
-        for target in reexports.get(owner, {}).get(name, ()):
-            edge = (owner, name, target)
-            if edge not in visited_edges:
-                pending.append((target + "." + tail if tail else target, visited_edges | {edge}))
+        # A package attribute may shadow an indexed submodule of the same
+        # name. Preserve both possible owners rather than choosing one.
+        parts = path.split(".")
+        for depth in range(1, len(parts)):
+            prefix = ".".join(parts[:depth])
+            name = parts[depth]
+            tail = ".".join(parts[depth + 1 :])
+            for target in reexports.get(prefix, {}).get(name, ()):
+                edge = (prefix, name, target)
+                if edge not in visited_edges:
+                    pending.append((target + "." + tail if tail else target, visited_edges | {edge}))
     return attributions
 
 

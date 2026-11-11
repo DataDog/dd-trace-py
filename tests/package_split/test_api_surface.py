@@ -203,6 +203,21 @@ def test_ordinary_facade_reexport_is_attributed(tmp_path):
     assert "app.consumer" in report.owners["shared.impl"].consumers_of("exposed")
 
 
+def test_reexport_with_same_named_module_keeps_both_owners(tmp_path):
+    build_repo(
+        tmp_path,
+        {
+            "shared/__init__.py": "from shared.impl import exposed\n",
+            "shared/impl.py": "def exposed(): pass\n",
+            "shared/exposed.py": "",
+            "app/consumer.py": "from shared import exposed\nexposed()\n",
+        },
+    )
+    report = analyze(tmp_path)
+    assert "app.consumer" in report.owners["shared.impl"].consumers_of("exposed")
+    assert "app.consumer" in report.owners["shared.exposed"].consumers_of("<module>")
+
+
 def test_growing_reexport_cycle_terminates():
     reexports = {"a": {"x": {"b.y.x"}}, "b": {"y": {"a.x"}}}
     result = _attributions("a.x", {"a", "b"}, ["a", "b"], reexports)
