@@ -3,6 +3,7 @@ An API to provide fork-safe functions.
 """
 
 import functools
+import inspect
 import logging
 import os
 import typing
@@ -17,13 +18,17 @@ from ddtrace.internal.native.exceptions import is_panic_exception
 
 log = logging.getLogger(__name__)
 
+_R = typing.TypeVar("_R")
+
 # IMPORTANT: Do not change typing.List to list until minimum Python version is 3.11+
 # Module-level list[...] in Python 3.10 affects import timing. See packages.py for details.
 _registry: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 _registry_before_fork: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 _registry_after_parent: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
-_registry_before_child_hooks: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
-_registry_after_child_hooks: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
+# Generator functions that wrap the after-in-child hooks: the code before the
+# yield runs before the hooks, in registration order, and the code after it runs
+# once they have all completed, in reverse order. Either part can be empty.
+_registry_child_wrappers: typing.List[typing.Callable[[], typing.Generator[None, None, None]]] = []  # noqa: UP006
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -74,19 +79,48 @@ def in_child_hook() -> bool:
     return _in_child_hook
 
 
+def _call_hook(hook: typing.Any, call: typing.Callable[..., _R], *args: typing.Any) -> typing.Optional[_R]:
+    # Calls call(*args) on behalf of hook, logging and ignoring its exceptions.
+    # Returns None if the call failed.
+    try:
+        return call(*args)
+    except Exception:
+        # Mimic the behaviour of Python's fork hooks.
+        log.exception("Exception ignored in forksafe hook %r", hook)
+    except BaseException as e:
+        # A native hook can raise pyo3_runtime.PanicException. We handle it
+        # to allow other hooks to continue in this expected case.
+        if not is_panic_exception(e):
+            raise
+        log.exception("Exception ignored in forksafe hook %r", hook)
+    return None
+
+
 def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
     for hook in list(registry):
-        try:
-            hook()
-        except Exception:
-            # Mimic the behaviour of Python's fork hooks.
-            log.exception("Exception ignored in forksafe hook %r", hook)
-        except BaseException as e:
-            # A native hook can raise pyo3_runtime.PanicException. We handle it
-            # to allow other hooks to continue in this expected case.
-            if not is_panic_exception(e):
-                raise
-            log.exception("Exception ignored in forksafe hook %r", hook)
+        _call_hook(hook, hook)
+
+
+def _start_wrapper(
+    wrapper: typing.Callable[[], typing.Generator[None, None, None]],
+) -> typing.Generator[None, None, None]:
+    gen = wrapper()
+    try:
+        gen.send(None)
+    except StopIteration:
+        raise RuntimeError("child hook wrapper %r returned without yielding" % wrapper) from None
+    return gen
+
+
+def _resume_wrapper(
+    wrapper: typing.Callable[[], typing.Generator[None, None, None]], gen: typing.Generator[None, None, None]
+) -> None:
+    try:
+        gen.send(None)
+    except StopIteration:
+        return
+    gen.close()
+    raise RuntimeError("child hook wrapper %r yielded more than once" % wrapper)
 
 
 # CPython runs the before-fork and after-fork-in-parent callbacks outside of
@@ -137,12 +171,23 @@ def run_child_hooks() -> None:
     _fork_lock = _RLock()
 
     _in_child_hook = True
-    run_hooks(_registry_before_child_hooks)
+    # A wrapper that fails before its yield is skipped, and one that fails
+    # after it does not prevent the remaining ones from resuming, so that a
+    # faulty wrapper cannot stop the hooks from running. The wrappers that have
+    # started are resumed even if starting a later one raises.
+    started = []
     try:
+        for wrapper in list(_registry_child_wrappers):
+            gen = _call_hook(wrapper, _start_wrapper, wrapper)
+            if gen is not None:
+                started.append((wrapper, gen))
         run_hooks(_registry)
     finally:
-        run_hooks(_registry_after_child_hooks)
-        _in_child_hook = False
+        try:
+            for wrapper, gen in reversed(started):
+                _call_hook(wrapper, _resume_wrapper, wrapper, gen)
+        finally:
+            _in_child_hook = False
 
 
 ddtrace_after_in_child = run_child_hooks
@@ -154,18 +199,42 @@ def register_hook(registry, hook):
 
 
 register_before_fork = functools.partial(register_hook, _registry_before_fork)
-register = functools.partial(register_hook, _registry)
+
+
+_H = typing.TypeVar("_H", bound=typing.Callable[[], typing.Any])
+
+
+def register(hook: _H) -> _H:
+    """Register an after-in-child hook.
+
+    A generator function is registered as a wrapper around the other
+    after-in-child hooks instead: it runs up to its yield before them and
+    resumes after they have all completed.
+
+    The check uses inspect.isgeneratorfunction, so only an actual generator
+    function, or a bound method or functools.partial of one, is detected. A
+    callable that merely returns a generator (e.g. a decorator wrapping a
+    generator function, an object whose __call__ yields, or a lambda) is
+    registered as a plain hook, and since nothing iterates the generator it
+    returns, none of its code runs.
+    """
+    if inspect.isgeneratorfunction(hook):
+        _registry_child_wrappers.append(hook)
+    else:
+        _registry.append(hook)
+    return hook
+
+
 register_after_parent = functools.partial(register_hook, _registry_after_parent)
-register_before_child_hooks = functools.partial(register_hook, _registry_before_child_hooks)
-register_after_child_hooks = functools.partial(register_hook, _registry_after_child_hooks)
 
 register(set_fork_child)
 register_after_parent(set_forked)
 
 
-def unregister(after_in_child: typing.Callable[[], None]) -> None:
+def unregister(after_in_child: typing.Callable[[], typing.Any]) -> None:
+    registry = _registry_child_wrappers if inspect.isgeneratorfunction(after_in_child) else _registry
     try:
-        _registry.remove(after_in_child)
+        registry.remove(after_in_child)
     except ValueError:
         log.info("after_in_child hook %r was unregistered without first being registered", after_in_child)
 
@@ -182,20 +251,6 @@ def unregister_before_fork(before_fork: typing.Callable[[], None]) -> None:
         _registry_before_fork.remove(before_fork)
     except ValueError:
         log.info("before_in_child hook %r was unregistered without first being registered", before_fork)
-
-
-def unregister_before_child_hooks(hook: typing.Callable[[], None]) -> None:
-    try:
-        _registry_before_child_hooks.remove(hook)
-    except ValueError:
-        log.info("before-child-hooks callback %r was unregistered without first being registered", hook)
-
-
-def unregister_after_child_hooks(hook: typing.Callable[[], None]) -> None:
-    try:
-        _registry_after_child_hooks.remove(hook)
-    except ValueError:
-        log.info("after-child-hooks callback %r was unregistered without first being registered", hook)
 
 
 # Availability: Unix, not WASI, not Android, not iOS.
