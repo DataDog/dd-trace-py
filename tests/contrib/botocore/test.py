@@ -3625,6 +3625,8 @@ class BotocoreTest(TracerTestCase):
 
 
 _STATE_MACHINE_ARN = "arn:aws:states:us-west-2:000000000000:stateMachine:lincoln"
+_TABLE_ARN = "arn:aws:dynamodb:us-east-1:123456789012:table/orders"
+_FUNCTION_ARN = "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 
 
 @pytest.mark.parametrize(
@@ -3661,6 +3663,26 @@ _STATE_MACHINE_ARN = "arn:aws:states:us-west-2:000000000000:stateMachine:lincoln
             {"StreamARN": "arn", "QueueUrl": "https://sqs/0/q"},
             {"aws.stream.arn": None, "aws.sqs.queue.url": None},
         ),
+        (
+            "dynamodb",
+            {"TableName": _TABLE_ARN},
+            {"aws.table.arn": _TABLE_ARN, "aws.dynamodb.table_name": _TABLE_ARN, "tablename": _TABLE_ARN},
+        ),
+        ("dynamodb", {"TableName": "orders"}, {"aws.table.arn": None, "tablename": "orders"}),
+        # Only a full table ARN counts: index ARNs, partial or malformed ARNs are not table identities
+        ("dynamodb", {"TableName": _TABLE_ARN + "/index/by-date"}, {"aws.table.arn": None}),
+        ("dynamodb", {"TableName": "arn:aws:dynamodb:us-east-1:123:table/orders"}, {"aws.table.arn": None}),
+        ("dynamodb", {"TableName": "arn:aws:s3:us-east-1:123456789012:table/orders"}, {"aws.table.arn": None}),
+        (
+            "lambda",
+            {"FunctionName": _FUNCTION_ARN},
+            {"aws.function.arn": _FUNCTION_ARN, "functionname": _FUNCTION_ARN},
+        ),
+        # The qualifier stays part of the ARN, as in dd-trace-java
+        ("lambda", {"FunctionName": _FUNCTION_ARN + ":prod"}, {"aws.function.arn": _FUNCTION_ARN + ":prod"}),
+        ("lambda", {"FunctionName": "my-function"}, {"aws.function.arn": None, "functionname": "my-function"}),
+        ("lambda", {"FunctionName": "my-function:prod"}, {"aws.function.arn": None}),
+        ("lambda", {"FunctionName": "123456789012:function:my-function"}, {"aws.function.arn": None}),
     ],
 )
 def test_add_api_param_span_tags_resource_identifiers(endpoint_name, params, expected):
@@ -3697,3 +3719,38 @@ def test_stepfunctions_client_state_machine_arn(test_spans):
     assert describe_span.get_tag("statemachinearn") == state_machine_arn
     # CreateStateMachine only carries the name, not the ARN
     assert spans["CreateStateMachine"].get_tag("aws.step_functions.state_machine.arn") is None
+
+
+@mock_dynamodb
+@mock_lambda
+def test_dynamodb_and_lambda_client_arn_tags(test_spans):
+    # In-process moto, so this does not depend on localstack. The resources do not exist; the
+    # tags come from the request parameters, so the calls are allowed to fail.
+    patch()
+    patch_submodules(True)
+    try:
+        session = botocore.session.get_session()
+        session.set_credentials(access_key="access-key", secret_key="secret-key")
+        dynamodb = session.create_client("dynamodb", region_name="us-east-1")
+        lamb = session.create_client("lambda", region_name="us-east-1")
+        for call in (
+            lambda: dynamodb.describe_table(TableName=_TABLE_ARN),
+            lambda: dynamodb.describe_table(TableName="orders"),
+            lambda: lamb.get_function(FunctionName=_FUNCTION_ARN),
+            lambda: lamb.get_function(FunctionName="my-function"),
+        ):
+            with contextlib.suppress(botocore.exceptions.ClientError):
+                call()
+    finally:
+        unpatch()
+
+    spans = sorted(test_spans.pop(), key=lambda span: span.start_ns)
+    tags = [
+        (span.get_tag("aws_service"), span.get_tag("aws.table.arn"), span.get_tag("aws.function.arn")) for span in spans
+    ]
+    assert tags == [
+        ("dynamodb", _TABLE_ARN, None),
+        ("dynamodb", None, None),
+        ("lambda", None, _FUNCTION_ARN),
+        ("lambda", None, None),
+    ]

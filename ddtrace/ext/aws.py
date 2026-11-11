@@ -1,9 +1,14 @@
+import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Span  # noqa:F401
+
+
+# A DynamoDB TableName given as a full table ARN: arn:<partition>:dynamodb:<region>:<account>:table/<name>
+_DYNAMODB_TABLE_ARN_RE = re.compile(r"arn:[^:]+:dynamodb:[^:]+:[0-9]{12}:table/[^/]+")
 
 
 def truncate_arg_value(value: Any, max_len: int = 1024) -> Any:
@@ -29,6 +34,8 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
         if table_name:
             span._set_attribute("aws.dynamodb.table_name", table_name)
             span._set_attribute("tablename", table_name)
+            if isinstance(table_name, str) and _DYNAMODB_TABLE_ARN_RE.fullmatch(table_name):
+                span._set_attribute(TABLE_ARN, table_name)
     elif endpoint_name == "kinesis":
         stream_name = params.get("StreamName")
         if stream_name:
@@ -73,6 +80,10 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
     elif endpoint_name == "lambda":
         function_name = params.get("FunctionName", "")
         span._set_attribute("functionname", function_name)
+        # Only a full ARN names the function's account and region:
+        # arn:<partition>:lambda:<region>:<account>:function:<name>[:<qualifier>]
+        if isinstance(function_name, str) and function_name.startswith("arn:"):
+            span._set_attribute(FUNCTION_ARN, function_name)
 
     elif endpoint_name == "events":
         rule_name = params.get("Name", "")
@@ -103,3 +114,5 @@ OPERATION = "aws.operation"
 SQS_QUEUE_URL = "aws.sqs.queue.url"
 STREAM_ARN = "aws.stream.arn"
 STEP_FUNCTIONS_STATE_MACHINE_ARN = "aws.step_functions.state_machine.arn"
+TABLE_ARN = "aws.table.arn"
+FUNCTION_ARN = "aws.function.arn"
