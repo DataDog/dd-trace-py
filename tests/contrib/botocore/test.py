@@ -3744,7 +3744,12 @@ def test_dynamodb_and_lambda_client_arn_tags(test_spans):
     finally:
         unpatch()
 
-    spans = sorted(test_spans.pop(), key=lambda span: span.start_ns)
+    # Only the four client spans matter; other spans (e.g. from credential or endpoint
+    # resolution) can land in test_spans depending on the botocore version.
+    spans = sorted(
+        (span for span in test_spans.pop() if span.get_tag("aws_service") in ("dynamodb", "lambda")),
+        key=lambda span: span.start_ns,
+    )
     tags = [
         (span.get_tag("aws_service"), span.get_tag("aws.table.arn"), span.get_tag("aws.function.arn")) for span in spans
     ]
