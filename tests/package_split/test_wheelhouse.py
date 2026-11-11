@@ -57,3 +57,39 @@ def test_unpack_wheel_rejects_unsafe_members(tmp_path):
         zf.writestr("../../escape.py", "x = 1")
     with pytest.raises(wheelhouse.BuildError):
         wheelhouse.unpack_wheel(evil, tmp_path / "out")
+
+
+def _fake_site_packages(venv_dir):
+    # Mirror _site_packages() so distribution_record_files finds the
+    # hand-crafted dist-infos without a real venv.
+    site = venv_dir / "lib" / ("python%s.%s" % __import__("sys").version_info[:2]) / "site-packages"
+    site.mkdir(parents=True, exist_ok=True)
+    return site
+
+
+def test_distribution_record_files_skips_no_record_outside_required(tmp_path):
+    # uv workspaces install a virtual root distribution (no RECORD, owns no
+    # files) alongside the package; blanket fail-closed made the artifacts
+    # gate fail even when every sub-check passed (trial F15).
+    site = _fake_site_packages(tmp_path)
+    dist = site / "sample-1.0.dist-info"
+    dist.mkdir()
+    (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: sample\nVersion: 1.0\n")
+    (dist / "RECORD").write_text("sample/__init__.py,,\nsample/mod.py,,\n")
+    virtual = site / "datadog_apm_python_workspace-0.dist-info"
+    virtual.mkdir()
+    (virtual / "METADATA").write_text("Metadata-Version: 2.1\nName: datadog-apm-python-workspace\nVersion: 0\n")
+
+    installed = {"sample": "1.0", "datadog-apm-python-workspace": "0"}
+    owned = wheelhouse.distribution_record_files(tmp_path, installed, required={"sample"})
+    assert owned == {"sample": ["sample/__init__.py", "sample/mod.py"]}
+
+
+def test_distribution_record_files_fails_closed_for_required(tmp_path):
+    site = _fake_site_packages(tmp_path)
+    dist = site / "sample-1.0.dist-info"
+    dist.mkdir()
+    (dist / "METADATA").write_text("Metadata-Version: 2.1\nName: sample\nVersion: 1.0\n")
+
+    with pytest.raises(wheelhouse.BuildError, match="cannot verify sample"):
+        wheelhouse.distribution_record_files(tmp_path, {"sample": "1.0"}, required={"sample"})

@@ -72,6 +72,21 @@ def validate_freeze(data: Any) -> list[str]:
         if not isinstance(entry, dict):
             issues.append("%s: expected a table" % where)
             continue
+        # Unknown keys are rejected like at the top level: a typo in an
+        # optional field (build_inputs, approved_rewrites, ...) would
+        # otherwise validate cleanly and then be silently ignored by the
+        # gate, leaving the intended protection unset.
+        supported_keys = {
+            "destination_repository",
+            "extraction_revision",
+            "owner",
+            "source_paths",
+            "hashes",
+            "build_inputs",
+            "approved_rewrites",
+        }
+        for key in sorted(set(entry) - supported_keys):
+            issues.append("%s: unknown field %r" % (where, key))
         for field in ("destination_repository", "extraction_revision", "owner"):
             value = entry.get(field)
             if not isinstance(value, str) or not value.strip():
@@ -101,6 +116,16 @@ def validate_freeze(data: Any) -> list[str]:
                 value = rewrite.get(field)
                 if not isinstance(value, str) or not value.strip():
                     issues.append("%s.approved_rewrites[%d]: missing or empty %r" % (where, j, field))
+            # An approved rewrite pins the exact content it authorizes: a
+            # path-scoped approval alone would pre-authorize every future
+            # edit to the rewritten path, giving the freeze gate no ongoing
+            # protection (trial finding F19).
+            post_hash = rewrite.get("post_hash")
+            if not isinstance(post_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", post_hash):
+                issues.append(
+                    "%s.approved_rewrites[%d]: must pin the approved post-rewrite content "
+                    "as post_hash (SHA-256 of the file content the rewrite authorizes)" % (where, j)
+                )
 
     exceptions = data.get("freeze_exceptions", [])
     if not isinstance(exceptions, list):

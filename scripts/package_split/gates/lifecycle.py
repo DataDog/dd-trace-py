@@ -8,6 +8,7 @@ import subprocess  # nosec B404
 import sys
 import tempfile
 from typing import Any
+from typing import Optional
 
 from ..evidence import FAIL
 from ..evidence import NOT_RUN
@@ -19,31 +20,10 @@ from ..manifest import Manifest
 PROBE = Path(__file__).resolve().parent.parent / "probe.py"
 
 
-def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
-    workdir = Path(tempfile.mkdtemp(prefix="package-split-lifecycle-"))
-    import_targets = list(getattr(args, "import_target", None) or manifest.import_roots)
-
-    spec: dict[str, Any] = {
-        "sys_path": [str(p) for p in _sys_path_entries(manifest, args)],
-        "import_targets": import_targets,
-        "protected_callables": [],
-        "multiprocessing_modes": ["fork", "spawn"],
-    }
-    activation = manifest.activation_api
-    if activation:
-        spec["activation"] = activation
-        spec["activation"]["singletons"] = list(getattr(args, "activation_singletons", None) or [])
-        if not spec["activation"].get("singletons"):
-            report.record(
-                "activation-singletons",
-                NOT_RUN,
-                "activation_api declared but no --activation-singletons given; "
-                "duplicate-activation detection requires a registry to observe",
-            )
-
+def _run_probe(workdir: Path, spec: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Run one probe process; return its parsed JSON document or None on failure."""
     spec_file = workdir / "spec.json"
     spec_file.write_text(json.dumps(spec), encoding="utf-8")
-
     result = subprocess.run(  # nosec B603
         [sys.executable, "-I", str(PROBE), str(spec_file)],
         capture_output=True,
@@ -52,40 +32,106 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
         cwd=str(workdir),
     )
     if result.returncode != 0 or not result.stdout.strip():
-        report.record(
-            "probe",
-            FAIL,
-            "lifecycle probe crashed: %s" % (result.stderr or result.stdout)[-2000:],
-        )
-        return
+        return {"error": "lifecycle probe crashed: %s" % (result.stderr or result.stdout)[-2000:]}
     try:
-        probe = json.loads(result.stdout)
+        loaded: dict[str, Any] = json.loads(result.stdout)
+        return loaded
     except json.JSONDecodeError:
-        report.record("probe", FAIL, "probe did not emit a single JSON document")
-        return
+        return {"error": "probe did not emit a single JSON document"}
 
-    if probe.get("error"):
-        report.record("probe", FAIL, probe["error"][-2000:])
-        return
-    _report_import_side_effects(report, probe)
-    _report_activation(report, probe)
+
+def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
+    workdir = Path(tempfile.mkdtemp(prefix="package-split-lifecycle-"))
+    import_targets = list(getattr(args, "import_target", None) or manifest.import_roots)
+
+    def base_spec(targets: list[str], with_activation: bool = True) -> dict[str, Any]:
+        spec: dict[str, Any] = {
+            "sys_path": [str(p) for p in _sys_path_entries(manifest, args)],
+            "import_targets": targets,
+            "protected_callables": [],
+            "multiprocessing_modes": ["fork", "spawn"],
+        }
+        activation = manifest.activation_api
+        if activation and with_activation:
+            spec["activation"] = activation
+            spec["activation"]["singletons"] = list(getattr(args, "activation_singletons", None) or [])
+            if not spec["activation"].get("singletons"):
+                report.record(
+                    "activation-singletons",
+                    NOT_RUN,
+                    "activation_api declared but no --activation-singletons given; "
+                    "duplicate-activation detection requires a registry to observe",
+                )
+        return spec
+
+    # One fresh probe process per import root: a shared interpreter lets one
+    # root's import install a handler that another root's import restores,
+    # masking each other's side effects from the before/after snapshots.
+    imports: dict[str, Any] = {}
+    violations: list[dict[str, Any]] = []
+    merged: dict[str, Any] = {"import_side_effects": {"imports": imports}, "violations": violations}
+    for target in import_targets:
+        probe = _run_probe(workdir, base_spec([target], with_activation=False))
+        if probe is None or probe.get("error"):
+            report.record(
+                "probe",
+                FAIL,
+                (probe or {}).get("error", "probe produced no result"),
+            )
+            return
+        imports.update(probe.get("import_side_effects", {}).get("imports", {}))
+        violations.extend(probe.get("violations", []))
+
+    # Activation idempotency and fork/spawn behavior share one more probe run
+    # (activation exercises one declared API, not per-root imports).
+    if manifest.activation_api:
+        probe = _run_probe(workdir, base_spec(import_targets))
+        if probe is None or probe.get("error"):
+            report.record(
+                "probe",
+                FAIL,
+                (probe or {}).get("error", "probe produced no result"),
+            )
+            return
+        merged["activation"] = probe.get("activation", {})
+        merged["violations"].extend(probe.get("violations", []))
+
+    _report_import_side_effects(report, merged)
+    _report_activation(report, merged)
 
 
 def _sys_path_entries(manifest: Manifest, args: Any) -> list[Path]:
     """Import path for the probe: source paths by default, or --sys-path.
 
-    For the probe to ``import <package>``, sys.path needs the directory that
-    *contains* the package, i.e. the parent of each declared source path.
+    For the probe to ``import <package>``, sys.path needs the directory
+    that *contains* the package. That directory is the parent of a
+    namespace source path (``ddtrace/`` at the repository root) but the
+    source path *itself* when it is a package directory -- a workspace
+    package's ``src/`` (``packages/<dist>/src/<module>``), which is how
+    per-package manifests are laid out. The first candidate that actually
+    contains a declared import root wins; a source path matching neither
+    falls back to its parent so the import failure stays diagnostic.
     """
     extra = list(getattr(args, "sys_path", None) or [])
     if extra:
         return [Path(p) for p in extra]
-    entries = []
+    entries: list[Path] = []
     for path in manifest.source_paths:
-        parent = path.parent
-        if parent not in entries:
-            entries.append(parent)
+        for candidate in (path, path.parent):
+            if candidate in entries:
+                continue
+            if any(_contains_root_package(candidate, root) for root in manifest.import_roots):
+                entries.append(candidate)
+                break
+        else:
+            if path.parent not in entries:
+                entries.append(path.parent)
     return entries
+
+
+def _contains_root_package(directory: Path, import_root: str) -> bool:
+    top = import_root.split(".")[0]
+    return (directory / top).is_dir() or (directory / (top + ".py")).is_file()
 
 
 def _report_import_side_effects(report: Any, probe: dict[str, Any]) -> None:

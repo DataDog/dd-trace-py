@@ -92,6 +92,44 @@ def pip_install(
     return result
 
 
+def pip_download(
+    venv_dir: Path,
+    requirements: Iterable[str],
+    destination: Path,
+    find_links: Optional[Iterable[Path]] = None,
+) -> subprocess.CompletedProcess[str]:
+    """Resolve requirements and download them into destination.
+
+    Resolution is anchored on the given requirements (e.g. the exact built
+    wheel), so staged dependency versions satisfy the artifact's own
+    constraints rather than whatever the index resolves today. Local
+    find-links (e.g. the gate's own build outputs) take priority over the
+    index, keeping the staged set hermetic where possible.
+    """
+    destination.mkdir(parents=True, exist_ok=True)
+    command: list[str] = [
+        str(venv_python(venv_dir)),
+        "-m",
+        "pip",
+        "download",
+        "--disable-pip-version-check",
+        "-d",
+        str(destination),
+    ]
+    for link in find_links or []:
+        command += ["--find-links", str(link)]
+    command.extend(requirements)
+    result = subprocess.run(  # nosec B603
+        command,
+        capture_output=True,
+        text=True,
+        timeout=1200,
+    )
+    if result.returncode != 0:
+        raise VenvError("pip download failed: %s" % (result.stderr.strip() or result.stdout.strip()))
+    return result
+
+
 def pip_uninstall(venv_dir: Path, distributions: Iterable[str]) -> subprocess.CompletedProcess[str]:
     command = [str(venv_python(venv_dir)), "-m", "pip", "uninstall", "-y"]
     command.extend(distributions)

@@ -1,0 +1,47 @@
+# Protected extraction provenance for the package split (schema v1).
+#
+# One entry per extraction. The freeze gate (scripts/package-split freeze
+# --base <revision>) loads this file from the *base* revision, so a pull
+# request cannot weaken its own rules by editing it. See
+# scripts/package_split/freeze_manifest.py for the schema.
+#
+# The frozen hashes pin the extracted implementation at its pre-extraction
+# content: the last revision before the bridge. Any change to a frozen path
+# after the extraction revision must be recorded as an approved rewrite with
+# an owner, a reason and a sync record on the destination side.
+
+schema_version = 1
+
+[[frozen]]
+destination_repository = "https://github.com/DataDog/datadog-apm-python"
+# Last revision on main carrying the pre-extraction content of
+# ddtrace/internal/codeowners.py (the first module being extracted to
+# datadog-apm-python); the extraction bridge lands afterwards as an
+# approved rewrite. Any change to a frozen path needs an approved rewrite
+# pinning the exact new content (post_hash) -- see the freeze gate docs in
+# scripts/package_split/README.md.
+extraction_revision = "2146fefcd1f7db25239b80c382f959dff9b6e3f9"
+owner = "@DataDog/apm-core-python"
+source_paths = ["ddtrace/internal/codeowners.py"]
+
+[frozen.hashes]
+"ddtrace/internal/codeowners.py" = "1273ae7d1e11edcf8692bb56f95c6aedd115668b9a20fc825cf5472f67d7fbaa"
+"tests/internal/test_codeowners.py" = "8dc93607aaf4535266cba75d3566ca266317fdd7264673756b416f5246726788"
+"tests/testing/internal/test_codeowners.py" = "4211e0c941787aedb7ec38f6469d00142e9ca06ba066fca9ef363f73f6cdb6a6"
+
+[frozen.hashes]
+"ddtrace/internal/codeowners.py" = "1273ae7d1e11edcf8692bb56f95c6aedd115668b9a20fc825cf5472f67d7fbaa"
+
+[[frozen.approved_rewrites]]
+path = "ddtrace/internal/codeowners.py"
+reason = "strict typing hardening of the parser (re.Pattern[str] type arguments, annotated locals, dead-check removal); behavior-identical and already carried by the extracted _ddtrace_internal_base.codeowners, pre-authorized so the freeze does not block this already-reviewed change"
+approver = "@DataDog/apm-core-python"
+sync_record = "https://github.com/DataDog/dd-trace-py/pull/21630"
+post_hash = "79ba689aac82d7f54ceb30661ffed6d8bb5ff76697dc3a87eb05718d6301ed9b"
+
+[[frozen.approved_rewrites]]
+path = "ddtrace/internal/codeowners.py"
+reason = "import bridge to _ddtrace_internal_base.codeowners (ddtrace-internal-base): the vendored pre-extraction implementation is the default and static view, an installed provider takes precedence at runtime, and a broken provider surfaces loudly; the vendored copy absorbs the #21630 typing hardening so the bridge never regresses main"
+approver = "@DataDog/apm-core-python"
+sync_record = "https://github.com/DataDog/datadog-apm-python/commit/1557e84bc"
+post_hash = "81af4953ee04629f8d835ef5354f46e311fd31966157f11de51100ac35627523"

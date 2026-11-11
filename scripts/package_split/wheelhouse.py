@@ -30,7 +30,16 @@ NATIVE_SUFFIXES = (".so", ".pyd", ".dylib", ".o", ".a", ".obj", ".lib")
 
 
 def is_native_file(path: str) -> bool:
-    return path.endswith(NATIVE_SUFFIXES)
+    """Whether a wheel/archive member looks like a native (compiled) artifact.
+
+    Covers Windows DLLs and versioned shared libraries (libexample.so.1)
+    alongside the plain suffixes, so native-free promises cannot be evaded
+    by platform-specific or versioned naming.
+    """
+    filename = path.lower()
+    if filename.endswith(NATIVE_SUFFIXES + (".dll",)):
+        return True
+    return re.search(r"\.so(?:\.\d+)+$", filename) is not None
 
 
 class BuildError(Exception):
@@ -250,11 +259,11 @@ def wheel_native_files(wheel: WheelInfo) -> list[str]:
     return [f for f in wheel.files if is_native_file(f)]
 
 
-def venv_native_files(venv_dir: Path, installed: dict[str, str]) -> list[str]:
+def venv_native_files(venv_dir: Path, installed: dict[str, str], required: Optional[Iterable[str]] = None) -> list[str]:
     """Scan every installed distribution's RECORD for native content."""
     return [
         "%s:%s" % (distribution, path)
-        for distribution, files in distribution_record_files(venv_dir, installed).items()
+        for distribution, files in distribution_record_files(venv_dir, installed, required=required).items()
         for path in files
         if is_native_file(path)
     ]
@@ -272,12 +281,18 @@ def _normalized_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def distribution_record_files(venv_dir: Path, installed: dict[str, str]) -> dict[str, list[str]]:
+def distribution_record_files(
+    venv_dir: Path, installed: dict[str, str], required: Optional[Iterable[str]] = None
+) -> dict[str, list[str]]:
     """Map installed distribution -> list of files it owns (from RECORD).
 
-    Missing RECORDs fail closed: ownership and native content cannot be verified.
+    Missing RECORD files fail closed for the distributions named in ``required``:
+    ownership and native content of those cannot be verified. Distributions
+    outside ``required`` that have no RECORD -- uv workspace virtual roots
+    installed alongside the package -- own no files and are skipped.
     """
     site_packages = _site_packages(venv_dir)
+    strict = {_normalized_name(name) for name in (required or ())}
     owned: dict[str, list[str]] = {}
     records = {}
     for dist_info in site_packages.glob("*.dist-info"):
@@ -286,7 +301,9 @@ def distribution_record_files(venv_dir: Path, installed: dict[str, str]) -> dict
     for distribution in sorted(installed):
         record = records.get(_normalized_name(distribution))
         if record is None or not record.is_file():
-            raise BuildError("cannot verify %s: missing RECORD" % distribution)
+            if _normalized_name(distribution) in strict:
+                raise BuildError("cannot verify %s: missing RECORD" % distribution)
+            continue
         with record.open(encoding="utf-8", newline="") as handle:
             owned[distribution] = [os.path.normpath(row[0]) for row in csv.reader(handle) if row and row[0]]
     return owned

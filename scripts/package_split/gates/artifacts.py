@@ -18,6 +18,7 @@ from ..evidence import PASS
 from ..manifest import Manifest
 from ..venvutil import create_venv
 from ..venvutil import installed_distributions
+from ..venvutil import pip_download
 from ..venvutil import pip_install
 from ..venvutil import run_in_venv
 from ..wheelhouse import BuildError
@@ -131,11 +132,25 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
     except Exception as exc:
         report.record("fresh-install", NOT_RUN, "venv creation failed: %s" % exc)
         return
+
+    # Stage the wheel's own dependency closure first: the offline install
+    # below runs with --no-index, so a wheel with runtime dependencies
+    # would otherwise fail. Resolution is anchored on the exact built wheel
+    # (not the manifest's declared ranges), and downloads go to a separate
+    # directory so an index artifact can never replace or shadow the wheel
+    # under test.
+    dependency_dir = workdir / "dependencies"
+    try:
+        pip_download(venv_dir, [str(artifacts["wheel"])], dependency_dir, find_links=[artifacts["wheel"].parent])
+    except Exception as exc:
+        report.record("fresh-install", FAIL, "dependency staging failed: %s" % str(exc)[:2000])
+        return
+
     try:
         pip_install(
             venv_dir,
             [str(artifacts["wheel"])],
-            find_links=[artifacts["wheel"].parent],
+            find_links=[artifacts["wheel"].parent, dependency_dir],
             no_index=True,
         )
     except Exception as exc:
@@ -159,7 +174,13 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
 
     # Import from outside the checkout: no source-path leakage, no .pth files
     # pointing back at the repository, module resolves under site-packages.
-    root_module = manifest.import_roots[0]
+    # Every declared import root is probed: a wheel omitting one of them
+    # must not pass, and the leak check matches the checkout and any of
+    # its descendants (a .pth adding packages/<pkg>/src escapes an
+    # equality-only comparison).
+    probe_modules = list(manifest.import_roots) + [
+        m for m in manifest.supported_exports.keys() if m not in manifest.import_roots
+    ]
     probe_code = (
         "import importlib, json, sys, pathlib\n"
         # ``python -c`` puts the cwd on sys.path; scrub it (and any empty
@@ -177,12 +198,18 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
         "        out['modules'][m] = {'ok': False, 'error': repr(exc)}\n"
         "import sysconfig\n"
         "site = sysconfig.get_paths()['purelib']\n"
-        "out['leaks'] = [p for p in sys.path if pathlib.Path(p) == pathlib.Path(%r)]\n"
+        "_source_root = pathlib.Path(%r).resolve()\n"
+        "_venv_root = pathlib.Path(site).resolve().parents[2]\n"
+        "out['leaks'] = [p for p in sys.path\n"
+        "                if (pathlib.Path(p).resolve() == _source_root\n"
+        "                    or _source_root in pathlib.Path(p).resolve().parents)\n"
+        "                and _venv_root not in pathlib.Path(p).resolve().parents\n"
+        "                and pathlib.Path(p).resolve() != _venv_root]\n"
         "out['editable'] = [p for p in sys.path if 'editable' in p.lower()]\n"
         "out['not_site'] = {m: v['file'] for m, v in out['modules'].items()\n"
         "                   if v.get('ok') and v.get('file') and not v['file'].startswith(site)}\n"
         "print(json.dumps(out))\n"
-    ) % ([root_module] + list(manifest.supported_exports.keys()), str(manifest.root))
+    ) % (probe_modules, str(manifest.root))
     result = run_in_venv(venv_dir, ["-c", probe_code], cwd=workdir)
     if result.returncode != 0:
         report.record(
@@ -208,17 +235,21 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
     else:
         report.record("import-outside-checkout", PASS, "imports resolve from site-packages only", probe=probe)
 
-    # Entry points declared in the manifest must exist in the installed dist.
+    # Entry points declared in the manifest must exist in the built
+    # distribution itself -- an environment-wide entry_points() lookup
+    # would let another installed distribution (e.g. pip) satisfy a
+    # declaration the wheel does not ship, and the group= keyword needs
+    # Python 3.10+. distribution(name).entry_points works on 3.9+.
     if manifest.entry_point_groups:
         missing = []
         for group, expected in manifest.entry_point_groups.items():
             for name in expected:
                 probe_ep = (
-                    "from importlib.metadata import entry_points\n"
-                    "eps = [ep for ep in entry_points(group=%r)]\n"
+                    "from importlib.metadata import distribution\n"
+                    "eps = [ep for ep in distribution(%r).entry_points if ep.group == %r]\n"
                     "names = [ep.name for ep in eps]\n"
                     "print(0 if %r in names else 1)\n"
-                ) % (group, name)
+                ) % (manifest.distribution, group, name)
                 result = run_in_venv(venv_dir, ["-c", probe_ep], cwd=workdir)
                 if result.returncode != 0 or result.stdout.strip() == "1":
                     missing.append("%s:%s" % (group, name))
@@ -254,7 +285,7 @@ def _install_checks(manifest: Manifest, report: Any, artifacts: dict[str, Path],
 
     # Native-free: scan the whole resolved runtime graph, not just our wheel.
     if manifest.native_policy == "native-free":
-        native = wheelhouse.venv_native_files(venv_dir, installed)
+        native = wheelhouse.venv_native_files(venv_dir, installed, required={manifest.distribution})
         if native:
             report.record(
                 "resolved-graph-native-free",

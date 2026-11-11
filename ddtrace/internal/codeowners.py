@@ -1,9 +1,42 @@
+"""Bridge for the extracted ``ddtrace.internal.codeowners`` module.
+
+The implementation was extracted to datadog-apm-python as
+``_ddtrace_internal_base.codeowners`` (distribution ``ddtrace-internal-base``,
+the stdlib-only base layer of the package split -- see
+docs/package-split/plan.md and the port trial report,
+docs/package-split/codeowners-port-trial-2026-11.md). This module keeps the
+pre-extraction import surface: the vendored implementation below is the
+default (and the static type-checking view, identical to the extracted
+provider), and an installed provider takes precedence at runtime.
+
+The vendored copy absorbs upstream typing hardening as it lands on main
+(currently dd-trace-py#21630: re.Pattern[str], annotated locals, dead-check
+removal) so the bridge never regresses main's state; the extraction freeze
+manifest records the approved rewrite and its exact post-rewrite content.
+
+The provider import is inert when ``ddtrace-internal-base`` is absent: the
+vendored copy simply stays in place during the compatibility window. A
+provider that is installed but fails to import (a broken installation)
+surfaces loudly instead of silently falling back. The bridge and vendored
+fallback are owned by @DataDog/apm-core-python.
+
+Removal condition: drop the vendored implementation when
+``ddtrace-internal-base`` becomes a pinned dd-trace-py runtime dependency;
+keep the re-export for the compatibility window approved in the freeze
+manifest.
+"""
+
+import importlib.util
 import os
 import re
+from typing import TYPE_CHECKING
 from typing import Optional
 
 
-def path_to_regex(pattern: str) -> re.Pattern:
+__all__ = ["Codeowners", "path_to_regex"]
+
+
+def path_to_regex(pattern: str) -> re.Pattern[str]:
     """
     source https://github.com/sbdchd/codeowners/blob/c95e13d384ac09cfa1c23be1a8601987f41968ea/codeowners/__init__.py
 
@@ -116,12 +149,12 @@ class Codeowners:
         ".gitlab/CODEOWNERS",
     )
 
-    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None):
+    def __init__(self, path: Optional[str] = None, cwd: Optional[str] = None) -> None:
         """Initialize Codeowners object.
 
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
         """
-        self.patterns: list[tuple[re.Pattern, list[str]]] = []
+        self.patterns: list[tuple[re.Pattern[str], list[str]]] = []
         self.path: Optional[str] = None
 
         path = path or self.location(cwd)
@@ -147,7 +180,7 @@ class Codeowners:
             return
 
         with open(self.path) as f:
-            patterns = []
+            patterns: list[tuple[re.Pattern[str], list[str]]] = []
             for line in f.readlines():
                 line = line.strip()
 
@@ -170,9 +203,6 @@ class Codeowners:
                     continue
 
                 path = elements[0]
-                if path is None:
-                    continue
-
                 try:
                     pattern = path_to_regex(path)
                 except (ValueError, IndexError):
@@ -197,3 +227,16 @@ class Codeowners:
             if pattern.search(path):
                 return owners
         return []
+
+
+if not TYPE_CHECKING:
+    try:
+        # Installed provider wins over the vendored implementation; the
+        # explicit `as` re-exports keep this a compatibility surface.
+        from _ddtrace_internal_base.codeowners import Codeowners as Codeowners  # noqa: F401
+        from _ddtrace_internal_base.codeowners import path_to_regex as path_to_regex  # noqa: F401
+    except ImportError:
+        # Fall back only for an absent provider; never paper over a broken
+        # installation (the provider is present but its import failed).
+        if importlib.util.find_spec("_ddtrace_internal_base") is not None:
+            raise

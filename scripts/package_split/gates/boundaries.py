@@ -198,11 +198,17 @@ def _metadata_checks(manifest: Manifest, report: Any) -> None:
         if name not in declared:
             problems.append("runtime dependency %r is not declared in [dependencies]" % name)
 
-    # 4b. Native policy vs build metadata.
+    # 4b. Native policy vs build metadata, and the declared build contract:
+    # every build-system requirement must be declared in
+    # [dependencies].build (an undeclared build tool is a contract
+    # mismatch, e.g. swapping setuptools for hatchling silently).
     native = manifest.native_policy
     build_system = pyproject.get("build-system", {}).get("requires", [])
+    declared_build = {_dep_name(r) for r in manifest.build_dependencies}
     for requirement in build_system:
         name = _dep_name(requirement)
+        if name not in declared_build:
+            problems.append("build dependency %r is not declared in [dependencies].build" % name)
         if name in NATIVE_BUILD_REQUIRES:
             if native == "native-free":
                 problems.append("native-free package requires %r at build time" % name)

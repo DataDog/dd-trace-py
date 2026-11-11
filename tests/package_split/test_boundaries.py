@@ -265,3 +265,81 @@ def test_declared_extras_are_recognized(tmp_path):
     report = run_boundaries(tmp_path / "package-contract.toml", tmp_path)
     metadata = [c for c in report.checks if c.name == "build-metadata"]
     assert metadata and metadata[0].status == PASS, report.summary()
+
+
+def test_sibling_initializer_cycle_detected(tmp_path):
+    # pkg.a imports pkg.sub.b (executing pkg/sub/__init__.py first, which
+    # imports back from pkg.a mid-definition) -- a real circular-import
+    # ImportError at runtime. The implicit pkg.a -> pkg.sub edge must
+    # participate in cycle detection; only ancestor implicit edges are
+    # excluded.
+    make_tree(
+        tmp_path,
+        "sample",
+        {
+            "__init__.py": "",
+            "a.py": "import sample.sub.b\nA = 1\n",
+            "sub/__init__.py": "from sample.a import A\n",
+            "sub/b.py": "B = 1\n",
+        },
+    )
+    write_pyproject(tmp_path, "sample", dependencies=[])
+    report = run_boundaries(tmp_path / "package-contract.toml", tmp_path)
+    cycles = [c for c in report.checks if c.name == "import-cycles"]
+    assert cycles and cycles[0].status == FAIL
+
+
+def test_parent_reexport_pattern_stays_clean(tmp_path):
+    # The canonical parent-re-export pattern (pkg/__init__ imports a child
+    # module; nothing imports back) must not be reported as a cycle.
+    make_tree(
+        tmp_path,
+        "sample",
+        {
+            "__init__.py": "from sample.sub import b\n",
+            "sub/__init__.py": "",
+            "sub/b.py": "B = 1\n",
+        },
+    )
+    write_pyproject(tmp_path, "sample", dependencies=[])
+    report = run_boundaries(tmp_path / "package-contract.toml", tmp_path)
+    assert report.status == PASS, report.summary()
+
+
+def test_literal_dynamic_import_cycle_detected(tmp_path):
+    # A cycle closed by import_module("...") is still a runtime cycle: the
+    # resolved dynamic import participates in the graph.
+    make_tree(
+        tmp_path,
+        "sample",
+        {
+            "__init__.py": "",
+            "a.py": "import sample.b\n",
+            "b.py": "import importlib\nimportlib.import_module('sample.a')\n",
+        },
+    )
+    write_pyproject(tmp_path, "sample", dependencies=[])
+    report = run_boundaries(tmp_path / "package-contract.toml", tmp_path)
+    cycles = [c for c in report.checks if c.name == "import-cycles"]
+    assert cycles and cycles[0].status == FAIL
+
+
+def test_undeclared_build_dependency_fails(tmp_path):
+    # The declared [dependencies].build contract is enforced: a pyproject
+    # build requirement that the manifest does not declare is a mismatch.
+    make_tree(
+        tmp_path,
+        "sample",
+        {"__init__.py": "__version__ = '1.0'\n"},
+        manifest_kwargs={"build": ["setuptools"]},
+    )
+    write_pyproject(
+        tmp_path,
+        "sample",
+        dependencies=[],
+        build_requires=["setuptools>=61", "hatchling>=1"],
+    )
+    report = run_boundaries(tmp_path / "package-contract.toml", tmp_path)
+    metadata = [c for c in report.checks if c.name == "build-metadata"]
+    assert metadata and metadata[0].status == FAIL
+    assert any("hatchling" in p for p in metadata[0].data["problems"])
