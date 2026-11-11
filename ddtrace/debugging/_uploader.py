@@ -17,6 +17,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import DebuggerSender
 from ddtrace.internal.native import DebuggerTrackType
 from ddtrace.internal.native_runtime import get_native_runtime
+from ddtrace.internal.native_runtime import on_runtime_replaced
 from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
@@ -90,10 +91,16 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
     RETRY_ATTEMPTS = 3
 
+    def _rebuild_sender(self) -> None:
+        self._sender = build_debugger_sender()
+
     def __init__(self, interval: Optional[float] = None) -> None:
         super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
 
         self._sender = build_debugger_sender()
+        # Rebuild the sender, whose connections belong to the shared runtime, when that
+        # runtime is replaced.
+        on_runtime_replaced(self._rebuild_sender)
 
         self._tracks = {
             SignalTrack.LOGS: UploaderTrack(

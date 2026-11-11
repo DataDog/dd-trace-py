@@ -222,6 +222,10 @@ class TelemetryWriter:
         self._payload_file_dir: Optional[str] = None
         self._test_session_token: Optional[str] = get_test_session_token()
         self.started = False
+        # Set once the root process has sent app-started, and kept across runtime
+        # replacements so the replacement worker does not send it again.
+        self._app_started_sent = False
+        self._replaced_after_app_started = False
         # Preserve lifecycle state across a failed identity refresh so a retry starts the replacement.
         self._identity_refresh_started = False
         # Set once the bootstrap configurations are recorded in _configurations for MicroVM replay.
@@ -248,9 +252,7 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in Python-managed forked children. The shared runtime
-            # is marked abandoned in the child; the replacement worker starts lazily after
-            # all child hooks have completed, without unparking the inherited Tokio runtime.
+            # Rebuild the native worker in Python-managed forked children.
             forksafe.register(self._fork_writer)
             error_handler = DDTelemetryErrorHandler(self)
             if self._is_microvm:
@@ -270,6 +272,11 @@ class TelemetryWriter:
         # symbol has not been built yet.
         from ddtrace.internal.native import TelemetryWorker
         from ddtrace.internal.native_runtime import get_native_runtime
+        from ddtrace.internal.native_runtime import on_runtime_replaced
+
+        # Rebuild the worker whenever the shared runtime is replaced, e.g. after its
+        # descriptors were closed.
+        on_runtime_replaced(self._replace_worker)
         from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
         application = get_application(config.SERVICE, config.VERSION, config.ENV)
@@ -318,8 +325,10 @@ class TelemetryWriter:
             extended_heartbeat_interval_secs=config.EXTENDED_HEARTBEAT_INTERVAL,
             debug_enabled=self._debug,
             # Only the root process emits app-started/app-closing; forked children
-            # heartbeat with their own session id but must not re-emit them.
-            emit_app_lifecycle=get_parent_runtime_id() is None,
+            # heartbeat with their own session id but must not re-emit them. Neither does
+            # a worker rebuilt after a runtime replacement in a root that already sent
+            # app-started; app-closing is then not sent either.
+            emit_app_lifecycle=get_parent_runtime_id() is None and not self._replaced_after_app_started,
             endpoints_message_limit=appsec_telemetry_config.ENDPOINT_COLLECTION_LIMIT,
             test_session_token=self._test_session_token,
             # Single-step-instrumentation install metadata
@@ -498,6 +507,8 @@ class TelemetryWriter:
             log.debug("Failed to start the native telemetry worker", exc_info=True)
             return
         self.started = True
+        if get_parent_runtime_id() is None:
+            self._app_started_sent = True
 
     def _get_shared_worker(self):
         """Return the native telemetry worker for this process, so the trace exporter can
@@ -1206,25 +1217,33 @@ class TelemetryWriter:
         self._identity_refresh_started = False
 
     def _fork_writer(self) -> None:
-        # Runs in the child after a Python-managed fork. Drop the inherited worker handle
-        # without shutting it down: the shared runtime is marked abandoned, and rebuilding
-        # here would start Tokio before process managers such as Celery finish closing
-        # inherited file descriptors. Rebuild lazily on the child's next telemetry call
-        # (enable()); the replacement is bound to the child's runtime and session ids and
-        # heartbeats without app-started. The child's first telemetry or exporter call
-        # replaces the inherited runtime without unparking its I/O driver.
+        # Runs in the child after a Python-managed fork, once the shared runtime has been
+        # replaced. Rebuild lazily on the child's next telemetry call (enable()); the
+        # replacement is bound to the child's runtime and session ids and heartbeats without
+        # app-started.
         #
         # This hook is registered before the tracer's _child_after_fork (TelemetryWriter is
         # constructed before the tracer), so it always runs before the trace-exporter rebuild
         # that calls _get_shared_worker() to get a new telemetry client.
-        self._worker = None
-        self.started = False
-        # Contexts belong to the worker the parent built; the child rebuilds lazily and the
-        # recorders re-register against it then.
-        _unbind_metric_recorders(self)
-        self._notify_worker_changed(None)
+        self._drop_worker()
         # Re-discover dependencies from scratch so the child reports its own imports.
         self._dependency_tracker.reset()
+
+    def _replace_worker(self) -> None:
+        # The process is the same, so its lifecycle already started: the replacement worker
+        # heartbeats without sending app-started again.
+        self._replaced_after_app_started = self._app_started_sent
+        self._drop_worker()
+
+    def _drop_worker(self) -> None:
+        # The worker runs on a runtime that was replaced. Drop its handle without shutting it
+        # down, which would act on the old runtime, and rebuild on the next telemetry call.
+        self._worker = None
+        self.started = False
+        # Contexts belong to the old worker; the recorders re-register against the
+        # replacement when it is built.
+        _unbind_metric_recorders(self)
+        self._notify_worker_changed(None)
 
     def _telemetry_excepthook(self, tp, value, root_traceback) -> None:
         if root_traceback is not None:

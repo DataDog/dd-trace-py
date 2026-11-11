@@ -314,6 +314,46 @@ impl SharedRuntimePy {
         result
     }
 
+    /// Replace the runtime inherited by a fork child with a fresh one. Called from
+    /// a Python child hook that runs before any other, so the runtime is ready
+    /// for every later hook and is never rebuilt lazily on an application
+    /// thread. The inherited runtime is leaked, not dropped: its worker threads
+    /// are gone, and dropping it would deregister its I/O resources.
+    fn rebuild_after_fork(&self) -> PyResult<()> {
+        let current_pid = std::process::id();
+        if self.inner.pid.load(Ordering::Acquire) == current_pid {
+            return Ok(());
+        }
+        let mut runtime = self
+            .inner
+            .runtime
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
+        if self.inner.pid.load(Ordering::Acquire) == current_pid {
+            return Ok(());
+        }
+        replace_inherited_runtime(&mut runtime, &self.inner, current_pid)?;
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
+        Ok(())
+    }
+
+    /// Replace the runtime with a fresh one in this process, e.g. after the
+    /// descriptors of the current one were closed. Call before_fork() first, while
+    /// those descriptors are still valid. The old runtime and its workers are
+    /// leaked, not dropped: their state may refer to closed descriptors, whose
+    /// numbers can already belong to something else. Owners of workers on the
+    /// old runtime must rebuild them, as in a fork child.
+    fn replace_runtime(&self) -> PyResult<()> {
+        let mut runtime = self
+            .inner
+            .runtime
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
+        replace_inherited_runtime(&mut runtime, &self.inner, std::process::id())?;
+        Ok(())
+    }
+
     fn defer_after_fork_child(&self) {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {

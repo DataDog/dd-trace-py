@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pytest
 
@@ -283,32 +284,30 @@ for _ in range(64):
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
-def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subprocess):
-    """Celery beat closes inherited FDs after Python at-fork hooks return.
+def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subprocess, tmp_path):
+    """Celery's embedded beat closes inherited FDs after Python at-fork hooks return.
 
-    Rebuilding the native telemetry worker must not unpark the inherited Tokio
-    I/O driver, which panics with EBADF once those descriptors are gone.
+    The child rebuilds the native runtime in a fork hook, so its descriptors are
+    among those closed. Celery closes them with celery.platforms.close_open_fds,
+    which the runtime wraps to stop before and rebuild after, instead of
+    panicking with EBADF.
     """
-    code = """
+    # A stand-in for celery.platforms.close_open_fds, closing what Celery 5.7
+    # closes: every descriptor listed in the fd directory but those to keep.
+    celery = tmp_path / "celery"
+    celery.mkdir()
+    (celery / "__init__.py").write_text("")
+    (celery / "platforms.py").write_text(
+        """
 import os
-import warnings
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-import ddtrace
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.trace import tracer
 
 
-assert telemetry_writer._worker is not None
-
-pid = os.fork()
-if pid == 0:
-    keep = {0, 1, 2}
+def close_open_fds(keep=None):
+    keep = set(keep or ())
     try:
         names = os.listdir("/proc/self/fd")
     except OSError:
-        names = [str(fd) for fd in range(3, 256)]
+        names = [str(fd) for fd in range(256)]
     for name in names:
         try:
             fd = int(name)
@@ -320,9 +319,525 @@ if pid == 0:
             os.close(fd)
         except OSError:
             pass
+"""
+    )
+
+    code = """
+import os
+import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+sys.path.insert(0, %r)
+from celery import platforms
+
+assert telemetry_writer._worker is not None
+
+pid = os.fork()
+if pid == 0:
+    platforms.close_open_fds([0, 1, 2])
     with tracer.trace("celery-beat-like"):
         pass
+    telemetry_writer.periodic(force_flush=True)
     os._exit(0)
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+""" % str(tmp_path)
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_survives_daemonization(run_python_code_in_subprocess):
+    """Daemonizing like python-daemon: double fork, os.closerange, keep running.
+
+    The runtime rebuilt in the child's fork hook loses its descriptors to
+    os.closerange, which the runtime wraps to stop before and rebuild after.
+    """
+    code = """
+import os
+import select
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+assert telemetry_writer._worker is not None
+
+r, w = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.setsid()
+    if os.fork() != 0:
+        os._exit(0)
+    # The daemon: close everything but the reporting pipe, as python-daemon does.
+    os.closerange(3, w)
+    os.closerange(w + 1, 1024)
+    try:
+        with tracer.trace("daemon"):
+            pass
+        telemetry_writer.periodic(force_flush=True)
+        tracer.flush()
+        result = b"ok"
+    except BaseException as e:
+        result = repr(e).encode()
+    os.write(w, result)
+    os._exit(0)
+
+os.close(w)
+os.waitpid(pid, 0)
+ready, _, _ = select.select([r], [], [], 30)
+assert ready, "the daemon hung"
+result = os.read(r, 4096)
+assert result == b"ok", result
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_nested_fd_cleanup(run_python_code_in_subprocess, tmp_path):
+    """A wrapped cleanup function calling os.closerange rebuilds the runtime once, at the end."""
+    celery = tmp_path / "celery"
+    celery.mkdir()
+    (celery / "__init__.py").write_text("")
+    (celery / "platforms.py").write_text(
+        """
+import os
+
+
+def close_open_fds(keep=None):
+    # Closing more after the inner, wrapped call would close the descriptors of
+    # a runtime it rebuilt, if it did.
+    os.closerange(3, 1024)
+    for fd in range(3, 1024):
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+"""
+    )
+
+    code = """
+import os
+import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+sys.path.insert(0, %r)
+from celery import platforms
+
+pid = os.fork()
+if pid == 0:
+    platforms.close_open_fds([0, 1, 2])
+    with tracer.trace("after-nested-cleanup"):
+        pass
+    telemetry_writer.periodic(force_flush=True)
+    os._exit(0)
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+""" % str(tmp_path)
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+@pytest.mark.parametrize("cleanup", ["closerange", "celery"])
+def test_native_runtime_replaced_after_cleanup_with_live_connections(run_python_code_in_subprocess, tmp_path, cleanup):
+    """Closing descriptors after the workers have connected must not break later use.
+
+    The workers' connections refer to the closed descriptors, whose numbers the
+    application then reuses. The runtime is replaced and its workers rebuilt,
+    rather than reset, so nothing acts on those descriptors again.
+    """
+    celery = tmp_path / "celery"
+    celery.mkdir()
+    (celery / "__init__.py").write_text("")
+    (celery / "platforms.py").write_text(
+        """
+import os
+
+
+def close_open_fds(keep=None):
+    keep = set(keep or ())
+    for fd in range(3, 1024):
+        if fd not in keep:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+"""
+    )
+
+    code = """
+import os
+import select
+import sys
+import time
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+sys.path.insert(0, %r)
+from celery import platforms
+
+
+def use(label):
+    for i in range(3):
+        with tracer.trace("%%s-%%d" %% (label, i)):
+            pass
+        tracer.flush()
+        telemetry_writer.periodic(force_flush=True)
+
+
+r, w = os.pipe()
+pid = os.fork()
+if pid == 0:
+    try:
+        use("before")
+        if %r == "closerange":
+            os.closerange(3, w)
+            os.closerange(w + 1, 1024)
+        else:
+            platforms.close_open_fds([0, 1, 2, w])
+        # Reuse low descriptor numbers, as an application would.
+        files = [open(os.devnull) for _ in range(8)]
+        use("after")
+        time.sleep(0.2)
+        use("later")
+        result = "ok"
+    except BaseException as e:
+        result = repr(e)
+    os.write(w, result.encode())
+    os._exit(0)
+
+os.close(w)
+ready, _, _ = select.select([r], [], [], 30)
+if not ready:
+    os.kill(pid, 9)
+    os.waitpid(pid, 0)
+    raise AssertionError("the child hung")
+result = os.read(r, 4096).decode()
+os.waitpid(pid, 0)
+assert result == "ok", result
+""" % (str(tmp_path), cleanup)
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_rebuild_keeps_standard_fds_free(run_python_code_in_subprocess):
+    """Daemonizing code closes 0-2 too, then redirects the standard streams onto them.
+
+    The runtime rebuilt in between must not take those descriptors, or the dup2
+    calls redirecting the streams would overwrite its own.
+    """
+    code = """
+import os
+import select
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+r, w = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.setsid()
+    if os.fork() != 0:
+        os._exit(0)
+    os.closerange(0, w)
+    os.closerange(w + 1, 1024)
+    # Redirect the standard streams to the null device, as python-daemon does.
+    null = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        if fd != null:
+            os.dup2(null, fd)
+    try:
+        with tracer.trace("daemon"):
+            pass
+        tracer.flush()
+        telemetry_writer.periodic(force_flush=True)
+        result = b"ok"
+    except BaseException as e:
+        result = repr(e).encode()
+    os.write(w, result)
+    os._exit(0)
+
+os.close(w)
+os.waitpid(pid, 0)
+ready, _, _ = select.select([r], [], [], 30)
+assert ready, "the daemon hung"
+result = os.read(r, 4096)
+assert result == b"ok", result
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+def test_native_runtime_replacement_sends_app_started_once(test_agent_session, run_python_code_in_subprocess):
+    """Replacing the runtime in the root process does not send app-started again."""
+    code = """
+import os
+
+import ddtrace
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+telemetry_writer.periodic(force_flush=True)
+assert telemetry_writer.started
+
+# Close an open descriptor: the runtime is replaced and the worker rebuilt.
+fd = os.open(os.devnull, os.O_RDONLY)
+os.closerange(fd, fd + 1)
+telemetry_writer.periodic(force_flush=True)
+assert telemetry_writer.started
+
+print(get_runtime_id())
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+
+    runtime_id = stdout.strip().decode("utf-8")
+    app_started = [e for e in test_agent_session.get_events("app-started") if e["runtime_id"] == runtime_id]
+    assert len(app_started) == 1, app_started
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="counts threads via /proc")
+def test_native_runtime_replacements_do_not_leak_threads(run_python_code_in_subprocess):
+    """Each replacement stops the old runtime's threads instead of leaving them parked."""
+    code = """
+import os
+import time
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+def tokio_threads():
+    count = 0
+    for tid in os.listdir("/proc/self/task"):
+        try:
+            with open("/proc/self/task/%s/comm" % tid) as f:
+                count += f.read().startswith("tokio-rt")
+        except OSError:
+            pass
+    return count
+
+
+def use():
+    with tracer.trace("span"):
+        pass
+    tracer.flush()
+    telemetry_writer.periodic(force_flush=True)
+
+
+use()
+before = tokio_threads()
+assert before > 0
+
+for _ in range(10):
+    fd = os.open(os.devnull, os.O_RDONLY)
+    os.closerange(fd, fd + 1)
+    use()
+
+deadline = time.monotonic() + 5
+while tokio_threads() > before and time.monotonic() < deadline:
+    time.sleep(0.05)
+assert tokio_threads() <= before, (tokio_threads(), before)
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_fork_close_exec_like_gevent_subprocess(run_python_code_in_subprocess):
+    """gevent's subprocess: fork, close every inherited descriptor one by one, exec.
+
+    The runtime rebuilt in the child's fork hook loses its descriptors to the
+    os.close calls. Nothing may use it before the exec, which must go through,
+    and the parent must carry on tracing.
+    """
+    code = """
+import os
+import select
+import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+with tracer.trace("before"):
+    pass
+tracer.flush()
+
+for _ in range(5):
+    errpipe_read, errpipe_write = os.pipe()
+    os.set_inheritable(errpipe_write, False)
+    pid = os.fork()
+    if pid == 0:
+        try:
+            for name in os.listdir("/proc/self/fd" if os.path.isdir("/proc/self/fd") else "/dev/fd"):
+                fd = int(name)
+                if fd < 3 or fd == errpipe_write:
+                    continue
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            os.execv(sys.executable, [sys.executable, "-c", "pass"])
+        except BaseException as e:
+            os.write(errpipe_write, repr(e).encode())
+        os._exit(255)
+    os.close(errpipe_write)
+    ready, _, _ = select.select([errpipe_read], [], [], 30)
+    if not ready:
+        os.kill(pid, 9)
+        os.waitpid(pid, 0)
+        raise AssertionError("the child neither exec'd nor exited")
+    error = os.read(errpipe_read, 4096)
+    os.close(errpipe_read)
+    _, status = os.waitpid(pid, 0)
+    assert not error, error
+    assert os.waitstatus_to_exitcode(status) == 0, status
+
+with tracer.trace("after"):
+    pass
+tracer.flush()
+telemetry_writer.periodic(force_flush=True)
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
+def test_native_runtime_replacement_rebuilds_owners(run_python_code_in_subprocess):
+    """Objects built on the replaced runtime are dropped or rebuilt straight away."""
+    code = """
+import os
+
+import ddtrace
+from ddtrace.internal import http
+from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.trace import tracer
+
+
+http._build_client("http://localhost:8126", 1000)
+assert http._build_client.cache_info().currsize == 1
+
+rc = RemoteConfigClient()
+rc.ensure_native()
+assert rc._native is not None
+
+writer = tracer._span_aggregator.writer
+
+fd = os.open(os.devnull, os.O_RDONLY)
+os.closerange(fd, fd + 1)
+
+assert http._build_client.cache_info().currsize == 0
+assert rc._native is None
+# The writer is rebuilt on the new runtime now, not on the next span start.
+assert not tracer._post_fork_writer_pending
+assert tracer._span_aggregator.writer is not writer
+
+with tracer.trace("after-replacement"):
+    pass
+tracer.flush()
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_native_runtime_ready_for_child_hooks(run_python_code_in_subprocess):
+    """The child rebuilds the native runtime in a fork hook that runs before any other.
+
+    A regular child hook can use the runtime straight away; nothing rebuilds it
+    lazily on an application thread.
+    """
+    code = """
+import os
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal import forksafe
+from ddtrace.internal.http_client import HTTPClient
+from ddtrace.internal.native_runtime import get_native_runtime
+
+
+get_native_runtime()
+used = []
+
+
+def child_hook():
+    # Building a client takes the runtime, which used to raise a deferred
+    # restart error during the child hooks.
+    HTTPClient("http://localhost:8126")
+    used.append(True)
+
+
+forksafe.register(child_hook)
+
+pid = os.fork()
+if pid == 0:
+    os._exit(0 if used else 1)
 
 _, status = os.waitpid(pid, 0)
 assert os.waitstatus_to_exitcode(status) == 0
@@ -331,7 +846,6 @@ assert os.waitstatus_to_exitcode(status) == 0
     _, stderr, status, _ = run_python_code_in_subprocess(code)
 
     assert status == 0, stderr
-    assert b"panic" not in stderr.lower(), stderr
 
 
 def test_trace_exporter_propagates_telemetry_runtime_restart_errors(run_python_code_in_subprocess):
