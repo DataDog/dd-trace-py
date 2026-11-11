@@ -3,6 +3,7 @@ import json
 from typing import Optional
 from unittest import mock
 
+from agents import _debug as agents_debug
 import openai
 import pytest
 
@@ -202,9 +203,13 @@ def _assert_expected_agent_run(
             tool_call = tool_calls[i // 2]
             error = None
             if tool_call["error"]:
+                # Newer SDKs redact the provider's error payload when tool-data
+                # logging is disabled. Assert the SDK's contract in both modes.
+                redacted = getattr(agents_debug, "DONT_LOG_TOOL_DATA", False)
+                message = "Tool execution failed. Error details are redacted." if redacted else "This is a test error"
                 error = {
                     "type": "Error running tool (non-fatal)",
-                    "message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
+                    "message": json.dumps({"tool_name": tool_call["tool_name"], "error": message}),
                     "stack": mock.ANY,
                 }
             io_args = (
@@ -728,8 +733,12 @@ async def test_llmobs_single_agent_with_tool_errors(
                             {
                                 "tool_id": mock.ANY,
                                 "name": "",
-                                "result": "An error occurred while running the tool."
-                                " Please try again. Error: This is a test error",
+                                "result": "An error occurred while running the tool. Please try again."
+                                + (
+                                    ""
+                                    if getattr(agents_debug, "DONT_LOG_TOOL_DATA", False)
+                                    else " Error: This is a test error"
+                                ),
                                 "type": "function_call_output",
                             }
                         ],

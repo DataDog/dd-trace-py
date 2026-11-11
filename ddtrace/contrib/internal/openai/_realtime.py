@@ -1135,6 +1135,10 @@ def _extract_response_tools(response: Any) -> tuple[list[ToolCall], list[ToolRes
     return tool_calls, tool_results
 
 
+def _valid_token_count(value: Any) -> bool:
+    return type(value) is int and 0 <= value <= (1 << 53) - 1
+
+
 def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     if not usage:
         return None
@@ -1142,13 +1146,16 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     input_tokens = _get_attr(usage, "input_tokens", None)
     output_tokens = _get_attr(usage, "output_tokens", None)
     total_tokens = _get_attr(usage, "total_tokens", None)
+    input_tokens = input_tokens if _valid_token_count(input_tokens) else None
+    output_tokens = output_tokens if _valid_token_count(output_tokens) else None
+    total_tokens = total_tokens if _valid_token_count(total_tokens) else None
     if input_tokens is not None:
         metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
     if output_tokens is not None:
         metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if total_tokens is None and input_tokens is not None and output_tokens is not None:
         total_tokens = input_tokens + output_tokens  # mirror the chat/responses fallback
-    if total_tokens is not None:
+    if _valid_token_count(total_tokens):
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
 
     # Modality and cached counts are subsets of the totals, not additional tokens.
@@ -1167,7 +1174,7 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
         ("cache_text_read_tokens", _get_attr(cached_details, "text_tokens", None)),
         ("cache_image_read_tokens", _get_attr(cached_details, "image_tokens", None)),
     ):
-        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        if _valid_token_count(value):
             metrics[key] = value
     return metrics or None
 

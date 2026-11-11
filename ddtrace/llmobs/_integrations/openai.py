@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.formats import _get_attr
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -25,6 +26,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_decision
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
+from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
@@ -42,7 +44,7 @@ OPENAI_DECISION_PROVIDER = "openai"
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
 
-    def __init__(self, integration_config, openai):
+    def __init__(self, integration_config: IntegrationConfig, openai: Any) -> None:
         # FIXME: this currently does not consider if the tracer is configured to
         # use a different hostname. eg. tracer.configure(host="new-hostname")
         # Ideally the metrics client should live on the tracer or some other core
@@ -66,6 +68,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             submit_to_llmobs = True
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(operation_id, submit_to_llmobs, **kwargs)
+
+    def realtime_audio_format(self, audio_format: Any) -> str:
+        """Interpret a transport's format using the shared Realtime codec contract."""
+        return realtime_audio_format_to_mime(audio_format)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span._set_attribute(COMPONENT, self.integration_config.integration_name)

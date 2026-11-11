@@ -91,6 +91,23 @@ Traces
       version_added:
          v4.13.0:
 
+   DD_OPENAI_REALTIME_ENABLED:
+      type: Boolean
+      default: True
+
+      description: |
+         Enables Realtime instrumentation for OpenAI SDK and OpenAI Agents SDK connections.
+         LLM Observability must also be enabled to capture conversation turns.
+
+   DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED:
+      type: Boolean
+      default: True
+
+      description: |
+         Allows the OpenAI Agents integration to request stored audio for SIP and WebRTC call
+         attachments when the SDK or application has not already requested it. Set to ``False``
+         to prevent these additional requests. Existing retrieval replies remain observable.
+
    DD_BOTOCORE_EMPTY_POLL_ENABLED:
       type: Boolean
       default: True

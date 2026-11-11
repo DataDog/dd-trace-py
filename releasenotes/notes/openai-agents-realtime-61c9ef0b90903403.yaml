@@ -1,0 +1,6 @@
+features:
+  - |
+    OpenAI Agents: Adds LLM Observability for Realtime WebSocket conversations and SIP or WebRTC
+    call attachments, including transcripts, audio, tools, and token usage. Realtime instrumentation
+    is enabled by default; set ``DD_OPENAI_REALTIME_ENABLED=false`` to disable it, or
+    ``DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED=false`` to disable additional stored-audio requests.
