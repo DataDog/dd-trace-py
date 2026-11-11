@@ -623,7 +623,8 @@ class _AgentsRealtimeState(_RealtimeState):
         item.complete = stable and bool(relevant) and relevant.issubset(parts) and valid
         if item.complete:
             item.parts = parts
-        self._want_item(item)
+        if valid:
+            self._want_item(item)
         self._rebuild(item)
         if item.input_audio:
             transcript = item.final_input_transcript

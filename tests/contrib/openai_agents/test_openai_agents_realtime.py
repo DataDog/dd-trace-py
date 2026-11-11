@@ -1284,3 +1284,30 @@ async def test_realtime_websocket_inflight_close_preserves_transcript(agents, op
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(span), span_kind="llm", input_messages=[{"role": "user", "content": "known final"}]
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("invalid", ["cache", "malformed", "oversize"])
+async def test_realtime_rejected_bounded_reply_does_not_retry(
+    agents, openai_agents_llmobs, socket, monkeypatch, invalid
+):
+    model = await connect(socket, {"call_id": "rejected"})
+    await socket.feed(created())
+    await socket.feed(done(output=[output_item()]))
+    await bounded_output(socket)
+    await asyncio.sleep(0)
+    requests = [e for e in socket.sent if e["type"] == "conversation.item.retrieve"]
+    assert len(requests) == 1
+    reply = retrieved()
+    if invalid == "cache":
+        monkeypatch.setattr(_realtime, "_MAX_CACHE_BYTES", 1)
+    elif invalid == "malformed":
+        reply["item"]["content"][0]["audio"] = "!invalid!"
+    else:
+        monkeypatch.setattr(_realtime, "_AUDIO_ACCUM_MAX_BYTES", 1)
+    await socket.feed(reply)
+    await asyncio.sleep(0)
+    assert not model._dd_realtime_state.items["a1"].wanted
+    assert len([e for e in socket.sent if e["type"] == "conversation.item.retrieve"]) == len(requests)
+    await model.close()
