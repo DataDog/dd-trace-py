@@ -1311,3 +1311,68 @@ async def test_realtime_rejected_bounded_reply_does_not_retry(
     assert not model._dd_realtime_state.items["a1"].wanted
     assert len([e for e in socket.sent if e["type"] == "conversation.item.retrieve"]) == len(requests)
     await model.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("response_at", ["speech_started", "speech_stopped"])
+async def test_realtime_input_binds_at_commit_after_interleaved_response(
+    agents, openai_agents_llmobs, test_spans, socket, response_at
+):
+    model = await connect(socket, {"call_id": "interleaved-input"})
+    for kind, offset in [("speech_started", {"audio_start_ms": 100}), ("speech_stopped", {"audio_end_ms": 200})]:
+        await socket.feed({"type": "input_audio_buffer." + kind, "item_id": "u2", **offset})
+        if kind == response_at:
+            await socket.feed(created("tool-response"))
+    await socket.feed({"type": "input_audio_buffer.committed", "item_id": "u2", "previous_item_id": ""})
+    await socket.feed(created("caller-response"))
+    state = model._dd_realtime_state
+    previous = state.entries["tool-response"].turn
+    caller = state.entries["caller-response"].turn
+    try:
+        await socket.feed(
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "item_id": "u2",
+                "content_index": 0,
+                "transcript": "new speech",
+                "usage": {"type": "duration", "seconds": 0.1},
+            }
+        )
+        reply = retrieved("u2", transcript="new speech")
+        reply["item"]["role"] = "user"
+        reply["item"]["content"][0]["type"] = "input_audio"
+        await socket.feed(reply)
+        assert previous.input.transcript != "new speech"
+        assert not previous.input.audio.chunks
+        assert caller.input.transcript == "new speech"
+        assert caller.input.audio.total_decoded_bytes == 48
+        assert state.items["u2"].raw_byte_bound == 4800
+        await socket.feed(done("tool-response"))
+        await socket.feed(done("caller-response"))
+    finally:
+        await model.close()
+    messages = _get_llmobs_data_metastruct(caller.span)["meta"]["input"]["messages"]
+    assert messages[0]["content"] == "new speech"
+    assert messages[0]["audio_parts"]
+    assert all(
+        message.get("content") != "new speech" and not message.get("audio_parts")
+        for message in _get_llmobs_data_metastruct(previous.span)["meta"].get("input", {}).get("messages", [])
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+async def test_realtime_uncommitted_vad_offsets_bounded_and_cleared(agents, openai_agents_llmobs, socket, monkeypatch):
+    monkeypatch.setattr(_realtime, "_MAX_ITEMS", 2)
+    model = await connect(socket, {"call_id": "orphan-vad"})
+    state = model._dd_realtime_state
+    for index in range(3):
+        await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": str(index), "audio_start_ms": index})
+    assert list(state.input_offsets) == ["1", "2"]
+    assert not state.items
+    await socket.feed({"type": "input_audio_buffer.cleared"})
+    assert not state.input_offsets
+    await socket.feed({"type": "input_audio_buffer.speech_started", "item_id": "pending", "audio_start_ms": 10})
+    await model.close()
+    assert not state.input_offsets

@@ -126,6 +126,7 @@ class _AgentsRealtimeState(_RealtimeState):
         self._preparing_response: Optional[_Playback] = None
         self.entries: OrderedDict[str, _Playback] = OrderedDict()
         self.items: OrderedDict[str, _Item] = OrderedDict()
+        self.input_offsets: OrderedDict[str, dict[str, float]] = OrderedDict()
         self.requests: dict[str, _Item] = {}
         self.application_requests: OrderedDict[str, _ApplicationRetrieval] = OrderedDict()
         self._request_prefix = "ddtrace_realtime_audio_" + uuid4() + "_"
@@ -417,6 +418,19 @@ class _AgentsRealtimeState(_RealtimeState):
         item_id = event.get("item_id")
         if not isinstance(item_id, str):
             return
+        offsets = self.input_offsets.setdefault(item_id, {})
+        for key in ("audio_start_ms", "audio_end_ms"):
+            value = event.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value < 1e12:
+                if key != "audio_start_ms" or key not in offsets:
+                    offsets[key] = value
+        while len(self.input_offsets) > _MAX_ITEMS:
+            self.input_offsets.popitem(last=False)
+        if event.get("type") != "input_audio_buffer.committed":
+            return
+        self.input_offsets.pop(item_id, None)
+        # VAD offsets precede commit and may straddle an unrelated response.
+        # Bind media only once commit identifies the input that will own it.
         item = self._bind(
             item_id,
             self._pending_input,
@@ -428,19 +442,11 @@ class _AgentsRealtimeState(_RealtimeState):
             return
         item.expected.add(0)
         item.side.audio.present = True
-        event_type = event.get("type")
-        start, end = event.get("audio_start_ms"), event.get("audio_end_ms")
-        if (
-            isinstance(start, (int, float))
-            and not isinstance(start, bool)
-            and 0 <= start < 1e12
-            and item.audio_start_ms is None
-        ):
-            item.audio_start_ms = start
-        if isinstance(end, (int, float)) and not isinstance(end, bool) and 0 <= end < 1e12:
-            item.audio_end_ms = end
-        if event_type == "input_audio_buffer.committed":
-            item.generation_done = True
+        if item.audio_start_ms is None:
+            item.audio_start_ms = offsets.get("audio_start_ms")
+        if "audio_end_ms" in offsets:
+            item.audio_end_ms = offsets["audio_end_ms"]
+        item.generation_done = True
         rate = _bytes_per_second(item.mime, item.rate)
         if (
             rate
@@ -630,7 +636,7 @@ class _AgentsRealtimeState(_RealtimeState):
             transcript = item.final_input_transcript
             if transcript is None:
                 transcript = "".join(item.transcripts[k] for k in sorted(item.transcripts))
-            if item.side.item_id in (None, item.id):
+            if item.side.item_id == item.id:
                 item.side.transcript = transcript
             if transcript:
                 super().on_server_event(
@@ -836,6 +842,8 @@ class _AgentsRealtimeState(_RealtimeState):
                         for entry in window:
                             entry.window = window
                     self.active = None
+        if event_type == "input_audio_buffer.cleared":
+            self.input_offsets.clear()
         super().on_server_event(event)
         if event_type == "response.created":
             response = event.get("response") or {}
@@ -859,7 +867,7 @@ class _AgentsRealtimeState(_RealtimeState):
                     item.transcripts[event.get("content_index", 0)] = transcript
                     if item.input_audio:
                         item.final_input_transcript = transcript
-                        if item.side.item_id in (None, item.id):
+                        if item.side.item_id == item.id:
                             item.side.transcript = transcript
                 self._want_item(item)
         # Bound orphan transcription and tool-name maps too; entries own the data
@@ -952,6 +960,7 @@ class _AgentsRealtimeState(_RealtimeState):
             self._forget_item(item_id)
         self.requests.clear()
         self.application_requests.clear()
+        self.input_offsets.clear()
         self.intents.clear()
         self._pending_input.audio.clear()
         self._responses.clear()
