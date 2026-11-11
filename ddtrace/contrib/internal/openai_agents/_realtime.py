@@ -774,10 +774,39 @@ class _AgentsRealtimeState(_RealtimeState):
             if any(i.entry is e for e in window)
         ):
             return
+        # The clear precedes its truncation acknowledgement and stored prefix.
+        # Keep the window owned until that evidence can resolve its final clip.
+        if window[-1].cleared and not window[-1].truncated:
+            return
         for member in window:
             member.window = None
         start, end = window[0].start_ns, window[-1].end_ns
-        if start is None or end is None or any(e.truncated or e.cleared for e in window):
+        if start is None or end is None:
+            return
+        if any(e.truncated or e.cleared for e in window):
+            last = window[-1]
+            items = [self.items[k] for k in last.items if k in self.items and self.items[k].expected]
+            audio = last.turn.audio
+            duration = _segment_duration_ns(audio.total_decoded_bytes, audio.mime, audio.rate)
+            if len(items) == 1 and items[0].complete and items[0].expected == {0}:
+                cap = items[0].caps.get(0)
+                if (
+                    cap is not None
+                    and cap > 0
+                    and duration is not None
+                    and duration > 0
+                    and duration == int(cap * 1_000_000)
+                    and not audio.oversize
+                ):
+                    onset = end - duration
+                    done = last.turn.response_done_ns
+                    # A complete, single-item played prefix fixes this suffix's
+                    # duration. If generation finished before its inferred start,
+                    # it was available for uninterrupted playback through clear.
+                    # Earlier clips still lack a boundary and remain unplaced.
+                    if onset >= start and done is not None and done <= onset:
+                        last.start_ns = onset
+                        last.derived = True
             return
         durations = []
         for member in window:

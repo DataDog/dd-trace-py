@@ -1474,3 +1474,38 @@ async def test_realtime_sideband_invalid_vad_duration_keeps_observed_onset(
     assert turn.input.speech_end_ns == 11_000_000_000
     assert model._dd_realtime_state.items["u1"].raw_byte_bound is None
     await model.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
+@pytest.mark.parametrize("generation_ready", [False, True])
+@pytest.mark.parametrize("clip_ms", [800, 1000])
+async def test_realtime_cleared_continuation_anchors_complete_played_prefix(
+    agents, openai_agents_llmobs, test_spans, socket, monkeypatch, generation_ready, clip_ms
+):
+    now = [10_000_000_000]
+    monkeypatch.setattr(_realtime.time, "time_ns", lambda: now[0])
+    model = await connect(socket, {"call_id": "truncated-continuation"})
+    await socket.feed(created("r1"))
+    await socket.feed({"type": "output_audio_buffer.started", "response_id": "r1"})
+    now[0] = 11_000_000_000
+    await socket.feed(done("r1", [output_item("a1", "preamble")]))
+    await socket.feed(created("r2"))
+    second = model._dd_realtime_state.entries["r2"].turn.span
+    now[0] = 12_000_000_000 if generation_ready else 19_500_000_000
+    await socket.feed(done("r2", [output_item("a2", "answer")]))
+    now[0] = 20_000_000_000
+    await socket.feed({"type": "output_audio_buffer.cleared", "response_id": "r2"})
+    await bounded_output(socket, "a2", milliseconds=1000)
+    await socket.feed(retrieved("a2", b"\0\0" * (24 * clip_ms), "heard"))
+    await model.close()
+    spans = [span for trace in test_spans.pop_traces() for span in trace]
+    speech = [span for span in spans if span.resource == "createRealtimeAgentSpeech"]
+    trusted = generation_ready and clip_ms == 1000
+    assert len(speech) == int(trusted)
+    if trusted:
+        assert speech[0].start_ns == 19_000_000_000
+        assert speech[0].duration_ns == 1_000_000_000
+        assert speech[0].parent_id == second.parent_id
+    message = _get_llmobs_data_metastruct(second)["meta"]["output"]["messages"][0]
+    assert len(base64.b64decode(message["audio_parts"][0]["content"])) == 44 + 48 * clip_ms
