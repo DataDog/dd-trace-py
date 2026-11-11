@@ -268,7 +268,7 @@ macrobenchmarks:
     - when: manual
       allow_failure: true
 
-# DSM overhead (baseline / apm-only / apm+dsm) on benchmarks/kafka_dsm. Not gating yet.
+# DSM overhead (baseline / apm-only / apm+dsm) on benchmarks/kafka_dsm. Report-only.
 dsm-throughput:
   stage: benchmarks
   needs:
