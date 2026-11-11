@@ -69,11 +69,7 @@ experiments:
             thresholds:
               - execution_time < 2.31 ms
 
-          # TODO: Calibrate subscriber lifecycle thresholds from stable CI measurements.
-          # Report measurements until timing gates are calibrated.
-          - name: coreapiscenario-subscriber_setup
-            thresholds: []
+          # TODO: Calibrate the subscriber registration threshold from stable CI measurements.
+          # Report measurements until the timing gate is calibrated.
           - name: coreapiscenario-subscriber_registration
-            thresholds: []
-          - name: coreapiscenario-subscriber_reset_recovery
             thresholds: []

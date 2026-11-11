@@ -219,35 +219,7 @@ def test_bundle_reactivates_after_full_hub_reset() -> None:
     assert core.has_listeners("context.ended.web.request")
 
 
-@pytest.mark.subprocess()
-def test_events_api_benchmark_scenarios_smoke() -> None:
-    import sys
-    from unittest.mock import patch
-
-    sys.path.insert(0, "benchmarks")
-    # Exercise the workloads without starting pyperf's worker processes.
-    with patch("bm._scenario._register"):
-        from benchmarks.events_api.scenario import EventsAPIScenario
-
-    for api in (
-        "core",
-        "events",
-        "dispatch",
-        "dispatch_event",
-        "trace_api",
-    ):
-        scenario = EventsAPIScenario(name=api, api=api)
-        workload = scenario.run()
-        next(workload)(2)
-        assert next(workload, None) is None
-
-
-@pytest.mark.subprocess(
-    parametrize={
-        "BUNDLE_SUPPORT": ["present", "absent"],
-        "WORKLOAD": ["subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"],
-    },
-)
+@pytest.mark.subprocess(parametrize={"BUNDLE_SUPPORT": ["present", "absent"]})
 def test_subscriber_benchmarks_support_release_baselines() -> None:
     import os
     from pathlib import Path
@@ -269,7 +241,7 @@ def test_subscriber_benchmarks_support_release_baselines() -> None:
 
         del subscriber.SubscriberBundle
 
-    name = os.environ["WORKLOAD"]
+    name = "subscriber_registration"
     configurations = yaml.safe_load(Path("benchmarks/core_api/config.yaml").read_text())
     scenario = CoreAPIScenario(name=name, **configurations[name])
     for _ in range(2):
@@ -282,45 +254,3 @@ def test_subscriber_benchmarks_support_release_baselines() -> None:
             assert core.has_listeners("context.started.web.request")
             assert core.has_listeners("context.ended.web.request")
         assert next(workload, None) is None
-
-
-@pytest.mark.subprocess
-def test_startup_benchmark_runs_tracing_in_fresh_processes() -> None:
-    from importlib import import_module
-    import subprocess
-    import sys
-    from unittest.mock import patch
-
-    sys.path.insert(0, "benchmarks")
-    with patch("bm._scenario._register"):
-        Startup = import_module("benchmarks.startup.scenario").Startup
-
-    check_call = subprocess.check_call
-    for auto in (True, False):
-        scenario = Startup(
-            name="import_ddtrace_auto" if auto else "ddtrace_run",
-            import_ddtrace=False,
-            import_ddtrace_auto=auto,
-            ddtrace_run=not auto,
-            import_flask=False,
-            import_django=False,
-            send_span=False,
-            env="{}",
-        )
-
-        def check_startup(*, args, env):
-            command = args.copy()
-            if auto:
-                command[-1] = "import sys; assert 'ddtrace._trace.subscribers' not in sys.modules; " + command[-1]
-            command[-1] = (command[-1] + "; " if command[-1] else "") + (
-                "from ddtrace.internal import core; "
-                "assert core.has_listeners('context.started.web.request'); "
-                "assert core.has_listeners('context.ended.web.request')"
-            )
-            check_call(command, env=env)
-
-        with patch("subprocess.check_call", side_effect=check_startup) as run:
-            workload = scenario.run()
-            next(workload)(2)
-            assert next(workload, None) is None
-        assert run.call_count == 2

@@ -1,11 +1,8 @@
-from collections.abc import Callable
-from collections.abc import Generator
 from dataclasses import dataclass
 
 import bm
 import bm.utils as utils
 
-from ddtrace import config
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _finish_span
@@ -13,12 +10,10 @@ from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
-from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import Subscriber
-from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
 
 
@@ -45,26 +40,23 @@ class BenchmarkDispatchEvent(Event):
     status_code: int
 
 
-# The benchmark container supplies bm; it is not an installed typed dependency.
-class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
+class EventsAPIScenario(bm.Scenario):
     api: str
 
-    def run(self) -> Generator[Callable[[int], None], None, None]:
+    def run(self):
         utils.drop_traces(tracer)
         utils.drop_telemetry_events()
-        # IntegrationConfig currently has an unannotated constructor.
-        integration_config = IntegrationConfig(config, "benchmarking")  # type: ignore[no-untyped-call]
 
-        def benchmark_core_api(loops: int) -> None:
+        def benchmark_core_api(loops):
             # Register benchmark specific handlers
-            def _context_started_handler(ctx: core.ExecutionContext[Event]) -> None:
+            def _context_started_handler(ctx: core.ExecutionContext) -> None:
                 _start_span(ctx, call_trace=True)
                 span = span_bus.span_from_context(ctx)
                 span._set_attribute("http.url", ctx.get_item("url"))
                 span._set_attribute("http.method", ctx.get_item("method"))
                 span._set_attribute("http.status_code", ctx.get_item("status_code"))
 
-            def _context_ended_handler(ctx: core.ExecutionContext[Event], exc_info: ExcInfoType) -> None:
+            def _context_ended_handler(ctx: core.ExecutionContext, exc_info) -> None:
                 _finish_span(ctx, exc_info)
 
             core.on("context.started.core.api.event", _context_started_handler)
@@ -84,13 +76,13 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 ):
                     pass
 
-        def benchmark_events_api(loops: int) -> None:
+        def benchmark_events_api(loops):
             # Register benchmark specific subscriber
-            class SpanContextSubscriber(TracingSubscriber[BenchmarkTracingEvent]):
+            class SpanContextSubscriber(TracingSubscriber):
                 event_names = (BenchmarkTracingEvent.event_name,)
 
                 @classmethod
-                def on_started(cls, ctx: core.ExecutionContext[BenchmarkTracingEvent]) -> None:
+                def on_started(cls, ctx: core.ExecutionContext) -> None:
                     span = span_bus.span_from_context(ctx)
                     event: BenchmarkTracingEvent = ctx.event
                     span._set_attribute("http.url", event.url)
@@ -103,7 +95,7 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                         service="base",
                         url="myurl.com",
                         component="test",
-                        integration_config=integration_config,
+                        integration_config={},
                         method="GET",
                         status_code=200,
                         resource="test",
@@ -111,9 +103,9 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 ):
                     pass
 
-        def benchmark_dispatch(loops: int) -> None:
+        def benchmark_dispatch(loops):
             # Register benchmark specific listener
-            def _dispatch_listener(*_args: object) -> None:
+            def _dispatch_listener(*_args) -> None:
                 pass
 
             core.on("core.api.dispatch.event", _dispatch_listener)
@@ -121,7 +113,7 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
             for _ in range(loops):
                 core.dispatch("core.api.dispatch.event", ("myurl.com", "GET", 200))
 
-        def benchmark_dispatch_event(loops: int) -> None:
+        def benchmark_dispatch_event(loops):
             class DispatchEventSubscriber(Subscriber):
                 event_names = (BenchmarkDispatchEvent.event_name,)
 
@@ -132,7 +124,7 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
             for _ in range(loops):
                 core.dispatch_event(BenchmarkDispatchEvent(url="myurl.com", method="GET", status_code=200))
 
-        def benchmark_trace_api(loops: int) -> None:
+        def benchmark_trace_api(loops):
             for _ in range(loops):
                 span = tracer.trace(
                     "benchmarking",

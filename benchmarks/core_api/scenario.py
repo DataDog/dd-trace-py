@@ -19,7 +19,7 @@ class CoreAPIScenario(bm.Scenario):  # type: ignore[misc]
     listener_raises: bool  # whether registered listeners raise exceptions
 
     def run(self) -> Generator[Callable[[int], None], None, None]:
-        if self.name in ("subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"):
+        if self.name == "subscriber_registration":
             from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
             from ddtrace.internal.core import subscriber as subscriber_api
 
@@ -33,10 +33,6 @@ class CoreAPIScenario(bm.Scenario):  # type: ignore[misc]
             # Establish active listeners outside the timed callable.
             register()
 
-            def subscriber_setup(loops: int) -> None:
-                for _ in range(loops):
-                    register()
-
             def subscriber_registration(loops: int) -> None:
                 # Imports are warm; startup benchmarks cover cold activation.
                 for _ in range(loops):
@@ -47,17 +43,7 @@ class CoreAPIScenario(bm.Scenario):  # type: ignore[misc]
                     else:
                         bundle_type(bundle.module, bundle.subscribers).register()
 
-            def subscriber_reset_recovery(loops: int) -> None:
-                for _ in range(loops):
-                    core.reset_listeners("context.started.web.request")
-                    register()
-
-            if self.name == "subscriber_setup":
-                yield subscriber_setup
-            elif self.name == "subscriber_registration":
-                yield subscriber_registration
-            else:
-                yield subscriber_reset_recovery
+            yield subscriber_registration
             return
 
         for _ in range(self.listeners):
