@@ -335,7 +335,6 @@ class SpanAggregator(SpanProcessor):
         # one value, so span start and finish read them without taking a lock.
         self._runtime_identity: Optional[tuple[int, str]] = (0, get_runtime_id()) if in_aws_lambda_microvm() else None
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
-        self._shutdown = False
         # Only MicroVM identity refreshes need a lock that resets after fork; keep the plain lock elsewhere.
         self._lock = forksafe.RLock() if in_aws_lambda_microvm() else RLock()
         # A sync-mode writer whose send was deferred until the finishing thread releases its locks.
@@ -408,11 +407,6 @@ class SpanAggregator(SpanProcessor):
         # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
         trace_id = span.trace_id
         with self._lock:
-            # Capture before checking shutdown: an already-running start can only update
-            # the old buffer if shutdown detaches it after this check.
-            traces = self._traces
-            if self._shutdown:
-                return
             # Direct processor callers may not go through Tracer.start_span; stamp those spans here,
             # while rejecting spans captured before an identity refresh.
             identity = self._runtime_identity
@@ -425,7 +419,7 @@ class SpanAggregator(SpanProcessor):
                 _set_runtime_identity_generation(span.context, span_generation)
                 if span_generation != identity[0]:
                     return
-            trace = traces[trace_id]
+            trace = self._traces[trace_id]
             trace.spans.append(span)
         integration_name = span._get_str_attribute(COMPONENT) or span._span_api
         recorder = _SPANS_CREATED_RECORDERS.get(integration_name)
@@ -448,11 +442,10 @@ class SpanAggregator(SpanProcessor):
         recorder.add()
         # Acquire lock to get finished and update trace.spans
         with self._lock:
-            traces = self._traces
-            if self._shutdown or trace_id not in traces:
+            if trace_id not in self._traces:
                 return
 
-            trace = traces[trace_id]
+            trace = self._traces[trace_id]
             identity = self._runtime_identity
             identity_generation = identity[0] if identity is not None else None
             if (
@@ -467,7 +460,7 @@ class SpanAggregator(SpanProcessor):
             should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
-                del traces[trace_id]
+                del self._traces[trace_id]
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
                 should_partial_flush = True
                 finished = trace.remove_finished()
@@ -579,17 +572,11 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        # Do not wait on the aggregation lock: a signal handler can interrupt a thread
-        # holding a writer lock needed by its owner. Detach the buffer after closing
-        # admission so in-flight callbacks cannot repopulate the live buffer.
-        self._shutdown = True
-        traces = self._traces
-        self._traces = defaultdict(lambda: _Trace())
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
             unsent_spans = [
                 f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
-                for t in list(traces.values())
+                for t in self._traces.values()
                 for s in t.spans
             ]
             if unsent_spans:
@@ -599,7 +586,6 @@ class SpanAggregator(SpanProcessor):
                     ", ".join(unsent_spans),
                 )
 
-        del traces
         retirement_errors: list[Exception] = []
         if self._identity_refresh_enabled:
             # Wait outside the identity lock, sharing one budget with the active writer.
@@ -617,6 +603,7 @@ class SpanAggregator(SpanProcessor):
             timeout = None if deadline is None else max(deadline - Time.monotonic(), 0)
 
         try:
+            self._traces.clear()
             self.writer.stop(timeout)
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(

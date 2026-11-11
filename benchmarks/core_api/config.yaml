@@ -106,10 +106,3 @@ get_item_exists:
   set_item_count: 0
   get_item_exists: true
   listener_raises: false
-
-# Warm registration; cold activation is covered by startup benchmarks.
-subscriber_registration:
-  listeners: 0
-  set_item_count: 0
-  get_item_exists: false
-  listener_raises: false

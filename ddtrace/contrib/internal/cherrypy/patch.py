@@ -14,6 +14,7 @@ from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
@@ -110,14 +111,16 @@ class TraceTool(cherrypy.Tool):
 
     def _close_request(self, ctx, exc_info=(None, None, None)):
         try:
-            span = ctx.get_item("_inner_span")
+            span = span_from_context(ctx)
+            if span is None:
+                return
 
             event = cast(WebFrameworkRequestEvent, ctx.event)
 
             # Let users specify their own resource in middleware if they so desire.
             # See case https://github.com/DataDog/dd-trace-py/issues/353
             # Comparing against event.operation_name also works under schema v1.
-            if span is not None and span.resource == event.operation_name:
+            if span.resource == event.operation_name:
                 # In the future, mask virtual path components in a
                 # URL e.g. /dispatch/abc123 becomes /dispatch/{{test_value}}/
                 # Following investigation, this should be possible using

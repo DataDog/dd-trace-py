@@ -68,8 +68,3 @@ experiments:
           - name: flasksqli-tracer-enabled
             thresholds:
               - execution_time < 2.31 ms
-
-          # TODO: Calibrate the subscriber registration threshold from stable CI measurements.
-          # Report measurements until the timing gate is calibrated.
-          - name: coreapiscenario-subscriber_registration
-            thresholds: []

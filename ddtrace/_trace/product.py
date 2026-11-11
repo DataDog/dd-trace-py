@@ -4,7 +4,6 @@ import typing as t
 from envier import En
 
 from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings import env
@@ -64,24 +63,8 @@ def restart(join=False):
 def stop(join=False):
     from ddtrace.trace import tracer
 
-    unregistered = False
-
-    def on_shutdown(completed_tracer: object) -> None:
-        nonlocal unregistered
-        if completed_tracer is not tracer or unregistered:
-            return
-        for bundle in subscriber_bundles:
-            bundle.unregister()
-        unregistered = True
-        core.reset_listeners("tracer.shutdown", on_shutdown)
-
-    # Register before shutdown so a concurrent or reentrant owner completes teardown.
-    # Failed cleanup retains this callback for a later successful public shutdown.
-    core.on("tracer.shutdown", on_shutdown, name="apm-tracing.stop")
-    tracer.shutdown()
-    if tracer.start_span == tracer._start_span_after_shutdown:
-        # Completion may have been notified before this call acquired the shutdown lock.
-        on_shutdown(tracer)
+    if tracer.enabled:
+        tracer.shutdown()
 
 
 def skip_exit():
