@@ -42,8 +42,9 @@ Fork safety and background threads:
   Internal ddtrace usage, including anything a ddtrace thread also touches, takes ddtrace's own
   unpatched primitives (`threads.Lock`, `RLock`, `SimpleQueue`, `original_Event`,
   `original_local`, or the `forksafe` equivalents).
-- ddtrace threads never synchronize with each other, never fork, and bound every blocking
-  call in their targets with a timeout. Application threads never wait on a ddtrace thread;
+- ddtrace threads never synchronize with each other (except remote config toggling products
+  and the fork machinery), never fork, and bound every blocking call in their targets with a
+  timeout. Application threads never wait on a ddtrace thread outside explicit shutdown;
   `awake()` stays non-blocking.
 - Start threads from the product lifecycle, not lazily on first use from an application
   thread. A disabled product's threads go dormant instead of stopping and restarting.
@@ -53,9 +54,9 @@ Fork safety and background threads:
 
 Layering and imports:
 
-- Dependencies point from products to shared code: `ddtrace/internal` and `ddtrace/contrib` do
-  not import products, and products do not import each other, except as listed in
-  `scripts/import-analysis/layers.json`. Contrib may import the tracer; tracing never imports
+- Dependencies point from products to shared code: `ddtrace/internal` does not import
+  products, `ddtrace/contrib` imports no product other than tracing, and products do not import
+  each other, except as listed in `scripts/import-analysis/layers.json`. Contrib may import the tracer; tracing never imports
   contrib (the detector does not catch this one). Invert dependencies with a `Protocol`,
   callback or core event registered by the product.
 - Do not hide circular imports or layering violations with function-local imports or

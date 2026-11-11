@@ -164,11 +164,15 @@ policy.
 FS-10 Application threads never wait on ddtrace threads
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Code that runs on application threads (instrumentation, tracer API, probes) hands work over
+Code that runs on application threads while the application is serving work
+(instrumentation, tracer API calls such as starting and finishing spans, probes) hands work over
 without blocking: ``awake()`` is non-blocking by contract (see ``PeriodicThread_awake`` in
 ``ddtrace/internal/_threads.cpp``), queues are unbounded or drop on overflow, and nothing calls
 ``join()`` or waits on an event owned by a ddtrace thread. A blocked application thread can also
 be the thread that forks, which deadlocks the fork.
+
+Explicit shutdown is the exception: ``Tracer.shutdown()``, product ``stop()`` and exit handlers
+may join a ddtrace thread to flush buffered data, preferably bounded by a timeout.
 
 .. _FS-11:
 
@@ -184,9 +188,11 @@ joined while it is held.
 FS-12 Restart policy and shutdown
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- ``PeriodicService(autorestart=False)`` or ``__autorestart__ = False`` is allowed only with an
-  explicit child re-initialization path that recreates the service. Otherwise the child is left
-  with a service that looks running and has no worker.
+- On a periodic service or other persistent worker, ``PeriodicService(autorestart=False)`` or
+  ``__autorestart__ = False`` is allowed only with an explicit child re-initialization path that
+  recreates the service. Otherwise the child is left with a service that looks running and has
+  no worker. A one-shot ``threads.Thread`` is not restarted by design (`FS-3`_) and does not
+  need one.
 - ``on_shutdown`` does not run when a thread is stopped for a fork. Do not rely on it to flush
   before a fork.
 - In the parent, the restart after a fork is delayed (about 100 ms, coalesced over fork
@@ -217,8 +223,10 @@ FS-14 Tests for fork behavior
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A test that forks runs in a subprocess (``@pytest.mark.subprocess``; enforced by
-``fork-without-subprocess-marker``). Reproducers start with ``import ddtrace.auto`` on the first
-line, the only supported setup. Changes to fork hooks or thread lifecycle need a test that
+``fork-without-subprocess-marker``). Reproducers of application-level issues start with
+``import ddtrace.auto`` on the first line, the only supported setup. Unit tests of the fork
+machinery itself, such as ``tests/internal/test_forksafe.py``, may import only the module under
+test. Changes to fork hooks or thread lifecycle need a test that
 forks, and preferably one that forks repeatedly from more than one thread.
 
 
@@ -238,7 +246,8 @@ detectors cannot see.
 LA-1 Dependencies point from products to shared code
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- ``internal-core`` and ``contrib`` do not import products.
+- ``internal-core`` does not import products. ``contrib`` imports no product other than
+  tracing (`LA-5`_).
 - Products do not import other products. The exceptions are listed in ``layers.json``
   (currently: contrib and CI Visibility may use tracing).
 - Contrib depends on the tracer, not the other way around: integrations import tracing, but

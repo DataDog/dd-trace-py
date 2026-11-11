@@ -57,10 +57,12 @@ Stop conditions:
 2. I/O, queue flushing or network calls in an after-in-child hook (FS-2).
 3. A raw `threading.Thread`, `threading.Timer` or executor started by ddtrace code (FS-3).
 4. Two ddtrace threads synchronizing with each other, through a shared lock or by one waiting
-   on the other (FS-6).
+   on the other, outside the FS-6 exceptions (remote configuration enabling or disabling a
+   product, and `ThreadRestartTimer`) (FS-6).
 5. A blocking call without a timeout in `periodic()` or another thread target (FS-7).
 6. Application code that waits on a ddtrace thread: a blocking `awake()`, `join()` or queue
-   handoff on a request path (FS-10).
+   handoff on a request path. Explicit shutdown (`Tracer.shutdown()`, product `stop()`, exit
+   handlers) may wait, preferably with a timeout (FS-10).
 7. Operating on an inherited lock in the child instead of recreating it (FS-4).
 
 ### Layering (`LA-*`) triggers
