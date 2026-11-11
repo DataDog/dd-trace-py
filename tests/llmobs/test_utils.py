@@ -7,11 +7,14 @@ import pytest
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _MAX_NESTED_META_DEPTH
+from ddtrace.llmobs._utils import _MAX_TRACKED_TOOL_CALLS
+from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _sanitize_metric_key
 from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _trace_id_to_wire
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
@@ -807,3 +810,89 @@ class TestTraceIdNormalization:
     def test_normalize_after_wire_recovers_hex(self):
         wire = _trace_id_to_wire(self.HEX_TRACE_ID)
         assert _normalize_wire_trace_id_to_hex(wire) == self.HEX_TRACE_ID
+
+
+def _llm_span_context(i):
+    return {"span_id": str(i), "trace_id": format_trace_id(i)}
+
+
+def test_link_tracker_bounds_tool_calls_never_executed():
+    """Tool choices that are never executed nor fed back to an LLM must not accumulate forever."""
+    tracker = LinkTracker()
+    total = _MAX_TRACKED_TOOL_CALLS + 10
+    for i in range(total):
+        tracker.on_llm_tool_choice(f"call_{i}", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+
+    assert len(tracker._tool_calls) == _MAX_TRACKED_TOOL_CALLS
+    assert len(tracker._lookup_tool_id) == _MAX_TRACKED_TOOL_CALLS
+    # Oldest entries are evicted first, newest are kept.
+    assert "call_0" not in tracker._tool_calls
+    assert ("extract", '{"i":0}') not in tracker._lookup_tool_id
+    assert f"call_{total - 1}" in tracker._tool_calls
+    assert tracker._lookup_tool_id[("extract", f'{{"i":{total - 1}}}')] == f"call_{total - 1}"
+
+
+def test_link_tracker_bounds_tool_calls_executed_but_never_fed_back(tracer):
+    tracker = LinkTracker()
+    for i in range(_MAX_TRACKED_TOOL_CALLS + 10):
+        args = f'{{"i":{i}}}'
+        tracker.on_llm_tool_choice(f"call_{i}", "extract", args, _llm_span_context(i))
+        with tracer.trace("tool") as tool_span:
+            tracker.on_tool_call("extract", args, "function", tool_span)
+
+    assert len(tracker._tool_calls) == _MAX_TRACKED_TOOL_CALLS
+    assert len(tracker._lookup_tool_id) == 0
+
+
+def test_link_tracker_bounds_lookup_when_tool_id_is_reused():
+    tracker = LinkTracker()
+    for i in range(_MAX_TRACKED_TOOL_CALLS + 10):
+        tracker.on_llm_tool_choice("call_reused", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+
+    last_args = f'{{"i":{_MAX_TRACKED_TOOL_CALLS + 9}}}'
+    assert list(tracker._tool_calls) == ["call_reused"]
+    assert tracker._tool_calls["call_reused"].arguments == last_args
+    assert tracker._lookup_tool_id == {("extract", last_args): "call_reused"}
+
+
+def test_link_tracker_reregistered_tool_id_is_not_evicted_first():
+    tracker = LinkTracker()
+    for i in range(_MAX_TRACKED_TOOL_CALLS):
+        tracker.on_llm_tool_choice(f"call_{i}", "extract", f'{{"i":{i}}}', _llm_span_context(i))
+    tracker.on_llm_tool_choice("call_0", "extract", '{"i":"again"}', _llm_span_context(0))
+    tracker.on_llm_tool_choice("call_new", "extract", '{"i":"new"}', _llm_span_context(1))
+
+    assert "call_0" in tracker._tool_calls
+    assert "call_1" not in tracker._tool_calls
+
+
+def test_link_tracker_forgets_lookup_when_tool_output_used_without_tool_span(tracer):
+    """A tool run by uninstrumented code must not block tracking the same tool call later."""
+    tracker = LinkTracker()
+    args = '{"q":"x"}'
+    tracker.on_llm_tool_choice("call_1", "search", args, _llm_span_context(1))
+    with tracer.trace("llm") as llm_span:
+        tracker.on_tool_call_output_used("call_1", llm_span)
+    assert tracker._tool_calls == {}
+    assert tracker._lookup_tool_id == {}
+
+    tracker.on_llm_tool_choice("call_2", "search", args, _llm_span_context(2))
+    assert tracker._lookup_tool_id == {("search", args): "call_2"}
+    assert "call_2" in tracker._tool_calls
+
+
+def test_link_tracker_links_tool_round_trip(tracer):
+    tracker = LinkTracker()
+    args = '{"q":"x"}'
+    tracker.on_llm_tool_choice("call_1", "search", args, _llm_span_context(1))
+    with tracer.trace("tool") as tool_span:
+        tracker.on_tool_call("search", args, "function", tool_span)
+        tool_links = get_llmobs_span_links(tool_span)
+    with tracer.trace("llm") as llm_span:
+        tracker.on_tool_call_output_used("call_1", llm_span)
+        llm_links = get_llmobs_span_links(llm_span)
+
+    assert [link["span_id"] for link in tool_links] == ["1"]
+    assert [link["span_id"] for link in llm_links] == [str(tool_span.span_id)]
+    assert tracker._tool_calls == {}
+    assert tracker._lookup_tool_id == {}
