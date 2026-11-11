@@ -196,7 +196,6 @@ class Tracer:
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = Lock()
-        self._shutdown_completed_processors: list[object] = []
         # Reentrant because the exit-signal handler can run shutdown() on a thread that holds it.
         self._post_fork_lock = forksafe.RLock()
         self._post_fork_writer_pending = False
@@ -1141,13 +1140,11 @@ class Tracer:
         if not self._shutdown_lock.acquire(blocking=False):
             # Already shutting down from this or another thread — skip re-entrant call
             return
-        shutdown_completed = False
         try:
             # Check under the lock: another shutdown may have completed before this call acquired it.
             if self.start_span == self._start_span_after_shutdown:
                 if self._span_aggregator._retired_writers:
                     self._span_aggregator.shutdown(timeout)
-                shutdown_completed = True
                 return
             # In a MicroVM, bound the wait by timeout: a refresh on another thread can hold this lock while
             # waiting for an aggregator or writer lock held by the thread an exit-signal handler interrupted
@@ -1169,10 +1166,8 @@ class Tracer:
                     self._post_fork_lock.release()
             self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
-                if processor and not any(processor is completed for completed in self._shutdown_completed_processors):
+                if processor:
                     processor.shutdown(timeout)
-                    # A later processor can fail; retries must not repeat this completed cleanup.
-                    self._shutdown_completed_processors.append(processor)
             self.enabled = False
             self._wrap_executor = None
             self.context_provider.activate(None)
@@ -1182,9 +1177,5 @@ class Tracer:
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
-            self._shutdown_completed_processors.clear()
-            shutdown_completed = True
         finally:
             self._shutdown_lock.release()
-            if shutdown_completed:
-                core.dispatch("tracer.shutdown", (self,), allow_raise=True)

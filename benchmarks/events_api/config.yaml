@@ -8,7 +8,7 @@ dispatch_event:
   api: dispatch_event
 trace_api:
   api: trace_api
-# These workloads use already-imported modules. Release baselines without bundles use direct subscriber registration.
+# These workloads use already-imported modules and require a baseline supporting SubscriberBundle.
 # Cold activation is covered by startup/import_ddtrace_auto and startup/ddtrace_run.
 subscriber_setup:
   api: subscriber_setup

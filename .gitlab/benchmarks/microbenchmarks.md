@@ -98,15 +98,6 @@ Execution, once per pipeline:
    that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
    matching CODEOWNERS rule, and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py.
 
-   The newly enabled `events_api` suite initially uses named entries with `thresholds: []`
-   while collecting CI measurements. CI requires nonempty measurements for every configuration
-   from both wheels before reporting results. Timing thresholds are not yet calibrated.
-   Subscriber workloads use bundles when available;
-   older release baselines use direct subscriber registration for the same listener activation,
-   making the additional bundle overhead visible. Replace the empty lists with measured thresholds
-   after stable CI runs, following the margin guidance above. Keep the calibration TODO until
-   that work is complete; do not remove existing thresholds to enter this measurement phase.
-
 5. Verify the generated config before pushing:
 
    ```bash

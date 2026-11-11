@@ -56,6 +56,20 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
         integration_config = IntegrationConfig(config, "benchmarking")  # type: ignore[no-untyped-call]
 
         def benchmark_core_api(loops: int) -> None:
+            # Register benchmark specific handlers
+            def _context_started_handler(ctx: core.ExecutionContext[Event]) -> None:
+                _start_span(ctx, call_trace=True)
+                span = span_bus.span_from_context(ctx)
+                span._set_attribute("http.url", ctx.get_item("url"))
+                span._set_attribute("http.method", ctx.get_item("method"))
+                span._set_attribute("http.status_code", ctx.get_item("status_code"))
+
+            def _context_ended_handler(ctx: core.ExecutionContext[Event], exc_info: ExcInfoType) -> None:
+                _finish_span(ctx, exc_info)
+
+            core.on("context.started.core.api.event", _context_started_handler)
+            core.on("context.ended.core.api.event", _context_ended_handler)
+
             for _ in range(loops):
                 with core.context_with_data(
                     "core.api.event",
@@ -71,6 +85,18 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                     pass
 
         def benchmark_events_api(loops: int) -> None:
+            # Register benchmark specific subscriber
+            class SpanContextSubscriber(TracingSubscriber[BenchmarkTracingEvent]):
+                event_names = (BenchmarkTracingEvent.event_name,)
+
+                @classmethod
+                def on_started(cls, ctx: core.ExecutionContext[BenchmarkTracingEvent]) -> None:
+                    span = span_bus.span_from_context(ctx)
+                    event: BenchmarkTracingEvent = ctx.event
+                    span._set_attribute("http.url", event.url)
+                    span._set_attribute("http.method", event.method)
+                    span._set_attribute("http.status_code", event.status_code)
+
             for _ in range(loops):
                 with core.context_with_event(
                     BenchmarkTracingEvent(
@@ -86,10 +112,23 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                     pass
 
         def benchmark_dispatch(loops: int) -> None:
+            # Register benchmark specific listener
+            def _dispatch_listener(*_args: object) -> None:
+                pass
+
+            core.on("core.api.dispatch.event", _dispatch_listener)
+
             for _ in range(loops):
                 core.dispatch("core.api.dispatch.event", ("myurl.com", "GET", 200))
 
         def benchmark_dispatch_event(loops: int) -> None:
+            class DispatchEventSubscriber(Subscriber):
+                event_names = (BenchmarkDispatchEvent.event_name,)
+
+                @classmethod
+                def on_event(cls, event_instance: BenchmarkDispatchEvent) -> None:
+                    pass
+
             for _ in range(loops):
                 core.dispatch_event(BenchmarkDispatchEvent(url="myurl.com", method="GET", status_code=200))
 
@@ -109,44 +148,28 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 span.finish()
 
         if self.api in ("subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"):
-            from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
-            from ddtrace.internal.core import subscriber as subscriber_api
-
-            # Release baselines predate bundles; compare the same listener activation with their direct API.
-            bundle_type = getattr(subscriber_api, "SubscriberBundle", None)
-            register: Callable[[], None]
-            if bundle_type is not None:
-                subscribers = bundle_type(
-                    "ddtrace._trace.subscribers.web_framework", ("WebFrameworkRequestSubscriber",)
-                )
-                register = subscribers.register
-
-                def benchmark_subscriber_registration(loops: int) -> None:
-                    # Modules are already loaded. Use startup's fresh-process scenarios for cold imports.
-                    for _ in range(loops):
-                        core.reset_listeners("context.started.web.request")
-                        core.reset_listeners("context.ended.web.request")
-                        bundle_type(subscribers.module, subscribers.subscribers).register()
-            else:
-                register = WebFrameworkRequestSubscriber.register
-
-                def benchmark_subscriber_registration(loops: int) -> None:
-                    for _ in range(loops):
-                        core.reset_listeners("context.started.web.request")
-                        core.reset_listeners("context.ended.web.request")
-                        register()
+            # Keep existing configurations usable with baselines predating bundles.
+            from ddtrace._trace._registration import WEB_FRAMEWORK_SUBSCRIBERS
+            from ddtrace.internal.core.subscriber import SubscriberBundle
 
             def benchmark_subscriber_setup(loops: int) -> None:
                 # Product startup may already have activated the shared bundle.
-                register()
+                WEB_FRAMEWORK_SUBSCRIBERS.register()
                 for _ in range(loops):
-                    register()
+                    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
-            def benchmark_subscriber_reset_recovery(loops: int) -> None:
-                register()
+            def benchmark_subscriber_registration(loops: int) -> None:
+                # Modules are already loaded. Use startup's fresh-process scenarios for cold imports.
                 for _ in range(loops):
                     core.reset_listeners("context.started.web.request")
-                    register()
+                    core.reset_listeners("context.ended.web.request")
+                    SubscriberBundle(WEB_FRAMEWORK_SUBSCRIBERS.module, WEB_FRAMEWORK_SUBSCRIBERS.subscribers).register()
+
+            def benchmark_subscriber_reset_recovery(loops: int) -> None:
+                WEB_FRAMEWORK_SUBSCRIBERS.register()
+                for _ in range(loops):
+                    core.reset_listeners("context.started.web.request")
+                    WEB_FRAMEWORK_SUBSCRIBERS.register()
 
             if self.api == "subscriber_setup":
                 yield benchmark_subscriber_setup
@@ -156,68 +179,14 @@ class EventsAPIScenario(bm.Scenario):  # type: ignore[misc]
                 yield benchmark_subscriber_reset_recovery
             return
 
-        # Setup and teardown run outside the timed callable for each sample.
         if self.api == "core":
-            # Register benchmark specific handlers
-            def _context_started_handler(ctx: core.ExecutionContext[Event]) -> None:
-                _start_span(ctx, call_trace=True)
-                span = span_bus.span_from_context(ctx)
-                span._set_attribute("http.url", ctx.get_item("url"))
-                span._set_attribute("http.method", ctx.get_item("method"))
-                span._set_attribute("http.status_code", ctx.get_item("status_code"))
-
-            def _context_ended_handler(ctx: core.ExecutionContext[Event], exc_info: ExcInfoType) -> None:
-                _finish_span(ctx, exc_info)
-
-            core.on("context.started.core.api.event", _context_started_handler)
-            core.on("context.ended.core.api.event", _context_ended_handler)
-
-            try:
-                yield benchmark_core_api
-            finally:
-                core.reset_listeners("context.started.core.api.event", _context_started_handler)
-                core.reset_listeners("context.ended.core.api.event", _context_ended_handler)
+            yield benchmark_core_api
         elif self.api == "events":
-            # Register benchmark specific subscriber
-            class SpanContextSubscriber(TracingSubscriber[BenchmarkTracingEvent]):
-                event_names = (BenchmarkTracingEvent.event_name,)
-
-                @classmethod
-                def on_started(cls, ctx: core.ExecutionContext[BenchmarkTracingEvent]) -> None:
-                    span = span_bus.span_from_context(ctx)
-                    event: BenchmarkTracingEvent = ctx.event
-                    span._set_attribute("http.url", event.url)
-                    span._set_attribute("http.method", event.method)
-                    span._set_attribute("http.status_code", event.status_code)
-
-            try:
-                yield benchmark_events_api
-            finally:
-                SpanContextSubscriber.unregister()
+            yield benchmark_events_api
         elif self.api == "dispatch":
-            # Register benchmark specific listener
-            def _dispatch_listener(*_args: object) -> None:
-                pass
-
-            core.on("core.api.dispatch.event", _dispatch_listener)
-
-            try:
-                yield benchmark_dispatch
-            finally:
-                core.reset_listeners("core.api.dispatch.event", _dispatch_listener)
+            yield benchmark_dispatch
         elif self.api == "dispatch_event":
-
-            class DispatchEventSubscriber(Subscriber):
-                event_names = (BenchmarkDispatchEvent.event_name,)
-
-                @classmethod
-                def on_event(cls, event_instance: BenchmarkDispatchEvent) -> None:
-                    pass
-
-            try:
-                yield benchmark_dispatch_event
-            finally:
-                DispatchEventSubscriber.unregister()
+            yield benchmark_dispatch_event
         elif self.api == "trace_api":
             yield benchmark_trace_api
         else:

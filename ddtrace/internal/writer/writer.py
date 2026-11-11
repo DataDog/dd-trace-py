@@ -1050,17 +1050,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._shutdown_exporter(old_exporter)
 
     def _begin_shutdown(self) -> None:
-        if self._writer_lock is None:
-            self._exporter_stopping = True
-        else:
+        if self._writer_lock is not None:
             with self._exporter_lifecycle_lock:
                 self._exporter_stopping = True
-
-    def _start_service(self, *args: Any, **kwargs: Any) -> None:
-        # Service.start holds the same lock as stop, so a late write cannot restart the worker.
-        if self._exporter_stopping:
-            raise ServiceStatusError(self.__class__, self.status)
-        super()._start_service(*args, **kwargs)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         # Close publication even when the periodic service never started, or its join times out.
@@ -1254,9 +1246,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
             with self._exporter_lock:
-                # Sync writes can finish encoding after stop; drain those payloads without sending.
-                # Async writers must still flush their buffered traces from on_shutdown.
-                if self._discarded_by_refresh or (self._sync_mode and self._exporter_stopping):
+                # drop_buffered_traces() closes the gate before taking this lock, so no send
+                # starts after a refresh and none reaches a dropped exporter.
+                if self._discarded_by_refresh:
                     return
                 response_body = self._exporter.send(payload)
         except native.RequestError as e:
@@ -1297,16 +1289,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.flush_queue()
 
     def _write_without_flush(self, spans: Optional[Sequence[SpanData]] = None) -> bool:
-        """Buffer spans unless shutdown or an identity refresh has closed this writer."""
-        if self._exporter_stopping:
-            return False
+        """Buffer spans; return False if an identity refresh already discarded this writer."""
         # Identity refresh can discard the buffer concurrently; only MicroVM writers need this lock.
         writer_lock = self._writer_lock
         if writer_lock is None:
             self._write_unlocked(spans)
             return True
         with writer_lock:
-            if self._exporter_stopping or not self._accepting_writes:
+            if not self._accepting_writes:
                 return False
             self._write_unlocked(spans)
             return True
@@ -1348,8 +1338,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     self.start()
 
             except service.ServiceStatusError:
-                if self._exporter_stopping:
-                    return
                 _safelog(log.warning, "failed to start writer service")
 
         self._metrics_dist("writer.accepted.traces")

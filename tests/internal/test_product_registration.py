@@ -109,9 +109,6 @@ def test_tracing_product_retains_listeners_when_shutdown_fails(monkeypatch):
         with pytest.raises(RuntimeError, match="shutdown failed"):
             product.stop()
         bundle.unregister.assert_not_called()
-        core.dispatch("tracer.shutdown", (tracer,), allow_raise=True)
-        bundle.unregister.assert_called_once_with()
-        assert not core.has_listeners("tracer.shutdown")
 
 
 @pytest.mark.subprocess(
@@ -376,21 +373,16 @@ def test_tracing_product_stop_does_not_buffer_requests_during_writer_shutdown() 
         assert not core.has_listeners("context.ended.web.request")
 
 
-@pytest.mark.subprocess(parametrize={"SHUTDOWN_FAILS": ["false", "true"]})
-def test_tracing_product_unregisters_after_concurrent_public_shutdown() -> None:
-    import os
+@pytest.mark.subprocess
+def test_tracing_product_stop_defers_unregistration_during_public_shutdown() -> None:
     import threading
     from unittest.mock import patch
 
     from ddtrace._trace import product
     from ddtrace.internal import core
-    from ddtrace.internal.products import ProductManager
     from ddtrace.trace import tracer
 
-    manager = ProductManager()
-    manager._products = [("apm-tracing", product)]
-    manager.start_products()
-    fail = os.environ["SHUTDOWN_FAILS"] == "true"
+    product.start()
     entered = threading.Event()
     release = threading.Event()
     errors = []
@@ -400,8 +392,6 @@ def test_tracing_product_unregisters_after_concurrent_public_shutdown() -> None:
     def paused_stop(timeout=None):
         entered.set()
         assert release.wait(10)
-        if fail:
-            raise RuntimeError("shutdown failed")
         original_stop(timeout)
 
     def shutdown():
@@ -415,51 +405,16 @@ def test_tracing_product_unregisters_after_concurrent_public_shutdown() -> None:
         thread.start()
         try:
             assert entered.wait(10)
-            manager.stop_products()
-            core.dispatch("tracer.shutdown", (object(),), allow_raise=True)
+            product.stop()
             assert core.has_listeners("context.ended.web.request")
         finally:
             release.set()
             thread.join(10)
     assert not thread.is_alive()
-    if fail:
-        assert len(errors) == 1 and str(errors[0]) == "shutdown failed"
-        assert core.has_listeners("context.ended.web.request")
-        tracer.shutdown()
-    else:
-        assert not errors, errors
-    # ProductManager stops each product once; public shutdown must complete its teardown.
+    assert not errors, errors
+    product.stop()
     assert not core.has_listeners("context.started.web.request")
     assert not core.has_listeners("context.ended.web.request")
-
-    assert not core.has_listeners("tracer.shutdown")
-
-
-@pytest.mark.subprocess
-def test_tracing_product_unregisters_after_reentrant_stop() -> None:
-    from unittest.mock import patch
-
-    from ddtrace._trace import product
-    from ddtrace.internal import core
-    from ddtrace.internal.products import ProductManager
-    from ddtrace.trace import tracer
-
-    manager = ProductManager()
-    manager._products = [("apm-tracing", product)]
-    manager.start_products()
-    writer = tracer._span_aggregator.writer
-    original_stop = writer.stop
-
-    def stop_product(timeout=None):
-        manager.stop_products()
-        assert core.has_listeners("context.ended.web.request")
-        original_stop(timeout)
-
-    with patch.object(writer, "stop", side_effect=stop_product):
-        tracer.shutdown()
-    assert not core.has_listeners("context.started.web.request")
-    assert not core.has_listeners("context.ended.web.request")
-    assert not core.has_listeners("tracer.shutdown")
 
 
 @pytest.mark.subprocess(

@@ -383,7 +383,7 @@ class SpanAggregator(SpanProcessor):
     # Keep the generation check and write atomic so refresh cannot invalidate the trace between them.
     def _write_if_identity_generation_is_current(self, identity_generation: int, spans: list[Span]) -> None:
         with self._lock:
-            if not self._shutdown and self._identity_generation_is_current(identity_generation):
+            if self._identity_generation_is_current(identity_generation):
                 writer = self.writer
                 # A sync NativeWriter's write() sends on this thread, which would hold this lock across
                 # send() retries. Buffer under the lock instead and
@@ -485,11 +485,9 @@ class SpanAggregator(SpanProcessor):
             ):
                 return
 
-        # Recheck after releasing the lock so shutdown or refresh cannot send a stale trace
-        # through processors that have not started running yet.
-        if self._shutdown or (
-            identity_generation is not None and not self._identity_generation_is_current(identity_generation)
-        ):
+        # The aggregation lock is released before processor execution; recheck the generation
+        # so a refresh that wins this gap cannot send the stale trace through the chain.
+        if identity_generation is not None and not self._identity_generation_is_current(identity_generation):
             return
 
         # perf: Process spans outside of the span aggregator lock
@@ -508,9 +506,7 @@ class SpanAggregator(SpanProcessor):
                     self.service_name_processor,
                 ],
             ):
-                if self._shutdown or (
-                    identity_generation is not None and not self._identity_generation_is_current(identity_generation)
-                ):
+                if identity_generation is not None and not self._identity_generation_is_current(identity_generation):
                     return
                 try:
                     result = tp.process_trace(spans) or []
@@ -556,10 +552,6 @@ class SpanAggregator(SpanProcessor):
                     sampling_mechanism,
                     should_partial_flush,
                 )
-            if self._shutdown or (
-                identity_generation is not None and not self._identity_generation_is_current(identity_generation)
-            ):
-                return
             if identity_generation is None:
                 self.writer.write(spans)
             else:

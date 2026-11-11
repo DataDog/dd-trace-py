@@ -19,32 +19,17 @@ _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gi
 
 @pytest.fixture(scope="module")
 def gen_gitlab_config_mod():
-    # Exercise the generator's YAML reads without adding its ruamel dependency to the test environment.
-    class SafeYAML:
-        def __init__(self, *, typ=None):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc_info):
-            return False
-
-        def load(self, source):
-            if isinstance(source, pathlib.Path):
-                source = source.read_text()
-            return yaml.safe_load(source)
-
+    # The script parses argv and imports the generator-only ruamel dependency at import time.
     ruamel = types.ModuleType("ruamel")
-    ruamel_yaml = types.ModuleType("ruamel.yaml")
-    ruamel_yaml.YAML = SafeYAML
-    ruamel.yaml = ruamel_yaml
+    yaml = types.ModuleType("ruamel.yaml")
+    yaml.YAML = object
+    ruamel.yaml = yaml
 
     spec = importlib.util.spec_from_file_location("gen_gitlab_config", _SCRIPT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     original_path = list(sys.path)
-    with mock.patch.dict(sys.modules, {"ruamel": ruamel, "ruamel.yaml": ruamel_yaml, spec.name: module}):
+    with mock.patch.dict(sys.modules, {"ruamel": ruamel, "ruamel.yaml": yaml, spec.name: module}):
         with mock.patch.object(sys, "argv", [str(_SCRIPT_PATH)]):
             spec.loader.exec_module(module)
         try:
@@ -381,40 +366,3 @@ def test_run_parallel_prechecks_runs_checks_concurrently(tmp_path):
     assert proc.returncode == 0
     assert "First: PASS" in proc.stdout
     assert "Second: PASS" in proc.stdout
-
-
-@pytest.mark.parametrize(
-    "changed_file",
-    [
-        "ddtrace/_trace/product.py",
-        "ddtrace/_trace/subscribers/web_framework.py",
-        "ddtrace/internal/core/subscriber.py",
-        "benchmarks/events_api/scenario.py",
-        "benchmarks/events_api/config.yaml",
-        "benchmarks/suitespec.yml",
-    ],
-)
-def test_subscriber_benchmarks_are_selected_and_reported_in_ci(
-    gen_gitlab_config_mod, monkeypatch, tmp_path, changed_file
-):
-    generator = gen_gitlab_config_mod
-    pipeline = tmp_path / "microbenchmarks-gen.yml"
-    slos = tmp_path / "microbenchmarks-slos.yml"
-    monkeypatch.setattr(generator, "MICROBENCHMARKS_GEN", pipeline)
-    monkeypatch.setattr(generator, "MICROBENCHMARKS_SLOS", slos)
-    monkeypatch.setattr(generator, "args", types.SimpleNamespace(suites=None, files=[changed_file]))
-    monkeypatch.setattr(generator, "_gen_tests", mock.Mock())
-
-    generator.gen_required_suites()
-
-    generated = yaml.safe_load(pipeline.read_text())
-    script = generated[".benchmarks"]["script"]
-    assert script.index("steps/check-results.py") < script.index("steps/combine-results.sh")
-    matrix = generated["microbenchmarks"]["parallel"]["matrix"]
-    selected = {scenario for entry in matrix for group in entry["SCENARIOS"] for scenario in group.split()}
-    assert "events_api" in selected
-    configurations = yaml.safe_load((_SCRIPT_PATH.parents[1] / "benchmarks/events_api/config.yaml").read_text())
-    assert {"subscriber_setup", "subscriber_registration", "subscriber_reset_recovery"} <= configurations.keys()
-    scenarios = yaml.safe_load(slos.read_text())["experiments"][0]["steps"][0]["scenarios"]
-    declared = {scenario["name"] for scenario in scenarios}
-    assert {f"eventsapiscenario-{name}" for name in configurations} <= declared
