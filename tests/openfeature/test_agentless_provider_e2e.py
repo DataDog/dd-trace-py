@@ -4,11 +4,15 @@ CDN response -> parse -> apply -> native config -> OpenFeature evaluation path,
 and the provider lifecycle that starts/stops the agentless poller.
 """
 
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import json
+import threading
 
 from openfeature.evaluation_context import EvaluationContext
 import pytest
 
+import ddtrace
 import ddtrace.internal.openfeature._agentless_source as source_mod
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _set_ffe_config
@@ -81,6 +85,49 @@ def mock_cdn(monkeypatch):
     return install
 
 
+@pytest.fixture
+def local_cdn():
+    """Serve the flag configuration from a local HTTP server; yields its URL and the headers of each request.
+
+    The requests go through the tracer's real HTTP client, which refuses some header
+    values, so these tests see what actually reaches the endpoint.
+    """
+    received: list = []
+    body = _jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True))
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            received.append(self.headers)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/flags", received
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def _poll_local_cdn(url, service):
+    """Set the service in code as a user would, then run one agentless poll against url."""
+    custom = OpenFeatureConfig(source={"DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": url})
+    with override_global_config({"service": service}):
+        source = create_agentless_source(custom, process_ffe_configuration)
+        assert source is not None
+        source.periodic()
+        # Only the header value is cleaned up; the tracer service stays as configured.
+        assert ddtrace.config.service == service
+
+
 def test_agentless_delivery_evaluates_flag(mock_cdn):
     """One agentless poll delivers a flag that the provider then evaluates."""
     mock_cdn(_jsonapi_response(create_boolean_flag("my-flag", enabled=True, default_value=True)))
@@ -150,6 +197,49 @@ def test_agentless_request_sends_dd_service_from_environment():
     (request,) = requests
     assert request["target"].partition("?")[0] == "/api/v2/feature-flagging/config/rules-based/server"
     assert request["headers"]["DD-Service"] == "checkout"
+
+
+@pytest.mark.parametrize("service, expected", [("My Service", "my_service"), ("bad\nvalue", "bad_value")], ids=repr)
+def test_request_carries_cleaned_up_service(local_cdn, service, expected):
+    url, received = local_cdn
+
+    _poll_local_cdn(url, service)
+
+    (headers,) = received
+    assert headers["DD-Service"] == expected
+    assert _get_ffe_config() is not None  # the configuration was applied
+
+
+@pytest.mark.parametrize("service", ["支付", "___"], ids=repr)
+def test_request_sent_without_service_when_nothing_usable_left(local_cdn, service):
+    url, received = local_cdn
+
+    _poll_local_cdn(url, service)
+
+    (headers,) = received  # the poll still went out
+    assert "DD-Service" not in headers
+    assert _get_ffe_config() is not None  # the configuration was applied
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": "My Service"})
+def test_agentless_request_sends_cleaned_up_dd_service_from_environment():
+    import ddtrace
+    import ddtrace.internal.openfeature._agentless_source as source_mod
+    from ddtrace.internal.openfeature._source_selection import create_agentless_source
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+    from tests.openfeature.test_agentless_provider_e2e import _FakeConn
+    from tests.openfeature.test_agentless_provider_e2e import _FakeResponse
+
+    requests = []
+    source_mod.get_connection = lambda url, timeout=None: _FakeConn(_FakeResponse(304), requests)
+
+    source = create_agentless_source(ffe_config, lambda _: None)
+    assert source is not None
+    source.periodic()
+
+    assert ddtrace.config.service == "My Service"
+    (request,) = requests
+    assert request["headers"]["DD-Service"] == "my_service"
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "secret", "DD_SERVICE": None})

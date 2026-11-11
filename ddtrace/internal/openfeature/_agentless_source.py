@@ -77,8 +77,12 @@ _URL_RE = re.compile(r"(?:(?<![A-Za-z0-9+.\-])[A-Za-z][A-Za-z0-9+.\-]*:)?//\S*[^
 # matches this, and drops any other value.
 _USAGE_SERVICE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,99}")
 _USAGE_SERVICE_REJECTED_MESSAGE = (
-    "Feature Flags: service %s does not match the format the CDN attributes usage to; DD-Service header not sent"
+    "Feature Flags: service %s has nothing left the CDN can attribute usage to once cleaned up; "
+    "DD-Service header not sent"
 )
+# Every character a cleaned-up service name may not contain, non-ASCII included.
+_SERVICE_DISALLOWED_RE = re.compile(r"[^a-z0-9_:./-]")
+_SERVICE_MAX_LENGTH = 100
 
 
 # A single poll outcome. ``status`` is None for a network error / timeout.
@@ -97,6 +101,34 @@ def _describe_error(error: BaseException) -> str:
     except Exception:
         return name
     return f"{name}: {message}" if message else name
+
+
+def _normalize_service(service: str) -> str:
+    """Clean a service name up the way the Agent cleans up span service names.
+
+    Lowercase it, replace every character outside ``[a-z0-9_:./-]`` (non-ASCII
+    included) with ``_``, strip the leading characters that are not a letter or a
+    digit, and cut it to 100 characters, as ``normalizeService`` in dd-trace-js does.
+    """
+    cleaned = _SERVICE_DISALLOWED_RE.sub("_", service.lower()).lstrip("_:./-")
+    return cleaned[:_SERVICE_MAX_LENGTH]
+
+
+def _usage_service_header(service: Any) -> Optional[str]:
+    """Return the DD-Service header value for a tracer service, or None to omit the header.
+
+    A name the CDN would drop, such as ``My Service``, is cleaned up to the name APM
+    shows for it (``my_service``), so the usage is still attributed. Cleaning up also
+    removes line breaks and non-ASCII characters, which the HTTP client could refuse
+    or the CDN would drop. A name with nothing left once cleaned up is not sent.
+    """
+    if not service or not isinstance(service, str):
+        return None
+    cleaned = _normalize_service(service)
+    if _USAGE_SERVICE_RE.fullmatch(cleaned):
+        return cleaned
+    log.debug(_USAGE_SERVICE_REJECTED_MESSAGE, service)
+    return None
 
 
 def _is_retryable_status(status: Optional[int]) -> bool:
@@ -171,7 +203,10 @@ class AgentlessConfigurationSource(PeriodicService):
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
 
         self._etag: Optional[str] = None
-        self._rejected_service: Optional[str] = None
+        # The DD-Service value is cleaned up here, once, rather than on every poll.
+        # Only the header value is cleaned up; ddtrace.config.service is unchanged.
+        self._service = ddconfig.service
+        self._service_header = _usage_service_header(self._service)
         self._failure_warnings: set[str] = set()
         self._malformed_payload_logged = False
         self._application_failure_logged = False
@@ -339,7 +374,7 @@ class AgentlessConfigurationSource(PeriodicService):
         }
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
-        service = self._usage_service()
+        service = self._dd_service_header()
         if service:
             # Lets the CDN attribute this request's usage to the service.
             headers["DD-Service"] = service
@@ -347,23 +382,18 @@ class AgentlessConfigurationSource(PeriodicService):
             headers["If-None-Match"] = self._etag
         return headers
 
-    def _usage_service(self) -> Optional[str]:
-        """Return the tracer service to send as DD-Service, or None to omit it.
+    def _dd_service_header(self) -> Optional[str]:
+        """Return the DD-Service header value, or None to omit the header.
 
-        Read on every request, since the service can be set in code after the
-        source starts. A value the CDN would drop is not sent: the HTTP client
-        also refuses a header value with a line break, which would fail every poll.
+        The value is cleaned up when the source is built. A service set in code
+        after that (``ddtrace.config.service = "checkout"``) is cleaned up once, on
+        the next poll, so the header follows it without repeating the work per poll.
         """
         service = ddconfig.service
-        if not service or not isinstance(service, str):
-            return None
-        if _USAGE_SERVICE_RE.fullmatch(service):
-            return service
-        # Log once per rejected value rather than on every poll.
-        if service != self._rejected_service:
-            self._rejected_service = service
-            log.debug(_USAGE_SERVICE_REJECTED_MESSAGE, service)
-        return None
+        if service != self._service:
+            self._service = service
+            self._service_header = _usage_service_header(service)
+        return self._service_header
 
     def _request(self) -> _PollResponse:
         conn = None

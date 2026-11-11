@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
+from ddtrace import config as ddconfig
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.native import ConnectionFailedError
 import ddtrace.internal.openfeature._agentless_source as source_mod
@@ -326,63 +327,102 @@ def test_dd_service_header_sent_on_every_poll(harness):
 
 @pytest.mark.parametrize("service", [None, ""])
 def test_dd_service_header_omitted_without_service(harness, caplog, service):
-    src = harness([_FakeResponse(304)])
-    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
-        src.periodic()
-
-    assert not _has_service_header(src._requests[0])
-    assert not any("DD-Service header not sent" in m for m in caplog.messages)
-
-
-def test_dd_service_header_follows_service_changes_after_start(harness):
-    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
-    for service in (None, "checkout", "billing"):
-        with override_global_config({"service": service}):
-            src.periodic()
-
-    assert not _has_service_header(src._requests[0])
-    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
-    assert src._requests[2]["headers"]["DD-Service"] == "billing"
-
-
-@pytest.mark.parametrize("service", ["a", "svc_name.v2:api/edge-1", "a" + "b" * 99])
-def test_dd_service_header_sends_values_at_format_limits(harness, service):
-    src = harness([_FakeResponse(304)])
-    with override_global_config({"service": service}):
-        src.periodic()
-
-    assert src._requests[0]["headers"]["DD-Service"] == service
-
-
-# The CDN drops any other value, and a line break in a header value would fail the request.
-@pytest.mark.parametrize(
-    "service", ["a" + "b" * 100, "_svc", "my service", "支付", "bad\nvalue", "svc\n", "   "], ids=repr
-)
-def test_dd_service_header_skips_values_the_cdn_would_drop(harness, caplog, service):
     src = harness([_FakeResponse(200, _ufc_body())])
     with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
         src.periodic()
 
     assert not _has_service_header(src._requests[0])
     assert len(src._applied) == 1  # polling is unaffected
+    # No service is not a rejected one, so there is nothing to log.
+    assert not any("DD-Service header not sent" in m for m in caplog.messages)
+
+
+def test_dd_service_header_follows_service_changes_after_start(harness):
+    src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
+    for service in (None, "checkout", "My Billing"):
+        with override_global_config({"service": service}):
+            src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert src._requests[1]["headers"]["DD-Service"] == "checkout"
+    assert src._requests[2]["headers"]["DD-Service"] == "my_billing"
+
+
+@pytest.mark.parametrize("service", ["a", "svc_name.v2:api/edge-1", "a" + "b" * 99])
+def test_dd_service_header_sends_valid_names_unchanged(harness, service):
+    with override_global_config({"service": service}):
+        src = harness([_FakeResponse(304)])
+        src.periodic()
+
+    assert src._requests[0]["headers"]["DD-Service"] == service
+
+
+# The CDN drops a name outside its format, so the usage would bill without a service.
+# Cleaning the name up the way the Agent does for spans sends the name APM shows.
+@pytest.mark.parametrize(
+    "service, expected",
+    [
+        ("My Service", "my_service"),
+        ("My-API", "my-api"),
+        ("_svc", "svc"),
+        ("bad\nvalue", "bad_value"),
+        ("café", "caf_"),
+        ("a" + "b" * 100, "a" + "b" * 99),
+    ],
+    ids=repr,
+)
+def test_dd_service_header_cleans_up_names_the_cdn_would_drop(harness, service, expected):
+    with override_global_config({"service": service}):
+        src = harness([_FakeResponse(200, _ufc_body())])
+        src.periodic()
+        # Only the header value is cleaned up; the tracer service stays as configured.
+        assert ddconfig.service == service
+
+    assert src._requests[0]["headers"]["DD-Service"] == expected
+    assert len(src._applied) == 1
+
+
+@pytest.mark.parametrize("service", ["支付", "___", "   "], ids=repr)
+def test_dd_service_header_omitted_when_nothing_usable_left(harness, caplog, service):
+    with override_global_config({"service": service}), caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
+        src = harness([_FakeResponse(200, _ufc_body())])
+        src.periodic()
+
+    assert not _has_service_header(src._requests[0])
+    assert len(src._applied) == 1  # polling is unaffected
     assert (
-        "Feature Flags: service %s does not match the format the CDN attributes usage to; DD-Service header not sent"
-        % service
+        "Feature Flags: service %s has nothing left the CDN can attribute usage to once cleaned up; "
+        "DD-Service header not sent" % service
     ) in _debug_messages(caplog)
+
+
+def test_dd_service_cleaned_up_once_when_source_is_built(harness, monkeypatch):
+    calls = []
+    normalize = source_mod._normalize_service
+    monkeypatch.setattr(source_mod, "_normalize_service", lambda name: calls.append(name) or normalize(name))
+
+    with override_global_config({"service": "My Service"}):
+        src = harness([_FakeResponse(200, _ufc_body(), {"ETag": '"v1"'}), _FakeResponse(304), _FakeResponse(304)])
+        assert calls == ["My Service"]
+        for _ in range(3):
+            src.periodic()
+
+    assert calls == ["My Service"]  # not again on each poll
+    assert [r["headers"]["DD-Service"] for r in src._requests] == ["my_service"] * 3
 
 
 def test_dd_service_rejection_logged_once_per_value(harness, caplog):
     src = harness([_FakeResponse(304), _FakeResponse(304), _FakeResponse(304)])
     with caplog.at_level(logging.DEBUG, logger=source_mod.__name__):
-        for service in ("my service", "my service", "_svc"):
+        for service in ("支付", "支付", "___"):
             with override_global_config({"service": service}):
                 src.periodic()
 
     rejected = [m for m in _debug_messages(caplog) if "DD-Service header not sent" in m]
     assert rejected == [
-        "Feature Flags: service my service does not match the format the CDN attributes usage to; "
-        "DD-Service header not sent",
-        "Feature Flags: service _svc does not match the format the CDN attributes usage to; DD-Service header not sent",
+        "Feature Flags: service %s has nothing left the CDN can attribute usage to once cleaned up; "
+        "DD-Service header not sent" % service
+        for service in ("支付", "___")
     ]
 
 
