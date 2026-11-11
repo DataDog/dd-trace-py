@@ -191,6 +191,11 @@ variables:
   # Diagnostics for "sccache: error: Connection to server timed out" on this runner
   before_script:
     - .gitlab/scripts/sccache-diagnostics.sh start
+    - |
+      # after_script may not run at the job timeout; capture the live hang first.
+      python3 .gitlab/scripts/sccache-watchdog.py &
+      sccache_watchdog_pid=$!
+      trap 'kill "$sccache_watchdog_pid" 2>/dev/null || true; wait "$sccache_watchdog_pid" 2>/dev/null || true' EXIT
   after_script:
     - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
