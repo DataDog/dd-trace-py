@@ -15,7 +15,6 @@ import pytest
 from ddtrace import config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
-from ddtrace.llmobs._integrations.claude_agent_sdk import ClaudeAgentSdkIntegration
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
 from ddtrace.llmobs._integrations.google_adk import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
@@ -29,7 +28,6 @@ _AUTO_AGENT_CASES = [
     pytest.param(GoogleAdkIntegration, "google_adk", {"kind": "agent"}, id="google_adk"),
     pytest.param(BedrockIntegration, "botocore", {"interface_type": "agent"}, id="bedrock"),
     pytest.param(LangGraphIntegration, "langgraph", {"kind": "agent"}, id="langgraph"),
-    pytest.param(ClaudeAgentSdkIntegration, "claude_agent_sdk", {"kind": "agent"}, id="claude_agent_sdk"),
 ]
 
 
@@ -151,6 +149,42 @@ def test_event_based_agent_parent_attributes_child(llmobs, llmobs_events):
 
     tool_event = _event_by_name(llmobs_events, "my_tool")
     assert tool_event["meta"]["agent_attribution"]["pagent_span_id"] == str(agent_span.span_id)
+
+
+def test_subscriber_based_agent_parent_attributes_child(llmobs, llmobs_events):
+    """Same guard for integrations whose LLMObs handling is attached through integration hooks:
+    claude_agent_sdk signals its agent span with operation="query", stamped by the shared
+    SPAN_STARTED subscriber.
+    """
+    from ddtrace.contrib._events.llm import LlmRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.span_bus import span_from_context
+    from ddtrace.llmobs._contrib import claude_agent_sdk as claude_agent_sdk_hooks
+
+    claude_agent_sdk_hooks.listen()
+    try:
+        event = LlmRequestEvent(
+            component="claude_agent_sdk",
+            integration_config=IntegrationConfig(config, "claude_agent_sdk"),
+            resource="claude_agent_sdk.query",
+            span_name="my_agent",
+            provider="",
+            submit_to_llmobs=True,
+            operation="query",
+        )
+        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+            agent_span = span_from_context(ctx)
+            with llmobs.tool(name="my_tool"):
+                pass
+            ctx.dispatch_ended_event()
+    finally:
+        claude_agent_sdk_hooks.unlisten()
+
+    tool_event = _event_by_name(llmobs_events, "my_tool")
+    assert tool_event["meta"]["agent_attribution"] == {
+        "pagent_name": "my_agent",
+        "pagent_span_id": str(agent_span.span_id),
+    }
 
 
 def test_google_adk_agent_name_stamped_at_start(llmobs, llmobs_events):
