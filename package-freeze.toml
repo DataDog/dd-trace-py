@@ -14,11 +14,20 @@ schema_version = 1
 
 [[frozen]]
 destination_repository = "https://github.com/DataDog/datadog-apm-python"
-# Last revision where ddtrace/internal/codeowners.py was the pre-extraction
-# implementation; the extraction (bridge) landed in 04d4480bc6.
-extraction_revision = "ea42f293ae31d108f5f4dbc9a44e4cf857cc31bf"
+# Last revision on main carrying the pre-extraction content of
+# ddtrace/internal/codeowners.py (the first module being extracted to
+# datadog-apm-python); the extraction bridge lands afterwards as an
+# approved rewrite. Any change to a frozen path needs an approved rewrite
+# pinning the exact new content (post_hash) -- see the freeze gate docs in
+# scripts/package_split/README.md.
+extraction_revision = "2146fefcd1f7db25239b80c382f959dff9b6e3f9"
 owner = "@DataDog/apm-core-python"
 source_paths = ["ddtrace/internal/codeowners.py"]
+
+[frozen.hashes]
+"ddtrace/internal/codeowners.py" = "1273ae7d1e11edcf8692bb56f95c6aedd115668b9a20fc825cf5472f67d7fbaa"
+"tests/internal/test_codeowners.py" = "8dc93607aaf4535266cba75d3566ca266317fdd7264673756b416f5246726788"
+"tests/testing/internal/test_codeowners.py" = "4211e0c941787aedb7ec38f6469d00142e9ca06ba066fca9ef363f73f6cdb6a6"
 
 [frozen.hashes]
 "ddtrace/internal/codeowners.py" = "1273ae7d1e11edcf8692bb56f95c6aedd115668b9a20fc825cf5472f67d7fbaa"

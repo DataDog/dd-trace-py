@@ -39,6 +39,65 @@ def run_gate(manifest: Manifest, args: Any, report: Any) -> None:
         report.record("freeze-manifest", NOT_RUN, "no readable protected freeze manifest at %r" % base)
         return
 
+    # A PR cannot weaken the gate by editing its own rules: the enforced
+    # rules always come from the base revision. But a PR that CHANGES the
+    # rules (a candidate manifest) must be verified before it can become
+    # the new base: its extraction revision must exist in this repository
+    # and its recorded hashes must match the content at that revision.
+    # Without this check, a syntactically valid manifest with a nonexistent
+    # revision or wrong hashes would land and immediately fail the base
+    # manifest integrity check for every subsequent PR.
+    candidate_content = _content_at_revision(manifest.root, head, freeze_path)
+    if candidate_content is not None and candidate_content != content:
+        candidate_problems: list[str] = []
+        try:
+            candidate_data = tomllib.loads(candidate_content)
+            candidate_issues = validate_freeze(candidate_data)
+            if candidate_issues:
+                candidate_problems.extend(candidate_issues)
+            else:
+                # Verify provenance: extraction revision and hashes must
+                # exist and match in this repository.
+                for entry in candidate_data.get("frozen", []):
+                    rev = entry["extraction_revision"]
+                    for path, recorded_hash in sorted(entry.get("hashes", {}).items()):
+                        actual = _path_content(manifest.root, path, rev)
+                        if actual is None:
+                            candidate_problems.append(
+                                "candidate frozen path %r is missing at extraction revision %r" % (path, rev)
+                            )
+                        else:
+                            import hashlib as _hl
+
+                            if _hl.sha256(actual).hexdigest() != recorded_hash:
+                                candidate_problems.append(
+                                    "candidate hash mismatch for %r at extraction revision %r" % (path, rev)
+                                )
+        except (FreezeManifestError, tomllib.TOMLDecodeError) as exc:
+            candidate_problems.append(str(exc))
+        if candidate_problems:
+            report.record("candidate-rules", FAIL, "; ".join(candidate_problems)[:2000])
+            return
+        report.record(
+            "candidate-rules",
+            PASS,
+            "PR modifies the freeze manifest; new rules verified (extraction revision and hashes match)",
+        )
+
+    # The package contract manifest is required for the gate to run: a PR
+    # deleting it while the freeze stays active would leave every
+    # subsequent PR unable to load its manifest, turning the required
+    # freeze check into a repository-wide blocker.
+    manifest_at_head = _content_at_revision(manifest.root, head, manifest.path.relative_to(manifest.root))
+    if manifest_at_head is None:
+        report.record(
+            "candidate-rules",
+            FAIL,
+            "PR deletes package-contract.toml while a freeze is active: the freeze gate "
+            "cannot run without its contract manifest",
+        )
+        return
+
     try:
         data = tomllib.loads(content)
         issues = validate_freeze(data)

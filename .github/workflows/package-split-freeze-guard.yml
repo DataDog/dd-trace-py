@@ -44,6 +44,13 @@ permissions:
   contents: read
   pull-requests: write
 
+# Prevents superseded base-advancement runs from overwriting newer results:
+# a slower run using older rules cannot publish success after newer rules
+# produced failure on the same PR head.
+concurrency:
+  group: package-split-freeze-revalidation-${{ github.event_name == 'push' && github.ref || format('pr-{0}', github.event.pull_request.number) }}
+  cancel-in-progress: true
+
 jobs:
   freeze-guard:
     name: Package split freeze guard
@@ -60,9 +67,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Fetch the immutable head SHA (not the mutable ref): a PR push between
+      # the event and the fetch would make the ref point to a different
+      # commit than the one the result is published on.
       - name: Fetch the pull request head (inspected, never executed)
         run: |
-          git fetch --no-tags origin "refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/head"
+          git fetch --no-tags origin "${{ github.event.pull_request.head.sha }}:refs/remotes/pr/head"
 
       - name: Is a package freeze active on the base branch?
         id: active
@@ -114,29 +124,36 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: List open PRs touching frozen paths
+      - name: List open PRs based on this branch
         id: prs
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.ref_name }}
         run: |
           echo "prs<<EOF" >> "$GITHUB_OUTPUT"
-          gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName \
-            --jq '.[] | "\(.number) \(.headRefName)"' >> "$GITHUB_OUTPUT" || true
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName,headRefOid \
+            --jq '.[] | select(.baseRefName == env.BASE_BRANCH) | "\(.number) \(.headRefName) \(.headRefOid)"' >> "$GITHUB_OUTPUT" || true
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Revalidate each open PR head
+      - name: Revalidate each open PR head against the new rules
         if: steps.prs.outputs.prs != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.sha }}
         run: |
-          echo '${{ steps.prs.outputs.prs }}' | while read -r number head_ref; do
+          echo '${{ steps.prs.outputs.prs }}' | while read -r number head_ref head_sha; do
             [ -z "$number" ] && continue
-            echo "Revalidating PR #$number ($head_ref)"
-            git fetch --no-tags origin "refs/pull/$number/head:refs/remotes/pr/$number/head"
+            echo "Revalidating PR #$number ($head_ref @ $head_sha)"
+            # Fetch the immutable head SHA captured at enumeration: the
+            # mutable branch ref may have advanced since.
+            git fetch --no-tags origin "$head_sha:refs/remotes/pr/$number/head" || {
+              echo "::warning::PR #$number: head fetch failed, skipping"
+              continue
+            }
             if scripts/package-split freeze \
               --manifest package-contract.toml \
               --output ".package-split/pr-$number" \
-              --base "$GITHUB_SHA" \
+              --base "$BASE_SHA" \
               --head "refs/remotes/pr/$number/head"; then
               echo "PR #$number: PASS"
             else
@@ -145,9 +162,9 @@ jobs:
           done
 
       - name: Upload freeze evidence
-        if: always()
+        if: always() && steps.prs.outputs.prs != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: freeze-evidence-revalidation
+          name: freeze-evidence-revalidation-${{ github.sha }}
           path: .package-split/
           retention-days: 14
