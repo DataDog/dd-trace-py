@@ -386,6 +386,31 @@ def test_different_selection_than_a_dropped_claim_is_not_reported_as_dropped(cap
     assert caplog.messages.count(SECOND_SELECTION_WARNING) == 1
 
 
+def test_malformed_selection_after_none_reports_its_own_drop_without_warning(caplog, count_metric):
+    with caplog.at_level(logging.WARNING, logger=SELECTION_LOGGER):
+        _create_source(None)
+        _create_source({"tags": "malformed"})
+    assert len(_not_sent(caplog)) == 1
+    assert SECOND_SELECTION_WARNING not in caplog.messages
+    assert len(_metric_calls(count_metric, "flag_selection.dropped")) == 1
+
+
+def test_no_selection_after_a_dropped_one_does_not_warn(caplog):
+    with caplog.at_level(logging.WARNING, logger=SELECTION_LOGGER):
+        _create_source({"tags": [f"t{i}" for i in range(32)]})
+        _create_source(None)
+    assert len(_not_sent(caplog)) == 1
+    assert SECOND_SELECTION_WARNING not in caplog.messages
+
+
+def test_dropped_selection_after_a_sent_one_reports_its_own_drop_and_warns(caplog):
+    with caplog.at_level(logging.WARNING, logger=SELECTION_LOGGER):
+        _create_source({"tags": ["a"]})
+        _create_source({"tags": [f"t{i}" for i in range(32)]})
+    assert len(_not_sent(caplog)) == 1
+    assert caplog.messages.count(SECOND_SELECTION_WARNING) == 1
+
+
 def test_two_reasons_within_the_rate_limit_window_are_both_logged(caplog):
     # A logger at DEBUG bypasses the rate limiter, so keep it above DEBUG.
     with caplog.at_level(logging.WARNING, logger=SELECTION_LOGGER):
@@ -906,15 +931,18 @@ def test_once_per_process_guards_reset_in_a_forked_child():
     from ddtrace.internal.openfeature._flag_selection import canonicalize_flag_selection
     from ddtrace.internal.openfeature._flag_selection import claim_process_selection
     from ddtrace.internal.openfeature._flag_selection import report_ignored
+    from ddtrace.internal.openfeature._flag_selection import selection_request_url
     from ddtrace.internal.openfeature._flag_selection import warn_remote_config
 
+    endpoint = "https://example.test/config"
     claimed = canonicalize_flag_selection({"tags": ["a"]})
     with (
         mock.patch.object(_flag_selection, "log"),
         mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric"),
     ):
         claim_process_selection(claimed)
-        claim_process_selection(canonicalize_flag_selection({"tags": ["b"]}))
+        second = canonicalize_flag_selection({"tags": ["b"]})
+        selection_request_url(endpoint, second, claim_process_selection(second))
         report_ignored("tag_load_failed")
         warn_remote_config(claimed)
 
@@ -924,7 +952,9 @@ def test_once_per_process_guards_reset_in_a_forked_child():
             mock.patch.object(_flag_selection, "log") as log,
             mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric") as add_count_metric,
         ):
-            inherited = claim_process_selection(canonicalize_flag_selection({"tags": ["c"]}))
+            third = canonicalize_flag_selection({"tags": ["c"]})
+            inherited = claim_process_selection(third)
+            selection_request_url(endpoint, third, inherited)
             report_ignored("tag_load_failed")
             warn_remote_config(claimed)
         reset = (

@@ -176,18 +176,12 @@ def claim_process_selection(selection: FlagSelection) -> FlagSelection:
 
     Returns the selection to request. Each call must be paired with release_process_selection().
     """
-    global _claimed, _claim_count, _second_selection_warned
+    global _claimed, _claim_count
     with _lock:
         if _claim_count == 0:
             _claimed = selection
         _claim_count += 1
-        claimed = _claimed
-        warn = claimed != selection and not _second_selection_warned
-        if warn:
-            _second_selection_warned = True
-    if warn:
-        log.warning(_SECOND_SELECTION_MESSAGE)
-    return claimed
+        return _claimed
 
 
 def release_process_selection() -> None:
@@ -229,27 +223,51 @@ def recording_loaded_selection(
 def selection_request_url(endpoint: str, requested: FlagSelection, claimed: FlagSelection) -> tuple[str, bool]:
     """Return the URL to poll for ``claimed`` and whether it carries the selection.
 
-    A selection that cannot be sent is reported when it is the one this provider asked for.
+    A selection equal to the claimed one is reported as the claimed one is. A different one is not
+    used: it reports its own drop, and warns only if it would load other flags, since a dropped
+    selection and no selection both load every flag.
     """
+    url, sent = endpoint, False
+    reason: typing.Optional[str] = None
+    limit = ""
     if claimed.reason is None:
-        if not claimed.tags and not claimed.key_patterns:
-            _record_dropped(None)
-            return endpoint, False
-        url = append_flag_selection(endpoint, claimed)
-        if url is not None:
-            _record_dropped(None)
-            return url, True
-        reason, limit = TOO_MANY_VALUES, _REQUEST_URL_LIMIT
+        if claimed.tags or claimed.key_patterns:
+            with_selection = append_flag_selection(endpoint, claimed)
+            if with_selection is not None:
+                url, sent = with_selection, True
+            else:
+                reason, limit = TOO_MANY_VALUES, _REQUEST_URL_LIMIT
     else:
         reason, limit = claimed.reason, _LIMITS[claimed.reason]
 
     _record_dropped(reason)
     if requested == claimed:
-        # Keep the literal equal to _NOT_SENT_MESSAGE, which exempts it from the rate limiter.
-        log.error("flag_selection was not sent (%s: %s). Loading the full flag configuration.", reason, limit)
-        if _first_report(DROPPED_METRIC, reason):
-            _count(DROPPED_METRIC, reason)
-    return endpoint, False
+        if reason is not None:
+            _report_not_sent(reason, limit)
+        return url, sent
+
+    if requested.reason is not None:
+        _report_not_sent(requested.reason, _LIMITS[requested.reason])
+    requested_flags = NO_SELECTION if requested.reason is not None else requested
+    if requested_flags != (claimed if sent else NO_SELECTION):
+        _warn_second_selection()
+    return url, sent
+
+
+def _report_not_sent(reason: str, limit: str) -> None:
+    # Keep the literal equal to _NOT_SENT_MESSAGE, which exempts it from the rate limiter.
+    log.error("flag_selection was not sent (%s: %s). Loading the full flag configuration.", reason, limit)
+    if _first_report(DROPPED_METRIC, reason):
+        _count(DROPPED_METRIC, reason)
+
+
+def _warn_second_selection() -> None:
+    global _second_selection_warned
+    with _lock:
+        if _second_selection_warned:
+            return
+        _second_selection_warned = True
+    log.warning(_SECOND_SELECTION_MESSAGE)
 
 
 def sanitize_ignored_reason(value: typing.Optional[str]) -> typing.Optional[str]:
