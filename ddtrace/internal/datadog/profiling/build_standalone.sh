@@ -403,9 +403,12 @@ if tuple(int(p) for p in pip_version.split(".")[:2]) >= (23, 1):
     sys.exit(0)
 
 from pip._internal.commands import create_command
+from pip._internal.utils.misc import normalize_path
 
 pip_command = create_command("install")
 pip_options, _ = pip_command.parse_args([])
+if pip_options.cache_dir:
+    pip_options.cache_dir = normalize_path(pip_options.cache_dir)
 index_url = os.environ.get("PIP_INDEX_URL", "https://pypi.org/simple/").rstrip("/") + "/"
 page_url = urljoin(index_url, "pip/")
 resp = pip_command._build_session(pip_options).get(page_url, headers={"Accept": "text/html"}, timeout=30)
