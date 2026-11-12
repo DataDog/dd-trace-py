@@ -857,8 +857,10 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
     // Publish the request under _awake_mutex. stop() and _before_fork() set
     // _stopping and their stop reason under the same mutex, so the worker
     // never sees our AWAKE between those two writes, where it would consume it
-    // as part of the stop (and lose it across a fork pause). The critical
-    // sections never wait for the GIL, so it is safe to hold it here.
+    // as part of the stop (and lose it across a fork pause). Every critical
+    // section on _awake_mutex runs with the GIL held and never releases it, so
+    // only the GIL holder can own the mutex, and no thread can still own it in
+    // a forked child.
     std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
     if (!(self->_stopping && !self->_skip_shutdown))
@@ -882,7 +884,6 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
     // Publish _stopping and the STOP reason atomically with respect to awake()
     // (see PeriodicThread_awake).
     {
-        AllowThreads _(self->_state);
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
         self->_stopping = true;
@@ -1050,7 +1051,6 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     // Synchronize with awake() so there is no window where _stopping is visible
     // before the fork-stop wake reason is published.
     {
-        AllowThreads _(self->_state);
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
         // Equivalent to PeriodicThread_stop(), with an explicit fork-stop
