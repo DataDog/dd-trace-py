@@ -1,967 +1,107 @@
+# Temporary scoped measurement only; not part of the fix PR.
+# Baseline forces the previous cache-helper behavior; changed uses the new default.
+# Four manual jobs, zero automatic retries. No publish or deployment jobs.
 stages:
-  - package
-  - shared-pipeline-build
-  - tests
-  - system-tests
-  - fuzz
-  - shared-pipeline-test
-  - benchmarks
-  - release
-  - shared-pipeline-publish
-
-variables:
-  REPO_LANG: python # "python" is used everywhere rather than "py"
-  REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
-  RELEASE_ALLOW_TEST_FAILURES: false
-  RELEASE_ALLOW_BENCHMARK_FAILURES: false
-  # Build OpenTelemetry Operator-compatible Python images through one-pipeline.
-  CI_OTEL_OPERATOR_IMAGES_ENABLED: "true"
-  CI_OTEL_OPERATOR_LANGUAGE: python
-  # VPA Template configuration
-  DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
-  # CI_DEBUG_SERVICES: "true"
-  # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3"
-
-  # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native"
-  # Repository URL for CI Visibility
-  DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
-  # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
-  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v149816936-0fbc9e3-ci-utils@sha256:c94e6149a7aae045ee27c9e8c5b30a16f84addb5e92d690024d920d12d8df83c"
-
-  # Only trunk pipelines publish to the compiled-extension cache. Feature branches read it
-  # but never write, so a branch that touches native code cannot evict trunk's entries.
-  EXT_CACHE_POLICY: "pull"
-
-  # One pipeline injection package size ratchet
-  OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
-  # 110M/109M with 3.15 dep wheels; keep a little headroom above that.
-  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
-  SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
-
-  # Use Depot as the default PyPI mirror for Python packages.
-  PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
-  UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
-
+- baseline_1
+- changed_1
+- changed_2
+- baseline_2
+workflow:
+  rules:
+  - when: always
 default:
   interruptible: true
-
-
-.is_main: $CI_COMMIT_REF_NAME == "main"
-.is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
-.is_non_rc_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
-.is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
-.is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
-.is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
-
-# trigger new commit cancel
-workflow:
-  auto_cancel:
-    on_new_commit: interruptible
-  rules:
-    - if: !reference [.is_main]
-      variables:
-        EXT_CACHE_POLICY: "pull-push"
-      auto_cancel:
-        on_new_commit: none
-    - if: !reference [.is_release_branch]
-      variables:
-        DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
-        EXT_CACHE_POLICY: "pull-push"
-      auto_cancel:
-        on_new_commit: none
-    - when: always
-
-include:
-  - project: 'ddoghq/llm-validation-platform'
-    ref: 68250345c9e358d4345545516f4c180e0370eb76  # v0.1.5
-    file: '/ci/llm-validation.gitlab-ci.yml'
-  - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
-  - local: ".gitlab/retry-policies.yml"
-  # Included after the base policies so main pipelines override them without
-  # duplicating concrete job definitions or changing job identities.
-  - local: ".gitlab/retry-policies-main.yml"
-    rules:
-      - if: $CI_COMMIT_REF_NAME == "main"
-  - local: ".gitlab/one-pipeline.locked.yml"
-  - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/package.yml"
-  - local: ".gitlab/release.yml"
-  - local: ".gitlab/testrunner.yml"
-  - local: ".gitlab/debugging-exploration.yml"
-  - local: ".gitlab/multi-os-tests.yml"
-  - local: ".gitlab/benchmarks/serverless.yml"
-  - local: ".gitlab/native.yml"
-  - local: ".gitlab/system-tests.yml"
-  - local: ".gitlab/fuzz.yml"
-  - local: ".gitlab/config-registry.yml"
-
-"pipeline variables":
-  stage: .pre
-  tags: [ "arch:amd64" ]
-  script:
-    - |
-      echo "CURRENT_YEAR=$(date +%Y)" >> pipeline_variables.env
-      echo "CURRENT_MONTH=$(date +%-m)" >> pipeline_variables.env
-      echo "CURRENT_WEEK=$(date +%-V)" >> pipeline_variables.env
-      echo "CURRENT_BIWEEK=$(( $(date +%-V) / 2 ))" >> pipeline_variables.env
-      cat pipeline_variables.env
-  artifacts:
-    reports:
-      dotenv: pipeline_variables.env
-
-tests-gen:
-  stage: tests
-  extends: .ci_utils
+variables:
+  REPO_LANG: python
+  REPO_NOTIFICATION_CHANNEL: '#apm-python-release'
+  RELEASE_ALLOW_TEST_FAILURES: false
+  RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  CI_OTEL_OPERATOR_IMAGES_ENABLED: 'true'
+  CI_OTEL_OPERATOR_LANGUAGE: python
+  DD_VPA_TEMPLATE: vpa-template-cpu-p70-10percent-2x-oom-min-cap
+  SYSTEM_TESTS_REF: 7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3
+  PROFILING_NATIVE_IMAGE: registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native
+  DD_GIT_REPOSITORY_URL: https://github.com/DataDog/dd-trace-py.git
+  CI_UTILS_IMAGE: registry.ddbuild.io/dd-trace-py:v149816936-0fbc9e3-ci-utils@sha256:c94e6149a7aae045ee27c9e8c5b30a16f84addb5e92d690024d920d12d8df83c
+  EXT_CACHE_POLICY: pull
+  OCI_PACKAGE_MAX_SIZE_BYTES: 80000000
+  LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120000000
+  SUPPORTED_VERSIONS_GENERATOR: scripts/integration_registry/generate_supported_versions.py
+  PIP_INDEX_URL: https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/
+  UV_DEFAULT_INDEX: https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/
+  CURRENT_YEAR: '2026'
+  CURRENT_BIWEEK: '23'
+.macos_measurement:
+  stage: package
   variables:
-    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
-    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - |
-      echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
-      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
-    - |
-      if [ -z ${GH_TOKEN} ]
-      then
-        # Use dd-octo-sts to get GitHub token
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
-    - scripts/gen_gitlab_config.py --verbose
-  needs: []
-  artifacts:
-    paths:
-      - .gitlab/tests-gen.yml
-      - .gitlab/benchmarks/microbenchmarks-gen.yml
-      - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
-    expire_in: 1 week
-
-run-tests-trigger:
- stage: tests
- needs:
-   - tests-gen
-   # Provides ddtrace wheels for running tests
-   - job: "upload manylinux2014_x86_64"
-     artifacts: false
- variables:
-   PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-   UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
-   NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
-   DD_TEST_RUNTIME_PROBE: "$DD_TEST_RUNTIME_PROBE"
- # Allow the child job to fail if explicitly asked
- rules:
-   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-     allow_failure: true
-   - allow_failure: false
- trigger:
-   include:
-     - artifact: .gitlab/tests-gen.yml
-       job: tests-gen
-   strategy: depend
-
-serverless lambda tests:
-  stage: tests
-  trigger:
-    project: DataDog/datadog-lambda-python
-    strategy: depend
-    branch: main
-  needs:
-    - job: "upload serverless"
-  variables:
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
-    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
-    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
-    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
-    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
-    SKIP_E2E_TESTS: "true"
-
-# Validate the ast-grep rule's test suite in .sg/tests
-"ast-grep rules":
-  extends: .ci_utils
-  stage: tests
-  needs: []
-  variables:
-    # scripts/lint pins Python 3.10, which uv downloads here. The image's default
-    # managed Python directory is root-owned, so install into the checkout instead.
-    UV_PYTHON_INSTALL_DIR: "${CI_PROJECT_DIR}/.cache/uv-python"
-  script:
-    - |
-      echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
-      scripts/lint sg-test
-      echo -e "\e[0Ksection_end:`date +%s`:sg_test\r\e[0K"
-    - |
-      echo -e "\e[0Ksection_start:`date +%s`:sg_scan[collapsed=true]\r\e[0Kast-grep scan"
-      scripts/lint sg
-      echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
-
-microbenchmarks:
-  stage: benchmarks
-  needs:
-    - job: tests-gen
-    - job: "build linux"
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
-  rules:
-    # Allow failures if explicitly asked
-    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
-      allow_failure: true
-    - allow_failure: false
-  trigger:
-    include:
-      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
-        job: tests-gen
-    strategy: depend
-  variables:
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-    # Disable VPA for benchmarks
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    CARGO_BUILD_JOBS: '12'
+    CMAKE_ARGS: -DNATIVE_TESTING=OFF
+    CIBW_BUILD: '1'
+    DD_USE_SCCACHE: '1'
+    DD_SERVERLESS_BUILD: '0'
+    KUBERNETES_CPU_REQUEST: '6'
+    KUBERNETES_MEMORY_REQUEST: 10Gi
+    KUBERNETES_MEMORY_LIMIT: 10Gi
     DD_DISABLE_VPA: true
-    # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
-    # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
-    # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
-    # so downstream code must treat that literal as unset.
-    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
-
-macrobenchmarks:
-  stage: benchmarks
-  needs:
-    - job: "build linux"
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
-  trigger:
-    include: .gitlab/benchmarks/macrobenchmarks.yml
-  variables:
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-    # Disable VPA for benchmarks
-    DD_DISABLE_VPA: true
-    # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
-    # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
-    # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
-    # so downstream code must treat that literal as unset.
-    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
-  allow_failure: false
-  rules:
-    # Always run on nightly schedule or API triggered pipelines
-    - if: $NIGHTLY_BUILD == "true"
-      when: always
-    # Allow failures if explicitly asked
-    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
-      allow_failure: true
-    # Always run on tagged releases and release branches
-    - if: !reference [.is_release_branch]
-      when: always
-    - if: !reference [.is_release]
-      when: always
-    # Otherwise, run manually
-    - when: manual
-      allow_failure: true
-
-apm-sdks-benchmarks:
-  stage: benchmarks
-  needs:
-    # The benchmark uses only the cp312 Linux x86_64 and aarch64 wheels. This job
-    # uploads them right after the Linux builds. Thus the benchmark does not wait
-    # for the macOS and Windows builds or for "ddtrace package".
-    - job: "upload manylinux2014"
-  variables:
-    # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
-    # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
-    # manylinux2014". Inside a child pipeline that variable is the child's own ID, not
-    # this (parent) pipeline's, so it must be passed explicitly.
-    TARGET_REF: $CI_PIPELINE_ID
-    # "upload manylinux2014" writes this index under TARGET_REF. Without this value,
-    # the script reads index.html, which "upload all" writes later.
-    WHEEL_INDEX_FILE: "index-manylinux2014.html"
-    # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
-    # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
-    # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
-    # so downstream code must treat that literal as unset.
-    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
-  trigger:
-    include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
-    strategy: depend
-  rules:
-    # Allow failures if explicitly asked
-    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
-      when: on_success
-      allow_failure: true
-    # Always run on tagged releases and release branches
-    - if: !reference [.is_release_branch]
-      when: on_success
-    - if: !reference [.is_release]
-      when: on_success
-    - if: !reference [.is_main]
-      when: on_success
-    # Flaky benchmark monitoring runs this branch unattended from a parent pipeline,
-    # and pushes to it need the same automatic run while that setup is developed.
-    - if: $CI_COMMIT_BRANCH == "performance/flaky-benchmarks-monitoring"
-      when: on_success
-    # No $NIGHTLY_BUILD rule here: apm-sdks-benchmarks already runs its own nightly
-    # schedule in that project's own CI, independent of dd-trace-py's pipeline.
-    # Otherwise, run manually
-    - when: manual
-      allow_failure: true
-
-check_new_flaky_tests:
-  stage: tests
-  needs: ["run-tests-trigger"]
-  extends: .ci_utils
-  script:
-    - export DD_SITE=datadoghq.com
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
-    - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
-    - datadog-ci gate evaluate
-  rules:
-    - if: !reference [.is_main]
-      when: never
-    - if: !reference [.is_release]
-      when: never
-    - if: !reference [.is_release_branch]
-      when: never
-    - if: !reference [.is_gh_merge_queue]
-      when: never
-    - if: !reference [.is_devflow_merge_queue]
-      when: never
-    - when: on_success
-
-codeql-scan:
-  timeout: 30m
-  stage: tests
-  needs: []
-  image:
-    name: registry.ddbuild.io/images/code-scanning:v76675231-865a08a-default
-  tags: [ "arch:amd64" ]
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  rules:
-    - if: !reference [.is_release]
-      when: never
-    - if: $NIGHTLY_BUILD == "true"
-      when: never
-    - when: on_success
-  variables:
-    AWS_REGION: us-east-1
-    BASE_REF: main
-    GOMAXPROCS: 10
-    KUBERNETES_CPU_REQUEST: 10
-    KUBERNETES_CPU_LIMIT: 10
-    KUBERNETES_MEMORY_REQUEST: 96Gi
-    KUBERNETES_MEMORY_LIMIT: 96Gi
-    CI_PROJECT_NAMESPACE: DataDog
-    CODEQL: /usr/local/codeql/codeql
-    CODEQL_DB: /tmp/dd-trace-py.codeql
-    PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/python-code-scanning.qls
-    DB_CONFIGS: --threads 8 --ram 96000 --language=python --quiet
-    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
-    UPLOAD_CONFIGS: -upload_sarif=true
-  script:
-    - ./scripts/codeql_scan.sh
-
-requirements_json_test:
-  rules:
-    - when: on_success
-  variables:
-    REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
-    REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
-
-check_requirements_lockfiles:
-  stage: tests
-  needs: []
-  extends: .ci_utils
-  script:
-    - scripts/test-requirements check
-    - uv run --no-project --with toml==0.10.2 python scripts/requirements_to_csv.py
-    - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
-
-check_ci_dependencies:
-  stage: tests
-  needs: []
-  extends: .ci_utils
-  script:
-    - scripts/check-ci-dependencies
-
-codeowners:
-  stage: tests
-  needs: []
-  tags: ["arch:amd64"]
-  variables:
-    GIT_DEPTH: "0"
-  image: ${CI_UTILS_IMAGE}
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
-    # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
-    # Normalize patterns before checking for duplicates:
-    #   - Remove trailing slashes (tests/tracer and tests/tracer/ are equivalent)
-    #   - Remove leading ./ (./path and path are equivalent)
-    #   - Collapse multiple consecutive slashes (path//file becomes path/file)
-    - |
-        # All non-comment/empty lines from .github/CODEOWNERS
-        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
-          # Remove any leading `./` in the line
-          sed 's|^\./||' | \
-          # Remove any duplicate `/`, e.g. `//` -> `/`
-          sed -E 's|/+|/|g' | \
-          # Remove any trailing `/`
-          sed 's:/*$::' | \
-          # Sort and return only duplicate entries
-          sort | uniq -d > /tmp/duplicate_codeowners.txt
-        if [ -s /tmp/duplicate_codeowners.txt ]; then
-            echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
-            cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
-            echo ""
-            echo "Each file pattern should only be listed once to ensure clear ownership."
-            echo "Normalization applied: removed trailing slashes, leading './', and collapsed multiple slashes."
-            echo "Please remove duplicates from .github/CODEOWNERS."
-            exit 1
-        fi
-    - |
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
-      git config --global --add safe.directory "${CI_PROJECT_DIR}"
-      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
-      git show "FETCH_HEAD:.github/CODEOWNERS" > /tmp/base-CODEOWNERS
-      git diff --name-only --diff-filter=ACMRTUXB -z "FETCH_HEAD...${CI_COMMIT_SHA}" > /tmp/changed_files.txt
-    - |
-      {
-        printf 'Resolved from the full PR diff against `%s` using the target branch CODEOWNERS file.\n' "${BASE_BRANCH}"
-        printf 'CODEOWNERS team requests not listed below are not required by the current file set.\n\n'
-        if [ -s /tmp/changed_files.txt ]; then
-          echo '```'
-          xargs -0 codeowners --file /tmp/base-CODEOWNERS < /tmp/changed_files.txt
-          echo '```'
-        else
-          echo 'No remaining files require a CODEOWNERS review.'
-        fi
-      } | tee codeowners.txt
-    - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
-
-detect_circular_imports:
-  stage: tests
-  needs: []
-  extends: .ci_utils
-  rules:
-    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-      allow_failure: true
-    - allow_failure: false
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - cd ..
-    # Keep copies of PR scripts so they survive the git checkout of the base branch below
-    - cp dd-trace-py/scripts/import-analysis/cycles.py cycles.py
-    - cp dd-trace-py/.gitlab/scripts/post-pr-comment.sh post-pr-comment.sh
-    - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-pr.json
-    - cat cycles-pr.json
-    - |
-      cd dd-trace-py
-      # resolve-base-branch.sh mints its own token only if it hits the API,
-      # so don't acquire one unconditionally here.
-      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin -- "${BASE_BRANCH}"
-      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
-      git checkout "${MERGE_BASE}"
-      cd ..
-    # Analyse the merge base ddtrace using the PR version of cycles.py (has uv metadata)
-    - uv run --script cycles.py analyze --root dd-trace-py/ddtrace cycles-base.json
-    - cat cycles-base.json
-    - |
-      set +e
-      uv run --script cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
-      COMPARE_EXIT=$?
-      set -e
-    - cat cycles_report.txt
-    - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
-    - exit $COMPARE_EXIT
-
-detect_layering_violations:
-  stage: tests
-  needs: []
-  extends: .ci_utils
-  rules:
-    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-      allow_failure: true
-    - allow_failure: false
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - cd ..
-    # Keep copies of PR scripts (and their config) so they survive the git checkout of the base branch below
-    - cp dd-trace-py/scripts/import-analysis/layers.py layers.py
-    - cp dd-trace-py/scripts/import-analysis/layers.json layers.json
-    - cp dd-trace-py/.gitlab/scripts/post-pr-comment.sh post-pr-comment.sh
-    - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-pr.json
-    - cat layers-pr.json
-    - |
-      cd dd-trace-py
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
-      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
-      MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
-      git checkout "${MERGE_BASE}"
-      cd ..
-    # Analyse the merge base using the PR version of layers.py/layers.json (has uv metadata)
-    - uv run --script layers.py analyze --root dd-trace-py/ddtrace layers-base.json
-    - cat layers-base.json
-    - |
-      set +e
-      uv run --script layers.py compare layers-base.json layers-pr.json > layers_report.txt
-      COMPARE_EXIT=$?
-      set -e
-    - cat layers_report.txt
-    - ./post-pr-comment.sh "Dependency direction analysis" layers_report.txt
-    - exit $COMPARE_EXIT
-
-check_added_file_size:
-  stage: tests
-  needs: []
-  extends: .ci_utils
-  variables:
-    # Needs full history to reliably compute a merge-base against the fetched
-    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
-    # common ancestor.
-    GIT_DEPTH: "0"
-  rules:
-    - if: !reference [.is_main]
-      when: never
-    - if: !reference [.is_release]
-      when: never
-    - if: !reference [.is_release_branch]
-      when: never
-    - if: !reference [.is_gh_merge_queue]
-      when: never
-    - if: !reference [.is_devflow_merge_queue]
-      when: never
-    - when: on_success
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - |
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
-      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
-    - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
-
-check_no_new_aidev_anchors:
-  stage: tests
-  needs: []
-  extends: .ci_utils
-  variables:
-    # Needs full history to reliably compute a merge-base against the fetched
-    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
-    # common ancestor.
-    GIT_DEPTH: "0"
-  rules:
-    - if: !reference [.is_main]
-      when: never
-    - if: !reference [.is_release]
-      when: never
-    - if: !reference [.is_release_branch]
-      when: never
-    - if: !reference [.is_gh_merge_queue]
-      when: never
-    - if: !reference [.is_devflow_merge_queue]
-      when: never
-    - when: on_success
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - |
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
-      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
-    - unset GH_TOKEN DDOCTOSTS_ID_TOKEN
-    - python3 scripts/check_no_new_aidev_anchors.py --base-ref FETCH_HEAD
-
-check_type_comments:
-  stage: tests
-  needs: []
-  extends: .ci_utils
-  variables:
-    # Needs full history to reliably compute a merge-base against the fetched
-    # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
-    # common ancestor.
-    GIT_DEPTH: "0"
-  rules:
-    - if: !reference [.is_main]
-      when: never
-    - if: !reference [.is_release]
-      when: never
-    - if: !reference [.is_release_branch]
-      when: never
-    - if: !reference [.is_gh_merge_queue]
-      when: never
-    - if: !reference [.is_devflow_merge_queue]
-      when: never
-    - when: on_success
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - |
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
-      fi
-      BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
-    - python3 scripts/check_type_comments.py --base-ref FETCH_HEAD
-
-# Unit tests for resolve-base-branch.sh. They only need bash+jq and stub git/curl
-# (no network).
-test_resolve_base_branch:
-  extends: .ci_utils
-  stage: tests
-  needs: []
-  timeout: 5m
-  script:
-    - .gitlab/scripts/resolve-base-branch.test.sh
-
-# Exercises the delayed diagnostics and process cleanup without macOS or sccache.
-test_sccache_watchdog:
-  extends: .ci_utils
-  stage: tests
-  needs: []
-  timeout: 5m
-  script:
-    - python3 .gitlab/scripts/test_sccache_watchdog.py -v
-
-# Fails when test jobs stop collecting core dumps and backtraces on crash.
-# Runs the collector in script, since after_script failures don't fail the job.
-coredump_smoke:
-  extends: .testrunner
-  stage: tests
-  needs: []
-  timeout: 5m
-  script:
-    - bash .gitlab/scripts/coredump-smoke.sh
-  after_script: []
-
-# Runs in the image of package-oci, so that the tests use the same python3 and
-# GNU realpath as prepare-oci-package.sh.
-test_oci_package_scripts:
-  stage: tests
-  needs: []
-  image: $PACKAGING_IMAGE
-  tags: [ "arch:amd64" ]
-  timeout: 5m
-  script:
-    - python3 .gitlab/scripts/test_make_symlinks_relative.py -v
-
-
-"summarize failures":
-  stage: .post
-  extends: .testrunner
-  rules:
-    - if: !reference [.is_main]
-      when: on_failure
-      allow_failure: true
-    - if: !reference [.is_release]
-      when: on_failure
-      allow_failure: true
-    - if: !reference [.is_release_branch]
-      when: on_failure
-      allow_failure: true
-    - if: !reference [.is_gh_merge_queue]
-      when: on_failure
-      allow_failure: true
-    - if: !reference [.is_devflow_merge_queue]
-      when: on_failure
-      allow_failure: true
-    - when: manual
-      allow_failure: true
-  dependencies: []
-  timeout: 30m
-  retry: 0
-  variables:
-    CI_FAILURE_LOGS_DIR: "$CI_PROJECT_DIR/ci-failure-logs"
-  before_script:
-    - !reference [.testrunner, before_script]
-  script:
-    - .gitlab/scripts/summarize_failures.py
-  after_script: []
+    SYSTEM_VERSION_COMPAT: '0'
+    MACOSX_DEPLOYMENT_TARGET: '14.7'
+    ARCH_TAG: amd64
+    PYTHON_VERSIONS: 3.9 3.10 3.11
   artifacts:
     when: always
     paths:
-      - ci-failure-logs/
-      - summary.md
-      - claude.stdout.log
-    expire_in: 1 month
-
-deploy_to_di_backend:manual:
-  stage: tests
-  rules:
-    - when: manual
-      allow_failure: true
-  trigger:
-    project: DataDog/debugger-demos
-    branch: main
-  variables:
-    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-    UPSTREAM_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PACKAGE_JOB: build
-
-# Trigger profiling correctness tests with just-built wheels.
-# Runs the eight 3.14/3.15 migration scenarios in prof-correctness against the
-# wheels uploaded to S3 for this commit (Python-only; see downstream-python.yml).
-prof-correctness:
-  stage: tests
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: ["arch:amd64"]
-  needs:
-    - job: "upload all"
-  timeout: 60m
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
-    # Bare rules:changes is true for web/API/tag pipelines; require a push.
-    - if: $CI_PIPELINE_SOURCE == "push"
-      changes:
-        - .github/workflows/prof-correctness.yml
-        - .gitlab-ci.yml
-        - .gitlab/scripts/gh-retry.sh
-        - ddtrace/internal/datadog/profiling/**/*
-        - ddtrace/profiling/**/*
-        - src/native/**/*
-    - when: manual
-      allow_failure: true
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - |
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN="$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)"
-      fi
-      if [ -z "${GH_TOKEN:-}" ]; then
-        echo "error: GH_TOKEN is empty after dd-octo-sts (policy dd-trace-py.gitlab.trigger-ci)" >&2
-        exit 1
-      fi
-      . .gitlab/scripts/gh-retry.sh
-      TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
-      # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
-      TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
-      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
-      # A dispatch that fails can still start a run, so a retry can start a second
-      # run. The lookup below picks the newest run for this commit.
-      gh_retry workflow run downstream-python.yml \
-        --repo DataDog/prof-correctness \
-        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
-        -f "test_scenarios=${TEST_SCENARIOS}"
-
-      RUN_ID=""
-      for _ in $(seq 1 30); do
-        # If the lookup fails, RUN_ID is empty and the loop polls again.
-        RUN_ID="$(gh run list \
-          --repo DataDog/prof-correctness \
-          --workflow=downstream-python.yml \
-          --event workflow_dispatch \
-          --limit 20 \
-          --json databaseId,displayTitle,headSha,event,createdAt \
-          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty" \
-          || true)"
-        if [ -n "${RUN_ID}" ]; then
-          break
-        fi
-        sleep 2
-      done
-
-      if [ -z "${RUN_ID}" ]; then
-        echo "error: no DataDog/prof-correctness downstream-python run found for sha ${CI_COMMIT_SHA} (expected title 'dd-trace-py downstream (${CI_COMMIT_SHA})') dispatched at/after ${TRIGGERED_AT}" >&2
-        exit 1
-      fi
-
-      echo "Watching prof-correctness run ${RUN_ID}"
-      gh_retry run watch "${RUN_ID}" --repo DataDog/prof-correctness
-      CONCLUSION="$(gh_retry run view "${RUN_ID}" --repo DataDog/prof-correctness --json conclusion --jq .conclusion)"
-      if [ "${CONCLUSION}" != "success" ]; then
-        echo "error: prof-correctness run ${RUN_ID} completed with '${CONCLUSION}'" >&2
-        exit 1
-      fi
-
-lib_injection_tests:
-  # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.
-  needs: []
-  stage: tests
-  tags: [ "arch:amd64" ]
-  image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
-  script: |
-    echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
-    pyenv --version
-    pyenv versions --bare
-    echo -e "\e[0Ksection_end:`date +%s`:info\r\e[0K"
-
-    for python_version in $(pyenv versions --bare); do
-      echo -e "\e[0Ksection_start:`date +%s`:test_${python_version}[collapsed=true]\r\e[0KTesting with Python ${python_version}"
-      pyenv global "${python_version}"
-      pyenv exec python --version
-      pyenv exec python lib-injection/sources/sitecustomize.py
-      echo -e "\e[0Ksection_end:`date +%s`:test_${python_version}\r\e[0K"
-    done
-
-# Profiling native tests with sanitizers
-# Uses dedicated profiling-native image with Python, Rust, valgrind, and clang pre-installed
-# Image built from: dd/images/dd-trace-py/profiling_native
-# Only runs when profiling-related files change
-.profiling_native_base:
-  needs: []
-  stage: tests
-  tags: [ "arch:amd64" ]
-  image: ${PROFILING_NATIVE_IMAGE}
-  timeout: 15m
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: "12"
-    CARGO_BUILD_JOBS: "12"
+    - pywheels/*.whl
+    - pywheels/*.tar.gz
+    - debugwheelhouse/*.log
+    - debugwheelhouse/*.zip
+  cache:
+  - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+    paths:
+    - .download_cache
+  retry: 0
+  script: "set -euo pipefail\nif ! command -v sccache &> /dev/null; then\n  brew install sccache\nfi\nfor python_version in\
+    \ ${PYTHON_VERSIONS}; do\n  echo -e \"\\e[0Ksection_start:`date +%s`:build_macos_${python_version}\\r\\e[0KBuilding macOS\
+    \ wheel for Python ${python_version}\"\n\n  export UV_PYTHON=\"${python_version}\"\n  .gitlab/scripts/build-wheel.sh\n\
+    \n  echo -e \"\\e[0Ksection_end:`date +%s`:build_macos_${python_version}\\r\\e[0K\"\ndone\nsccache --show-stats\n"
+  tags:
+  - macos:sonoma-amd64
+  - specific:true
   before_script:
-    - ulimit -c unlimited
-    - git config --global --add safe.directory ${CI_PROJECT_DIR}
-    - export PYENV_VERSION=${PYTHON_VERSION}
-    # Native test binaries link libpython without an RPATH into the pyenv lib
-    # dir. The image's ld.so.conf can point at older patch dirs than pyenv
-    # actually installed, so put the selected interpreter's lib on the path.
-    - export LD_LIBRARY_PATH="$(pyenv prefix)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-  script:
-    - python --version
-    # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
-    # LSAN's signal handler in forked children conflicts with gtest, causing spurious crashes.
-    # Disable leak detection for "safety" - Valgrind jobs already cover leak detection.
-    - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
-    - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
+  - .gitlab/scripts/sccache-diagnostics.sh start
+  - '# after_script may not run at the job timeout; capture the live hang first.
 
-# Run on PRs where files in the native Profiling build graph changed.
-# build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests
-# via CMake, so Rust, C/C++, Cython, and CMake files should all trigger it.
-# Extension-based patterns keep Python and docs out automatically; non-extension
-# build files (CMakeLists.txt, .sh, .supp) are listed separately.
-profiling_native:
-  extends:
-    - .profiling_native_base
-    - .retry_on_all_failure
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
-    - changes:
-        - .gitlab-ci.yml
-        # Native source files by extension (C, C++, Cython, CMake modules)
-        - ddtrace/internal/datadog/profiling/**/*.cpp
-        - ddtrace/internal/datadog/profiling/**/*.cc
-        - ddtrace/internal/datadog/profiling/**/*.h
-        - ddtrace/internal/datadog/profiling/**/*.hpp
-        - ddtrace/internal/datadog/profiling/**/*.pyx
-        - ddtrace/internal/datadog/profiling/**/*.cmake
-        - ddtrace/profiling/**/*.cpp
-        - ddtrace/profiling/**/*.h
-        - ddtrace/profiling/**/*.hpp
-        - ddtrace/profiling/**/*.pxd
-        - ddtrace/profiling/**/*.pyx
-        # Build/test config files (not matchable by extension alone)
-        - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
-        - ddtrace/internal/datadog/profiling/**/*.sh
-        - ddtrace/internal/datadog/profiling/**/*.supp
-        - ddtrace/profiling/**/CMakeLists.txt
-        # Rust source (build_standalone.sh compiles Rust first; CMake links
-        # against generated FFI headers from src/native/target/.../include/)
-        - src/native/**/*.rs
-        - src/native/**/*.toml
-        - src/native/**/*.txt
-        - src/native/**/Cargo.lock
-        # Standalone heap-gotter cdylib crate (opt-in build via setup.py)
-        - src/native_heap_gotter/**/*.rs
-        - src/native_heap_gotter/**/*.toml
-        - src/native_heap_gotter/**/Cargo.lock
-        # Top-level build config
-        - setup.py
-        - pyproject.toml
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
-        SANITIZER: ["safety", "thread", ""]
-      # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
-      # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,
-      # which is worth checking on a few versions without the slowdown on all runs.
-      # If needed, please add more versions to the list.
-      - PYTHON_VERSION: ["3.12", "3.15"]
-        SANITIZER: ["valgrind"]
+    python3 .gitlab/scripts/sccache-watchdog.py &
 
-test-dd-sts:
-  stage: tests
-  needs: []
-  tags: ["arch:amd64"]
+    # Resolve the current Bash job to avoid signaling a reused PID.
+
+    trap ''kill "%?sccache-watchdog.py" 2>/dev/null || true; wait "%?sccache-watchdog.py" 2>/dev/null || true'' EXIT
+
+    '
+  after_script:
+  - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
   when: manual
-  allow_failure: true
-  image: registry.ddbuild.io/images/mirror/ubuntu:24.04
-  id_tokens:
-    DD_STS_OIDC_TOKEN:
-      aud: dd-sts
-  script:
-    - apt-get update && apt-get install -y curl
-    - 'curl -s -o /dev/null -w "API key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab"'
-    - 'curl -s -o /dev/null -w "APP key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key"'
-
-package-oci:
-  needs:
-    - job: "package version"
-      artifacts: true
-    - job: "build linux"
-      artifacts: true
-
-configure_system_tests:
-  # The job only renders the child pipeline from environment variables and the
-  # system-tests checkout in its image. It reads no artifacts, so it does not
-  # wait for the image publish jobs. The system_tests trigger keeps those needs.
-  needs: []
-  variables:
-    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
-
-system_tests:
-  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
-
-# The reliability environment installs commit-scoped wheels from the CI index.
-deploy_to_reliability_env:
-  needs:
-    - job: "upload all"
-      artifacts: false
-
-# Clear the one-pipeline publishing-gate's `needs: []` so it falls back to
-# stage-based ordering and waits for all prior stages before publishing.
-publishing-gate:
-  needs: null
-  # The gate only echoes; without this, stage ordering downloads every prior job's artifacts.
+  allow_failure: false
+  timeout: 60m
   dependencies: []
-
-"llm validation":
+  resource_group: sdct-1443-macos-cache-measure
+macos cache baseline_1:
+  extends: .macos_measurement
+  stage: baseline_1
   variables:
-    LLMVAL_PLATFORM_PROJECT: "ddoghq/llm-validation-platform"  # canonical mirror; the DataDog/ mirror is stale (frozen ~v0.1.1)
-    LLMVAL_BASE_REF: "main"
-    LLMVAL_PLATFORM_REF: "68250345c9e358d4345545516f4c180e0370eb76"  # v0.1.5 (keep identical to the include ref above)
-
+    EXT_CACHE_ENABLED: '1'
+macos cache changed_1:
+  extends: .macos_measurement
+  stage: changed_1
+  variables:
+    EXT_CACHE_ENABLED: '0'
+macos cache changed_2:
+  extends: .macos_measurement
+  stage: changed_2
+  variables:
+    EXT_CACHE_ENABLED: '0'
+macos cache baseline_2:
+  extends: .macos_measurement
+  stage: baseline_2
+  variables:
+    EXT_CACHE_ENABLED: '1'
