@@ -38,9 +38,12 @@ its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
 Products own subscriber activation. Integrations emit events without importing product
-bundle declarations or registering subscriber classes. Tracing product startup restores
-its web bundle only when its module is already loaded; tracing's existing subscriber
-initialization activates it on first import, including manual instrumentation. Do not unregister
+bundle declarations or registering subscriber classes. Tracing product startup and normal
+global tracer initialization use the same tracing-owned helper to activate all declared
+bundles, including when `DD_TRACE_ENABLED=false` so existing integrations can finish
+their spans without enabling tracing. Manual instrumentation does not need to start
+the product manager.
+Importing the subscriber package alone does not activate the web bundle. Do not unregister
 shared subscribers when unpatching one integration, since other integrations and active
 requests still need their listeners.
 

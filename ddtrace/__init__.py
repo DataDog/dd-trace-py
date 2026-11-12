@@ -16,6 +16,7 @@ import ddtrace.internal.telemetry  # noqa: E402, F401
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
+from ._trace._registration import register_subscribers as _register_subscribers  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.compat import is_at_least_py  # noqa: E402
 from .internal.settings import env  # noqa: E402
@@ -28,6 +29,11 @@ from .version import __version__  # noqa: E402
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
+
+    # Manual instrumentation does not run the product manager. Publish the global
+    # tracer before loading subscribers that use it. Keep listeners available when
+    # tracing is disabled so existing integrations can still finish their spans.
+    _register_subscribers()
 
 # Initialize DSM support and register DSM handlers (if enabled)
 import ddtrace.internal.datastreams as _  # noqa: E402, F401
