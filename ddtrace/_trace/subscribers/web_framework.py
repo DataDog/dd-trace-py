@@ -21,13 +21,13 @@ from ddtrace.internal.span_bus import span_from_context
 log = get_logger(__name__)
 
 
-class WebFrameworkRequestSubscriber(TracingSubscriber):
+class WebFrameworkRequestSubscriber(TracingSubscriber[WebFrameworkRequestEvent]):
     """Shared tracing logic for web framework integrations."""
 
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> None:
         event: WebFrameworkRequestEvent = ctx.event
 
         if event.allow_default_resource:
@@ -45,7 +45,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[WebFrameworkRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: WebFrameworkRequestEvent = ctx.event
