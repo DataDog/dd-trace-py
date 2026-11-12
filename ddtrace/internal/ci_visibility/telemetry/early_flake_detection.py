@@ -19,7 +19,7 @@ class EARLY_FLAKE_DETECTION_TELEMETRY(str, Enum):
     TOTAL_REQUEST_MS = "known_tests.total_request_ms"
 
 
-def record_early_flake_detection_tests_count(early_flake_detection_count: int):
+def record_early_flake_detection_tests_count(early_flake_detection_count: int) -> None:
     log.debug("Recording early flake detection tests count telemetry: %s", early_flake_detection_count)
     telemetry_writer.add_distribution_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY,
@@ -28,7 +28,7 @@ def record_early_flake_detection_tests_count(early_flake_detection_count: int):
     )
 
 
-def record_early_flake_detection_pages_fetched(pages: int):
+def record_early_flake_detection_pages_fetched(pages: int) -> None:
     log.debug("Recording early flake detection pages fetched telemetry: %s", pages)
     telemetry_writer.add_distribution_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY,
@@ -37,7 +37,7 @@ def record_early_flake_detection_pages_fetched(pages: int):
     )
 
 
-def record_early_flake_detection_total_fetch_ms(total_ms: float):
+def record_early_flake_detection_total_fetch_ms(total_ms: float) -> None:
     log.debug("Recording early flake detection total fetch ms telemetry: %s", total_ms)
     telemetry_writer.add_distribution_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY,
@@ -46,7 +46,7 @@ def record_early_flake_detection_total_fetch_ms(total_ms: float):
     )
 
 
-def record_early_flake_detection_total_request_ms(total_ms: float):
+def record_early_flake_detection_total_request_ms(total_ms: float) -> None:
     log.debug("Recording early flake detection total request ms telemetry: %s", total_ms)
     telemetry_writer.add_distribution_metric(
         TELEMETRY_NAMESPACE.CIVISIBILITY,
