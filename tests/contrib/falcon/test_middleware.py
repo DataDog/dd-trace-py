@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.falcon.middleware import TraceMiddleware
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.utils import TracerTestCase
 
-from .app import get_app
+from .app.app import get_app
 from .test_suite import FalconTestCase
 
 

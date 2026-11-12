@@ -1,0 +1,61 @@
+id: threading-module-import
+message: Import threading objects from ddtrace.internal.threads instead of the threading module
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  # Stubs never run.
+  - "ddtrace/**/*.pyi"
+  # Modules that grab the references the rest of ddtrace uses.
+  - "ddtrace/internal/threads.py"
+  - "ddtrace/internal/locks.py"
+  - "ddtrace/internal/_unpatched.py"
+  # Modules that instrument the threading module itself.
+  - "ddtrace/profiling/collector/threading.py"
+  - "ddtrace/internal/coverage/**"
+  - "ddtrace/testing/**"
+  - "ddtrace/contrib/internal/pytorch/**"
+  - "ddtrace/contrib/internal/ray/**"
+  - "ddtrace/vendor/**"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+rule:
+  any:
+    - kind: import_statement
+      has:
+        any:
+          - kind: dotted_name
+            regex: "^threading$"
+          - kind: aliased_import
+            has:
+              field: name
+              regex: "^threading$"
+    - kind: import_from_statement
+      has:
+        field: module_name
+        regex: "^threading$"
+  not:
+    inside:
+      pattern: |
+        if TYPE_CHECKING:
+          $$$
+      stopBy: end
+note: |
+  Module cloning (DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE, on by default when
+  gevent is installed) unloads threading after ddtrace has started. A module
+  that ddtrace imports later from one of its own background threads, e.g. when
+  remote configuration enables a product, imports threading again on that
+  thread. On Python < 3.13 that makes it the main thread, and the interpreter
+  waits on it forever at exit.
+
+  ddtrace.internal.threads holds references to the threading objects ddtrace
+  needs from the copy ddtrace was loaded with. Add any that are missing there.
+  Imports needed only for type annotations can go under TYPE_CHECKING.
+
+  Before:
+    import threading
+    thread = threading.current_thread()
+
+  After:
+    from ddtrace.internal.threads import current_thread
+    thread = current_thread()

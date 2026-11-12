@@ -823,24 +823,24 @@ class TraceExporterBuilder:
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
-        Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
+        Set the OTLP endpoint for trace export.
         When set, traces are sent to this endpoint instead of the Datadog agent.
         The host language is responsible for resolving the endpoint from its own
         configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
-        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        :param url: The full URL of the OTLP endpoint.
         """
         ...
     def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
         """
-        Select the OTLP export protocol: "http/json" or "http/protobuf".
-        Any other value raises ValueError.
-        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
+        Select the OTLP export protocol: "grpc", "http/json", or "http/protobuf".
+        Any other value raises ValueError. gRPC supports plaintext endpoints only.
+        :param protocol: The OTLP protocol.
         """
         ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
-        Set additional HTTP headers for OTLP trace export requests.
-        :param headers: A list of (key, value) header pairs.
+        Set additional metadata for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs. gRPC metadata keys must be lowercase.
         """
         ...
     def set_otlp_metrics_endpoint(self, url: str) -> TraceExporterBuilder:
@@ -1008,9 +1008,10 @@ class SerializationError(Exception):
     ...
 
 class ffe:
-    """
-    Native Feature Flags and Experimentation module.
-    """
+    """Native Feature Flags and Experimentation module."""
+
+    @staticmethod
+    def get_evaluator_capabilities() -> list[str]: ...
 
     class FlagType(Enum):
         String = ...
@@ -1058,6 +1059,8 @@ class ffe:
         def do_log(self) -> bool: ...
         @property
         def serial_id(self) -> Optional[int]: ...
+        @property
+        def features(self) -> Optional[tuple[tuple[str, Union[str, float, bool], tuple[str, ...]], ...]]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
@@ -1174,7 +1177,9 @@ class SpanData:
     ) -> _SpanDataT: ...
     def _context_for_child(self) -> Context: ...
     def _set_sampling_decision_maker(self, sampling_mechanism: int) -> str: ...
-    def _override_sampling_decision(self, decision: Optional[Union[int, float]]) -> None: ...
+    def _override_sampling_decision(
+        self, decision: Optional[Union[int, float]], sampling_mechanism: int = 4
+    ) -> None: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
@@ -1307,6 +1312,7 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def uuid4() -> str: ...
 def process_metrics() -> tuple[int, int, int, int, int, int]:
     """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
 
@@ -1318,6 +1324,27 @@ def process_metrics() -> tuple[int, int, int, int, int, int]:
 
 def total_memory_bytes() -> int:
     """Return total physical RAM plus swap, in bytes."""
+    ...
+
+def list_distributions(entry: str) -> list[tuple[str, str]]:
+    """List the metadata directories under one sys.path entry, a directory or a zip archive.
+
+    Only the entry is listed; no metadata is read.
+
+    :return: ``(normalized_name, directory)`` pairs in ``importlib.metadata`` lookup order, with
+        names normalized as ``importlib.metadata`` does, using underscores as separators.
+    :raises RuntimeError: If the listing fails unexpectedly; never ``PanicException``.
+    """
+    ...
+
+def read_distribution(entry: str, directory: str) -> Optional[tuple[Optional[str], Optional[str]]]:
+    """Read the name and version of one metadata directory returned by ``list_distributions``.
+
+    :return: ``(name, version)``, either of which is ``None`` when missing, as with
+        ``importlib.metadata``; or ``None`` if the distribution is gone.
+    :raises ValueError: If the metadata cannot be read or decoded.
+    :raises RuntimeError: If the read fails unexpectedly; never ``PanicException``.
+    """
     ...
 
 def scan_distributions(
@@ -1553,8 +1580,11 @@ class RemoteConfigReader:
         polls.
         """
         ...
-    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+    def read(self, enabled_products: list[str]) -> Optional[list[RemoteConfigChange]]:
         """Return the changes since the last read (removals first).
+
+        None means no consistent snapshot could be read (e.g. the origin was
+        compacting the shared memory); the next read retries from the same state.
 
         ``enabled_products`` are the wire names the caller currently subscribes
         to; configs for other products are withheld so they are re-emitted once
@@ -1609,8 +1639,20 @@ class RemoteConfigClient:
     ) -> None:
         """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
         ...
+    def fetch(
+        self, products: list[RemoteConfigProduct], extra_services: list[str]
+    ) -> Optional[list[RemoteConfigChange]]:
+        """Perform a single fetch against the agent and return the per-poll changes.
+
+        None means the agent replied that nothing changed.
+        """
+        ...
     def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
-        """Perform a single fetch against the agent and return the per-poll changes."""
+        """Like fetch, but returns no changes rather than None when nothing changed.
+
+        Kept for the callers that expect a list, such as test harnesses outside
+        this repository.
+        """
         ...
     def set_config_state(self, path: str, error: Optional[str] = None) -> None:
         """Acknowledge (``error=None``) or report an error for an applied config."""

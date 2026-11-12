@@ -17,12 +17,12 @@ import os
 import random
 import re
 import socket
-import threading
 import time
 from typing import Any
 from typing import Callable
 from typing import Optional
 from urllib.parse import parse_qs
+from urllib.parse import unquote_plus
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -31,7 +31,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
+from ddtrace.internal.openfeature._native import DEPENDENT_FLAG_VARIANT_KEY_V1
+from ddtrace.internal.openfeature._native import get_evaluator_capabilities
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import retry
@@ -144,7 +147,17 @@ class AgentlessConfigurationSource(PeriodicService):
         # must carry it.
         parts = urlsplit(endpoint)
         self._conn_url = urlunsplit((parts.scheme, parts.netloc, "/", "", ""))
-        self._request_target = urlunsplit(("", "", parts.path, parts.query, "")) or "/"
+        # Negotiate once for the loaded evaluator, keeping conditional polls on
+        # the same URL variant. Without support, preserve the configured query,
+        # including an explicitly supplied capability parameter, as Node.js does.
+        query = parts.query
+        if DEPENDENT_FLAG_VARIANT_KEY_V1 in get_evaluator_capabilities():
+            capability_param = "cap_dependent-flags-variant-key"
+            items = query.split("&") if query else []
+            items = [item for item in items if unquote_plus(item.partition("=")[0]) != capability_param]
+            items.append(capability_param + "=v1")
+            query = "&".join(items)
+        self._request_target = urlunsplit(("", "", parts.path, query, "")) or "/"
         # The environment the endpoint is actually asked for. A custom endpoint does
         # not receive DD_ENV unless its own URL carries dd_env.
         self._requested_env = parse_qs(parts.query).get("dd_env", [None])[0]
@@ -169,7 +182,7 @@ class AgentlessConfigurationSource(PeriodicService):
         # to unblock the worker thread mid-request; see _cancel_in_flight_request.
         # The lock keeps the shutdown thread from touching a connection the worker
         # is concurrently replacing or closing.
-        self._conn_lock = threading.Lock()
+        self._conn_lock = Lock()
         self._in_flight_conn: Optional[Any] = None
 
     # -- scheduling ---------------------------------------------------------

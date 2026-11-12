@@ -70,7 +70,6 @@ repository.datadog.yml              @DataDog/python-guild
 sgconfig.yml                        @DataDog/python-guild
 static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
-.circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
 .github/                            @DataDog/python-guild  @DataDog/apm-core-python
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
@@ -203,9 +202,11 @@ ddtrace/contrib/internal/trio/               @DataDog/apm-core-python @DataDog/a
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
 ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
+ddtrace/internal/_libddwaf_platform.py @DataDog/apm-core-python @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
 ddtrace/internal/sca/               @DataDog/asm-python
+ddtrace/internal/security/          @DataDog/asm-python
 ddtrace/internal/settings/aiguard.py         @DataDog/asm-python
 ddtrace/internal/settings/appsec_telemetry.py    @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
@@ -214,6 +215,7 @@ tests/aiguard/                      @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/contrib/trio                  @DataDog/apm-core-python @DataDog/asm-python
+tests/internal/test_libddwaf_platform.py @DataDog/apm-core-python @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 # scripts
 scripts/iast/*                      @DataDog/asm-python
@@ -249,6 +251,8 @@ src/native/crashtracker*                     @DataDog/profiling-python @DataDog/
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
+ddtrace/contrib/internal/aws_sdk_bedrock_runtime/              @DataDog/ml-observability
+tests/contrib/aws_sdk_bedrock_runtime/                        @DataDog/ml-observability
 ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
 ddtrace/contrib/internal/langchain                            @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock.py         @DataDog/ml-observability
@@ -343,7 +347,6 @@ ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry/thread_context.py   @DataDog/apm-sdk-capabilities @DataDog/asm-python @DataDog/profiling-python
-ddtrace/opentracer/                                @DataDog/apm-sdk-capabilities
 ddtrace/propagation/                               @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_opentelemetry.py        @DataDog/apm-sdk-capabilities
 
@@ -353,6 +356,7 @@ ddtrace/internal/metrics.py                        @DataDog/apm-sdk-capabilities
 ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-capabilities
 ddtrace/runtime/                                   @DataDog/apm-sdk-capabilities
 ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities
+ddtrace/internal/container.py                      @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_otel_remapper.py        @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/env.py                   @DataDog/apm-sdk-capabilities
 scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities
@@ -417,6 +421,12 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities @DataDog/a
 # product team owns it; the guild owns it like the other shared test tooling above. Kept
 # below the ASM globs so a future tests/**/* rule naming a product cannot claim it.
 tests/standalone/                       @DataDog/python-guild
+
+# Package-split API inventories
+.agents/skills/package-split/           @DataDog/python-guild @DataDog/apm-core-python
+scripts/package-split                   @DataDog/python-guild @DataDog/apm-core-python
+scripts/package_split/                  @DataDog/python-guild @DataDog/apm-core-python
+tests/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
 
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python

@@ -11,7 +11,6 @@ from typing import Union
 
 from ddtrace.internal import _service_state
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -612,10 +611,14 @@ class Config:
         self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
         self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = (
-            _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
-            and validate_and_report_otel_metrics_exporter_enabled()
-        )
+        # Validate OTEL_METRICS_EXPORTER at most once, so its warnings and telemetry are not duplicated.
+        runtime_metrics_enabled = _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
+        otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        otel_metrics_exporter_enabled = (
+            runtime_metrics_enabled or otel_metrics_enabled
+        ) and validate_and_report_otel_metrics_exporter_enabled()
+        # An explicit OTEL_METRICS_EXPORTER=none also disables runtime metrics.
+        self._runtime_metrics_enabled = runtime_metrics_enabled and otel_metrics_exporter_enabled
         self._runtime_metrics_runtime_id_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
         )
@@ -692,12 +695,7 @@ class Config:
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        trace_compute_stats_default = (
-            in_gcp_function() or in_azure_function() or is_at_least_py(3, 14) or agentless.enabled
-        )
-        self._trace_compute_stats = _get_config(
-            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool)
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
         self._trace_stats_additional_tags = _get_config(
             "DD_TRACE_STATS_ADDITIONAL_TAGS",
@@ -778,10 +776,7 @@ class Config:
                     1,
                     (("config_datadog", "dd_trace_span_attribute_schema"),),
                 )
-        self._otel_metrics_enabled = (
-            _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
-            and validate_and_report_otel_metrics_exporter_enabled()
-        )
+        self._otel_metrics_enabled = otel_metrics_enabled and otel_metrics_exporter_enabled
         self._otel_logs_enabled = _get_config(
             "DD_LOGS_OTEL_ENABLED",
             False,

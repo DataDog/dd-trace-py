@@ -153,6 +153,15 @@ The following environment variables are supported:
 - ``OTEL_{METRICS,LOGS}_EXPORTER``
   This value defaults to ``otlp``. We can gauge the prevalence of other exporters by observing other values, such as ``prometheus``, ``console``, or ``none``.
 
+- ``OTEL_TRACES_EXPORTER``
+  Set this to ``otlp`` to export traces using OTLP instead of the Datadog Agent protocol.
+
+- Exporter lists in ``OTEL_{TRACES,METRICS,LOGS}_EXPORTER``
+  ddtrace does not export a signal to several exporters at once, but a comma-separated list falls
+  back gracefully to its supported entry: ``otlp`` anywhere in the list selects OTLP export;
+  otherwise ``none`` disables the signal. Unsupported entries are ignored with a warning. An empty
+  value, or a list without ``otlp`` or ``none``, behaves like an unset one.
+
 - ``OTEL_METRIC_EXPORT_INTERVAL``
   Interval (in milliseconds) between metric exports.
 
@@ -165,18 +174,28 @@ The following environment variables are supported:
   Tracking this configuration helps understand how many customers prefer Cumulative Temporality and why.
 
 - ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_ENDPOINT``
-  When metrics export is enabled with ``DD_METRICS_OTEL_ENABLED=true``, this defines the target endpoint for metrics export (default: ``http://<agent_hostname>:4317``).
+  Defines the target endpoint for the corresponding OTLP signal. The default is
+  ``http://<agent_hostname>:4318/v1/metrics`` or ``http://<agent_hostname>:4318/v1/logs``
+  for HTTP, and ``http://<agent_hostname>:4317`` for gRPC.
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_HEADERS``
-  Optional headers for metrics or logs export in JSON format (default: ``{}``).
+- ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``
+  Defines the target endpoint for OTLP traces. The default is ``http://<agent_hostname>:4317``
+  for gRPC and ``http://<agent_hostname>:4318/v1/traces`` for HTTP.
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_TIMEOUT``
-  Request timeout in milliseconds for metrics or logs export (default: ``10000``).
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_HEADERS``
+  Optional comma-separated key-value pairs for OTLP export (default: empty).
 
-- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS}_PROTOCOL``
-  OTLP protocol used for metrics or logs. Supported protocols are ``grpc`` (default) and ``http/protobuf``.
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_TIMEOUT``
+  Request timeout in milliseconds for OTLP export (default: ``10000``).
 
-**Important:** Metrics and logs are exported using the OTLP protocol and can be routed to any OTLP-compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details. Traces, however, use Datadog’s custom MsgPack format and require a Datadog Agent.
+- ``OTEL_EXPORTER_OTLP_{METRICS,LOGS,TRACES}_PROTOCOL``
+  OTLP protocol used for export. All signals default to ``http/protobuf``. Metrics and logs also
+  support ``grpc``; traces also support ``grpc`` and ``http/json``. Signal-specific protocol
+  configuration takes precedence over the global ``OTEL_EXPORTER_OTLP_PROTOCOL`` setting. Set
+  ``OTEL_EXPORTER_OTLP_PROTOCOL=grpc`` to use a gRPC collector. gRPC
+  trace export currently requires an ``http://`` endpoint; ``https://`` is not supported.
+
+OTLP signals can be routed to any compatible receiver. See `Send OpenTelemetry Data to Datadog <https://docs.datadoghq.com/opentelemetry/setup/>`_ for more details.
 
 
 Trace Mapping

@@ -6,13 +6,12 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
-from ddtrace.contrib.internal.stream_handler import AsyncStreamHandler
-from ddtrace.contrib.internal.stream_handler import StreamHandler
-from ddtrace.contrib.internal.stream_handler import make_traced_stream
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
-from ddtrace.llmobs._integrations import LlamaIndexIntegration
+from ddtrace.internal.utils.streaming import AsyncStreamHandler
+from ddtrace.internal.utils.streaming import StreamHandler
+from ddtrace.internal.utils.streaming import make_traced_stream
 
 
 if TYPE_CHECKING:
@@ -28,7 +27,6 @@ class _BaseLlamaIndexStreamHandler:
     which provide the attributes below via BaseStreamHandler.__init__.
     """
 
-    integration: LlamaIndexIntegration
     primary_span: Span
     request_args: tuple
     request_kwargs: dict[str, Any]
@@ -63,16 +61,19 @@ class LlamaIndexAsyncStreamHandler(_BaseLlamaIndexStreamHandler, AsyncStreamHand
 
 
 def handle_streamed_response(
-    integration: LlamaIndexIntegration,
     resp: Any,
     args: tuple,
     kwargs: dict[str, Any],
     ctx: core.ExecutionContext,
 ) -> Any:
-    """Wrap a sync or async LlamaIndex stream for tracing."""
+    """Wrap a sync or async LlamaIndex stream for tracing.
+
+    The handlers only need the context to dispatch the deferred ended event, so the
+    integration slot BaseStreamHandler keeps for other integrations goes unused.
+    """
     handler: Union[LlamaIndexStreamHandler, LlamaIndexAsyncStreamHandler]
     if inspect.isasyncgen(resp):
-        handler = LlamaIndexAsyncStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx)
+        handler = LlamaIndexAsyncStreamHandler(None, span_from_context(ctx), args, kwargs, ctx=ctx)
     else:
-        handler = LlamaIndexStreamHandler(integration, span_from_context(ctx), args, kwargs, ctx=ctx)
+        handler = LlamaIndexStreamHandler(None, span_from_context(ctx), args, kwargs, ctx=ctx)
     return make_traced_stream(resp, handler)
