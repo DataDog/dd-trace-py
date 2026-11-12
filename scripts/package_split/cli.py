@@ -1,7 +1,4 @@
-"""Command-line interface for the package-split API inventories.
-
-Invoked by the thin ``scripts/package-split`` wrapper.
-"""
+"""Command-line interface for the package-split API inventories and gates."""
 
 from __future__ import annotations
 
@@ -59,6 +56,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     for command in subparsers.choices.values():
         command.add_argument("--output", default=argparse.SUPPRESS)
+    gate_parser = subparsers.add_parser("gate", help="run a registered validation gate")
+    gate_parser.add_argument("gate_name", help="gate name (from gates.REGISTRY)")
+    gate_parser.add_argument("--manifest", help="package-contract.toml path")
+    gate_parser.add_argument("--base", default="origin/main", help="base revision")
+    gate_parser.add_argument("--head", default="HEAD", help="head revision")
+    gate_parser.add_argument("--output", default=argparse.SUPPRESS, help="directory for gate evidence")
+
     return parser
 
 
@@ -201,7 +205,50 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.print_help(sys.stderr)
         return 2
     try:
+        if args.command == "gate":
+            _run_gate(args.gate_name, args)
+            return 0
         return _api_usage_command(args) if args.command == "api-usage" else _api_surface_command(args)
     except (OSError, ValueError, SyntaxError) as exc:
         print("package-split: %s failed: %s" % (args.command, exc), file=sys.stderr)
         return 2
+
+
+def _run_gate(gate_name: str, args: argparse.Namespace) -> None:
+    """Run a registered gate with the parsed manifest, args, and report context.
+
+    Constructs the documented gate context (manifest, args, report), invokes
+    the gate through the REGISTRY, finalizes the evidence report, and exits
+    with the report's status code so CI cannot accept failed validation.
+    """
+    from . import __version__
+    from .evidence import GateReport
+    from .gates import REGISTRY
+    from .manifest import ManifestError
+    from .manifest import load_manifest
+
+    gate = REGISTRY.get(gate_name)
+    if gate is None:
+        print(f"package-split: unknown gate '{gate_name}' (registered: {sorted(REGISTRY)})", file=sys.stderr)
+        sys.exit(2)
+
+    # Construct the gate context: manifest, report, and the full args namespace.
+    # The gate contract is run_gate(manifest, args, report).
+    manifest_path = Path(args.manifest) if args.manifest else Path("package-contract.toml")
+    try:
+        manifest = load_manifest(manifest_path)
+    except ManifestError as exc:
+        print(f"package-split: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    report = GateReport(gate_name, manifest_path, __version__)
+    try:
+        gate(manifest, args, report)
+    except (OSError, ValueError, SyntaxError) as exc:
+        print(f"package-split: gate '{gate_name}' failed: {exc}", file=sys.stderr)
+        report.error = str(exc)
+        report.finish(Path(args.output) / gate_name)
+        sys.exit(2)
+
+    report.finish(Path(args.output) / gate_name)
+    sys.exit(report.exit_code)

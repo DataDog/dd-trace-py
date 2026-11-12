@@ -41,7 +41,10 @@ ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 # Guild
 # Repository tooling defaults. Domain-specific rules below take precedence.
 AGENTS.md                           @DataDog/python-guild
+package-contract.toml               @DataDog/python-guild
+package-freeze.toml                 @DataDog/python-guild
 .agents/                            @DataDog/python-guild
+.agents/skills/package-split/       @DataDog/python-guild @DataDog/apm-core-python
 .claude/                            @DataDog/python-guild
 .llm-validation/                    @DataDog/python-guild
 .cursor/                            @DataDog/python-guild
@@ -422,12 +425,6 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities @DataDog/a
 # below the ASM globs so a future tests/**/* rule naming a product cannot claim it.
 tests/standalone/                       @DataDog/python-guild
 
-# Package-split API inventories
-.agents/skills/package-split/           @DataDog/python-guild @DataDog/apm-core-python
-scripts/package-split                   @DataDog/python-guild @DataDog/apm-core-python
-scripts/package_split/                  @DataDog/python-guild @DataDog/apm-core-python
-tests/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
-
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
@@ -454,3 +451,7 @@ scripts/integration_registry/registry.yaml      @DataDog/apm-idm-python @DataDog
 .gitlab/benchmarks/slos/debugger-python.yml              @DataDog/debugger-python
 .gitlab/benchmarks/slos/feature-flagging-and-experimentation-sdk.yml @DataDog/feature-flagging-and-experimentation-sdk
 .gitlab/benchmarks/slos/ci-app-libraries.yml             @DataDog/ci-app-libraries
+
+scripts/package-split                   @DataDog/python-guild @DataDog/apm-core-python
+scripts/package_split/                  @DataDog/python-guild @DataDog/apm-core-python
+tests/package_split/                    @DataDog/python-guild @DataDog/apm-core-python
