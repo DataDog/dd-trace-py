@@ -55,6 +55,7 @@ components:
     - ddtrace/internal/debug.py
     - ddtrace/internal/dogstatsd.py
     - ddtrace/internal/forksafe.py
+    - ddtrace/internal/locks.py
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
     - ddtrace/internal/ipc.py

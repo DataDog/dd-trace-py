@@ -5,26 +5,12 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal.locks import Lock
+from ddtrace.internal.locks import RLock
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-# We try to import the stdlib locks from the _thread module, where they are
-# implemented in C for CPython for most platforms. If that fails, we fall back
-# to the threading module, which provides a pure Python implementation that
-# should work on all platforms. We also make sure to grab a reference to the
-# original lock classes, in case they get patched by monkey-patching libraries
-# like gevent.
-try:
-    from _thread import allocate_lock as Lock
-except ImportError:
-    from threading import Lock
-
-try:
-    from _thread import RLock
-except ImportError:
-    from threading import RLock
 
 
 __all__ = [
@@ -37,7 +23,8 @@ __all__ = [
 
 # Forking state management. This is a barrier to either prevent new threads
 # from being started while forking, or to allow a thread to be started
-# completely if a fork comes in the middle of it.
+# completely if a fork comes in the middle of it. The forksafe hooks are
+# serialized, so at most one fork is in progress at any time.
 _forking = False
 _forking_lock = Lock()
 

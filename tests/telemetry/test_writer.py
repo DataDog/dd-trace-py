@@ -768,6 +768,11 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
         "origin": "otel_env_var",
         "value": "true",
     }
+    assert configurations["DD_LOGS_OTEL_ENABLED"] == {
+        "name": "DD_LOGS_OTEL_ENABLED",
+        "origin": "otel_env_var",
+        "value": "true",
+    }
 
     env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
     tags = [m["tags"] for m in env_hiding_metrics]
@@ -778,8 +783,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     assert tags == [["config_opentelemetry:otel_unsupported_config"]]
 
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
-    tags = [m["tags"] for m in env_invalid_metrics]
-    assert tags == [["config_opentelemetry:otel_logs_exporter"]]
+    assert env_invalid_metrics == []
 
 
 def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):

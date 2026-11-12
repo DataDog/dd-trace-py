@@ -862,7 +862,6 @@ suites:
         DD_APPSEC_ENABLED: 'true'
         DD_IAST_ENABLED: 'false'
         DD_TRACE_AGENT_URL: http://testagent:9126
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
@@ -908,7 +907,6 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_WEAK_HASH_ALGORITHMS: NOTexist
         DD_TRACE_AGENT_URL: http://testagent:9126
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
@@ -966,8 +964,6 @@ suites:
     retry: 2
     matrix:
       command: pytest {cmdargs} tests/appsec/sca/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: sca
           dependencies: [jsonschema]

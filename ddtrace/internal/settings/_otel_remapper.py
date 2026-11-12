@@ -29,7 +29,7 @@ def _remap_otel_propagators(otel_value: str) -> Optional[str]:
     accepted_styles = []
     for style in otel_value.split(","):
         style = style.strip().lower()
-        if style in ["b3", "b3multi", "datadog", "tracecontext", "none"]:
+        if style in ["b3", "b3multi", "baggage", "datadog", "tracecontext", "none"]:
             if style not in accepted_styles:
                 accepted_styles.append(style)
         else:
@@ -73,6 +73,15 @@ def _remap_metrics_exporter(otel_value: str) -> Optional[str]:
     """Remaps the otel metrics exporter to ddtrace metrics exporter"""
     if otel_value == "none":
         return "False"
+    return None
+
+
+def _remap_logs_exporter(otel_value: str) -> Optional[str]:
+    """Remaps the otel logs exporter to ddtrace logs enabled"""
+    if otel_value == "none":
+        return "False"
+    if otel_value == "otlp":
+        return "True"
     return None
 
 
@@ -131,6 +140,7 @@ ENV_VAR_MAPPINGS: dict[str, tuple[str, Callable[[str], Optional[str]]]] = {
     "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLING_RULES", _remap_traces_sampler),
     "OTEL_TRACES_EXPORTER": ("DD_TRACE_ENABLED", _remap_traces_exporter),
     "OTEL_METRICS_EXPORTER": ("DD_RUNTIME_METRICS_ENABLED", _remap_metrics_exporter),
+    "OTEL_LOGS_EXPORTER": ("DD_LOGS_OTEL_ENABLED", _remap_logs_exporter),
     "OTEL_RESOURCE_ATTRIBUTES": ("DD_TAGS", _remap_otel_tags),
     "OTEL_SDK_DISABLED": ("DD_TRACE_OTEL_ENABLED", _remap_otel_sdk_config),
 }

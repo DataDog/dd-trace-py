@@ -6,6 +6,7 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.utils import set_http_exporter_marker
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
@@ -106,6 +107,11 @@ def _dd_metrics_exporter(otel_exporter: type[Any], protocol: str, encoding: str)
 
     class DDMetricsExporter(otel_exporter):
         """A custom OpenTelemetry Metrics exporter that adds telemetry metrics and debug logs."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            if protocol == "http":
+                set_http_exporter_marker(self)
 
         def export(self, metrics_data: Any, timeout_millis: Any, *args: Any, **kwargs: Any) -> Any:
             """Export metrics and queues telemetry metrics."""

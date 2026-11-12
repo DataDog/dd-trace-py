@@ -1554,8 +1554,11 @@ class RemoteConfigReader:
         polls.
         """
         ...
-    def read(self, enabled_products: list[str]) -> list[RemoteConfigChange]:
+    def read(self, enabled_products: list[str]) -> Optional[list[RemoteConfigChange]]:
         """Return the changes since the last read (removals first).
+
+        None means no consistent snapshot could be read (e.g. the origin was
+        compacting the shared memory); the next read retries from the same state.
 
         ``enabled_products`` are the wire names the caller currently subscribes
         to; configs for other products are withheld so they are re-emitted once
@@ -1610,8 +1613,20 @@ class RemoteConfigClient:
     ) -> None:
         """Replace the capabilities within ``mask`` by ``capabilities`` (can clear bits, unlike add_capabilities)."""
         ...
+    def fetch(
+        self, products: list[RemoteConfigProduct], extra_services: list[str]
+    ) -> Optional[list[RemoteConfigChange]]:
+        """Perform a single fetch against the agent and return the per-poll changes.
+
+        None means the agent replied that nothing changed.
+        """
+        ...
     def poll(self, products: list[RemoteConfigProduct], extra_services: list[str]) -> list[RemoteConfigChange]:
-        """Perform a single fetch against the agent and return the per-poll changes."""
+        """Like fetch, but returns no changes rather than None when nothing changed.
+
+        Kept for the callers that expect a list, such as test harnesses outside
+        this repository.
+        """
         ...
     def set_config_state(self, path: str, error: Optional[str] = None) -> None:
         """Acknowledge (``error=None``) or report an error for an applied config."""

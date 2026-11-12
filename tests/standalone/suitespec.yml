@@ -13,7 +13,5 @@ suites:
       - tests/aiguard/utils.py
     matrix:
       command: pytest {cmdargs} tests/standalone/
-      env:
-        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: standalone
