@@ -204,27 +204,27 @@ class TestContrib:
     def test_func_name(self):
         # check that func_name works on anything callable, not only funcs.
         assert "nothing" == some_function()
-        assert "tests.tracer.test_utils.some_function" == func_name(some_function)
+        assert "tests.internal.test_utils.some_function" == func_name(some_function)
 
         f = SomethingCallable()
         assert "something" == f()
-        assert "tests.tracer.test_utils.SomethingCallable" == func_name(f)
+        assert "tests.internal.test_utils.SomethingCallable" == func_name(f)
 
         assert f == f.me()
-        assert "tests.tracer.test_utils.me" == func_name(f.me)
+        assert "tests.internal.test_utils.me" == func_name(f.me)
         assert 3 == f.add(1, 2)
-        assert "tests.tracer.test_utils.add" == func_name(f.add)
+        assert "tests.internal.test_utils.add" == func_name(f.add)
         assert 42 == f.answer()
-        assert "tests.tracer.test_utils.answer" == func_name(f.answer)
+        assert "tests.internal.test_utils.answer" == func_name(f.answer)
 
-        assert "tests.tracer.test_utils.minus" == func_name(minus)
+        assert "tests.internal.test_utils.minus" == func_name(minus)
         assert 5 == minus_two(7)
         if sys.version_info >= (3, 10, 0):
             assert "functools.partial" == func_name(minus_two)
         else:
             assert "partial" == func_name(minus_two)
         assert 10 == plus_three(7)
-        assert "tests.tracer.test_utils.<lambda>" == func_name(plus_three)
+        assert "tests.internal.test_utils.<lambda>" == func_name(plus_three)
 
 
 @pytest.mark.parametrize(
