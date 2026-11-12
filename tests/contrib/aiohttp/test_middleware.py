@@ -905,3 +905,96 @@ async def test_cancelled_request_completes_without_response(test_spans, monkeypa
             assert span.finished
     finally:
         core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+async def test_response_metadata_survives_prepare_callback_failure(
+    test_spans, aiohttp_client, request_completed, nested
+):
+    from aiohttp import ServerDisconnectedError
+    from aiohttp import web
+
+    from ddtrace.internal import core
+
+    metadata = []
+
+    async def handler(request):
+        return web.Response(status=201, headers={"x-response-id": "retained"}, text="created")
+
+    async def fail_prepare(request, response):
+        raise RuntimeError("prepare callback failed")
+
+    def ended(ctx, exc_info):
+        event = ctx.event
+        metadata.append((event.response_status_code, event.response_headers, event.resource))
+
+    app = web.Application()
+    target = web.Application() if nested else app
+    target.router.add_post("/response/{name}", handler)
+    app.on_response_prepare.append(fail_prepare)
+    if nested:
+        trace_app(target)
+        app.add_subapp("/sub", target)
+    trace_app(app)
+    core.on("context.ended.web.request", ended)
+    try:
+        async with await aiohttp_client(app) as client:
+            with pytest.raises(ServerDisconnectedError):
+                await client.post("/sub/response/test" if nested else "/response/test")
+            contexts = [await request_completed() for _ in range(2 if nested else 1)]
+        resource = "POST /sub/response/{name}" if nested else "POST /response/{name}"
+        assert len(metadata) == len(contexts)
+        for status, headers, completed_resource in metadata:
+            assert status == 201
+            assert headers["x-response-id"] == "retained"
+            assert completed_resource == resource
+        for ctx in contexts:
+            assert ctx._event is None
+            assert ctx.get_item("aiohttp.response") is None
+            span = ctx.get_item("_inner_span")
+            assert span.finished
+            assert span.resource == resource
+            assert_span_http_status_code(span, 201)
+    finally:
+        core.reset_listeners("context.ended.web.request", ended)
+
+
+@pytest.mark.parametrize("finish_on_prepare", [False, True])
+@pytest.mark.parametrize("prepare_in_handler", [False, True])
+async def test_prepared_response_overrides_deferred_fallback(
+    test_spans, monkeypatch, finish_on_prepare, prepare_in_handler
+):
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.aiohttp import middlewares
+
+    monkeypatch.setitem(config.aiohttp, "disable_stream_timing_for_mem_leak", finish_on_prepare)
+    app = web.Application()
+    trace_app(app)
+    request = make_mocked_request("GET", "/", app=app)
+    request.match_info.route.resource.get_info.return_value = {"path": "/"}
+    request.match_info.route.resource.canonical = "/"
+    owner = asyncio.get_running_loop().create_future()
+    monkeypatch.setattr(middlewares, "current_task", lambda: owner)
+    returned_response = web.Response(status=201)
+    prepared_response = web.Response(status=202)
+
+    async def handler(request):
+        if prepare_in_handler:
+            await middlewares.on_prepare(request, prepared_response)
+        return returned_response
+
+    wrapped = await trace_middleware(app, handler)
+    assert await wrapped(request) is returned_response
+    if not prepare_in_handler:
+        await middlewares.on_prepare(request, prepared_response)
+    owner.set_result(None)
+    await asyncio.sleep(0)
+    ctx = request[middlewares.REQUEST_EXECUTION_CONTEXT_KEY]
+    assert ctx._event is None
+    assert ctx.get_item("aiohttp.response") is None
+    span = ctx.get_item("_inner_span")
+    assert span.finished
+    assert_span_http_status_code(span, 202)

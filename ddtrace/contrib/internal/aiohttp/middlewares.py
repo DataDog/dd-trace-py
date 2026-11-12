@@ -109,6 +109,9 @@ async def trace_middleware(
                     response = _blocked_response(ctx, request, blocking.args[0])
                 finally:
                     core.dispatch("aiohttp.request.end", (ctx, (None, None, None)))
+                # An earlier preparation callback may fail before on_prepare records the response.
+                if not ctx._end_event_dispatched and ctx.get_item("aiohttp.response") is None:
+                    ctx.set_item("aiohttp.response", response)
                 return response
             except Exception as e:
                 # With OTel semantics an HTTP exception such as HTTPNotFound only fails the span
