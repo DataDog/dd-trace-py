@@ -11,11 +11,11 @@ from ddtrace.internal import core
 from ddtrace.internal.span_bus import span_from_context
 
 
-class AwsDurableExecuteSubscriber(TracingSubscriber):
+class AwsDurableExecuteSubscriber(TracingSubscriber[AwsDurableExecuteEvent]):
     event_names = (AwsDurableEvents.EXECUTE.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[AwsDurableExecuteEvent]) -> None:
         event: AwsDurableExecuteEvent = ctx.event
         if event.execution_arn:
             span_from_context(ctx)._set_attribute(aws_durable.TAG_EXECUTION_ARN, event.execution_arn)
@@ -27,7 +27,7 @@ class AwsDurableExecuteSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[AwsDurableExecuteEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: AwsDurableExecuteEvent = ctx.event
@@ -40,11 +40,11 @@ class AwsDurableExecuteSubscriber(TracingSubscriber):
         span_from_context(ctx)._set_attribute(aws_durable.TAG_INVOCATION_STATUS, status)
 
 
-class AwsDurableInvokeSubscriber(TracingSubscriber):
+class AwsDurableInvokeSubscriber(TracingSubscriber[AwsDurableInvokeEvent]):
     event_names = (AwsDurableEvents.INVOKE.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[AwsDurableInvokeEvent]) -> None:
         event: AwsDurableInvokeEvent = ctx.event
         span_from_context(ctx)._set_attribute(aws_durable.TAG_INVOKE_FUNCTION_NAME, event.invoke_function_name)
         if event.name is not None:
@@ -53,7 +53,7 @@ class AwsDurableInvokeSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[AwsDurableInvokeEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: AwsDurableInvokeEvent = ctx.event
@@ -63,11 +63,11 @@ class AwsDurableInvokeSubscriber(TracingSubscriber):
             span_from_context(ctx)._set_attribute(aws_durable.TAG_ID, event.id)
 
 
-class AwsDurableOperationSubscriber(TracingSubscriber):
+class AwsDurableOperationSubscriber(TracingSubscriber[AwsDurableOperationEvent]):
     event_names = (AwsDurableEvents.OPERATION.value,)
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext[AwsDurableOperationEvent]) -> None:
         event: AwsDurableOperationEvent = ctx.event
         if event.name is not None:
             span_from_context(ctx)._set_attribute(aws_durable.TAG_NAME, event.name)
@@ -75,7 +75,7 @@ class AwsDurableOperationSubscriber(TracingSubscriber):
     @classmethod
     def on_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[AwsDurableOperationEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: AwsDurableOperationEvent = ctx.event
