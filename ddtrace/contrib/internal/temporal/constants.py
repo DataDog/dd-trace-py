@@ -46,6 +46,7 @@ COMMON_ATTRIBUTE_MAP: tuple[tuple[str, str], ...] = (
     ("signal", SpanAttributes.SIGNAL_NAME),
     ("query", SpanAttributes.QUERY_TYPE),
     ("activity", SpanAttributes.ACTIVITY_TYPE),
+    ("activity_id", SpanAttributes.ACTIVITY_ID),
     ("child_workflow_id", SpanAttributes.CHILD_WORKFLOW_ID),
     ("workflow_id", SpanAttributes.EXTERNAL_WORKFLOW_ID),
     ("service", SpanAttributes.NEXUS_SERVICE),
