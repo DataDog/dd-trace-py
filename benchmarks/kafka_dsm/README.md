@@ -9,6 +9,8 @@ unkeyed messages (`b"x" * 1024`, headers `key0..key4` -> `value0..value4`) + `fl
 consume them with a synchronous `commit(msg)` every `COMMIT_EVERY` messages and after the last
 one; (untimed) `consumer.close()`, then sample process RSS. Headers are a dict (ddtrace's DSM hook
 skips list/tuple on older ddtrace versions). Duration per iteration = produce + consume.
+Group join, `flush()` and consume each fail after 60 s instead of hanging. After the last
+iteration (also on failure) the run's topics and consumer groups are deleted, best effort.
 
 ## Run
 
@@ -73,5 +75,6 @@ only per-iteration values under TimeItSharp metric names and maps `runtime.dotne
 
 Per-iteration `produce_ms` / `consume_ms` / `rss_bytes` go to a sibling file: `TIMEIT_OUTPUT=<name>.json`
 also writes `<name>.runs.json` in the same directory (not the canonical schema; consumers globbing
-`*.json` must skip `*.runs.json`). `process.rss_bytes.median` is the lower median of the samples.
+`*.json` must skip `*.runs.json`). Its `env` holds only an allowlist of non-secret `DD_*` settings
+(`RECORDED_ENV` in `bench.py`). `process.rss_bytes.median` is the lower median of the samples.
 RSS is the current RSS (`/proc/self/status` `VmRSS`; `ps` where `/proc` is missing, e.g. macOS).

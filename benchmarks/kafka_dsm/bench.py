@@ -8,6 +8,8 @@ Each iteration creates a fresh single-partition topic and consumer group, then t
 (1000 unkeyed 1024-byte messages with 5 headers + flush) and consume (1000 messages, sync commit
 every COMMIT_EVERY messages and after the last one). Topic creation, client construction, group
 join and consumer.close() are untimed. Process RSS is sampled after each timed iteration.
+Group join, flush and consume each fail after TIMEOUT_S. The run's topics and groups are deleted
+at exit.
 With PROFILE=1 cProfile runs only during the timed phases of the timed (non-warmup) iterations.
 """
 
@@ -53,6 +55,20 @@ PROFILE_OUTPUT = os.environ.get("PROFILE_OUTPUT", "profile")
 PROFILE_TOP_N = int(os.environ.get("PROFILE_TOP_N", "40"))
 MESSAGES = 1000
 RUN_ID = uuid.uuid4().hex[:8]
+# Bounds each blocking wait (group join, flush, consume) so a broker problem fails fast.
+TIMEOUT_S = 60
+# Non-secret DD_* settings copied into the runs file; never dump the whole environment.
+RECORDED_ENV = (
+    "DD_DATA_STREAMS_ENABLED",
+    "DD_ENV",
+    "DD_SERVICE",
+    "DD_TRACE_AGENT_URL",
+    "DD_TRACE_ENABLED",
+    "DD_TRACE_STARTUP_LOGS",
+)
+# Topics and groups created by this run, deleted once all iterations are done.
+created_topics = []
+created_groups = []
 
 
 # "localhost" resolves to ::1 first, where Docker's published port refuses connections; every
@@ -78,47 +94,60 @@ def run_iteration(index, profiler):
     admin = AdminClient(CLIENT_CONFIG)
     for future in admin.create_topics([NewTopic(topic, 1, 1)]).values():
         future.result()
+    created_topics.append(topic)
 
     # Setup (untimed): producer + consumer, join the group.
     producer = Producer(CLIENT_CONFIG)
     # Connect and fetch metadata now so the first timed produce() does not pay for it.
     producer.list_topics(topic, timeout=10)
+    group = f"group-{RUN_ID}-{index}"
     consumer = Consumer(
         {
             **CLIENT_CONFIG,
-            "group.id": f"group-{RUN_ID}-{index}",
+            "group.id": group,
             "auto.offset.reset": "earliest",
             "enable.auto.commit": False,
         }
     )
-    consumer.subscribe([topic])
-    while not consumer.assignment():
-        consumer.poll(0.1)
-    # Dict (map form): older ddtrace DSM hooks skip list/tuple headers.
-    headers = {f"key{k}": f"value{k}".encode() for k in range(5)}
-    payload = b"x" * 1024
+    created_groups.append(group)
+    try:
+        consumer.subscribe([topic])
+        deadline = time.monotonic() + TIMEOUT_S
+        while not consumer.assignment():
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"No partition assigned for {topic} within {TIMEOUT_S}s")
+            consumer.poll(0.1)
+        # Dict (map form): older ddtrace DSM hooks skip list/tuple headers.
+        headers = {f"key{k}": f"value{k}".encode() for k in range(5)}
+        payload = b"x" * 1024
 
-    if profiler is not None:
-        profiler.enable()
-    t0 = time.perf_counter()
-    for _ in range(MESSAGES):
-        producer.produce(topic, value=payload, headers=headers)
-        producer.poll(0)
-    producer.flush()
-    t1 = time.perf_counter()
-    received = 0
-    while received < MESSAGES:
-        msg = consumer.poll(1.0)
-        if msg is None or msg.error():
-            continue
-        received += 1
-        if received % COMMIT_EVERY == 0 or received == MESSAGES:
-            consumer.commit(msg, asynchronous=False)
-    t2 = time.perf_counter()
-    if profiler is not None:
-        profiler.disable()
-
-    consumer.close()  # Teardown (untimed)
+        if profiler is not None:
+            profiler.enable()
+        t0 = time.perf_counter()
+        for _ in range(MESSAGES):
+            producer.produce(topic, value=payload, headers=headers)
+            producer.poll(0)
+        undelivered = producer.flush(TIMEOUT_S)
+        t1 = time.perf_counter()
+        if undelivered:
+            raise TimeoutError(f"{undelivered} messages still undelivered after {TIMEOUT_S}s")
+        received = 0
+        deadline = time.monotonic() + TIMEOUT_S
+        while received < MESSAGES:
+            msg = consumer.poll(1.0)
+            if msg is None or msg.error():
+                # Deadline is checked only off the hot path, so it adds no per-message cost.
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"Received only {received}/{MESSAGES} messages within {TIMEOUT_S}s")
+                continue
+            received += 1
+            if received % COMMIT_EVERY == 0 or received == MESSAGES:
+                consumer.commit(msg, asynchronous=False)
+        t2 = time.perf_counter()
+        if profiler is not None:
+            profiler.disable()
+    finally:
+        consumer.close()  # Teardown (untimed); also frees the group if the iteration fails
     return (t1 - t0) * 1000, (t2 - t1) * 1000
 
 
@@ -130,10 +159,33 @@ def write_profile(profiler):
             pstats.Stats(profiler, stream=out).strip_dirs().sort_stats(sort_key).print_stats(PROFILE_TOP_N)
 
 
+def delete_created_resources():
+    """Best-effort, untimed cleanup so repeated runs do not pile up topics and groups."""
+    admin = AdminClient(CLIENT_CONFIG)
+    futures = []
+    if created_groups:
+        futures += admin.delete_consumer_groups(created_groups, request_timeout=TIMEOUT_S).items()
+    if created_topics:
+        timeouts = {"operation_timeout": TIMEOUT_S, "request_timeout": TIMEOUT_S}
+        futures += admin.delete_topics(created_topics, **timeouts).items()
+    for name, future in futures:
+        try:
+            future.result(timeout=TIMEOUT_S)
+        except Exception as e:
+            print(f"cleanup: could not delete {name}: {e}", file=sys.stderr)
+
+
 def main():
     if NUM_THREADS != 1:
         print("NUM_THREADS > 1 is not implemented", file=sys.stderr)
         sys.exit(2)
+    try:
+        run_benchmark()
+    finally:
+        delete_created_resources()
+
+
+def run_benchmark():
     for i in range(WARMUP):
         run_iteration(i, None)
 
@@ -187,7 +239,7 @@ def main():
                 "runs": runs,
                 "commit_every": COMMIT_EVERY,
                 "profile": PROFILE,
-                "env": {k: v for k, v in os.environ.items() if k.startswith("DD_")},
+                "env": {k: os.environ[k] for k in RECORDED_ENV if k in os.environ},
             },
             out,
             indent=1,
