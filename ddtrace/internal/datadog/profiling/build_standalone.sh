@@ -381,12 +381,48 @@ add_target() {
   esac
 }
 
+# pip 23.0.x crashes with "TypeError: unhashable type: 'dict'" when an index's
+# JSON (PEP 691) response reports dist-info-metadata as a hash dict, and that
+# includes resolving pip itself, so `pip install --upgrade pip` cannot fix it.
+# Read the HTML representation of the index instead, which these pips parse
+# fine, and install a pinned pip wheel by direct URL so no index metadata is
+# consulted.
+BOOTSTRAP_PIP_VERSION="24.3.1"
+bootstrap_pip() {
+    local wheel_url
+    wheel_url=$(python3 - "${BOOTSTRAP_PIP_VERSION}" <<'EOF'
+import os
+import re
+import sys
+from urllib.parse import urljoin
+
+from pip import __version__ as pip_version
+from pip._vendor import requests
+
+if tuple(int(p) for p in pip_version.split(".")[:2]) >= (23, 1):
+    sys.exit(0)
+
+index_url = os.environ.get("PIP_INDEX_URL", "https://pypi.org/simple/").rstrip("/") + "/"
+page_url = urljoin(index_url, "pip/")
+resp = requests.get(page_url, headers={"Accept": "text/html"}, timeout=30)
+resp.raise_for_status()
+wheel = re.escape("pip-%s-py3-none-any.whl" % sys.argv[1])
+match = re.search(r'href="([^"]*%s(?:#[^"]*)?)"' % wheel, resp.text)
+if match is None:
+    sys.exit("pip %s wheel not found at %s" % (sys.argv[1], page_url))
+print(urljoin(page_url, match.group(1).replace("&amp;", "&")))
+EOF
+    ) || { echo "Failed to locate a pip wheel to bootstrap"; exit 1; }
+    if [ -n "${wheel_url}" ]; then
+        echo "Bootstrapping pip ${BOOTSTRAP_PIP_VERSION}"
+        python3 -m pip install "${wheel_url}" || { echo "Failed to bootstrap pip"; exit 1; }
+    fi
+}
+
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    # Old pips (e.g. 23.0) crash with "TypeError: unhashable type: 'dict'" on
-    # indexes that serve PEP 714 metadata as a hash dict, so upgrade pip first.
-    python3 -m pip install --upgrade pip
+    bootstrap_pip
     python3 -m pip install cmake setuptools_rust cython
     DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
