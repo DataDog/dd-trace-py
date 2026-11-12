@@ -27,7 +27,8 @@ append_optional_bool(std::string& s, const char* key, const std::optional<bool>&
 }
 
 // Skip sites run without the profile lock, so they cannot touch ProfilerStats
-// directly. This holds the count until the profile is uploaded or discarded.
+// directly. The count stays here until the upload snapshot, or until a discarded
+// profile drops it.
 std::atomic<size_t> g_pending_intern_failed_count{ 0 };
 
 size_t
@@ -171,6 +172,12 @@ Datadog::ProfilerStats::get_intern_failed_count() const
 }
 
 void
+Datadog::ProfilerStats::add_pending_intern_failed_count()
+{
+    intern_failed_count += take_pending_intern_failed_count();
+}
+
+void
 Datadog::ProfilerStats::set_sampling_interval_us(size_t interval_us)
 {
     sampling_interval_us = interval_us;
@@ -259,11 +266,8 @@ Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
 }
 
 std::string
-Datadog::ProfilerStats::get_internal_metadata_json()
+Datadog::ProfilerStats::get_internal_metadata_json() const
 {
-    // Attach skips from this period. Later skips stay pending for the next upload.
-    intern_failed_count += take_pending_intern_failed_count();
-
     std::string internal_metadata_json;
     internal_metadata_json.reserve(128);
 
