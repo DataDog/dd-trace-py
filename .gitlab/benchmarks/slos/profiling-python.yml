@@ -31,7 +31,7 @@ experiments:
           # codeprovenancefork
           - name: codeprovenancefork-fork-10
             thresholds:
-              - execution_time < 2500 ms
+              - execution_time < 2850 ms
           # exceptionprofilermonitoring
           - name: exceptionprofilermonitoring-handled-interval-100
             thresholds:

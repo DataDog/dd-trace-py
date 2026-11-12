@@ -5,7 +5,7 @@ from copy import deepcopy
 import json
 import re
 from typing import Any
-from typing import Optional  # noqa:F401
+from typing import Optional
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -13,14 +13,14 @@ from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
-from ddtrace.aiguard._types import MCP  # noqa:F401
-from ddtrace.aiguard._types import ContentPart  # noqa:F401
+from ddtrace.aiguard._types import MCP
+from ddtrace.aiguard._types import ContentPart
 from ddtrace.aiguard._types import Evaluation
-from ddtrace.aiguard._types import Function  # noqa:F401
-from ddtrace.aiguard._types import ImageURL  # noqa:F401
+from ddtrace.aiguard._types import Function
+from ddtrace.aiguard._types import ImageURL
 from ddtrace.aiguard._types import MCPServer
 from ddtrace.aiguard._types import Message
-from ddtrace.aiguard._types import ToolCall  # noqa:F401
+from ddtrace.aiguard._types import ToolCall
 from ddtrace.aiguard.middleware import _MIDDLEWARES
 from ddtrace.aiguard.middleware import AIGuardContext
 from ddtrace.aiguard.middleware import AIGuardRequest
@@ -720,7 +720,7 @@ class AIGuardClient:
             target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
             conn.request("POST", target, json_body, self._headers)
             resp = conn.getresponse()
-            return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
+            return Response.from_http_response(resp)
         finally:
             conn.close()
 
