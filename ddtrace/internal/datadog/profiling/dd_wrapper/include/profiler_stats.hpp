@@ -106,10 +106,7 @@ class ProfilerStats
     std::optional<size_t> get_heap_tracker_cap_drops() const;
 
     void set_asyncio_initialized(bool initialized);
-    std::optional<bool> get_asyncio_initialized() const;
-
     void set_asyncio_runtime_offsets_discovered(bool discovered);
-    std::optional<bool> get_asyncio_runtime_offsets_discovered() const;
 
     void set_asyncio_interpreter_tasks_head_offset(size_t offset);
     std::optional<size_t> get_asyncio_interpreter_tasks_head_offset() const;

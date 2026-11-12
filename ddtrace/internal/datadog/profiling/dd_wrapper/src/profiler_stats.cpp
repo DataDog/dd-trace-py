@@ -203,22 +203,10 @@ Datadog::ProfilerStats::set_asyncio_initialized(bool initialized)
     asyncio_initialized = initialized;
 }
 
-std::optional<bool>
-Datadog::ProfilerStats::get_asyncio_initialized() const
-{
-    return asyncio_initialized;
-}
-
 void
 Datadog::ProfilerStats::set_asyncio_runtime_offsets_discovered(bool discovered)
 {
     asyncio_runtime_offsets_discovered = discovered;
-}
-
-std::optional<bool>
-Datadog::ProfilerStats::get_asyncio_runtime_offsets_discovered() const
-{
-    return asyncio_runtime_offsets_discovered;
 }
 
 void
@@ -248,6 +236,8 @@ Datadog::ProfilerStats::get_asyncio_thread_tasks_head_offset() const
 void
 Datadog::ProfilerStats::set_asyncio_loop_count(size_t count)
 {
+    // Track the peak (max) asyncio loop count observed across sampling cycles
+    // within a profile period
     if (!asyncio_loop_count.has_value() || count > *asyncio_loop_count) {
         asyncio_loop_count = count;
     }
@@ -262,6 +252,8 @@ Datadog::ProfilerStats::get_asyncio_loop_count() const
 void
 Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
 {
+    // Track the peak (max) asyncio task count observed across sampling cycles
+    // within a profile period
     if (!asyncio_task_count.has_value() || count > *asyncio_task_count) {
         asyncio_task_count = count;
     }

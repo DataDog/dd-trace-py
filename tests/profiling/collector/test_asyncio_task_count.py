@@ -9,13 +9,14 @@ import pytest
     err=None,
 )
 def test_asyncio_task_count_present() -> None:
-    """asyncio_task_count is present and positive when asyncio tasks are active."""
+    """Asyncio diagnostics report initialization, a tracked loop, active tasks, and 3.14+ task-list offsets."""
     import asyncio
     import json
     import os
     import sys
     import time
 
+    from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
@@ -42,6 +43,9 @@ def test_asyncio_task_count_present() -> None:
     files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
+    # Offsets stay published for the process lifetime once discovered, so the test hook reads the reported values.
+    expected_offsets = _stack._asyncio_task_lists()[:2]
+
     found_initialized = False
     found_loop = False
     found_positive = False
@@ -59,8 +63,11 @@ def test_asyncio_task_count_present() -> None:
             if metadata["asyncio_task_count"] > 0:
                 found_positive = True
         if metadata.get("asyncio_runtime_offsets_discovered"):
-            assert metadata["asyncio_interpreter_tasks_head_offset"] > 0
-            assert metadata["asyncio_thread_tasks_head_offset"] > 0
+            reported_offsets = (
+                metadata["asyncio_interpreter_tasks_head_offset"],
+                metadata["asyncio_thread_tasks_head_offset"],
+            )
+            assert reported_offsets == expected_offsets
             found_runtime_offsets = True
 
     assert found_initialized, "Expected asyncio initialization to be reported"

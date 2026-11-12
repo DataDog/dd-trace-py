@@ -527,7 +527,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
         try {
             capture_samples(wall_time_us);
 
-            // Collect greenlet count before acquiring the profile lock to avoid holding two locks simultaneously.
+            // Collect greenlet count before acquiring the profile lock to avoid
+            // holding two locks simultaneously (greenlet lock then profile lock).
             size_t greenlet_count;
             {
                 const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
