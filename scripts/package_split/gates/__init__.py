@@ -5,13 +5,16 @@ report with its checks. The CLI never calls gates directly; it goes through
 ``REGISTRY`` so that the set of runnable gates is defined in exactly one
 place.
 
-Gate implementations register themselves here as they land in their own
-PRs (the freeze gate is the first, in a stacked follow-up).
+This repo registers the source-side freeze gate (freeze-first: the frozen
+baseline is established on main before any extraction lands). Additional
+gates register here as they land in their own PRs.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from . import freeze
 
 
-REGISTRY: dict[str, Callable[..., object]] = {}
+REGISTRY = {
+    "freeze": freeze.run_gate,
+}
