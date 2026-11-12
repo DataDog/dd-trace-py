@@ -4,6 +4,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.profiling import remoteconfig
 from ddtrace.internal.settings._config import config as global_config
+from ddtrace.internal.settings.profiling import _should_arm
 from ddtrace.internal.settings.profiling import config as profiling_config
 
 
@@ -23,6 +24,12 @@ def post_preload() -> None:
     # The product manager defers start to the workers in a uWSGI master, but not post_preload. The hooks must be
     # installed before the master loads the application, and Profiler.start must run in the master to register its
     # own uWSGI postfork and atexit callbacks.
+
+    # Outside of the armed mode, the hooks are installed only so that Remote Config can start the profiler. Remote
+    # Config can be disabled after the profiling configuration is loaded, e.g. in AWS Lambda, so check it here.
+    if not _should_arm(profiling_config.source) and not _remote_config_enabled():
+        profiling_config.install = False
+
     if profiling_config.install:
         # Install the stack profiler hooks now, so that the profiler can be enabled at runtime and still
         # see the threads, event loops and greenlets created before that. If the profiler is also enabled
