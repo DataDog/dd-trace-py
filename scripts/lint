@@ -79,6 +79,7 @@ case "$cmd" in
     "$SCRIPT_DIR/lint" profiling-native-check
     "$SCRIPT_DIR/lint" error-log-check
     "$SCRIPT_DIR/lint" supported-config-check
+    "$SCRIPT_DIR/lint" bridged-modules
     "$SCRIPT_DIR/lint" sg
     "$SCRIPT_DIR/lint" sg-test
     ;;
@@ -135,6 +136,9 @@ case "$cmd" in
     ;;
   supported-config-check)
     uv_lint python scripts/supported_configurations.py --check "$@"
+    ;;
+  bridged-modules)
+    uv_lint python scripts/check_bridged_modules.py "$@"
     ;;
   ci-deps-check)
     bash scripts/check-ci-dependencies "$@"
@@ -214,6 +218,7 @@ Subcommands:
   error-log-check           Check constant log messages
   type-comments-check       Fail if new PEP 484 type comments were added
   supported-config-check    Check supported-configurations.json is in sync and complete
+  bridged-modules          Check modules bridged to extracted packages are complete
   ci-deps-check             scripts/check-ci-dependencies
 
   sg [paths]                ast-grep scan

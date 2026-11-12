@@ -1,0 +1,47 @@
+#!/bin/sh
+# Fail the commit when staged changes touch the bridge surface (a bridged
+# ddtrace module, its dependency wiring, or the bridge tooling) without the
+# rest of the bridge pattern in place. Same completeness check as
+# scripts/lint bridged-modules; see the bridge-extracted-module skill for
+# the full workflow.
+
+CHECK_CMD="${CHECK_CMD:-scripts/lint}"
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR)
+
+should_run=false
+echo "$staged_files" | grep -qE '(^|/)pyproject\.toml$|(^|/)requirements\.csv$|(^|/)ddtrace/.*\.py$|(^|/)scripts/(check_bridged_modules\.py|package_split/)' && should_run=true
+
+if [ "$should_run" != true ]; then
+    echo 'Bridged-modules check skipped: no bridge-related files staged'
+    exit 0
+fi
+
+echo 'Checking bridged modules (staged index)...'
+
+# Test harness / override: caller supplies the checker and skips the index snapshot.
+if [ "$CHECK_CMD" != "scripts/lint" ]; then
+    "$CHECK_CMD" bridged-modules || exit 1
+    exit 0
+fi
+
+snapshot=$(mktemp -d)
+trap 'rm -rf "$snapshot"' EXIT
+
+# Materialize the index versions of every path the check reads so unstaged
+# worktree edits cannot hide an inconsistent staged set.
+if ! git ls-files -z -- \
+    'pyproject.toml' \
+    'requirements.csv' \
+    'lib-injection/sources/requirements.csv' \
+    'ddtrace/**' \
+    'tests/**' \
+    'scripts/check_bridged_modules.py' \
+    | git checkout-index --prefix="$snapshot/" -z --stdin
+then
+    echo 'Failed to materialize staged index for bridged-modules check' >&2
+    exit 1
+fi
+
+# Run from the repository (for the lint venv) but point the check at the
+# snapshot of the staged index.
+"$CHECK_CMD" bridged-modules --root "$snapshot" || exit 1
