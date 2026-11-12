@@ -1239,7 +1239,7 @@ _TRUNCATION_FIELD_GROUPS = (("input", "output"), ("expected_output", "metadata")
 
 def _truncate_span_event(event: LLMObsSpanEvent, limit: Optional[int] = None) -> LLMObsSpanEvent:
     limit = config._llmobs_event_size_limit if limit is None else limit
-    meta = event["meta"]
+    meta = cast(dict[str, Any], event["meta"])
     event["collection_errors"] = [DROPPED_IO_COLLECTION_ERROR]
     for group in _TRUNCATION_FIELD_GROUPS:
         present = [key for key in group if key in meta]
