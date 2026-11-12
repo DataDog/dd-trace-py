@@ -63,6 +63,8 @@ cdef extern from "sample.hpp" namespace "Datadog":
         bint push_exception_message(string_view exception_message)
         bint push_class_name(string_view class_name)
         bint push_gpu_device_name(string_view device_name)
+        bint push_gc_generation(int64_t generation)
+        bint push_gc_event(string_view event)
         bint push_monotonic_ns(int64_t monotonic_ns)
         bint push_absolute_ns(int64_t timestamp_ns)
         void push_frame(string_view _name, string_view _filename, uint64_t address, int64_t line)
@@ -370,6 +372,18 @@ cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
     if utf8_data != NULL:
         sample.push_trace_type(string_view(utf8_data, utf8_size))
 
+cdef call_ddup_push_gc_event(Sample* sample, event: StringType):
+    if not event:
+        return
+    if isinstance(event, bytes):
+        sample.push_gc_event(string_view(<const char*>event, len(event)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(event, &utf8_size)
+    if utf8_data != NULL:
+        sample.push_gc_event(string_view(utf8_data, utf8_size))
+
 # Conversion functions
 cdef uint64_t clamp_to_uint64_unsigned(value):
     # This clamps a Python int to the nonnegative range of an unsigned 64-bit integer.
@@ -559,6 +573,14 @@ cdef class SampleHandle:
     def push_gctime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
             self.ptr.push_gctime(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gc_generation(self, generation: int) -> None:
+        if self.ptr is not NULL:
+            self.ptr.push_gc_generation(clamp_to_int64_unsigned(generation))
+
+    def push_gc_event(self, event: StringType) -> None:
+        if self.ptr is not NULL:
+            call_ddup_push_gc_event(self.ptr, event)
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:

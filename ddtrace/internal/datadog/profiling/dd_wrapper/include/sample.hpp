@@ -135,6 +135,8 @@ class Sample
     bool push_exception_message(std::string_view exception_message);
     bool push_class_name(std::string_view class_name);
     bool push_allocator_domain(AllocatorDomain allocator_domain);
+    bool push_gc_generation(int64_t generation);
+    bool push_gc_event(std::string_view event);
     bool push_monotonic_ns(int64_t monotonic_ns);
     bool push_absolute_ns(int64_t timestamp_ns);
 

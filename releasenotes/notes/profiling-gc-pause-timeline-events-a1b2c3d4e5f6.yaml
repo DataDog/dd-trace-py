@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    profiling: When ``DD_PROFILING_GC_ENABLED=true``, GC pauses at least
+    ``DD_PROFILING_GC_PAUSE_EVENT_THRESHOLD_MS`` (default 1) are reported as
+    individual samples with an end timestamp and the collecting thread, for
+    the Profiling Timeline GC lane.

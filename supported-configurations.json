@@ -2952,6 +2952,13 @@
         "default": "false"
       }
     ],
+    "DD_PROFILING_GC_PAUSE_EVENT_THRESHOLD_MS": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "1.0"
+      }
+    ],
     "DD_PROFILING_HEAP_ENABLED": [
       {
         "implementation": "C",
