@@ -9,9 +9,10 @@ from ddtrace.appsec._iast._constants import IAST
 from ddtrace.appsec._iast._logs import iast_ast_debug_log
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
-from ddtrace.internal.compat import is_at_least_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.packages import get_package_distributions
+from ddtrace.internal.packages import is_querying_finders
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
@@ -57,23 +58,14 @@ def initialize_iast_lists():
     The function specifically:
     1. Builds the user allowlist from _DD_IAST_PATCH_MODULES environment variable
     2. Builds the user denylist from _DD_IAST_DENY_MODULES environment variable
-    3. Imports and sets the packages_distributions function for first-party package detection
+    3. Sets the top-level names of the installed packages for first-party package detection
 
     This approach is safer than C-level initialization in init_globals() which can
     lead to inconsistent state or crashes due to GIL-related issues.
     """
-    # Import and set the packages_distributions function for the C extension
+    # Set the top-level names of the installed packages for the C extension
     try:
-        if not is_at_least_py(3, 10):
-            import importlib_metadata as metadata
-        else:
-            import importlib.metadata as metadata
-        result = set(metadata.packages_distributions())
-        iastpatch.set_packages_distributions(result)
-    except (ImportError, AttributeError):
-        # If metadata module is not available, the C extension will handle
-        # first-party detection gracefully by returning False
-        log.debug("Could not import metadata module for first-party detection")
+        iastpatch.set_packages_distributions(set(get_package_distributions()))
     except Exception:
         log.debug("Failed to set packages in C extension", exc_info=True)
 
@@ -116,7 +108,10 @@ def _should_iast_patch(module_name: str) -> bool:
     global IAST_PATCHING_LAZY_LOADED
     if IAST_PATCHING_LAZY_LOADED:
         initialize_iast_lists()
-        IAST_PATCHING_LAZY_LOADED = False
+        # A module imported by a custom finder while it lists its distributions
+        # gets a package list without them: initialize again on the next module.
+        if not is_querying_finders():
+            IAST_PATCHING_LAZY_LOADED = False
     result = False
     try:
         result = iastpatch.should_iast_patch(module_name)
