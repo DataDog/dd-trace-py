@@ -1,0 +1,8 @@
+# Files frozen during package extraction: repository-relative path=SHA-256.
+# Add an entry using: sha256sum path/to/file
+# Copy the result below as path/to/file=hash (no spaces around the equals sign).
+# Commit freezes before starting extraction. Only file contents are frozen.
+# To unfreeze, remove the entry in a separate PR that leaves the file unchanged;
+# changes to the file can land after that PR merges. The check reads base rules
+# as well as head rules, so editing this list cannot bypass an existing freeze.
+ddtrace/internal/codeowners.py=79ba689aac82d7f54ceb30661ffed6d8bb5ff76697dc3a87eb05718d6301ed9b

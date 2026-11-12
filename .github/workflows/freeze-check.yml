@@ -1,0 +1,38 @@
+name: Freeze check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check frozen files
+        shell: bash
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Base rules prevent a PR from lifting its own freeze. Head rules
+          # also validate newly added freezes, including this workflow's first run.
+          # Use the target base, so branches predating a freeze are checked too.
+          for revision in "$BASE_REF" HEAD; do
+            manifest=$(git ls-tree --name-only "$revision" -- frozen-paths.txt)
+            [[ -z "$manifest" ]] && continue
+            git show "$revision:frozen-paths.txt" > "$RUNNER_TEMP/frozen-paths.txt"
+            while IFS='=' read -r path hash || [[ -n "$path" ]]; do
+              [[ -z "$path" || "$path" == \#* ]] && continue
+              actual=$(git show "HEAD:$path" | sha256sum | cut -d' ' -f1)
+              if [[ "$actual" != "$hash" ]]; then
+                echo "::error::$path is frozen but was changed"
+                exit 1
+              fi
+            done < "$RUNNER_TEMP/frozen-paths.txt"
+          done
