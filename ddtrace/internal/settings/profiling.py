@@ -646,6 +646,18 @@ class ProfilingConfigGC(DDConfig):
         ),
     )
 
+    pause_event_threshold_ms = DDConfig.v(
+        float,
+        "pause_event_threshold_ms",
+        default=1.0,
+        validator=validators.range(0, t.cast(int, float("inf"))),
+        help_type="Float",
+        help=(
+            "GC pauses at least this long, in milliseconds, are reported as individual timeline events. "
+            "Shorter pauses are only counted in the per-interval totals."
+        ),
+    )
+
 
 class ProfilingConfigPytorch(DDConfig):
     __item__ = __prefix__ = "pytorch"
