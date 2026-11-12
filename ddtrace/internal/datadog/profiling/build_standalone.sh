@@ -402,14 +402,20 @@ from pip._vendor import requests
 if tuple(int(p) for p in pip_version.split(".")[:2]) >= (23, 1):
     sys.exit(0)
 
+from pip._internal.commands import create_command
+
+pip_command = create_command("install")
+pip_options, _ = pip_command.parse_args([])
 index_url = os.environ.get("PIP_INDEX_URL", "https://pypi.org/simple/").rstrip("/") + "/"
 page_url = urljoin(index_url, "pip/")
-resp = requests.get(page_url, headers={"Accept": "text/html"}, timeout=30)
+resp = pip_command._build_session(pip_options).get(page_url, headers={"Accept": "text/html"}, timeout=30)
+safe_page_url = requests.utils.urldefragauth(page_url)
+resp.url = requests.utils.urldefragauth(resp.url)
 resp.raise_for_status()
 wheel = re.escape("pip-%s-py3-none-any.whl" % sys.argv[1])
 match = re.search(r'href="([^"]*%s(?:#[^"]*)?)"' % wheel, resp.text)
 if match is None:
-    sys.exit("pip %s wheel not found at %s" % (sys.argv[1], page_url))
+    sys.exit("pip %s wheel not found at %s" % (sys.argv[1], safe_page_url))
 print(urljoin(page_url, match.group(1).replace("&amp;", "&")))
 EOF
     ) || { echo "Failed to locate a pip wheel to bootstrap"; exit 1; }
