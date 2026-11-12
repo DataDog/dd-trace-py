@@ -1,3 +1,4 @@
+from threading import Thread
 from unittest import mock
 
 import pytest
@@ -1155,3 +1156,20 @@ def test_resource_tags_update_during_writer_recreation():
         assert aggregator.writer._resource_attributes == {"team": "updated"}
     finally:
         aggregator.writer.shutdown_exporter()
+
+
+@pytest.mark.parametrize("otlp_endpoint", [None, "http://localhost:4318/v1/traces"])
+def test_resource_tags_update_does_not_wait_for_export(otlp_endpoint):
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint=otlp_endpoint, resource_attributes={"team": "core"})
+    with mock.patch("ddtrace._trace.processor.create_trace_writer", return_value=writer):
+        aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=1)
+    update = Thread(target=aggregator._set_resource_attributes, args=({"team": "updated"},))
+    try:
+        with writer._exporter_lock:
+            update.start()
+            update.join(timeout=2)
+            assert not update.is_alive(), "Tag updates waited for the exporter while holding the aggregation lock"
+        assert writer._resource_attributes == {"team": "updated"}
+    finally:
+        update.join(timeout=2)
+        writer.shutdown_exporter()

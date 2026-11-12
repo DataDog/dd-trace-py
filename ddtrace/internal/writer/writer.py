@@ -1015,21 +1015,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
         exporter = builder.build(get_native_runtime())
-        if self._otlp_endpoint is not None:
-            exporter.set_otlp_resource_attributes(self._resource_attributes)
         if shared_worker is not None:
             exporter.set_telemetry_handle(shared_worker)
             telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
         return exporter
 
     def _set_resource_attributes(self, attributes: dict[str, str]) -> None:
-        attributes = {key: value for key, value in attributes.items() if isinstance(value, str)}
-        with self._exporter_lock:
-            if attributes == self._resource_attributes:
-                return
-            if self._otlp_endpoint is not None and not self._exporter_stopping and not self._exporter_dropped:
-                self._exporter.set_otlp_resource_attributes(attributes)
-            self._resource_attributes = attributes
+        self._resource_attributes = {key: value for key, value in attributes.items() if isinstance(value, str)}
 
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
         """Follow the telemetry writer onto a rebuilt worker (or off a stopped one)."""
@@ -1047,8 +1039,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         non-fatal too. Anything else still propagates.
         """
         with self._exporter_lock:
-            if exporter is self._exporter:
-                self._exporter_stopping = True
             try:
                 exporter.shutdown(int(max(timeout, 0) * 1_000_000_000))
             except Exception:
@@ -1065,8 +1055,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._compute_stats_enabled = compute_stats_enabled
         new_exporter = self._create_exporter()
         with self._exporter_lock:
-            if self._otlp_endpoint is not None:
-                new_exporter.set_otlp_resource_attributes(self._resource_attributes)
             old_exporter, self._exporter = self._exporter, new_exporter
         self._shutdown_exporter(old_exporter)
 
@@ -1190,8 +1178,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 discarded = self._discarded_by_refresh
                 stopping = self._exporter_stopping
                 if not discarded and not stopping:
-                    if self._otlp_endpoint is not None:
-                        new_exporter.set_otlp_resource_attributes(self._resource_attributes)
                     old_exporter, self._exporter = self._exporter, new_exporter
             if discarded:
                 new_exporter.drop()
@@ -1274,6 +1260,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 # starts after a refresh and none reaches a dropped exporter.
                 if self._discarded_by_refresh:
                     return
+                if self._otlp_endpoint is not None:
+                    self._exporter.set_otlp_resource_attributes(self._resource_attributes)
                 response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
