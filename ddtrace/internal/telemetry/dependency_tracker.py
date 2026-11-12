@@ -10,13 +10,13 @@ single DependencyTracker instance.
 """
 
 from collections.abc import Iterable
-from importlib.metadata import PackageNotFoundError
 import re
 from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
+from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.threads import Lock
@@ -124,13 +124,9 @@ class DependencyTracker:
         """
         key = _normalize_dep_name(package_name)
         if key not in self._imported_dependencies and appsec_telemetry_config.SCA_ENABLED:
-            try:
-                from importlib.metadata import version as importlib_metadata_version
-
-                version = importlib_metadata_version(package_name)
-            except PackageNotFoundError:
+            version = get_version_for_package(package_name)
+            if not version:
                 log.debug("Package %r not found in installed metadata", package_name)
-                version = ""
             self._imported_dependencies[key] = DependencyEntry(name=package_name, version=version, metadata=[])
 
     def attach_metadata(
