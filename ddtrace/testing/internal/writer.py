@@ -124,7 +124,7 @@ class BaseWriter(ABC):
         self.max_payload_size = int(4.5 * 1024 * 1024)
         # Connectors registered here are closed from both the background thread
         # (via _task_teardown) and the caller thread (via wait_finish), covering
-        # all thread-local HTTPConnections opened via BackendConnector.
+        # the thread-local clients of each BackendConnector.
         self._connectors: list[t.Any] = []
 
     def put_event(self, event: Event) -> None:
@@ -206,8 +206,8 @@ class BaseWriter(ABC):
 
     def _periodic_task(self) -> None:
         try:
-            # Access each thread-local connector before tests can patch http.client (e.g. vcrpy).
-            # close() initializes this thread's connection without opening a socket and also works in offline mode.
+            # Build each thread-local connector's client for this thread before tests run.
+            # close() initializes it without opening a connection and also works in offline mode.
             for connector in self._connectors:
                 connector.close()
         except BaseException as e:
@@ -616,6 +616,9 @@ def serialize_test_run(test_run: TestRun) -> Event:
 
 
 def serialize_suite(suite: TestSuite) -> Event:
+    # The plugin sets a module's path when it discovers the module; a module built without one still serializes.
+    module_path = getattr(suite.module, "module_path", None)
+    module_path_tag = {"test.module_path": module_path} if module_path is not None else {}
     content = {
         "service": suite.service,
         "resource": suite.name,
@@ -625,6 +628,8 @@ def serialize_suite(suite: TestSuite) -> Event:
         "duration": suite.duration_ns,
         "meta": {
             "span.kind": "test",
+            "test.module": suite.module.name,
+            **module_path_tag,
             "test.suite": suite.name,
             "test.status": suite.get_status().value,
             "type": "test_suite_end",

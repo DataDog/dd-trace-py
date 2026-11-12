@@ -96,8 +96,8 @@ def build_new_tainted_object_from_generic_object(initial_object, wanted_object):
         return wanted_object
     # Custom tailor actions
     wanted_type = initial_object.__class__.__module__, initial_object.__class__.__name__
-    if wanted_type == ("builtins", "tuple"):
-        return tuple(wanted_object)
+    if wanted_type in (("builtins", "tuple"), ("builtins", "frozendict")):
+        return initial_object.__class__(wanted_object)
     # Django
     if wanted_type == ("django.http.request", "HttpHeaders"):
         res = initial_object.__class__({})
@@ -199,7 +199,7 @@ class LazyTaintList:
     """
 
     def __init__(self, original_list, origins=(0, 0), override_pyobject_tainted=False, source_name="[]"):
-        self._obj = original_list._obj if _is_tainted_struct(original_list) else original_list
+        self._obj: object = original_list._obj if _is_tainted_struct(original_list) else original_list
         self._origins = origins
         self._origin_value = origins[1]
         self._override_pyobject_tainted = override_pyobject_tainted
@@ -378,7 +378,7 @@ class LazyTaintDict:
     def __init__(self, original_dict, origins=(0, 0), override_pyobject_tainted=False):
         from ddtrace.appsec._iast._taint_tracking import OriginType
 
-        self._obj = original_dict
+        self._obj: object = original_dict
         self._origins = origins
         self._origin_key = origins[0] if origins[0] else OriginType.PARAMETER_NAME
         self._origin_value = origins[1] if origins[1] else OriginType.PARAMETER
@@ -559,6 +559,10 @@ class LazyTaintDict:
 
     def urlencode(self, safe=None):
         return self._taint(self._obj.urlencode(safe=safe), self._origin_value)
+
+
+# Keep the eager implementation identifiable before the legacy lazy override.
+_taint_structure_eager = taint_structure
 
 
 if asm_config._iast_lazy_taint:

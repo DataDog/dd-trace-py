@@ -23,6 +23,11 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
+For GraphQL, keep execute as the execution hook on older versions. GraphQL 3.3's
+execute_sync bypasses execute and needs its own hook; do not add that hook on
+older versions, where it would duplicate execution spans. Middleware argument
+positions differ between execute and execute_sync and changed in 3.2.10 and 3.3.
+
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable

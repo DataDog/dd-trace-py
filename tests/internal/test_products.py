@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.internal.products import Product
 from ddtrace.internal.products import ProductManager
+from ddtrace.internal.products import get_product_entry_points
 
 
 class ProductManagerTest(ProductManager):
@@ -18,7 +19,7 @@ class BaseProduct(Product):
     requires = []
 
     def __init__(self) -> None:
-        self.started = self.post_started = self.restarted = self.stopped = self.exited = self.post_preloaded = False
+        self.started = self.restarted = self.stopped = self.exited = self.post_preloaded = False
 
     def post_preload(self) -> None:
         self.post_preloaded = True
@@ -28,9 +29,6 @@ class BaseProduct(Product):
 
     def start(self) -> None:
         self.started = True
-
-    def post_start(self) -> None:
-        self.post_started = True
 
     def restart(self, join: bool = False) -> None:
         self.restarted = True
@@ -97,11 +95,9 @@ def test_product_manager_start_fail():
 
     # a will start
     assert a.started
-    assert a.post_started
 
     # b fails to start, so c won't start because it depends on b
     assert not b.started and not c.started
-    assert not b.post_started and not c.post_started
 
 
 def test_product_manager_start():
@@ -109,32 +105,6 @@ def test_product_manager_start():
     manager = ProductManagerTest({"a": a})
     manager.run_protocol()
     assert a.started
-    assert a.post_started
-
-
-def test_product_manager_post_start_runs_after_all_products_start():
-    events = []
-
-    class A(BaseProduct):
-        def start(self) -> None:
-            events.append("a-start")
-
-        def post_start(self) -> None:
-            events.append("a-post-start")
-
-    class B(BaseProduct):
-        requires = ["a"]
-
-        def start(self) -> None:
-            events.append("b-start")
-
-        def post_start(self) -> None:
-            events.append("b-post-start")
-
-    manager = ProductManagerTest({"a": A(), "b": B()})
-    manager.run_protocol()
-
-    assert events == ["a-start", "b-start", "a-post-start", "b-post-start"]
 
 
 @pytest.mark.subprocess
@@ -356,6 +326,84 @@ def test_product_manager_activated_failure_does_not_fail_product():
     with patch("ddtrace.internal.products.telemetry_writer") as telemetry_writer:
         manager.start_products()
 
-    assert broken.started and broken.post_started
-    assert dependent.started and dependent.post_started
+    assert broken.started
+    assert dependent.started
     telemetry_writer.product_activated.assert_called_once_with("dependent", True)
+
+
+def _remotely_startable_products():
+    """The products that remote configuration can start, via their apm_tracing_rc handler."""
+    names = set()
+    for entry_point in get_product_entry_points():
+        try:
+            if hasattr(entry_point.load(), "apm_tracing_rc"):
+                names.add(entry_point.name)
+        except Exception:
+            pass
+    return sorted(names)
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true",
+        # Remote configuration must be enabled for its products to be set up,
+        # but must not receive anything.
+        DD_REMOTE_CONFIGURATION_ENABLED="true",
+        DD_TRACE_AGENT_URL="http://127.0.0.1:1",
+        # Products that cannot reach the agent fall back to agentless mode.
+        DD_API_KEY="0" * 32,
+        # Coverage preloads modules that import threading, which would hide the issue.
+        COVERAGE_PROCESS_START=None,
+        COVERAGE_PROCESS_CONFIG=None,
+        COV_CORE_SOURCE=None,
+        COV_CORE_CONFIG=None,
+        COV_CORE_DATAFILE=None,
+    ),
+    parametrize={"REMOTE_PRODUCT": _remotely_startable_products()},
+    timeout=60,
+)
+def test_remote_product_start_does_not_import_threading():
+    """Starting a product from the remote config thread must not import threading.
+
+    Module cloning unloads threading. A product started by remote configuration
+    runs its start() on the remote config thread, and any module it imports for
+    the first time is a fresh copy. On Python < 3.13, if that imports threading,
+    the remote config thread becomes the main thread and the interpreter waits
+    on it forever at exit.
+    """
+    import os
+    import sys
+
+    import ddtrace.auto  # noqa:F401
+    from ddtrace.internal.products import manager
+    from ddtrace.internal.threads import Thread
+
+    name = os.environ["REMOTE_PRODUCT"]
+
+    assert "threading" not in sys.modules
+
+    errors = []
+
+    def start():
+        try:
+            manager.__products__[name].start()
+        except Exception as e:
+            errors.append(e)
+
+    worker = Thread(start, name="remote-config")
+    worker.start()
+    worker.join()
+
+    # A product that fails to start does not exercise its start-up path.
+    assert not errors, errors
+
+    imported = "threading" in sys.modules
+
+    # TODO: Enabling LLMObs runs git through a fresh copy of subprocess, which
+    # imports threading on some Python versions (e.g. 3.10).
+    if name == "llmobs" and imported:
+        import pytest
+
+        pytest.xfail("starting LLMObs imports subprocess, and with it threading")
+
+    assert not imported

@@ -1,0 +1,9 @@
+fixes:
+  - |
+    LangChain: Fixes missing IAST command-injection findings in legacy agents
+    provided by langchain-classic, and lost taint propagation when formatting
+    chat prompts with LangChain v1.
+  - |
+    LangChain: Fixes AI Guard allowing legacy agent tools to execute before a
+    blocking decision when using langchain-classic and the model response
+    evaluation fails or the agent changes the tool arguments.

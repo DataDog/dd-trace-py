@@ -44,14 +44,32 @@ Write-Host "=== Enabling git long paths ==="
 git config --global core.longpaths true
 
 Write-Host "=== Building wheel ==="
-& uv build --wheel --out-dir C:\workspace\dist C:\workspace
+$distDir = 'C:\workspace\dist'
+if (Test-Path $distDir) {
+    Remove-Item -Recurse -Force $distDir
+}
+New-Item -ItemType Directory -Path $distDir | Out-Null
+
+& uv build --wheel --out-dir $distDir C:\workspace
 if ($LASTEXITCODE -ne 0) {
     Write-Error "uv build failed"
     exit 1
 }
 
+$wheels = @(Get-ChildItem "$distDir\*.whl")
+# Diagnostics: other jobs' wheels sometimes appear here during the build.
+Write-Host "=== Wheels in $distDir ==="
+$wheels | ForEach-Object {
+    Write-Host ("{0}  {1:o}  {2} bytes" -f $_.Name, $_.LastWriteTimeUtc, $_.Length)
+}
+if ($wheels.Count -ne 1) {
+    $names = ($wheels | ForEach-Object { $_.Name }) -join ', '
+    Write-Error "Expected exactly one wheel in $distDir, found $($wheels.Count): $names"
+    exit 1
+}
+
 Write-Host "=== Stripping source files from wheel ==="
-Get-ChildItem C:\workspace\dist\*.whl | ForEach-Object {
+$wheels | ForEach-Object {
     & uv run --no-project C:\workspace\scripts\zip_filter.py $_.FullName *.c *.cpp *.cc *.h *.hpp *.pyx *.md
     if ($LASTEXITCODE -ne 0) {
         Write-Error "zip_filter.py failed for $($_.Name)"
@@ -60,4 +78,4 @@ Get-ChildItem C:\workspace\dist\*.whl | ForEach-Object {
 }
 
 Write-Host "=== Build complete ==="
-Get-ChildItem C:\workspace\dist\*.whl | ForEach-Object { Write-Host $_.FullName }
+$wheels | ForEach-Object { Write-Host $_.FullName }

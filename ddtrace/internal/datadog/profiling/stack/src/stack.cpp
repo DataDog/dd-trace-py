@@ -95,10 +95,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear SpanLinks. The memory should be cleared up
-    // when the program exits as SpanLinks is a static singleton instance.
-    // However, this was necessary to make sure that the state is not shared
-    // across tests, as the tests are run in the same process.
+    // Clear SpanLinks so thread-to-span links from this run don't carry over to the next start().
     SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
@@ -172,7 +169,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
-    SpanLinks::get_instance().unlink_span(id);
+    SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(id));
     OriginTaskLinks::get_instance().unlink_origin_task(id);
     Py_END_ALLOW_THREADS;
 
@@ -213,7 +210,7 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     links.on_link_start(span_id);
 
     Py_BEGIN_ALLOW_THREADS;
-    links.link_span(thread_id, span_id, local_root_span_id, std::string(span_type));
+    links.link_span(SpanLinkKey::thread(thread_id), span_id, local_root_span_id, std::string(span_type));
     Py_END_ALLOW_THREADS;
 
     if (links.on_link_end(span_id)) {
@@ -246,7 +243,7 @@ stack_unlink_span(PyObject* self, PyObject* args)
     uint64_t thread_id = state->thread_id;
 
     Py_BEGIN_ALLOW_THREADS;
-    SpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(thread_id), expected_span_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -264,7 +261,7 @@ stack_clear_span(PyObject* self, PyObject* args)
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    SpanLinks::get_instance().unlink_span(state->thread_id);
+    SpanLinks::get_instance().unlink_span(SpanLinkKey::thread(state->thread_id));
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;

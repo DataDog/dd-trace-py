@@ -1,3 +1,4 @@
+import importlib
 import os
 from unittest import mock
 
@@ -38,6 +39,22 @@ def langchain():
 
         yield langchain
         unpatch()
+
+
+@pytest.fixture
+def broken_agent_import(langchain, request):
+    if request.param is None:
+        return
+    original_import = importlib.import_module
+
+    def import_module(name, package=None):
+        if name == request.param:
+            raise RuntimeError("incompatible optional agent dependency")
+        return original_import(name, package)
+
+    unpatch()
+    with mock.patch("ddtrace.aiguard.integrations._langchain.importlib.import_module", side_effect=import_module):
+        patch()
 
 
 @pytest.fixture
