@@ -96,6 +96,8 @@ variables:
   image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
   tags: [ "arch:$ARCH_TAG" ]
   variables:
+    # This job restores .ext_cache; macOS wheel jobs do not configure that cache.
+    EXT_CACHE_ENABLED: "1"
     # S3-backed sccache for Linux builds
     SCCACHE_BUCKET: "dd-trace-py-builds"
     SCCACHE_S3_KEY_PREFIX: "sccache"

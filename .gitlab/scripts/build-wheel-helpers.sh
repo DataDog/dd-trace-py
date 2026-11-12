@@ -84,6 +84,11 @@ ext_cache() {
 # A hit here skips the Rust fat-LTO link, which is ~88% of the build and is not cacheable
 # by sccache (links never are) or by a cargo target dir (CI has none).
 restore_ext_cache() {
+  # Only jobs that restore .ext_cache should invoke the build backend for hashing.
+  if [[ "${EXT_CACHE_ENABLED:-0}" != "1" ]]; then
+    echo "Compiled-extension cache is not configured; skipping restore"
+    return 0
+  fi
   section_start "restore_ext_cache" "Restoring compiled extensions from cache"
   ext_cache restore || echo "ext_cache restore failed; falling back to a full build"
   section_end "restore_ext_cache"
@@ -91,7 +96,7 @@ restore_ext_cache() {
 
 save_ext_cache() {
   # Under `policy: pull` the runner discards whatever we write, so don't spend the copy.
-  if [[ "${EXT_CACHE_POLICY:-pull}" != "pull-push" ]]; then
+  if [[ "${EXT_CACHE_ENABLED:-0}" != "1" || "${EXT_CACHE_POLICY:-pull}" != "pull-push" ]]; then
     return 0
   fi
   section_start "save_ext_cache" "Saving compiled extensions to cache"
