@@ -547,3 +547,50 @@ def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_n
         # Check that all the symbols in the expected set are in the patched dir() result
         for name in expected_names:
             assert name in patched_dir
+
+
+def test_package_list_read_inside_a_finder_query_is_not_kept(tmp_path):
+    """A module imported by a custom finder while it lists its distributions makes
+    IAST read a package list without them: IAST must read it again on the next module.
+    """
+    from importlib.machinery import PathFinder
+    import importlib.metadata as importlib_metadata
+    import sys
+
+    from ddtrace.appsec._iast._ast import ast_patching
+    from ddtrace.internal import packages
+
+    info = tmp_path / "zz_from_finder-1.0.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text("Name: zz-from-finder\nVersion: 1.0\n")
+    (info / "top_level.txt").write_text("zz_from_finder\n")
+
+    class Finder:
+        def find_spec(self, *args, **kwargs):
+            return None
+
+        def find_distributions(self, context):
+            # What the import hook does for a module the finder imports.
+            ast_patching._should_iast_patch("imported_by_the_finder")
+            return [importlib_metadata.PathDistribution(info)]
+
+    def reset():
+        packages._reset_installed_distributions()
+        packages._clear_lookup_caches()
+
+    try:
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sys, "meta_path", [Finder(), PathFinder])
+            mp.setattr(ast_patching, "IAST_PATCHING_LAZY_LOADED", True)
+            reset()
+
+            # Something other than IAST lists the distributions first.
+            packages.get_package_distributions()
+            assert ast_patching.IAST_PATCHING_LAZY_LOADED
+
+            ast_patching._should_iast_patch("app")
+            assert not ast_patching.IAST_PATCHING_LAZY_LOADED
+            assert iastpatch.should_iast_patch("zz_from_finder.mod") == iastpatch.DENIED_NOT_FOUND
+    finally:
+        reset()
+        ast_patching.initialize_iast_lists()
