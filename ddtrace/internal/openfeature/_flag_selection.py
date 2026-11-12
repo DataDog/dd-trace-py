@@ -101,6 +101,9 @@ _loaded: typing.Optional[FlagSelection] = None
 _reported: set[tuple[str, str]] = set()
 _remote_config_warned = False
 _second_selection_warned = False
+# Why the claimed selection was not sent, so a forked child can count the drop it inherits.
+_dropped_reason: typing.Optional[str] = None
+_pending_fork_drop: typing.Optional[str] = None
 
 
 def canonicalize_flag_selection(raw: typing.Any) -> FlagSelection:
@@ -189,13 +192,14 @@ def claim_process_selection(selection: FlagSelection) -> FlagSelection:
 
 def release_process_selection() -> None:
     """Drop a reference taken by claim_process_selection(); the last one releases the claim."""
-    global _claimed, _claim_count
+    global _claimed, _claim_count, _dropped_reason
     with _lock:
         if _claim_count == 0:
             return
         _claim_count -= 1
         if _claim_count == 0:
             _claimed = NO_SELECTION
+            _dropped_reason = None
 
 
 def snapshot_from_other_selection() -> bool:
@@ -229,14 +233,17 @@ def selection_request_url(endpoint: str, requested: FlagSelection, claimed: Flag
     """
     if claimed.reason is None:
         if not claimed.tags and not claimed.key_patterns:
+            _record_dropped(None)
             return endpoint, False
         url = append_flag_selection(endpoint, claimed)
         if url is not None:
+            _record_dropped(None)
             return url, True
         reason, limit = TOO_MANY_VALUES, _REQUEST_URL_LIMIT
     else:
         reason, limit = claimed.reason, _LIMITS[claimed.reason]
 
+    _record_dropped(reason)
     if requested == claimed:
         # Keep the literal equal to _NOT_SENT_MESSAGE, which exempts it from the rate limiter.
         log.error("flag_selection was not sent (%s: %s). Loading the full flag configuration.", reason, limit)
@@ -277,6 +284,26 @@ def warn_remote_config(selection: FlagSelection) -> None:
     log.warning(_REMOTE_CONFIG_MESSAGE)
 
 
+def count_inherited_drop() -> None:
+    """Count, once in a forked child, the dropped selection it inherited.
+
+    It logs nothing: "not sent" is logged once per provider initialization, and no provider initializes here.
+    """
+    global _pending_fork_drop
+    if _pending_fork_drop is None:
+        return
+    with _lock:
+        reason, _pending_fork_drop = _pending_fork_drop, None
+    if reason is not None and _first_report(DROPPED_METRIC, reason):
+        _count(DROPPED_METRIC, reason)
+
+
+def _record_dropped(reason: typing.Optional[str]) -> None:
+    global _dropped_reason
+    with _lock:
+        _dropped_reason = reason
+
+
 def _first_report(metric: str, reason: str) -> bool:
     with _lock:
         if (metric, reason) in _reported:
@@ -295,17 +322,20 @@ def _count(metric: str, reason: str) -> None:
 @forksafe.register
 def _reset_once_per_process_guards() -> None:
     """Let each forked worker report its own diagnostics. The claim stays with the inherited providers."""
-    global _remote_config_warned, _second_selection_warned
+    global _remote_config_warned, _second_selection_warned, _pending_fork_drop
     _reported.clear()
     _remote_config_warned = False
     _second_selection_warned = False
+    # Telemetry drops points recorded inside a fork hook, so the inherited poller counts the drop on its next run.
+    _pending_fork_drop = _dropped_reason if _claim_count > 0 else None
 
 
 def _reset_flag_selection_state() -> None:
     """Forget the claim and every reported diagnostic. For tests."""
-    global _claimed, _claim_count, _loaded
+    global _claimed, _claim_count, _loaded, _dropped_reason
     with _lock:
         _claimed = NO_SELECTION
         _claim_count = 0
         _loaded = None
+        _dropped_reason = None
     _reset_once_per_process_guards()

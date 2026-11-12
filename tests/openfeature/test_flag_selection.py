@@ -937,3 +937,74 @@ def test_once_per_process_guards_reset_in_a_forked_child():
 
     _, status = os.waitpid(pid, 0)
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+def _child_dropped_counts(flag_selection):
+    """Start a source for ``flag_selection``, fork, and return the dropped counts the child records."""
+    import os
+
+    with (
+        mock.patch.object(_flag_selection, "log"),
+        mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric"),
+    ):
+        _create_source(flag_selection)
+
+    read_fd, write_fd = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.close(read_fd)
+        with (
+            mock.patch.object(_flag_selection, "log") as log,
+            mock.patch.object(_flag_selection.telemetry_writer, "add_count_metric") as add_count_metric,
+        ):
+            _flag_selection.count_inherited_drop()
+            _flag_selection.count_inherited_drop()
+        result = {"counts": [list(c.args[1:2]) + [dict(c.args[3])] for c in add_count_metric.call_args_list]}
+        result["logged"] = log.error.call_count + log.warning.call_count
+        os.write(write_fd, json.dumps(result).encode())
+        os._exit(0)
+
+    os.close(write_fd)
+    with os.fdopen(read_fd) as reader:
+        output = reader.read()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+    return json.loads(output)
+
+
+def test_forked_child_counts_an_inherited_dropped_selection_once():
+    assert _child_dropped_counts({"tags": ["t" * 201]}) == {
+        "counts": [["flag_selection.dropped", {"reason": "invalid_tag"}]],
+        "logged": 0,
+    }
+
+
+def test_forked_child_does_not_count_a_sent_selection():
+    assert _child_dropped_counts({"tags": ["a"]}) == {"counts": [], "logged": 0}
+
+
+def test_inherited_drop_is_counted_on_the_next_poll(poller, count_metric):
+    with mock.patch.object(_flag_selection, "log"):
+        _create_source({"tags": ["t" * 201]})
+    count_metric.reset_mock()
+    _flag_selection._reset_once_per_process_guards()
+
+    poller([_FakeResponse(200, _ufc_body())], flag_selection_sent=False).periodic()
+
+    assert [c.args for c in count_metric.call_args_list] == [
+        (TELEMETRY_NAMESPACE.TRACERS, "flag_selection.dropped", 1, (("reason", "invalid_tag"),))
+    ]
+
+
+def test_released_claim_leaves_no_inherited_drop(count_metric):
+    from ddtrace.internal.openfeature._flag_selection import release_process_selection
+
+    with mock.patch.object(_flag_selection, "log"):
+        _create_source({"tags": ["t" * 201]})
+    release_process_selection()
+    count_metric.reset_mock()
+    _flag_selection._reset_once_per_process_guards()
+
+    _flag_selection.count_inherited_drop()
+
+    assert count_metric.call_args_list == []

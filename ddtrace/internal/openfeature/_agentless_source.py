@@ -31,6 +31,7 @@ from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.openfeature._config import _get_ffe_snapshot
 from ddtrace.internal.openfeature._flag_selection import FLAG_SELECTION_IGNORED_HEADER
+from ddtrace.internal.openfeature._flag_selection import count_inherited_drop
 from ddtrace.internal.openfeature._flag_selection import report_ignored
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.threads import Lock
@@ -251,6 +252,7 @@ class AgentlessConfigurationSource(PeriodicService):
 
     def periodic(self) -> None:
         """Run one poll with in-tick retries; never let an error escape."""
+        count_inherited_drop()
         if self._stagger_first_poll_after_fork():
             return
 
