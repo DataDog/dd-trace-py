@@ -236,6 +236,13 @@ class _ScenarioReports:
         if report.failed:
             sys.stderr.write(report.longreprtext + "\n")
 
+    def pytest_internalerror(self, excrepr: Any) -> bool:
+        # The replacement terminal reporter discards internal errors. Write them to stderr in the
+        # same format that pytest uses when no plugin reports them.
+        for line in str(excrepr).split("\n"):
+            sys.stderr.write(f"INTERNALERROR> {line}\n")
+        return True
+
 
 def run_scenario(module_name: str, class_name: str, method_name: str) -> None:
     """Run one method with pytest, without project fixtures or auto-loaded plugins."""
