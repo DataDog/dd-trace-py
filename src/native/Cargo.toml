@@ -42,7 +42,7 @@ libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v4
 ] }
 libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
 libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
-libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0", optional = true }
+libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "183da51c7e4731647fb2a94eb2cae9177ca01f23", optional = true }
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0", optional = true }
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
 libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0" }
@@ -80,7 +80,7 @@ pyo3-ffi = { version = "0.29", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0", features = ["otel-thread-ctx"]}
-libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v48.0.0", features = ["thread-exit-autoclean"] }
+libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "183da51c7e4731647fb2a94eb2cae9177ca01f23", features = ["thread-exit-autoclean"] }
 libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]

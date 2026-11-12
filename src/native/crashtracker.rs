@@ -83,6 +83,7 @@ impl CrashtrackerConfigurationPy {
         unix_socket_path=None,
         test_token=None,
         api_key=None,
+        collect_otel_thread_contexts=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -97,11 +98,13 @@ impl CrashtrackerConfigurationPy {
         unix_socket_path: Option<String>,
         test_token: Option<String>,
         api_key: Option<&str>,
+        collect_otel_thread_contexts: bool,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let mut builder = CrashtrackerConfiguration::builder()
             .additional_files(additional_files)
             .collect_all_threads(collect_all_threads)
+            .collect_otel_thread_contexts(collect_otel_thread_contexts)
             .max_threads(max_threads)
             .create_alt_stack(create_alt_stack)
             .use_alt_stack(use_alt_stack)
