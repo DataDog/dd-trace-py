@@ -473,6 +473,9 @@ typedef struct periodic_thread
 
     std::atomic<bool> _stopping;
     std::atomic<bool> _skip_shutdown;
+    // Set once the worker exits other than for a fork, so _after_fork does not
+    // restart it.
+    std::atomic<bool> _finished;
 
     module_state* _state;
 
@@ -568,6 +571,7 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     self->_stopping = false;
     self->_skip_shutdown = false;
+    self->_finished = false;
 
     // Look up this interpreter's module state. PyState_FindModule does not work
     // for multi-phase init modules (slots != NULL), so we use
@@ -764,8 +768,11 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                     if (!state->is_finalizing()) {
                         // Run the shutdown callback if there was no error and we are not
                         // at Python shutdown.
-                        if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
-                            PeriodicThread__on_shutdown(self);
+                        if (!self->_skip_shutdown) {
+                            self->_finished = true;
+                            if (!error && self->_on_shutdown != Py_None)
+                                PeriodicThread__on_shutdown(self);
+                        }
 
                         // Remove the thread from the mapping of active threads.
                         if (PyDict_DelItem(state->periodic_threads, self->ident) < 0)
@@ -981,13 +988,21 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         }
     }
 
+    // A worker that was already stopping when the fork joined it, e.g. running
+    // on_shutdown after a stop() during periodic(), has finished. Do not restart it.
+    const bool finished = self->_finished;
+    if (finished)
+        should_restart = false;
+
     // Always reset fork-specific state regardless of restart decision.
     {
-        // A pending STOP request means stop() was called while the thread was
-        // paused for the fork, e.g. by an atexit hook before ThreadRestartTimer
-        // fired. Keep such a thread stopping so it does not resume periodic().
+        // Otherwise, a pending STOP request means stop() was called while the
+        // thread was paused for the fork, e.g. by an atexit hook before
+        // ThreadRestartTimer fired. Keep such a thread stopping so it does not
+        // resume periodic().
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
-        self->_stopping = self->_request->consume(REQUEST_REASON_STOP) != 0;
+        const bool stop_requested = self->_request->consume(REQUEST_REASON_STOP) != 0;
+        self->_stopping = finished || stop_requested;
     }
     self->_skip_shutdown = false;
     // During prefork, _before_fork() sets REQUEST_REASON_FORK_STOP to wake

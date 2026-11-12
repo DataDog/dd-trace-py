@@ -447,7 +447,9 @@ immediately after a fork should account for this delay.
 
 A thread stopped with `stop()` before its deferred restart, in the parent or
 the child, stays stopped: the restart only runs its `on_shutdown` callback. A
-`join()` called before the restart does not wait for that callback.
+`join()` called before the restart does not wait for that callback. A thread
+that was already stopping when the fork started, for example running its
+`on_shutdown` callback, is not restarted.
 
 The default `__autorestart__ = True` means that for most `PeriodicService`
 subclasses **no fork-specific code is required** — the protocol handles

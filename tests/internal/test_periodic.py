@@ -920,6 +920,117 @@ def test_periodic_service_stopped_before_restart_after_fork_stays_stopped():
     assert os.waitstatus_to_exitcode(status) == 0, "check failed in the child"
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_service_fork_during_on_shutdown_does_not_restart():
+    """A fork while on_shutdown() runs must not restart the thread, nor run on_shutdown() again.
+
+    stop() during periodic() leaves the stop request pending while the thread runs on_shutdown(). A fork then joins
+    the thread, and the restart must treat it as finished rather than as stopped while paused for the fork.
+    """
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal._threads import periodic_threads
+
+    in_periodic = Event()
+    release_periodic = Event()
+    in_shutdown = Event()
+    counts = {"periodic": 0, "shutdown": 0}
+
+    class Service(periodic.PeriodicService):
+        def periodic(self):
+            counts["periodic"] += 1
+            in_periodic.set()
+            release_periodic.wait()
+
+        def on_shutdown(self):
+            counts["shutdown"] += 1
+            in_shutdown.set()
+            # Keep the thread registered long enough for the fork to join it.
+            sleep(0.5)
+
+    svc = Service(0.05)
+    svc.start()
+    worker = svc._worker
+    assert in_periodic.wait(timeout=5)
+    svc.stop()
+    release_periodic.set()
+    assert in_shutdown.wait(timeout=5)
+
+    def check():
+        # Wait past ThreadRestartTimer so that a restart, if any, has run.
+        sleep(1)
+        assert counts == {"periodic": 1, "shutdown": 1}, counts
+        assert worker not in periodic_threads.values(), "the thread is still running"
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            check()
+        except AssertionError as e:
+            print(e)
+            os._exit(1)
+        os._exit(0)
+
+    check()
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0, "check failed in the child"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(timeout=30)
+def test_periodic_service_fork_during_restart_for_shutdown_stays_stopped():
+    """A second fork while the restarted thread runs on_shutdown() must not resume periodic()."""
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal import threads
+    from ddtrace.internal._threads import periodic_threads
+
+    # Widen the window between the fork and the restart so that stop() always lands in it.
+    threads.ThreadRestartTimer.__timeout__ = int(1e9)
+
+    in_shutdown = Event()
+    counts = {"periodic": 0, "shutdown": 0}
+
+    class Service(periodic.PeriodicService):
+        def periodic(self):
+            counts["periodic"] += 1
+
+        def on_shutdown(self):
+            counts["shutdown"] += 1
+            in_shutdown.set()
+            # Keep the thread registered long enough for the second fork to join it.
+            sleep(0.5)
+
+    svc = Service(0.05)
+    svc.start()
+    worker = svc._worker
+
+    def fork_and_exit_child():
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        os.waitpid(pid, 0)
+
+    fork_and_exit_child()
+    svc.stop()
+    # The restart after the first fork only runs on_shutdown(). Fork again while it does.
+    assert in_shutdown.wait(timeout=5)
+    ran = counts["periodic"]
+    fork_and_exit_child()
+
+    # Wait past ThreadRestartTimer so that a restart, if any, has run.
+    sleep(1.5)
+    assert counts == {"periodic": ran, "shutdown": 1}, counts
+    assert worker not in periodic_threads.values(), "the thread is still running"
+
+
 def test_periodic_thread_preserves_awake_during_restart_window():
     """Ensure awake() isn't lost while a periodic thread is paused for fork.
 
