@@ -126,6 +126,9 @@ def test_venv(ddtrace_injection_artifact):
             subprocess.check_call([sys.executable, "-m", "venv", venv_dir], timeout=60)
             python_executable = os.path.join(venv_dir, "bin", "python")
             pip_executable = os.path.join(venv_dir, "bin", "pip")
+            # Install with the outer pip: the venv's bundled pip can be too old for the package index
+            # (pip < 23.2 crashes on PEP 691 JSON pages that serve dist-info-metadata as a dict).
+            pip_install = [sys.executable, "-m", "pip", "--python", python_executable, "install", "--no-cache-dir"]
 
             # Construct the base environment needed to run things in this venv
             base_env = {
@@ -136,7 +139,7 @@ def test_venv(ddtrace_injection_artifact):
             }
 
             if DDTRACE_CORE_DEPENDENCIES:
-                core_install_cmd = [pip_executable, "install", "--no-cache-dir"] + DDTRACE_CORE_DEPENDENCIES
+                core_install_cmd = pip_install + DDTRACE_CORE_DEPENDENCIES
                 subprocess.run(
                     core_install_cmd,
                     timeout=300,
@@ -157,7 +160,7 @@ def test_venv(ddtrace_injection_artifact):
                         install_specs.append("legacy-cgi")
 
                 if install_specs:
-                    test_install_cmd = [pip_executable, "install", "--no-cache-dir"] + install_specs
+                    test_install_cmd = pip_install + install_specs
                     subprocess.run(
                         test_install_cmd,
                         timeout=300,
