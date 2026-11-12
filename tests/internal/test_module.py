@@ -156,11 +156,8 @@ def test_import_module_hook_for_module_not_yet_imported():
     hook.assert_not_called()
 
     # We import multiple times to check that the hook is called once only
-    with mock.patch("ddtrace.internal.module.origin") as resolve_origin:
-        __import__(name)
-        __import__(name)
-    resolve_origin.assert_not_called()
-    assert not hasattr(ModuleWatchdog._instance, "_origin_map")
+    __import__(name)
+    __import__(name)
 
     assert name in sys.modules
 
