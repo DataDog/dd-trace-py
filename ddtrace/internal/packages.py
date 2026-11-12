@@ -526,7 +526,7 @@ def _installed(check: bool = True) -> _Installed:
 
     if _PREFETCH_THREAD is not None and not getattr(_IN_PREFETCH, "active", False):
         # The boot-time scan is pending: wait for it rather than race it. Safe
-        # from import hooks too, as the prefetch imports nothing: see _PrefetchDeferred.
+        # from import hooks too, as the prefetch runs no custom finders: see below.
         _PREFETCH_DONE.wait()
         snapshot = _INSTALLED
 
@@ -545,46 +545,45 @@ def _installed(check: bool = True) -> _Installed:
     def warn(dist: t.Any, exc: t.Union[BaseException, str]) -> None:
         problems.append((dist, exc))
 
-    try:
-        if getattr(_FINDER_QUERY, "active", False) or (custom and getattr(_IN_PREFETCH, "active", False)):
-            # Either a custom finder is reading the maps, so asking it again would
-            # recurse, or this is the prefetch, which must not ask finders: see
-            # _PrefetchDeferred. Their distributions are missing, so neither publish
-            # nor keep lookups from this.
-            _FINDER_QUERY.nested = True
-            segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
-            with _INSTALLED_DISTRIBUTIONS_LOCK:
+    if getattr(_FINDER_QUERY, "active", False) or (custom and getattr(_IN_PREFETCH, "active", False)):
+        # Either a custom finder is reading the maps, so asking it again would
+        # recurse, or this is the prefetch, which must not ask finders: they run
+        # arbitrary Python, which may import. A reader can wait for the prefetch
+        # from an import hook, holding that module's import lock; were a finder
+        # on the prefetch thread to import the same module, both would wait
+        # forever. The first reader asks them instead. Their distributions are
+        # missing, so neither publish nor keep lookups from this.
+        _FINDER_QUERY.nested = True
+        segments: list[t.Optional[list[_DistributionRecord]]] = [None] if None in layout else []
+        with _INSTALLED_DISTRIBUTIONS_LOCK:
+            snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
+    else:
+        # Custom finders run arbitrary Python, which could re-enter: ask them
+        # outside the lock.
+        _FINDER_QUERY.active = True
+        _FINDER_QUERY.nested = False
+        try:
+            segments = _meta_path_segments(layout, warn)
+        finally:
+            _FINDER_QUERY.active = False
+        if _FINDER_QUERY.nested:
+            _clear_lookup_caches()
+        replaced = False
+        with _INSTALLED_DISTRIBUTIONS_LOCK:
+            previous = _INSTALLED
+            if custom or previous is None or previous.key != key:
                 snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
-        else:
-            # Custom finders run arbitrary Python, which could re-enter: ask them
-            # outside the lock.
-            _FINDER_QUERY.active = True
-            _FINDER_QUERY.nested = False
-            try:
-                segments = _meta_path_segments(layout, warn)
-            finally:
-                _FINDER_QUERY.active = False
-            if _FINDER_QUERY.nested:
-                _clear_lookup_caches()
-            replaced = False
-            with _INSTALLED_DISTRIBUTIONS_LOCK:
-                previous = _INSTALLED
-                if custom or previous is None or previous.key != key:
-                    snapshot = _Installed(key, list(_distribution_records(key, segments, warn)))
-                    _INSTALLED = snapshot
-                    replaced = previous is not None
-                else:
-                    snapshot = previous
-                snapshot.checked = snapshot.checked or check
-            if replaced:
-                # Lookups cached from the previous snapshot may no longer hold.
-                _clear_lookup_caches()
-    finally:
-        # Log outside the lock: handlers may do I/O and yield under gevent. Also
-        # when the build stops early: the entries scanned so far are cached and
-        # would not report their problems again.
-        for dist, exc in problems:
-            _warn_bad_dist(dist, exc)
+                _INSTALLED = snapshot
+                replaced = previous is not None
+            else:
+                snapshot = previous
+            snapshot.checked = snapshot.checked or check
+        if replaced:
+            # Lookups cached from the previous snapshot may no longer hold.
+            _clear_lookup_caches()
+    # Log outside the lock: handlers may do I/O and yield under gevent.
+    for dist, exc in problems:
+        _warn_bad_dist(dist, exc)
     return snapshot
 
 
@@ -611,23 +610,10 @@ def _installed_distributions() -> list[_DistributionRecord]:
     return _installed().records
 
 
-class _PrefetchDeferred(Exception):
-    """The prefetch met work it leaves to readers: Python code that may import.
-
-    Readers wait for the prefetch, possibly from an import hook, with that
-    module's import lock held. Were the prefetch to import the same module,
-    both threads would wait forever. So the prefetch runs no custom finders and
-    reads no distributions through zipfile; it caches what the native scan
-    reads and publishes nothing, and the first reader finishes the build.
-    """
-
-
 def _prefetch() -> None:
     _IN_PREFETCH.active = True
     try:
         _installed(check=False)
-    except _PrefetchDeferred:
-        pass
     except Exception:
         # The lazy path retries on first use.
         LOG.debug("Failed to prefetch installed distributions", exc_info=True)
@@ -674,36 +660,13 @@ def _entry_records(entry: str, module_suffixes: list[str], warn: _WarnBadDist) -
     try:
         # Only the prefetch thread, which is joined before interpreter shutdown,
         # may release the GIL: see scan_distributions.
-        dists, errors, fallbacks = scan_distributions(entry, module_suffixes, getattr(_IN_PREFETCH, "active", False))
+        dists, errors = scan_distributions(entry, module_suffixes, getattr(_IN_PREFETCH, "active", False))
     except Exception as exc:
         warn(entry, exc)
         return None
     for path, error in errors:
         warn(path, error)
-    if fallbacks:
-        if getattr(_IN_PREFETCH, "active", False):
-            raise _PrefetchDeferred(entry)
-        # From the back, so the indices of the earlier ones still hold.
-        for index, directory in reversed(fallbacks):
-            try:
-                dist = _zip_distribution(entry, directory)
-            except Exception as exc:
-                warn(os.path.join(entry, directory), exc)
-                continue
-            dists[index:index] = _python_dist_records([dist], warn)
     return dists
-
-
-def _zip_distribution(entry: str, directory: str) -> t.Any:
-    """A distribution in a zip entry, read through zipfile as importlib does.
-
-    For the zip members the native reader cannot decode: zipfile supports more
-    compression methods.
-    """
-    import importlib.metadata as importlib_metadata
-    import zipfile
-
-    return importlib_metadata.PathDistribution(zipfile.Path(entry).joinpath(directory))
 
 
 def _meta_path_segments(layout: tuple[t.Any, ...], warn: _WarnBadDist) -> list[t.Optional[list[_DistributionRecord]]]:
@@ -766,7 +729,7 @@ def _distribution_candidates(name: str) -> t.Iterator[tuple[t.Any, t.Callable[[]
             for entry in _sys_path_entries():
                 index = _entry_index(entry)
                 for directory in index.get(normalized, ()) if index is not None else ():
-                    yield os.path.join(entry, directory), partial(_read_listed_distribution, entry, directory)
+                    yield os.path.join(entry, directory), partial(read_distribution, entry, directory)
             continue
         # Imported lazily: IAST drops importlib.metadata after boot, for gevent.
         import importlib.metadata as importlib_metadata
@@ -777,14 +740,6 @@ def _distribution_candidates(name: str) -> t.Iterator[tuple[t.Any, t.Callable[[]
                 yield finder, partial(_read_headers, found)
         except Exception as exc:
             _warn_bad_dist(finder, exc)
-
-
-def _read_listed_distribution(entry: str, directory: str) -> t.Optional[_Headers]:
-    try:
-        return read_distribution(entry, directory)
-    except NotImplementedError:
-        # A zip member the native reader cannot decode.
-        return _read_headers(_zip_distribution(entry, directory))
 
 
 def _read_headers(dist: t.Any) -> _Headers:

@@ -891,12 +891,16 @@ def test_custom_finders_run_outside_the_lock(
     assert list(mapping.items()) == [("from_finder.py", ("from-finder", "2.0")), ("on_path.py", ("on-path", "1.0"))]
 
 
-def _zip_with_bzip2_metadata(archive: Path) -> Path:
-    """A zip whose second distribution has bzip2 members, which the native reader
-    cannot decode: Python code can still be imported from it, as it is deflated.
+def test_bzip2_zip_members_are_read_without_imports(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """bzip2 zip members, which zipfile reads too, are read natively. Lookups run
+    on ddtrace threads after module cloning, so they must not import zipfile or
+    bz2 to get at them: both import threading.
     """
     import zipfile
 
+    archive = tmp_path / "deps.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("first/__init__.py", "")
         zf.writestr("first-1.0.dist-info/METADATA", "Name: first\nVersion: 1.0\n")
@@ -904,21 +908,10 @@ def _zip_with_bzip2_metadata(archive: Path) -> Path:
         zf.writestr("bz/__init__.py", "")
         for name, text in (("METADATA", "Name: bz\nVersion: 2.0\n"), ("RECORD", "bz/__init__.py,,\n")):
             zf.writestr(f"bz-2.0.dist-info/{name}", text, compress_type=zipfile.ZIP_BZIP2)
-        zf.writestr("last/__init__.py", "")
-        zf.writestr("last-3.0.dist-info/METADATA", "Name: last\nVersion: 3.0\n")
-        zf.writestr("last-3.0.dist-info/RECORD", "last/__init__.py,,\n")
-    return archive
-
-
-def test_zip_members_the_native_reader_cannot_decode_are_read_by_zipfile(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Distributions with zip members in compression methods the native reader
-    lacks (here bzip2) are read through zipfile, in their place in discovery order.
-    """
-    archive = _zip_with_bzip2_metadata(tmp_path / "deps.zip")
     monkeypatch.setattr(sys, "path", [str(archive)])
     monkeypatch.setattr(sys, "meta_path", [PathFinder])
+    for module in ("zipfile", "bz2", "importlib.metadata"):
+        monkeypatch.delitem(sys.modules, module, raising=False)
 
     from ddtrace.internal import packages as _p
 
@@ -926,54 +919,36 @@ def test_zip_members_the_native_reader_cannot_decode_are_read_by_zipfile(
         records = _p._installed_distributions()
         version = _p.get_version_for_package("BZ")
 
-    assert records == [
-        ("first", "1.0", ["first"], ["first"]),
-        ("bz", "2.0", ["bz"], ["bz"]),
-        ("last", "3.0", ["last"], ["last"]),
-    ]
+    assert records == [("first", "1.0", ["first"], ["first"]), ("bz", "2.0", ["bz"], ["bz"])]
     assert version == "2.0"
-    assert _p.is_distribution_available("bz")
+    assert not {"zipfile", "bz2", "importlib.metadata"} & set(sys.modules)
     assert not [r for r in caplog.records if "Skipping distribution" in r.getMessage()]
 
 
-def test_prefetch_leaves_zipfile_reads_to_readers(
-    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch
+def test_unreadable_zip_member_is_reported(
+    tmp_path: Path, reset_packages_caches, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The prefetch imports nothing, so it leaves reading through zipfile to the
-    first reader; the entries it did scan are not scanned again.
+    """A zip member that cannot be read (here LZMA, which the native reader does
+    not support) is reported like other unreadable metadata, not skipped quietly.
     """
-    from ddtrace.internal import native
-    from ddtrace.internal import packages as _p
+    import zipfile
 
-    site = _site_with_dist(tmp_path / "site", "plain", "plain")
-    archive = _zip_with_bzip2_metadata(tmp_path / "deps.zip")
-    monkeypatch.setattr(sys, "path", [str(site), str(archive)])
-    monkeypatch.setattr(sys, "meta_path", [PathFinder])
-    scanned: list[str] = []
-    real_scan = native.scan_distributions
+    archive = tmp_path / "deps.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("ok/__init__.py", "")
+        zf.writestr("ok-1.0.dist-info/METADATA", "Name: ok\nVersion: 1.0\n")
+        zf.writestr("ok-1.0.dist-info/RECORD", "ok/__init__.py,,\n")
+        zf.writestr("xz-1.0.dist-info/METADATA", "Name: xz\nVersion: 1.0\n", compress_type=zipfile.ZIP_LZMA)
+    monkeypatch.setattr(sys, "path", [str(archive)])
 
-    def counting_scan(entry, *args):
-        scanned.append(entry)
-        return real_scan(entry, *args)
+    from ddtrace.internal.packages import _package_for_root_module_mapping
 
-    monkeypatch.setattr(_p, "scan_distributions", counting_scan)
-    zip_reads: list[str] = []
-    real_zip_distribution = _p._zip_distribution
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.packages"):
+        mapping = _package_for_root_module_mapping()
 
-    def zip_distribution(entry, directory):
-        zip_reads.append(threading.current_thread().name)
-        return real_zip_distribution(entry, directory)
-
-    monkeypatch.setattr(_p, "_zip_distribution", zip_distribution)
-
-    _prefetch_and_wait(_p)
-
-    assert _p._INSTALLED is None
-    assert zip_reads == []
-
-    assert [r[0] for r in _p._installed_distributions()] == ["plain", "first", "bz", "last"]
-    assert zip_reads == [threading.current_thread().name]
-    assert scanned == [str(site), str(archive), str(archive)]
+    assert mapping == {"ok": ("ok", "1.0")}
+    warnings = [r.getMessage() for r in caplog.records if "Skipping distribution" in r.getMessage()]
+    assert len(warnings) == 1 and "xz-1.0.dist-info" in warnings[0]
 
 
 def test_relative_entries_follow_the_working_directory(

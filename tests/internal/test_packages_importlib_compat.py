@@ -215,9 +215,8 @@ INSTALLS: dict[str, t.Callable[[Path], str]] = {
     "wheel_zip": _make_zip({**DIST_INFO, **PACKAGES}, "example-21.12-py3-none-any.whl"),
     "egg_zip": _make_zip(EGG, "example-21.12-py3.6.egg"),
     "stored_zip": _make_zip(DIST_INFO, compression=zipfile.ZIP_STORED),
-    # Members the native reader cannot decode, read through zipfile instead.
+    # LZMA is left out: the native reader skips it, with a warning.
     "bzip2_metadata_zip": _make_zip({**DIST_INFO, **PACKAGES}, metadata_compression=zipfile.ZIP_BZIP2),
-    "lzma_metadata_zip": _make_zip(EGG_INFO, metadata_compression=zipfile.ZIP_LZMA),
 }
 # Two entries with other versions of the same distributions, for shadowing: the
 # first one wins lookups, the last one the map of versions.

@@ -1337,9 +1337,7 @@ def read_distribution(entry: str, directory: str) -> Optional[tuple[Optional[str
 
     :return: ``(name, version)``, either of which is ``None`` when missing, as with
         ``importlib.metadata``; or ``None`` if the distribution is gone.
-    :raises ValueError: If the metadata cannot be decoded.
-    :raises NotImplementedError: If the metadata is a zip member the native reader cannot
-        decode (an unsupported compression method, for one) but ``zipfile`` may.
+    :raises ValueError: If the metadata cannot be read or decoded.
     :raises RuntimeError: If the read fails unexpectedly; never ``PanicException``.
     """
     ...
@@ -1348,23 +1346,17 @@ def scan_distributions(
     entry: str,
     module_suffixes: list[str],
     release_gil: bool = False,
-) -> tuple[
-    list[tuple[str, Optional[str], list[str], list[str]]],
-    list[tuple[str, str]],
-    list[tuple[int, str]],
-]:
+) -> tuple[list[tuple[str, Optional[str], list[str], list[str]]], list[tuple[str, str]]]:
     """Scan one sys.path entry, a directory or a zip archive, for installed distributions.
 
     :param module_suffixes: ``importlib.machinery.all_suffixes()``, longest first.
     :param release_gil: Release the GIL during the scan; only for threads that cannot outlive
         interpreter shutdown.
-    :return: ``(dists, errors, fallbacks)``, where each dist is ``(name, version, keys,
-        top_level)``: ``version`` is ``None`` when missing, ``keys`` are the import roots it
-        ships and ``top_level`` the names ``packages_distributions`` maps to it. Each error is
-        ``(metadata_path, message)`` for a file that could not be decoded. Each fallback is
-        ``(index, directory)`` for a distribution with zip members the native reader cannot
-        decode but ``zipfile`` may: read it in Python and insert it at ``index`` of ``dists``.
-        Entries that cannot be listed have no distributions.
+    :return: ``(dists, errors)``, where each dist is ``(name, version, keys, top_level)``:
+        ``version`` is ``None`` when missing, ``keys`` are the import roots it ships and
+        ``top_level`` the names ``packages_distributions`` maps to it. Each error is
+        ``(metadata_path, message)`` for a file that could not be decoded. Entries that
+        cannot be listed have no distributions.
     :raises RuntimeError: If the scan fails unexpectedly; never ``PanicException``.
     """
     ...
