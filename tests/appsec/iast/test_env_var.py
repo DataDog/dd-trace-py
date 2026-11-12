@@ -14,7 +14,7 @@ def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
     cmd = []
     if "no_ddtracerun" not in kwargs:
-        cmd += ["python", "-m", "ddtrace.commands.ddtrace_run"]
+        cmd += ["python", "-m", "ddtrace_commands.ddtrace_run"]
 
     cmd += [
         "python",

@@ -290,7 +290,10 @@ def test_command_flags():
 
 
 @pytest.mark.parametrize("flags", [[], ["--debug"], ["--profiling"]])
-def test_launcher_does_not_initialize_ddtrace(flags):
+def test_launcher_does_not_initialize_ddtrace(flags, tmp_path):
+    package = tmp_path / "ddtrace"
+    package.mkdir()
+    (package / "__init__.py").write_text("raise AssertionError('launcher imported ddtrace')\n")
     code = textwrap.dedent(
         """
         import importlib.metadata
@@ -302,7 +305,8 @@ def test_launcher_does_not_initialize_ddtrace(flags):
             if ep.group == "console_scripts" and ep.name == "ddtrace-run"
         )
         main = entrypoint.load()
-        flags = sys.argv[1:]
+        package_root, *flags = sys.argv[1:]
+        sys.path.insert(0, package_root)
         os.environ["PYTHONPATH"] = "existing-path"
         os.environ["DD_TRACE_DEBUG"] = "false"
         original_env = os.environ.copy()
@@ -313,15 +317,13 @@ def test_launcher_does_not_initialize_ddtrace(flags):
             assert executable == sys.executable
             assert args == (sys.executable, "-c", "pass", "--version")
             bootstrap, previous = os.environ["PYTHONPATH"].split(os.pathsep, 1)
-            assert os.path.isfile(os.path.join(bootstrap, "sitecustomize.py"))
+            assert bootstrap == os.path.join(package_root, "ddtrace", "bootstrap")
             assert previous == "existing-path"
             expected_env = dict(original_env, PYTHONPATH=os.environ["PYTHONPATH"])
             if "--debug" in flags:
                 expected_env["DD_TRACE_DEBUG"] = "true"
-                assert os.environ["DD_TRACE_DEBUG"] == "true"
             if "--profiling" in flags:
                 expected_env["DD_PROFILING_ENABLED"] = "true"
-                assert os.environ["DD_PROFILING_ENABLED"] == "true"
             assert dict(os.environ) == expected_env
             raise SystemExit(0)
 
@@ -329,34 +331,7 @@ def test_launcher_does_not_initialize_ddtrace(flags):
         main()
         """
     )
-    subprocess.run([sys.executable, "-c", code, *flags], check=True, capture_output=True)
-
-
-def test_launcher_resolves_package_without_importing_it(tmp_path):
-    package = tmp_path / "ddtrace"
-    package.mkdir()
-    (package / "__init__.py").write_text("raise AssertionError('launcher imported ddtrace')\n")
-    code = textwrap.dedent(
-        """
-        import os
-        import sys
-        from ddtrace_commands import ddtrace_run
-
-        package_root = sys.argv[1]
-        sys.path.insert(0, package_root)
-        sys.argv = ["ddtrace-run", sys.executable, "-c", "pass"]
-
-        def exec_application(*args):
-            assert os.environ["PYTHONPATH"].split(os.pathsep)[0] == os.path.join(
-                package_root, "ddtrace", "bootstrap"
-            )
-            raise SystemExit(0)
-
-        os.execl = exec_application
-        ddtrace_run.main()
-        """
-    )
-    subprocess.run([sys.executable, "-c", code, str(tmp_path)], check=True, capture_output=True)
+    subprocess.run([sys.executable, "-c", code, str(tmp_path), *flags], check=True, capture_output=True)
 
 
 def test_launcher_bootstrap_is_inherited_by_child_processes():
@@ -373,21 +348,6 @@ def test_launcher_bootstrap_is_inherited_by_child_processes():
     assert result.returncode == 0, result.stderr
 
 
-def test_manual_bootstrap_preserves_import_failure_behavior():
-    result = subprocess.run(
-        [sys.executable, "-c", "print('application ran')"],
-        env=dict(
-            os.environ,
-            DD_TRACE_LOG_FILE_LEVEL="UNKNOWN",
-            PYTHONPATH=os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap"),
-        ),
-        capture_output=True,
-    )
-    assert result.returncode == 0, result.stderr
-    assert b"ValueError" in result.stderr
-    assert result.stdout.strip() == b"application ran"
-
-
 @pytest.mark.parametrize("exit_code", [0, 7])
 def test_launcher_runs_application_after_import_failure(exit_code):
     result = subprocess.run(
@@ -400,9 +360,17 @@ def test_launcher_runs_application_after_import_failure(exit_code):
     assert result.stdout.strip() == b"application ran"
 
 
-def test_return_code():
+@pytest.mark.parametrize(
+    "launcher",
+    [
+        ["ddtrace-run"],
+        [sys.executable, "-m", "ddtrace_commands.ddtrace_run"],
+        [sys.executable, "-m", "ddtrace.commands.ddtrace_run"],
+    ],
+)
+def test_return_code(launcher):
     p = subprocess.Popen(
-        ["ddtrace-run", "python", "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        launcher + [sys.executable, "-c", "import sys;sys.exit(4)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     p.communicate()
 

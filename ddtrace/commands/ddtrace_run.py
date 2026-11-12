@@ -1,7 +1,3 @@
-from ddtrace_commands.ddtrace_run import _add_bootstrap_to_pythonpath  # noqa: F401
-from ddtrace_commands.ddtrace_run import _find_executable  # noqa: F401
-from ddtrace_commands.ddtrace_run import _get_arg_parser  # noqa: F401
-from ddtrace_commands.ddtrace_run import _prepare_env  # noqa: F401
 from ddtrace_commands.ddtrace_run import main
 
 
