@@ -133,3 +133,14 @@ def test_truncation_drops_expected_output_when_io_is_not_enough():
     assert truncated["meta"]["expected_output"] == {"value": DROPPED_VALUE_TEXT}
     assert len(safe_json(truncated)) < DEFAULT_EVP_EVENT_SIZE_LIMIT
     assert truncated["collection_errors"] == [DROPPED_IO_COLLECTION_ERROR]
+
+
+def test_truncation_ranks_fields_by_serialized_size():
+    """Escaped characters count: an emoji-heavy input is bigger on the wire than a longer ASCII output."""
+    event = _oversized_workflow_event()
+    event["meta"]["input"] = "\U0001f600" * 450_000
+    event["meta"]["output"] = "A" * 2_000_000
+    assert len(safe_json(event)) >= DEFAULT_EVP_EVENT_SIZE_LIMIT
+    truncated = _truncate_span_event(event)
+    assert truncated["meta"]["input"] == {"value": DROPPED_VALUE_TEXT}
+    assert truncated["meta"]["output"] == "A" * 2_000_000

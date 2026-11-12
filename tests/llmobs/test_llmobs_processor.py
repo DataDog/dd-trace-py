@@ -213,6 +213,15 @@ class TestExperimentSpansSkipAPMTrace:
             assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
             assert not _get_llmobs_data_metastruct(span)
 
+    def test_export_span_keeps_llmobs_trace_id_after_direct_export(self, llmobs_agent_proxy, tracer):
+        """Evaluations join on the exported context, so it must carry the LLMObs trace ID, not the
+        APM one, even though the processor scrubbed the meta_struct.
+        """
+        llmobs, mock_writer = llmobs_agent_proxy
+        root, _child = _finish_experiment_trace(tracer)
+        sent_trace_ids = {call.args[0]["trace_id"] for call in mock_writer.enqueue.call_args_list}
+        assert llmobs.export_span(root)["trace_id"] in sent_trace_ids
+
     def test_non_experiment_spans_still_ride_kept_trace(self, llmobs_agent_proxy, tracer):
         _llmobs, mock_writer = llmobs_agent_proxy
         span = _finish_with_priority(tracer, USER_KEEP)

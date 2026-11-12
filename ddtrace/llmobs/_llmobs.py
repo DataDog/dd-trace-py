@@ -730,6 +730,8 @@ class LLMObs(Service):
             self._llmobs_span_writer.enqueue(span_event, targets)
             return
 
+        # LLMObsProcessor may scrub the meta_struct (direct export); keep the trace ID for export_span().
+        span._set_ctx_item(CACHED_LLMOBS_TRACE_ID_CTX_KEY, span_event.get("trace_id"))
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
 

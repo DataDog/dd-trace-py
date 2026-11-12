@@ -1243,7 +1243,8 @@ def _truncate_span_event(event: LLMObsSpanEvent, limit: Optional[int] = None) ->
     event["collection_errors"] = [DROPPED_IO_COLLECTION_ERROR]
     for group in _TRUNCATION_FIELD_GROUPS:
         present = [key for key in group if key in meta]
-        for key in sorted(present, key=lambda k: len(safe_json(meta[k])), reverse=True):
+        # Measure the serialized field so string escaping counts toward its size.
+        for key in sorted(present, key=lambda k: len(safe_json({k: meta[k]})), reverse=True):
             meta[key] = {"value": DROPPED_VALUE_TEXT}
             if len(safe_json(event)) < limit:
                 return event
