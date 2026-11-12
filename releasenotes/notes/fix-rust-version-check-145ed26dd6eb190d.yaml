@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    internal: Fixes an issue where building ddtrace from source fails with
-    "rustc version 1.91.1 or later required" when using Rust 1.100 or later.
