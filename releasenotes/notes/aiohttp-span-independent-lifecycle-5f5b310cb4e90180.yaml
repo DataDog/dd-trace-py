@@ -1,8 +1,9 @@
 features:
   - |
-    tracing: Avoids creating web request spans with ``DD_TRACE_ENABLED=false``,
-    except when required by standalone products.
-  - |
     aiohttp: With ``config.aiohttp.disable_stream_timing_for_mem_leak=False`` (default),
     request spans now finish when request execution completes for both ordinary
     and streaming responses.
+fixes:
+  - |
+    aiohttp: Fixes unfinished request spans and loss of IAST sources when both a
+    parent application and its sub-application are instrumented with ``trace_app``.

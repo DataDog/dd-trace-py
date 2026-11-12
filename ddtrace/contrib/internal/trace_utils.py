@@ -399,7 +399,6 @@ def set_http_meta(
     route: Optional[str] = None,
     response_cookies: Optional[dict[str, str]] = None,
     query_tagged_separately: bool = False,
-    trace_query_string: Optional[bool] = None,
 ) -> None:
     """
     Set HTTP metas on the span
@@ -410,7 +409,6 @@ def set_http_meta(
     :param status_msg: the HTTP status message
     :param query: the HTTP query part of the URI as a string
     :param query_tagged_separately: the caller tags the query string itself, so it must not be read from the URL
-    :param trace_query_string: optional request-level override for query-string tagging
     :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
     :param request_headers: the HTTP request headers
     :param response_headers: the HTTP response headers
@@ -433,7 +431,6 @@ def set_http_meta(
             status_code=status_code,
             query=query,
             query_tagged_separately=query_tagged_separately,
-            trace_query_string=trace_query_string,
             request_headers=request_headers,
             headers_are_case_sensitive=headers_are_case_sensitive,
             route=route,
@@ -448,7 +445,6 @@ def set_http_meta(
             server_address=server_address,
             status_code=status_code,
             query=query,
-            trace_query_string=trace_query_string,
             request_headers=request_headers,
             headers_are_case_sensitive=headers_are_case_sensitive,
         )
@@ -527,7 +523,6 @@ def _set_http_meta(
     query: Optional[str],
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
-    trace_query_string: Optional[bool] = None,
 ) -> None:
     """Set the tags whose names or semantics differ from OTel's, using the Datadog conventions."""
     if method is not None:
@@ -553,9 +548,7 @@ def _set_http_meta(
             if config._http_server.is_error_code(int_status_code):
                 span.error = 1
 
-    if query is not None and (
-        integration_config.trace_query_string if trace_query_string is None else trace_query_string
-    ):
+    if query is not None and integration_config.trace_query_string:
         span._set_attribute(http.QUERY_STRING, query)
 
     if request_headers:
@@ -577,7 +570,6 @@ def _set_http_meta_otel(
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
     route: Optional[str],
-    trace_query_string: Optional[bool] = None,
 ) -> None:
     """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
     otel_http.set_method(method)
@@ -588,7 +580,6 @@ def _set_http_meta_otel(
         server_address=server_address,
         fallback_server_address=target_host,
         query_tagged_separately=query_tagged_separately,
-        trace_query_string=trace_query_string,
     )
     otel_http.set_status_code(status_code)
     if request_headers:

@@ -28,6 +28,7 @@ from ddtrace.internal.utils.http import _format_template
 CONFIG_KEY = "datadog_trace"
 REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_EXECUTION_CONTEXT_KEY = "__datadog_execution_context"
+REQUEST_EXECUTION_CONTEXTS_KEY = "__datadog_execution_contexts"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_STARTED_RESPONSE_KEY = "__datadog_started_response"
 DEFAULT_CLIENT_MAX_SIZE = 1024**2
@@ -86,7 +87,8 @@ async def trace_middleware(
         ) as ctx:
             req_span = ctx.get_item("_inner_span")
 
-            # attach the execution context to the request
+            # Clones copy request state shallowly, so response preparation can find every middleware owner.
+            request.setdefault(REQUEST_EXECUTION_CONTEXTS_KEY, []).append(ctx)
             request[REQUEST_EXECUTION_CONTEXT_KEY] = ctx
             # legacy request key kept for backwards compatibility with documentation
             request[REQUEST_CONTEXT_KEY] = req_span.context if req_span is not None else None
@@ -96,7 +98,7 @@ async def trace_middleware(
             finish_on_prepare = config.aiohttp["disable_stream_timing_for_mem_leak"] or task is None
             ctx.set_item("aiohttp.finish_on_prepare", finish_on_prepare)
             if not finish_on_prepare and task is not None:
-                task.add_done_callback(lambda _: finish_request_span(request))
+                task.add_done_callback(lambda _: finish_request_span(request, ctx=ctx))
 
             try:
                 try:
@@ -175,14 +177,21 @@ def _blocked_response(
     )
 
 
-def finish_request_span(request: web.Request, response: Optional[web.StreamResponse] = None) -> None:
+def finish_request_span(
+    request: web.Request,
+    response: Optional[web.StreamResponse] = None,
+    *,
+    ctx: Optional[core.ExecutionContext[WebFrameworkRequestEvent]] = None,
+) -> None:
     # Response preparation and the task callback can both finalize a request; the first releases its event.
-    ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
+    if ctx is None:
+        ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
     if not ctx or ctx._end_event_dispatched:
         return
 
     if response is None:
-        response = request.get(REQUEST_STARTED_RESPONSE_KEY)
+        response = ctx.get_item("aiohttp.response", request.get(REQUEST_STARTED_RESPONSE_KEY))
+    ctx.discard_local_item("aiohttp.response")
     if response is None:
         # A disconnected or cancelled request can end without preparing a response.
         ctx.dispatch_ended_event()
@@ -212,9 +221,13 @@ async def on_prepare(request: web.Request, response: web.StreamResponse) -> None
     request[REQUEST_STARTED_RESPONSE_KEY] = response
     # The compatibility option releases request state at header preparation.
     # todo: replace task callbacks with a response-completion signal when available.
-    ctx = request.get(REQUEST_EXECUTION_CONTEXT_KEY)
-    if ctx is not None and ctx.get_item("aiohttp.finish_on_prepare", True):
-        finish_request_span(request, response)
+    for ctx in reversed(request.get(REQUEST_EXECUTION_CONTEXTS_KEY, ())):
+        if not ctx._end_event_dispatched:
+            if ctx.get_item("aiohttp.finish_on_prepare", True):
+                finish_request_span(request, response, ctx=ctx)
+            else:
+                # A clone has its own request state, so retain the response for the original owner's callback.
+                ctx.set_item("aiohttp.response", response)
 
 
 def trace_app(app, tracer=None, service="aiohttp-web"):

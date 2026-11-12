@@ -54,44 +54,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
             distributed_tracing=True,
         )
 
-    def test_request_lifecycle_without_spans(self):
-        from unittest.mock import Mock
-        from unittest.mock import patch
-
-        from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
-        from ddtrace.contrib.internal import trace_utils
-        from ddtrace.internal import core
-
-        WebFrameworkRequestSubscriber.register()
-        started = []
-        completed = []
-
-        def beginning(ctx):
-            started.append(ctx)
-
-        def ended(ctx, exc_info):
-            completed.append((ctx, ctx.event.response_status_code, ctx.event.resource))
-
-        core.on("context.started.web.request", beginning)
-        core.on("context.ended.web.request", ended)
-        try:
-            with (
-                patch.object(self.tracer, "enabled", False),
-                patch.object(trace_utils, "standalone_config", Mock(apm_opt_out=False)),
-                patch.object(self.tracer, "start_span", wraps=self.tracer.start_span) as start_span,
-            ):
-                self.getPage("/response_headers")
-                time.sleep(0.1)
-            self.assertStatus("200 OK")
-            self.assertHeader("my-response-header", "my_response_value")
-            start_span.assert_not_called()
-            assert len(started) == 1
-            assert completed == [(started[0], 200, "GET /response_headers")]
-            assert started[0]._event is None
-        finally:
-            core.reset_listeners("context.started.web.request", beginning)
-            core.reset_listeners("context.ended.web.request", ended)
-
     def test_and_emit_get_version(self):
         from ddtrace.contrib.internal.cherrypy.patch import get_version
 

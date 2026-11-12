@@ -35,7 +35,11 @@ sanic_version = tuple(map(int, sanic_version.split(".")))
 
 
 try:
-    from sanic.response import ResponseStream as stream
+    from sanic.response import ResponseStream
+
+    def stream(*args, **kwargs):
+        return ResponseStream(*args, **kwargs)
+
 except ImportError:
     # stream was removed in sanic v22.6.0
     from sanic.response import stream
@@ -686,69 +690,3 @@ def test_otel_semantics_server_span_attributes():
             await client.aclose()
 
     asyncio.run(run())
-
-
-@pytest.mark.parametrize("otel_semantics", [False, True])
-async def test_request_lifecycle_without_spans(tracer, monkeypatch, otel_semantics):
-    from types import SimpleNamespace
-    from unittest.mock import Mock
-    from unittest.mock import patch as mock_patch
-
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestExceptionSubscriber
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
-    from ddtrace.contrib.internal import trace_utils
-    import ddtrace.contrib.internal.sanic.patch as integration
-    from ddtrace.internal import core
-
-    monkeypatch.setattr(tracer, "enabled", False)
-    monkeypatch.setattr(trace_utils, "standalone_config", Mock(apm_opt_out=False))
-    monkeypatch.setattr(integration, "SANIC_VERSION", (21, 9, 0))
-    WebFrameworkRequestSubscriber.register()
-    WebFrameworkRequestExceptionSubscriber.register()
-    started = []
-    completed = []
-
-    def beginning(ctx):
-        started.append(ctx)
-
-    def ended(ctx, exc_info):
-        completed.append((ctx, ctx.event.response_status_code, ctx.event.resource))
-
-    request = SimpleNamespace(
-        ctx=SimpleNamespace(),
-        headers={},
-        query_string="",
-        scheme="http",
-        host="localhost",
-        path="/metadata",
-        method="GET",
-    )
-    route = SimpleNamespace(raw_path="metadata", regex=False, name="metadata")
-    response = SimpleNamespace(status=500, headers={})
-
-    async def respond():
-        return response
-
-    core.on("context.started.web.request", beginning)
-    core.on("context.ended.web.request", ended)
-    try:
-        with (
-            override_global_config(dict(_otel_trace_semantics_enabled=otel_semantics)),
-            mock_patch.object(tracer, "start_span", wraps=tracer.start_span) as start_span,
-        ):
-            await integration.sanic_http_lifecycle_handle(request)
-            await integration.sanic_http_routing_after(request, route, {}, Mock())
-            try:
-                raise RuntimeError("request failed")
-            except RuntimeError as exception:
-                await integration.sanic_http_lifecycle_exception(request, exception)
-            assert request.ctx.__dd_span_call_finish is True
-            assert await integration.patch_request_respond(respond, request, (), {}) is response
-        start_span.assert_not_called()
-        assert len(started) == 1
-        assert completed == [(started[0], 500, "GET /metadata")]
-        assert started[0]._event is None
-        assert integration._get_request_context(request) is None
-    finally:
-        core.reset_listeners("context.started.web.request", beginning)
-        core.reset_listeners("context.ended.web.request", ended)

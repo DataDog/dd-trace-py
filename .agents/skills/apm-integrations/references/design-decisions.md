@@ -37,21 +37,11 @@ See `ddtrace/internal/core/__init__.py` for the API. An event is available throu
 its synchronous `context.ended` subscriber dispatch and is released immediately
 afterward. Deferred integrations must set `dispatch_end_event=False` and call
 `ctx.dispatch_ended_event()` only after they have attached all final event data.
-Lifecycle dispatch must not depend on a tracing span being present: with tracing
-disabled, other products can still consume the same events. Do not call
-`span_from_context()` simply to check whether a request can be finalized, since it
-creates a fallback span when no tracing subscriber is registered.
-Events carry request data, not tracing capabilities or enablement decisions. The web
-tracing subscriber applies the same span policy to every web request event, without
-checking the emitting framework. It captures its span creation decision in
-the local execution context from two separate inputs: tracer APM enablement and
-standalone products' span requirements. The decision describes span lifecycle, not APM
-enablement; the base guards reuse it through completion. Do not infer ownership from
-`_inner_span`, since AppSec can populate it with a borrowed parent span. Emitters and
-metadata subscribers must complete their lifecycle even when no span was created;
-read existing local spans without calling fallback-producing helpers. Report deferred request exceptions synchronously
-through WebFrameworkRequestExceptionEvent rather than retaining exceptions or tracebacks
-on a deferred context. Deferred completion carries final response metadata separately.
+Report deferred request exceptions synchronously through WebFrameworkRequestExceptionEvent
+rather than retaining exceptions or tracebacks on a deferred context. Completion carries final
+response metadata separately. For nested middleware, each completion callback must retain
+its own execution context rather than resolve a request key that inner middleware can replace.
+Response preparation must reach all contexts for the request, including request clones.
 
 **`context_with_data()` + `trace_handlers.py`** (preserve where already used): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
