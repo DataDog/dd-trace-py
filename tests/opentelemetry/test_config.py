@@ -643,7 +643,7 @@ def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
     env={
         "DD_AGENTLESS_ENABLED": "true",
         "DD_API_KEY": "foobarkey",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:9999",
     },
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["http/protobuf", "grpc"]},
 )
@@ -663,8 +663,8 @@ def test_explicit_otlp_settings_win_over_agentless():
     )
     # ...nor attach Datadog credentials to a third-party collector.
     assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") is None
-    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector:4318"
-    assert otel_config.exporter.ENDPOINT == "http://collector:4318"
+    assert env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector:9999"
+    assert otel_config.exporter.ENDPOINT == "http://collector:9999"
 
 
 @pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
