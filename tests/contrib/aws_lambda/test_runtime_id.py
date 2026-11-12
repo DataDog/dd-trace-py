@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 
@@ -303,6 +301,8 @@ def test_identity_refresh_listener_noop_outside_microvm():
 
 @pytest.mark.parametrize("microvm_image_arn", ["", "   "])
 def test_identity_refresh_listener_noop_for_blank_microvm_env(run_python_code_in_subprocess, microvm_image_arn):
+    import os
+
     """Blank MicroVM image ARN env values must not enable identity refresh."""
     code = """
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
