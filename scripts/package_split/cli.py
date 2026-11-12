@@ -46,6 +46,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="scan a consumer-only scope (e.g. tests/) whose source paths do not contain the target module",
     )
 
+    gate_parser = subparsers.add_parser(
+        "gate",
+        help="run a registered validation gate"
+    )
+    gate_parser.add_argument("gate_name", help="gate name (from gates.REGISTRY)")
+    gate_parser.add_argument("--manifest", help="package-contract.toml path")
+    gate_parser.add_argument("--base", help="base revision (default: origin/main)")
+    gate_parser.add_argument("--head", help="head revision (default: HEAD)")
     api_surface = subparsers.add_parser(
         "api-surface",
         help="repo-wide consumed-symbol surfaces with bundling candidates per zone",
@@ -205,3 +213,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (OSError, ValueError, SyntaxError) as exc:
         print("package-split: %s failed: %s" % (args.command, exc), file=sys.stderr)
         return 2
+
+
+def _run_gate(gate_name: str) -> None:
+    """Run a registered gate by name (gates/__init__.py REGISTRY)."""
+    from .gates import REGISTRY
+
+    gate = REGISTRY.get(gate_name)
+    if gate is None:
+        print(f"package-split: unknown gate '{gate_name}'", file=sys.stderr)
+        sys.exit(2)
+    gate()
