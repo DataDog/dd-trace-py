@@ -22,6 +22,7 @@ from typing import Union
 import unittest
 import warnings
 
+from _pytest.terminal import TerminalReporter
 import pytest
 
 from tests._ddtest_env_helpers import strip_ddtest_leaked_env
@@ -196,8 +197,15 @@ class _ScenarioReports:
         self.target = [*class_name.split("."), method_name]
         self.reports: list[pytest.TestReport] = []
 
+    @pytest.hookimpl(trylast=True)
     def pytest_configure(self, config: pytest.Config) -> None:
         pytest.register_assert_rewrite("tests", self.module_name)
+        # Assertion explanations need the terminal reporter, but the parent compares the child's
+        # stdout with the expected output. Replace the reporter with one that discards its output.
+        terminal = open(os.devnull, "w")
+        config.add_cleanup(terminal.close)
+        config.pluginmanager.unregister(name="terminalreporter")
+        config.pluginmanager.register(TerminalReporter(config, terminal), "terminalreporter")
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_pycollect_makeitem(self, collector: pytest.Collector, name: str) -> Any:
@@ -244,8 +252,6 @@ def run_scenario(module_name: str, class_name: str, method_name: str) -> None:
             "-c",
             os.devnull,
             "--noconftest",
-            "-p",
-            "no:terminal",
             "-p",
             "no:warnings",
             "-p",

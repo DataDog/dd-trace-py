@@ -438,9 +438,6 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
-    if isinstance(item, ClassSubprocessItem):
-        # Match the normal test environment without running the parent git-metadata fixture.
-        env.pop("DD_GIT_REPOSITORY_URL", None)
     pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
@@ -533,6 +530,10 @@ class ClassSubprocessItem(pytest.Function):
         self.extra_keyword_matches.update(original.extra_keyword_matches)
 
     def setup(self):
+        # Match the normal test environment without running the parent git-metadata fixture.
+        # Remove the variable before explicit fixtures run, because some of them build packages
+        # whose metadata records the repository URL.
+        os.environ.pop("DD_GIT_REPOSITORY_URL", None)
         # Request only explicit dependencies, without Function.setup's autouse fixture setup.
         fixtures = dict.fromkeys(name for mark in self.iter_markers("usefixtures") for name in mark.args)
         for name in fixtures:
