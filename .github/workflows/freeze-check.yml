@@ -1,5 +1,7 @@
 name: Freeze check
 
+# On main, require this check and "Require branches to be up to date before
+# merging": advancing the base alone does not trigger pull_request workflows.
 on:
   pull_request:
     branches: [main]
@@ -13,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          # Use GitHub's PR merge commit so unchanged files inherit base updates.
           fetch-depth: 0
           persist-credentials: false
       - name: Check frozen files
@@ -21,7 +23,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: |
-          # Base rules prevent a PR from lifting its own freeze. Head rules
+          # Base rules prevent a PR from lifting its own freeze. Merge rules
           # also validate newly added freezes, including this workflow's first run.
           # Use the target base, so branches predating a freeze are checked too.
           for revision in "$BASE_REF" HEAD; do
