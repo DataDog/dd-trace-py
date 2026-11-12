@@ -7,7 +7,7 @@ DD_DATA_STREAMS_ENABLED.
 Each iteration creates a fresh single-partition topic and consumer group, then times produce
 (1000 unkeyed 1024-byte messages with 5 headers + flush) and consume (1000 messages, sync commit
 every COMMIT_EVERY messages and after the last one). Topic creation, client construction, group
-join and consumer.close() are untimed. Process RSS is sampled after each timed iteration.
+join, gc.collect() + gc.freeze() and consumer.close() are untimed. Process RSS is sampled after each timed iteration.
 Group join, flush and consume each fail after TIMEOUT_S. The run's topics and groups are deleted
 at exit.
 With PROFILE=1 cProfile runs only during the timed phases of the timed (non-warmup) iterations.

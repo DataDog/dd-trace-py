@@ -4,7 +4,7 @@ Kafka produce/consume workload used to measure how much Data Streams Monitoring 
 of APM. `bench.py` has no tracer-specific code; `run.sh` selects the scenario.
 
 Each iteration: create a fresh single-partition topic and consumer group; (untimed) build a
-`confluent_kafka` Producer/Consumer, fetch metadata and join the group; (timed) produce 1000
+`confluent_kafka` Producer/Consumer, fetch metadata, join the group and run `gc.collect()` + `gc.freeze()`; (timed) produce 1000
 unkeyed messages (`b"x" * 1024`, headers `key0..key4` -> `value0..value4`) + `flush()`; (timed)
 consume them with a synchronous `commit(msg)` every `COMMIT_EVERY` messages and after the last
 one; (untimed) `consumer.close()`, then sample process RSS. Headers are a dict (ddtrace's DSM hook

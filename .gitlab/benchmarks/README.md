@@ -159,7 +159,7 @@ in three scenarios: `baseline` (no tracer), `apm-only` (`ddtrace-run`, DSM off) 
   workload's locked dependencies. Nothing is built from source.
 * **Metric.** DSM overhead relative to APM overhead, for duration and for memory (RSS):
   `(apm+dsm - apm-only) / (apm-only - baseline)`. The report also prints the absolute added ms
-  per phase (produce, consume), and `n/a` when the denominator is zero.
+  and MB next to each ratio, and `n/a` when APM's added cost is zero or negative.
 * **Results.** The Benchmarking Platform UI and S3, plus the job's `platform/artifacts/`.
 
 To run locally, start Kafka on `localhost:9092` and an agent (or mock agent), then run
