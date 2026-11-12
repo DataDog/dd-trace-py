@@ -1586,7 +1586,7 @@ async def test_realtime_unusable_output_usage_is_omitted_explicitly(
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not hasattr(sdk, "OpenAIRealtimeSIPModel"), reason="SDK predates call attachment")
-@pytest.mark.parametrize("response_speed,bound", [(None, 50400), (0.5, 100800)])
+@pytest.mark.parametrize("response_speed,bound", [(None, 50400), (0.5, 100800), (1.5, 50400)])
 async def test_realtime_output_usage_speed_is_snapshotted_per_response(
     agents, openai_agents_llmobs, socket, response_speed, bound
 ):

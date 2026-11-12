@@ -218,7 +218,8 @@ class _AgentsRealtimeState(_RealtimeState):
                 # final-frame margin and the speed applied after generation.
                 # This bounds the whole response, not each item's allocation.
                 # https://developers.openai.com/api/docs/guides/voice-latency-cost?voice-api=realtime
-                entry.audio_byte_bound = math.ceil((audio_tokens + 1) * byte_rate / (20 * entry.speed))
+                # A stored item may retain the original audio before speed-up.
+                entry.audio_byte_bound = math.ceil((audio_tokens + 1) * byte_rate / (20 * min(entry.speed, 1.0)))
                 if entry.mime == "audio/pcm":
                     entry.audio_byte_bound += entry.audio_byte_bound % 2
             output = response.get("output") or []
