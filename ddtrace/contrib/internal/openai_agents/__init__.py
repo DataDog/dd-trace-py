@@ -35,8 +35,9 @@ to disable Realtime instrumentation while retaining ordinary Agents instrumentat
 
 Additional requests require a known byte bound that fits the connection's message limit and
 inline audio budget. Otherwise, transcripts and timing are kept without requesting the clip.
-Provider audio offsets and acknowledged truncation can supply bounds; network arrival spacing
-cannot. Successful replies remain unchanged and can add audio to ``RealtimeSession`` history
+Provider audio offsets, acknowledged truncation, and reported output audio usage can supply bounds;
+network arrival spacing cannot. Output usage bounds account for playback speed. Missing output recordings
+are marked with ``output_audio_capture=omitted`` in span metadata. Successful replies remain unchanged and can add audio to ``RealtimeSession`` history
 for the session's lifetime. Disable additional retrieval to avoid that extra history retention.
 
 Retained turns and retrieved audio are bounded. Recordings that are incomplete, malformed, too

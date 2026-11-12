@@ -58,6 +58,12 @@ _RETRIEVAL_EVENT_OVERHEAD = 16 * 1024
 _MISSING = object()
 
 
+def _audio_speed(value: Any) -> Optional[float]:
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and 0.25 <= value <= 1.5:
+        return float(value)
+    return None
+
+
 @dataclass
 class _Item:
     id: str
@@ -105,6 +111,9 @@ class _Playback:
     turn: _ResponseTurn
     mime: str
     rate: int
+    # An unspecified speed is bounded at the slowest documented playback rate.
+    speed: Optional[float] = 0.25
+    audio_byte_bound: Optional[int] = None
     items: list[str] = field(default_factory=list)
     has_audio: bool = False
     done: bool = False
@@ -145,6 +154,7 @@ class _AgentsRealtimeState(_RealtimeState):
         self.retrieve_enabled = asbool(env.get("DD_OPENAI_REALTIME_SIDEBAND_AUDIO_RETRIEVAL_ENABLED", "true"))
         self.active: Optional[_Playback] = None
         self._vad_silence_ns = 0
+        self._output_audio_speed: Optional[float] = 0.25
         self.handling = 0
         self.intents: dict[str, int] = {}
         self._input_audio_mime = self._output_audio_mime = "audio/pcm"
@@ -169,7 +179,9 @@ class _AgentsRealtimeState(_RealtimeState):
             self._awaiting, self._playing = awaiting, playing
         turn = self._responses.get(response_id)
         if turn is not None:
-            self.entries[response_id] = _Playback(response_id, turn, self._output_audio_mime, self._output_audio_rate)
+            self.entries[response_id] = _Playback(
+                response_id, turn, self._output_audio_mime, self._output_audio_rate, speed=self._output_audio_speed
+            )
             item = self.items.get(turn.input.item_id or "")
             if item:
                 item.entry = self.entries[response_id]
@@ -194,6 +206,21 @@ class _AgentsRealtimeState(_RealtimeState):
             self._preparing_response = None
         entry.done = True
         if self.sideband and isinstance(response, dict):
+            audio_output = _get_attr(_get_attr(response, "audio", None), "output", None)
+            speed = _get_attr(audio_output, "speed", _MISSING)
+            if speed is not _MISSING and speed is not None:
+                entry.speed = _audio_speed(speed)
+            details = _get_attr(response.get("usage"), "output_token_details", None)
+            audio_tokens = _get_attr(details, "audio_tokens", None)
+            byte_rate = _bytes_per_second(entry.mime, entry.rate)
+            if type(audio_tokens) is int and 0 < audio_tokens <= _AUDIO_ACCUM_MAX_BYTES and byte_rate and entry.speed:
+                # Realtime assistant audio uses one token per 50 ms. Include a
+                # final-frame margin and the speed applied after generation.
+                # This bounds the whole response, not each item's allocation.
+                # https://developers.openai.com/api/docs/guides/voice-latency-cost?voice-api=realtime
+                entry.audio_byte_bound = math.ceil((audio_tokens + 1) * byte_rate / (20 * entry.speed))
+                if entry.mime == "audio/pcm":
+                    entry.audio_byte_bound += entry.audio_byte_bound % 2
             output = response.get("output") or []
             transcripts, texts = [], []
             for data in output:
@@ -276,7 +303,7 @@ class _AgentsRealtimeState(_RealtimeState):
             return
         self._derive_window(entry)
         pending = entry.turn in self._awaiting or bool(self.handling)
-        if entry.has_audio and (not entry.stopped or (entry.cleared and not entry.truncated)):
+        if entry.has_audio and (not entry.stopped or (entry.cleared and not entry.truncated and not entry.derived)):
             pending = True
         if entry.window is not None:
             pending = True
@@ -318,7 +345,7 @@ class _AgentsRealtimeState(_RealtimeState):
         if entry.turn in self._playing:
             self._playing.remove(entry.turn)
         self._responses.pop(entry.id, None)
-        if self.sideband and (not entry.stopped or (entry.cleared and not entry.truncated)):
+        if self.sideband and (not entry.stopped or (entry.cleared and not entry.truncated and not entry.derived)):
             entry.turn.audio.clear()
             entry.turn.audio.present = entry.has_audio
             if not entry.stopped:
@@ -374,6 +401,8 @@ class _AgentsRealtimeState(_RealtimeState):
         entry = getattr(self, "_emitting", None)
         if entry and entry.derived:
             metadata["agent_speech_timing"] = "audio_duration"
+        if self.sideband and entry and entry.has_audio and not entry.turn.audio.chunks:
+            metadata["output_audio_capture"] = "omitted"
         return metadata
 
     def _turn_end_ns(self, turn: _ResponseTurn) -> Optional[int]:
@@ -427,6 +456,9 @@ class _AgentsRealtimeState(_RealtimeState):
     def _update_session_config(self, session: Any) -> None:
         super()._update_session_config(session)
         audio = _get_attr(session, "audio", None)
+        speed = _get_attr(_get_attr(audio, "output", None), "speed", _MISSING)
+        if speed is not _MISSING and speed is not None:
+            self._output_audio_speed = _audio_speed(speed)
         detection = _get_attr(_get_attr(audio, "input", None), "turn_detection", _MISSING)
         if detection is _MISSING:
             detection = _get_attr(session, "turn_detection", _MISSING)
@@ -528,6 +560,8 @@ class _AgentsRealtimeState(_RealtimeState):
             elif item.complete and index in item.parts:
                 total += _decoded_b64_len(item.parts[index])
             else:
+                if not item.input_audio and item.entry is not None:
+                    return item.entry.audio_byte_bound
                 return None
         return total if item.expected else None
 
@@ -548,6 +582,8 @@ class _AgentsRealtimeState(_RealtimeState):
             if other_bound is None or (other.mime, other.rate) != (item.mime, item.rate):
                 return False
             logical_bytes += other_bound
+        if not item.input_audio and item.entry and item.entry.audio_byte_bound is not None:
+            logical_bytes = min(logical_bytes, item.entry.audio_byte_bound)
         encoded = _encoded_realtime_audio_size(logical_bytes, item.mime)
         if encoded is None or encoded > _AUDIO_ACCUM_MAX_BYTES or bound > _AUDIO_ACCUM_MAX_BYTES:
             return False
@@ -784,6 +820,7 @@ class _AgentsRealtimeState(_RealtimeState):
         if start is None or end is None:
             return
         if any(e.truncated or e.cleared for e in window):
+            tail_known = False
             last = window[-1]
             items = [self.items[k] for k in last.items if k in self.items and self.items[k].expected]
             audio = last.turn.audio
@@ -807,7 +844,9 @@ class _AgentsRealtimeState(_RealtimeState):
                     if onset >= start and done is not None and done <= onset:
                         last.start_ns = onset
                         last.derived = True
-            return
+                        tail_known = True
+            if not tail_known or any(member.truncated for member in window[:-1]):
+                return
         durations = []
         for member in window:
             audio = member.turn.audio
@@ -881,6 +920,14 @@ class _AgentsRealtimeState(_RealtimeState):
                 ):
                     item.caps[index] = min(item.caps.get(index, end_ms), end_ms)
                     item.last_index = min(item.last_index, index)
+                    if item.complete and item.entry and not item.input_audio:
+                        rate = _bytes_per_second(item.mime, item.rate)
+                        part = item.parts.get(index)
+                        cut = rate is None or part is None or int(end_ms * rate / 1000) < _decoded_b64_len(part)
+                        for part_index in list(item.transcripts):
+                            if part_index > index or (part_index == index and cut):
+                                item.transcripts.pop(part_index, None)
+                        item.entry.turn.transcript = ""
                     if item.entry:
                         item.entry.truncated = True
                         after = False
@@ -936,6 +983,8 @@ class _AgentsRealtimeState(_RealtimeState):
             audio = response.get("audio") or {}
             output = audio.get("output") or {}
             audio_format = output.get("format") or response.get("output_audio_format")
+            if entry and output.get("speed") is not None:
+                entry.speed = _audio_speed(output["speed"])
             if entry and audio_format:
                 entry.mime = self._integration.realtime_audio_format(audio_format)
                 rate = audio_format.get("rate") if isinstance(audio_format, dict) else None
