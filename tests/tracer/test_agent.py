@@ -51,11 +51,13 @@ def test_trace_hostname():
     assert urlparse(config.trace_agent_url).hostname == "monkey"
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": None, "DD_TRACE_AGENT_HOSTNAME": None})
+@pytest.mark.subprocess(env={"DD_AGENT_HOST": None, "DD_TRACE_AGENT_HOSTNAME": None, "DD_TRACE_AGENT_URL": None})
 def test_hostname_not_set():
+    from unittest import mock
     from urllib.parse import urlparse
 
-    from ddtrace.internal.settings._agent import config
+    with mock.patch("os.path.exists", return_value=False):
+        from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.trace_agent_url).hostname == "localhost"
 
