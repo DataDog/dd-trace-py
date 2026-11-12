@@ -1723,6 +1723,17 @@ class CMakeExtension(Extension):
         ]
 
 
+def _parse_toolchain_version(version: str) -> tuple[int, ...]:
+    # Numeric compare only. Lexicographic string compare rejects 1.100.0 as older than 1.87.0.
+    core: str = version.split("-", 1)[0].split("+", 1)[0]
+    parts: list[int] = []
+    for part in core.split("."):
+        if not part.isdigit():
+            break
+        parts.append(int(part))
+    return tuple(parts)
+
+
 def check_rust_toolchain():
     try:
         rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1733,11 +1744,12 @@ def check_rust_toolchain():
             raise OSError("cargo required to build Rust extensions")
 
         # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
-        rustc_ver = rustc_res.stdout.decode().split(" ")[1]
-        cargo_ver = cargo_res.stdout.decode().split(" ")[1]
-        if rustc_ver < RUST_MINIMUM_VERSION:
+        rustc_ver: str = rustc_res.stdout.decode().split(" ")[1]
+        cargo_ver: str = cargo_res.stdout.decode().split(" ")[1]
+        min_ver: tuple[int, ...] = _parse_toolchain_version(RUST_MINIMUM_VERSION)
+        if _parse_toolchain_version(rustc_ver) < min_ver:
             raise OSError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
-        if cargo_ver < RUST_MINIMUM_VERSION:
+        if _parse_toolchain_version(cargo_ver) < min_ver:
             raise OSError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
     except FileNotFoundError:
         raise OSError("Rust toolchain not found. Please install Rust from https://rustup.rs/")

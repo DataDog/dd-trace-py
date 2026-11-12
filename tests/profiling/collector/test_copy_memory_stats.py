@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 
@@ -39,6 +41,7 @@ def test_copy_memory_error_count_present() -> None:
         assert "fast_copy_memory_syscall_fallback" in metadata, (
             f"Missing fast_copy_memory_syscall_fallback in {f}: {metadata}"
         )
+        assert "fast_copy_memory_desired" in metadata, f"Missing fast_copy_memory_desired in {f}: {metadata}"
 
 
 @pytest.mark.subprocess(
@@ -80,6 +83,7 @@ def test_fast_copy_memory_disabled() -> None:
             )
             assert metadata["fast_copy_memory_user_disabled"] is True, metadata
             assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
+            assert metadata["fast_copy_memory_desired"] is False, metadata
 
 
 @pytest.mark.subprocess(
@@ -91,7 +95,7 @@ def test_fast_copy_memory_disabled() -> None:
     err=None,
 )
 def test_fast_copy_memory_enabled() -> None:
-    """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy (PROF-14568)."""
+    """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy."""
     import json
     import os
     import time
@@ -154,3 +158,40 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
+    assert metadata["fast_copy_memory_desired"] is True, metadata
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fork/signal tests not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_faulthandler_warmup",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_faulthandler_enable_during_warmup() -> None:
+    """faulthandler.enable() inside the warmup window must not cost us the handler."""
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector.test_utils import wait_for_fast_copy_state
+
+    _stack._set_fast_copy_warmup_seconds(3.0)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+
+    # Inside warmup: inactive but handlers still installed.
+    assert wait_for_fast_copy_state(_stack, False), "sampler never dropped to the syscall copy"
+
+    # Hooks must reclaim during warmup (were gated on fast_copy_active).
+    faulthandler.enable()
+    assert _stack.segv_handler_installed(), "handler not reclaimed after faulthandler.enable()"
+
+    upgraded: bool = wait_for_fast_copy_state(_stack, True, timeout=20.0)
+    p.stop()
+
+    assert upgraded, "faulthandler.enable() during warmup pinned the process to the syscall copy"
