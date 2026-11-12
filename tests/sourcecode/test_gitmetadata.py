@@ -9,6 +9,7 @@ import subprocess
 import pytest
 
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import DDTRACE_PATH
 from tests.utils import TracerTestCase
 
 
@@ -23,7 +24,7 @@ def preapare_test_env(mypackage_example, remove_git_repo_url_from_test_env):
     cwd = os.getcwd()
     python_path = os.getenv("PYTHONPATH", None)
     try:
-        subprocess.check_output("pip install --target=" + envdir + " " + pkgfile, shell=True)
+        subprocess.check_output(["uv", "pip", "install", "--target", envdir, pkgfile], cwd=DDTRACE_PATH)
         os.chdir(envdir)
         os.environ["PYTHONPATH"] = os.getenv("PYTHONPATH", "") + os.pathsep + envdir
         yield
