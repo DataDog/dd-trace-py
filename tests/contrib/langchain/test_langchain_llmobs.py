@@ -1,8 +1,13 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import contextlib
+import gc
 import importlib
 import json
 from operator import itemgetter
 import os
 import sys
+import threading
 from unittest import mock
 
 import pytest
@@ -1047,14 +1052,123 @@ def test_llmobs_runnable_with_span_links(langchain_core, langchain_llmobs, test_
 
 
 def test_llmobs_top_level_chain_releases_step_spans(langchain_core, langchain_llmobs, test_spans):
-    # A chain with no LLMObs parent must drop the spans recorded for its steps, otherwise
-    # the integration's span-to-instance map keeps the chain and those spans alive forever.
-    add_1 = langchain_core.runnables.RunnableLambda(lambda x: x + 1, name="add_1")
-    mul_2 = langchain_core.runnables.RunnableLambda(lambda x: x * 2, name="mul_2")
-    sequence = add_1 | mul_2
+    # Once the spans of a chain run with no LLMObs parent are released, the chain must leave the integration's
+    # span-to-instance map. The step spans used to stay on the chain object, which kept the chain and its spans
+    # in the map for good.
+    integration = langchain_core._datadog_integration
+    chains = []
+    for _ in range(5):
+        add_1 = langchain_core.runnables.RunnableLambda(lambda x: x + 1, name="add_1")
+        mul_2 = langchain_core.runnables.RunnableLambda(lambda x: x * 2, name="mul_2")
+        chains.append(add_1 | mul_2)
+        assert chains[-1].invoke(1) == 4
+    # LLMObs keeps the latest finished span in a context variable, so another call releases the last chain.
+    assert langchain_core.runnables.RunnableLambda(lambda x: x, name="other").invoke(1) == 1
 
-    assert sequence.invoke(1) == 4
-    assert not hasattr(sequence, "_datadog_spans")
+    test_spans.pop()
+    test_spans.pop_traces()
+    gc.collect()
+    assert not [instance for instance in integration._instances.values() if any(instance is c for c in chains)]
+
+
+def _assert_each_run_links_its_own_steps(traces):
+    assert len(traces) == 2
+    for trace in traces:
+        chain_span, first_span, second_span = sorted(
+            (s for s in trace if _get_llmobs_data_metastruct(s)), key=lambda s: s.start_ns
+        )
+        assert _get_llmobs_data_metastruct(second_span)["span_links"] == [
+            {"trace_id": mock.ANY, "span_id": str(first_span.span_id), "attributes": {"from": "output", "to": "input"}},
+        ]
+        assert _get_llmobs_data_metastruct(chain_span)["span_links"] == [
+            {
+                "trace_id": mock.ANY,
+                "span_id": str(second_span.span_id),
+                "attributes": {"from": "output", "to": "output"},
+            },
+        ]
+
+
+async def test_llmobs_concurrent_runs_of_one_chain_link_their_own_steps(langchain_core, langchain_llmobs, test_spans):
+    # The fast run's first step waits until the slow run has started, and the slow run's first step waits until
+    # the fast run has finished, so the whole fast run happens while the slow run is in its first step.
+    slow_started = asyncio.Event()
+    fast_done = asyncio.Event()
+
+    async def step(run):
+        if run == "fast":
+            await slow_started.wait()
+        else:
+            slow_started.set()
+            await fast_done.wait()
+        return run
+
+    first = langchain_core.runnables.RunnableLambda(step, name="first")
+    second = langchain_core.runnables.RunnableLambda(step, name="second")
+    sequence = first | second
+
+    async def run_fast():
+        try:
+            await sequence.ainvoke("fast")
+        finally:
+            fast_done.set()
+
+    # A timeout makes a regression fail the test instead of leaving the slow run waiting forever.
+    await asyncio.wait_for(asyncio.gather(run_fast(), sequence.ainvoke("slow")), timeout=10)
+
+    _assert_each_run_links_its_own_steps(test_spans.pop_traces())
+
+
+def test_llmobs_concurrent_threads_of_one_chain_link_their_own_steps(langchain_core, langchain_llmobs, test_spans):
+    # Same ordering as the asyncio test above, with two threads calling invoke on one chain object.
+    slow_started = threading.Event()
+    fast_done = threading.Event()
+
+    def step(run):
+        if run == "fast":
+            assert slow_started.wait(timeout=10)
+        else:
+            slow_started.set()
+            assert fast_done.wait(timeout=10)
+        return run
+
+    first = langchain_core.runnables.RunnableLambda(step, name="first")
+    second = langchain_core.runnables.RunnableLambda(step, name="second")
+    sequence = first | second
+
+    def run_fast():
+        try:
+            return sequence.invoke("fast")
+        finally:
+            fast_done.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        runs = [pool.submit(run_fast), pool.submit(sequence.invoke, "slow")]
+        assert [run.result(timeout=10) for run in runs] == ["fast", "slow"]
+
+    _assert_each_run_links_its_own_steps(test_spans.pop_traces())
+
+
+@pytest.mark.parametrize("in_workflow", [False, True])
+def test_llmobs_stopped_chain_stream_links_later_steps(langchain_core, langchain_llmobs, test_spans, in_workflow):
+    # A caller that stops reading a chain stream early finishes the chain span before its last step,
+    # which must still link to the output of the step before it, with or without an LLMObs parent.
+    first = langchain_core.language_models.FakeListChatModel(responses=["hello"])
+    to_messages = langchain_core.runnables.RunnableLambda(lambda message: [("human", message.content)])
+    second = langchain_core.language_models.FakeListChatModel(responses=["one two three"])
+    with langchain_llmobs.workflow(name="parent") if in_workflow else contextlib.nullcontext():
+        stream = (first | to_messages | second).stream("hi")
+        next(stream)
+        # Drop the stream after one chunk, as a caller that stops reading does. The inner stream of the last
+        # step only finishes once the dropped stream is garbage collected.
+        del stream
+        gc.collect()
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    first_span, second_span = sorted((s for s in spans if get_llmobs_span_kind(s) == "llm"), key=lambda s: s.start_ns)
+    assert _get_llmobs_data_metastruct(second_span)["span_links"] == [
+        {"trace_id": mock.ANY, "span_id": str(first_span.span_id), "attributes": {"from": "output", "to": "input"}},
+    ]
 
 
 def test_llmobs_set_tags_with_none_response(langchain_core):

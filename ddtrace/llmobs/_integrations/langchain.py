@@ -1,5 +1,6 @@
 from collections import defaultdict
 from typing import Any
+from typing import NamedTuple
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -61,6 +62,8 @@ ROLE_MAPPING = {
 }
 
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool", "runnable_lambda"]
+# Context item on the span of one chain run: the ids of that run's step spans, keyed by the step instance id.
+_CHAIN_STEP_SPANS = "_langchain_chain_step_spans"
 LANGCHAIN_BASE_URL_FIELDS = [
     "api_base",
     "api_host",
@@ -130,6 +133,17 @@ def _is_google_genai_backed(instance) -> bool:
     return module == "google.genai" or module.startswith("google.genai.")
 
 
+class _SpanIds(NamedTuple):
+    """The ids of a span, which is all that a span link needs."""
+
+    trace_id: int
+    span_id: int
+
+    @classmethod
+    def of(cls, span: Span) -> "_SpanIds":
+        return cls(span.trace_id, span.span_id)
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
@@ -144,19 +158,15 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._instances[span] = instance
 
+        if _is_chain_instance(instance):
+            # Each run keeps the ids of its step spans on its own span, instead of the spans on the shared chain
+            # object: concurrent runs stay separate, and the recordings keep no span alive.
+            span._set_ctx_item(_CHAIN_STEP_SPANS, {})
+
         parent_span = _get_nearest_llmobs_ancestor(span)
-        parent_instance = self._instances.get(parent_span) if parent_span else None
-
-        if parent_instance is None or not _is_chain_instance(parent_instance):
-            return
-
-        spans: dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
-        spans[id(instance)] = span
-
-        try:
-            setattr(parent_instance, "_datadog_spans", spans)
-        except Exception:
-            parent_instance.__dict__["_datadog_spans"] = spans
+        step_spans = parent_span._get_ctx_item(_CHAIN_STEP_SPANS) if parent_span else None
+        if step_spans is not None:
+            step_spans[id(instance)] = _SpanIds.of(span)
 
     def _llmobs_set_tags(
         self,
@@ -266,14 +276,15 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         parent_span = _get_nearest_llmobs_ancestor(span)
-        if parent_span is not None:
-            invoker_spans, from_output = self._get_invoker_spans(instance, parent_span)
-            self._set_input_links(span, invoker_spans, from_output)
-            self._set_output_links(span, parent_span, invoker_spans, from_output)
+        if parent_span is None:
+            return
 
-        self._clear_instance_recordings(instance)
+        invoker_spans, from_output = self._get_invoker_spans(instance, parent_span)
 
-    def _get_invoker_spans(self, instance, parent_span: Span) -> tuple[list[Span], bool]:
+        self._set_input_links(span, invoker_spans, from_output)
+        self._set_output_links(span, parent_span, invoker_spans, from_output)
+
+    def _get_invoker_spans(self, instance, parent_span: Span) -> tuple[list[_SpanIds], bool]:
         """
         Gets a list of invoker spans, and whether the current instance is from the output of the invoker spans.
         Will return:
@@ -285,7 +296,7 @@ class LangChainIntegration(BaseLLMIntegration):
         """
         parent_langchain_instance = self._instances.get(parent_span)
         if parent_langchain_instance is None or not _is_chain_instance(parent_langchain_instance):
-            return [parent_span], False
+            return [_SpanIds.of(parent_span)], False
 
         steps = getattr(parent_langchain_instance, "steps", [])
         flatmap_chain_steps = _flattened_chain_steps(steps)
@@ -294,7 +305,7 @@ class LangChainIntegration(BaseLLMIntegration):
         curr_step = flatmap_chain_steps[0]
         prev_traced_step_idx = -1
 
-        chain_spans = getattr(parent_langchain_instance, "_datadog_spans", {})
+        chain_spans: dict[int, _SpanIds] = parent_span._get_ctx_item(_CHAIN_STEP_SPANS) or {}
 
         while id(curr_step) != id(instance) and not (
             isinstance(curr_step, list) and any(id(sub_step) == id(instance) for sub_step in curr_step)
@@ -309,7 +320,7 @@ class LangChainIntegration(BaseLLMIntegration):
             curr_step = flatmap_chain_steps[curr_idx]
 
         if prev_traced_step_idx == -1:
-            return [parent_span], False
+            return [_SpanIds.of(parent_span)], False
 
         invoker_steps = flatmap_chain_steps[prev_traced_step_idx]
 
@@ -323,7 +334,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return [chain_spans[id(invoker_steps)]], True
 
-    def _set_input_links(self, span: Span, invoker_spans: list[Span], from_output: bool):
+    def _set_input_links(self, span: Span, invoker_spans: list[_SpanIds], from_output: bool):
         """Sets the input links for the given span (to: input)"""
         self._set_span_links(
             span=span,
@@ -332,7 +343,9 @@ class LangChainIntegration(BaseLLMIntegration):
             link_to="input",
         )
 
-    def _set_output_links(self, span: Span, parent_span: Span, invoker_spans: list[Span], from_output: bool) -> None:
+    def _set_output_links(
+        self, span: Span, parent_span: Span, invoker_spans: list[_SpanIds], from_output: bool
+    ) -> None:
         """
         Sets the output links for the parent span of the given span (to: output)
         This is done by removing span links of previous steps in the chain from the parent span (if it is a chain).
@@ -343,14 +356,14 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_span_links(
             span=parent_span,
-            from_spans=[span],
+            from_spans=[_SpanIds.of(span)],
             link_from="output",
             link_to="output",
             popped_span_link_indices=pop_indices,
         )
 
     def _get_popped_span_link_indices(
-        self, parent_span: Span, parent_links: list[_SpanLink], invoker_spans: list[Span], from_output: bool
+        self, parent_span: Span, parent_links: list[_SpanLink], invoker_spans: list[_SpanIds], from_output: bool
     ) -> list[int]:
         """
         Returns a list of indices to pop from the parent span links list
@@ -374,7 +387,7 @@ class LangChainIntegration(BaseLLMIntegration):
     def _set_span_links(
         self,
         span: Span,
-        from_spans: list[Span],
+        from_spans: list[_SpanIds],
         link_from: str,
         link_to: str,
         popped_span_link_indices: Optional[list[int]] = None,
@@ -397,21 +410,6 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if links:
             _annotate_llmobs_span_data(span, span_links=existing_links + links)
-
-    def _clear_instance_recordings(self, instance: Any) -> None:
-        """
-        Deletes the references of steps in a chain from the instance id to span mapping.
-
-        The relevant instances will be recorded again if they are reused in another chain when
-        the other chain is invoked.
-
-        We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
-        """
-        if not _is_chain_instance(instance):
-            return
-
-        if hasattr(instance, "_datadog_spans"):
-            delattr(instance, "_datadog_spans")
 
     def _get_prompt_variable_name(self, instance: Any) -> str:
         """
