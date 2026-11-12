@@ -161,13 +161,17 @@ def write_profile(profiler):
 
 def delete_created_resources():
     """Best-effort, untimed cleanup so repeated runs do not pile up topics and groups."""
-    admin = AdminClient(CLIENT_CONFIG)
-    futures = []
-    if created_groups:
-        futures += admin.delete_consumer_groups(created_groups, request_timeout=TIMEOUT_S).items()
-    if created_topics:
-        timeouts = {"operation_timeout": TIMEOUT_S, "request_timeout": TIMEOUT_S}
-        futures += admin.delete_topics(created_topics, **timeouts).items()
+    try:
+        admin = AdminClient(CLIENT_CONFIG)
+        futures = []
+        if created_groups:
+            futures += admin.delete_consumer_groups(created_groups, request_timeout=TIMEOUT_S).items()
+        if created_topics:
+            timeouts = {"operation_timeout": TIMEOUT_S, "request_timeout": TIMEOUT_S}
+            futures += admin.delete_topics(created_topics, **timeouts).items()
+    except Exception as e:
+        print(f"cleanup: skipped: {e}", file=sys.stderr)
+        return
     for name, future in futures:
         try:
             future.result(timeout=TIMEOUT_S)
