@@ -18,6 +18,11 @@ limits to keep their output within the encoding limits.
 for both tracing resource names and API Security endpoint grouping. It operates on
 URLs independently of span processing.
 
+## HTTP span metadata
+
+HTTP tagging resolves optional query-string overrides alongside the integration policy;
+web subscribers pass request data without duplicating URL or query-tag decisions.
+
 ## Coverage collection contexts
 
 `ModuleCodeCollector.CollectInContext` owns the line and file coverage for one

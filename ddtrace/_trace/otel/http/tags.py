@@ -118,6 +118,7 @@ def set_url_tags_otel_server(
     query: Optional[str],
     raw_uri: Optional[str] = None,
     query_tagged_separately: bool = False,
+    trace_query_string: Optional[bool] = None,
 ) -> None:
     parsed = parse.urlsplit(url)
     if parsed.scheme:
@@ -143,12 +144,15 @@ def set_url_tags_otel_server(
         if port is not None:
             span._set_attribute(otel_http.SERVER_PORT, port)
 
-    # Either existing query-string option enables url.query capture.
-    if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
+    tag_query_string = (
+        integration_config.http_tag_query_string or integration_config.trace_query_string
+        if trace_query_string is None
+        else trace_query_string
+    )
+    if not tag_query_string:
         return
     if query is None:
-        # Without an explicit query the URL's own query string is used, unless the caller tags it
-        # itself (aiohttp's per-app trace_query_string override does, via set_query_string_tag).
+        # Without an explicit query, use the URL query unless the caller tags it separately.
         if query_tagged_separately:
             return
         query = parsed.query
@@ -177,11 +181,18 @@ def _sanitized_url(url: str, query: Optional[str], tag_query_string: bool) -> Un
     )
 
 
-def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
+def set_url_tags_otel_client(
+    integration_config: IntegrationConfig,
+    span: Span,
+    url: str,
+    query: Optional[str],
+    trace_query_string: Optional[bool] = None,
+) -> None:
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
 
-    tag_query_string = integration_config.http_tag_query_string or integration_config.trace_query_string
+    trace_query_string = integration_config.trace_query_string if trace_query_string is None else trace_query_string
+    tag_query_string = integration_config.http_tag_query_string or trace_query_string
     # url.full must carry a separately supplied query even when it is not obfuscated.
     full_url = parse.urlunsplit(parse.urlsplit(url)._replace(query=query)) if query else url
     span._set_attribute(otel_http.URL_FULL, cast(Any, _sanitized_url(full_url, query, tag_query_string)))
@@ -263,14 +274,23 @@ class OTelHTTPSpanAttributes:
         server_address: Optional[str] = None,
         fallback_server_address: Optional[str] = None,
         query_tagged_separately: bool = False,
+        trace_query_string: Optional[bool] = None,
     ) -> None:
         if url is not None:
             try:
                 if self.is_client:
-                    set_url_tags_otel_client(self._integration_config, self._span, url, query)
+                    set_url_tags_otel_client(
+                        self._integration_config, self._span, url, query, trace_query_string=trace_query_string
+                    )
                 else:
                     set_url_tags_otel_server(
-                        self._integration_config, self._span, url, query, raw_uri, query_tagged_separately
+                        self._integration_config,
+                        self._span,
+                        url,
+                        query,
+                        raw_uri,
+                        query_tagged_separately,
+                        trace_query_string=trace_query_string,
                     )
             except ValueError as e:
                 # A malformed optional URL must not suppress metadata supplied separately.
@@ -278,6 +298,8 @@ class OTelHTTPSpanAttributes:
                 log.debug("failed to parse http url: %s", type(e).__name__)
         elif query is not None and (
             self._integration_config.http_tag_query_string or self._integration_config.trace_query_string
+            if trace_query_string is None
+            else trace_query_string
         ):
             _set_otel_query(self._span, query)
 
