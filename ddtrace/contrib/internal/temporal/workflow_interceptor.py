@@ -217,33 +217,67 @@ class DatadogTracingWorkflowInboundInterceptor(temporalio.worker.WorkflowInbound
             self._run_workflow_span = span
             return await super().execute_workflow(i)
 
+    @contextmanager
+    def _handler_task_context(self) -> Any:
+        """Seed handler-task ContextVars from the interceptor's stored RunWorkflow span.
+
+        Signal/update handler tasks are created by the job processor from the event
+        loop's context and do not inherit the primary workflow task's ContextVars, so
+        without this seeding ``span_from_workflow_context()`` returns None and logs
+        inside handler code lack ``dd.trace_id``/``dd.span_id``.
+        """
+        span = self._run_workflow_span
+        token_span = _active_workflow_span.set(span)
+        token_info = _current_span_info.set(
+            (format_trace_id(span.trace_id), str(span.span_id)) if span is not None else None
+        )
+        try:
+            yield
+        finally:
+            _active_workflow_span.reset(token_span)
+            _current_span_info.reset(token_info)
+
     async def handle_signal(self, input: temporalio.worker.HandleSignalInput) -> None:
         if self.config.disable_signal_tracing:
             self._span_counter += 1
-            await super().handle_signal(input)
+            with self._handler_task_context():
+                await super().handle_signal(input)
             return
-        with self.span_ctx(OperationNames.HANDLE_SIGNAL, input.signal, input, self._next_idempotency_key()) as (i, _):
-            await super().handle_signal(i)
+        with self._handler_task_context():
+            with self.span_ctx(OperationNames.HANDLE_SIGNAL, input.signal, input, self._next_idempotency_key()) as (
+                i,
+                _,
+            ):
+                await super().handle_signal(i)
 
     async def handle_query(self, input: temporalio.worker.HandleQueryInput) -> Any:
         if self.config.disable_query_tracing:
-            return await super().handle_query(input)
-        with self.span_ctx(OperationNames.HANDLE_QUERY, input.query, input) as (i, _):
-            return await super().handle_query(i)
+            with self._handler_task_context():
+                return await super().handle_query(input)
+        with self._handler_task_context():
+            with self.span_ctx(OperationNames.HANDLE_QUERY, input.query, input) as (i, _):
+                return await super().handle_query(i)
 
     def handle_update_validator(self, input: temporalio.worker.HandleUpdateInput) -> None:
         if self.config.disable_update_tracing:
-            super().handle_update_validator(input)
+            with self._handler_task_context():
+                super().handle_update_validator(input)
             return
-        with self.span_ctx(OperationNames.VALIDATE_UPDATE, input.update, input) as (i, _):
-            super().handle_update_validator(i)
+        with self._handler_task_context():
+            with self.span_ctx(OperationNames.VALIDATE_UPDATE, input.update, input) as (i, _):
+                super().handle_update_validator(i)
 
     async def handle_update_handler(self, input: temporalio.worker.HandleUpdateInput) -> Any:
         if self.config.disable_update_tracing:
             self._span_counter += 1
-            return await super().handle_update_handler(input)
-        with self.span_ctx(OperationNames.HANDLE_UPDATE, input.update, input, self._next_idempotency_key()) as (i, _):
-            return await super().handle_update_handler(i)
+            with self._handler_task_context():
+                return await super().handle_update_handler(input)
+        with self._handler_task_context():
+            with self.span_ctx(OperationNames.HANDLE_UPDATE, input.update, input, self._next_idempotency_key()) as (
+                i,
+                _,
+            ):
+                return await super().handle_update_handler(i)
 
 
 class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor):  # type: ignore[misc]
@@ -257,7 +291,11 @@ class _WorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor
 
     def continue_as_new(self, input: temporalio.worker.ContinueAsNewInput) -> NoReturn:
         if not _trace_disconnected.get():
-            input.headers = self.root.propagator.inject_headers(input.headers, self.root.recover_workflow_span())
+            span = self.root._run_workflow_span
+            service = span.service if span is not None else None
+            input.headers = self.root.propagator.inject_headers(
+                input.headers, self.root.recover_workflow_span(), service
+            )
         super().continue_as_new(input)
         raise AssertionError("unreachable: continue_as_new did not raise")
 
