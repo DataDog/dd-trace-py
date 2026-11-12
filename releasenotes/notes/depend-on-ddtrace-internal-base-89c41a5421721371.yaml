@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    ddtrace now depends on the ``ddtrace-internal-base`` package, which is installed
+    automatically when upgrading. Environments that install ddtrace from a private
+    mirror or vendored wheelhouse must also mirror ``ddtrace-internal-base``.

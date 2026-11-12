@@ -1,6 +1,12 @@
 from ddtrace.internal.codeowners import Codeowners
 
 
+def test_bridge_resolves_to_extracted_package():
+    from _ddtrace_internal_base.codeowners import Codeowners as ExtractedCodeowners
+
+    assert Codeowners is ExtractedCodeowners
+
+
 def test_invalid_codeowners(testdir):
     """Skip invalid lines and still match valid rules."""
     codeowners = """
