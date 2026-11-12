@@ -1,0 +1,45 @@
+name: package-split-freeze-guard
+
+on:
+  pull_request:
+    paths:
+      - 'ddtrace/**'
+      - 'package-freeze.toml'
+  push:
+    branches: [main]
+
+jobs:
+  freeze-guard:
+    name: Freeze guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the gate can read any revision.
+          fetch-depth: 0
+
+      # Run the gate from the BASE revision's scripts, not the PR head's,
+      # so a PR cannot weaken the check by modifying freeze.py itself.
+      # The PR head is still what gets validated (--head HEAD).
+      - name: Extract the base revision's gate scripts
+        run: |
+          BASE_REF=$(git merge-base origin/main HEAD)
+          mkdir -p /tmp/trusted-split/scripts/package_split/gates
+          # Write the executable wrapper preserving the scripts/ path structure
+          # so the invocation path matches and the Python package resolves.
+          git show "${BASE_REF}:scripts/package-split" > /tmp/trusted-split/scripts/package-split
+          chmod +x /tmp/trusted-split/scripts/package-split
+          for f in $(git ls-tree --name-only -r "${BASE_REF}" scripts/package_split/); do
+            mkdir -p "/tmp/trusted-split/$(dirname "$f")"
+            git show "${BASE_REF}:$f" > "/tmp/trusted-split/$f"
+          done
+
+      - name: Check frozen files against the base rules
+        run: |
+          BASE_REF=$(git merge-base origin/main HEAD)
+          /tmp/trusted-split/scripts/package-split freeze \
+            --base "${BASE_REF}" \
+            --head HEAD
