@@ -132,9 +132,80 @@ def test_empty_otel_configuration_uses_defaults():
     assert config.service == "resource-service"
     assert config._otel_stats_computation_enabled is None
     assert otel_config.exporter.TIMEOUT == 10000
-    assert otel_config.exporter.PROTOCOL == "grpc"
+    assert otel_config.exporter.PROTOCOL == "http/protobuf"
     assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
     assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 7500
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": None,
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": None,
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": None,
+    },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": [None, ""]},
+)
+def test_otlp_protocol_defaults_to_http_protobuf():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    exporter = otel_config.exporter
+    assert exporter.PROTOCOL == "http/protobuf"
+    assert exporter.ENDPOINT.endswith(":4318")
+    for signal in ("TRACES", "METRICS", "LOGS"):
+        assert getattr(exporter, signal + "_PROTOCOL") == "http/protobuf"
+        assert getattr(exporter, signal + "_ENDPOINT").endswith(":4318/v1/" + signal.lower())
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "",
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": "",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+    }
+)
+def test_empty_signal_protocols_fall_back_to_global_protocol():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    for signal in ("TRACES", "METRICS", "LOGS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "grpc"
+        assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4317")
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": None,
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": None,
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": None,
+    },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", "http/protobuf"]},
+)
+def test_otlp_global_protocol_applies_to_all_signals():
+    import os
+
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    protocol = os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"]
+    for signal in ("TRACES", "METRICS", "LOGS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == protocol
+        suffix = ":4317" if protocol == "grpc" else ":4318/v1/" + signal.lower()
+        assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(suffix)
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL": "grpc",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "grpc",
+    },
+    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": [None, "http/protobuf"]},
+)
+def test_otlp_signal_protocols_override_global_protocol():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    for signal in ("TRACES", "METRICS", "LOGS"):
+        assert getattr(otel_config.exporter, signal + "_PROTOCOL") == "grpc"
+        assert getattr(otel_config.exporter, signal + "_ENDPOINT").endswith(":4317")
 
 
 @pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "unsupported"})
@@ -508,10 +579,10 @@ def test_parse_otlp_headers(raw, expected):
     assert NativeWriter._parse_otlp_headers(raw) == expected
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "grpc"})
 def test_trace_metrics_endpoint_defaults_to_http_json():
     """The native trace-metrics exporter is HTTP/JSON only, so its endpoint must resolve to an
-    HTTP ``/v1/metrics`` endpoint even when the (default) metrics protocol is gRPC. Otherwise the
+    HTTP /v1/metrics endpoint even when the metrics protocol is explicitly set to gRPC. Otherwise the
     auto-enable path would post JSON metrics to the gRPC endpoint (``:4317`` with no path).
     """
     from ddtrace.internal.settings._opentelemetry import otel_config
@@ -543,7 +614,6 @@ def test_otlp_metrics_and_logs_target_the_intake_when_agentless():
     exporter = otel_config.exporter
     assert exporter.METRICS_ENDPOINT == "https://otlp.datadoghq.com/v1/metrics"
     assert exporter.LOGS_ENDPOINT == "https://otlp.datadoghq.com/v1/logs"
-    # The intake is HTTPS-only, so the gRPC default cannot stand.
     assert exporter.METRICS_PROTOCOL == "http/protobuf"
     assert exporter.LOGS_PROTOCOL == "http/protobuf"
 
@@ -563,7 +633,10 @@ def test_otlp_metrics_and_logs_target_the_agent_without_agentless():
     exporter = otel_config.exporter
     assert "otlp.datadoghq.com" not in exporter.METRICS_ENDPOINT
     assert "otlp.datadoghq.com" not in exporter.LOGS_ENDPOINT
-    assert exporter.METRICS_PROTOCOL == "grpc"
+    assert exporter.METRICS_PROTOCOL == "http/protobuf"
+    assert exporter.LOGS_PROTOCOL == "http/protobuf"
+    assert exporter.METRICS_ENDPOINT.endswith(":4318/v1/metrics")
+    assert exporter.LOGS_ENDPOINT.endswith(":4318/v1/logs")
 
 
 @pytest.mark.subprocess(
@@ -653,15 +726,12 @@ def test_otlp_trace_metrics_target_the_agent_without_agentless():
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
     }
 )
-def test_custom_collector_keeps_the_grpc_protocol_default():
-    """Agentless switches the default to HTTP for the intake, which speaks nothing else.
-
-    A collector the user pointed us at is commonly gRPC on 4317, so it keeps the standard default.
-    """
+def test_custom_collector_keeps_the_http_protocol_default():
+    """A custom endpoint does not implicitly select its protocol from its port."""
     from ddtrace.internal.settings._opentelemetry import otel_config
 
-    assert otel_config.exporter.METRICS_PROTOCOL == "grpc"
-    assert otel_config.exporter.LOGS_PROTOCOL == "grpc"
+    assert otel_config.exporter.METRICS_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.LOGS_PROTOCOL == "http/protobuf"
 
 
 @pytest.mark.subprocess(
@@ -671,12 +741,13 @@ def test_custom_collector_keeps_the_grpc_protocol_default():
         "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://collector:4317",
     }
 )
-def test_signal_specific_collector_keeps_the_grpc_protocol_default():
+def test_signal_specific_collector_keeps_the_http_protocol_default():
     """Only the signal pointed elsewhere opts out; the others still target the intake."""
     from ddtrace.internal.settings._opentelemetry import otel_config
 
-    assert otel_config.exporter.METRICS_PROTOCOL == "grpc"
+    assert otel_config.exporter.METRICS_PROTOCOL == "http/protobuf"
     assert otel_config.exporter.LOGS_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.METRICS_ENDPOINT == "http://collector:4317"
 
 
 @pytest.mark.subprocess(
