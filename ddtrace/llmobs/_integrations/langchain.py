@@ -266,13 +266,10 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         parent_span = _get_nearest_llmobs_ancestor(span)
-        if parent_span is None:
-            return
-
-        invoker_spans, from_output = self._get_invoker_spans(instance, parent_span)
-
-        self._set_input_links(span, invoker_spans, from_output)
-        self._set_output_links(span, parent_span, invoker_spans, from_output)
+        if parent_span is not None:
+            invoker_spans, from_output = self._get_invoker_spans(instance, parent_span)
+            self._set_input_links(span, invoker_spans, from_output)
+            self._set_output_links(span, parent_span, invoker_spans, from_output)
 
         self._clear_instance_recordings(instance)
 

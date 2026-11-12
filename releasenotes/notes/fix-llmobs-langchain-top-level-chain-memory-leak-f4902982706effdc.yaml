@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a memory leak where each LangChain chain invoked without an enclosing
+    LLM Observability span stays in memory, together with its spans, for the life of the process.

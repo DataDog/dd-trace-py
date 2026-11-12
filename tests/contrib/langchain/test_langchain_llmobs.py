@@ -1046,6 +1046,17 @@ def test_llmobs_runnable_with_span_links(langchain_core, langchain_llmobs, test_
     ]
 
 
+def test_llmobs_top_level_chain_releases_step_spans(langchain_core, langchain_llmobs, test_spans):
+    # A chain with no LLMObs parent must drop the spans recorded for its steps, otherwise
+    # the integration's span-to-instance map keeps the chain and those spans alive forever.
+    add_1 = langchain_core.runnables.RunnableLambda(lambda x: x + 1, name="add_1")
+    mul_2 = langchain_core.runnables.RunnableLambda(lambda x: x * 2, name="mul_2")
+    sequence = add_1 | mul_2
+
+    assert sequence.invoke(1) == 4
+    assert not hasattr(sequence, "_datadog_spans")
+
+
 def test_llmobs_set_tags_with_none_response(langchain_core):
     integration = langchain_core._datadog_integration
     integration._llmobs_set_tags(
