@@ -13,6 +13,7 @@ At startup (when DD_APPSEC_SCA_ENABLED=true):
 """
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
@@ -28,18 +29,11 @@ def enabled() -> bool:
 def _get_installed_packages() -> dict[str, str]:
     """Build a dict of {package_name: version} from all installed distributions.
 
-    Uses importlib.metadata directly (not the telemetry writer) so we can
+    Uses the installed distributions (not the telemetry writer) so we can
     discover ALL installed packages at startup, before any are imported.
     """
     try:
-        from importlib.metadata import distributions
-
-        installed_packages: dict[str, str] = {}
-        for dist in distributions():
-            name = dist.metadata["Name"]
-            if name:
-                installed_packages[name.lower()] = dist.version
-        return installed_packages
+        return dict(get_distributions())
     except Exception:
         log.debug("Could not enumerate installed packages", exc_info=True)
         return {}
