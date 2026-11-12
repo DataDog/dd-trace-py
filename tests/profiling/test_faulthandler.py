@@ -179,8 +179,12 @@ def test_faulthandler_traceback_on_segfault() -> None:
     pointing at SIG_DFL.
     """
     import faulthandler
+    import resource
     import signal
     import sys
+
+    # Crashing on purpose: don't leave a core dump for CI to collect.
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
     # Enable faulthandler BEFORE loading the native stack module.
     # The library constructor installs our handler at import time, so
