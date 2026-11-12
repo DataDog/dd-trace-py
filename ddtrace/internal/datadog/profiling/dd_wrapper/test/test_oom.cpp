@@ -60,7 +60,7 @@ intern_string_under_address_space_cap()
     // No heap use in the loop: only the dictionary should run out of memory.
     char buf[128];
     for (int i = 0; i < 50'000'000; i++) {
-        const int n = std::snprintf(buf, sizeof(buf), "odoo.addons.chefz.models.res_partner._compute_field_%d", i);
+        const int n = std::snprintf(buf, sizeof(buf), "odoo.addons.demo.models.res_partner._compute_field_%d", i);
         auto id = Datadog::intern_string(std::string_view(buf, static_cast<size_t>(n)));
         if (!id) {
             std::_Exit(0);
