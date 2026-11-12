@@ -21,7 +21,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "b76b165ebaeff5cf4458936cadc8e7259796dde8"
+  SYSTEM_TESTS_REF: "7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native"
@@ -39,6 +39,10 @@ variables:
   # 110M/109M with 3.15 dep wheels; keep a little headroom above that.
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
+
+  # Use Depot as the default PyPI mirror for Python packages.
+  PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
+  UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 
 default:
   interruptible: true
@@ -267,13 +271,19 @@ macrobenchmarks:
 apm-sdks-benchmarks:
   stage: benchmarks
   needs:
-    - job: "upload all"
+    # The benchmark uses only the cp312 Linux x86_64 and aarch64 wheels. This job
+    # uploads them right after the Linux builds. Thus the benchmark does not wait
+    # for the macOS and Windows builds or for "ddtrace package".
+    - job: "upload manylinux2014"
   variables:
     # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
     # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
-    # all". Inside a child pipeline that variable is the child's own ID, not
+    # manylinux2014". Inside a child pipeline that variable is the child's own ID, not
     # this (parent) pipeline's, so it must be passed explicitly.
     TARGET_REF: $CI_PIPELINE_ID
+    # "upload manylinux2014" writes this index under TARGET_REF. Without this value,
+    # the script reads index.html, which "upload all" writes later.
+    WHEEL_INDEX_FILE: "index-manylinux2014.html"
     # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
     # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
     # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
