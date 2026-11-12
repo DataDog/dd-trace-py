@@ -1,0 +1,17 @@
+# Freeze manifest: pins files being extracted to datadog-apm-python.
+#
+# The freeze gate (scripts/package-split freeze --base <revision>) loads
+# this file from the base revision of a pull request, so a PR cannot
+# weaken its own rules by editing it. Any change to a frozen path after
+# the extraction revision is blocked. To un-freeze a path, remove its
+# entry in a PR that does not touch any other frozen path.
+
+schema_version = 1
+
+[[frozen]]
+extraction_revision = "2146fefcd1f7db25239b80c382f959dff9b6e3f9"
+owner = "@DataDog/apm-core-python"
+source_paths = ["ddtrace/internal/codeowners.py"]
+
+[frozen.hashes]
+"ddtrace/internal/codeowners.py" = "79ba689aac82d7f54ceb30661ffed6d8bb5ff76697dc3a87eb05718d6301ed9b"

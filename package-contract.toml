@@ -1,0 +1,113 @@
+# Package contract manifest for dd-trace-py (schema v1).
+#
+# PROVISIONAL - see docs/package-split/plan.md. Package names and tooling
+# interfaces in the plan are proposals that are still under review, and this
+# manifest records the *current* single-distribution reality of this
+# repository as the starting point for the split. As extraction proceeds:
+#
+# - [dependencies].allowed_edges will tighten from "everything inside
+#   ddtrace is allowed" to the real distribution boundaries;
+# - [contracts].supported_exports will grow as supported APIs are pinned;
+# - gates run per extracted package, not over the whole tree at once.
+#
+# Owner: @DataDog/apm-core-python.
+
+schema_version = 1
+
+[identity]
+distribution = "ddtrace"
+import_roots = ["ddtrace"]
+owner = "@DataDog/apm-core-python"
+# Source paths are relative to this file.
+source_paths = ["ddtrace"]
+destination_repository = "https://github.com/DataDog/datadog-apm-python"
+
+[dependencies]
+# Names only; version ranges live in [compatibility].dependency_ranges and
+# pyproject.toml remains the build source of truth.
+runtime = [
+    "bytecode",
+    "ddtrace-internal",
+    "envier",
+    "opentelemetry-api",
+    "wrapt",
+]
+build = ["cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2", "patchelf>=0.17.0.0; sys_platform == 'linux'"]
+
+# Native policy for the current monolithic distribution: the tracer itself
+# is native. Extracted pure-Python packages must declare "native-free".
+native_policy = "native-required"
+forbidden_namespaces = []
+
+[dependencies.extras]
+opentelemetry = ["opentelemetry-exporter-otlp"]
+openfeature = ["openfeature-sdk"]
+
+# Current reality: ddtrace is one distribution, so the only edge policy is
+# "anything inside ddtrace may import anything inside ddtrace". The "*"
+# wildcard for externals is the transitional single-distribution policy;
+# extracted packages must enumerate their externals, and the wildcard must be
+# removed as soon as real distribution boundaries exist.
+[[dependencies.allowed_edges]]
+from_prefix = "ddtrace"
+to_prefixes = ["ddtrace"]
+external = ["*"]
+[compatibility]
+python = [">=3.9,<3.16"]
+platforms = ["linux", "macos", "windows"]
+# The deprecation policy is defined by the plan's compatibility window;
+# this field records where the policy is maintained, not its contents.
+deprecation_policy = "docs/package-split/plan.md"
+
+[compatibility.dependency_ranges]
+# Per-Python bytecode floors carry their environment markers verbatim
+# from pyproject.toml (0.19 for 3.15, 0.17 for 3.14, ...): collapsing them
+# to one global range would either narrow support on older Pythons or
+# lose the stricter floors on newer ones. A value is either one range
+# applying to every supported Python, or a list of marker-annotated
+# ranges; pyproject.toml remains the source of truth for the markers.
+bytecode = [
+  ">=0.19.0,<1; python_version>='3.15.0'",
+  ">=0.17.0,<1; python_version>='3.14.0'",
+  ">=0.16.0,<1; python_version>='3.13.0'",
+  ">=0.15.1,<1; python_version~='3.12.0'",
+  ">=0.14.0,<1; python_version~='3.11.0'",
+  ">=0.13.0,<1; python_version<'3.11'",
+]
+"ddtrace-internal" = "==0.2.0"
+envier = "~=0.6.1"
+"opentelemetry-api" = ">=1,<2"
+wrapt = ">=1,!=2.2.0,<3"
+
+[contracts]
+# Supported exports are pinned per extracted package; today only the
+# package root's most stable attribute is pinned as a seed.
+supported_exports = { ddtrace = ["__version__"] }
+behavioral_fixtures = []
+# No explicit activation API in the current single-distribution layout:
+# ddtrace auto-initializes through its compatibility bootstrap, which the
+# split must preserve (see the plan's import-inertness requirement).
+
+[validation]
+consumer_contract_suites = []
+supported_version_combinations = []
+
+[release]
+# Empty build_command selects the harness default (uv build, PEP 517
+# isolated, falling back to python -m build).
+build_command = []
+artifact_expectations = ["wheel", "sdist"]
+entry_points = { console_scripts = ["ddtrace-run", "_dd_crashtracker_receiver"], pytest11 = ["ddtrace"], opentelemetry_context = ["ddcontextvars_context"], "mlflow.request_header_provider" = ["datadog"], "ddtrace.products" = ["apm-tracing-rc", "llmobs", "code-origin-for-spans", "dynamic-instrumentation", "exception-replay", "profiler", "live-debugger", "error-tracking", "openfeature", "remote-configuration", "symbol-database", "appsec", "aiguard", "iast", "sca", "tracer"], "ddtrace.integration_hooks" = ["anthropic", "google_genai", "llama_index", "litellm", "mistralai", "typesafe", "mlflow", "vllm"] }
+# Every runtime resource setup.py ships via package_data (plus the type
+# marker): artifact checks preserve them across the split.
+resources = [
+  "ddtrace:py.typed",
+  "ddtrace.appsec:rules.json",
+  "ddtrace.appsec._ddwaf:libddwaf/*/lib/libddwaf.*",
+  "ddtrace.appsec._iast._taint_tracking:_native/*.pyi",
+  "ddtrace.appsec.sca:_cve_data.json",
+  "ddtrace.internal:third-party.tar.gz",
+  "ddtrace.internal.datadog.profiling:libdd_wrapper*.*",
+]
+publishing_owner = "@DataDog/apm-core-python"
+rollback_procedure = "docs/package-split/plan.md (Deliverable 4, release rehearsal and cutover)"
