@@ -71,12 +71,13 @@ class WrapperRouter(wrapt.ObjectProxy):
         route_and_params = func(*args, **kwargs)
 
         pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
+        if not pin:
             return route_and_params
 
         if route_and_params is not None:
             route, params = route_and_params
-            route.handler = trace_func(func_name(route.handler))(route.handler)
+            if pin.enabled():
+                route.handler = trace_func(func_name(route.handler))(route.handler)
 
             request_context = core.find_item(MOLTEN_REQUEST_CONTEXT_KEY)
             if request_context is not None:

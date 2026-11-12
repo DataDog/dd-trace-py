@@ -18,12 +18,12 @@ from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.span_bus import store_span_on_context
 from ddtrace.trace import tracer
 
 
 TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
+_SPAN_CREATION_ENABLED = "_trace_span_creation_enabled"
 
 
 def _finish_span(
@@ -37,7 +37,7 @@ def _finish_span(
     Once every integration adopts the events API, trace_handlers._finish_span
     should be completely removed.
     """
-    span = span_from_context(ctx)
+    span = ctx.get_item("_inner_span")
     if not span:
         return
 
@@ -115,7 +115,9 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
-    override on_started/on_ended for their specific logic.
+    override on_started/on_ended for their specific logic. Tracing subscribers can
+    capture their span creation decision in the context to skip tracing handlers
+    for its entire lifecycle.
 
     Example:
         class MySpanSubscriber(SpanTracingSubscriber):
@@ -135,7 +137,15 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     event_names: ClassVar[Sequence[str]] = (TracingEvents.SPAN_LIFECYCLE.value,)
 
     @classmethod
+    def _should_create_span(cls, ctx: core.ExecutionContext[TracingEventType]) -> bool:
+        return True
+
+    @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
+        span_creation_enabled = cls._should_create_span(ctx)
+        ctx.set_item(_SPAN_CREATION_ENABLED, span_creation_enabled)
+        if not span_creation_enabled:
+            return
         _start_span(ctx)
         for handler in cls._started_handlers:
             handler(ctx)
@@ -146,6 +156,9 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         ctx: core.ExecutionContext[TracingEventType],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
+        # Use the entry decision so a runtime disable does not leave an existing span unfinished.
+        if not ctx.get_item(_SPAN_CREATION_ENABLED, False):
+            return
         try:
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)

@@ -122,6 +122,20 @@ completion listeners after `stop()` returns.
 `start()`, or remaining active while `enabled()` is false, must arrange their own
 cleanup because the manager skips `stop()` for disabled products.
 
+Events carry request metadata without declaring tracing capabilities or enablement.
+The web tracing subscriber applies one span creation policy to every web request,
+without checking the framework component. It captures the span creation
+decision in the local execution context under `_trace_span_creation_enabled`, using
+APM enablement from the tracer separately from the span requirements of standalone
+products. A standalone product can require span creation while APM tracing remains
+disabled; the captured decision describes span lifecycle, not APM enablement. The base
+subscriber guards reuse it through completion, so runtime disable still finishes
+in-flight spans and runtime enable does not start tracing a previously skipped request.
+The decision must not be inferred from `_inner_span`: AppSec can populate that slot
+with a borrowed parent span. Web integrations emit metadata-only lifecycle events with
+`DD_TRACE_ENABLED=false`, while explicit integration opt-out settings still bypass
+instrumentation. Metadata enrichment and completion must not create fallback spans.
+
 Deferred request integrations report exceptions synchronously with `WebFrameworkRequestExceptionEvent`.
 The tracing subscriber consumes the live exception immediately; deferred contexts never
 store the exception or its traceback. Completion dispatch carries response metadata, while

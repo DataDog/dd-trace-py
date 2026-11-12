@@ -75,7 +75,7 @@ def _parse_status_code(status: str) -> Optional[int]:
 def patch_app_call(wrapped, instance, args, kwargs):
     pin = Pin.get_from(molten)
 
-    if not pin or not pin.enabled():
+    if not pin:
         return wrapped(*args, **kwargs)
 
     # DEV: This is safe because this is the args for a WSGI handler
@@ -132,7 +132,7 @@ def patch_app_init(wrapped, instance, args, kwargs):
     # add Pin to instance
     pin = Pin.get_from(molten)
 
-    if not pin or not pin.enabled():
+    if not pin:
         return
 
     # Wrappers here allow us to trace objects without altering class or instance

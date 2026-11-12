@@ -8,6 +8,7 @@ from ddtrace._trace.otel.http.resource import record_initial_instrumentation_res
 from ddtrace._trace.otel.http.tags import set_method_tag
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace._trace.span import Span
+from ddtrace._trace.subscribers._base import _SPAN_CREATION_ENABLED
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
@@ -17,7 +18,6 @@ from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otel_semantics import http as otel_http
-from ddtrace.internal.span_bus import span_from_context
 
 
 log = get_logger(__name__)
@@ -29,6 +29,10 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
     event_names = (WebFrameworkRequestEvent.event_name,)
 
     @classmethod
+    def _should_create_span(cls, ctx: core.ExecutionContext[WebFrameworkRequestEvent]) -> bool:
+        return trace_utils.is_tracing_enabled()
+
+    @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: WebFrameworkRequestEvent = ctx.event
 
@@ -36,7 +40,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             event.set_resource = True
 
         if config._otel_trace_semantics_enabled and event.request_method:
-            span: Span = span_from_context(ctx)
+            span: Span = ctx.get_item("_inner_span")
             set_method_tag(span, event.request_method)
             # Set the currently known resource before sampling; preserve span-start callback replacements.
             record_initial_instrumentation_resource(span, event.resource)
@@ -55,7 +59,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         method = event.request_method
         res_headers = event.response_headers
 
-        span: Span = span_from_context(ctx)
+        span: Span = ctx.get_item("_inner_span")
 
         # event.resource can be updated at span finish time
         if event.resource:
@@ -98,6 +102,10 @@ class WebFrameworkRequestExceptionSubscriber(Subscriber):
 
     @classmethod
     def on_event(cls, event: WebFrameworkRequestExceptionEvent) -> None:
+        # The context retains the entry decision after response preparation releases
+        # its event, including when AppSec borrowed a parent span.
+        if not event.request_context.get_item(_SPAN_CREATION_ENABLED, False):
+            return
         span = event.request_context.get_item("_inner_span")
         exc_type, exc_value, traceback = event.exc_info
         if span is not None and exc_type is not None and exc_value is not None and traceback is not None:
