@@ -242,6 +242,51 @@ def test_get_service(cmd, default, expected, testdir):
 
 
 @pytest.mark.parametrize(
+    "dd_service,expected",
+    [
+        # DD_SERVICE equals the inferred base service ("app"): integrations must use it.
+        ("app", "app"),
+        # DD_SERVICE differs from the inferred base service.
+        ("other", "other"),
+        # No DD_SERVICE: integrations keep their default instead of the inferred name.
+        (None, "myint-default"),
+    ],
+)
+def test_int_service_with_inferred_base_service(dd_service, expected, testdir):
+    env = os.environ.copy()
+    env.pop("DD_SERVICE", None)
+    if dd_service is not None:
+        env["DD_SERVICE"] = dd_service
+
+    app_dir = testdir.mkdir("app")
+    app_dir.join("__init__.py").write("# Init for web package")
+    app_dir.join("web.py").write(
+        textwrap.dedent(
+            f"""
+            from ddtrace import config
+            from ddtrace.internal.settings.integration import IntegrationConfig
+            from ddtrace.internal.utils.service import int_service
+
+            assert config._inferred_base_service == "app", config._inferred_base_service
+
+            myint = IntegrationConfig(config, "myint")
+            myint._default_service = "myint-default"
+            service = int_service(None, myint)
+            assert service == {repr(expected)}, f"Expected service {repr(expected)}, but got {{service!r}}"
+            """
+        )
+    )
+
+    result = subprocess.run(
+        ["ddtrace-run", "python", "app/web.py"], cwd=testdir.tmpdir, capture_output=True, text=True, env=env
+    )
+
+    assert result.returncode == 0, (
+        f"Command failed with return code {result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    )
+
+
+@pytest.mark.parametrize(
     "command,should_match,expected_capture",
     [
         ("python", True, "python"),
