@@ -384,7 +384,10 @@ add_target() {
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    pip3 install cmake setuptools_rust cython
+    # Old pips (e.g. 23.0) crash with "TypeError: unhashable type: 'dict'" on
+    # indexes that serve PEP 714 metadata as a hash dict, so upgrade pip first.
+    python3 -m pip install --upgrade pip
+    python3 -m pip install cmake setuptools_rust cython
     DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
 
