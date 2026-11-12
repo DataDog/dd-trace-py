@@ -5,6 +5,7 @@ This module provides the interface to the PyO3 native function that processes
 feature flag configuration rules.
 """
 
+from collections.abc import Mapping
 import json
 import logging
 from typing import Any
@@ -32,6 +33,10 @@ def get_evaluator_capabilities() -> tuple[str, ...]:
     """
     reporter = getattr(ffe, "get_evaluator_capabilities", None)
     return tuple(reporter()) if reporter is not None else ()
+
+# The native evaluator accepts only these attribute types and fails the whole evaluation
+# with INVALID_CONTEXT on any other value, such as a dict or a list.
+_NATIVE_ATTRIBUTE_TYPES = (str, bool, int, float, type(None))
 
 
 def process_ffe_configuration(config: Any) -> bool:
@@ -118,6 +123,20 @@ def _log_flag_summary(config: Any, native_config: ffe.Configuration) -> None:
         log.debug("Feature Flags: could not check parsed flags for rejections", exc_info=True)
 
 
+def _native_attributes(attributes: Any) -> Any:
+    """Drop attribute values the native evaluator cannot take, so they behave like absent attributes."""
+    # Most contexts hold only supported values, so check before copying on every evaluation.
+    if type(attributes) is dict:
+        for value in attributes.values():
+            if not isinstance(value, _NATIVE_ATTRIBUTE_TYPES):
+                break
+        else:
+            return attributes
+    elif not isinstance(attributes, Mapping):
+        return attributes
+    return {key: value for key, value in attributes.items() if isinstance(value, _NATIVE_ATTRIBUTE_TYPES)}
+
+
 def resolve_flag(
     configuration,
     flag_key: str,
@@ -153,13 +172,13 @@ def resolve_flag(
             if targeting_key is not None:
                 context_dict["targeting_key"] = targeting_key
             attributes = context.get("attributes", {})
-            context_dict["attributes"] = attributes
+            context_dict["attributes"] = _native_attributes(attributes)
         # Handle object with attributes
         elif hasattr(context, "targeting_key"):
             if context.targeting_key is not None:
                 context_dict["targeting_key"] = context.targeting_key
             if hasattr(context, "attributes") and context.attributes:
-                context_dict["attributes"] = context.attributes
+                context_dict["attributes"] = _native_attributes(context.attributes)
 
     # Call native resolve_value which returns ResolutionDetails
     # ResolutionDetails contains: value, variant, reason, error_code, error_message,
