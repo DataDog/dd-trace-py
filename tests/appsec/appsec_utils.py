@@ -281,7 +281,7 @@ def gunicorn_flask_server(
 ) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
     if use_ddtrace_cmd:
-        cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
+        cmd = ["python", "-m", "ddtrace_commands.ddtrace_run"] + cmd
         env["_USE_DDTRACE_COMMAND"] = "true"
     else:
         env["_USE_DDTRACE_COMMAND"] = ""
@@ -322,7 +322,7 @@ def flask_server(
 ) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     cmd = [python_cmd, app, "--no-reload"]
     if use_ddtrace_cmd:
-        cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run"] + cmd
+        cmd = [python_cmd, "-m", "ddtrace_commands.ddtrace_run"] + cmd
         env["_USE_DDTRACE_COMMAND"] = "true"
     else:
         env["_USE_DDTRACE_COMMAND"] = ""
@@ -365,7 +365,7 @@ def gunicorn_django_server(
     """
     cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
     if use_ddtrace_cmd:
-        cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
+        cmd = ["python", "-m", "ddtrace_commands.ddtrace_run"] + cmd
     if use_threads:
         cmd += ["--threads", "1"]
     if use_gevent:
@@ -429,7 +429,7 @@ def django_server(
     cmd = [
         python_cmd,
         "-m",
-        "ddtrace.commands.ddtrace_run",
+        "ddtrace_commands.ddtrace_run",
         python_cmd,
         manage_py,
         "runserver",
@@ -476,7 +476,7 @@ def uvicorn_server(
     cmd = [
         python_cmd,
         "-m",
-        "ddtrace.commands.ddtrace_run",
+        "ddtrace_commands.ddtrace_run",
         "uvicorn",
         app,
         "--host",

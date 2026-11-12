@@ -74,7 +74,7 @@ try:
         source = "ssi"
     elif os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap") in sys.path:
         # Checks the python path to see if the bootstrap directory is present, this operation
-        # is performed in ddtrace/commands/ddtrace_run.py and is triggered by ddtrace-run
+        # is performed in ddtrace_commands/ddtrace_run.py and is triggered by ddtrace-run
         source = "cmd_line"
     else:
         # If none of the above, then the user must have manually configured ddtrace instrumentation
