@@ -288,31 +288,46 @@ def _(asyncio: ModuleType) -> None:
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
-            loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", kwargs.get("loop"))
-            # current_task raises when no loop is running. Callers may iterate
-            # as_completed from synchronous code and drive each result with
-            # run_until_complete.
-            parent: typing.Optional[aio.Task[typing.Any]] = None
-            if globals()["get_running_loop"]() is not None:
-                parent = globals()["current_task"]()
+            def call() -> typing.Any:
+                nonlocal args, kwargs
 
-            if parent is not None:
-                fs = typing.cast("typing.Iterable[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs"))
-                futures: set[aio.Future[typing.Any]] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
-                for future in futures:
-                    stack.link_tasks(parent, future)
+                loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", kwargs.get("loop"))
+                # current_task raises when no loop is running. Callers may iterate
+                # as_completed from synchronous code and drive each result with
+                # run_until_complete.
+                parent: typing.Optional[aio.Task[typing.Any]] = None
+                if globals()["get_running_loop"]() is not None:
+                    parent = globals()["current_task"]()
 
-                # Replace fs with the ensured futures to avoid double-wrapping.
-                # Handle both positional (args[0]) and keyword ('fs') call patterns:
-                # if fs was positional we update args; if it was a keyword we must
-                # update kwargs instead, otherwise f() receives fs twice and raises
-                # TypeError: got multiple values for argument 'fs'.
-                if args:
-                    args = (futures,) + args[1:]
-                else:
-                    kwargs = {**kwargs, "fs": futures}
+                if parent is not None:
+                    fs = typing.cast(
+                        "typing.Iterable[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs")
+                    )
+                    futures: set[aio.Future[typing.Any]] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                    for future in futures:
+                        stack.link_tasks(parent, future)
 
-            return f(*args, **kwargs)
+                    # Replace fs with the ensured futures to avoid double-wrapping.
+                    # Handle both positional (args[0]) and keyword ('fs') call patterns:
+                    # if fs was positional we update args; if it was a keyword we must
+                    # update kwargs instead, otherwise f() receives fs twice and raises
+                    # TypeError: got multiple values for argument 'fs'.
+                    if args:
+                        args = (futures,) + args[1:]
+                    else:
+                        kwargs = {**kwargs, "fs": futures}
+
+                return f(*args, **kwargs)
+
+            if sys.hexversion >= 0x030D0000:
+                return call()
+
+            # Before Python 3.13, as_completed is a generator function that schedules its inputs only on the first
+            # iteration, with the context of that moment. Scheduling them here would run them with an earlier context.
+            def lazy() -> typing.Generator[aio.Future[typing.Any], typing.Any, None]:
+                yield from call()
+
+            return lazy()
 
         # Wrap asyncio.shield to link parent task to shielded future
         @partial(wrap, sys.modules["asyncio"].tasks.shield)
