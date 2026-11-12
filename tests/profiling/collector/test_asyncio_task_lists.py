@@ -182,7 +182,7 @@ def test_asyncio_task_lists_missing_when_asyncio_c_cannot_be_imported() -> None:
         p.stop()
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_STACK_ENABLED="false"), err=None)
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="false", DD_PROFILING_STACK_ENABLED="false"), err=None)
 def test_asyncio_c_hook_does_not_initialize_when_stack_is_disabled() -> None:
     import sys
 
