@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from typing import Optional
 
@@ -86,7 +87,7 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
         )
 
         return result
-    except Exception:
+    except (Exception, asyncio.CancelledError, getattr(sys.modules.get("trio"), "Cancelled", Exception)):
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
         )
