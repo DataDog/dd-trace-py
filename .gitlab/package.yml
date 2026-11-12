@@ -194,8 +194,8 @@ variables:
     - |
       # after_script may not run at the job timeout; capture the live hang first.
       python3 .gitlab/scripts/sccache-watchdog.py &
-      sccache_watchdog_pid=$!
-      trap 'kill "$sccache_watchdog_pid" 2>/dev/null || true; wait "$sccache_watchdog_pid" 2>/dev/null || true' EXIT
+      # Resolve the current Bash job to avoid signaling a reused PID.
+      trap 'kill "%?sccache-watchdog.py" 2>/dev/null || true; wait "%?sccache-watchdog.py" 2>/dev/null || true' EXIT
   after_script:
     - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
