@@ -381,10 +381,27 @@ add_target() {
   esac
 }
 
+# pip 23.0.x crashes with "TypeError: unhashable type: 'dict'" when an index's
+# JSON (PEP 691) response reports dist-info-metadata as a hash dict, and that
+# includes resolving pip itself, so `pip install --upgrade pip` cannot fix it.
+# Hash-checking mode skips the metadata-only fetch that crashes, so install a
+# hash-pinned pip first.
+BOOTSTRAP_PIP_REQUIREMENT="pip==24.3.1 --hash=sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed"
+bootstrap_pip() {
+    if python3 -c 'import sys, pip; sys.exit(tuple(int(p) for p in pip.__version__.split(".")[:2]) < (23, 1))'; then
+        return
+    fi
+    echo "Bootstrapping ${BOOTSTRAP_PIP_REQUIREMENT%% *}"
+
+    python3 -m pip install --require-hashes -r /dev/stdin <<< "${BOOTSTRAP_PIP_REQUIREMENT}" \
+        || { echo "Failed to bootstrap pip"; exit 1; }
+}
+
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    pip3 install cmake setuptools_rust cython
+    bootstrap_pip
+    python3 -m pip install cmake setuptools_rust cython
     DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
 
