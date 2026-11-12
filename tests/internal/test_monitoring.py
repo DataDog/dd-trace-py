@@ -219,6 +219,38 @@ def test_unwind_enabled_locally(
     assert not (global_events & _E.PY_UNWIND), "PY_UNWIND must not be enabled globally"
 
 
+class ContainedDirectHandler(monitoring.DirectSafeEventHandler):
+    def __init__(self) -> None:
+        self.handled: list[BaseException] = []
+        self.raised: list[BaseException] = []
+
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        try:
+            _ = exception.args
+        except Exception:
+            pass
+        self.handled.append(exception)
+
+    def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        try:
+            _ = exception.args
+        except Exception:
+            pass
+        self.raised.append(exception)
+
+
+class LeakyDirectHandler(monitoring.DirectSafeEventHandler):
+    def on_raise(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        _ = exception.args
+
+
+class DisablingDirectHandler(monitoring.DirectSafeEventHandler):
+    def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        # A DISABLE return only means something for local events; for a
+        # directly delivered global event, CPython removes the callback.
+        return cast(Any, monitoring._DISABLE)  # type: ignore[no-any-return]
+
+
 def test_on_py_unwind_disables_unregistered_code() -> None:
     """The unwind callback returns DISABLE when no handler is registered."""
 
@@ -797,6 +829,7 @@ def test_gc_collecting_last_registration_during_register_is_contained() -> None:
     """
     import gc
     from types import CodeType
+    from typing import cast
 
     from ddtrace.internal import monitoring
 
@@ -812,15 +845,16 @@ def test_gc_collecting_last_registration_during_register_is_contained() -> None:
             gc.collect()
 
     original_cls = monitoring._CodeHandlers
-    monitoring._CodeHandlers = CollectOnConstruct
+    setattr(monitoring, "_CodeHandlers", CollectOnConstruct)
     try:
         # Leave behind an unreachable-but-uncollected registration: the code
         # object is only reachable through a cycle, so the registry weakref
         # fires only when the next cyclic GC pass breaks it.
-        holder: dict = {}
+        holder: dict[str, object] = {}
         holder["self"] = holder
         holder["code"] = compile("a = 1", "<gc-during-register-old>", "exec")
-        monitoring.register(holder["code"], Handler())
+        code = cast(CodeType, holder["code"])
+        monitoring.register(code, Handler())
         del holder
 
         new_code = compile("b = 2", "<gc-during-register-new>", "exec")
@@ -831,7 +865,7 @@ def test_gc_collecting_last_registration_during_register_is_contained() -> None:
 
         assert monitoring._tool_id is not None
     finally:
-        monitoring._CodeHandlers = original_cls
+        setattr(monitoring, "_CodeHandlers", original_cls)
 
 
 @pytest.mark.subprocess(out=None, err=None)
@@ -1567,3 +1601,108 @@ def test_unregister_global_completes_interrupted_teardown():
     assert not (sys.monitoring.get_events(tool_id) & sys.monitoring.events.RAISE)
     if not len(monitoring._registry):
         assert monitoring._tool_id is None
+
+
+def test_direct_safe_marker_selects_direct_delivery() -> None:
+    handler = ContainedDirectHandler()
+    monitoring.register_global(handler)
+    try:
+        tool_id = monitoring.get_tool_id()
+        assert (
+            _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, handler.on_exception_handled)
+            == handler.on_exception_handled
+        )
+        assert _sys_monitoring.register_callback(tool_id, _E.RAISE, handler.on_raise) == handler.on_raise
+    finally:
+        monitoring.unregister_global(handler)
+
+
+def test_direct_safe_marker_delivery_can_be_forced_wrapped() -> None:
+    handler = ContainedDirectHandler()
+    monitoring.register_global(handler, direct=False)
+    try:
+        tool_id = monitoring.get_tool_id()
+        assert (
+            _sys_monitoring.register_callback(tool_id, _E.EXCEPTION_HANDLED, monitoring._on_exception_handled)
+            is monitoring._on_exception_handled
+        )
+        assert _sys_monitoring.register_callback(tool_id, _E.RAISE, monitoring._on_raise) is monitoring._on_raise
+    finally:
+        monitoring.unregister_global(handler)
+
+
+def test_assert_direct_safe_accepts_contained_handler() -> None:
+    monitoring.assert_direct_safe(ContainedDirectHandler())
+
+
+def test_assert_direct_safe_rejects_leaking_handler() -> None:
+    with pytest.raises(AssertionError, match="must contain its failures"):
+        monitoring.assert_direct_safe(LeakyDirectHandler())
+
+
+def test_assert_direct_safe_rejects_disabling_return() -> None:
+    with pytest.raises(AssertionError, match="must return None"):
+        monitoring.assert_direct_safe(DisablingDirectHandler())
+
+
+def test_assert_direct_safe_rejects_plain_handler() -> None:
+    with pytest.raises(AssertionError, match="DirectSafeEventHandler"):
+        monitoring.assert_direct_safe(HandledExceptionHandler())
+
+
+@pytest.mark.subprocess(out=None, err=None)
+def test_register_global_rolls_back_direct_callback_on_interrupt():
+    """An interrupt after the direct callback install restores the wrappers.
+
+    The subprocess harness runs the function body as module-level code, so a
+    KeyboardInterrupt escaping the registration cannot wedge the pytest
+    process; it matches how the interruption behaves in production.
+    """
+    import sys
+    from types import CodeType
+
+    from ddtrace.internal import monitoring
+
+    class InterruptedDirectHandler(monitoring.DirectSafeEventHandler):
+        def on_exception_handled(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+            pass
+
+    class LocalHandler(monitoring.MonitoringEventHandler):
+        def on_py_line(self, code: CodeType, line_number: int) -> None:
+            pass
+
+    # A local registration keeps the tool claimed through the rollback, so the
+    # restored wrapper can be observed.
+    target = compile("pass", "<interrupt-test>", "exec")
+    local = LocalHandler()
+    monitoring.register(target, local)
+    tool_id = monitoring.get_tool_id()
+
+    handler = InterruptedDirectHandler()
+    direct_callback = handler.on_exception_handled
+    real_register_callback = sys.monitoring.register_callback
+
+    def interrupting_register_callback(tool, event, callback):
+        if event == sys.monitoring.events.EXCEPTION_HANDLED and callback == direct_callback:
+            real_register_callback(tool, event, callback)
+            # Simulate a KeyboardInterrupt landing after the direct callback
+            # is installed but before any bookkeeping runs.
+            raise KeyboardInterrupt
+        return real_register_callback(tool, event, callback)
+
+    sys.monitoring.register_callback = interrupting_register_callback
+    try:
+        try:
+            monitoring.register_global(handler)
+            raise AssertionError("KeyboardInterrupt was not delivered")
+        except KeyboardInterrupt:
+            pass
+    finally:
+        sys.monitoring.register_callback = real_register_callback
+
+    assert monitoring._global_exception_handled_handler is None
+    assert monitoring._global_raise_handler is None
+    wrapper = monitoring._on_exception_handled
+    assert real_register_callback(tool_id, sys.monitoring.events.EXCEPTION_HANDLED, wrapper) is wrapper
+    monitoring.unregister(target, local)
+    assert monitoring._tool_id is None
