@@ -33,8 +33,7 @@ make_profile(const ddog_prof_Slice_SampleType& sample_types,
     if (Datadog::status_is_error(res)) {
         if (!already_warned) {
             already_warned = true;
-            const std::string errmsg = std::string(res.err);
-            std::cerr << errmsg << std::endl;
+            std::cerr << res.err << std::endl;
         }
         return false;
     }
@@ -194,8 +193,7 @@ Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
     if (status_is_error(res)) {
         if (!already_warned) {
             already_warned = true;
-            const std::string errmsg = std::string(res.err);
-            std::cerr << errmsg << std::endl;
+            std::cerr << res.err << std::endl;
         }
         return false;
     }
