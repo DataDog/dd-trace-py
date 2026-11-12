@@ -1,0 +1,19 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = []
+# ///
+"""Thin wrapper around the package-split API inventories in scripts/package_split/."""
+
+from pathlib import Path
+import sys
+
+
+HARNESS = Path(__file__).with_name("package_split")
+
+if __name__ == "__main__":
+    sys.path.insert(0, str(HARNESS.parent))
+    from package_split.cli import main
+
+    sys.exit(main(sys.argv[1:]))
