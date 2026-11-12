@@ -1,5 +1,8 @@
 # DSM overhead benchmark: runs benchmarks/kafka_dsm via the benchmarking-platform
 # branch python/data-streams-monitoring, against this pipeline's cp314 wheel.
+include:
+  - local: ".gitlab/retry-policies.yml"
+
 stages:
   - build
   - benchmarks
@@ -38,6 +41,7 @@ candidate:
 
 dsm_throughput:
   stage: benchmarks
+  extends: .retry_on_infrastructure_failure
   needs: [ "candidate" ]
   tags: [ "runner:apm-k8s-same-cpu" ]
   image: $DSM_THROUGHPUT_CI_IMAGE
@@ -48,14 +52,6 @@ dsm_throughput:
     - if: $CI_COMMIT_BRANCH == "main"
       interruptible: false
     - interruptible: true
-  retry:
-    max: 2
-    when:
-      - unknown_failure
-      - data_integrity_failure
-      - runner_system_failure
-      - scheduler_failure
-      - api_failure
   script:
     - git clone --branch "${DSM_BENCHMARKING_BRANCH}" https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     - bp-runner bp-runner.yml --debug
