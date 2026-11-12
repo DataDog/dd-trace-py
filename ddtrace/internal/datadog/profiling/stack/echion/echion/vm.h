@@ -5,6 +5,8 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -127,6 +129,15 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
 #endif
+
+// Copies size bytes of this process's memory at address into buffer with a syscall (process_vm_readv on Linux,
+// mach_vm_read_overwrite on macOS). Returns false, without faulting, when any part of the range is unreadable.
+// Addresses are integers because callers take them from memory that has not been validated yet.
+//
+// Unlike copy_memory, this never uses safe_memcpy, whose signal handler faulthandler and crashtracking can swap out
+// while another thread is reading.
+bool
+read_own_memory(uintptr_t address, void* buffer, size_t size);
 
 inline pid_t pid = 0;
 
