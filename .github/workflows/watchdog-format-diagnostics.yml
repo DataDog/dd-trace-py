@@ -1,0 +1,84 @@
+name: Watchdog cleanup validation
+on:
+  push:
+    branches:
+      - juanjo/macos-watchdog-format-diagnostics
+permissions:
+  contents: read
+  checks: write
+jobs:
+  validate:
+    name: watchdog-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.10"
+      - name: Verify watchdog cleanup and SLO
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_NAME: watchdog-${{ matrix.os }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          import urllib.request
+          
+          files = [".gitlab/scripts/sccache-watchdog.py", ".gitlab/scripts/test_sccache_watchdog.py"]
+          commands = [
+              ["/bin/bash", "--version"],
+              ["scripts/lint", "ruff", "format", "--diff", *files],
+              ["scripts/lint", "ruff", "check", *files],
+              ["scripts/lint", "slo-ownership"],
+              ["python3", ".gitlab/scripts/test_sccache_watchdog.py", "-v"],
+          ]
+          if os.environ["RUNNER_OS"] == "Linux":
+              commands += [
+                  ["scripts/lint", "checks"],
+                  ["scripts/gen_gitlab_config.py", "--file", "benchmarks/code_provenance/scenario.py", "--verbose"],
+              ]
+          failed = False
+          reports = []
+          for command in commands:
+              result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              print(result.stdout, flush=True)
+              failed |= result.returncode != 0
+              reports.append(f"{' '.join(command)} (exit {result.returncode})\n{result.stdout[-12000:]}")
+          if os.environ["RUNNER_OS"] == "Linux":
+              generated = Path(".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml")
+              if generated.exists():
+                  block = generated.read_text().split("name: codeprovenancefork-fork-10", 1)[1].split("- name:", 1)[0]
+                  matches = "execution_time < 2850 ms" in block
+                  failed |= not matches
+                  reports.append(f"Generated fork SLO is 2850 ms: {matches}")
+          api = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
+          headers = {
+              "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+              "Accept": "application/vnd.github+json",
+              "Content-Type": "application/json",
+          }
+          request = urllib.request.Request(api + "/commits/" + os.environ["GITHUB_SHA"] + "/check-runs", headers=headers)
+          with urllib.request.urlopen(request, timeout=20) as response:
+              checks = json.load(response)["check_runs"]
+          check = next(check for check in checks if check["name"] == os.environ["CHECK_NAME"])
+          output = "\n\n".join(reports)
+          fence = chr(96) * 3
+          body = json.dumps({"output": {"title": "Watchdog and SLO validation", "summary": fence + "text\n" + output[:60000] + "\n" + fence}}).encode()
+          request = urllib.request.Request(api + "/check-runs/" + str(check["id"]), data=body, headers=headers, method="PATCH")
+          with urllib.request.urlopen(request, timeout=20) as response:
+              print("Diagnostic output attached to check", response.status)
+          sys.exit(failed)
+          PY

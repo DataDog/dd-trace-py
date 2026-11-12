@@ -10,7 +10,12 @@ import time
 import unittest
 
 
+# Exercise the system Bash, including the Bash 3.2 shipped by macOS.
+BASH = "/bin/bash"
 SCRIPT = Path(__file__).with_name("sccache-watchdog.py")
+BUILD_CONFIG = SCRIPT.parents[1].joinpath("package.yml").read_text()
+AMD64_BUILD = BUILD_CONFIG.split('"build macos amd64":', 1)[1].split('"build macos arm64":', 1)[0]
+EXIT_TRAP = next(line.strip() for line in AMD64_BUILD.splitlines() if line.strip().startswith("trap "))
 SPEC = importlib.util.spec_from_file_location("sccache_watchdog", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 watchdog = importlib.util.module_from_spec(SPEC)
@@ -56,7 +61,7 @@ class WatchdogTests(unittest.TestCase):
 
     def test_snapshot_inside_shell_subshell(self) -> None:
         result = subprocess.run(
-            ["bash", "-c", '("$1" "$2" --delay 0.05 & wait)', "watchdog-test", sys.executable, str(self.script)],
+            [BASH, "-c", '("$1" "$2" --delay 0.05 & wait)', "watchdog-test", sys.executable, str(self.script)],
             capture_output=True,
             text=True,
             timeout=3,
@@ -74,21 +79,24 @@ class WatchdogTests(unittest.TestCase):
 
     def test_exit_trap_preserves_build_failure(self) -> None:
         pid_file = self.root / "watchdog.pid"
+        script = "\n".join(
+            [
+                '"$1" sccache-watchdog.py --delay 60 &',
+                'echo "$!" > "$2"',
+                EXIT_TRAP,
+                "exit 37",
+            ]
+        )
         result = subprocess.run(
             [
-                "bash",
+                BASH,
                 "-c",
-                '"$1" "$2" --delay 60 &\n'
-                "sccache_watchdog_pid=$!\n"
-                'echo "$sccache_watchdog_pid" > "$3"\n'
-                'trap \'kill "$sccache_watchdog_pid" 2>/dev/null || true; '
-                'wait "$sccache_watchdog_pid" 2>/dev/null || true\' EXIT\n'
-                "exit 37\n",
+                script,
                 "watchdog-test",
                 sys.executable,
-                str(self.script),
                 str(pid_file),
             ],
+            cwd=self.root,
             capture_output=True,
             text=True,
             timeout=3,
@@ -96,11 +104,60 @@ class WatchdogTests(unittest.TestCase):
         self.assertEqual(result.returncode, 37, result.stdout + result.stderr)
         self.assertFalse(running(int(pid_file.read_text())))
 
+    def test_exit_trap_ignores_reused_pid_after_snapshot(self) -> None:
+        unrelated = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(self.finish, unrelated)
+        script = "\n".join(
+            [
+                '"$1" sccache-watchdog.py --delay 0.05 &',
+                "watchdog_pid=$!",
+                'wait "$watchdog_pid"',
+                # Simulate the saved PID now belonging to an unrelated process.
+                'sccache_watchdog_pid="$2"',
+                EXIT_TRAP,
+                "exit 37",
+            ]
+        )
+        result = subprocess.run(
+            [BASH, "-c", script, "watchdog-test", sys.executable, str(unrelated.pid)],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        self.assertEqual(result.returncode, 37, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.count("SNAPSHOT stalled"), 1, result.stdout)
+        self.assertIsNone(unrelated.poll())
+
+    def test_exit_trap_cleans_up_running_probe(self) -> None:
+        pid_file = self.make_hanging_probe()
+        script = "\n".join(
+            [
+                '"$1" sccache-watchdog.py --delay 0 &',
+                EXIT_TRAP,
+                "for attempt in {1..200}; do",
+                '  [ -f "$2" ] && break',
+                "  sleep 0.01",
+                "done",
+                '[ -f "$2" ] || exit 1',
+                "exit 37",
+            ]
+        )
+        result = subprocess.run(
+            [BASH, "-c", script, "watchdog-test", sys.executable, str(pid_file)],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        self.assertEqual(result.returncode, 37, result.stdout + result.stderr)
+        self.assert_probe_stopped(pid_file)
+
     def test_parent_exit_without_trap_stops_watchdog(self) -> None:
         pid_file = self.root / "orphan.pid"
         result = subprocess.run(
             [
-                "bash",
+                BASH,
                 "-c",
                 '"$1" "$2" --delay 60 &\necho "$!" > "$3"\nsleep 0.2\n',
                 "watchdog-test",
@@ -130,14 +187,14 @@ class WatchdogTests(unittest.TestCase):
         pid_file = self.make_hanging_probe()
         unrelated = subprocess.Popen(["sleep", "60"])
         self.addCleanup(self.finish, unrelated)
-        watchdog.probe(["bash", str(self.helper)], timeout=0.5)
+        watchdog.probe([BASH, str(self.helper)], timeout=0.5)
         self.assert_probe_stopped(pid_file)
         self.assertIsNone(unrelated.poll())
 
     def test_probe_exit_cleans_up_leftover_child(self) -> None:
         pid_file = self.root / "leftover.pid"
         self.helper.write_text(f'sleep 60 &\necho "$!" > "{pid_file}"\n')
-        watchdog.probe(["bash", str(self.helper)])
+        watchdog.probe([BASH, str(self.helper)])
         self.assertFalse(running(int(pid_file.read_text())))
 
     def test_cancel_during_probe_cleans_up_descendants(self) -> None:
