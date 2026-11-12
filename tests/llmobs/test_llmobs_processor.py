@@ -22,7 +22,6 @@ from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.utils import DummyWriter
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -220,25 +219,6 @@ class TestExperimentSpansSkipAPMTrace:
         assert span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY) == LLMObsExportMode.APM_AGENT
         mock_writer.enqueue.assert_not_called()
         assert _get_llmobs_data_metastruct(span)
-
-    def test_opt_out_keeps_experiment_spans_on_apm_trace(self, tracer):
-        llmobs_service.disable()
-        with (
-            override_env({"_DD_LLMOBS_EXPERIMENTS_RIDE_APM_TRACE": "true"}),
-            override_global_config(
-                {"_llmobs_ml_app": "test-ml-app", "_dd_api_key": "<not-a-real-key>", "service": "tests.llmobs"}
-            ),
-        ):
-            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
-            llmobs_service._instance._llmobs_span_writer.stop()
-            mock_writer = mock.MagicMock()
-            llmobs_service._instance._llmobs_span_writer = mock_writer
-            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
-            root, child = _finish_experiment_trace(tracer)
-            mock_writer.enqueue.assert_not_called()
-            assert root._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY) == LLMObsExportMode.APM_AGENT
-            assert _get_llmobs_data_metastruct(child)
-            llmobs_service.disable()
 
 
 class TestRescuePath:

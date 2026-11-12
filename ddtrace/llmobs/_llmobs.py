@@ -619,9 +619,7 @@ class LLMObs(Service):
         # Experiment rows go straight to the LLMObs intake, so APM-pipeline limits and drops
         # (chunk size, intake 413s, payload rejections) cannot lose a row.
         self._experiment_export_mode = self._export_mode
-        if self._export_mode in (LLMObsExportMode.APM_AGENT, LLMObsExportMode.APM_AGENTLESS) and not asbool(
-            _env.get("_DD_LLMOBS_EXPERIMENTS_RIDE_APM_TRACE", "false")
-        ):
+        if self._export_mode in (LLMObsExportMode.APM_AGENT, LLMObsExportMode.APM_AGENTLESS):
             self._experiment_export_mode = (
                 LLMObsExportMode.LLMOBS_AGENTLESS if agentless_enabled else LLMObsExportMode.LLMOBS_AGENT_PROXY
             )
