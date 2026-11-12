@@ -14,6 +14,7 @@ With PROFILE=1 cProfile runs only during the timed phases of the timed (non-warm
 """
 
 import cProfile
+import gc
 import json
 import math
 import os
@@ -121,6 +122,9 @@ def run_iteration(index, profiler):
         headers = {f"key{k}": f"value{k}".encode() for k in range(5)}
         payload = b"x" * 1024
 
+        # Like benchmarks/bm: keep the setup heap out of the timed collections so GC work per iteration is stable.
+        gc.collect()
+        gc.freeze()
         if profiler is not None:
             profiler.enable()
         t0 = time.perf_counter()
@@ -147,6 +151,7 @@ def run_iteration(index, profiler):
         if profiler is not None:
             profiler.disable()
     finally:
+        gc.unfreeze()
         consumer.close()  # Teardown (untimed); also frees the group if the iteration fails
     return (t1 - t0) * 1000, (t2 - t1) * 1000
 
