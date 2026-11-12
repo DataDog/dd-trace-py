@@ -75,6 +75,7 @@ current signatures and defaults.
 | Added/moved modules or new import cycles | `circular-import-analysis` |
 | Architectural dependency direction | `dependency-direction-analysis` |
 | Package-split API inventories | `package-split` |
+| Bridge a module extracted to datadog-apm-python | `bridge-extracted-module` |
 | CI failures or merge blockers | `review-ci` |
 | Runtime performance | `run-benchmarks` |
 | Build-cache performance | `debug-build-times` |

@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import subprocess  # nosec B404
 import sys
 from typing import Optional
 
@@ -57,7 +58,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     api_surface.add_argument("--top", type=int, default=30, help="how many bundling candidates to print")
 
-    for command in subparsers.choices.values():
+    make_bridge = subparsers.add_parser(
+        "make-bridge",
+        help="generate the bridge scaffold for a module extracted to an external package",
+    )
+    make_bridge.add_argument(
+        "--module", required=True, type=Path, help="vendored module to bridge, e.g. ddtrace/internal/codeowners.py"
+    )
+    make_bridge.add_argument(
+        "--distribution",
+        required=True,
+        help="distribution name of the extracted package, e.g. ddtrace-internal-base",
+    )
+    make_bridge.add_argument(
+        "--source",
+        help="dotted extracted module to import from (default: derived from --distribution and the module name)",
+    )
+    make_bridge.add_argument("--version", required=True, help="extracted package version, e.g. 0.1.0")
+
+    for name, command in subparsers.choices.items():
+        if name == "make-bridge":
+            continue  # workflow command, not an inventory; no evidence output
         command.add_argument("--output", default=argparse.SUPPRESS)
     return parser
 
@@ -193,6 +214,45 @@ def _api_surface_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _make_bridge_command(args: argparse.Namespace) -> int:
+    """Workflow command: write the bridge scaffold for an extracted module.
+
+    Produces the mechanical edits (bridge module, dependency wiring, bridge
+    test, release note); suites, consumer review and the PR stay with the
+    author. See the bridge-extracted-module skill.
+    """
+    from .bridge import generate
+
+    module_path = Path.cwd() / args.module
+    source = args.source
+    if source is None:
+        import_root = "_" + args.distribution.replace("-", "_")
+        source = "%s.%s" % (import_root, module_path.stem)
+    plan = generate(
+        module_path=module_path,
+        distribution=args.distribution,
+        source=source,
+        version=args.version,
+        root=Path.cwd(),
+        run_command=lambda command: subprocess.run(  # nosec B603
+            command, cwd=str(Path.cwd())
+        ).returncode,
+    )
+    print("bridge:    %s" % plan.bridge)
+    print("pyproject: %s" % plan.pyproject)
+    print("test:      %s" % plan.test)
+    print("reno:      %s" % plan.reno)
+    print("re-exported: %s" % ", ".join(plan.reexports))
+    print("")
+    print("Next steps:")
+    print("  - scripts/lint bridged-modules        # the gate must pass")
+    print("  - scripts/lint checks                  # mypy, ruff, security")
+    print("  - scripts/run-tests --list <changed>   # internal + consumer + startup suites")
+    print("  - draft PR; publish the package before merging (CI resolves from PyPI)")
+    print("  - update docs/package-split/bridges.md")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -200,8 +260,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.command is None:
         parser.print_help(sys.stderr)
         return 2
+    handlers = {
+        "api-usage": _api_usage_command,
+        "api-surface": _api_surface_command,
+        "make-bridge": _make_bridge_command,
+    }
     try:
-        return _api_usage_command(args) if args.command == "api-usage" else _api_surface_command(args)
+        return handlers[args.command](args)
     except (OSError, ValueError, SyntaxError) as exc:
         print("package-split: %s failed: %s" % (args.command, exc), file=sys.stderr)
         return 2
