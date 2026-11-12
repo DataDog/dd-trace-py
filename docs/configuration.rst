@@ -1346,12 +1346,7 @@ Agent
 
          If a tag value is not supplied the value will be an empty string.
 
-         OTLP trace exports include configured string tags on one resource using the current tracer configuration.
-         SDK-generated resource attributes take precedence over configured tags with the same key.
-         A span string tag can be omitted from the OTLP payload when its key and value match the resource.
-         Span tags consumed as container tags by the Agent, such as ``region``, are retained.
-         Differing values and numeric span attributes are preserved. Reading span tags and sampling behavior are unchanged.
-         After a tag update, buffered spans can retain older values while the resource reflects the current configuration.
+         OTLP export sends shared tags as resource attributes to reduce payload size.
 
      version_added:
        v0.38.0: Comma separated support added

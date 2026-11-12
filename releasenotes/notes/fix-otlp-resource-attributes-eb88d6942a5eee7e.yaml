@@ -1,5 +1,3 @@
 other:
   - |
-    tracing: Reduces OTLP trace payload size by placing tracer tags in resource
-    attributes and omitting redundant span attributes, without changing how spans
-    appear in Datadog.
+    tracing: Reduces OTLP trace payload size by moving shared tracer tags to resource attributes.
