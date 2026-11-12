@@ -416,3 +416,48 @@ def test_otel_semantics_server_span_attributes():
             route="/users/{user_id}",
             resource="GET /users/{user_id}",
         )
+
+
+@pytest.mark.parametrize("integration_enabled", [True, False])
+def test_request_lifecycle_without_spans(tracer, monkeypatch, integration_enabled):
+    from unittest.mock import Mock
+    from unittest.mock import patch
+
+    import webtest
+
+    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
+    from ddtrace.contrib.internal import trace_utils
+    from ddtrace.contrib.internal.pyramid.constants import SETTINGS_TRACE_ENABLED
+    from ddtrace.internal import core
+    from tests.contrib.pyramid.app import create_app
+
+    monkeypatch.setattr(tracer, "enabled", False)
+    monkeypatch.setattr(trace_utils, "standalone_config", Mock(apm_opt_out=False))
+    WebFrameworkRequestSubscriber.register()
+    started = []
+    completed = []
+
+    def beginning(ctx):
+        started.append(ctx)
+
+    def ended(ctx, exc_info):
+        completed.append((ctx, ctx.event.response_status_code, ctx.event.additional_tags.copy()))
+
+    settings = {} if integration_enabled else {SETTINGS_TRACE_ENABLED: False}
+    app, _ = create_app(settings, instrument=True)
+    core.on("context.started.web.request", beginning)
+    core.on("context.ended.web.request", ended)
+    try:
+        with patch.object(tracer, "start_span", wraps=tracer.start_span) as start_span:
+            response = webtest.TestApp(app).get("/json", status=200)
+        assert response.json == {"a": 1}
+        start_span.assert_not_called()
+        if integration_enabled:
+            assert len(started) == 1
+            assert completed == [(started[0], 200, {"pyramid.route.name": "json"})]
+            assert started[0]._event is None
+        else:
+            assert started == completed == []
+    finally:
+        core.reset_listeners("context.started.web.request", beginning)
+        core.reset_listeners("context.ended.web.request", ended)

@@ -16,11 +16,11 @@ from ddtrace import config
 from ddtrace._trace.otel.http.tags import set_otel_resource_for_method
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestExceptionEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
@@ -28,8 +28,6 @@ if TYPE_CHECKING:
     from sanic.request import Request
     from sanic.response import BaseHTTPResponse
     from sanic_routing.route import Route
-
-    from ddtrace._trace.span import Span
 
 
 log = get_logger(__name__)
@@ -50,13 +48,6 @@ def _supported_versions() -> dict[str, str]:
 
 def _get_request_context(request: Request) -> Optional[core.ExecutionContext[WebFrameworkRequestEvent]]:
     return getattr(request.ctx, _REQUEST_CONTEXT_ATTR, None)
-
-
-def _get_request_span(request: Request) -> Optional[Span]:
-    ctx = _get_request_context(request)
-    if ctx is None:
-        return None
-    return span_from_context(ctx)
 
 
 def _update_request_event(ctx: core.ExecutionContext[WebFrameworkRequestEvent], response: Any) -> None:
@@ -286,7 +277,7 @@ async def sanic_http_routing_after(request: Request, route: Route, kwargs: dict,
     if config._otel_trace_semantics_enabled:
         ctx.event.request_route = pattern
         # Name the span from the resolved route so sampling during the handler sees the final name.
-        span = span_from_context(ctx)
+        span = ctx.get_item("_inner_span")
         if span is not None:
             span._set_attribute(http.ROUTE, pattern)
             set_otel_resource_for_method(span, request.method, pattern)
@@ -308,8 +299,8 @@ async def sanic_http_lifecycle_response(request: Request, response: BaseHTTPResp
 
 async def sanic_http_lifecycle_exception(request: Request, exception: BaseException) -> None:
     """Lifecycle signal called when an exception occurs."""
-    span = _get_request_span(request)
-    if not span:
+    ctx = _get_request_context(request)
+    if ctx is None:
         return
 
     # Do not attach exception for exceptions not considered as errors
@@ -318,7 +309,9 @@ async def sanic_http_lifecycle_exception(request: Request, exception: BaseExcept
     if not hasattr(exception, "status_code") or config._http_server.is_error_code(exception.status_code):
         ex_type = type(exception)
         ex_tb = getattr(exception, "__traceback__", None)
-        span.set_exc_info(ex_type, exception, ex_tb)
+        core.dispatch_event(
+            WebFrameworkRequestExceptionEvent(request_context=ctx, exc_info=(ex_type, exception, ex_tb))
+        )
 
     # Sanic 21.9.x does not dispatch `http.lifecycle.response` in `handle_exception`
     #  so we need to indicate to `patch_request_respond` to finish the span
