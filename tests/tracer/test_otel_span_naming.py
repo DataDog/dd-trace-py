@@ -302,13 +302,11 @@ def test_a_user_resource_set_between_server_calls_stops_the_rename():
 
 @pytest.mark.subprocess(env=_OTEL_SUBPROCESS_ENV, err=None)
 def test_web_resource_replaced_during_request_is_preserved_at_finish():
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal import core
     from ddtrace.internal.settings._config import config
     from ddtrace.internal.span_bus import span_from_context
 
-    WebFrameworkRequestSubscriber.register()
     event = WebFrameworkRequestEvent(
         http_operation="aiohttp.request",
         service="svc",
@@ -331,12 +329,10 @@ def test_web_resource_replaced_during_request_is_preserved_at_finish():
 
 
 def _emit_server_trace_sampled_during_client_propagation():
-    from ddtrace._trace.subscribers.web_framework import WebFrameworkRequestSubscriber
     from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
     from ddtrace.internal import core
     from ddtrace.internal.span_bus import span_from_context
 
-    WebFrameworkRequestSubscriber.register()
     with core.context_with_event(
         WebFrameworkRequestEvent(
             http_operation="django.request",
