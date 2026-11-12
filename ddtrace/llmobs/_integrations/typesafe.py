@@ -148,10 +148,7 @@ def _request_body(kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _response_body(response: Any) -> str:
-    """Return the response body without usage, since token counts are recorded as metrics.
-
-    The raw HTTP body is used when available, else the parsed response.
-    """
+    """Return the response body without usage, since token counts are recorded as metrics."""
     try:
         data = json.loads(response.raw_http_response.text)
     except Exception:
