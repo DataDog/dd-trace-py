@@ -29,6 +29,10 @@ components:
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py
+  package_split:
+    - scripts/package-split
+    - scripts/package_split/*
+    - tests/package_split/*
   crashtracker:
     - ddtrace/internal/core/crashtracking.py
     - ddtrace/internal/settings/crashtracker.py
@@ -137,6 +141,7 @@ components:
     - ddtrace/internal/_tagset.py*
     - ddtrace/internal/_utils.*
     - ddtrace/internal/constants.py
+    - ddtrace/internal/container.py
     - ddtrace/internal/encoding.py
     - ddtrace/internal/flare/*
     - ddtrace/internal/pack.h
@@ -147,12 +152,22 @@ components:
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
     - ddtrace/internal/sma.py
+    - ddtrace/internal/span_processor.py
     - ddtrace/internal/tracemethods.py
     - ddtrace/internal/sysdep.h
     - ddtrace/internal/writer/*
   vendor:
     - ddtrace/vendor/*
 suites:
+  package_split:
+    paths:
+      - '@package_split'
+    matrix:
+      command: pytest -v {cmdargs} tests/package_split/
+      variants:
+        - name: package_split
+          python: ['3.12']
+          dependencies: [pytest-randomly]
   smoke_test:
     type: helper
     paths:
@@ -191,6 +206,7 @@ suites:
       - '**/conftest.py'
       - 'tests/_ddtest_conftest_helpers.py'
       - 'tests/_ddtest_env_helpers.py'
+      - 'tests/subprocesstest.py'
     pattern: meta-testing
     snapshot: false
     matrix:

@@ -52,8 +52,6 @@ def _create_and_attach_iast_report_to_span(req_span: SpanData) -> None:
     base._set_span_tag_iast_request_tainted(req_span)
     _set_span_tag_iast_executed_sink(req_span)
 
-    base._iast_finish_request(req_span)
-
     if req_span._get_str_attribute(_ORIGIN_KEY) is None:
         req_span._set_attribute(_ORIGIN_KEY, IAST.ORIGIN_VALUE)
 
@@ -79,19 +77,18 @@ def _iast_end_request(scope: Union[ExecutionContext[Event], SpanData]) -> None:
             return
 
         if asm_config._iast_enabled:
-            existing_data = req_span._get_str_attribute(IAST.JSON) or req_span._get_struct_tag(IAST.STRUCT)
-            if existing_data is None:
+            reporting_succeeded = False
+            try:
                 if req_span._get_numeric_attribute(IAST.ENABLED) is None:
-                    if not base.is_iast_request_enabled():
-                        req_span._set_attribute(IAST.ENABLED, 0.0)
-                        base._iast_finish_request(req_span)
-                        return
-
-                    req_span._set_attribute(IAST.ENABLED, 1.0)
-                    _create_and_attach_iast_report_to_span(req_span)
-
-            if environment is not None:
-                reset_request_vulnerabilities(environment)
-                environment.iast_hash_object_tracking.clear()
+                    enabled = base.is_iast_request_enabled()
+                    req_span._set_attribute(IAST.ENABLED, float(enabled))
+                    if enabled:
+                        _create_and_attach_iast_report_to_span(req_span)
+                        reporting_succeeded = True
+            finally:
+                base._iast_finish_request(req_span, shoud_update_global_vulnerability_limit=reporting_succeeded)
+                if environment is not None:
+                    reset_request_vulnerabilities(environment)
+                    environment.iast_hash_object_tracking.clear()
     except Exception:
         log.debug("iast::propagation::context::Error finishing IAST context", exc_info=True)

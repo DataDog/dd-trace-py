@@ -21,14 +21,14 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "339de2815c638ce0faa98e02570301ad82e2473b"
+  SYSTEM_TESTS_REF: "7beb580eafaab6d2f388a109d4c7ebb7b3f95ca3"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v148356102-1e18d4b-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
-  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v130207166-153cbe2-ci-utils@sha256:816d1defebb9f049f3bc2e9987ce90d47f7a6c0316b7fc720c30f56376be63ed"
+  CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v149816936-0fbc9e3-ci-utils@sha256:c94e6149a7aae045ee27c9e8c5b30a16f84addb5e92d690024d920d12d8df83c"
 
   # Only trunk pipelines publish to the compiled-extension cache. Feature branches read it
   # but never write, so a branch that touches native code cannot evict trunk's entries.
@@ -39,6 +39,10 @@ variables:
   # 110M/109M with 3.15 dep wheels; keep a little headroom above that.
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 120_000_000
   SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
+
+  # Use Depot as the default PyPI mirror for Python packages.
+  PIP_INDEX_URL: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
+  UV_DEFAULT_INDEX: "https://depot-read-api-python.us1.ddbuild.io/datadog/python/@current/simple/"
 
 default:
   interruptible: true
@@ -109,7 +113,7 @@ include:
 
 tests-gen:
   stage: tests
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
     NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
@@ -133,6 +137,7 @@ tests-gen:
       - .gitlab/tests-gen.yml
       - .gitlab/benchmarks/microbenchmarks-gen.yml
       - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+    expire_in: 1 week
 
 run-tests-trigger:
  stage: tests
@@ -179,9 +184,13 @@ serverless lambda tests:
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
-  extends: .testrunner
+  extends: .ci_utils
   stage: tests
   needs: []
+  variables:
+    # scripts/lint pins Python 3.10, which uv downloads here. The image's default
+    # managed Python directory is root-owned, so install into the checkout instead.
+    UV_PYTHON_INSTALL_DIR: "${CI_PROJECT_DIR}/.cache/uv-python"
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
@@ -262,13 +271,19 @@ macrobenchmarks:
 apm-sdks-benchmarks:
   stage: benchmarks
   needs:
-    - job: "upload all"
+    # The benchmark uses only the cp312 Linux x86_64 and aarch64 wheels. This job
+    # uploads them right after the Linux builds. Thus the benchmark does not wait
+    # for the macOS and Windows builds or for "ddtrace package".
+    - job: "upload manylinux2014"
   variables:
     # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
     # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
-    # all". Inside a child pipeline that variable is the child's own ID, not
+    # manylinux2014". Inside a child pipeline that variable is the child's own ID, not
     # this (parent) pipeline's, so it must be passed explicitly.
     TARGET_REF: $CI_PIPELINE_ID
+    # "upload manylinux2014" writes this index under TARGET_REF. Without this value,
+    # the script reads index.html, which "upload all" writes later.
+    WHEEL_INDEX_FILE: "index-manylinux2014.html"
     # Forward BP_EXTERNAL_S3_URL so an external orchestrator can override the S3 destination.
     # This avoids 'forward: pipeline_variables: true', which forwards every parent variable and may be unsafe.
     # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
@@ -302,7 +317,7 @@ apm-sdks-benchmarks:
 check_new_flaky_tests:
   stage: tests
   needs: ["run-tests-trigger"]
-  extends: .testrunner
+  extends: .ci_utils
   script:
     - export DD_SITE=datadoghq.com
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
@@ -365,17 +380,16 @@ requirements_json_test:
 check_requirements_lockfiles:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   script:
-    - pip install toml==0.10.2
     - scripts/test-requirements check
-    - python scripts/requirements_to_csv.py
+    - uv run --no-project --with toml==0.10.2 python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
 check_ci_dependencies:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   script:
     - scripts/check-ci-dependencies
 
@@ -442,7 +456,7 @@ codeowners:
 detect_circular_imports:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   rules:
     - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
       allow_failure: true
@@ -451,7 +465,6 @@ detect_circular_imports:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
-    - pip install uv
     - cd ..
     # Keep copies of PR scripts so they survive the git checkout of the base branch below
     - cp dd-trace-py/scripts/import-analysis/cycles.py cycles.py
@@ -482,7 +495,7 @@ detect_circular_imports:
 detect_layering_violations:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   rules:
     - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
       allow_failure: true
@@ -491,7 +504,6 @@ detect_layering_violations:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
-    - pip install uv
     - cd ..
     # Keep copies of PR scripts (and their config) so they survive the git checkout of the base branch below
     - cp dd-trace-py/scripts/import-analysis/layers.py layers.py
@@ -524,7 +536,7 @@ detect_layering_violations:
 check_added_file_size:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     # Needs full history to reliably compute a merge-base against the fetched
     # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
@@ -557,7 +569,7 @@ check_added_file_size:
 check_no_new_aidev_anchors:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     # Needs full history to reliably compute a merge-base against the fetched
     # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
@@ -591,7 +603,7 @@ check_no_new_aidev_anchors:
 check_type_comments:
   stage: tests
   needs: []
-  extends: .testrunner
+  extends: .ci_utils
   variables:
     # Needs full history to reliably compute a merge-base against the fetched
     # base branch; a shallow clone can leave HEAD and FETCH_HEAD without a
@@ -621,16 +633,12 @@ check_type_comments:
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_type_comments.py --base-ref FETCH_HEAD
 
-# Unit tests for resolve-base-branch.sh. Reuses the testrunner image for bash+jq;
-# tests stub git/curl (no network), so we skip the heavier .testrunner setup.
+# Unit tests for resolve-base-branch.sh. They only need bash+jq and stub git/curl
+# (no network).
 test_resolve_base_branch:
+  extends: .ci_utils
   stage: tests
   needs: []
-  image:
-    name: ${TESTRUNNER_IMAGE}
-    docker:
-      user: bits
-  tags: [ "arch:amd64" ]
   timeout: 5m
   script:
     - .gitlab/scripts/resolve-base-branch.test.sh
@@ -732,6 +740,7 @@ prof-correctness:
       changes:
         - .github/workflows/prof-correctness.yml
         - .gitlab-ci.yml
+        - .gitlab/scripts/gh-retry.sh
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
         - src/native/**/*
@@ -749,24 +758,29 @@ prof-correctness:
         echo "error: GH_TOKEN is empty after dd-octo-sts (policy dd-trace-py.gitlab.trigger-ci)" >&2
         exit 1
       fi
+      . .gitlab/scripts/gh-retry.sh
       TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
       # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
       TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
       echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
-      gh workflow run downstream-python.yml \
+      # A dispatch that fails can still start a run, so a retry can start a second
+      # run. The lookup below picks the newest run for this commit.
+      gh_retry workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
         -f "test_scenarios=${TEST_SCENARIOS}"
 
       RUN_ID=""
       for _ in $(seq 1 30); do
+        # If the lookup fails, RUN_ID is empty and the loop polls again.
         RUN_ID="$(gh run list \
           --repo DataDog/prof-correctness \
           --workflow=downstream-python.yml \
           --event workflow_dispatch \
           --limit 20 \
           --json databaseId,displayTitle,headSha,event,createdAt \
-          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty" \
+          || true)"
         if [ -n "${RUN_ID}" ]; then
           break
         fi
@@ -779,7 +793,12 @@ prof-correctness:
       fi
 
       echo "Watching prof-correctness run ${RUN_ID}"
-      gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
+      gh_retry run watch "${RUN_ID}" --repo DataDog/prof-correctness
+      CONCLUSION="$(gh_retry run view "${RUN_ID}" --repo DataDog/prof-correctness --json conclusion --jq .conclusion)"
+      if [ "${CONCLUSION}" != "success" ]; then
+        echo "error: prof-correctness run ${RUN_ID} completed with '${CONCLUSION}'" >&2
+        exit 1
+      fi
 
 lib_injection_tests:
   # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.

@@ -177,6 +177,20 @@ def test_push_skip_cond_error_emits_evaluation_error_throttled():
     )
 
 
+@pytest.mark.parametrize("state,error_kind", [(SignalState.COND_ERROR, "condition"), (SignalState.EVAL_ERROR, "value")])
+def test_push_evaluation_error_tags_error_kind(state, error_kind):
+    collector, _ = _make_collector()
+    signal = _snapshot(state=state)
+
+    with mock.patch("ddtrace.debugging._signal.collector.guardrails_meter") as m:
+        collector.push(signal)
+
+    m.increment.assert_any_call(
+        "evaluation.errors",
+        tags={"probe_type": "LogLineProbe", "error_kind": error_kind},
+    )
+
+
 def test_push_skip_rate_global_emits_rate_limit_global():
     collector, _ = _make_collector()
     signal = _snapshot(state=SignalState.SKIP_RATE_GLOBAL)

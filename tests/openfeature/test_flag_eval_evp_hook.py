@@ -419,8 +419,7 @@ class TestKillswitchGating:
                 assert provider._flag_eval_evp_hook is None
                 # get_provider_hooks still returns the OTel hook.
                 hooks = provider.get_provider_hooks()
-                assert len(hooks) == 1
-                assert hooks[0] is provider._flag_eval_metrics_hook
+                assert hooks == [provider._flag_eval_metrics_hook, provider._exposure_logging_hook]
 
     def test_provider_shutdown_joins_evp_writer_final_flush(self):
         """Provider shutdown waits for FlagEvaluationWriter.on_shutdown final flush."""
