@@ -1765,6 +1765,12 @@ class CMakeExtension(Extension):
         ]
 
 
+def _version_tuple(version: str) -> tuple[int, ...]:
+    # Compare versions numerically: as strings, "1.100.0" sorts before "1.91.1".
+    # Pre-release suffixes such as "-nightly" are ignored.
+    return tuple(int(part) for part in version.split("-")[0].split("."))
+
+
 def check_rust_toolchain():
     try:
         rustc_res = subprocess.run(["rustc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1777,9 +1783,9 @@ def check_rust_toolchain():
         # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
         rustc_ver = rustc_res.stdout.decode().split(" ")[1]
         cargo_ver = cargo_res.stdout.decode().split(" ")[1]
-        if rustc_ver < RUST_MINIMUM_VERSION:
+        if _version_tuple(rustc_ver) < _version_tuple(RUST_MINIMUM_VERSION):
             raise OSError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
-        if cargo_ver < RUST_MINIMUM_VERSION:
+        if _version_tuple(cargo_ver) < _version_tuple(RUST_MINIMUM_VERSION):
             raise OSError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
     except FileNotFoundError:
         raise OSError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
