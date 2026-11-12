@@ -1,11 +1,16 @@
 import logging
 from os import path
 import sys
+from typing import TYPE_CHECKING
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
+
+
+if TYPE_CHECKING:
+    from logging.handlers import RotatingFileHandler
 
 
 log = get_logger(__name__)
@@ -57,7 +62,7 @@ def configure_ddtrace_logger() -> None:
     _configure_ddtrace_native_logger(ddtrace_logger)
 
 
-def _configure_ddtrace_debug_logger(logger):
+def _configure_ddtrace_debug_logger(logger: logging.Logger) -> None:
     """Configure the ddtrace logger level based on DD_TRACE_DEBUG and DD_TRACE_LOG_LEVEL.
 
     The priority is DD_TRACE_DEBUG, then DD_TRACE_LOG_LEVEL
@@ -86,7 +91,7 @@ def _configure_ddtrace_debug_logger(logger):
             )
 
 
-def _configure_ddtrace_file_logger(logger):
+def _configure_ddtrace_file_logger(logger: logging.Logger) -> None:
     log_file_level = get_config("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
@@ -107,7 +112,7 @@ def _add_file_handler(
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
     formatter: Optional[logging.Formatter] = None,
-):
+) -> Optional["RotatingFileHandler"]:
     ddtrace_file_handler = None
     if log_path is not None:
         log_path = path.abspath(log_path)
@@ -156,7 +161,7 @@ def _emits_to_stderr(logger: logging.Logger) -> bool:
     return False
 
 
-def _configure_ddtrace_native_logger(py_logger: logging.Logger):
+def _configure_ddtrace_native_logger(py_logger: logging.Logger) -> None:
     try:
         from ddtrace.internal.native._native import logger
 
