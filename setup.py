@@ -1735,9 +1735,11 @@ def check_rust_toolchain():
         # Now check valid minimum versions.  These are hardcoded for now, but should be canonized in some other way
         rustc_ver = rustc_res.stdout.decode().split(" ")[1]
         cargo_ver = cargo_res.stdout.decode().split(" ")[1]
-        if rustc_ver < RUST_MINIMUM_VERSION:
+        minimum_version = tuple(map(int, RUST_MINIMUM_VERSION.split(".")))
+        # Compare numeric components, preserving support for -nightly and -beta toolchains.
+        if tuple(map(int, rustc_ver.split("-")[0].split("."))) < minimum_version:
             raise OSError(f"rustc version {RUST_MINIMUM_VERSION} or later required, {rustc_ver} found")
-        if cargo_ver < RUST_MINIMUM_VERSION:
+        if tuple(map(int, cargo_ver.split("-")[0].split("."))) < minimum_version:
             raise OSError(f"cargo version {RUST_MINIMUM_VERSION} or later required, {cargo_ver} found")
     except FileNotFoundError:
         raise OSError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
