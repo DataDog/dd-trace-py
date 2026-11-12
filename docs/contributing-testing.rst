@@ -126,12 +126,12 @@ first. To refresh the snapshot from a reviewed upstream commit, run:
 ``SOURCE.md`` records the upstream commit. Do not edit the generated fixture files
 locally. The updater copies ``ufc-config.json``, ``evaluation-cases/*.json``, and the
 ``evaluation-suites/dependent-flags/`` configuration and JSON cases. Unrelated suites,
-code, and documentation are excluded; symlinks and unexpected case entries are rejected.
+code, and documentation are excluded; symbolic links and unexpected case entries are rejected.
 
 The dependent suite runs through the public OpenFeature client with a fresh exposure
 cache per case. The runner honors Python platform controls and checks results,
 prerequisite/root evaluation records, and exposure eligibility against the shared
-expectations. Event matchers enforce multiplicity and ``noUnmatchedEvents``. A case-count
+expectations. Event expectations enforce counts and ``noUnmatchedEvents``. A case-count
 assertion prevents fixture changes from silently removing dependent-flag coverage.
 
 The ``Check FFE fixtures`` PR check fetches the exact commit recorded in
