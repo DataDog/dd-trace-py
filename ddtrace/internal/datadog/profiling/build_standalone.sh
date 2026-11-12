@@ -384,6 +384,12 @@ add_target() {
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
+    # pip < 23.2 crashes on PEP 691 JSON indexes that serve dist-info-metadata as a dict,
+    # and the 3.9/3.10 pyenv interpreters ship pip 23.0.1. Pinning a hash skips the
+    # metadata lookup, so the upgrade itself works with the old pip.
+    if ! python3 -c 'import sys, pip; sys.exit(tuple(map(int, pip.__version__.split(".")[:2])) < (23, 2))'; then
+        python3 -m pip install --require-hashes -r <(echo "pip==25.3 --hash=sha256:9655943313a94722b7774661c21049070f6bbb0a1516bf02f7c8d5d9201514cd")
+    fi
     pip3 install cmake setuptools_rust cython
     DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
