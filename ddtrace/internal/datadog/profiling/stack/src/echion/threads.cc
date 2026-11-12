@@ -139,6 +139,98 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 }
 
 // ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030c0000
+namespace {
+
+// The frame of the innermost coroutine in a Task's await chain.
+PyObject*
+innermost_coro_frame(const TaskInfo& task)
+{
+    const GenInfo* gen = task.coro.get();
+    while (gen != nullptr && gen->await != nullptr) {
+        gen = gen->await.get();
+    }
+    return gen != nullptr ? gen->frame : nullptr;
+}
+
+struct NestedOnCpuTasks
+{
+    // The outermost running Task. Its chain renders the stack: every running Task's frames are on the thread stack
+    // above its own.
+    PyObject* outer;
+    // The innermost running Task, the one actually executing. It labels the sample.
+    TaskInfo::Ref inner;
+};
+
+// An eager Task runs its first step inside create_task, so the Task that called create_task is still running too.
+// Both are on-CPU leaves and would each get the same thread stack and CPU time. Keep the outermost one, labelled with
+// the innermost one. Returns nullopt when at most one on-CPU leaf is on the thread stack.
+std::optional<NestedOnCpuTasks>
+merge_nested_on_cpu_tasks(EchionSampler& echion, PyThreadState* tstate, std::vector<TaskInfo::Ref>& leaf_tasks)
+{
+    // Usually at most one Task is running. Check before allocating anything.
+    if (std::count_if(
+          leaf_tasks.begin(), leaf_tasks.end(), [](const TaskInfo::Ref& task) { return task.get().is_on_cpu; }) < 2) {
+        return std::nullopt;
+    }
+
+    struct OnCpuTask
+    {
+        TaskInfo::Ref task;
+        PyObject* frame;
+        size_t depth;
+    };
+    std::vector<OnCpuTask> on_cpu;
+    for (auto& leaf_task : leaf_tasks) {
+        if (leaf_task.get().is_on_cpu) {
+            if (PyObject* frame = innermost_coro_frame(leaf_task.get()); frame != nullptr) {
+                on_cpu.push_back({ leaf_task, frame, std::numeric_limits<size_t>::max() });
+            }
+        }
+    }
+    if (on_cpu.size() < 2) {
+        return std::nullopt;
+    }
+
+    // Find each Task's running frame on the thread stack, counting from the innermost frame.
+    auto maybe_frame_addr = current_frame_address(tstate);
+    if (!maybe_frame_addr) {
+        return std::nullopt;
+    }
+    auto* frame_addr = reinterpret_cast<_PyInterpreterFrame*>(*maybe_frame_addr);
+    for (size_t depth = 0; frame_addr != nullptr && depth < MAX_STACK_UNWIND_SAFETY_LIMIT; depth++) {
+        for (auto& entry : on_cpu) {
+            if (entry.frame == reinterpret_cast<PyObject*>(frame_addr)) {
+                entry.depth = depth;
+            }
+        }
+        _PyInterpreterFrame* prev_addr = nullptr;
+        if (!Frame::read(echion, frame_addr, &prev_addr)) {
+            break;
+        }
+        frame_addr = prev_addr;
+    }
+
+    // A Task not found on the stack finished or started a step after the stack was copied. Leave it alone.
+    std::erase_if(on_cpu, [](const OnCpuTask& entry) { return entry.depth == std::numeric_limits<size_t>::max(); });
+    if (on_cpu.size() < 2) {
+        return std::nullopt;
+    }
+
+    auto [inner, outer] = std::minmax_element(
+      on_cpu.begin(), on_cpu.end(), [](const OnCpuTask& a, const OnCpuTask& b) { return a.depth < b.depth; });
+    NestedOnCpuTasks merged{ outer->task.get().origin, inner->task };
+    std::erase_if(leaf_tasks, [&](const TaskInfo::Ref& task) {
+        return task.get().origin != merged.outer && std::any_of(on_cpu.begin(), on_cpu.end(), [&](const OnCpuTask& e) {
+                   return e.task.get().origin == task.get().origin;
+               });
+    });
+    return merged;
+}
+
+} // namespace
+#endif // PY_VERSION_HEX >= 0x030c0000
+
 Result<void>
 ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
 {
@@ -239,6 +331,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
+#if PY_VERSION_HEX >= 0x030c0000
+    const std::optional<NestedOnCpuTasks> nested_on_cpu = merge_nested_on_cpu_tasks(echion, tstate, leaf_tasks);
+#endif
+
     // Swap the on-CPU task to slot 0 so it is always retained by reservoir sampling.
     bool found_on_cpu = false;
     for (size_t i = 0; i < leaf_tasks.size(); i++) {
@@ -290,9 +386,16 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 
     size_t leaf_task_idx = 0;
     for (auto& leaf_task : leaf_tasks) {
+        // The Task the sample is attributed to. It differs from leaf_task only for nested running Tasks.
+        const TaskInfo* label_task = &leaf_task.get();
+#if PY_VERSION_HEX >= 0x030c0000
+        if (nested_on_cpu && nested_on_cpu->outer == leaf_task.get().origin) {
+            label_task = &nested_on_cpu->inner.get();
+        }
+#endif
         // Must match _task.task_object_address() so lock and stack samples correlate.
-        auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
+        auto task_id = reinterpret_cast<uintptr_t>(label_task->origin);
+        auto stack_info = std::make_unique<StackInfo>(label_task->name, leaf_task.get().is_on_cpu, task_id);
         auto& stack = stack_info->stack;
         if (leaf_task_idx > 0) {
             stack_info->walltime_ns = scaled_walltime_ns;

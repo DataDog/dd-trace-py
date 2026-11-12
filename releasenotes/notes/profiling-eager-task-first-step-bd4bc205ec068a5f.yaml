@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where CPU and wall time spent in the first step of an asyncio eager task
+    (Python 3.12+) was counted twice, once for the eager task and once for the task that created it.

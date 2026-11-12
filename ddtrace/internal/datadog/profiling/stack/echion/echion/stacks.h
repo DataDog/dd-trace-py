@@ -80,6 +80,10 @@ unwind_frame(EchionSampler& echion,
              bool detect_truncation);
 
 // ----------------------------------------------------------------------------
+// The innermost frame of a copied thread state.
+[[nodiscard]] Result<PyObject*>
+current_frame_address(PyThreadState* tstate);
+
 // Failure to copy the initial C frame aborts unwinding before task/greenlet discovery.
 Result<UnwindResult>
 unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames);
