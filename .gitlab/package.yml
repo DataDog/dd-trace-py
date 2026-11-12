@@ -191,6 +191,11 @@ variables:
   # Diagnostics for "sccache: error: Connection to server timed out" on this runner
   before_script:
     - .gitlab/scripts/sccache-diagnostics.sh start
+    - |
+      # after_script may not run at the job timeout; capture the live hang first.
+      python3 .gitlab/scripts/sccache-watchdog.py &
+      # Resolve the current Bash job to avoid signaling a reused PID.
+      trap 'kill "%?sccache-watchdog.py" 2>/dev/null || true; wait "%?sccache-watchdog.py" 2>/dev/null || true' EXIT
   after_script:
     - if [ "$CI_JOB_STATUS" = "failed" ]; then .gitlab/scripts/sccache-diagnostics.sh failure; fi
 
@@ -394,6 +399,15 @@ variables:
     GIT_CLEAN_FLAGS: "-ffdx -e src/native/target*/"
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
+  # Best-effort cleanup that also runs when the job is canceled: the runner can fail
+  # to stop the script, and never stops the containers it started. The start-of-job
+  # cleanup in build-wheel-windows.sh remains the main guard. The label must match
+  # JOB_LABEL there. Runs in PowerShell, the shell of the windows-v2 runners.
+  after_script:
+    - |
+      $containers = @(docker ps -aq --filter "label=dd-trace-py.job-id=$env:CI_JOB_ID")
+      Write-Host "Job status: $env:CI_JOB_STATUS. Build containers left by this job: $($containers.Count)"
+      if ($containers) { docker rm -f $containers }
   artifacts:
     when: always
     paths:

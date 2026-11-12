@@ -288,9 +288,9 @@ class BotocoreDSMTest(TracerTestCase):
             }
 
             entries = [
-                {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes},
-                {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes},
-                {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes},
+                {"Id": "1", "MessageBody": "Message No. 1", "MessageAttributes": message_attributes.copy()},
+                {"Id": "2", "MessageBody": "Message No. 2", "MessageAttributes": message_attributes.copy()},
+                {"Id": "3", "MessageBody": "Message No. 3", "MessageAttributes": message_attributes.copy()},
             ]
 
             self.sqs_client.send_message_batch(QueueUrl=self.sqs_test_queue["QueueUrl"], Entries=entries)
@@ -415,9 +415,11 @@ class BotocoreDSMTest(TracerTestCase):
                 "ten": {"DataType": "String", "StringValue": "ten"},
             }
 
-            self.sqs_client.send_message(
-                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
-            )
+            with self.assertLogs("ddtrace.contrib.internal.botocore.services.sqs", level="WARNING") as logs:
+                self.sqs_client.send_message(
+                    QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+                )
+            assert "max number (10) of MessageAttributes exceeded" in logs.output[0]
 
             self.sqs_client.receive_message(
                 QueueUrl=self.sqs_test_queue["QueueUrl"],

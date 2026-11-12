@@ -19,6 +19,7 @@ from openfeature.hook import HookContext
 from openfeature.hook import HookHints
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._flagevaluation_writer import _EMPTY_CONTEXT
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_HOOK_ERRORS_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_ALLOCATION_KEY
@@ -27,6 +28,9 @@ from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWr
 from ddtrace.internal.openfeature._flagevaluation_writer import _count_metric
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 from ddtrace.internal.openfeature._flagevaluation_writer import _protected_error_message
+from ddtrace.internal.openfeature._split_features import METADATA_EVALUATION_FEATURE_PREFIX
+from ddtrace.internal.openfeature._split_features import METADATA_HAS_EVALUATION_FEATURES
+from ddtrace.internal.openfeature._split_features import features_with_prefix
 
 
 logger = get_logger(__name__)
@@ -125,6 +129,9 @@ class FlagEvalEVPHook(Hook):
                 eval_time_ms=eval_time_ms,
                 observe_full_evaluation_data=observe_full_evaluation_data,
                 error_code=error_code,
+                features=features_with_prefix(metadata, METADATA_EVALUATION_FEATURE_PREFIX)
+                if metadata.get(METADATA_HAS_EVALUATION_FEATURES) is True
+                else _EMPTY_CONTEXT,
             )
 
             self._writer.enqueue(event)
