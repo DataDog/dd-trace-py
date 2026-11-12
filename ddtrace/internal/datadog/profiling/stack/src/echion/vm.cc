@@ -107,6 +107,7 @@ init_safe_copy()
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
     } else {
         // std::cerr might not have been fully initialized at this point.
@@ -134,6 +135,7 @@ init_safe_copy()
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
         return;
     }
@@ -152,6 +154,11 @@ set_fast_copy_enabled(bool enabled)
         if (safe_memcpy_initialized) {
             safe_copy = safe_memcpy_wrapper;
             fast_copy_active = true;
+#if defined PL_LINUX
+            // A prior disable with no process_vm_readv sets failed_safe_copy; clear it
+            // once a usable copy method is restored so start() can recover.
+            failed_safe_copy = false;
+#endif
             return true;
         }
         fprintf(stderr,
@@ -166,6 +173,7 @@ set_fast_copy_enabled(bool enabled)
     if (process_vm_readv_available) {
         safe_copy = process_vm_readv;
         fast_copy_active = false;
+        failed_safe_copy = false;
         return true;
     }
     fprintf(stderr,
