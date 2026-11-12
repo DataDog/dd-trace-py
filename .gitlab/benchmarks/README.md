@@ -56,7 +56,8 @@ within 7% of a threshold notifies Slack without failing the job.
   branch it picks the merge base with the base branch.
 * `build-baseline.sh` — obtains the baseline wheel: from PyPI when the baseline is a released
   tag that is already published there, otherwise from the `dd-trace-py-builds` S3 bucket by
-  commit SHA, and only failing that builds it from source.
+  commit SHA, and only failing that builds it from source. Source builds use Rust 1.99.0
+  so historical revisions that compare Rust versions as strings can still build.
 * `combine-results.sh` — merges the per-config `results.*.json` files a scenario produces
   into one `results.json`, keeping a single copy of the shared metadata.
 
